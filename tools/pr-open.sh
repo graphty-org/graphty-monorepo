@@ -94,7 +94,7 @@ git -c core.hooksPath=/dev/null push -q -u origin "HEAD:refs/heads/$branch" || d
 
 [ -n "$title" ] || title=$(git log --reverse --no-merges --format=%s "$base..HEAD" | sed -n 1p)
 lint="${PR_OPEN_TITLE_LINT:-$here/../node_modules/.bin/commitlint --cwd $here/..}"
-printf '%s\n' "$title" | $lint >&2 || die "Lint PR Title would reject \"$title\"; pass --title \"<type>(<scope>): <summary>\""
+$lint <<<"$title" >&2 || die "Lint PR Title would reject \"$title\"; pass --title \"<type>(<scope>): <summary>\""
 
 agent="${PR_OPEN_AGENT_LOGIN:-graphty-agent}"
 existing=$(gh pr list --head "$branch" --base master --state open --json url,author --jq '.[0] // empty | "\(.url) \(.author.login)"')
@@ -122,7 +122,8 @@ fi
 # them would judge itself; the others guard the owner's credentials, approvals and releases.
 OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$)'
 hold=""
-if git log --no-merges --format='%s%n%b' "$base..HEAD" | grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:'; then
+# A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
+if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then
     hold="it holds a breaking change (it bumps a published major)"
 elif owned=$(git diff --name-only "$base" HEAD | grep -E "$OWNER_PATHS"); then
     hold="it changes what judges a pull request or guards the owner: $(echo $owned)"
@@ -137,7 +138,7 @@ else
     gh pr merge "$url" --auto --merge || die "auto-merge could not be turned on for $url"
 fi
 
-if git diff --name-only "$base" HEAD | grep -q '^webgpu-graph-algorithms/'; then
+if grep -q '^webgpu-graph-algorithms/' <<<"$(git diff --name-only "$base" HEAD)"; then
     echo "pr-open: this changes webgpu-graph-algorithms; CI has no real GPU. Run its NVIDIA tests here before trusting the merge" >&2
 fi
 echo "$url"

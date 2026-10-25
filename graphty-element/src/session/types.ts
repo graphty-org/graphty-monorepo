@@ -54,6 +54,7 @@ import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
+import type { EnabledFeatures } from "../features/resolve";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
@@ -2771,6 +2772,12 @@ export interface GraphSession {
     readonly status: SessionStatus;
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
+    /**
+     * The experiments this session switched on, and the requested ids it did not recognise.
+     * Settled when the session is created (for an element's session, when the element first
+     * renders) and the same object afterwards.
+     */
+    readonly features: EnabledFeatures;
     /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
     /**
@@ -2992,6 +2999,11 @@ export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     /** How this session runs algorithms. */
     readonly runs?: SessionRunsOptions;
+    /**
+     * The experiments to switch on, by id, or `["all"]`; absent takes the page default set with
+     * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
+     */
+    readonly features?: readonly string[];
 }
 
 /**

@@ -12,6 +12,7 @@ import { PrivacyChip } from "../privacy/PrivacyChip";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CommandButton } from "./CommandButton";
 import { MainMenu } from "./menus";
+import { SiteChip } from "./SiteChip";
 
 /**
  * Re-renders on every change of the element's undo history, so Undo and Redo follow it.
@@ -28,7 +29,7 @@ function useHistoryVersion(session: GraphSession | null): void {
 /**
  * The header (tier1-design.md section 2.1): the main menu, the project name (a tap or F2
  * renames it), Undo and Redo, the filter chip while a filter step is on (tier2-design.md
- * section 1), the autosave chip and the privacy chip.
+ * section 1), the autosave chip, the privacy chip and, on canary and nightly, the site's name.
  * @returns The header
  */
 export function Header(): React.JSX.Element {
@@ -85,6 +86,7 @@ export function Header(): React.JSX.Element {
             <FilterChip />
             <AutosaveChip />
             <PrivacyChip />
+            <SiteChip />
         </header>
     );
 }

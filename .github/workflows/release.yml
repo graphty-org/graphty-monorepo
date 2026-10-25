@@ -98,12 +98,37 @@ env:
     MODE: ${{ inputs.mode == 'legacy' && 'legacy' || 'shadow' }}
 
 jobs:
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # It needs every job, so it runs last, whatever happened; never fails. Called workflows' jobs are reported here too.
+    timings:
+        name: Timings
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, coverage, held, version, approve, land, publish]
+        if: ${{ always() }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}
+                  kind: full
+
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
     # (owner rule: a state ends on the event that settles it, never on a count of hours).
     pick:
         name: Pick the release candidate
         if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 60
         # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
         environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
         permissions:
@@ -181,7 +206,7 @@ jobs:
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
             - uses: actions/setup-node@v4
@@ -246,6 +271,9 @@ jobs:
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write
+            # the results store's credential (its test and timings jobs), and its timings job's comment
+            id-token: write
+            pull-requests: write
         uses: ./.github/workflows/ci.yml
         with:
             ref: ${{ needs.pick.outputs.sha }}
@@ -258,6 +286,9 @@ jobs:
         if: ${{ needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
+            # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
+            actions: read
+            id-token: write
         uses: ./.github/workflows/gpu.yml
         with:
             ref: ${{ needs.pick.outputs.sha }}
@@ -269,6 +300,9 @@ jobs:
         if: ${{ needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
+            # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
+            actions: read
+            id-token: write
         uses: ./.github/workflows/hosts.yml
         with:
             ref: ${{ needs.pick.outputs.sha }}
@@ -281,6 +315,9 @@ jobs:
         if: ${{ needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
+            # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
+            actions: read
+            id-token: write
         uses: ./.github/workflows/work-protection-macos.yml
         with:
             candidate: ${{ needs.pick.outputs.sha }}
@@ -294,6 +331,7 @@ jobs:
         needs: pick
         if: ${{ needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         permissions:
             contents: read
         steps:
@@ -301,7 +339,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -324,6 +362,7 @@ jobs:
         needs: pick
         if: ${{ needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
         permissions:
             contents: read
@@ -334,7 +373,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -406,6 +445,7 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true')))) }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         # Pushover for a legacy hold's announcement; a shadow run announces nothing, so it takes no environment
         environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
         permissions:
@@ -547,6 +587,7 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm]
         if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         permissions:
             actions: read
             contents: read
@@ -565,13 +606,13 @@ jobs:
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
             # publish (gh run rerun <id> --failed) still finds them (CI keeps its own for a day).
             - name: Download the tested commit's builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the publish job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
@@ -579,7 +620,7 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -619,7 +660,7 @@ jobs:
             # The version commit itself, so the land job pushes exactly this commit (the tags name it, and the
             # publish job checks it out) without running nx again.
             - name: Keep the version commit for the land job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/release.bundle
@@ -636,6 +677,7 @@ jobs:
         needs: [pick, version]
         if: ${{ inputs.mode == 'legacy' && needs.version.result == 'success' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         environment: production
         permissions:
             actions: read
@@ -663,6 +705,7 @@ jobs:
         needs: [pick, version, approve]
         if: ${{ needs.approve.result == 'success' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         environment: release # the deploy key
         permissions:
             actions: read
@@ -683,7 +726,7 @@ jobs:
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
             - name: Download the version commit
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/release
@@ -775,6 +818,7 @@ jobs:
         needs: [pick, version, land]
         if: ${{ always() && needs.land.outputs.pushed == 'true' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 16
         environment: release # npm trusted publishing (OIDC), Pushover
         permissions:
             actions: read
@@ -803,7 +847,7 @@ jobs:
                       --what "Publishing on re-run ${GITHUB_RUN_ATTEMPT}" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
             - name: Download the tested builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
@@ -816,7 +860,7 @@ jobs:
                       cp -a "${dir}/." "${pkg}/dist/"
                   done
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
             - uses: actions/setup-node@v4

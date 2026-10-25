@@ -2618,6 +2618,21 @@ describe("gpu.yml", () => {
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
     });
 
+    it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {
+        // nx names a project that only @nx/eslint infers by reading <root>/package.json relative to the
+        // process's cwd, so from a package directory it failed "have no name provided" (release run
+        // 40119894804, issue #3318) while graph-io/test/fidelity/oracles/tools/web was a project of its
+        // own. That directory is now part of graph-io; this keeps any such directory from coming back.
+        assert.match(job(gpu, "test-gpu"), /working-directory: graphty-element\n.*\n {14}run: pnpm exec nx run-many/);
+        const r = spawnSync("pnpm", ["exec", "nx", "show", "projects", "--json"], {
+            cwd: new URL("../graphty-element/", import.meta.url),
+            encoding: "utf8",
+            env: { ...process.env, NX_DAEMON: "false" },
+        });
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.ok(JSON.parse(r.stdout).includes("graph-io"));
+    });
+
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {

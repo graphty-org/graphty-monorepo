@@ -236,7 +236,7 @@ jobs:
             - name: Upload the record of the tested tree
               if: steps.reuse.outputs.marker != ''
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ steps.reuse.outputs.marker }}
                   path: ${{ runner.temp }}/ci-tested/
@@ -335,7 +335,7 @@ jobs:
             # src/session/commands/doors.ts and graphty's no-element-mutation lint rule reads; the Lint
             # job lints from this artifact.
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-packages
                   path: |
@@ -354,70 +354,70 @@ jobs:
                   retention-days: 1
 
             - name: Upload graph-format build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-format
                   path: graph-format/dist/
                   retention-days: 1
 
             - name: Upload graph-io build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-io
                   path: graph-io/dist/
                   retention-days: 1
 
             - name: Upload webgpu-graph-algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-webgpu-graph-algorithms
                   path: webgpu-graph-algorithms/dist/
                   retention-days: 1
 
             - name: Upload graph-samples build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-algorithms
                   path: algorithms/dist/
                   retention-days: 1
 
             - name: Upload layout build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-layout
                   path: layout/dist/
                   retention-days: 1
 
             - name: Upload graphty build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty
                   path: graphty/dist/
                   retention-days: 1
 
             - name: Upload graphty-element build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty-element
                   path: graphty-element/dist/
                   retention-days: 1
 
             - name: Upload remote-logger build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-remote-logger
                   path: remote-logger/dist/
                   retention-days: 1
 
             - name: Upload compact-mantine build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-compact-mantine
                   path: compact-mantine/dist/
@@ -545,49 +545,49 @@ jobs:
                   done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
 
             - name: Upload Storybook build (graphty-element)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (graphty)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (compact-mantine)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (algorithms)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (layout)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (cytoscape-extensions)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (graph-io-fidelity)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
@@ -840,21 +840,21 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
                   retention-days: 1
 
             - name: Upload layout gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -1035,7 +1035,7 @@ jobs:
             - name: Upload JUnit results
               if: ${{ !cancelled() }}
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
@@ -1044,7 +1044,7 @@ jobs:
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: blob-report-${{ matrix.shard }}
                   path: graphty-element/.vitest-reports/*
@@ -1054,7 +1054,7 @@ jobs:
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: graphty-element/coverage/lcov.info
@@ -1078,7 +1078,7 @@ jobs:
 
             - name: Upload coverage (shard group)
               if: ${{ !cancelled() && matrix.coverage }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-group-${{ matrix.shard }}
                   path: ${{ runner.temp }}/coverage/
@@ -1089,7 +1089,7 @@ jobs:
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: webgpu-graph-algorithms/coverage/lcov.info
@@ -1103,7 +1103,7 @@ jobs:
             # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-webgpu-graph-algorithms-node-device-errors
                   path: webgpu-graph-algorithms/.coverage-parts/device-errors/lcov.info

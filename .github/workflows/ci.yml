@@ -137,7 +137,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -461,7 +461,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: needs.packages.outputs.artifacts-run == ''
 
             - name: Setup Node.js
@@ -615,7 +615,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -685,7 +685,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -805,7 +805,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -891,7 +891,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1241,7 +1241,7 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1310,7 +1310,7 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1451,7 +1451,7 @@ jobs:
                   rm -rf visual-review/capture visual-review/trusted
                   git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js

@@ -181,7 +181,7 @@ jobs:
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
             - uses: actions/setup-node@v4
@@ -301,7 +301,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -334,7 +334,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -579,7 +579,7 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -816,7 +816,7 @@ jobs:
                       cp -a "${dir}/." "${pkg}/dist/"
                   done
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
             - uses: actions/setup-node@v4

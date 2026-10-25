@@ -1,4 +1,9 @@
 {
+    "env": {
+        "GIT_CONFIG_GLOBAL": "/home/apowers/.config/git-agent/config",
+        "GH_CONFIG_DIR": "/home/apowers/.config/gh-agent",
+        "GIT_CONFIG_COUNT": "0"
+    },
     "permissions": {
         "deny": [
             "Read(**/.env)",
@@ -25,6 +30,16 @@
                     {
                         "type": "command",
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-foreground-wait.mjs\"",
+                        "timeout": 5
+                    }
+                ]
+            },
+            {
+                "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-owner-credential-guard.mjs\"",
                         "timeout": 5
                     }
                 ]

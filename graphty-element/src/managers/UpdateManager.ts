@@ -2061,9 +2061,12 @@ export class UpdateManager implements Manager {
         // unstyled size, the sizes land a few frames later, and nothing frames them. Whether the
         // pass had finished first depended on how fast the machine was, so the same story drew
         // two pictures. The pass is waited for here, and `syncStyles` applies what it painted at
-        // the top of the pass that then frames it.
+        // the top of the pass that then frames it -- all of it, which on a slow frame takes more
+        // than one pass: the paint is applied in batches within a frame budget, and a framing
+        // answered between two batches measured the nodes of the later ones at their old size
+        // (issue #3479).
         if (this.forceZoomToFit) {
-            return !this.styleIsPainting();
+            return !this.paintIsOutstanding();
         }
 
         // Check if we should zoom:
@@ -2078,7 +2081,7 @@ export class UpdateManager implements Manager {
         // one, taken with the nodes at their unstyled sizes whenever its size layer was still
         // painting (issue #3378). A framing while the layout moves is followed by another and
         // does not wait.
-        if (isSettled && this.styleIsPainting()) {
+        if (isSettled && this.paintIsOutstanding()) {
             return false;
         }
 
@@ -2112,6 +2115,15 @@ export class UpdateManager implements Manager {
      */
     private styleIsPainting(): boolean {
         return this.graphContext.getStylePainter?.()?.isPainting === true || this.deriving();
+    }
+
+    /**
+     * Whether paint can still change the box a framing measures: a style pass on its way, or paint
+     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches).
+     * @returns True while some element is still to be drawn with paint it does not have yet.
+     */
+    private paintIsOutstanding(): boolean {
+        return this.graphContext.getStylePainter?.()?.hasPending === true || this.styleIsPainting();
     }
 
     /**

@@ -1,690 +1,597 @@
 # Pipeline health dashboard
 
-A page served on this machine that shows, on one screen, whether graphty-monorepo's tests, CI,
-merges and releases are healthy, and lets the reader drill into any area to find the cause. It is
-read by the repository owner and by the agent sessions that keep the pipeline moving.
+A web page that answers in a few seconds "is any part of graphty-monorepo's pipeline unhealthy, and
+which part?", and lets the reader click through to the cause. The pipeline is everything between a
+pull request and a published release: pull requests, CI, tests, master, the release train, the
+deploy channels, and what it all costs. Readers are the repository owner and the agent sessions
+that keep the pipeline moving; agents read the same data through an MCP server.
 
-The mockup is `design/ci/health-dashboard/mockup.html`. Open it in a browser: it has no network
-dependencies, every page is drawn, and its numbers are sample data.
+The page is static, on GitHub Pages at `health.graphty.app`. Its data comes from a small AWS
+backend that collects from GitHub, CI, the owner's machine and the billing sources, keeps rollups
+in DynamoDB and serves them through a public read API.
 
-## 1. Goal and the blind spots it closes
+The mockup is `design/ci/health-dashboard/mockup.html`: open it in a browser. It needs no network,
+its pages are reached from the left navigation, and every number in it is sample data. This is
+version 2; version 1 is in git history.
 
-The goal is one place that answers "is anything in the pipeline unhealthy, and where?" for any
-period from the last hour to the last year, with no area that can fail silently.
+## Changes from v1
 
-The pipeline it watches (issue #3418, `design/ci/channels-pipeline.md`): every change is a pull
-request into master, opened by the agent account `graphty-agent` with auto-merge on and gated by a
-light check (target 5 to 10 minutes). Master is the canary channel (canary.graphty.app); a commit is
-promoted to nightly (nightly.graphty.app, npm `next`) when its screenshots are unchanged or the
-owner approves them, and to production (graphty.app, npm `latest`) only on the owner's go. A full
-run every 6 hours tests master, bisects and reverts; until it is built, the release train runs in
-shadow mode (every lane, nothing published, no "Release held" issue). Inputs: CI time budgets
-(`ci-budgets.json`), the quarantine (`tools/test-quarantine.mjs`), the results service (a
-Cloudflare Worker with a D1 database, `tools/results-service/`), the local test ledger
-(`tools/test-ledger.mjs`) and the status broker (`tools/pr-status-broker.mjs`, every open pull
-request in `tmp/pr-status/status.json` each minute).
+The owner's review of version 1, and the answer to each point:
 
-Problems seen in October 2026 that nothing showed until a person went looking, and what now
-exposes each:
+- "the dashboard is very busy and dense ... this is not good dashboard design." -- The front page
+  holds the category status line and seven KPI rows, nothing else (2.1). The KPIs were re-chosen:
+  one headline symptom per category (2.3); every other metric is on a detail page.
+- "colors are easier to quickly see and understand than icons, and using colors reduces visual
+  clutter" -- No status icons. State is a color plus a word. No borders, boxes, gridlines or chips
+  that carry no data (3.3).
+- "the overview line is good (it took me about 5 minutes to notice it) -- I like the breakdown of
+  each category and the green / yellow / red status for each." -- It is now first and largest: one
+  green, yellow or red block per category (2.2).
+- "each measurement should have a SLA" -- Every metric has green, yellow and red thresholds, the
+  green one being its target (section 4). A category is the worst of its members and names the
+  member that set it.
+- "pipeline health needs to have 1 hour and 6 hour steps. it doesn't need 90 days or 12 months" --
+  24 h in 1 h steps and 7 d in 6 h steps; 28 d in 1 d steps on a few detail pages only (section 8).
+- "it's really not clear that clicking on graphs leads to a drill down" -- Left navigation,
+  chevrons, hover state, whole-row targets, "Details" links and breadcrumbs (2.4).
+- Track the costs of our processes -- A Costs category: T4 GPU, Cloudflare, AWS, GitHub Actions,
+  LLM tests and Sentry, per workflow and per release run (section 7).
+- "flake dashboard should show which test was flaky and which test group or shard it belonged to so
+  that we can identify flake hotspots" -- A hotspot tree: CI job group or shard family, then shard,
+  test file and test, ranked by distinct flaky tests (section 5).
+- "we don't need to track agent vs human, the entire process will be agent driven" -- Removed, with
+  the author filter.
+- "add a MCP to the design so that our agents can see status too" -- A read-only stdio MCP server
+  (section 12).
+- "add median time tracking of shards / test segments" -- Median and p90 per shard against its
+  budget, and per test file on drill-down (section 6).
+- "use AWS as a single backend for collecting and storing data about the services and serving them
+  to a dashboard hosted on GitHub pages" -- Sections 10 and 11. Version 1's local SQLite store and
+  local server are gone.
+- "when we implement our first AWS service, open up issues to move our Cloudflare services to AWS"
+  -- Rollout step 2 (section 14).
 
-- **GitHub's 60 concurrent runners saturated by full-suite runs; queue time, not run time, was the
-  delay.** The organization-wide runner tile (running plus queued against 60, longest wait), the
-  runner demand chart and the run-level queue time.
-- **A bug on master turned every open pull request red.** The "red on the same check" tile (summary
-  checks excluded) and the "shared" failure cause, which a failure seen in 3 or more pull requests
-  within 24 hours earns even though master itself runs no tests.
-- **Flaky stories and tests held one merge for five days.** A needs-a-person row for any pull
-  request blocked by a flake for over 24 hours, and pull requests blocked by a flake on the Flaky
-  tests page. A flake that blocks many pull requests at once is still booked as flaky, not shared.
-- **Most intermittent failures appear only under local machine load.** CI and local flake rates on
-  one chart, and local vs CI disagreement.
-- **The weekly CPU-restricted stress run failed and filed nothing.** The stress run is "bad" when it
-  failed or had failing tests and filed 0 issues.
-- **Release holds came mostly from outside lanes (LLM regression, T4 GPU, npm listing lag).** Holds
-  are computed from `release.yml` runs, so shadow-mode holds count, with the failing lane named.
-- **Local test records nearly stopped (1,153 on 10-23, 731 on 10-24, 44 on 10-25) while their age
-  looked fresh.** Every source has a volume rule beside its age rule.
+## 1. What it must catch
 
-A blind spot is any part of the pipeline whose failure would leave every panel calm. The rule that
-follows: a source that is missing, late, empty or unusually thin is an alarm, never a zero or a
-quiet chart (section 6).
+A blind spot is a part of the pipeline whose failure leaves every panel calm. October 2026's
+problems, and the member (section 4) that now flags each:
 
-## 2. Information architecture
+- GitHub's 60 concurrent runners, shared by the whole `graphty-org` organization, were saturated;
+  queue time, not run time, was the delay. CI: runner wait, saturated time.
+- A bug on master turned every open pull request red. Master: red on the same check.
+- A flaky story held one merge for five days. Flaky tests: blocked by a flake.
+- Most intermittent failures appeared only under local load. Flaky tests: local vs CI disagreement.
+- The weekly CPU-restricted stress run failed and filed nothing. Data sources: stress run.
+- Release holds came mostly from outside lanes (LLM, T4 GPU, npm lag). Releases: since last
+  passing train, with the lane named.
+- Local test records fell from 1,153 a day to 44 while their age looked fresh. Data sources: volume.
 
-### 2.1 Overview first, then drill down
+So a source that is missing, late or unusually thin is never drawn as zero or as a calm chart; it
+makes its category yellow at least (section 9).
 
-The structure follows Shneiderman's "overview first, zoom and filter, then details on demand"
-(1996), Stephen Few's rule that a dashboard is a single screen read at a glance ("Information
-Dashboard Design", 2006), and Grafana's overview dashboards that link to detail dashboards.
+## 2. Layout
 
-- **The front page fits one 1440 x 900 screen and never scrolls.** A long scroll hides the bottom
-  of the page, and the bottom is where a forgotten problem sits.
-- **Six area pages**: Pull requests, CI, Flaky tests, Releases, Local, and Sources (the data health
-  page). Area pages scroll, top to bottom in pipeline order: pull request, CI, merge, master,
-  canary, nightly, production.
-- Every front-page tile and chart links to its section on an area page, carrying the time range.
-  Every table row links to its pull request, run, issue or test.
-- A tab bar under the header lists the pages. Each tab shows the status symbol of the worst
-  threshold on its page, counting every tile there, including those also on the front page, so a
-  problem on a page nobody opened is still visible. Every front-page tile that is warn or bad
-  repeats on the page it links to, so following a red tile always lands on red.
+### 2.1 Front page
 
-### 2.2 Front page layout
-
-Tableau's eye-tracking study found that first looks land top left and that large numbers draw the
-eye about a second sooner, so current state goes top left and trends below.
+It fits 1440 x 900 without scrolling and works down to 1024 wide.
 
 ```
-+--------------------------------------------------------------------------------------------+
-| Pipeline health  [24h 7d 28d 90d 12mo custom] [bucket] [authors] [markers]  UTC  sources   |
-| Overview | Pull requests | CI | Flaky tests | Releases | Local | Sources                    |
-+--------------------------------------------------------------------------------------------+
-| HEALTH  row 1: [Master green] [Canary] [Nightly] [Production] [Runners, org, now]          |
-|         row 2: [Release holds] [Screenshot backlog] [Open PRs] [Red on same check] [Quar.] |
-+--------------------------------------------------------------------------------------------+
-| TRENDS (one shared x-axis, shared markers)            | Where PR time goes (100% bar)      |
-|   master status strip                                 |                                    |
-|   PRs created vs merged                               | Why PR checks fail (100% bar)      |
-|   runner demand (running + queued, 60 line)           |                                    |
-|   queue vs run time (p50, p95)                        |                                    |
-|   first-attempt pass rate                             |                                    |
-+--------------------------------------------------------------------------------------------+
-| NEEDS A PERSON (severity, then age)                   | SOURCES (age, rows)                |
-+--------------------------------------------------------------------------------------------+
++---------------+-----------------------------------------------------------------------+
+| Pipeline      | Pipeline health                       [24 h] 7 d    updated 2 min ago |
+| health        |                                                                       |
+|               | +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ |
+| Overview      | |Master | |Pull   | |CI     | |Flaky  | |Release| |Costs  | |Data   | |
+| | Master      | |OK     | |reqs OK| |FAILING| |WARNING| |OK     | |OK     | |WARNING| |
+| | Pull reqs   | |     > | |     > | |runner | |no     | |     > | |     > | |local  | |
+| | CI  FAILING | |       | |       | |wait 22| |entry 1| |       | |       | |31%  > | |
+| | Flaky  WARN | +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ |
+| | Releases    |                                                                       |
+| | Costs       | Master green time        99%      target 95%    ~~~~~~~~~~        > |
+| | Data   WARN | Time to merge, median    41 min   target 60     ~~~~~~~~~~        > |
+|               | First-attempt pass rate  88%      target 85%    ~~~~~~~~~~        > |
+|               | Runner wait, p90         22 min   target 5      ~~~~~~~~~~ FAILING> |
+|               | Flake rate               1.6/1k   target 2      ~~~~~~~~~~        > |
+|               | Since last good train    3.4 h    target 7 h    ~~~~~~~~~~        > |
+|               | Spend this month         255 USD  target 300    ~~~~~~~~~~        > |
++---------------+-----------------------------------------------------------------------+
 ```
 
-- **Health tiles, 10 in two rows.** The research suggests 5 to 9; the owner's "health at a glance"
-  list is 5 metrics, the three channels make 7, and three more each close a blind spot from
-  section 1. Row 1 is state (master and the channels, plus runners), row 2 is backlog and queues.
-  Healthy tiles are neutral; only exceptions get color, so one red tile stands out anywhere.
-- **Trends.** Five time charts stacked as small multiples on one x-axis, so one event (a red span,
-  a saturation episode) lines up across all of them. Two 100% bars on the right cover the whole
-  range.
-- **Needs a person.** Items only a person can resolve, sorted by severity, then age (oldest first):
-  open release holds, runner saturation, screenshot reviews waiting, pull requests blocked by a
-  flake over 24 hours, auto-merge armed but stuck, quarantine entries past 7 days, pull requests
-  open past 24 hours (with their dominant phase and cause, "fix wait: flaky storybook-2"). Rows in
-  "ok" never appear. Also: tests flaky in CI with no quarantine entry, and an already-flaky test
-  whose failures also failed their rerun in 3 or more pull requests. The age column is time in the
-  row's state, and the row names its clock ("flake block, from 1st fail"); a pull request with two
-  problems is one row naming both.
-- **Sources strip.** Every source, not only the healthy ones; a "no data" source is listed too.
-
-Histograms, the flake matrix, per-job budgets, DORA, size vs failure, local vs CI and cost are on
-the area pages.
-
-### 2.3 Area pages
-
-Each area page has the same skeleton: a row of KPI tiles, time charts on the shared axis,
-distributions, then tables sorted by impact. Sections have anchors (`#queue-vs-run`).
-
-- **Pull requests.** Tiles: created, merged, backlog, oldest open, time to merge, screenshot
-  backlog, reverts, stuck auto-merge. Charts: created vs merged; backlog; time by phase per day; failure
-  cause per day; time to merge p50/p95; time-to-merge histogram; failure rate by size; agent vs
-  human. Tables: open pull requests (a phase bar each; a truncated table says "4 of 11" and links to
-  all), most failed attempts, reverts.
-- **CI.** Tiles: runners now (org, the front page's bullet), queue p50/p95, run p50/p95 (per job and per run), first-attempt pass, reruns,
-  budget violations, CI minutes. Charts: runner demand per hour over the picked range; queue vs
-  run time; reruns; queue-time histogram. Table: budget bullets per job. Bar: minutes by workflow.
-- **Flaky tests.** Tiles: newly flaky, flake rate CI, flake rate local, in quarantine, flaky with
-  no entry, detected to fixed, resolved, pull requests blocked. Charts: newly flaky vs resolved; CI vs local flake rate;
-  flake matrix (tests by day). Tables: quarantine with progress, tests by pull requests blocked.
-- **Releases.** Channel tiles, first attempt, trigger to success. Charts: train attempts by
-  outcome; hold causes by lane; trigger to success; lead time to each channel. DORA band:
-  throughput and stability (change failure rate with rework rate). Table: holds.
-- **Local.** Tiles: median shard time, disagreement, ledger records, slot wait. Charts: ledger
-  records per day with the volume line; disagreement split. Table: local vs CI time per shard.
-- **Sources.** Every source with expected interval, last write, rows in 24 h, 7-day median,
-  history start and error; collector tasks; GitHub REST budget.
-
-## 3. Metrics
-
-Notation. Times are UTC instants; "in range" means the event's time lies in the selected range.
-p50 and p95 come from raw events in each bucket, never averaged across buckets. Rates are ratios of
-sums. Each metric lists its definition, encoding, target and source. A tile is a number with a
-sparkline, the change against the previous range and a status; a dot plot is a p50 dot with a p95
-whisker on a log axis.
-
-Excluded checks. "Summary" checks only restate other checks or judge pull-request metadata, so
-counting them would make every failure look shared: `All Checks Pass`, `Queue Checks Pass`,
-`Lint PR Title`, `Link PR Issue`, `Visual report`, `Draft state` and any `Mergify` check. The list
-is `excludedChecks` in `tools/health-dashboard/config.json`, and every panel that uses it prints
-the names in its tooltip.
-
-The visual gate. `visual-review/trusted/gate.mjs` fails `All Checks Pass` while changed pictures
-wait for the owner. An attempt whose only failure is that gate, reporting unaccepted pictures and
-no capture error, is **owner wait**: not a failed attempt, not in the failure causes, and judged
-as passing in the first-attempt pass rate. A capture error is a failure like any other.
-
-### 3.1 Health at a glance
-
-- **Master green time.** Wall time in the bucket during which master's newest commit was green,
-  divided by wall time. Master is red from the completion of a failed run on a master commit (the
-  master build, or the full run: today the shadow release train's suite) until a passing one on a
-  later commit. %; GH runs, git. Tile labeled "build + full run", printing the age of the last
-  full-run verdict (warn past 8 h, because a 6-hour gap must not read as green); strip on the
-  trends band. Target 95%.
-- **Release status and age, per channel.** State of the last deploy attempt (ok, failed, held,
-  deploying), the version or commit served, its age, and commits on master not yet in it. Canary:
-  `deploy-pages.yml` on master. Nightly: D1 `channel_move` and `site`, npm `next`. Production:
-  D1 `site`, npm `latest`, `graphty-site` deploys, and the last release train's result with its
-  failing lane ("last train 2.1 h ago: held, T4 GPU"). A channel with no records shows "no data"
-  and names its source; it never shows an internal table name. Canary warn 6 h, bad 24 h; nightly
-  warn 2 d, bad 4 d; production shows commits waiting with no color (promotion is the owner's
-  choice).
-- **Runner saturation (now).** Jobs in progress plus queued across every repository of the
-  `graphty-org` organization, against GitHub's 60-job concurrency limit, which is per
-  organization; and the longest current wait (now minus the oldest queued job's `created_at`).
-  Bullet with a tick at 60, never a round gauge. Wait warn 5 min, bad 15 min.
-- **Runner demand (history).** Per bucket: the peak of running plus queued jobs, replayed from
-  every job's `created_at`, `started_at` and `completed_at`, drawn as a stacked bar (running up to
-  60, queued above it) with the 60 line; each saturated bucket is labeled with its **saturated
-  hours** (time with 60 running and at least one queued), the partial bucket included. The y axis
-  runs to the range's peak plus 10%, so 20 queued jobs read as a block. Bucket maximum, never an
-  average.
-- **Release holds open.** A hold opens when a `release.yml` attempt fails a lane before landing,
-  and closes when an attempt on a later commit passes every lane or a release lands. The lane comes
-  from the failing job's name (`releaseLanes` in config: T4 GPU, LLM regression, Hosts, macOS work
-  protection, suite, version or publish, npm listing). "Release held" issues are the second source,
-  joined by commit. Shadow-mode attempts count. Count and oldest age; bad when 1 or more.
-- **Screenshot backlog.** Per open pull request, pictures waiting for the owner: the visual gate's
-  state from the broker plus the picture count from the `Visual report` check run's summary
-  (GraphQL `CheckRun.summary`); age from the first capture that left them pending. Review records
-  are written only on Finish, so they measure decisions, not the backlog. Count and oldest age;
-  oldest warn 24 h, bad 72 h.
-- **Open pull requests and oldest open.** Open non-draft pull requests and the oldest one's age,
-  with its dominant phase and cause. Soft limit 15; oldest warn 24 h, bad 72 h.
-- **(added) Red on the same check.** The largest number of open pull requests whose newest run
-  fails the same check, excluded checks left out. Warn 2, bad 3 or more.
-- **(added) Quarantined tests.** Entries on the quarantine list and the oldest one's age. Oldest
-  warn 7 d, bad 14 d (entries expire at 14).
-- **(added) Data sources.** Per source: age of its last write and rows written (section 6).
-
-### 3.2 Pull request flow
-
-- **Created and merged.** Pull requests into master created in the bucket, and merged in the
-  bucket. Two lines on one axis; a widening gap is a growing backlog. Per hour on 24 h, per day
-  beyond.
-- **Backlog depth.** Open non-draft pull requests at the end of the bucket, with the bucket maximum
-  as a light band. Its own chart under created vs merged (a stock, not a flow). Soft limit 15.
-- **Oldest open non-draft.** Max over open non-draft pull requests of now (or bucket end) minus
-  ready time (or created time if never a draft). Warn 24 h, bad 72 h.
-- **Time to merge.** merged_at minus ready time, for pull requests merged in the bucket; p50 and
-  p95. Line plus histogram. p50 target 60 min; buckets with n under 5 drawn hollow.
-- **Where the time goes.** Each merged pull request's open time split into phases, summed over the
-  range: **runner wait** (at least one of its jobs queued and none running), **CI running** (at
-  least one job running), **fix wait** (newest attempt failed, no new commit yet), **owner wait**
-  (green except for the visual gate, or waiting for an approval or a label), **merge wait**
-  (everything else: green with auto-merge pending). Totals, not medians, because phase medians do
-  not add up. 100% bar on the front page, stacked bar per day and a bar per open pull request on
-  the area page. Warn when runner wait is over 25%.
-- **Failure rate by cause.** Each failed attempt (the visual gate excepted) gets one cause, checked
-  in this order:
-    1. **infrastructure**: job conclusion `startup_failure`, a lost runner, an annotation naming an
-       outside 5xx, or a timeout cancel when the runner was lost or the same job timed out in 3 or
-       more pull requests (a hang caused by the change is the change's);
-    2. **conflict**: auto-merge disabled for a merge conflict, or broker `mergeable` = CONFLICTING;
-    3. **flaky** (the owner's rule): every failing test passed on a rerun of the same commit, or was
-       already flaky or quarantined. A flake seen in 3 or more pull requests stays flaky, with
-       "flaky, 3+ PRs" in the tooltip. CI already retries a failed test file inside the shard, so
-       an already-flaky test whose rerun also failed may be a real breakage: the tooltip adds
-       "failed rerun", and in 3 or more pull requests it is a needs-a-person row;
-    4. **shared** (the owner's "already broken on master"): a failure that does not pass on a
-       rerun of the same commit, where the same test (before test-level data, the same job) fails
-       in 3 or more distinct pull requests within 24 hours, or fails on the next master full run.
-       Master's own push runs only the build, so its result for the base commit rarely exists;
-       this rule does not need it;
-    5. **change**: everything else.
-
-    Flaky is checked before shared because one popular flake (a storybook test that blocked 9 pull
-    requests) would otherwise be booked against master. Causes are re-classified when later
-    evidence arrives (a rerun, a third pull request, the next full run), so recent days can move. Stacked per day with "change" at the bottom in neutral gray; 100% bar
-    for the range; tile of the share not caused by the change, target under 20%. Before 2026-10-25
-    classified at job level, and labeled so.
-
-- **Most failed attempts.** Pull requests ranked by failed attempts in range, with hours lost (fix
-  wait) and a mini bar of causes. Top 10.
-- **Reverts after merge.** Master commits in range starting `Revert "`, or made by master-guard or
-  a bisect; also as % of merges. Tile, triangle markers on every time chart, table.
-- **(added) Auto-merge armed but stuck.** Open pull requests with auto-merge enabled longer than
-  2 h with every check green, or 6 h otherwise. Needs the broker's `autoMergeRequest.enabledAt`.
-- **(added) Agent vs human.** Author `graphty-agent` or anyone else. A page-wide filter, never a
-  ranking; a 2-part donut on the area page (the dashboard's only pie).
-- **(added) Size vs failure rate.** Pull requests in range binned by lines changed (1-10, 11-100,
-  101-1,000, over 1,000): share whose first attempt failed by "change". n on each bar; bins with
-  n under 10 hollow.
-
-### 3.3 CI
-
-- **Queue time vs run time.** Per job: queue = `started_at` minus `created_at`; run =
-  `completed_at` minus `started_at`. Per run: queue = time during which at least one of its jobs
-  was queued and none was running (the same union rule as runner wait); run = last job completion
-  minus first job start; also the longest single job queue in the run. p50 and p95 per bucket,
-  split by run kind (pr, full, release). Multi-line: queue orange, run blue, p95 dashed. Reference:
-  a thin dotted gray line at the queue p95 target, 5 min, labeled at its right end. The run budget
-  (`run:ci.yml:pr`, 20 min) is for whole runs, so it appears only on the per-run tile, never on
-  this per-job chart. GitHub reports only means, so all of this comes from job timestamps.
-- **First-attempt pass rate.** Pull-request check suites whose attempt 1 passed (the visual gate
-  excepted), divided by all attempt-1 suites. Target 85%.
-- **Budget violations.** Each completed job, run and step with a budget in `ci-budgets.json`: warn
-  over minutes x `warnRatio`, hang over minutes x `hangRatio` (and at least `minHangMinutes`).
-  Counts per bucket; p95 per job against its budget as a bullet, sorted by overrun. Past jobs are
-  judged by today's file, and the panel says so. Tile: warn on any violation in range; bad on a hang
-  in the last 24 hours (a hang is a job killed or stuck, a problem now; older hangs stay warn).
-- **Reruns.** Run attempts with `run_attempt` over 1 started in the bucket. Bars.
-- **(added) CI minutes and paid cost.** Job run time per runner class and workflow; T4 minutes x
-  the configured rate; LLM regression spend month to date. A value missing its rate shows
-  "partial" and what is unset ("T4 rate unset"), never "no data" beside a number.
-
-### 3.4 Flaky tests
-
-- **Newly flaky and resolved.** Newly flaky: tests entering the flaky state in the bucket (a
-  failure that passed on a rerun of the same inputs, after at least 10 clean runs or none
-  recorded). Resolved: flaky tests reaching 10 consecutive clean runs, or whose issue closed with
-  a fix. Diverging bars, newly flaky up, resolved down. Net at or below 0.
-- **Flake rate, CI and local.** Test-file runs that failed then passed on the same inputs, per
-  1,000 test-file runs, separately for CI (D1) and local (ledger). One chart; the gap between the
-  lines points at load-sensitive tests. Under 1 per 1,000. The local line shows "n=x of usual y"
-  when the ledger's volume is low.
-- **Flake matrix.** Top tests by flaky failures in range; columns are buckets; shade is failures;
-  a dot on rows quarantined now; a column of pull requests blocked. A CSS grid.
-- **Quarantined now.** Count, oldest age, and per entry its progress toward 20 consecutive clean
-  runs, counted from CI runs (D1 `file_run`) as well as local gate runs, because gate runs have
-  nearly stopped. Oldest warn 7 d, bad 14 d.
-- **Flaky with no quarantine entry.** Tests that met the flaky rule in CI in the last 7 days and
-  have no quarantine entry. Entries come only from the pre-push gate, which no longer runs, so a
-  CI flake (the storybook test that blocked 9 pull requests) would otherwise leave the quarantine
-  tile calm. Warn at 1, and a needs-a-person row per test.
-- **Detected to fixed.** For flaky issues closed as fixed in the bucket, closed minus created; p50,
-  with still-open ones counted beside it. Target 3 d.
-- **Pull requests blocked by a flake.** Pull requests with a failed attempt of cause "flaky", and
-  the hours until the next green attempt. Target 0; any pull request blocked over 24 hours is a
-  needs-a-person row.
-
-### 3.5 Releases
-
-- **Train attempts by outcome.** `release.yml` attempts that did work, per bucket: passed first
-  time, passed after a retry, held. Stacked bars; tile of the first-attempt share, target 90%.
-- **Hold causes.** Holds opened in range by lane (section 3.1). Sorted horizontal bars.
-- **Trigger to success.** Release run `created_at` to the success of its last job; p50 and p95.
-  Budget `run:release.yml:full`, 75 min, judged against p95 (as every budget is).
-- **Lead time to each channel.** For each commit merged to master, time until canary serves it
-  (deploy completed), nightly (`channel_move` or npm `next`), production (npm `latest` or a
-  `graphty-site` deploy). Dot plot per channel on a log axis with target ticks: canary 30 min,
-  nightly 1 d, production none.
-- **Change failure rate, per channel.** Promotions to the channel followed within 7 days by a
-  revert or by a fix referencing a master-guard or "Failing on" issue, divided by promotions to
-  it. Every merge is a canary promotion, so canary's rate equals the rework rate and is drawn once,
-  as rework. Nightly is a weekly line, under 15%. Production promotions are rare, so it is a count
-  for the range ("1 of 3"), never a percentage. A channel with no promotions in a bucket shows
-  "no data" (hatched), never 0%.
-- **(added) Rework rate (DORA 2024).** Merges that revert or fix a change merged in the previous 7
-  days, divided by merges. Same chart as nightly's change failure rate.
-- **(added) Deployment frequency and time to restore.** Promotions per day per channel; p50 length
-  of a master red span. Read as trends, not targets (dora.dev).
-
-### 3.6 Local development
-
-- **Local test time.** Ledger `secs` per shard, p50, from local gate, `test:changed` and
-  `run-tests.sh` runs; whole-gate time from the push log before 2026-10-23. Compared with CI per
-  shard in a table.
-- **Local disagrees with CI.** Pairs of a local and a CI invocation with the same shard variant
-  and inputs key whose outcomes differ, split into local fail / CI pass (usually load) and local
-  pass / CI fail (usually environment). Under 2%; shows "n=x pairs".
-- **(added) Ledger records.** Records per day, against the source volume rule (section 6).
-- **(added) Slot waits.** Time local runs waited for test, browser and GPU slots; p95.
-
-The pre-push gate no longer runs (`tools/pr-open.sh` and the post-commit push skip it), so the
-local page lives only if other local runs write records: `test:changed` and `run-tests.sh` write
-ledger records and post them to D1 as kind `local` (section 10.6).
-
-## 4. Time range and granularity
-
-**One picker drives every panel** (Datadog's global time, Grafana's time picker): 24 h, 7 d,
-28 d (default), 90 d, 12 months, custom. Range, bucket, author filter and markers live in the URL
-(`?range=28d&bucket=auto&author=all`), so a link reproduces the view.
-
-| Range     | Default bucket                   | Overrides          |
-| --------- | -------------------------------- | ------------------ |
-| 24 h      | 1 hour (strips at minute level)  | hour               |
-| 7 d       | 6 hours (created/merged: 1 hour) | hour, day          |
-| 28 d      | 1 day                            | 6 hours, day, week |
-| 90 d      | 1 week                           | day, week          |
-| 12 months | 1 month                          | week, month        |
-
-A bucket override sits beside the picker; buckets finer than a source records are disabled. Every
-chart follows the picker, including runner demand per hour on the CI page (672 points on 28 d).
-"Now" tiles say "now" in their header and ignore the picker except for their sparkline.
-
-Rebucketing rules, the same for every chart:
-
-- **Counts** are summed; the axis title names the bucket ("per day").
-- **Rates** are ratios of sums, never averages of percentages.
-- **Durations** are p50 and p95 recomputed from raw events; a bucket with n under 5 is hollow.
-- **Stocks** (backlog, quarantine) show the end-of-bucket value; where the peak matters (runner
-  demand, red on the same check) the bucket maximum.
-- **Time shares** (master green) are time-weighted.
-- **Tile changes** compare with the previous range of the same length.
-- Data is stored in UTC. The display zone is shown in the header; bucket edges follow it.
-
-**Shared event markers** (Grafana annotations) on every time chart: releases (diamonds), reverts
-(triangles), quarantine changes (ticks), master-red spans (shaded bands, so their length shows).
-Each kind can be switched off; each marker links to its run, pull request or issue.
-
-**Pipeline eras.** The four weeks of history span three pipelines, shaded so a change of process is
-not read as a change of health:
-
-- to 2026-10-17: one pull request per change, merged by the Mergify queue. Complete history.
-- 2026-10-18 to 2026-10-24: golden-local. Changes landed locally into `golden`; no pull requests,
-  and master runs only built. Pull request charts show a hatched band, "golden-local: no pull
-  requests"; master green time shows golden verification, hatched. Organization-wide job charts
-  (runner demand, queue vs run time) are drawn through it, because golden verification ran in CI.
-- from 2026-10-25: the channels pipeline. Test-level data (CI flake rate, failure cause) starts
-  here; the job-level stretch before it is labeled "job level" on the chart.
-
-## 5. Units
-
-- Durations: one unit per axis, chosen from the largest value: s under 2 min, min under 120, h
-  under 72, d beyond. The unit is in the axis title, not on each tick.
-- Rates: "per hour" on 24 h, "per day" beyond, "per week" on 90 d, "per month" on 12 months. Flake
-  rate is always "per 1,000 runs".
-- Percentages: whole numbers, one decimal under 10%; the tooltip gives "412 of 487".
-- Counts: integers with thousands separators. Money: whole USD, month to date.
-- Sampled values show "n=x of y".
-
-## 6. Data age, volume, empty and partial states
-
-Missing data is loud; that is the dashboard's main defense against blind spots.
-
-- **Every panel shows its source and data age** in its header ("broker, 1 min"). The page header
-  shows the worst source state against its age and volume rules ("sources: 1 warn, 1 no data"),
-  linking to the Sources page, because a fresh but thin source is as much a blind spot as a stale one.
-- **Age rule.** Warn at the limit, bad at twice it:
-
-| Source                          | Expected        | Warn age |
-| ------------------------------- | --------------- | -------- |
-| Status broker                   | every minute    | 5 min    |
-| Collector, GitHub runs and jobs | every 5 min     | 15 min   |
-| Results service (D1)            | every 5 min     | 30 min   |
-| Test ledger                     | each local run  | 24 h     |
-| Quarantine state                | each gate run   | 24 h     |
-| npm                             | every 15 min    | 1 h      |
-| Weekly stress run               | weekly (Sunday) | 8 d      |
-| Host matrix                     | nightly         | 30 h     |
-| Release train                   | every 6 h       | 7 h      |
-
-- **Volume rule.** Warn when a source's rows in the last 24 hours fall under 20% of the median of
-  the previous 7 days. A source can be fresh and nearly empty: the ledger wrote 44 records on
-  2026-10-25 against about 1,000 a day before, and its age still looked fine. The quarantine's
-  volume is its new entries set against tests that met the flaky rule in CI: CI flakes with no new
-  entry is warn.
-- **Stress run.** Bad when the run failed or had failing tests and filed 0 issues; ok when it passed
-  and filed 0; bad when it has not run in 8 days. Its record (kind `stress`) carries the count of
-  failing tests and of issues filed.
-- **Unreachable source:** "no data" (dash symbol, hatched panel), never 0.
-- **Partial bucket.** The current bucket is unfinished. A partial bar keeps its segment colors as
-  a light tint with a dashed outline in each segment's color, so a stacked bar still shows its
-  parts (today's queued jobs stay orange); lines end in a dashed segment; both are labeled
-  "partial" on the axis. Hollow bars mean a thin sample (n under 10), nothing else.
-- **Before a source's history begins** the chart is hatched "no history" (results service before
-  2026-10-25, local shard times before 2026-10-23).
-- An empty table names what it lacks in two or three words ("no open holds").
-
-## 7. Status and color
-
-Status is never shown by color alone (WCAG 2.1 success criterion 1.4.1). Four states, each a
-color, a symbol and a word:
-
-| State   | Symbol   | Color                                                     |
-| ------- | -------- | --------------------------------------------------------- |
-| ok      | check    | neutral tile; green check only (`#0ca30c`)                |
-| warn    | triangle | `#b8860b` for symbol and border; light amber only as fill |
-| bad     | X        | `#d03b3b`                                                 |
-| no data | dash     | gray, hatched panel                                       |
-
-- The warn symbol and border use dark amber because the light amber (`#fab219`) is about 1.8:1 on
-  white, under WCAG 1.4.11's 3:1 for graphical objects.
-- Healthy tiles stay neutral; a warn or bad tile gets a colored left border, symbol and word.
-- Red is only for "bad". Chart series use a categorical palette tested for color-blind separation.
-  **The same measure keeps its color everywhere**: orange is waiting for a runner (queue time,
-  queued jobs, runner wait), blue is running (run time, running jobs, CI running). Different
-  measures may reuse a hue on different charts, so 100% bars carry their labels on the segments,
-  with a legend only for segments too narrow to hold one.
-- Failure causes have their own hues: "change" is neutral gray, and the four causes that are not
-  the change (flaky, shared, infrastructure, conflict) get magenta, brown, slate and olive, used by
-  no other chart; "change" keeps its gray wherever it is drawn (failure rate by size). Histogram
-  bins over the metric's stated target use the dark warn amber, never orange, and the subtitle
-  names the target; plain ranked bars (hold causes) and extra series (gpu.yml minutes) are neutral.
-- Every threshold that colors a tile is printed on the tile or in its tooltip.
-- Lines are 2 px; dashes mean p95 and nothing else. Targets and limits are thin dotted gray rules
-  labeled at their right end; the 60-runner limit is a solid rule because it is a hard limit.
-- Each chart has a "table" toggle showing its data as rows, which is also the screen-reader path
-  (the image role plus hidden table pattern of compact-mantine's `ChartRow`).
-
-## 8. Alerts
-
-A dashboard nobody has open is a blind spot of its own. The collector sends one push notification
-when a front-page tile or a source has been "bad" for 30 minutes, once per episode, through the
-notifier the owner already uses (`~/.claude/scripts/claude-notify.sh`; Pushover is the
-alternative), with the tile's name, value and a link to the dashboard. Thresholds and the delay are
-in config; there is no other alerting.
-
-## 9. Chart library
-
-**Choice: a React + Vite page using compact-mantine for layout, tables and controls, and
-`@mantine/charts` (MIT, built on Recharts) for charts.**
-
-- Pin `@mantine/charts` to 8.3.18, the `@mantine/core` version the repository already installs;
-  its peer is `recharts >=2.13.3`, so use Recharts 2.15.x. Mantine 9 needs Recharts 3.2.1 or newer,
-  so both move together later. The first build step renders one chart to confirm 8.3.18 with
-  Recharts 2.15.
-- **Already in the stack.** React 19 and Mantine 8.3.18 are installed and no chart library is;
-  this adds the fewest pieces, and colors, density and dark mode come from compact-mantine.
-- **Building blocks exist.** `compact-mantine/src/components/rows/ChartRow.tsx` (sparkline,
-  histogram and metric rows with an accessible pattern), `compact-mantine/src/components/DataTable/`,
-  `Progress` for bullets, `SegmentedControl` for the picker. 672 hourly points a series is easy for SVG.
-- **Gaps:** the flake matrix is a CSS grid (Mantine's `Heatmap` draws only a date calendar); the
-  runner bullet is a `Progress` with a marker at 60; p50 and p95 are two lines; status strips are
-  positioned divs. No other library.
-- **One y-axis per chart.** Two measures of different scale are two charts on the shared x-axis.
-
-Runners-up: **Apache ECharts 6**, the escape hatch for one chart that outgrows Recharts (a zoomable
-matrix, over 10,000 points; its canvas is opaque to screen readers); **Grafana** (AGPL-3.0), a
-second server with its own look that cannot read D1. Rejected: Chart.js, uPlot, Observable Plot,
-Vega-Lite (canvas or outside React), Tremor (Tailwind, unmaintained), Evidence.dev, Metabase.
-
-## 10. Data design
-
-### 10.1 Two raw stores, one read model
-
-- **D1 (the results service)** holds what CI writes about itself: test groups (`invocation`),
-  per-file runs (`file_run`), failures with retries (`failure`), `quarantine`, `tracked_issue`,
-  `duration`, `site`, `verdict`, `channel_move`. The tables exist; missing are the writers
-  (section 10.6) and a read endpoint.
-- **Local SQLite, `tmp/health-dashboard/health.db`** (`node:sqlite`), is the dashboard's only read
-  model: GitHub runs, jobs and steps, pull requests with timeline events and visual-report
-  summaries, issues, npm publish times, git events, broker change snapshots, local file imports
-  (push log, waits, quarantine, review records) and mirrors of D1 rows. The test ledger's index is
-  attached read-only. GitHub rows can be rebuilt from GitHub, so the file is a cache; broker
-  snapshots and local imports exist nowhere else and are exported daily as JSON lines under
-  `tmp/health-dashboard/archive/`.
-
-Main tables (times as UTC milliseconds):
-
-- `run` (run id, attempt): workflow, repository, event, branch, sha, pr, created, started, updated,
-  conclusion, kind (pr, full, release, deploy, other).
-- `job` (job id): run id, attempt, name, labels, runner class (linux, macos, windows, t4),
-  created, started, completed, conclusion, lane (release jobs).
-- `step` (job id, number): name, started, completed, conclusion.
-- `pr` (number): author, agent, created, ready, merged, closed, additions, deletions, base.
-- `pr_event` (pr, time, kind): ready, auto-merge on or off (reason), labeled, head pushed, visual
-  report (pictures pending).
-- `issue` (number): kind (hold, intermittent, critical, master-guard, failing-on, stress), lane,
-  created, closed, close reason.
-- `git_event` (sha): time, kind (merge, revert, tag, fix), pr, reverted sha.
-- `npm_publish` (package, version): time, dist-tag.
-- `broker_change` (time, pr): changed fields only.
-- `failure_cause` (run id, job id, test): cause, evidence, classified at; rewritten when evidence
-  arrives.
-- `source_heartbeat` (source, time): rows written, error.
-- `d1_<table>`: mirrored rows.
-
-### 10.2 The collector
-
-One servherd process, `health-collector` (`tools/health-dashboard/collector.mjs`), with cursors in
-`health.db`. Under servherd it uses the owner's gh login, not graphty-agent, so it shares the
-owner's 5,000-an-hour REST budget with the status broker and the watchers.
-
-- Every minute: diff the broker file into `broker_change`; tail the push log, waits, quarantine
-  state and review records.
-- Every 5 minutes: queued and in-progress runs for each organization repository with Actions
-  activity (2 calls a repository; the list is refreshed hourly), and the jobs of each active run (1
-  call a run), which feed "runners now"; jobs of runs completed since the cursor; one GraphQL query
-  for pull requests and issues updated since the cursor, with the `Visual report` summary of open
-  pull requests; D1 rows since its cursor.
-- Every 15 minutes: `npm view <pkg> time dist-tags` for the 13 packages (no GitHub budget).
-- Every 5 minutes: alert evaluation (section 8).
-
-REST cost: about 200 calls an hour normally (100 for run lists, 40 to 100 for active runs' jobs,
-50 for completed runs) and 500 at peak saturation; 304 answers to ETag requests do not count.
-Below 1,500 remaining it stops polling active runs' jobs first (the runner tile then shows "n=x of
-y runs"); below 500 it stops all REST calls. It never polls per pull request.
-
-### 10.3 The four-week backfill
-
-`tools/health-dashboard/backfill.mjs --since 2026-09-27`, resumable from a cursor:
-
-- **First, check one assumption.** On a run from the 2026-10-25 saturation, confirm that a job
-  waiting on `needs` gets its `created_at` when it becomes queued, not when the run starts. If it is
-  the run's start, every dependent job's queue time is wrong; queue then starts at the completion of
-  the last job it needs, taken from the workflow's `needs` graph.
-- About 250 REST calls for run lists (sliced by day or hour, as a filtered list caps at 1,000),
-  8,000 to 9,000 for jobs of multi-job workflows (`jobs?filter=all`), 80 GraphQL queries for pull
-  requests and issues; git and npm locally. Throttled to 1,200 REST calls an hour: about 8 hours.
-- JUnit artifacts are not downloaded; test-level history before 2026-10-25 comes from the ledger
-  and issues.
-
-Everything else in section 3 is recoverable for all four weeks. Gaps: master green time in golden-local week (golden verification shown instead); nightly and
-production status and lead time to nightly (nothing until `channel_move`, `verdict` and `site` are
-written); failure cause and flake rate at test level (job level before 2026-10-25); conflicts over
-time (broker snapshots from now on); local vs CI disagreement (almost no pairs); local per-shard
-time (from 2026-10-23); screenshot backlog history (from now on); GPU cost (needs a rate).
-
-### 10.4 Rollups
-
-Computed on read: `GET /api/metric/<name>?from=&to=&bucket=&dims=` runs one SQL query, buckets by
-time and computes p50 and p95 in JavaScript. 13 months of raw rows is small (about 40 MB a month),
-so a materialized rollup table comes only if month views prove slow. Answers are cached 60 s and
-carry `{ series, n, partialFrom, noHistoryBefore, sourceAge, volume }`, so every panel draws its
-partial bucket, history start, age and volume state without knowing the source.
-
-### 10.5 Retention
-
-- Local raw tables: 13 months (a year plus the comparison month).
-- D1 `failure` and `invocation`: 13 months; `file_run`: 90 days; `site`, `verdict`,
-  `channel_move`: kept for good.
-- The ledger's prune keeps 13 months.
-
-### 10.6 Changes needed elsewhere, and what must start recording now
-
-Additive changes (non-breaking):
-
-- Results service: `GET /v1/export?table=<t>&since=<ms>` (paged, read token). Without it the
-  dashboard cannot read failures, quarantine, verdicts or channel moves.
-- Status broker: `createdAt`, `autoMergeRequest.enabledAt`, `additions`, `deletions` per pull
-  request.
-- `test:changed` and `tools/run-tests.sh`: write ledger records like the gate does, and post them
-  to D1 as kind `local` with the same variant and inputs keys as CI.
-- `tools/test-quarantine.mjs`: count exit progress from clean CI runs too.
-
-Start recording now, because each day not recorded is lost:
-
-- Broker change snapshots (conflicts and the screenshot backlog have no other history).
-- Every CI test group and its retry, posted to D1.
-- `site`, `verdict` and `channel_move` from `release.yml` and `deploy-pages.yml`.
-- The weekly stress run as kind `stress`, with failing tests and issues filed.
-- Config values for the T4 rate (USD per minute) and the monthly LLM budget, in
-  `tools/health-dashboard/config.json`.
-
-## 11. Serving it locally
-
-One Node server, `tools/health-dashboard/server.mjs`, serves the built page and `/api/metric/*`
-from `health.db`. Both processes run under servherd, which assigns the port:
-
-```jsonc
-servherd_start({ name: "health-collector", cwd: "<repo>",
-  command: "node tools/health-dashboard/collector.mjs" })
-servherd_start({ name: "health-dashboard", cwd: "<repo>", protocol: "https",
-  command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} node tools/health-dashboard/server.mjs",
-  env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+The order follows Few ("a single screen read at a glance") and Google SRE ("symptoms first, causes
+second"): the status line says whether anything is wrong and where, the rows give each category's
+headline number, and every cause is one click away.
+
+### 2.2 The category status line
+
+Seven blocks in one row, in pipeline order: **Master, Pull requests, CI, Flaky tests, Releases,
+Costs, Data sources**. Each block, about 170 x 110 px, is filled with its state's color and holds
+the category name; the state word, large and bold (OK, WARNING, FAILING, NO DATA); when not OK, the
+member that set it with its value and threshold ("runner wait p90 22 min, red over 15"); and a
+chevron. The whole block links to the category's page.
+
+The blocks always show now: each member is judged over its own window (section 4), whatever range
+the picker shows. This is the one place where healthy has a color, because the owner asked for
+green, yellow and red per category and a row of green is itself the answer. Elsewhere healthy is
+uncolored.
+
+### 2.3 KPI rows
+
+One headline KPI per category (two for CI), each a symptom someone would act on (DORA; Google's "if
+it isn't actionable, it shouldn't be alerting"; the SRE golden signals of latency, errors and
+saturation):
+
+- **Master green time**, 24 h (Master): errors; is the main line usable.
+- **Time to merge, median**, 24 h (Pull requests): latency; the end-to-end symptom of every delay.
+- **First-attempt pass rate**, 24 h (CI): errors; checks failing for any reason.
+- **Runner wait, p90**, 24 h (CI): saturation; October's largest delay.
+- **Flake rate**, 24 h (Flaky tests): normalized, so it reads without context.
+- **Since the last passing release train** (Releases): covers a hold from any lane.
+- **Spend this month, projected** (Costs): the one thing that cannot be rerun.
+
+Data sources has no row; its block is enough. Each row: name; value (large); "target" and its value
+(muted); a 24-point sparkline with the target as a thin gray band, the end value labeled and only
+points past the yellow threshold colored; the state word on its color when not OK, nothing when OK;
+a chevron. The whole row links to the KPI's section on its page. Rows are separated by space only.
+
+### 2.4 Navigation and drill-down
+
+- **Left navigation**, 200 px, always visible on desktop (NN/g: vertical lists scan faster than
+  tabs and grow better; never a hamburger on desktop). Overview, then the seven categories, each
+  with a 4 px bar of its state color on its left edge and its state word when not OK, so every page
+  repeats the status line. Sub-items open under the current category (CI: Runners, Shard times,
+  Local runs; Flaky tests: Hotspots, Quarantine).
+- **Clickable things look clickable at rest** (NN/g: weak signifiers cost 22% more time). Every
+  linked row has a trailing chevron, a pointer cursor and a hover background, and the whole row is
+  the target. A section that goes deeper has a "Details" link in link color in its heading.
+- **Breadcrumbs** on every page below the front ("Overview > Flaky tests > Hotspots"), the current
+  page last and unlinked.
+- Page and range live in the URL (`#/flaky/hotspots?range=7d`), so a link reproduces the view.
+
+### 2.5 Detail pages
+
+Every category page starts with its state and the member that set it, then one row per member
+(name, value, target, state, sparkline, chevron), then its sections:
+
+- **Master**: green-time strip (24 h at minute level), red spans with cause and fix, reverts.
+- **Pull requests**: open pull requests (age, phase, attempts); where pull request time goes (runner
+  wait, CI running, fix wait, owner wait, merge wait); failure causes; created vs merged.
+- **CI**: pass rate, reruns, check duration, budget violations. Sub-pages **Runners** (organization
+  demand against the 60 line, queue vs run time), **Shard times** (section 6), **Local runs** (local
+  shard times, local vs CI disagreement, slot waits).
+- **Flaky tests**: flake rate in CI and locally, newly flaky vs resolved. Sub-pages **Hotspots**
+  (section 5) and **Quarantine** (entries, age, progress toward release).
+- **Releases**: one row per channel (canary, nightly, production: version, age, commits waiting),
+  train attempts by outcome, hold causes by lane, lead time to each channel.
+- **Costs**: section 7. **Data sources**: section 9, plus the collector's rate limit and the daily
+  write budget.
+
+## 3. Status, SLAs and color
+
+### 3.1 How a state is set
+
+- Green is at or better than the target; yellow is past it but not past the red threshold; red is
+  past the red threshold.
+- A member with fewer events than its minimum (5 unless stated) is gray with "n=3" and is left out
+  of the rollup: one failure in two runs is not a trend.
+- A member whose source is missing or late is NO DATA, which counts as yellow.
+- **A category is the worst of its members** (Statuspage's rule for a component with several
+  incidents). Its block names the member that set it; of two at the same state, the one furthest
+  past its threshold, with "+1 more".
+- Thresholds live in `tools/pipeline-health/config/slas.json` and are printed beside every value.
+
+Burn-rate alerting on an error budget (SRE Workbook) is left out: the windows are short and the
+thresholds plain. Add it to master green time and pass rate if plain thresholds prove noisy.
+
+### 3.2 Colors
+
+The Okabe-Ito colors, chosen to stay apart under color-vision deficiency, each with black text and
+its word:
+
+| State   | Fill                    | Black text on it |
+| ------- | ----------------------- | ---------------- |
+| OK      | `#009E73` bluish green  | 6.1:1            |
+| WARNING | `#F0E442` yellow        | 15.9:1           |
+| FAILING | `#D55E00` vermillion    | 5.4:1            |
+| NO DATA | `#D9D9D6` gray, hatched | 14:1             |
+
+Simulated for deuteranopia (Machado 2009, full severity), the closest pair is yellow and vermillion
+at a CIELAB difference of 34, and they also differ in lightness (L 90 against 58). Green and
+vermillion are 53 apart: green turns blue-gray and vermillion ochre, and the blue-yellow axis
+survives deuteranopia. Protanopia's closest pair is 37, tritanopia's 60. Every fill passes 4.5:1 and
+is paired with its word (WCAG 1.4.1). The fills are the same in dark mode. A small yellow mark (a
+sparkline point, a bar) gets a dark outline, because yellow alone is 1.3:1 on white.
+
+Away from the status line and the nav bars, color marks exceptions only: a not-OK state word,
+sparkline points past a threshold, bars over budget. Data is gray with the current item in ink.
+
+### 3.3 What is not drawn
+
+Few's test, "would the data lose meaning if this was removed?", and Tufte's "avoid all data frames":
+no status icons, logos, card borders or backgrounds, shadows, gridlines (a baseline and a target band
+only), legends where a direct label fits, pies, donuts, gauges or stacked areas; no chips unless they
+carry data; no change arrows on the front page (trends are the sparklines). Three type sizes
+(values, labels, muted targets and units) and generous space instead of separators.
+
+## 4. Metrics and SLAs
+
+Shared definitions:
+
+- **Excluded checks**, which restate other checks or judge metadata: `All Checks Pass`, `Queue
+Checks Pass`, `Lint PR Title`, `Link PR Issue`, `Visual report`, `Draft state`.
+- **The visual gate.** An attempt whose only failure is the visual gate waiting for the owner's
+  screenshot review is owner wait, not a failure. A capture error is a failure.
+- **Failure cause**, in order: infrastructure (startup failure, lost runner, outside 5xx, a timeout
+  in 3 or more pull requests); conflict; flaky (every failing test passed on a rerun of the same
+  commit, or was already flaky or quarantined); shared (fails without passing on rerun in 3 or more
+  pull requests within 24 h, or on the next master full run); change (the rest). Reclassified as
+  evidence arrives.
+- **Flaky**, as `tools/test-quarantine.mjs` defines it: failed and passed on the same inputs, in one
+  shard run (the retry passed) or in two runs with the same inputs key.
+- Medians and p90 come from raw events, never averages of buckets; rates are ratios of sums.
+
+The green threshold is the target. (KPI) marks a front-page row. The window is what the status uses.
+
+### 4.1 Master
+
+| Member                  | Measure, window                                           | Green  | Yellow | Red    |
+| ----------------------- | --------------------------------------------------------- | ------ | ------ | ------ |
+| Master green time (KPI) | share of wall time master's newest commit was green, 24 h | >= 95% | 90-95% | < 90%  |
+| Red now                 | length of the current red span                            | green  | < 1 h  | >= 1 h |
+| Full-run verdict age    | since the last 6-hourly full run finished                 | <= 7 h | 7-13 h | > 13 h |
+| Red on the same check   | most open pull requests failing one check                 | 0-1    | 2      | >= 3   |
+| Reverts                 | reverted merges / merges, 7 d (min 10)                    | < 5%   | 5-10%  | > 10%  |
+
+### 4.2 Pull requests
+
+| Member                   | Measure, window                                       | Green     | Yellow  | Red    |
+| ------------------------ | ----------------------------------------------------- | --------- | ------- | ------ |
+| Time to merge (KPI)      | median of merged minus ready, 24 h                    | <= 60 min | 60-180  | > 180  |
+| Open pull requests       | open non-draft                                        | <= 15     | 16-25   | > 25   |
+| Oldest open              | age of the oldest open non-draft                      | < 24 h    | 24-72 h | > 72 h |
+| Merge ratio              | merged / created, 24 h (min 5 created)                | >= 0.9    | 0.7-0.9 | < 0.7  |
+| Not caused by the change | failed attempts of any other cause / all failed, 24 h | < 20%     | 20-35%  | > 35%  |
+| Auto-merge stuck         | armed, unmerged 2 h with green checks or 6 h          | 0         | 1-2     | >= 3   |
+| Screenshot backlog       | oldest pictures waiting for the owner                 | < 24 h    | 24-72 h | > 72 h |
+
+### 4.3 CI
+
+| Member                        | Measure, window                                           | Green     | Yellow | Red                  |
+| ----------------------------- | --------------------------------------------------------- | --------- | ------ | -------------------- |
+| First-attempt pass rate (KPI) | pull request check suites passing attempt 1, 24 h         | >= 85%    | 70-85% | < 70%                |
+| Runner wait (KPI)             | p90 of job start minus job created, organization, 24 h    | <= 5 min  | 5-15   | > 15                 |
+| Saturated time                | time with 60 jobs running and one or more queued, 24 h    | 0         | < 1 h  | >= 1 h               |
+| PR check duration             | median `ci.yml` pull request run vs `run:ci.yml:pr`, 24 h | <= 20 min | 20-40  | > 40                 |
+| Shards over budget            | shards whose median passes their budget, 7 d (section 6)  | 0         | 1-2    | >= 3, or one over 2x |
+| Hangs                         | jobs past 2x their budget (`hangRatio`)                   | none, 7 d | in 7 d | in 24 h              |
+| Reruns                        | run attempts above 1 / runs, 24 h                         | < 5%      | 5-15%  | > 15%                |
+
+### 4.4 Flaky tests
+
+| Member                     | Measure, window                                                | Green  | Yellow     | Red         |
+| -------------------------- | -------------------------------------------------------------- | ------ | ---------- | ----------- |
+| Flake rate (KPI)           | flaky test-file runs per 1,000 test-file runs, CI, 24 h        | < 2    | 2-10       | > 10        |
+| Flaky, no quarantine entry | tests flaky in CI in 7 d with no entry                         | 0      | 1-2        | >= 3        |
+| Blocked by a flake         | open pull requests whose newest failure is flaky               | 0      | any < 24 h | any >= 24 h |
+| Net new flaky              | newly flaky minus resolved (10 clean runs or issue fixed), 7 d | <= 0   | 1-3        | > 3         |
+| Oldest quarantine entry    | age (entries expire at 14 d)                                   | < 7 d  | 7-14 d     | > 14 d      |
+| Detected to fixed          | median days from flaky issue opened to fixed, 28 d             | <= 3 d | 3-7 d      | > 7 d       |
+| Local vs CI disagreement   | same shard and inputs, different outcome / pairs, 7 d (min 20) | < 2%   | 2-5%       | > 5%        |
+
+### 4.5 Releases
+
+| Member                         | Measure, window                                                        | Green     | Yellow     | Red         |
+| ------------------------------ | ---------------------------------------------------------------------- | --------- | ---------- | ----------- |
+| Since last passing train (KPI) | since a `release.yml` attempt passed every lane                        | <= 7 h    | 7-13 h     | > 13 h      |
+| Holds open                     | open release holds, lane named                                         | 0         | open < 6 h | open >= 6 h |
+| Canary age                     | age of canary while master has commits it lacks                        | < 6 h     | 6-24 h     | > 24 h      |
+| Nightly age                    | age of nightly while master has commits it lacks                       | < 2 d     | 2-4 d      | > 4 d       |
+| Production age                 | age of production while nightly is ahead (promotion is the owner's go) | < 14 d    | 14-30 d    | > 30 d      |
+| Train first-attempt pass       | attempts passing first time, 7 d                                       | >= 90%    | 75-90%     | < 75%       |
+| Trigger to success             | median release run vs `run:release.yml:full`, 7 d                      | <= 75 min | 75-150     | > 150       |
+| Merge to canary                | median, 24 h                                                           | <= 30 min | 30-60      | > 60        |
+| Merge to nightly               | median, 7 d                                                            | <= 1 d    | 1-2 d      | > 2 d       |
+| Change failure rate            | nightly promotions reverted or fixed within 7 d, 28 d (min 4)          | < 15%     | 15-30%     | > 30%       |
+
+### 4.6 Costs
+
+Month to date, projected to month end. Budgets are configured; these are sample values.
+
+| Member                 | Measure                                          | Green      | Yellow  | Red    |
+| ---------------------- | ------------------------------------------------ | ---------- | ------- | ------ |
+| Spend this month (KPI) | projected sum of every line that is money        | <= 300 USD | 300-360 | > 360  |
+| T4 GPU                 | projected, machine.dev                           | <= 200 USD | 200-240 | > 240  |
+| LLM regression         | projected, Gemini (the owner's ceiling)          | <= 60 USD  | 60-75   | > 75   |
+| AWS                    | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | 8-10    | > 10   |
+| Cloudflare             | usage / the plan's included allowance            | < 50%      | 50-90%  | > 90%  |
+| Sentry                 | events / the plan's quota                        | < 80%      | 80-100% | > 100% |
+| GitHub Actions value   | list-price value per merged pull request, 7 d    | <= 3 USD   | 3-6     | > 6    |
+| Cost per release run   | T4 + LLM of one `release.yml` run, median of 7 d | <= 3 USD   | 3-6     | > 6    |
+
+### 4.7 Data sources
+
+| Member             | Measure                                                    | Green    | Yellow | Red    |
+| ------------------ | ---------------------------------------------------------- | -------- | ------ | ------ |
+| Age, per source    | since the last write, against its limit (section 9)        | <= limit | to 2x  | > 2x   |
+| Volume, per source | rows in 24 h / median of the previous 7 days               | >= 50%   | 20-50% | < 20%  |
+| Stress run         | weekly run failed and filed 0 issues, or not run in 8 days | passed   | --     | either |
+| GitHub rate limit  | requests left in the collector App's hour                  | > 50%    | 20-50% | < 20%  |
+| Daily write budget | rows written today / the daily limit                       | < 50%    | 50-90% | > 90%  |
+
+## 5. Flake hotspots
+
+The question is where flaky tests cluster, so the unit is a distinct flaky test, not a failure: one
+broken change can fail 140 tests in one family and bury the real hotspots.
+
+The Hotspots page is one tree table, in the order CI organizes tests:
+
+1. **CI job group or shard family**: the grouped jobs `small-node` and `small-browser` (`GROUPS` in
+   `tools/ci-test-matrix.mjs`) each run several small shards; every other shard is its own job, and
+   those are grouped by family (`graphty-element-browser` holds `-1` to `-5`: the shard name
+   without its trailing number);
+2. **shard** (`graphty-element-browser-3`);
+3. **test file**;
+4. **test**.
+
+Each row: name; distinct flaky tests (a gray bar with the number at its end); flaky events; flake
+rate per 1,000 runs at that level; quarantined now; pull requests blocked. Sorted by distinct flaky
+tests, then events. A row's chevron opens its children in place; a test row links to its history:
+each flaky event with commit, shard, attempt, failure signature, issue and quarantine state. GPU
+families (`webgpu-graph-algorithms*`) are never quarantined and say so. Range 7 d by default, with
+24 h and 28 d. CI and local results are never mixed; local ones are on Local runs.
+
+## 6. Shard and test-file times
+
+The Shard times page has one row per CI shard, worst against budget first: shard, runs (n), median
+and p90 of the test step (attempt 1, successful runs, so setup and failures do not distort it), and
+a bar: median dark, p90 as a light extension, the `ci-budgets.json` budget as a vertical line. The
+bar is vermillion when the median passes the budget, yellow when only the p90 does. A sparkline
+shows the median per bucket.
+
+Pull request runs and full runs are kept apart (pull request by default): a pull request may run a
+selected-files part of a shard, which is not comparable to the whole shard. A grouped job is split
+into its members by step. A shard row opens its test files, top 20 by median, each with median, p90
+and share of the shard's time, so a regression points at the file. Local shard times are on Local
+runs beside the CI median.
+
+## 7. Costs
+
+The Costs page answers what running the pipeline costs and which process costs it. Each line says
+whether it is money or a value computed for comparison:
+
+- **T4 GPU on machine.dev (money).** Each job with a `machine/gpu=t4` runner label: its duration,
+  rounded up to the minute, times the configured rate for the label's tenancy (on demand 0.018
+  USD/min, spot 0.0045). machine.dev has no spend API, so this is reconciled with its dashboard
+  monthly. Per job, per workflow (`gpu.yml`, `gpu-weekly-paired.yml`) and per release run.
+- **LLM regression tests (money).** The suite records prompt, output and thinking tokens per run;
+  times the configured Gemini rates (0.75 and 3.75 USD per million to 2026-12-31). Per release run.
+- **AWS (money).** Cost Explorer, daily by service (one 0.01 USD call a day); credits remaining from
+  the account plan state.
+- **Cloudflare (money).** The plan (Workers Paid, 5 USD a month) plus usage from its GraphQL
+  Analytics API against the plan's allowance, per Worker.
+- **Sentry (money).** The configured plan; event volume from its stats API against the quota.
+- **GitHub (plan only).** Team, 2 seats. Actions minutes are free for this public repository; their
+  list-price value is job duration times the list rate (Linux 0.006, Windows 0.010, macOS 0.062
+  USD/min), which matched GitHub's own gross figure within 0.3%. Per workflow, job and release run.
+
+The page shows the spend KPI with its projection; one row per line (month to date, projected,
+budget, state, 28 d sparkline); cost per workflow this month (sorted bars, money and list-price value
+in separate columns, never summed); cost per release run for the last 20 runs; AWS credits left.
+Costs default to 28 d in 1 d steps, because billing sources are daily. Rates live in
+`tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate shows "rate
+not set" as NO DATA, never zero.
+
+## 8. Time ranges and buckets
+
+- **24 h in 1 h steps** (default) and **7 d in 6 h steps**, on every page.
+- **28 d in 1 d steps** only for slow measures: resolved flakes, detected to fixed, change failure
+  rate, shard trends, costs.
+
+The picker changes charts and tables, never the status line. Counts are summed per bucket, rates are
+ratios of sums, durations come from the bucket's histogram, stocks show the end-of-bucket value and
+peaks the bucket maximum. Times are stored in UTC and shown in the reader's zone, named in the
+header. The current bucket is partial: its point is hollow and labeled "so far". On 28 d views the
+golden-local week (2026-10-18 to 10-24, no pull requests) is shaded, so a change of process is not
+read as a change of health.
+
+## 9. Data age, volume and missing data
+
+| Source                                               | Expected               | Yellow at           |
+| ---------------------------------------------------- | ---------------------- | ------------------- |
+| Collector: GitHub runs, jobs, pull requests, issues  | every 5 min            | 15 min              |
+| CI test results and timings                          | every CI run           | 2 h of runs without |
+| Release, deploy and channel records                  | each release or deploy | 7 h                 |
+| npm publishes                                        | hourly                 | 3 h                 |
+| Local writer (test ledger, quarantine, push log)     | every 5 min            | 24 h                |
+| Weekly stress run                                    | Sundays                | 8 d                 |
+| Host matrix                                          | nightly                | 30 h                |
+| Billing (Cost Explorer, credits, Cloudflare, Sentry) | daily                  | 36 h                |
+
+Red at twice the yellow age. The volume rule (4.7) applies beside the age rule, because a fresh but
+thin source is as blind as a stale one. An unreachable source is NO DATA, hatched, never 0; a chart
+before its source's history is hatched "no history"; an empty table names what is absent ("no open
+holds").
+
+## 10. Backend on AWS
+
+### 10.1 Shape
+
+```
+GitHub Actions  --OIDC JWT-->  API Gateway HTTP API  -->  ingest Lambda  --+
+owner's machine --token----->  (JWT authorizer)                            v
+EventBridge Scheduler --5 min-->  collector Lambda  ----------------->  DynamoDB
+  (GitHub App, npm, billing)        recomputes rollups                     |
+health.graphty.app, MCP server  --GET-->  HTTP API  -->  read Lambda  <----+
 ```
 
-During development the page runs from Vite (`PORT={{port}}`), proxying `/api` to the server. Both
-are local tools: a change goes live with `tools/live.sh health-dashboard <branch>` (an entry in
-`tools/live-tools.json`). The page never needs a GitHub token; only the collector reads GitHub,
-from `.env`, and it never prints the token.
+The account (494945606241) is on AWS's paid plan with 120 USD of credits and runs everything in
+us-east-2 (CloudFront, if ever added, is global). Its managed policies rule out Lambda@Edge,
+cross-Region and cross-account access, and deny creating IAM identity providers, so **GitHub OIDC
+to an IAM role is impossible**. Lifting that ("activate advanced features") is irreversible and
+removes the spend limit, so the design needs no AWS credential in GitHub at all.
 
-## 12. Adding a panel later
+### 10.2 Authentication
 
-1. Add a metric: `tools/health-dashboard/metrics/<name>.mjs` exporting `{ name, unit, kind:
-"count" | "rate" | "duration" | "stock" | "share", sources, query(from, to, bucket, dims) }`. The
-   `kind` picks the rebucketing rule, so a new metric cannot average percentages by mistake.
-2. A new source adds a collector task and a `source_heartbeat` entry with its expected interval;
-   the age and volume rules then cover it.
-3. Place an existing panel component (Tile, Bullet, ChannelTile, TimeChart, Strip, ShareBar,
-   Matrix, Table) on an area page. Range, markers, partial buckets, age and status come from the
-   frame.
-4. Thresholds go in `tools/health-dashboard/config.json`, are printed on the tile, and feed the
-   tab status and alerts.
-5. A new front-page tile must replace one or close a blind spot no tile covers.
+- **CI writes.** The job (`permissions: id-token: write`) requests a GitHub OIDC token with audience
+  `graphty-health` and sends it as a bearer token. The HTTP API's JWT authorizer checks signature,
+  issuer, audience and expiry before any Lambda runs, so junk costs only an API request. The ingest
+  Lambda then checks the claims (`repository_id`, `job_workflow_ref`, `ref`) against the record
+  kinds each workflow may write, the logic `tools/results-service/src/service.js` has today.
+- **Local writes** use a random token in the root `.env` (`GRAPHTY_HEALTH_TOKEN`), stored only as a
+  SHA-256 hash, on a separate, harder-throttled route that accepts only kind `local`. A servherd
+  process, `pipeline-health-local`, posts new ledger, quarantine and push-log records every 5
+  minutes.
+- **Reads are public.** The repository is public and everything stored is already public on GitHub
+  (runs, pull requests, test names, truncated failure messages); no tokens, `.env` contents, full
+  logs or host names are stored. So the page and the MCP server need no credentials.
+- **The collector** signs in to GitHub as a GitHub App, so it uses the App's own rate limit, never
+  the 5,000-an-hour budget the sessions share. Its key, like every secret, is an SSM Parameter
+  Store SecureString under `/graphty-health/` (standard tier, free).
+- CORS allows `GET` from `https://health.graphty.app` and the servherd dev origin only.
 
-## 13. Decisions
+### 10.3 Storage
 
-Recorded where the designer's and the engineer's reviews differed or left a choice open.
+One on-demand DynamoDB table, `graphty-health`:
 
-1. **Runner chart: peak demand labeled with saturated hours** (designer asked for peak, engineer
-   for time saturated), so a one-minute spike and a six-hour episode no longer look alike.
-2. **"Already broken on master" becomes the shared rule**, because master's test result for the
-   base commit almost never exists.
-3. **Flaky is checked before shared** (engineer, round 2); otherwise October's five-day flake hold
-   would have been booked against master.
-4. **Every alarm in the sample traces to an incident.** One bad tile (runners now), one no-data
-   (nightly), and warns that each follow from the sample's incidents: the runner saturation, the
-   flaky storybook test (the 26-hour flake block, the oldest open pull request, the unquarantined
-   flake) and the thinning ledger. Warns with no incident behind them were removed. Because tabs
-   count every tile (decision 5), most tabs carry a symbol; that is the sample's state, not noise.
-5. **The tab symbol counts every tile on its page** (designer offered ignoring tiles the front page
-   shows). Kept: a tab that hides its page's alarms would break the rule that a red front tile
-   leads to red, which is why the runners-now tile now opens the CI page.
-6. **One partial treatment** (section 6); hollow is left for thin samples.
-7. **Colors narrowed, not multiplied** (section 7).
-8. **The Local page stays** (engineer offered retiring it): local-only flakes were the largest
-   October finding, and the volume rule shows when its writers stop.
-9. **Alerting is in the first version** (engineer, section 8). Grafana remains rejected.
-10. **The visual gate is owner wait,** not a failure, in every metric.
-11. **The runner tile counts the whole organization,** because the 60-job limit is per
-    organization.
-12. **Every chart follows the picker** (both reviewers), including 672 hourly points of runner
-    demand on 28 d.
-13. **Change failure rate is per channel** (engineer, round 2). Canary's equals the rework rate,
-    so it is drawn once; production is a count, because a weekly percentage of 0 or 1 promotions
-    says nothing.
-14. **The header shows source state, not worst age** (designer, round 3). A green "9 min" beside
-    a ledger at 4% of its volume repeated the blind spot section 1 describes.
-15. **A hang is bad only within 24 hours** (designer suggested any hang is bad). A hang two weeks
-    old is history for the budget table, not a problem now; turning the tile red for 28 days per
-    hang would leave it red most of the time.
-16. **The owner's flaky rule stays; its weak branch is flagged, not changed** (engineer, round 3).
-    An already-flaky test whose rerun also failed is still booked flaky, as the owner defined, but
-    says "failed rerun" and, across 3 or more pull requests, asks a person.
-17. **Flaky tests with no quarantine entry get their own tile and row** (engineer, round 3), since
-    nothing adds entries while the gate is off.
+- Runs and jobs (steps inline), kept 90 days by TTL.
+- Shard runs, with per-file results and a row per failed or retried test, 90 days. Passing tests are
+  stored per file, not per test: flaky detection needs only failed and retried tests, and this cuts
+  writes 20 to 50 times.
+- Pull requests, issues, npm versions and daily cost lines, kept.
+- Rollup buckets, `ROLL#<metric>#<dims>#<step>` keyed by bucket start: 1 h kept 14 days, 6 h 60
+  days, 1 d 400 days.
+- One precomputed item per page and range, and a sparse index by kind and hour over runs, jobs and
+  shard runs.
 
-## 14. Open questions
+**Rollups are recomputed, never incremented**, so a retried post cannot double-count. Ingest writes
+raw items idempotently and marks each hour it touches dirty; every 5 minutes the collector
+recomputes the dirty 1 h buckets from the index, then their 6 h and 1 d parents from the children,
+then the page items. A bucket holds counts, sums and a 32-bin log-scale duration histogram, so any
+bucket's median and p90 come from merged histograms, and "mark all dirty" rebuilds history after a
+fix. A page view or MCP call reads one precomputed item or at most 28 buckets.
 
-1. **Where the page's code lives.** A new workspace package would be versioned and published by
-   the release train, and its name is a public contract, so that is the owner's call. Default if
-   nobody decides: `tools/health-dashboard/`, with its React and Mantine dependencies in the root
-   `devDependencies`.
-2. **T4 rate and LLM spend.** Neither is in any source; the config values need figures.
-3. **Owner wait split.** Should "owner wait" separate screenshot review from the production go?
+### 10.4 Collection
+
+- **Collector Lambda**, every 5 minutes (EventBridge Scheduler, reserved concurrency 1): runs and
+  jobs created or finished since its cursor across every organization repository with Actions
+  activity (runner demand is organization-wide); one GraphQL query each for pull requests and
+  issues; npm hourly; billing daily. Then rollups, status and alerts (section 13).
+- **CI posts**: each shard run with per-file results and every failed or retried test (from the
+  JUnit the shard already writes); run, job and step timings (the existing `timings` job); release,
+  deploy and channel records; the LLM suite's token counts; the stress run's failures and issues
+  filed. A failed post never fails a job.
+- **Backfill**: a one-off script loads the last 28 days of runs and jobs, throttled.
+
+### 10.5 Spend protection
+
+1. **In code (seconds).** Reserved concurrency: ingest 20, read 5, collector 1. Throttles: reads 20
+   requests/s (burst 40), CI writes 50 (100), local writes 5 (10). Bodies up to 1 MB and 5,000
+   rows. A **daily write budget**: each ingest adds its rows to a `QUOTA#<day>` item under a
+   condition (300,000 rows, about 5 times normal); past it writes get 429 and Data sources turns
+   red. Reads are cached 60 s. Timeouts 10 s (collector 60 s); logs kept 14 days.
+2. **An AWS Budget (hours).** 10 USD a month, email at 50% actual and 100% forecast, and an action
+   at 100% actual that attaches a deny-all policy to the Lambda roles.
+3. **The project spend limit (days).** Set by the owner: 20 USD (the minimum), "stop new resource
+   creation" on, "pause top cost drivers" off. It counts charges before credits, and reaching it
+   pauses the whole project.
+
+### 10.6 Code and deploy
+
+CDK in TypeScript in `tools/pipeline-health/`: `infra/` (one stack), `src/` (the Lambdas), `web/`
+(the page), `mcp/` (the MCP server), `test/` (vitest and CDK assertions); `aws-cdk-lib` pinned.
+Bootstrapped once from the owner's machine (`cdk bootstrap aws://494945606241/us-east-2 --profile
+graphty`). Deployed by **CodeBuild**, started through a CodeConnections GitHub connection on master
+pushes that touch `tools/pipeline-health/**`: it runs the tests and `cdk deploy`. Until the owner
+approves the connection, deploys are by hand.
+
+### 10.7 Cost
+
+About 4 USD a month at 200 CI runs a day: HTTP API 0.50, Lambda 1.10, DynamoDB 1.65, CloudWatch
+Logs 0.50, Cost Explorer 0.30; storage, SSM and Scheduler free. The credits cover years, and the
+backend's own cost is a line on the Costs page.
+
+## 11. The page
+
+**Hosting: a new public repository, `graphty-org/pipeline-health`, served at
+`health.graphty.app`.** The monorepo's Pages site is graphty.app, the production channel: it moves
+only on the owner's go and only after a green master build. A health page must keep updating when
+the pipeline is broken, which is exactly when that deploy stops. The source stays in the monorepo
+(`tools/pipeline-health/web/`); a workflow on master pushes that touch it builds the page and pushes
+it to the pages repository with a deploy key (`HEALTH_PAGES_DEPLOY_KEY`). The page holds no data, so
+a stale build is harmless: it reads the API on load and every 60 seconds.
+
+**Technology: Vite and TypeScript, no UI framework.** Eight views, hash routing, `fetch` and five
+small SVG drawing functions (sparkline, bar with a budget line, sorted bars, minute strip, tree
+rows). A chart library would bring back the gridlines, legends and palette section 3.3 removes.
+Light and dark themes follow the system. Every chart has its values as a visually hidden table,
+every row link is a real keyboard-reachable link, and the status blocks are a list of links whose
+state word is text.
+
+## 12. MCP server for agents
+
+`tools/pipeline-health/mcp/server.mjs`, a stdio server on `@modelcontextprotocol/sdk` (already a
+root dependency), registered in the root `.mcp.json` as `pipeline-health`. Every tool reads the
+public API, so agents need no credentials (`GRAPHTY_HEALTH_URL` overrides the base URL). Results are
+small JSON, capped at 50 rows with `truncated`, and carry each source's age. Tools:
+
+- `health_status()`: each category's state, the member that set it, its value and threshold.
+- `category(name)`: every member of a category with value, target, thresholds, state and n.
+- `flaky_hotspots(range, level, under?)`: one level (group, family, shard, file, test) of the
+  hotspot tree.
+- `test_history(file, test?, range)`: flaky and failed events with commit, shard, attempt,
+  signature, issue and quarantine state.
+- `shard_times(range, kind, shard?)`: median, p90, budget and n per shard (pr or full runs), or per
+  file of one shard.
+- `ci_runs(workflow?, branch?, conclusion?, since?)` and `run(runId)`: recent runs, and one run's
+  jobs, steps, times and failed tests.
+- `pull_requests(state?)`: open pull requests with age, phase, attempts, cause and auto-merge.
+- `releases()`: each channel's version, age and commits waiting; open holds and their lanes.
+- `costs(month?)`: each cost line, cost per workflow and per release run.
+- `sources()`: each source's age, volume and last error.
+
+The pipeline-round and issue-round skills call `health_status` first instead of sweeping GitHub,
+which also spares the shared GitHub API budget.
+
+## 13. Alerts
+
+A dashboard nobody has open is a blind spot of its own. When a category has been red for 30
+minutes, the collector sends one Pushover notification (the application the release train uses,
+its keys in SSM) naming the category, member, value, threshold and page link; once per episode, and
+once when it clears. Nothing else alerts.
+
+## 14. Rollout
+
+1. **First AWS service.** Bootstrap CDK; deploy the stack (table, API, Lambdas, schedule,
+   parameters, Budget) by hand; create the collector's GitHub App; start collecting and backfill.
+2. **The same day, open three issues to move the Cloudflare services to AWS:**
+    - **Results service** (`tools/results-service/`, Worker and D1): becomes routes of the health
+      API with the same claim rules. `/v1/plan` is on CI's path, so it must fail open on a 5xx, a 429
+      or a paused project. Run both for a week, compare counts, then switch.
+    - **Release scheduler** (`tools/release-scheduler/`, Worker crons at 00:00, 06:00, 12:00 and
+      18:00 UTC and the 03:17 deploy-key check): two EventBridge Scheduler schedules, one Lambda,
+      App secrets in SSM. It is the release train's only clock, and a paused AWS project would stop
+      releases: keep the Worker until the AWS one has fired every slot for two weeks in dry run.
+    - **nx remote cache** (`tools/nx-cache-worker/`, Worker and R2): **measure first.** R2 egress is
+      free; S3 and CloudFront egress costs about 0.09 USD per GB past 100 GB a month, and every cache
+      download by a CI runner is egress. Read the Worker's monthly egress from Cloudflare's analytics
+      and move only if it is well under 100 GB; otherwise record the figure and keep R2. A move also
+      needs presigned S3 redirects (a Lambda response is capped at 6 MB), so check that nx's client
+      follows them.
+3. **Writers.** CI posts shard runs, timings, release and deploy records and LLM token counts; the
+   local writer starts under servherd.
+4. **The page** in `graphty-org/pipeline-health`: front page and Data sources first.
+5. **The MCP server**, then the round skills switch to `health_status`.
+6. **CodeBuild deploys**, once the CodeConnections connection is approved.
+
+## 15. Owner decisions
+
+One-way doors, for the owner:
+
+1. The URL `health.graphty.app` and the repository name `graphty-org/pipeline-health` (public
+   names; the default above).
+2. The AWS project spend limit (20 USD recommended), which only the owner can set.
+3. The CodeConnections approval, and the collector's read-only GitHub App (actions, checks, pull
+   requests, issues, metadata).
+4. Read-only tokens for the cost lines: Cloudflare (Account Analytics: Read, Billing: Read) and
+   Sentry (org:read).
+
+Decided here and easy to change: every threshold and budget in section 4 (tune after two weeks of
+data), and which KPI heads each category.

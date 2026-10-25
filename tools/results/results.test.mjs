@@ -295,4 +295,21 @@ describe("runGroup", () => {
         assert.equal(rec.outcome, "infra");
         assert.equal(rec.sha.length, 40);
     });
+
+    it("keeps a passing verdict when the record cannot even be spooled", async () => {
+        const s = await serve(false);
+        const root = join(TMP, "checkout-nospool");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "fake", package: "pkg", "test-command": "exit 0" }];\n`,
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        // The spool directory is a file, so writing the unsent record throws.
+        mkdirSync(join(root, "test-results"), { recursive: true });
+        writeFileSync(join(root, "test-results/results-spool"), "");
+        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
+        assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+    });
 });

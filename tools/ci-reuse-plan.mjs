@@ -25,6 +25,11 @@
  * Prints GITHUB_OUTPUT lines: tested-tree, marker (the artifact name to upload), reuse-run (the run
  * whose test results stand for this one's; empty for a full run), reuse-url, and artifacts-run (the
  * run whose package and Storybook builds this run downloads instead of building; empty to build).
+ *
+ * Usage (ci.yml, input reuse_build_run): node tools/ci-reuse-plan.mjs --build-run <run id>
+ *   env GH_TOKEN, GITHUB_REPOSITORY; the checkout is the commit this run tests.
+ * Prints one GITHUB_OUTPUT line, artifacts-run: the named run when it built this same commit and its
+ * builds are all still there, else empty, so this run builds ("unknown means run").
  */
 
 import { execFileSync } from "node:child_process";
@@ -179,6 +184,54 @@ export async function decide({ tree, chain, runs, runId, api }) {
     return { reuse: null, artifacts: null, reason: "no earlier run of this branch passed", skipped };
 }
 
+/**
+ * Whether a named run's builds can stand in for this run's (ci.yml's reuse_build_run input).
+ * @param run the run, as the API returns it
+ * @param artifacts its artifacts, as the API lists them
+ * @param head the commit this run tests
+ * @returns null when they can, else why not
+ */
+export function buildNotReusable(run, artifacts, head) {
+    // Only a push run built exactly head_sha: a pull request run built its merge with the base, and a
+    // called run (release.yml) may have checked out another ref than its head_sha.
+    if (run.event !== "push") {
+        return `it is a ${run.event} run, not a push run`;
+    }
+    if (run.head_sha !== head) {
+        return `it built ${run.head_sha}, not ${head}`;
+    }
+    const missing = BUILDS.filter((n) => !artifacts.some((a) => a.name === n && !a.expired));
+    return missing.length > 0 ? `missing or expired: ${missing.join(", ")}` : null;
+}
+
+/**
+ * The --build-run mode: prints artifacts-run, the named run or empty.
+ * @param id the run named by reuse_build_run
+ */
+function reuseBuildRun(id) {
+    let why;
+    try {
+        if (!/^\d+$/.test(id ?? "")) {
+            throw new Error(`not a run id: ${id}`);
+        }
+        const api = (path) =>
+            JSON.parse(
+                execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/${path}`], { encoding: "utf8" }),
+            );
+        const run = api(`actions/runs/${id}`);
+        const { artifacts } = api(`actions/runs/${id}/artifacts?per_page=100`);
+        why = buildNotReusable(run, artifacts, git(process.cwd(), ["rev-parse", "HEAD"]));
+    } catch (error) {
+        why = `could not read it: ${error.message}`;
+    }
+    console.log(`artifacts-run=${why ? "" : id}`);
+    console.error(
+        why
+            ? `::warning::not reusing the builds of run ${id} (${why}): this run builds`
+            : `reusing the builds of run ${id}`,
+    );
+}
+
 const isMain = (() => {
     try {
         return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
@@ -187,7 +240,10 @@ const isMain = (() => {
     }
 })();
 
-if (isMain) {
+const buildRunAt = process.argv.indexOf("--build-run");
+if (isMain && buildRunAt > 0) {
+    reuseBuildRun(process.argv[buildRunAt + 1]);
+} else if (isMain) {
     const env = process.env;
     const cwd = process.cwd();
     const out = (line) => console.log(line);

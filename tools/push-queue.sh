@@ -135,7 +135,7 @@ remote_moved() {
     tip=$(git ls-remote "$remote" "refs/heads/$branch" 2>/dev/null | cut -f1)
     [ -n "$tip" ] && ! git merge-base --is-ancestor "$tip" "$sha" 2>/dev/null || return 1
     echo "push-queue: stopped before the gate -- $remote's $branch is at ${tip:0:12}, which ${sha:0:12} does not contain" \
-        "(a newer commit's push or the nightly sync's merge moved it), so git would reject this push after the gate." \
+        "(a newer commit's push moved it), so git would reject this push after the gate." \
         "Run git fetch $remote && git merge $remote/$branch, then push again." >&2
 }
 if [ "${1:-}" = git ] && remote_moved; then

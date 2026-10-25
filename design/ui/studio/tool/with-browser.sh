@@ -17,10 +17,8 @@
 # Every other command defaults to 4. Slots 1 to 4 are the ones the pre-push gate's shards share;
 # slots 5 and up are the studio's alone.
 #
-# The low-priority lane: with BROWSER_SLOT_PRIORITY=low, and for every command while a pre-push gate runs its
-# test shards (a live gate mark, <main checkout>/tmp/test-slots/.gate-<pid>, tools/test-slots.mjs), this script
-# takes none of the shared slots 1 to 3, only slot 4 and the studio's own 5 and up, so the gate's browser
-# shards always find a slot first.
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low this script takes none of the shared slots 1 to 3,
+# only slot 4 and the studio's own 5 and up, so ordinary browser commands always find a slot first.
 #
 # BROWSER_SLOT_TRY=1 takes a free slot at once or gives up (exit 75), never waits, and never takes a
 # slot while anyone waits in the queue or one of the four shared slots: the warm pool (real.mjs --warm)
@@ -75,12 +73,7 @@ if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
 fi
 # Whether this command keeps off slots 1 to 3 now (the low-priority lane, above).
 low_lane() {
-    [[ "${BROWSER_SLOT_PRIORITY:-}" == low ]] && return 0
-    local f
-    for f in "${GRAPHTY_TEST_SLOTS_DIR:-$main/tmp/test-slots}"/.gate-*; do
-        [[ -e "$f" ]] && kill -0 "${f##*/.gate-}" 2>/dev/null && return 0
-    done
-    return 1
+    [[ "${BROWSER_SLOT_PRIORITY:-}" == low ]]
 }
 ticket="$DIR/queue/$(date +%s%N)-$$"
 : >"$ticket"

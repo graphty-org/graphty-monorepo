@@ -231,37 +231,36 @@ describe("the post-commit push", () => {
         assert.equal(gh().calls.length, calls, "no GitHub call");
     });
 
-    it("merges the branch's newer commits on GitHub (the nightly sync's merge) before it pushes", async () => {
+    it("never merges a branch that moved on GitHub: the push fails, is logged, and the branch is unchanged", async () => {
         const other = join(dir, "push-other");
         git(dir, "clone", "-q", "-b", "feat/512-thing", join(dir, "push.git"), other);
-        writeFileSync(join(other, "synced.txt"), "from golden\n");
-        git(other, "add", "synced.txt");
-        git(other, "commit", "-q", "-m", "Merge golden");
+        writeFileSync(join(other, "theirs.txt"), "from elsewhere\n");
+        git(other, "add", "theirs.txt");
+        git(other, "commit", "-q", "-m", "feat: theirs");
         git(other, "push", "-q", "origin", "feat/512-thing");
         const theirs = git(other, "rev-parse", "HEAD");
         const n = (logText().match(/^finished /gm) ?? []).length;
-        // The merge is made in the hook, before the commit command returns.
         const head = commit("c3.txt");
         await until(dirname(log), finished(n + 1));
-        assert.match(logText(), /feat\/512-thing: merged origin\/feat\/512-thing/);
+        assert.match(logText(), /push of feat\/512-thing failed/);
+        assert.equal(git(repo, "rev-parse", "HEAD"), head, "nothing merged");
+        assert.ok(!existsSync(join(repo, "theirs.txt")));
+        // A merge in the worktree (git pull) brings them in; the next commit's push goes through.
+        git(
+            repo,
+            "-c",
+            "core.hooksPath=/dev/null",
+            "pull",
+            "-q",
+            "--no-rebase",
+            "--no-edit",
+            "origin",
+            "feat/512-thing",
+        );
         assert.equal(git(repo, "rev-parse", "HEAD^2"), theirs, "a merge, not a rebase");
-        assert.equal(git(repo, "log", "-1", "--format=%s", "HEAD^1"), "feat: c3.txt");
-        assert.equal(git(repo, "rev-parse", "origin/feat/512-thing"), head, "the merge is pushed");
-        assert.ok(existsSync(join(repo, "synced.txt")));
-
-        // With uncommitted changes nothing is merged: the push fails and says why.
-        writeFileSync(join(other, "synced2.txt"), "again\n");
-        git(other, "add", "synced2.txt");
-        git(other, "commit", "-q", "-m", "Merge golden again");
-        git(other, "pull", "-q", "--no-rebase", "--no-edit", "origin", "feat/512-thing");
-        git(other, "push", "-q", "origin", "feat/512-thing");
-        writeFileSync(join(repo, "a.txt"), "edited, not committed\n");
         const sha4 = commit("c4.txt");
         await until(dirname(log), finished(n + 2));
-        assert.match(logText(), /not merged \(uncommitted changes or a merge in progress\)/);
-        assert.match(logText(), /push of feat\/512-thing failed/);
-        assert.equal(git(repo, "rev-parse", "HEAD"), sha4, "nothing merged");
-        writeFileSync(join(repo, "a.txt"), "one\n");
+        assert.equal(git(repo, "rev-parse", "origin/feat/512-thing"), sha4);
     });
 
     it("never pushes golden, golden-cut, golden-verified, master or a detached HEAD", () => {
@@ -436,20 +435,23 @@ describe("tools/branch-note.mjs", () => {
         assert.equal(fields.left, undefined);
     });
 
-    it("busy marks the branch busy until a time and clear ends it, keeping the rest of the note", () => {
+    it("has no busy command, and drops a note's old busy and sync lines on its next write", () => {
         const wt = join(dir, "wt/.worktrees/feat-512-thing");
-        const comments = [{ id: 1, body: noteBody("feat/512-thing", { owner: "session s1" }) }];
-        writeFileSync(state, JSON.stringify({ calls: [], nextId: 1, issues: { 512: { ...issue("t"), comments } } }));
-        const r = run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "a design study");
-        assert.equal(r.status, 0, r.stderr);
-        const fields = () => parseNote(gh().issues[512].comments[0].body);
-        assert.match(fields().busy, /^until \d{4}-\d\d-\d\dT\S+Z -- a design study$/);
-        assert.equal(Date.parse(fields().busy.split(" ")[1]) > Date.now() + 23 * 3600e3, true);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "clear").status, 0);
-        assert.equal(fields().busy, undefined);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "soon", "--reason", "x").status, 1);
+        const old = `${noteBody("feat/512-thing", { owner: "session s1" })}- busy: until 2099-01-01T00:00:00Z -- x\n- sync: synced\n`;
+        writeFileSync(
+            state,
+            JSON.stringify({
+                calls: [],
+                nextId: 1,
+                issues: { 512: { ...issue("t"), comments: [{ id: 1, body: old }] } },
+            }),
+        );
+        assert.equal(run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "x").status, 1);
+        assert.equal(run(wt, process.execPath, note, "update", "--done", "d").status, 0);
+        const body = gh().issues[512].comments[0].body;
+        assert.doesNotMatch(body, /^- (busy|sync):/m);
+        assert.equal(parseNote(body).owner, "session s1");
+        assert.equal(parseNote(body).done, "d");
     });
 
     it("finds the issue number in a branch's name", () => {

@@ -240,14 +240,13 @@ fi
 # only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
 # once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
 # says when it waits and when it works). Its own process group, killed by the EXIT trap,
-# so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
-# never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
+# so a step that stops the gate stops the capture with it.
 # The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
 if [ "$LIGHT" != 1 ] && [ -n "$PROJECT_LIST" ]; then
     SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
     mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
     echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-    setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
     SCREENSHOTS_PGID=$!
     SCREENSHOTS_STAGED=1
     echo ""

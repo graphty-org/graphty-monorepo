@@ -188,7 +188,7 @@ else
     # (PREPUSH_*, PUSH_QUEUE_*, VISUAL_PREVIEW_*, the slot lanes): each leak failed a landing on
     # 2026-10-23/24 (a light gate key, a gate snapshot, a pending-push preview, a low browser lane).
     bg_step "CI workflow tests" \
-        "env -u PUSH_BASE_REF -u TEST_SLOT_GATE -u BROWSER_SLOT_PRIORITY -u GRAPHTY_SLOT_PRIORITY \$(compgen -e | grep -E '^(PREPUSH_|PUSH_QUEUE_|PUSH_REMOTE_|VISUAL_PREVIEW_)' | sed 's/^/-u /') pnpm run test:ci-workflows" \
+        "env -u PUSH_BASE_REF -u BROWSER_SLOT_PRIORITY -u GRAPHTY_SLOT_PRIORITY \$(compgen -e | grep -E '^(PREPUSH_|PUSH_QUEUE_|PUSH_REMOTE_|VISUAL_PREVIEW_)' | sed 's/^/-u /') pnpm run test:ci-workflows" \
         "$ROOT_DIR/tmp/prepush-steps/ci-workflow-tests.log"
 
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it

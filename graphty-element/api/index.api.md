@@ -5436,6 +5436,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;

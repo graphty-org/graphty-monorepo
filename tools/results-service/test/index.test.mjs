@@ -306,7 +306,7 @@ describe("POST /v1/durations", () => {
         };
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
-            { stored: 1, kind: "full" },
+            { stored: 1, kind: "full", trend: [] },
         );
         const site = oidc({
             repository: "graphty-org/graphty-site",
@@ -325,6 +325,7 @@ describe("POST /v1/durations", () => {
         assert.deepEqual((await call("POST", "/v1/durations", { token: site, body: { rows: [deploy] } })).body, {
             stored: 1,
             kind: "deploy",
+            trend: [],
         });
         assert.deepEqual(
             rows("SELECT kind FROM duration ORDER BY kind").map((r) => r.kind),
@@ -340,6 +341,261 @@ describe("POST /v1/durations", () => {
             403,
         );
         assert.equal((await call("POST", "/v1/durations", { token: LOCAL_TOKEN, body: { rows: [] } })).status, 403);
+    });
+});
+
+// ---------- the read side, against seeded records ----------
+
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+const BROWSER = "graphty-element-browser|flags=off|whole";
+const X = "graphty-element/test/browser/x.test.ts";
+function seed(env) {
+    const run = (sql, ...args) => env.DB.sqlite.prepare(sql).run(...args);
+    return {
+        inv: (
+            id,
+            { kind = "full", sha = "s1", variant = BROWSER, inputs = "k1", outcome = "passed", at = NOW - HOUR } = {},
+        ) =>
+            run(
+                `INSERT INTO invocation (id, kind, sha, tree, variant, inputs, env, try, outcome, started_at, secs)
+                 VALUES (?, ?, ?, 't', ?, ?, 'e', 1, ?, ?, 1)`,
+                id,
+                kind,
+                sha,
+                variant,
+                inputs,
+                outcome,
+                at,
+            ),
+        file: (inv, file = X, ms = 100) => run("INSERT INTO file_run VALUES (?, ?, 1, 0, 0, ?)", inv, file, ms),
+        fail: (inv, { file = X, name = "camera > zooms", key = "k", signature = "sig" } = {}) =>
+            run("INSERT INTO failure VALUES (?, ?, ?, 'fail', ?, ?, '', '', ?)", inv, file, name, signature, key, NOW),
+        quarantine: (family, name, { since = NOW - DAY, expires = NOW + DAY, left = null, issue = 9 } = {}) =>
+            run(
+                "INSERT INTO quarantine (family, file, name, issue, since, expires, left_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                family,
+                X,
+                name,
+                issue,
+                since,
+                expires,
+                left,
+            ),
+        site: (sha, at) => run("INSERT INTO site (sha, built_at) VALUES (?, ?)", sha, at),
+        verdict: (sha, state, at, extra = {}) =>
+            run(
+                "INSERT INTO verdict (run_id, attempt, sha, state, lane, issue, at) VALUES (?, 1, ?, ?, ?, ?, ?)",
+                at,
+                sha,
+                state,
+                extra.lane ?? null,
+                extra.issue ?? null,
+                at,
+            ),
+        nightly: (sha, at) => run("INSERT INTO channel_move VALUES ('nightly', ?, ?)", sha, at),
+        duration: (runId, ms, at, kind = "full", job = "Build") =>
+            run(
+                "INSERT INTO duration (run_id, attempt, workflow, job, sha, kind, started_at, ms, conclusion) VALUES (?, 1, 'ci.yml', ?, ?, ?, ?, ?, 'success')",
+                runId,
+                job,
+                `sha${runId}`,
+                kind,
+                at,
+                ms,
+            ),
+    };
+}
+const plan = (call, query, token = master("ci.yml")) =>
+    call("GET", `/v1/plan?${new URLSearchParams(query)}`, { token });
+
+describe("GET /v1/plan", () => {
+    it("needs a credential and pairwise variants and inputs", async () => {
+        const { call } = service();
+        assert.equal((await call("GET", "/v1/plan")).status, 401);
+        assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
+    });
+
+    it("computes the quarantine when it is read", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.quarantine("graphty-element-browser", "active", { since: NOW - 10 * 60_000 });
+        s.quarantine("graphty-element-browser", "expired", { expires: NOW - 1 });
+        s.quarantine("graphty-element-browser", "left", { left: NOW - HOUR });
+        s.quarantine("webgpu-graph-algorithms-browser", "gpu");
+        s.quarantine("graphty-element-browser", "passed20");
+        s.quarantine("graphty-element-browser", "prOnly");
+        // passed20 has 21 passing master runs of its file since it entered, so it has left; active entered
+        // after all but one; prOnly failed on master in the last one, and pull request passes never count
+        s.inv("old", { at: NOW - 20 * HOUR - 1, outcome: "failed" });
+        s.fail("old", { name: "prOnly" });
+        for (let i = 0; i < 20; i++) {
+            s.inv(`m${i}`, { at: NOW - 20 * HOUR + i * 60_000 });
+            s.file(`m${i}`);
+        }
+        s.inv("late", { at: NOW - 60_000, outcome: "failed" });
+        s.file("late");
+        s.fail("late", { name: "prOnly" });
+        for (let i = 0; i < 25; i++) {
+            s.inv(`p${i}`, { kind: "pr", at: NOW - 30_000 + i });
+            s.file(`p${i}`);
+        }
+        const res = await plan(call, {
+            variants: `${BROWSER},webgpu-graph-algorithms-browser|flags=off|whole`,
+            inputs: "k1,k2",
+        });
+        assert.equal(res.status, 200);
+        assert.deepEqual(
+            res.body.quarantine.map((q) => [q.name, q.issue, q.passes]),
+            [
+                ["active", 9, 1],
+                ["prOnly", 9, 0],
+            ],
+        );
+    });
+
+    it("excuses only failures master's own runs saw on the base or on the same inputs", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        env.DB.sqlite.prepare("INSERT INTO tracked_issue VALUES ('sig', 'failing-on-master', 31, 'open', 0, 0)").run();
+        s.inv("onBase", { sha: "base1", inputs: "other", outcome: "failed" });
+        s.fail("onBase");
+        s.inv("prOnBase", { kind: "pr", sha: "base1", outcome: "failed" });
+        s.fail("prOnBase", { name: "pr says so" });
+        s.inv("sameInputs", { kind: "bisect", sha: "later", outcome: "failed" });
+        s.fail("sameInputs", { name: "same inputs", signature: "s2" });
+        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed" });
+        s.fail("elsewhere", { name: "other inputs" });
+        s.inv("changedFile", { sha: "base1", outcome: "failed" });
+        s.fail("changedFile", { file: "a/changed.test.ts", name: "changed" });
+        s.fail("diedBeforeItsRecord", { name: "infra" });
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "k1", files: "a/changed.test.ts" });
+        assert.deepEqual(res.body.failingOnBase.map((f) => [f.name, f.invocation, f.issue]).sort(), [
+            ["camera > zooms", "onBase", 31],
+            ["same inputs", "sameInputs", null],
+        ]);
+    });
+
+    it("answers reuse, recent failures first and per-file durations per variant", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("local", { kind: "local", inputs: "k1" });
+        assert.equal(
+            (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER].passedWithInputs,
+            null,
+        );
+        s.inv("reuse", { kind: "pr", inputs: "k1" });
+        for (let i = 0; i < 11; i++) {
+            s.inv(`r${i}`, { inputs: "kx", at: NOW - DAY + i });
+            s.file(`r${i}`, X, i < 2 ? 100_000 : 100 + i); // the two oldest are past the last 9
+        }
+        s.inv("f1", { outcome: "failed", at: NOW - 2 * DAY });
+        s.fail("f1", { file: "a.test.ts" });
+        s.inv("f2", { outcome: "failed", at: NOW - HOUR });
+        s.fail("f2", { file: "b.test.ts" });
+        s.inv("f3", { outcome: "failed", at: NOW - 8 * DAY });
+        s.fail("f3", { file: "too-old.test.ts" });
+        const v = (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER];
+        assert.equal(v.passedWithInputs, "reuse");
+        assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
+        assert.deepEqual(v.fileMs, { [X]: 106 });
+    });
+});
+
+describe("GET /v1/candidate", () => {
+    it("picks master's newest commit with a site and says whether it is judged", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
+            candidate: null,
+            judged: null,
+        });
+        s.site("c1", NOW - 2 * HOUR);
+        s.site("c2", NOW - HOUR);
+        assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
+            candidate: { sha: "c2", builtAt: NOW - HOUR },
+            judged: null,
+        });
+        s.verdict("c2", "green-clean", NOW - 10);
+        const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
+        assert.deepEqual([judged.sha, judged.state], ["c2", "green-clean"]);
+    });
+});
+
+describe("GET /v1/release-state", () => {
+    const state = async (call) => (await call("GET", "/v1/release-state", { token: master("ci.yml") })).body;
+    it("names the open red, the frozen candidate, due resumes and nightly's age", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("n", NOW - 50 * HOUR);
+        s.nightly("n", NOW - 49 * HOUR);
+        s.site("c1", NOW - 40 * HOUR);
+        s.verdict("c1", "green-images", NOW - 39 * HOUR);
+        s.site("c2", NOW - 30 * HOUR);
+        s.verdict("c2", "green-images", NOW - 29 * HOUR);
+        s.site("c3", NOW - 2 * HOUR);
+        s.verdict("c3", "red", NOW - HOUR, { lane: "ci", issue: 77 });
+        let st = await state(call);
+        assert.deepEqual([st.red.sha, st.red.lane, st.red.issue], ["c3", "ci", 77]);
+        assert.equal(st.offered.sha, "c1", "the oldest waiting candidate stays offered");
+        assert.deepEqual(st.approved, []);
+        assert.equal(st.ageNightlyMs, 49 * HOUR);
+        assert.equal(st.blocking, "red");
+
+        s.verdict("c1", "approved", NOW - 30 * 60_000);
+        s.site("c4", NOW - 20 * 60_000);
+        s.verdict("c4", "green-images", NOW - 10 * 60_000);
+        st = await state(call);
+        assert.equal(st.red, null, "a later verdict closes the red");
+        assert.deepEqual(
+            st.approved.map((a) => a.sha),
+            ["c1"],
+        );
+        assert.equal(st.offered.sha, "c2");
+        assert.equal(st.blocking, "waiting-for-screenshots");
+
+        s.nightly("c4", NOW - 60_000);
+        st = await state(call);
+        assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], ["c4", 0, null]);
+        assert.deepEqual(st.approved, [], "an approved candidate older than nightly promotes nothing");
+    });
+    it("counts nightly's age from the first site when nightly never moved", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("c1", NOW - 30 * HOUR);
+        s.site("c2", NOW - HOUR);
+        const st = await state(call);
+        assert.deepEqual([st.nightly, st.ageNightlyMs, st.blocking], [null, 30 * HOUR, "unjudged"]);
+    });
+});
+
+describe("POST /v1/durations trend", () => {
+    const row = (ms) => ({ runId: 4010, attempt: 1, workflow: "ci.yml", job: "Build", ms, startedAt: NOW, sha: "new" });
+    it("alarms on 1.3 times the 10 runs before and 60 s slower, naming the range", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        for (let i = 0; i < 10; i++) s.duration(i, 240_000, NOW - DAY + i);
+        for (let i = 10; i < 14; i++) s.duration(i, 900_000, NOW - DAY + i);
+        s.duration(99, 900_000, NOW - 40 * DAY); // outside the window
+        s.duration(98, 240_000, NOW - DAY, "pr"); // another kind
+        const { body } = await call("POST", "/v1/durations", {
+            token: master("ci.yml"),
+            body: { rows: [row(900_000)] },
+        });
+        assert.deepEqual(body.trend, [
+            { key: "job:ci.yml:Build", kind: "full", recent: 900, earlier: 240, alarm: true, range: "sha9..sha10" },
+        ]);
+    });
+    it("alarms over a budget the poster sends, and not under it", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        for (let i = 0; i < 4; i++) s.duration(i, 400_000, NOW - DAY + i);
+        const post = (budgets) =>
+            call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row(400_000)], budgets } });
+        assert.equal((await post({ "job:ci.yml:Build": 360 })).body.trend[0].alarm, true);
+        env.DB.sqlite.prepare("DELETE FROM duration WHERE run_id = 4010").run();
+        const [t] = (await post({ "job:ci.yml:Build": 600 })).body.trend;
+        assert.deepEqual([t.alarm, t.earlier], [false, null]);
     });
 });
 

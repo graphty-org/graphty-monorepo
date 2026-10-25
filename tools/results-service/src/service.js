@@ -8,6 +8,7 @@
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
+import { getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -29,7 +30,7 @@ class Refused extends Error {
         this.status = status;
     }
 }
-const refuse = (status, message) => {
+export const refuse = (status, message) => {
     throw new Refused(status, message);
 };
 const json = (value, status = 200) => Response.json(value, { status });
@@ -239,7 +240,7 @@ async function postFailures(body, who, db, nowMs) {
     return { stored: failures.length };
 }
 
-async function postDurations(body, who, db) {
+async function postDurations(body, who, db, nowMs) {
     if (who.kind === "local") refuse(403, "durations come only from Actions runs");
     const rows = body?.rows;
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
@@ -275,14 +276,19 @@ async function postDurations(body, who, db) {
         r.ms,
         r.conclusion,
     ]);
-    if (values.length) await db.batch(inserts(db, "duration", columns, values));
-    return { stored: values.length, kind: who.kind };
+    if (!values.length) return { stored: 0, kind: who.kind, trend: [] };
+    await db.batch(inserts(db, "duration", columns, values));
+    return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
 }
 
 const ROUTES = {
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
+    // Reads take any credential (5.4) and answer from the stored records only.
+    "GET /v1/plan": getPlan,
+    "GET /v1/candidate": getCandidate,
+    "GET /v1/release-state": getReleaseState,
 };
 
 /**
@@ -295,7 +301,7 @@ const ROUTES = {
  * @returns the response
  */
 export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now() } = {}) {
-    const { pathname } = new URL(request.url);
+    const { pathname, searchParams } = new URL(request.url);
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
             await env.DB.prepare("SELECT 1").first();
@@ -303,7 +309,10 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
         }
         const route = ROUTES[`${request.method} ${pathname}`] ?? refuse(404, `no ${request.method} ${pathname}`);
         const who = await authenticate(request, env, doFetch, now);
-        const body = await request.json().catch(() => refuse(400, "the body is not JSON"));
+        const body =
+            request.method === "GET"
+                ? searchParams
+                : await request.json().catch(() => refuse(400, "the body is not JSON"));
         return json(await route(body, who, env.DB, now));
     } catch (error) {
         if (error instanceof Refused) return json({ error: error.message }, error.status);

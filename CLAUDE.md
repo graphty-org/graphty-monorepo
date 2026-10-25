@@ -1236,7 +1236,7 @@ built yet.
 How to land a change:
 
 1. Work on a branch in your own worktree: `./tools/worktree-new.sh <branch>` starts it from
-   `origin/golden-verified`, the newest golden commit verification passed. Every branch belongs to an issue: put its number in
+   `origin/master` (pass `origin/golden-verified` as the base for a branch of golden). Every branch belongs to an issue: put its number in
    the branch name (`fix/1234-topic`), or pass `--issue N`, or `--new-issue "<title>"` to open one. The
    script pushes the branch, labels the issue `in-progress` and writes the branch's progress note on it.
    Commit there; every commit pushes the branch to GitHub (`.husky/post-commit`). When you stop, say where
@@ -1364,12 +1364,12 @@ which is yours to fix (it also comments on your issue). While your branch must n
 mark it `node tools/branch-note.mjs busy --until 24h --reason "<why>"`. Design: `design/ci/branch-sync.md`.
 
 After every fetch, `land`, `revert`, `ship` and `status` also bring the main checkout to
-`origin/golden-verified`, the newest golden commit verification passed, so new sessions read
-instructions and run tools days before a cut reaches master: they switch it from master to a local
-branch `golden-verified` once, then fast-forward that branch. Untracked files stay. When it is on
-another branch, has uncommitted changes, would overwrite an untracked or ignored file, or its branch has
-commits GitHub's lacks, they leave it alone and print a warning. `MAIN_FOLLOWS` in `tools/land.mjs`
-names the branch; set it to `"master"` and the next run switches the main checkout back to master.
+`origin/master`, so new sessions read master's `.claude/settings.json`, skills and CLAUDE.md: they
+switch it from a local `golden-verified` (where it was kept before the channels pipeline) to master
+once, then fast-forward master. Untracked files stay. When it is on another branch, has uncommitted
+changes, would overwrite an untracked or ignored file, or its branch has commits GitHub's lacks, they
+leave it alone and print a warning. `MAIN_FOLLOWS` in `tools/land.mjs` names the branch; set it to
+`VERIFIED` and the next run switches the main checkout to `golden-verified` again.
 
 Every `node tools/land.mjs ...`, from any checkout or worktree, hands itself to one live copy,
 `.worktrees/land-live/tools/land.mjs`, with the same arguments, so every session runs the same version

@@ -1778,6 +1778,9 @@ jobs:
         name: Release due
         needs: all-checks
         if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        # A failure here is not the merge's: it must not turn the master build red, which would skip the
+        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5
         # actions: write to dispatch release.yml; issues: read for the open red issues.

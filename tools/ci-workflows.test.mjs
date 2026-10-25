@@ -1369,11 +1369,14 @@ describe("ci.yml", () => {
     it("reuses a named run's builds only when it built this commit and they are all still there", () => {
         const head = "a".repeat(40);
         const all = ["build-packages", ...Object.keys(STORYBOOKS)].map((name) => ({ name, expired: false }));
-        assert.equal(buildNotReusable({ head_sha: head }, all, head), null);
-        assert.match(buildNotReusable({ head_sha: "b".repeat(40) }, all, head), /not a{40}/);
+        const push = { event: "push", head_sha: head };
+        assert.equal(buildNotReusable(push, all, head), null);
+        assert.match(buildNotReusable({ ...push, head_sha: "b".repeat(40) }, all, head), /not a{40}/);
+        // a pull request run built its merge commit, not head_sha
+        assert.match(buildNotReusable({ ...push, event: "pull_request" }, all, head), /pull_request run/);
         const expired = all.map((a) => (a.name === "build-storybook-app" ? { ...a, expired: true } : a));
-        assert.match(buildNotReusable({ head_sha: head }, expired, head), /build-storybook-app/);
-        assert.match(buildNotReusable({ head_sha: head }, all.slice(1), head), /build-packages/);
+        assert.match(buildNotReusable(push, expired, head), /build-storybook-app/);
+        assert.match(buildNotReusable(push, all.slice(1), head), /build-packages/);
     });
 
     it("prints the named run as artifacts-run only when it can be reused (the --build-run step)", () => {
@@ -1388,17 +1391,18 @@ describe("ci.yml", () => {
         const stub = (sha) =>
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\ncase "$2" in *artifacts*) echo '${JSON.stringify({ artifacts })}';; *) echo '{"head_sha":"${sha}"}';; esac\n`,
+                `#!/bin/bash\ncase "$2" in *artifacts*) echo '${JSON.stringify({ artifacts })}';; *) echo '{"event":"push","head_sha":"${sha}"}';; esac\n`,
                 { mode: 0o755 },
             );
-        const run = () =>
-            spawnSync("node", [new URL("./ci-reuse-plan.mjs", import.meta.url).pathname, "--build-run", "77"], {
+        const run = (id = "77") =>
+            spawnSync("node", [new URL("./ci-reuse-plan.mjs", import.meta.url).pathname, "--build-run", id], {
                 cwd: dir,
                 encoding: "utf8",
                 env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
             });
         stub(head);
         assert.equal(run().stdout, "artifacts-run=77\n");
+        assert.equal(run("77/../../x").stdout, "artifacts-run=\n", "only a numeric run id is read");
         stub("0".repeat(40));
         const other = run();
         assert.equal(other.stdout, "artifacts-run=\n");
@@ -1426,6 +1430,8 @@ describe("ci.yml", () => {
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
+        // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
+        assert.match(due, /\n {8}continue-on-error: true\n/);
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {

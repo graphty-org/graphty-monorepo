@@ -192,6 +192,11 @@ export async function decide({ tree, chain, runs, runId, api }) {
  * @returns null when they can, else why not
  */
 export function buildNotReusable(run, artifacts, head) {
+    // Only a push run built exactly head_sha: a pull request run built its merge with the base, and a
+    // called run (release.yml) may have checked out another ref than its head_sha.
+    if (run.event !== "push") {
+        return `it is a ${run.event} run, not a push run`;
+    }
     if (run.head_sha !== head) {
         return `it built ${run.head_sha}, not ${head}`;
     }
@@ -206,6 +211,9 @@ export function buildNotReusable(run, artifacts, head) {
 function reuseBuildRun(id) {
     let why;
     try {
+        if (!/^\d+$/.test(id ?? "")) {
+            throw new Error(`not a run id: ${id}`);
+        }
         const api = (path) =>
             JSON.parse(
                 execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/${path}`], { encoding: "utf8" }),

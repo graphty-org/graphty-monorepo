@@ -3502,7 +3502,15 @@ describe("release.yml", () => {
         // (scheduled=true), "workflow_dispatch" for one by hand. `calls` collects every gh call. `settle` stubs
         // tools/publish-hold.mjs settle: "closes" (npm lists what the publish hold awaited, so the hold is gone),
         // "keeps" or "throws".
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "", calls = [], settle = "keeps") => {
+        const pending = (
+            trigger,
+            heldIssue,
+            trainPr = false,
+            publishHold = "",
+            calls = [],
+            settle = "keeps",
+            extra = {},
+        ) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -3512,7 +3520,9 @@ describe("release.yml", () => {
                 mkdirSync(join(dir, "bin"));
                 // `gh pr list` names an open release pull request of the old design; every gh call is recorded
                 const log = join(dir, "gh-calls");
-                const gh = `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$2" != list ] || echo 77' : ""}`;
+                const gh =
+                    `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$1 $2" != "pr list" ] || echo 77' : ""}\n` +
+                    `[ "$1 $2" != "run list" ] || echo ${extra.shadowPassed ?? 0}`;
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
@@ -3543,6 +3553,7 @@ describe("release.yml", () => {
                         GITHUB_RUN_ID: "1",
                         CANDIDATE: "abc123",
                         GITHUB_OUTPUT: output,
+                        ...(extra.mode ? { MODE: extra.mode } : {}),
                     },
                 });
                 assert.equal(run.status, 0, run.stderr);
@@ -3594,6 +3605,15 @@ describe("release.yml", () => {
             assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
             // by hand (scheduled=false): runs despite the held issue
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+        });
+
+        it("skips a scheduled shadow run on a commit a shadow run already passed, never a dispatch", () => {
+            const shadow = (trigger, shadowPassed) =>
+                pending(trigger, "", false, "", [], "keeps", { mode: "shadow", shadowPassed });
+            assert.equal(shadow("schedule", 1), "pending=true\n");
+            assert.equal(shadow("schedule", 0), "pending=false\nsha=abc123\n");
+            assert.equal(shadow("workflow_dispatch", 1), "pending=false\nsha=abc123\n");
+            assert.match(pick, /actions: read/);
         });
 
         it("closes a release pull request left from the old design and releases anyway", () => {

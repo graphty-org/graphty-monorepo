@@ -108,6 +108,7 @@ jobs:
         environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
         permissions:
             contents: write # delete the branch of a release pull request left from the old design
+            actions: read # find an earlier shadow run on the same commit
             issues: write # close a publish hold npm has ended (tools/publish-hold.mjs settle)
             pull-requests: write # close that pull request
         env:
@@ -159,6 +160,13 @@ jobs:
                   # when npm lists what it accepted (above).
                   if [ -n "$held" ] && [ "$TRIGGER" = schedule ]; then
                       skip "the release is held (issue #${held}); a dispatch runs anyway"
+                  fi
+                  # A scheduled shadow run releases nothing, so master's tip stays releasable: without this, an
+                  # unchanged master paid for the full suite, the T4, macOS and the LLM lane four times a day.
+                  if [ "${MODE:-}" = shadow ] && [ "$TRIGGER" = schedule ]; then
+                      tested=$(gh run list --workflow release.yml --commit "$CANDIDATE" --status success --limit 20 \
+                          --json displayTitle --jq '[.[] | select(.displayTitle == "Release (shadow)")] | length')
+                      [ "${tested:-0}" = 0 ] || skip "a shadow run already passed on ${CANDIDATE}; nothing new to test"
                   fi
                   # The newest version commit must carry its tags: the land job pushes them with it in one atomic
                   # push. A version commit without them (a release pull request of the old design merged with

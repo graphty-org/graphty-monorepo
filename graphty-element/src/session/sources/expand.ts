@@ -17,7 +17,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { SourceCollapseCommand, SourceExpandCommand } from "../commands/source-expand";
 import type { CodedFact, CodedFactParam } from "../shared";
 import { resolve as storedCredential } from "./credentialLookup";
-import { toGraphtyError } from "./errors";
+import { notYetRun, toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, sourceFactKeys, sourceFactsOf, sourceLoadsOf } from "./ids";
 import type { CollapseResult, ExpandOptions, SourceExpandResult, SourceLoadRecord } from "./types";
@@ -191,8 +191,9 @@ async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: Ex
         }
 
         const load = host.ledger.loadOf(sourceLoadsOf(record));
-        if (load === undefined) {
-            const error = notFromSource([record.id]);
+        // A load an opened project holds fetches nothing until the application ran it.
+        if (load === undefined || host.pending.has(load.key)) {
+            const error = load === undefined ? notFromSource([record.id]) : notYetRun(load.key);
             host.emit("source:expand-failed", { code: error.code, params: factParams(error.details) });
             throw error;
         }

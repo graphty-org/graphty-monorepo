@@ -95,7 +95,7 @@
                 "trigger": { "enum": ["none", "click", "double-click"] },
                 "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
                 "direction": { "$ref": "#/$defs/direction" },
-                "limit": { "type": "integer", "minimum": 1 },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "relationshipTypes": { "$ref": "#/$defs/names" },
                 "layout": { "enum": ["continue", "none"] }
             },
@@ -118,7 +118,7 @@
                 },
                 "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
                 "direction": { "$ref": "#/$defs/direction" },
-                "limit": { "type": "integer", "minimum": 1 },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "relationshipTypes": { "$ref": "#/$defs/names" },
                 "at": { "$ref": "#/$defs/time" },
                 "next": { "$ref": "#/$defs/cursor" },
@@ -128,7 +128,6 @@
         },
         "file": {
             "type": "object",
-            "required": ["size"],
             "properties": {
                 "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
                 "size": { "$ref": "#/$defs/count" },
@@ -277,7 +276,7 @@
                     "maxLength": 128,
                     "description": "file, url, source or sample; an open list. A reader keeps an entry of a kind it does not know and never runs it."
                 },
-                "name": { "type": "string", "maxLength": 1024 },
+                "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
                 "graph": {
                     "$ref": "#/$defs/id",
                     "description": "The id of the data member the load went into; absent: the file's one graph."
@@ -310,7 +309,8 @@
                 "tableRows": {
                     "type": "array",
                     "maxItems": 256,
-                    "items": { "enum": ["nodes", "edges"] }
+                    "items": { "enum": ["nodes", "edges"] },
+                    "description": "What each of tables held, in the same order: only with tables, and as long as it (a rule this schema cannot express)."
                 },
                 "joinedOnto": { "$ref": "#/$defs/id" },
                 "join": { "$ref": "#/$defs/join" },
@@ -374,8 +374,16 @@
                             "anyOf": [{ "required": ["file"] }, { "required": ["url"] }, { "required": ["source"] }]
                         }
                     }
+                },
+                {
+                    "if": { "properties": { "kind": { "not": { "enum": ["file", "url", "source", "sample"] } } } },
+                    "then": {
+                        "patternProperties": { "": {} },
+                        "description": "A kind of a later version: its part is the member named by its kind, which this version cannot describe; the common members above still hold."
+                    }
                 }
             ],
+            "dependentRequired": { "tableRows": ["tables"] },
             "unevaluatedProperties": false
         }
     }

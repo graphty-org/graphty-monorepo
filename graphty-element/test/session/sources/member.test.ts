@@ -14,7 +14,15 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession, SOURCE_RECORD_VERSION, SOURCES_MEMBER_VERSION } from "../../../session";
+import {
+    createGraphSession,
+    defineSource,
+    type GraphSession,
+    registerSource,
+    SOURCE_RECORD_VERSION,
+    SOURCES_MEMBER_VERSION,
+} from "../../../session";
+import { redactUrl } from "../../../src/session/sources/member";
 import type { SourceLoadOptions } from "../../../src/session/sources/types";
 import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 
@@ -403,7 +411,7 @@ describe("the sources member: reading", () => {
         assert.isAbove(session.data.nodes().length, 0, "the embedded elements show");
         assert.deepEqual(session.data.pendingSourceLoads(), []);
         assert.deepInclude(problems, {
-            code: "E_SOURCE_UNKNOWN",
+            code: "W_SOURCE_UNREGISTERED",
             params: {
                 kind: "graphty-sources",
                 pointer: `/members/${String(changed.at)}/loads/1`,
@@ -791,6 +799,7 @@ describe("the sources member: reading version 1", () => {
                 id: "s2",
                 source: "recorded-people",
                 endpoint: "https://people.example.test/api/",
+                params: {},
                 hasQuery: false,
                 isLocalNetwork: false,
                 authRequired: "none",
@@ -836,5 +845,306 @@ describe("the sources member: reading version 1", () => {
             session.data.pendingSourceLoads().map((each) => each.id),
             ["load-1"],
         );
+    });
+});
+
+// A source that takes any params, as the generic REST source does, and continues at a next-page
+// link holding a key, as a service's Link header may.
+registerSource(
+    defineSource({
+        id: "member-any-params",
+        descriptor: {
+            plainName: "Any params",
+            params: [],
+            features: ["page"],
+            defaultEndpoint: "https://api.example.test/",
+        },
+        async *records(_params: Record<string, unknown>, ctx) {
+            const page = ctx.cursor === null ? 0 : 1;
+            yield await Promise.resolve({
+                nodes: [{ id: `r${String(page)}` }],
+                next: page === 0 ? { at: "https://api.example.test/p2?api_key=SECRET-4&page=2" } : null,
+            });
+        },
+    }),
+);
+
+describe("the sources member: what a save leaves out", () => {
+    it("src-56: writes no key a network load's mapping, endpoint query or cursor held", async () => {
+        const session = fresh();
+        const mapping = {
+            version: 1,
+            endpoint: "https://api.example.test/?api_key=SECRET-1",
+            load: "works",
+            requests: {
+                works: {
+                    path: "/works",
+                    query: Object.fromEntries([
+                        ["api_key", "SECRET-2"],
+                        ["filter", "cites:{work}"],
+                        ["access_token", "{token}"],
+                    ]),
+                    body: Object.fromEntries([
+                        ["client_secret", "SECRET-3"],
+                        ["page", 1],
+                    ]),
+                    records: "results",
+                    entity: "work",
+                },
+            },
+            entities: { work: { id: "id" } },
+        };
+        await session.data.import(
+            { source: "member-any-params", config: { mapping, work: "W1" } },
+            { limits: { maxNodes: 1, onLimit: "stop" } },
+        );
+        const { text, doc, leftOut } = await save(session);
+        for (const secret of ["SECRET-1", "SECRET-2", "SECRET-3", "SECRET-4"]) {
+            assert.notInclude(text, secret);
+        }
+
+        type Written = { query?: unknown; body?: unknown };
+        const part = entries(doc)[0].source as {
+            params: { mapping: { endpoint: string; requests: { works: Written } } };
+            next: { at: string };
+        };
+        assert.strictEqual(part.params.mapping.endpoint, "https://api.example.test/");
+        assert.deepEqual(
+            part.params.mapping.requests.works.query,
+            Object.fromEntries([
+                ["filter", "cites:{work}"],
+                ["access_token", "{token}"],
+            ]),
+        );
+        assert.deepEqual(part.params.mapping.requests.works.body, { page: 1 });
+        assert.strictEqual(part.next.at, "https://api.example.test/p2?page=2");
+        const redacted = leftOut.find((each) => (each as { code: string }).code === "W_SOURCE_URL_REDACTED") as
+            { params: { id: string; names: string[] } } | undefined;
+        assert.strictEqual(redacted?.params.id, "s1");
+        assert.sameMembers(redacted?.params.names ?? [], ["api_key", "client_secret"]);
+    });
+
+    it("src-57: leaves out the credential-bearing parameters of signed and token URLs", () => {
+        const signed = redactUrl(
+            "https://storage.googleapis.com/b/o.csv?X-Goog-Algorithm=A&X-Goog-Credential=C&X-Goog-Signature=S&v=1",
+        );
+        assert.strictEqual(signed.address, "https://storage.googleapis.com/b/o.csv?v=1");
+        assert.sameMembers(signed.dropped, ["X-Goog-Algorithm", "X-Goog-Credential", "X-Goog-Signature"]);
+        const cloudfront = redactUrl("https://d.cloudfront.net/a.csv?Policy=P&Key-Pair-Id=K&Signature=S");
+        assert.strictEqual(cloudfront.address, "https://d.cloudfront.net/a.csv");
+        const tokens = redactUrl(
+            "https://x.example/a?refresh_token=1&id_token=2&private_token=3&jwt=4&code=5&sid=6&session=7&passwd=8&q=gene",
+        );
+        assert.strictEqual(tokens.address, "https://x.example/a?q=gene");
+    });
+
+    it("src-57: redacts a relative URL too, keeping its path as written", () => {
+        assert.deepEqual(redactUrl("data/a.csv?token=T&v=2#top"), { address: "data/a.csv?v=2", dropped: ["token"] });
+        assert.deepEqual(redactUrl("../a.csv?v=2#top"), { address: "../a.csv?v=2", dropped: [] });
+        assert.deepEqual(redactUrl("//u:p@cdn.example/a.csv?sig=S"), {
+            address: "//cdn.example/a.csv",
+            dropped: ["sig"],
+        });
+    });
+});
+
+describe("the sources member: reading rules", () => {
+    it("src-32: data steps in a file that also embeds the graph opens embedded, naming the graph", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const changed = edited(text, (_loads, member) => {
+            member.data = "steps";
+        });
+        const { session, problems } = await open(changed.text);
+        assert.deepInclude(problems, {
+            code: "W_SOURCE_STEPS_IGNORED",
+            params: { kind: "graphty-sources", pointer: `/members/${String(changed.at)}/data`, graph: null },
+        });
+        assert.isAbove(session.data.nodes().length, 0);
+    });
+
+    it("src-48: a steps-only file with no data member is refused, naming the sources member", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const doc = JSON.parse(text) as Doc;
+        doc.members = doc.members.filter((each) => each.kind !== "graphty-data");
+        const { member } = memberOf(doc, "graphty-sources");
+        member.data = "steps";
+        const error = await fresh()
+            .project.open(JSON.stringify(doc))
+            .then(
+                () => null,
+                (e: unknown) => e as { code: string; details: unknown },
+            );
+        assert.strictEqual(error?.code, "E_UNSUPPORTED");
+        assert.deepEqual(error?.details, { kind: "graphty-sources", data: "steps" });
+    });
+
+    it("src-49: an id that is missing or not an id skips the member", async () => {
+        const { text } = await save(await csvThenNetwork());
+        for (const id of [undefined, "-bad", 7]) {
+            const changed = edited(text, (loads) => {
+                loads[1].id = id;
+            });
+            const { session, problems } = await open(changed.text);
+            assert.deepInclude(problems, {
+                code: "E_BAD_DOCUMENT",
+                params: { kind: "graphty-sources", pointer: `/members/${String(changed.at)}/loads/1/id` },
+            });
+            assert.deepEqual(session.data.pendingSourceLoads(), []);
+        }
+    });
+
+    it("src-15, src-50: a missing required member, a date the calendar lacks or an endpoint with a user name cannot run", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const cases: [(entry: Record<string, unknown>) => void, string][] = [
+            [(entry) => delete entry.loadedAt, "loadedAt"],
+            [(entry) => (entry.loadedAt = "2026-02-30T00:00:00Z"), "loadedAt"],
+            [
+                (entry) => ((entry.source as Record<string, unknown>).endpoint = "https://u:p@db.example/"),
+                "source/endpoint",
+            ],
+            [
+                (entry) => ((entry.source as Record<string, unknown>).endpoint = "https://db.example/?k=1"),
+                "source/endpoint",
+            ],
+            [(entry) => (entry.tableRows = ["nodes"]), "tableRows"],
+            [(entry) => (entry.name = ""), "name"],
+            [(entry) => (entry.joinedOnto = "s2"), "joinedOnto"],
+            [(entry) => (entry.approved = true), "approved"],
+        ];
+        for (const [change, at] of cases) {
+            const changed = edited(text, (loads) => change(loads[1]));
+            const { session, problems } = await open(changed.text);
+            assert.deepInclude(problems, {
+                code: "E_BAD_DOCUMENT",
+                params: { kind: "graphty-sources", pointer: `/members/${String(changed.at)}/loads/1/${at}` },
+            });
+            assert.deepEqual(session.data.pendingSourceLoads(), [], at);
+        }
+    });
+
+    it("src-51: an entry of a later kind still needs the members every kind shares", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const changed = edited(text, (loads) => {
+            loads.push({ id: "d1", kind: "dbt", mode: "merge", added: { nodes: 0, edges: 0 }, dbt: {} });
+        });
+        const { problems } = await open(changed.text);
+        const pointer = `/members/${String(changed.at)}/loads/2`;
+        assert.deepInclude(problems, {
+            code: "W_UNKNOWN_KIND",
+            params: { kind: "graphty-sources", pointer, found: "dbt" },
+        });
+        assert.deepInclude(problems, {
+            code: "E_BAD_DOCUMENT",
+            params: { kind: "graphty-sources", pointer: `${pointer}/loadedAt` },
+        });
+    });
+
+    it("src-52: a version 1 member past the entry limit is skipped before it is joined", async () => {
+        const file = version1File();
+        const members = file.members as Record<string, unknown>[];
+        const v1 = members[3] as { loads: Record<string, unknown>[] };
+        const [record] = v1.loads;
+        v1.loads = Array.from({ length: 1001 }, (_, at) => ({ ...record, key: `load-${String(at + 1)}` }));
+        const { problems } = await open(JSON.stringify(file));
+        assert.deepInclude(problems, {
+            code: "E_TOO_LARGE",
+            params: { kind: "graphty-sources", pointer: "/members/3", limit: "entries" },
+        });
+    });
+
+    it("src-53: version 1 items upgrade with a generator's params, no invented size and a redacted URL", async () => {
+        await loadRecordedSeed(fresh());
+        const file = version1File();
+        const data = (file.members as Record<string, unknown>[])[0] as { sources: Record<string, unknown>[] };
+        data.sources = [
+            {
+                type: "csv",
+                name: "genes.csv",
+                config: {},
+                key: "s1",
+                kind: "file",
+                tables: [],
+                added: { nodes: 3, edges: 2 },
+            },
+            {
+                type: "csv",
+                name: "remote.csv",
+                config: { url: "https://example.org/r.csv?token=T&v=1" },
+                key: "s3",
+                kind: "file",
+                tables: [],
+                added: { nodes: 0, edges: 0 },
+            },
+            { name: "path", config: { n: 4 }, key: "s4", kind: "sample", tables: [], added: { nodes: 0, edges: 0 } },
+        ];
+        const { session } = await open(JSON.stringify(file));
+        const { doc, text } = await save(session);
+        const byId = new Map(entries(doc).map((entry) => [entry.id, entry]));
+        assert.deepEqual(byId.get("s1")?.file, { name: "genes.csv" });
+        assert.deepInclude(byId.get("s3")?.url as object, {
+            address: "https://example.org/r.csv?v=1",
+            dropped: ["token"],
+        });
+        assert.deepEqual(byId.get("s4")?.sample, { generator: "path", params: { n: 4 } });
+        assert.notInclude(text, "token=T");
+    });
+
+    it("src-54: a REST load whose endpoint is the mapping's own lists and marks that endpoint", async () => {
+        const session = fresh();
+        const mapping = { version: 1, endpoint: "http://192.168.1.20/api", load: "a", requests: {}, entities: {} };
+        await session.data.import({ source: "member-any-params", config: { mapping } });
+        const { text } = await save(session);
+        const changed = edited(text, (loads) => {
+            (loads[0].source as Record<string, unknown>).endpoint = null;
+        });
+        const { session: reopened } = await open(changed.text);
+        const [pending] = reopened.data.pendingSourceLoads();
+        assert.strictEqual(pending.endpoint, "http://192.168.1.20/api");
+        assert.isTrue(pending.isLocalNetwork);
+        assert.deepEqual(pending.params, { mapping });
+    });
+
+    it("src-55: a member of another data value or a later version is skipped", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const other = edited(text, (_loads, member) => {
+            member.data = "elsewhere";
+        });
+        const { problems } = await open(other.text);
+        assert.deepInclude(problems, {
+            code: "E_BAD_DOCUMENT",
+            params: { kind: "graphty-sources", pointer: `/members/${String(other.at)}/data` },
+        });
+        const later = edited(text, (_loads, member) => {
+            member.version = 3;
+        });
+        const opened = await open(later.text);
+        assert.deepInclude(opened.problems, {
+            code: "E_UNSUPPORTED_VERSION",
+            params: { index: later.at, kind: "graphty-sources", found: 3 },
+        });
+        assert.deepEqual(opened.session.data.pendingSourceLoads(), []);
+    });
+
+    it("src-39: a plain document holding the member applies none of it", async () => {
+        const { doc } = await save(await csvThenNetwork());
+        doc.members = doc.members.filter((each) => each.kind !== "graphty-session");
+        const session = fresh();
+        const report = await session.project.open(JSON.stringify(doc));
+        assert.strictEqual(report.opened, "document");
+        assert.deepInclude(report.problems, { code: "E_UNSUPPORTED", params: { kind: "graphty-sources" } });
+        assert.deepEqual(session.data.pendingSourceLoads(), []);
+        assert.deepEqual(session.data.loads(), []);
+    });
+
+    it("src-16: a pending load on the reader's own machine is offered marked local", async () => {
+        const { text } = await save(await csvThenNetwork());
+        const changed = edited(text, (loads) => {
+            (loads[1].source as Record<string, unknown>).endpoint = "http://localhost:7474/db";
+        });
+        const { session } = await open(changed.text);
+        assert.deepInclude(session.data.pendingSourceLoads()[0], {
+            endpoint: "http://localhost:7474/db",
+            isLocalNetwork: true,
+        });
     });
 });

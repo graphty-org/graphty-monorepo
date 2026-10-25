@@ -332,6 +332,7 @@ describe("a saved project with source loads", () => {
                 id: session.data.loads()[0].key,
                 source: "people-load",
                 endpoint: `${ENDPOINT}/`,
+                params: { team: "core" },
                 hasQuery: false,
                 isLocalNetwork: false,
                 authRequired: "none",

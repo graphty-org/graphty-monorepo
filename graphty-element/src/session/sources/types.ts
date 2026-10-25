@@ -92,8 +92,16 @@ export interface PendingSourceLoad {
     readonly id: string;
     /** The source id. */
     readonly source: string;
-    /** The endpoint, origin and path. */
+    /**
+     * Where its requests go, origin and path: the recorded endpoint, else a REST mapping's own
+     * endpoint, else the source's default; null when none is known.
+     */
     readonly endpoint: string | null;
+    /**
+     * The params the file recorded and a run sends as they are -- a Cypher or SPARQL `query`, a
+     * REST `mapping` -- so an application can show the reader exactly what will run before asking.
+     */
+    readonly params: Readonly<Record<string, unknown>>;
     /** Whether its params carry a query a reader may want to see first. */
     readonly hasQuery: boolean;
     /** Whether the endpoint is on this machine or a local network. */
@@ -179,6 +187,8 @@ export interface SourceLoadRecord {
      * or the count a sample publishes. Absent when the source does not say.
      */
     readonly total?: number;
+    /** How many edges the source holds for this load, when it counted them or a complete read did. */
+    readonly totalEdges?: number;
     /** The load's own expand behavior (`SourceLoadOptions.expand`), when it was given one. */
     readonly expand?: ExpandBehavior;
 }
@@ -198,8 +208,9 @@ export interface SourcePreview {
     /** At most `maxNodes` node rows, as a load would hold them, without the `_source.` facts. */
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
     /**
-     * Each of `nodes`, in order, as its id and its label: the first text value of `label`, `name`,
-     * `title` or `display_name`, else null.
+     * Each of `nodes`, in order, as its id and its name: the value at the configured
+     * `data.knownFields.nodeLabelPath`, as `data.name(id)` reads it once the node is loaded, else
+     * the id.
      * @since 3.30.0
      */
     readonly rows: readonly SourcePreviewRow[];
@@ -209,10 +220,9 @@ export interface SourcePreview {
     readonly columns: readonly AttributeDescriptor[];
     /** Whether the source holds more than the preview shows. */
     readonly more: boolean;
-    /** Facts about the server (`{ product: "Neo4j", version: "5.24" }`); empty when it gave none. */
-    readonly facts: Readonly<Record<string, string>>;
     /**
-     * The same facts as codes, one per fact: `source.product`, `source.version`, `source.readOnly`
+     * Facts about the server as codes, one per fact, empty when it gave none: `source.product`,
+     * `source.version`, `source.readOnly`
      * (`value` `"enforced"` or `"not-enforced"`), `source.profile` and any other the source gives,
      * each with its `value`.
      * @since 3.30.0
@@ -226,8 +236,8 @@ export interface SourcePreview {
 export interface SourcePreviewRow {
     /** The node's id. */
     readonly id: NodeId;
-    /** Its name, read from its `label`, `name`, `title` or `display_name` column, or null when it has none. */
-    readonly name: string | null;
+    /** Its name, as `data.name(id)` reads it once the node is loaded: the configured label, else the id. */
+    readonly name: string;
 }
 
 /** The options of `data.previewSource`. Experimental. */

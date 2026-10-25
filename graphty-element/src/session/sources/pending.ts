@@ -5,8 +5,9 @@
 import { registry, type SourceDescriptor } from "@graphty/graph-io";
 
 import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
+import { isLocalNetwork } from "./endpoint";
 import type { SourceHost } from "./host";
-import type { PendingSourceLoad } from "./types";
+import type { PendingSourceLoad, SourceLoadRecord } from "./types";
 
 /**
  * A source's descriptor, read from the registry without loading the source's code.
@@ -19,25 +20,15 @@ export function descriptorOf(id: string): SourceDescriptor | undefined {
 }
 
 /**
- * Whether an endpoint is on this machine or a local network.
- * @param endpoint - the endpoint, or null
- * @returns true for loopback, RFC 1918 and `.local` hosts
+ * Where a load's requests go: its endpoint, else a REST mapping's own endpoint, else the source's
+ * default.
+ * @param record - the load
+ * @returns the endpoint, or null when none is known
  */
-function isLocalNetwork(endpoint: string | null): boolean {
-    if (endpoint === null) {
-        return false;
-    }
-
-    const host = new URL(endpoint).hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "");
-    return (
-        host === "localhost" ||
-        host === "::1" ||
-        host.endsWith(".local") ||
-        host.startsWith("127.") ||
-        host.startsWith("10.") ||
-        host.startsWith("192.168.") ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-    );
+function targetOf(record: SourceLoadRecord): string | null {
+    const { mapping } = record.config as { mapping?: { endpoint?: unknown } };
+    const mapped = typeof mapping?.endpoint === "string" ? mapping.endpoint : null;
+    return record.endpoint ?? mapped ?? descriptorOf(record.source)?.defaultEndpoint ?? null;
 }
 
 /**
@@ -54,9 +45,10 @@ export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad
             return Object.freeze({
                 id: record.key,
                 source: record.source,
-                endpoint: record.endpoint,
+                endpoint: targetOf(record),
+                params: record.config,
                 hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
-                isLocalNetwork: isLocalNetwork(record.endpoint),
+                isLocalNetwork: isLocalNetwork(targetOf(record)),
                 authRequired: descriptorOf(record.source)?.authRequired ?? "none",
                 ...(slot === undefined ? {} : { credentialSlot: slot }),
             });

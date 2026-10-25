@@ -60,38 +60,45 @@ function lastKey(page: Recording): string {
 }
 
 /**
+ * The keys a recorded node page returned, in order.
+ * @param page - the page
+ * @returns the keys
+ */
+function keysOf(page: Recording): string[] {
+    return (page.body as Rows).data.values.map((row) => (row[1] as unknown as { _value: string })._value);
+}
+
+/**
  * The demo's answer to the relationships among the nodes a capped mode "all" loaded, built from
- * the recorded relationship pages: both ends at or before `last`, one past `after`.
- * @param last - the node page's last key
- * @param after - the previous page's last key, or null for the first page
+ * the recorded relationship pages: one end on the node page, the other at or before its last key.
+ * @param page - the node page
  * @returns the recording
  */
-function among(last: string, after: string | null): Recording {
+function among(page: Recording): Recording {
+    const keys = keysOf(page);
+    const last = lastKey(page);
     const values = PAGED.slice(2)
         .flatMap((r) => (r.body as Rows).data.values)
         .filter(([, r]) => {
             const ends = [r._value._start_node_element_id, r._value._end_node_element_id];
-            return ends.every((id) => id <= last) && ends.some((id) => after === null || id > after);
+            return ends.every((id) => id <= last) && ends.some((id) => keys.includes(id));
         })
         .map(([a, r, b]) => [a, r, b]);
     const statement = [
-        "MATCH (a)-[r]->(b) WITH a, r, b, elementId(a) AS ka, elementId(b) AS kb",
-        `WHERE ka <= $last AND kb <= $last${after === null ? "" : " AND (ka > $after OR kb > $after)"}`,
+        "MATCH (a)-[r]->(b) WHERE elementId(a) IN $keys AND elementId(b) <= $last RETURN a, r, b",
+        "UNION ALL",
+        "MATCH (a)-[r]->(b) WHERE elementId(b) IN $keys AND elementId(a) <= $last AND NOT elementId(a) IN $keys",
         "RETURN a, r, b",
     ].join(" ");
     return {
         ...PAGED[2],
-        requestBody: JSON.stringify({
-            statement,
-            parameters: { last, ...(after === null ? {} : { after }) },
-            accessMode: "Read",
-        }),
+        requestBody: JSON.stringify({ statement, parameters: { keys, last }, accessMode: "Read" }),
         body: { data: { fields: ["a", "r", "b"], values } },
     };
 }
 
 /** Mode "all" capped at 100 nodes, page by page: each node page, then the edges among what is loaded. */
-const CAPPED = [COUNT, PAGED[0], among(lastKey(PAGED[0]), null), PAGED[1], among(lastKey(PAGED[1]), lastKey(PAGED[0]))];
+const CAPPED = [COUNT, PAGED[0], among(PAGED[0]), PAGED[1], among(PAGED[1])];
 
 /** Load options against recordings, with the demo's published login. */
 function options(recordings: readonly Recording[]): Parameters<typeof loadFromSource>[2] {
@@ -244,7 +251,7 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(capped.snapshot.edgeCount + rest.snapshot.edgeCount).toBe(253);
     });
 
-    it("runs a user query uncapped when the server refuses the cap's wrapper", async () => {
+    it("refuses a capped user query the server cannot wrap, never running it uncapped", async () => {
         const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
         const refused = QUERIES.find((r) => (r.status ?? 200) >= 400);
         if (refused === undefined) {
@@ -261,13 +268,16 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
             },
             QUERIES[0],
         ]);
-        const { snapshot, report } = await loadFromSource(
-            "neo4j",
-            { database: "movies", query, parameters: { name: "Tom Hanks" } },
-            { ...options([]), fetch, limits: { maxNodes: 3 } },
+        const err = await rejection(
+            loadFromSource(
+                "neo4j",
+                { database: "movies", query, parameters: { name: "Tom Hanks" } },
+                { ...options([]), fetch, limits: { maxNodes: 3 } },
+            ),
         );
-        expect(snapshot.nodeCount).toBe(13);
-        expect(report.source?.next).toBeNull();
+        expect(err.issue?.code).toBe("E_SOURCE_PARAM");
+        expect(err.issue?.params).toEqual({ name: "maxNodes", reason: "uncappable" });
+        expect(fetch.calls).toHaveLength(1);
     });
 
     it("reports a query error with the line and column the server named", async () => {

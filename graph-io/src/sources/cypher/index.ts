@@ -253,7 +253,8 @@ class Reader {
      * Mode "query": the reader's own query, as written. With a node cap (or a cursor from a capped
      * run) the server returns at most that many rows (`CALL { query } RETURN * LIMIT n`), and a full
      * result hands back a cursor that runs the query again with twice the rows, for the caller to
-     * merge. A server that refuses the wrapper runs the query uncapped.
+     * merge. A server that refuses the wrapper fails the load with `E_SOURCE_PARAM` (`name:
+     * "maxNodes"`, `reason: "uncappable"`): the query is never run past the cap the caller set.
      * @param query - the query
      * @param cursor - where to resume: `{ rows }` from an earlier capped run
      * @returns the one page
@@ -267,7 +268,6 @@ class Reader {
                 ? null
                 : Number(checkedInteger(asked, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
         let result: QueryResult;
-        let capped = rows !== null;
         try {
             result = await this.transport.run(
                 rows === null
@@ -276,16 +276,18 @@ class Reader {
                 parameters,
             );
         } catch (err) {
-            if (!capped || !(err instanceof ImportError) || err.issue?.code !== SOURCE_ISSUE.E_SOURCE_QUERY) {
+            if (rows === null || !(err instanceof ImportError) || err.issue?.code !== SOURCE_ISSUE.E_SOURCE_QUERY) {
                 throw err;
             }
-            capped = false;
-            result = await this.transport.run(query, parameters);
+            return failOn(ctx.report, "E_SOURCE_PARAM", "the server cannot cap this query; load it without maxNodes", {
+                name: "maxNodes",
+                reason: "uncappable",
+            });
         }
         const collected = new Collector();
         collected.add(result, false);
         requireGraph(result, collected, ctx.report);
-        const full = capped && rows !== null && result.rows.length >= rows;
+        const full = rows !== null && result.rows.length >= rows;
         return { collected, next: full ? { rows: rows * 2 } : null };
     }
 
@@ -362,13 +364,12 @@ class Reader {
                 (d) => nodePage(profile, this.filters, String(size), after !== null, d),
                 after === null ? {} : { after },
             );
-            const last = rows.at(-1)?.[fields.indexOf("key")];
+            const at = fields.indexOf("key");
+            const last = rows.at(-1)?.[at];
             const key = typeof last === "string" || typeof last === "number" ? last : null;
             if (key !== null) {
-                const among = await this.transport.run(edgesAmong(profile, this.filters, after !== null), {
-                    last: key,
-                    ...(after === null ? {} : { after }),
-                });
+                const keys = rows.map((row) => row[at]);
+                const among = await this.transport.run(edgesAmong(profile, this.filters), { keys, last: key });
                 collected.add(among, false);
             }
             const next = rows.length >= size && key !== null ? { phase: "nodes", after: key } : null;

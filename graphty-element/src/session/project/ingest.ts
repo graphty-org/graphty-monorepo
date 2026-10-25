@@ -188,6 +188,20 @@ function serialOf(key: string | undefined): number {
     return match === null ? 0 : Number(match[1]);
 }
 
+/**
+ * Where a load came from, when its command does not say: a network source, a URL or a file.
+ * @param type - The source's type.
+ * @param config - Its configuration.
+ * @returns The kind.
+ */
+function kindOf(type: string, config: Readonly<Record<string, unknown>> | undefined): LoadedSourceKind {
+    if (type.startsWith("source:")) {
+        return "server";
+    }
+
+    return typeof config?.url === "string" ? "url" : "file";
+}
+
 /** What a caller may say about one `addEdges` call that the configuration does not already say. */
 export interface AddEdgesOptions {
     /** The JMESPath expression naming the source endpoint, overriding the configured one. */
@@ -752,7 +766,7 @@ export class Ingest<K extends KnownEdge> {
     ): void {
         const { described, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
         const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
-        const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
+        const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
         const loaded: LoadedSource = Object.freeze({
             ...described,
             key,

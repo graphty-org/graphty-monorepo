@@ -174,6 +174,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "latitude",
     "longitude",
     "within",
+    // the name of the credential slot a load filled, an identifier its source's descriptor declares
+    "credentialSlot",
 ]);
 
 const DECLARATION =

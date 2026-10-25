@@ -1288,6 +1288,7 @@ export class SessionData implements SessionDataApi {
             expansions: this.expansions,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            labelPath: () => this.readConfig().knownFields.nodeLabelPath,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -2508,7 +2509,7 @@ export class SessionData implements SessionDataApi {
      * Take one load out of the graph, keeping what another load also supplied. One undoable step.
      * @param key - the load's key
      * @returns how many nodes and edges went and stayed
-     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      */
     async removeSource(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
@@ -2516,7 +2517,7 @@ export class SessionData implements SessionDataApi {
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
             throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
+                code: "E_LOAD_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
                 details: { key, known: sources.map((each) => each.key) },
@@ -4827,7 +4828,7 @@ function choiceOptions(
 function loadFacts(
     record: SourceLoadRecord | undefined,
     catalog: ReadonlyMap<string, SourceFeatures>,
-): Pick<LoadedSource, "features" | "total"> {
+): Pick<LoadedSource, "features" | "total" | "totalEdges"> {
     if (record === undefined) {
         return {};
     }
@@ -4840,5 +4841,6 @@ function loadFacts(
             refresh: declared?.refresh === true,
         }),
         ...(record.total === undefined ? {} : { total: record.total }),
+        ...(record.totalEdges === undefined ? {} : { totalEdges: record.totalEdges }),
     };
 }

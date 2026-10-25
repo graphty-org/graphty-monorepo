@@ -388,6 +388,36 @@ describe("the rest source", () => {
         expect(report.source?.next).toMatchObject({ r: "people", at: 2 });
     });
 
+    it("keeps no API key in a next-page link the service echoes it in", async () => {
+        const linked: RestMapping = {
+            ...PEOPLE,
+            requests: { ...PEOPLE.requests, people: { ...PEOPLE.requests.people, paging: { style: "link-header" } } },
+        };
+        const { report } = await loadFromSource(
+            restSource(linked, { id: "linked-key" }),
+            { team: "core" },
+            {
+                credential: credentials.apiKey({ query: "api_key" }, "K-SECRET-1"),
+                endpoint: API,
+                limits: { maxNodes: 1, onLimit: "stop" },
+                fetch: replayFetch(
+                    [
+                        {
+                            url: `${API}/teams/core/people?api_key=x`,
+                            headers: { link: `<${API}/teams/core/people?p=2&api_key=K-SECRET-1>; rel="next"` },
+                            body: { items: [{ id: "a" }] },
+                        },
+                    ],
+                    { secretQuery: ["api_key"] },
+                ),
+            },
+        );
+        const saved = JSON.stringify(report.source?.next);
+        expect(saved).toContain("p=2");
+        expect(saved).not.toContain("K-SECRET-1");
+        expect(saved).not.toContain("api_key");
+    });
+
     it("pages by link header and by a next URL in the body", async () => {
         const linked: RestMapping = {
             ...PEOPLE,

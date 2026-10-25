@@ -15,7 +15,7 @@ import { isolateGit } from "../isolated-git-env.mjs";
 import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
-import { junitOf, recordsOf, runGroup } from "./run-group.mjs";
+import { junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
 
 isolateGit();
 const TMP = mkdtempSync(join(tmpdir(), "results-"));
@@ -114,6 +114,25 @@ describe("client", () => {
         assert.equal(r.ok, false);
         assert.equal(r.why, "no answer in 0.3 s");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
+    });
+    it("gives the OIDC token request and the call one deadline between them", async () => {
+        const signals = [];
+        mock.method(globalThis, "fetch", (_url, init) => {
+            signals.push(init.signal);
+            const payload = Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 600 })).toString("base64url");
+            return Promise.resolve(
+                new Response(signals.length === 1 ? JSON.stringify({ value: `h.${payload}.s` }) : "{}"),
+            );
+        });
+        try {
+            const env = { RESULTS_URL: "http://store", ACTIONS_ID_TOKEN_REQUEST_URL: "http://gh/one-deadline?x=1" };
+            const cfg = config({ ...env, ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req" });
+            assert.equal((await call(cfg, "GET", "/v1/status")).ok, true);
+            assert.equal(signals.length, 2);
+            assert.equal(signals[0], signals[1]);
+        } finally {
+            mock.restoreAll();
+        }
     });
     it("fails open with no store configured", async () => {
         assert.deepEqual(await call(null, "GET", "/v1/plan"), { ok: false, why: "results store not configured" });
@@ -233,6 +252,21 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+    });
+});
+
+describe("postRecords", () => {
+    it("asks a store that never answers once and spools every record", async () => {
+        const s = await serve(false);
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const spool = join(TMP, "spool-2");
+        const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
+        assert.equal(s.seen.length, 1);
+        assert.deepEqual(
+            rs.map((r) => r.ok),
+            [false, false],
+        );
+        assert.deepEqual(readdirSync(spool).sort(), ["g.1.json", "g.2.json"]);
     });
 });
 

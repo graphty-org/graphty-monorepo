@@ -44,13 +44,13 @@ export function config(env = process.env, root = ROOT) {
 
 const oidcCache = new Map();
 
-async function bearer(cfg, ms) {
+async function bearer(cfg, signal) {
     if (cfg.token) return cfg.token;
     const hit = oidcCache.get(cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL);
     if (hit && hit.exp - 60 > Date.now() / 1000) return hit.value;
     const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}`, {
         headers: { authorization: `Bearer ${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
-        signal: AbortSignal.timeout(ms),
+        signal,
     });
     if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
     const { value } = await res.json();
@@ -72,7 +72,7 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
     if (!cfg) return { ok: false, why: "results store not configured" };
     const deadline = AbortSignal.timeout(ms);
     try {
-        const auth = await bearer(cfg, ms);
+        const auth = await bearer(cfg, deadline);
         const res = await fetch(cfg.url + path, {
             method,
             headers: {

@@ -173,7 +173,9 @@ export default class TimeBudgetReporter {
             return;
         }
         const store = this.history ? storeOf(this.history) : null;
-        const history = (await readStore(store)) ?? (this.history ? readHistory(this.history) : {});
+        const read = store ? await call(store.cfg, "GET", store.path) : null;
+        const fromStore = read?.ok && read.data && Object.keys(read.data).length > 0 ? read.data : null;
+        const history = fromStore ?? (this.history ? readHistory(this.history) : {});
         const slow = judge(this.tests, history);
         const text = format(slow);
         if (text) {
@@ -187,7 +189,8 @@ export default class TimeBudgetReporter {
         if (this.history) {
             const next = remember(history, this.tests);
             writeHistory(this.history, next);
-            if (store) await call(store.cfg, "PUT", store.path, next);
+            // A store that did not answer the read is not asked again: one timeout at most.
+            if (read?.ok) await call(store.cfg, "PUT", store.path, next);
         }
     }
 }
@@ -195,12 +198,6 @@ export default class TimeBudgetReporter {
 function storeOf(history) {
     const cfg = config();
     return cfg ? { cfg, path: `/v1/durations/tests/${encodeURIComponent(basename(history, ".json"))}` } : null;
-}
-
-async function readStore(store) {
-    if (!store) return null;
-    const r = await call(store.cfg, "GET", store.path);
-    return r.ok && r.data && Object.keys(r.data).length > 0 ? r.data : null;
 }
 
 function writeHistory(file, history) {

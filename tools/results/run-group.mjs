@@ -129,6 +129,30 @@ export function recordsOf(o) {
     return recs;
 }
 
+/**
+ * Posts a group's records. A store that did not take one is not asked again: the rest go straight to the spool,
+ * so a store that never answers costs one timeout, not one per record.
+ * @param cfg config()
+ * @param recs recordsOf()
+ * @param spool the spool directory
+ * @param [ms] the timeout of each post
+ * @returns postInvocation()'s results
+ */
+export async function postRecords(cfg, recs, spool, ms = undefined) {
+    const out = [];
+    for (const rec of recs) {
+        const r = await postInvocation(cfg, rec, spool, ms);
+        if (!r.ok) cfg = null;
+        console.log(
+            r.ok
+                ? `run-group: recorded ${rec.id}`
+                : `run-group: ${rec.id} not recorded (${r.why}); spooled to ${r.spooled}`,
+        );
+        out.push(r);
+    }
+    return out;
+}
+
 function readResult(file) {
     try {
         return JSON.parse(readFileSync(file, "utf8"));
@@ -179,15 +203,7 @@ export async function runGroup(shardName, command = undefined, { root = process.
         env: envString(env),
         dir: join(root, "test-results"),
     });
-    const cfg = config(env, root);
-    for (const rec of recs) {
-        const r = await postInvocation(cfg, rec, join(root, "test-results/results-spool"));
-        console.log(
-            r.ok
-                ? `run-group: recorded ${rec.id}`
-                : `run-group: ${rec.id} not recorded (${r.why}); spooled to ${r.spooled}`,
-        );
-    }
+    await postRecords(config(env, root), recs, join(root, "test-results/results-spool"));
     return code;
 }
 

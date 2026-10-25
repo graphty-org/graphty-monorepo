@@ -253,5 +253,10 @@ describe("with the results store", () => {
             finish(history),
         );
         assert.deepEqual(JSON.parse(readFileSync(history, "utf8"))[KEY], [5, 100]);
+        // One timeout at most: no write after a read that got no answer.
+        assert.deepEqual(
+            s.seen.map((r) => r.method),
+            ["GET"],
+        );
     });
 });

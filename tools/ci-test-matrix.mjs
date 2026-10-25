@@ -179,15 +179,17 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
-    // graphty - every project but the stories (uses Playwright for browser-based vitest), in three
-    // parts: about 1,240 tests took 46 minutes in one, past the gate's 30-minute shard limit, and a
-    // half still took 29 minutes in a loaded gate. Each part writes its coverage to its own
-    // .coverage-parts/<shard> (COVERAGE_DIR), so a later part does not overwrite an earlier one in
-    // the group job; "coverage-file" says where for the upload.
-    ...[1, 2, 3].map((n) => ({
+    // graphty - every project but the stories (uses Playwright for browser-based vitest), in five
+    // parts, each its own CI job: about 1,240 tests took 46 minutes in one, past the gate's 30-minute
+    // shard limit, and in three parts on a CI runner one part took 15 to 16 minutes (graphty-1: 892 s
+    // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
+    // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
+    // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
+    // where for the upload.
+    ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/3 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/5 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
@@ -295,12 +297,25 @@ export const SHARDS = [
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
  * setup) run one after another in a single job. A group job runs only its affected members, and
  * every member runs even when an earlier one failed, so one job reports every failure. Without
- * the groups a full run asked for 22 test runners at once; with them it asks for 13.
+ * the groups a full run would ask for 36 test runners at once; with them it asks for 25.
+ *
+ * Each group is kept under about 15 minutes so no test job holds up a pull request's CI or a
+ * re-run of one failed job. Measured on CI runners (ci.yml runs 39537734606 of 2026-10-21 and
+ * 39883665524, 39887583054, 39896390282 of 2026-10-23; vitest's own Duration line, plus about 1.5
+ * minutes of checkout, install and browser setup per job):
+ *   small-node     graph-format 0.8, graph-samples 0.4, cytoscape-extensions 0.5,
+ *                  cytoscape-extensions-cytoscape-versions 0.8, layout 0.3, algorithms-default 0.4,
+ *                  githerd 0.7                                       about 4 + setup = 6 minutes
+ *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
+ *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
+ *                  webgpu-graph-algorithms-browser 1.1               about 10 + setup = 12 minutes
+ * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
+ * small-browser took over 64 minutes with the graphty shards in it).
  */
 export const GROUPS = {
     "small-node": [
         "graph-format",
-        "graph-io",
         "graph-samples",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
@@ -313,10 +328,6 @@ export const GROUPS = {
         "graph-io-browser",
         "remote-logger",
         "compact-mantine",
-        "graphty-1",
-        "graphty-2",
-        "graphty-3",
-        "graphty-storybook",
         "visual-review",
         "webgpu-graph-algorithms-browser",
     ],
@@ -327,6 +338,8 @@ export const GROUPS = {
 // package); graphty-storybook writes none (the graphty shards measure graphty); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook", "graph-io-browser"]);
+// Packages whose coverage ci.yml uploads in steps of their own.
+const OWN_UPLOAD = new Set(["graphty-element", "webgpu-graph-algorithms"]);
 
 /**
  * Where a shard's lcov report is: its own "coverage-file", else its package's coverage directory.
@@ -342,7 +355,7 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  * @returns a matrix entry; "coverage" lists "<shard>=<lcov path>" pairs, space separated
  */
 export function groupEntry(name, members) {
-    const steps = members.map((m) => `echo "==> ${m.shard}"; (${m["test-command"]}) || failed="$failed ${m.shard}"`);
+    const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
     return {
         shard: name,
         package: members.map((m) => m.package).join(" "),
@@ -356,13 +369,34 @@ export function groupEntry(name, members) {
 }
 
 /**
+ * A shard's command as CI's test job runs it: through the quarantine wrapper (tools/test-quarantine.mjs), as
+ * the pre-push gate runs it, so a flaky or quarantined test fails neither (the checkout's
+ * tools/test-quarantine.json; the failed test files are run once more). On unless GRAPHTY_TEST_QUARANTINE=0,
+ * which CI does not set: then the wrapper only runs the command.
+ * @param shard a SHARDS entry
+ * @returns a shell command
+ */
+export function ciCommand(shard) {
+    const escapedQuote = String.raw`'\''`;
+    const quoted = `'${shard["test-command"].replaceAll("'", escapedQuote)}'`;
+    return `node tools/test-quarantine.mjs run ${shard.shard} ${quoted}`;
+}
+
+/**
  * The test job's matrix: every shard of an affected package, short ones folded into their group.
  * @param affected package directory names
  * @returns the matrix's include list
  */
 export function plan(affected) {
     const grouped = new Set(Object.values(GROUPS).flat());
-    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package));
+    // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
+    // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
+    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package)).map((s) => {
+        const e = { ...s, "test-command": ciCommand(s) };
+        return OWN_UPLOAD.has(s.package) || NO_COVERAGE.has(s.shard)
+            ? e
+            : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
+    });
     for (const [name, shards] of Object.entries(GROUPS)) {
         const members = shards
             .map((n) => SHARDS.find((s) => s.shard === n))

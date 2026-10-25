@@ -76,6 +76,20 @@ describe("the inspector and the table", () => {
         });
     });
 
+    it("opens the table with Shift+T while the pointer rests on an info circle", async () => {
+        const { session } = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+
+        // The pointer on the Degree section's circled "i" shows its explanation bubble.
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.hover(await screen.findByRole("button", { name: "About Degree" }));
+        await screen.findByRole("dialog", { name: "About Degree" });
+
+        // A hover bubble holds no keys of its own, so the page's shortcuts still run.
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        await screen.findByRole("grid", { name: "Nodes" });
+    });
+
     it("says what the Degree row does, speaks its change, and shows a membership's layer in the tree", async () => {
         const { store, session } = await openWorkspace();
         await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });

@@ -115,7 +115,7 @@ Failure modes:
 - **The owner's own token is still on this machine.** `gh auth status` shows `apowers313` logged in
   with `repo` and `workflow` scopes in `~/.config/gh/hosts.yml`, readable by every agent session on
   this Unix account. Rulesets cannot stop an admin token from editing the ruleset itself. The owner
-  logs it out here (main section 13 item 4).
+  logs it out here (main section 13 item 2).
 
 ## 4. The light check
 
@@ -428,7 +428,7 @@ drafts; subagents open their own pull requests; non-strict required checks; the 
 2 in 7 days; R2 for the build cache with master-only writes; workflows out of `sharedGlobals`;
 SonarQube in the local quick check (and the master watcher); the budget numbers in section 4.2.
 
-Settled since (main section 13 item 4, kept here for the reasoning):
+Settled since (main section 13 item 2, kept here for the reasoning):
 
 1. **Your GitHub token on this machine.** `~/.config/gh/hosts.yml` holds `apowers313`'s token with
    `repo` and `workflow` scopes, readable by every agent on this Unix account. While it is there, an

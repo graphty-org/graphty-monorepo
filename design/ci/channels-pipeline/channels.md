@@ -201,8 +201,7 @@ lane and runs when it is green (off the critical path, since the T4 lane is long
 configuration only. A restart's failing-tests phase and a slot skipped as judged run none. A hosted
 model can change behind the same name with no change here, so no candidate inherits another's
 result. Up to four candidates a day is up to $113 a month against the owner's standing ceiling of
-about $60; the store keeps a monthly spend counter, and the conflict is the owner's (main section 13
-item 2). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
+about $60; the store keeps a monthly spend counter, and the design keeps the binding decision and alarms on the spend (main section 9). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
 `owner-item` (or flaky, by the usual rule), never bisected blind; a consistent failure bisects only
 over merges that touched graphty-element's AI code, prompts, schemas or the lockfile, with one paid
 run per point, each dispatch checked against the month's spend first and refused at the ceiling.

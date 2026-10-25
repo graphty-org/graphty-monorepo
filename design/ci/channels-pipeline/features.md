@@ -391,8 +391,8 @@ the experiments or produce majors the grouped-major rule forbids. The alternativ
 experiments no public types at all until graduation, which fits catalog entries and attributes
 but not the timeline's commands and result types.
 
-The design does not decide this by default: it is in the owner's action list (main section 13,
-item 1). Until he answers, the alternative applies (section 4).
+The design does not decide this by default: it is in the owner's action list (main section 14,
+the remaining owner decisions). Until he answers, the alternative applies (section 4).
 
 Everything else in this section is decided above and reversible by an ordinary pull request:
 attribute syntax, `all`, the URL parameter on production, no live switching, no pair testing,

@@ -438,7 +438,8 @@ The check sees that proof was written; the fresh-context reviewer checks that it
 
 ### 4.3 Fresh-context review
 
-Before an agent enables auto-merge, a review subagent that has not seen the author's conversation
+Before an agent enables auto-merge, a review session that has not seen the author's conversation
+(`tools/pr-review.sh`: headless `claude -p`, since a background subagent cannot start subagents)
 reads only the issue, `git diff origin/master...HEAD` and the Proof section, using the existing
 `/code-review` skill at `high`. It posts its findings as one `COMMENT` review from the agent account
 with the marker `<!-- fresh-review <patch id> -->`, where the patch id is `git patch-id --stable` of

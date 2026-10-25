@@ -149,7 +149,7 @@ One pull request, owner-reviewed, merged right after the flush ships and before 
 - `.claude/settings.json` gains `GH_CONFIG_DIR=~/.config/gh-agent` and
   `GIT_CONFIG_GLOBAL=~/.config/git-agent/config`, so every later commit and pull request is the agent's.
 
-Then the owner (main section 13 items 6 and 7): environments, the tag ruleset, code-owner review with last-
+Then the owner (main section 13 items 4 and 5): environments, the tag ruleset, code-owner review with last-
 push approval off, the four required checks, the admin bypass removed, squash off, Actions read-only.
 The ruleset settings are tried first on a scratch ruleset that targets a scratch branch, with exactly
 the planned settings.
@@ -231,9 +231,9 @@ revert made the next slot pass, with no slot skipped for a reason other than "al
 ### Step 7: nightly
 
 The publish job declares `environment: release` and lands first; then the owner binds each npm
-trusted publisher to that environment (main section 13 item 10); in that order, because a publisher
+trusted publisher to that environment (main section 13 item 8); in that order, because a publisher
 bound before the job declares the environment refuses the publish. The owner also sets the custom
-domain nightly.graphty.app on graphty-nightly and enforces HTTPS (main section 13 item 9): it
+domain nightly.graphty.app on graphty-nightly and enforces HTTPS (main section 13 item 7): it
 conflicts with nothing, and an assembled site built for the root path does not work under a
 `/graphty-nightly/` project path. Then a green full run with no changed screenshots promotes
 automatically: `next` on npm and nightly.graphty.app (channels section 7). With changed screenshots
@@ -253,7 +253,7 @@ its datasets (every published graph-samples downloads from `https://graphty.app/
 1. The first promotion writes the current production build, `/data/` included, into graphty-site.
 2. `tools/check-site.mjs` (new, about 40 lines) compares graphty-site's file list and hashes with the
    deployed build. Every dataset path must be present.
-3. The owner swaps the custom domains (main section 13 item 12). The apex records already point at
+3. The owner swaps the custom domains (main section 13 item 10). The apex records already point at
    GitHub Pages and do not change. Expect seconds to minutes of gap, and up to an hour before HTTPS
    certificates are issued.
 4. `deploy-pages.yml` deploys again, now to canary.graphty.app; the check script runs against all

@@ -34,8 +34,10 @@ production moves `latest` to the same versions and deploys the same site tarball
 
 1. **Branch.** `./tools/worktree-new.sh fix/1234-topic` starts a worktree from `origin/master`.
    Commits are pushed to the branch; a branch push runs no CI.
-2. **Review, then open.** A review subagent that has not seen the author's conversation reads the
-   issue and `git diff origin/master...HEAD`; the author fixes what it finds. `tools/pr-open.sh`
+2. **Review, then open.** `tools/pr-review.sh` starts the review as a separate headless session
+   (`claude -p` with `/code-review` at `high`, no inherited conversation), so a background subagent,
+   which cannot start subagents of its own, still gets one. It reads only the issue, the
+   diff `git diff origin/master...HEAD` and the Proof; the author fixes what it finds. `tools/pr-open.sh`
    merges `origin/master` if behind, pushes, opens the pull request as the agent account, posts the
    review marked with the patch id of the branch's own diff (section 6.4), arms auto-merge and exits
    at once. The quick check is opt-in (`--check`, run in the background); CI is the only gate.
@@ -67,7 +69,7 @@ autosave format change (section 3).
 
 ### 1.3 What runs where
 
-- **Agent's machine:** review subagent; `pr-open.sh` (seconds); quick check on request
+- **Agent's machine:** review session (`pr-review.sh`); `pr-open.sh` (seconds); quick check on request
 - **`.husky/pre-push`:** LFS upload, secret scan, committed-images limit (seconds)
 - **Pull request (`ci.yml`, `pr-integrity.yml`):** light check and PR Integrity
 - **Master push (`ci.yml`, `deploy-pages.yml`):** build, Storybooks, docs, canary deploy, and a last
@@ -115,7 +117,10 @@ Detail: [merging.md](channels-pipeline/merging.md).
   event (no secret) and re-uploads graphty's dist; only the upload is master-only. `VITE_SENTRY_*`
   become repository variables. `graphty:build` 13m33s to about 60 s.
 - **Real GPU:** the quick check runs the local NVIDIA tests with `GRAPHTY_GPU_REQUIRE=nvidia` and the
-  EGL path set explicitly; it unsets only the old gate's variables, by a list. `hosts.yml` keeps its
+  EGL path set explicitly; it unsets only the old gate's variables, by a list, and runs tests with
+  `GIT_CONFIG_GLOBAL=/dev/null` as on a runner, so the agent's signing config never reaches a test's
+  temporary repository. A real-GPU look on a pull request is opt-in: `pr-open.sh` prints a reminder
+  when webgpu-graph-algorithms is affected, and the full run's T4 catches what it misses within 6 h. `hosts.yml` keeps its
   advisory pull request trigger and loses its nightly cron at step 6.
 - **Dependabot** targets master; `dependabot-automerge.yml` arms auto-merge with an agent token
   scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept `dependabot[bot]`
@@ -124,6 +129,10 @@ Detail: [merging.md](channels-pipeline/merging.md).
 - **No merge queue at first.** The bisect records skew breaks. Two in 7 days, or one that kept canary
   red over 6 hours: the pipeline round proposes Mergify (`merge_group` is the alternative).
 - **Red master build:** `master-guard.yml` opens a revert pull request as the agent account.
+- **Branch ceiling:** the round's daily list names every branch with no pull request whose first
+  commit is over 3 days old, and every pull request over 1,500 changed lines (tests and baselines not
+  counted); each is split into flagged pieces (section 8) or its owner says why not. A warning, not a
+  check: `tools/branch-note.mjs` records the answer.
 
 ## 3. Channels and promotion
 
@@ -138,7 +147,7 @@ Detail: [channels.md](channels-pipeline/channels.md).
   pushes `deployed.json` (holding the sha256) to the site repository. The site's `deploy.yml` checks
   the asset against it, deploys and posts its outcome to the store; the waiting job ends on that
   report and fails loudly on a failed deploy. Assets are trusted only by the store's hash; the owner
-  also turns on immutable releases (section 13 item 6).
+  also turns on immutable releases (section 13 item 4).
 - **The full run** (`release.yml`, dispatched at 00, 06, 12, 18 UTC with `mode: full`) takes the
   newest master first-parent commit whose push build is green and whose `site-<sha>` exists, from
   the store (canary's build stamp is a cross-check after step 8). It skips a commit already judged,
@@ -279,7 +288,7 @@ inherit that file, so the `visual-review` and `pr-status-broker` servers get bot
 auto-merge. The owner's own pipeline edits are made by an agent session and approved by him.
 
 Agents run as the owner's Unix user: the split holds only once his `gh` token, his git credential
-helpers and cache, and his GPG key are out of their reach (section 13 item 4).
+helpers and cache, his SSH keys and ssh-agent, his npm token and his GPG key are out of their reach (section 13 item 2).
 
 ### 6.2 CODEOWNERS
 
@@ -287,10 +296,13 @@ Owned are only the paths that can loosen a check or take authority: `/.github/wo
 `/.github/CODEOWNERS`, `/.claude/`, `/CLAUDE.md`, `/ci-budgets.json`, `/release-hold.json`,
 `/release-approvals.json`, `/nx.json`, `/vitest.shared.config.ts`, `/vitest.ci-junit.mjs`,
 `**/.storybook/vitest.setup.*`, `/visual-review/trusted/`, `/visual-review/capture/`,
-`/visual-review.config.json`, `/graphty/sites/nightly.json`, `/graphty/sites/production.json`, and in
+`/visual-review/passkeys.json`, `/visual-review.config.json`, `/graphty/sites/nightly.json`, `/graphty/sites/production.json`, and in
 `tools/` the results, cache, scheduler and channel directories, `bisect-core`, the release tools,
 `ci-test-matrix`, `run-tests`, the selector and its rules, and the integrity, features, budgets,
-`pr-open` and quick-check scripts. `visual-baselines/` is guarded by the signature (section 5). Of
+`pr-open`, `pr-review` and quick-check scripts. `visual-baselines/` is guarded by the signature
+(section 5). **Owned closure:** PR Integrity fails when an owned script's or workflow's static import
+closure (the selector's import graph) holds an unowned file, so a helper an owned tool imports is
+owned too; the list grows by the files that check names, in its own pull request. Of
 the 117 golden landings of 2026-10-18 to 10-24, 27 touched this list, about 4 a day; the integrity
 check adds an unknown number, replayed over the same landings before step 3. A code-owned pull
 request that references an open red, release-held or red-master issue, or a rollout step's pull
@@ -323,7 +335,10 @@ Triggers: `pull_request` (opened, synchronize, edited, reopened) and `pull_reque
 - **Test integrity** (`tools/check-test-integrity.mjs`): fails on a net drop, per file and
   rename-aware, in tests or assertions; a `.skip`, `.only` or `.todo` added; a timeout or retry
   grown; a coverage threshold dropped; a vitest config's include, exclude, timeout or retry
-  loosened; any package.json `scripts` entry changed. A code-owner approval on the head clears it.
+  loosened; any package.json `scripts` entry changed; the root package.json's `pnpm` field changed
+  (`auditConfig.ignoreGhsas`, `overrides`); a story's or preview's `parameters.chromatic` capture
+  setting (`disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `delay`, `modes`) added or
+  changed. A code-owner approval on the head clears it.
   Its false-positive rate is replayed over the 96 landings of 10-18 to 10-24 before step 3.
 - **No unapproved breaking change:** fails when the title or any commit carries `!` or a
   `BREAKING CHANGE:` footer, unless a code owner approved the head. One that reaches master anyway is
@@ -331,7 +346,7 @@ Triggers: `pull_request` (opened, synchronize, edited, reopened) and `pull_reque
 - **Baselines signed:** section 5.
 - **Proof:** agent pull requests carry `## Proof` (command and output, the test that failed before
   the fix, or a capture).
-- **Fresh review:** the review subagent's report, posted by `pr-open.sh` as a pull request review,
+- **Fresh review:** the review session's report (`pr-review.sh`), posted by `pr-open.sh` as a pull request review,
   marked with `git patch-id --stable` of `git diff origin/master...HEAD` with merge commits excluded.
   PR Integrity recomputes it, so a merge of master keeps the review and only a change to the branch's
   own diff (a conflict resolution included) needs a new one.
@@ -371,6 +386,11 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   60 s slower, per key and within run kind (pull request kinds included). The Worker computes it; the
   `timings` job that sees it files or updates one issue per key naming the merge range. The Sentry
   regression would have alarmed in about 5 hours.
+- **Stall alarm:** every release.yml run's `timings` job checks `age:nightly`, the time since
+  `channel/nightly` last moved while canary holds an unpromoted commit. Over 24 hours it files or
+  updates one `priority:critical` issue "Nightly stalled since <date>" naming the blocking state (red
+  with or without a culprit, waiting for screenshots, an owner item, a hold); the pipeline round owns
+  a red with no culprit and fixes forward. Over 48 hours, the issue gets an `ACTION NEEDED` line.
 
 ## 8. Feature flags
 
@@ -385,8 +405,7 @@ Detail: [features.md](channels-pipeline/features.md).
   `featuresFromUrl(url)` in `./catalog`, `setDefaultFeatures(ids)` in `./extend`, descriptors
   `FEATURES` and `GRADUATED_FEATURES`, error `E_FEATURE_OFF { feature, key }`. Experimental catalog
   entries carry a `feature` field and are filtered per session. Unknown ids never throw.
-- **No experimental public types until the owner decides** what `@experimental` promises (section 13
-  item 1); `check-features.mjs` fails on any `@experimental` export.
+- **No experimental public types until the owner decides** what `@experimental` promises (section 14); `check-features.mjs` fails on any `@experimental` export.
 - **The app** fetches `site.json` before loading the element (missing or invalid = every experiment
   off), adds `featuresFromUrl(location.href)` and sets the `features` attribute.
 - **Two configurations.** On = `setDefaultFeatures(["all"])` in a setup file: affected files on a pull
@@ -397,9 +416,11 @@ Detail: [features.md](channels-pipeline/features.md).
 ## 9. Owner decisions this design implements
 
 Every binding decision of 2026-10-24 and 25 is implemented in sections 1 to 8 and 12. One meets
-another: "LLM regression once per candidate" at up to 4 candidates a day is up to $113 a month
-against the standing ceiling of about $60. The design runs it once per candidate whose ci.yml lane
-is green, records the spend, and asks the owner which gives (section 13 item 2). Owner rules
+an older guideline: "LLM regression once per candidate" at up to 4 candidates a day is up to $113 a
+month against the 2026-10-12 guideline of about $60. The newer, binding decision wins: it runs once
+per candidate whose ci.yml lane is green (slots skipped as judged run none, so the real count follows
+master's activity), and budget key `spend:llm` warns at $60 in a calendar month with the month's
+runs listed. Lowering it to once a day is a one-line change to the lane's condition. Owner rules
 throughout: no admin merge; nothing unapproved reaches production (step 3 freezes it first, assets
 are hash-checked, first publishes need his go); holds, never exclusions; breaking changes and the
 held grouped major need the owner; states end on events; nothing weakened to pass; flaky tests are
@@ -440,14 +461,15 @@ signature checked on every path.
 Detail: [migration.md](channels-pipeline/migration.md). Each step: starts after; done when. Each
 step's code-owned edits go in one pull request per step, listed in migration section 3.
 
-0. **Flush:** the last golden landing makes `deploy-pages.yml` stop deploying graphty.app; no new
-   landings; verify the tip; `cut origin/golden-verified`; Finish; ship; #3318 releases. After: now.
+0. **Flush:** the last golden landing makes `deploy-pages.yml` stop deploying graphty.app; then
+   `land.mjs land` refuses while `tmp/golden/flush` exists (three lines, put live with
+   `tools/live.sh land`), so no landing slips in; verify the tip; `cut origin/golden-verified`; Finish; ship; #3318 releases. After: now.
    Done: golden is an ancestor of master; #3318 closed; each `latest` equals its newest tag.
 1. **Owner setup** (section 13). After: parallel. Done: each item's check passes.
 2. **Results store write-only;** durations recorded. After: parallel. Done: every job has a record
    for 3 days; none slowed over 5 s.
 3. **Switch identity and freeze npm**, one owner-reviewed pull request and the owner's settings:
-   release.yml publishes nothing except the owner-approved interim mode (section 13 item 11),
+   release.yml publishes nothing except the owner-approved interim mode (section 13 item 9),
    CODEOWNERS, environments, the tag ruleset, the agent account, bypass removed, PR Integrity
    required after its replay. After: 0, 1. Done: graphty.app's stamp unchanged since step 0; on a scratch
    ruleset first: an owned-path pull request waits, an unowned one auto-merges, `--admin` is refused,
@@ -474,9 +496,6 @@ step's code-owned edits go in one pull request per step, listed in migration sec
     green; no reference outside `design/` (grep terms in migration section 3); tools and workflows
     show the net deletion of migration section 4.
 
-**Deleted and kept:** migration sections 4 and 5 (golden's tools, branches, worktrees and workflows;
-the ledger and quarantine files; about 11,000 lines, against about 6,000 added).
-
 **Instructions** (owner-reviewed): migration section 6 marks every root CLAUDE.md section keep,
 rewrite or delete, with its step, plus compact-mantine's and graph-samples' files. The pipeline-round
 skill, rewritten in step 5, works in this order: red master build and its reverts; red full run
@@ -486,75 +505,152 @@ pipeline at once, and one daily review list; red or conflicted agent pull reques
 never rebase); finished worktrees. It never mixes a test, budget, quarantine or workflow change with
 a product fix, and never re-runs hoping for green.
 
-## 13. What the owner does
-
-In order; each ends with how to tell it worked.
-
-1. **Decide what `@experimental` promises** (a published contract). The recommendation: tagged API
-   may change or disappear in a minor release. Until you decide, experiments ship no public types.
-   _Check:_ your answer on #3418.
-2. **Decide the LLM spend:** once per candidate (up to $113 a month) against the $60 ceiling: raise
-   the ceiling, or allow at least one run a day instead. Until you answer, it runs once per candidate.
-   _Check:_ your answer on #3418.
-3. **Flush:** Finish the cut's screenshots; the ship merges; #3318 releases. _Check:_ #3318 closed.
-4. **Agent account and your own credentials.** Create the Team account (2FA, Write on
-   graphty-monorepo); `GH_CONFIG_DIR=~/.config/gh-agent gh auth login` as it here; add the SSH push and
-   signing keys the session generates. Then for yourself here: `gh auth logout`, `git
-credential-cache exit`, remove both `credential.helper` lines from `~/.gitconfig` (or move them to
-   a config only your shell loads), put your GPG key behind an uncached passphrase, and do approvals in
-   the browser. _Check:_ `GH_CONFIG_DIR=~/.config/gh-agent gh api user --jq .login`; plain `gh auth
-status` shows no login; `printf 'url=https://github.com\n\n' | GIT_TERMINAL_PROMPT=0 git
-credential fill` prints no password.
-5. **Cloudflare** (the scheduler's account): Workers Paid and R2; an API token with Workers Scripts, D1
-   and R2 edit as `CLOUDFLARE_API_TOKEN` with `CLOUDFLARE_ACCOUNT_ID`; on the `graphty-release-scheduler`
-   App add **Contents: read** and **Administration: read**, and put its second private key on the
-   `graphty-results` Worker; `GRAPHTY_RESULTS_TOKEN` in `.env` and its hash on the Worker. _Check:_
-   `/v1/health` answers.
-6. **Environments and releases:** `release`, `nightly`, `full-run`, `master-build`, `nx-cache-write`,
-   `dependabot-automerge` (master only) and `production` (master only, you as required reviewer,
-   "prevent self-review" off); the session lists each one's secrets. Turn on immutable releases once
-   the session reports that `gh release edit --prerelease`/`--latest` still work on one. _Check:_ a
-   `promote.yml` dry run waits for you.
-7. **Ruleset and settings** (step 3): review the CODEOWNERS pull request; on ruleset 23973898 remove
-   the admin bypass, keep deploy keys, require code-owner review, leave last-push approval off, set the
-   four checks; add the tag ruleset; switch off squash; Actions read-only and no Actions approvals.
-   _Check:_ step 3's tests.
-8. **Domain verification** of `graphty.app` for graphty-org (TXT
-   `_github-pages-challenge-graphty-org.graphty.app`) and **DNS:** CNAME `canary` and `nightly` to
-   `graphty-org.github.io`. _Check:_ "Verified"; `dig +short nightly.graphty.app`.
-9. **Site repositories:** create public graphty-org/graphty-nightly; on it and graphty-site add the
-   deploy keys the session generates and set Pages to GitHub Actions; at step 7 set the custom domain
-   nightly.graphty.app on graphty-nightly and enforce HTTPS. _Check:_ the first nightly deploy.
-10. **npm**, when the session says the publish job declares `environment: release` (not earlier): set
-    environment `release` on each trusted publisher (workflow `release.yml`). For a new package, still
-    only after its first publish fails: create its trusted publisher with environment `release`, never
-    without one. Create a granular token with write on `@graphty` and "bypass 2FA", store it as
-    `NPM_DIST_TAG_TOKEN` in `production`, and its expiry as the repository variable
-    `NPM_DIST_TAG_TOKEN_EXPIRES`; the round reminds you 14 days before. _Check:_ the first `next`
-    publish and a no-op `dist-tag add` succeed.
-11. **Interim hotfix path** (steps 3 to 8): an urgent release is `release.yml -f mode=legacy`, whose
-    publish and graphty.app deploy wait for your approval in `production`. _Check:_ none needed
-    unless used.
-12. **Domain swap** in one sitting when told: `graphty.app` from graphty-monorepo's Pages to
-    graphty-site; `canary.graphty.app` on graphty-monorepo; enforce HTTPS once certificates exist.
-    _Check:_ the site check passes.
-13. **Review owner-owned pull requests:** a red pipeline's fix when its own line asks; the rest from
-    the round's daily list. Add a `release-approvals.json` entry (by approving its pull request) for a
-    major or a new package you want published.
-14. **Approve changed screenshots** for the offered nightly candidate and **promote** whenever you
-    judge nightly good.
-
-ACTION NEEDED: on #3418, decide what @experimental promises and whether LLM runs per candidate ($113/mo) or daily
-
 ## Review notes
 
-- The last problem of the review list arrived cut off ("stories-as-tests.md 7 step 7 (rejected
-  images: 'the next full run is the next cand"). It is read as: after a rejection nothing names which
-  candidate is offered next. With the frozen candidate (section 5), a rejected C is dropped and the
+Answers to review findings that the sections above do not settle by themselves.
+
+- **Rejected candidate.** With the frozen candidate (section 5), a rejected C is dropped and the
   oldest queued green candidate is offered, carrying decisions by hash, so an image already rejected
   stays rejected until a pull request changes it.
-- Test integrity is replayed over past landings before it is required, rather than warning for a
-  week first: the replay gives the false-positive rate without letting a week of real pull requests
-  through unchecked.
-- `base-check.yml` is kept, dispatched by the round instead of the Worker: dropping it would leave a
-  pull request red, with no recourse, on a test master breaks between full runs.
+- **Test integrity is replayed, not trialled.** It is replayed over past landings before it is
+  required, rather than warning for a week first: the replay gives the false-positive rate without
+  letting a week of real pull requests through unchecked.
+- **`base-check.yml` is kept**, dispatched by the round: without it a pull request would stay red,
+  with no recourse, on a test master breaks between full runs.
+- **Unreviewed code and the release key.** Off owned paths, master accepts agent code no human read;
+  that is the design's premise, and nightly is where it ships. The `land` and `publish` jobs, which
+  hold the deploy key and npm's OIDC, run only owned code: code-owned release tools and `nx.json`,
+  `pnpm install --frozen-lockfile --ignore-scripts`, and the tarballs CI built without secrets.
+  Package lifecycle scripts (`prepack`, `prepublishOnly`) change only with an owner approval (test
+  integrity). Step 7 checks the `--ignore-scripts` install works for nx release before binding the
+  publishers. Production needs the owner.
+- **The review page is served by an agent-started server.** Agents run as the owner's Unix user, so
+  they could alter the page he signs on; this is the same residual risk as section 6.1, not a new
+  one. When he wants a signature independent of agents, he starts the server from his own shell in a
+  fresh clone at master (the page prints the command). The gate still checks the signed tree byte
+  for byte.
+- **Real GPU on pull requests** is opt-in by design (section 2): a GPU regression costs at most one
+  6-hour slot, and the bisect runs its points on the local card first.
+- **Rebinding 13 trusted publishers at once.** The 2-day expiry is documented for new
+  configurations; whether editing an existing one restarts it is unknown. So item 8 binds them on
+  the day a nightly is due to publish, and a failed publish is today's publish hold, cleared by
+  re-running the publish job.
+- **Owned scripts that import unowned code** are closed by the owned-closure rule (section 6.2).
+- **Nightly stalling silently** and **a red with no culprit** have the stall alarm (section 7).
+- **Huge or old branches** have the branch ceiling (section 2).
+
+## 13. What the owner does
+
+In rollout order. Each item says when it is needed, the exact steps, and how to tell it worked.
+
+1. **Finish the flush.** _When:_ step 0, as soon as the cut's preview is ready (the round says so).
+   Steps: open the review page, decide the cut's changed screenshots, Finish with Face ID. The round
+   ships the cut; release #3318 follows. _Check:_ #3318 closed.
+2. **Agent account and your own credentials.** _When:_ step 1, before step 3.
+   Steps: create the GitHub Team machine account (suggested `graphty-agent`, 2FA on), give it Write on
+   graphty-monorepo only; here, run `GH_CONFIG_DIR=~/.config/gh-agent gh auth login` as it; add the
+   SSH authentication and signing keys the session generates to that account. Then for yourself on
+   this machine: `gh auth logout`; `git credential-cache exit`; remove both `credential.helper` lines
+   from `~/.gitconfig` (or move them to a config only your shell loads); remove your own SSH keys
+   from `~/.ssh` (or give them a passphrase and stop any ssh-agent that holds them); remove the npm
+   token from `~/.npmrc` (`npm logout`); put your GPG key behind an uncached passphrase; from then on
+   approve and promote in the browser. _Check:_ this prints the agent:
+   `GH_CONFIG_DIR=~/.config/gh-agent gh api user --jq .login`; plain `gh auth status` shows no
+   login; this prints no password:
+   `printf 'url=https://github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential fill`;
+   `ssh -T git@github.com` does not greet `apowers313`; `npm whoami` fails.
+3. **Cloudflare.** _When:_ step 1, before step 2. In the scheduler's account: turn on Workers Paid
+   and R2; create an API token with Workers Scripts, D1 and R2 edit and store it as repository secret
+   `CLOUDFLARE_API_TOKEN` with `CLOUDFLARE_ACCOUNT_ID`; on the `graphty-release-scheduler` App add
+   **Contents: read** and **Administration: read**, create a second private key and put it on the
+   `graphty-results` Worker; put `GRAPHTY_RESULTS_TOKEN` in `.env` and its hash on the Worker (the
+   session gives the commands). _Check:_ `/v1/health` answers.
+4. **Environments.** _When:_ step 1; used from step 3. Create `release`, `nightly`, `full-run`,
+   `master-build`, `nx-cache-write`, `dependabot-automerge` (each: deployment branches `master` only)
+   and `production` (master only, you as required reviewer, "prevent self-review" off); enter each
+   one's secrets from the list the session gives. At step 7, turn on immutable releases once the
+   session reports that `gh release edit --prerelease` and `--latest` still work on one. _Check:_ a
+   `promote.yml` dry run waits for you.
+5. **Ruleset and settings.** _When:_ step 3, after the session's scratch-ruleset tests pass. Approve
+   the CODEOWNERS pull request; on ruleset 23973898 remove the admin role from the bypass list, keep
+   deploy keys, turn on code-owner review (0 approvals), dismiss stale reviews, leave last-push
+   approval off, require `All Checks Pass`, `Lint PR Title`, `Link PR Issue` and `PR Integrity`; add
+   the tag ruleset on `*@*` and `site-*` (create: deploy key only; update and delete: nobody) and the
+   `channel/*` branch rule; switch off squash merging; set Actions' default permissions to read-only
+   and turn off "Allow GitHub Actions to create and approve pull requests". _Check:_ step 3's tests
+   (an owned-path pull request waits, `--admin` is refused).
+6. **Domain and DNS.** _When:_ any time in step 1; needed by step 7. In graphty-org's settings, verify
+   `graphty.app` for Pages (TXT record `_github-pages-challenge-graphty-org.graphty.app` with the
+   value GitHub shows); at the DNS host add CNAME `canary` and CNAME `nightly`, both to
+   `graphty-org.github.io`. _Check:_ "Verified" in the settings; `dig +short nightly.graphty.app`
+   answers.
+7. **Site repositories.** _When:_ step 1; the custom domain at step 7. Create public
+   graphty-org/graphty-nightly; on it and on graphty-site add the deploy keys the session generates
+   (write) and set Pages' source to GitHub Actions. At step 7, set the custom domain
+   nightly.graphty.app on graphty-nightly and enforce HTTPS. _Check:_ the first nightly deploy serves.
+8. **npm.** _When:_ step 7, only after the session says the publish job declares
+   `environment: release`, on a day a nightly is due. On npmjs.com, for each @graphty package's trusted publisher
+   (workflow `release.yml`), set environment `release`. Create a granular token with write on
+   `@graphty` and "bypass 2FA"; store it as `NPM_DIST_TAG_TOKEN` in environment `production` and its
+   expiry date as repository variable `NPM_DIST_TAG_TOKEN_EXPIRES` (the round reminds you 14 days
+   before it expires). For a new package, still only after its first publish fails: create its
+   trusted publisher with environment `release`, never without one. _Check:_ the first `next` publish
+   and a no-op `npm dist-tag add` succeed.
+9. **Interim urgent release.** _When:_ steps 3 to 8, only if something must ship. Dispatch
+   `release.yml -f mode=legacy` and approve its publish and graphty.app deploy in `production`.
+   _Check:_ none unless used.
+10. **Domain swap.** _When:_ step 8, in one sitting when the session asks. Move the custom domain
+    `graphty.app` from graphty-monorepo's Pages to graphty-site; set `canary.graphty.app` on
+    graphty-monorepo; enforce HTTPS on both once certificates exist. _Check:_ the site check passes
+    on all three.
+11. **Review owned pull requests.** _When:_ from step 3 on. A red pipeline's fix or a rollout step
+    when its own `ACTION NEEDED` line asks; the rest from the round's daily list. Approve a
+    `release-approvals.json` entry for a major or a new package you want published.
+12. **Approve screenshots and promote.** _When:_ from step 7 (screenshots) and step 8 (promotion).
+    Decide the offered nightly candidate's changed images and Finish; dispatch `promote.yml` (GitHub
+    app or `gh workflow run promote.yml`) and approve the `production` deployment whenever you judge
+    nightly good.
+
+## 14. Owner decisions remaining
+
+One, a one-way door because it is a published contract to graphty-element's consumers:
+
+- **What `@experimental` promises.** Recommended: an API tagged `@experimental` may change or
+  disappear in a minor release. Until you decide, experiments ship no public types
+  (`check-features.mjs` fails on any `@experimental` export), which fits catalog entries and
+  attributes but not the timeline's commands and result types. Answer on #3418.
+
+Everything else is decided in this document and reversible by a pull request.
+
+## 15. Deletion list
+
+Deleted in step 10 (one owner-reviewed pull request, after steps 5 to 8 pass and 7 days without an
+undo), unless noted. Detail and line counts: migration sections 4 and 5.
+
+- **Tools:** `tools/land.mjs`, `verify.mjs`, `branch-sync.mjs`, `push-queue.sh`,
+  `queued-push-guard.mjs`, `prepush.sh`, `prepush-source-checks.sh`, `prepush-tests.mjs`,
+  `prepush-inputs.mjs`, `shard-verdict.mjs`, `gate-snapshot.sh`, `push-base.mjs`, `wait-log.mjs`,
+  `visual-preview.sh`, `ship-risks.mjs`, `test-ledger.mjs`, `test-quarantine.mjs` and
+  `test-quarantine.json` (after their logic moves to the results store), with their tests.
+- **Workflows and ci.yml parts:** `golden-verify.yml`, `visual-seed.yml`; ci.yml's Mergify handling,
+  `Queue Checks Pass`, `Draft state` job and draft cases, `golden-cut` concurrency exception,
+  `verify` input and "Reuse" step; release.yml's `workflow_run` trigger; hosts.yml's nightly cron
+  (step 6); the Mergify freeze calls in `tools/master-guard.mjs`; the old `visual` capture job per
+  project (step 9).
+- **Branches, tags, worktrees:** `golden`, `golden-cut`, `golden-verified`, `golden-candidate`,
+  `golden-cut-candidate`, `golden-bisect-1`, `golden-bisect-2`, tag `golden-good`; worktrees
+  `gate-live`, `land-live`, `golden-local`, `golden-cut`, `golden-bisect-*`, `land-check-*`,
+  `check-golden-*`; `live-tools.json` entries `gate` and `land`; githerd's 7 worktrees, its
+  `live-tools.json` entry, `githerd-dev` server and MCP registration (its source stays).
+- **Local state:** `tmp/golden/`, `tmp/push-gate-logs/`, `tmp/prepush-passes/`, `tmp/test-ledger/`
+  (after import).
+- **Instructions:** CLAUDE.md's "Landing changes (golden-local)", "Verification after landing", the
+  gate and land parts of "Where a change takes effect" and their tools-table rows (about 9,000 words),
+  replaced by "Shipping a change"; the golden, freeze-golden, push-queue and deploy-blocker memory
+  entries marked superseded.
+- **Net:** about 12,300 pipeline lines deleted against at most 6,450 added, moves counted on both
+  sides; a component over its cap is cut before it lands.
+
+Kept: the selector, quarantine rules (in the store), visual-review, the release scheduler, release
+holds and announcements, `worktree-new.sh`, `branch-note.mjs`, `branch-push.sh`, `no-copy.sh`, the
+secret scan, the slot tools for local runs, the status broker, SonarQube and `worktree-cleanup.mjs`.

@@ -75,7 +75,7 @@ that still says otherwise is marked superseded where it stands.
 33. Fresh-review marker: the head commit vs the branch's own change. The patch id of
     `git diff origin/master...HEAD`, so a merge of master keeps the review.
 34. LLM regression when AI code changed vs once per candidate. Once per candidate whose ci.yml lane
-    is green, as decided; its cost against the $60 ceiling is put to the owner (main section 13 item 2).
+    is green, as decided; its spend is recorded and alarmed against the $60 ceiling (main section 9).
 35. `release-router.yml` vs a job of ci.yml's master push. The job; one workflow fewer.
 36. Stale nightly gate code from `channel/nightly` vs master's tip. Master's tip at the run's start:
     code-owned, and it cannot deadlock behind a promotion.

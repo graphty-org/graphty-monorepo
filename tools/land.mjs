@@ -581,14 +581,14 @@ export function sync(ctx) {
     return null;
 }
 
-// The branch the main checkout follows: golden-verified, the newest golden commit verification passed, so
-// new sessions read instructions (CLAUDE.md) and run tools that passed, days before a cut reaches master.
-// To follow master again, set this to "master": the next update switches the main checkout back.
-export const MAIN_FOLLOWS = VERIFIED;
+// The branch the main checkout follows: master, so new sessions read master's .claude/settings.json, skills
+// and CLAUDE.md (channels pipeline, #3421). To follow golden-verified again, set this to VERIFIED: the next
+// update switches the main checkout over.
+export const MAIN_FOLLOWS = "master";
 const FOLLOWABLE = new Set(["master", VERIFIED]);
 
 /**
- * Brings the main checkout to origin/<MAIN_FOLLOWS> (origin/master while GitHub has no golden-verified)
+ * Brings the main checkout to origin/<MAIN_FOLLOWS> (origin/master while GitHub lacks that branch)
  * after a fetch: fast-forwards that branch when it is checked out, or switches to it from the other one
  * of master and golden-verified. Changes nothing, with one warning line, when it is on any other branch,
  * has tracked changes, would overwrite an untracked or ignored file, or either branch has commits its

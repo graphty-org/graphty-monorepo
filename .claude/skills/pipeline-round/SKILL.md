@@ -392,8 +392,8 @@ its branch (`git branch -r --contains <sha>`): a branch that is `ready` or landi
 `pipeline-round: live but not landed <sha7> in <copy>` marker on its issue (a branch with no issue gets one, step 6),
 and a commit no branch on GitHub holds gets an issue. Print the count in the round's last line.
 
-The main checkout follows `golden-verified`: every `land`, `revert`, `ship` and `status` run switches it from
-master to the local branch `golden-verified` and fast-forwards it to `origin/golden-verified`, and warns when it
+The main checkout follows master: every `land`, `revert`, `ship` and `status` run switches it from the local
+branch `golden-verified` to master and fast-forwards it to `origin/master`, and warns when it
 cannot (another branch, tracked changes, local commits). Read that warning in the run's output; do not move the
 main checkout by hand.
 

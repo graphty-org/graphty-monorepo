@@ -66,6 +66,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, recommendLayout } from "./layout";
+import { loadLineOf } from "./loadLine";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -2401,6 +2402,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         {
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
+            loadLine: loadLineOf(dispatcher),
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });

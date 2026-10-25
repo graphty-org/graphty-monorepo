@@ -43,59 +43,85 @@ const HOLD_TITLE = "Release held: publish failed";
 export const packageOf = (project) => (project.startsWith("@") ? project : `@graphty/${project}`);
 
 /**
+ * Refusals about whether the assets can be trusted: the tag's shape, and the hashes the nightly job wrote
+ * to the store.
+ * @param facts - see decide
+ * @returns refusals
+ */
+function trustRefusals(facts) {
+    const { target, tag, hashes, store } = facts;
+    const refusals = [];
+    if (!TARGETS[target]) refusals.push(`unknown channel ${JSON.stringify(target)}`);
+    if (!SITE_TAG.test(tag ?? "")) refusals.push(`${JSON.stringify(tag)} is not a site-<commit> tag`);
+    if (!store) return [...refusals, `the results store has no record of ${tag}, so its assets cannot be trusted`];
+    if (hashes.site !== store.siteSha256)
+        refusals.push(`site.tar.zst of ${tag} has sha256 ${hashes.site}, the store recorded ${store.siteSha256}`);
+    if (hashes.channel !== store.channelSha256)
+        refusals.push(`channel.json of ${tag} has sha256 ${hashes.channel}, the store recorded ${store.channelSha256}`);
+    return refusals;
+}
+
+/**
+ * Refusals about the nightly itself: its verdict, its record, the publish hold and a rollback's format.
+ * @param facts - see decide
+ * @returns refusals
+ */
+function nightlyRefusals(facts) {
+    const { target, tag, nightly, store, current, ancestry, publishHoldOpen } = facts;
+    const refusals = [];
+    const verdict = store?.verdict;
+    const clean = verdict === "green-clean" && nightly.screenshots === "unchanged";
+    const approved = verdict === "approved" && /^approved:[0-9a-f]{40}$/.test(nightly.screenshots ?? "");
+    if (!clean && !approved)
+        refusals.push(
+            `${tag} was not a clean or approved nightly (verdict ${verdict ?? "none"}, screenshots ${nightly.screenshots ?? "none"})`,
+        );
+    if (nightly.channel !== "nightly" || `site-${nightly.commit}` !== tag)
+        refusals.push(
+            `channel.json of ${tag} is not that commit's nightly record (${nightly.channel} ${nightly.commit})`,
+        );
+    if (publishHoldOpen) refusals.push(`a "${HOLD_TITLE}" issue is open; promote once it is cleared`);
+    if (ancestry === "diverged") refusals.push(`${nightly.commit} and ${current.commit} are not on one line of master`);
+    if (ancestry === "older" && nightly.autosaveFormat !== current.autosaveFormat)
+        refusals.push(
+            `rolling ${target} back from ${current.commit} to ${nightly.commit} crosses an autosave or project format change (${current.autosaveFormat} to ${nightly.autosaveFormat}); fix forward instead`,
+        );
+    return refusals;
+}
+
+/**
+ * The dist-tag moves, and a refusal for each version npm does not have.
+ * @param versions - channel.json's versions, project to version
+ * @param npm - package to { versions, distTags }, or null when it could not be read
+ * @param distTag - latest or next
+ * @returns the refusals and the moves
+ */
+function tagMoves(versions, npm, distTag) {
+    const refusals = [];
+    const moves = [];
+    for (const [project, version] of Object.entries(versions ?? {})) {
+        const name = packageOf(project);
+        const info = npm[name];
+        if (!info) refusals.push(`npm has no ${name}, or its dist-tags could not be read`);
+        else if (!info.versions.includes(version)) refusals.push(`${name}@${version} is not on npm`);
+        else if (info.distTags[distTag] !== version)
+            moves.push({ project, package: name, version, from: info.distTags[distTag] ?? null });
+    }
+    return { refusals, moves };
+}
+
+/**
  * Decides a promotion from the facts gather collected. Pure: every refusal case is a test.
  * @param facts - { target, configOnly, tag, nightly, hashes: { site, channel }, store, current,
  *   ancestry: "same" | "newer" | "older" | "diverged" | null, publishHoldOpen, npm: { <package>: { versions, distTags } | null } }
  * @returns the refusals (strings, empty when it may go) and the plan
  */
 export function decide(facts) {
-    const { target, configOnly, tag, nightly, hashes, store, current, ancestry, publishHoldOpen, npm } = facts;
-    const refusals = [];
-    const { distTag } = TARGETS[target] ?? {};
-    if (!distTag) refusals.push(`unknown channel ${JSON.stringify(target)}`);
-    if (!SITE_TAG.test(tag ?? "")) refusals.push(`${JSON.stringify(tag)} is not a site-<commit> tag`);
-
-    // The release assets are trusted only by the hashes the nightly job wrote to the store.
-    if (!store) {
-        refusals.push(`the results store has no record of ${tag}, so its assets cannot be trusted`);
-    } else {
-        if (hashes.site !== store.siteSha256)
-            refusals.push(`site.tar.zst of ${tag} has sha256 ${hashes.site}, the store recorded ${store.siteSha256}`);
-        if (hashes.channel !== store.channelSha256)
-            refusals.push(
-                `channel.json of ${tag} has sha256 ${hashes.channel}, the store recorded ${store.channelSha256}`,
-            );
-    }
-
-    const moves = [];
-    if (!configOnly) {
-        const verdict = store?.verdict;
-        const clean = verdict === "green-clean" && nightly.screenshots === "unchanged";
-        const approved = verdict === "approved" && /^approved:[0-9a-f]{40}$/.test(nightly.screenshots ?? "");
-        if (!clean && !approved)
-            refusals.push(
-                `${tag} was not a clean or approved nightly (verdict ${verdict ?? "none"}, screenshots ${nightly.screenshots ?? "none"})`,
-            );
-        if (nightly.channel !== "nightly" || `site-${nightly.commit}` !== tag)
-            refusals.push(
-                `channel.json of ${tag} is not that commit's nightly record (${nightly.channel} ${nightly.commit})`,
-            );
-        if (publishHoldOpen) refusals.push(`a "${HOLD_TITLE}" issue is open; promote once it is cleared`);
-        if (ancestry === "diverged")
-            refusals.push(`${nightly.commit} and ${current.commit} are not on one line of master`);
-        if (ancestry === "older" && nightly.autosaveFormat !== current.autosaveFormat)
-            refusals.push(
-                `rolling ${target} back from ${current.commit} to ${nightly.commit} crosses an autosave or project format change (${current.autosaveFormat} to ${nightly.autosaveFormat}); fix forward instead`,
-            );
-        for (const [project, version] of Object.entries(nightly.versions ?? {})) {
-            const name = packageOf(project);
-            const info = npm[name];
-            if (!info) refusals.push(`npm has no ${name}, or its dist-tags could not be read`);
-            else if (!info.versions.includes(version)) refusals.push(`${name}@${version} is not on npm`);
-            else if (info.distTags[distTag] !== version)
-                moves.push({ project, package: name, version, from: info.distTags[distTag] ?? null });
-        }
-    }
+    const { target, configOnly, tag, nightly, store, current, ancestry, npm } = facts;
+    const distTag = TARGETS[target]?.distTag;
+    // config_only redeploys what the channel serves: it moves no tag, so only the assets' trust matters
+    const tags = configOnly ? { refusals: [], moves: [] } : tagMoves(nightly.versions, npm, distTag);
+    const refusals = [...trustRefusals(facts), ...(configOnly ? [] : nightlyRefusals(facts)), ...tags.refusals];
     const record = configOnly ? current : nightly;
     return {
         refusals,
@@ -108,7 +134,7 @@ export function decide(facts) {
             versionCommit: record?.versionCommit,
             siteSha256: store?.siteSha256,
             rollback: ancestry === "older",
-            moves,
+            moves: tags.moves,
             nightly: record,
         },
     };
@@ -339,40 +365,54 @@ async function main(argv) {
     });
     const [command, file] = positionals;
     if (command === "gather") return gather(values);
-    if (command === "check") {
-        const { refusals, plan } = decide(readJson(file));
-        for (const r of refusals) console.error(`refused: ${r}`);
-        if (refusals.length > 0) return 1;
-        console.log(JSON.stringify(plan, null, 2));
-        return 0;
+    const handler = COMMANDS[command];
+    if (!handler) {
+        console.error("usage: promote.mjs gather|check|token|move|record|wait|releases (see the header)");
+        return 2;
     }
-    const plan = readJson(file);
-    if (command === "token") {
-        console.log(`npm token of ${run("npm", ["whoami"]).trim()}`);
-        const access = JSON.parse(run("npm", ["access", "list", "packages", "@graphty", "--json"]));
-        const missing = unwritable(access, plan.moves);
-        if (missing.length > 0) console.error(`refused: the token cannot write ${missing.join(", ")}`);
-        return missing.length > 0 ? 1 : 0;
-    }
-    if (command === "move") {
-        for (const m of plan.moves)
-            run("npm", ["dist-tag", "add", `${m.package}@${m.version}`, plan.distTag], { stdio: "inherit" });
-        return 0;
-    }
-    if (command === "record") {
-        const configBlob = run("git", ["rev-parse", `${values["config-ref"]}:${values.config}`]).trim();
-        const time = new Date().toISOString();
-        const r = records(plan, { configBlob, configRef: values["config-ref"], approver: values.approver, time });
-        mkdirSync(values.out, { recursive: true });
-        for (const [name, data] of Object.entries(r))
-            writeFileSync(join(values.out, `${name}.json`), `${JSON.stringify(data, null, 2)}\n`);
-        return 0;
-    }
-    if (command === "wait") return waitFor(plan, values.config);
-    if (command === "releases") return releases(plan);
-    console.error("usage: promote.mjs gather|check|token|move|record|wait|releases (see the header)");
-    return 2;
+    return handler(readJson(file), values);
 }
+
+function check(facts) {
+    const { refusals, plan } = decide(facts);
+    for (const r of refusals) console.error(`refused: ${r}`);
+    if (refusals.length > 0) return 1;
+    console.log(JSON.stringify(plan, null, 2));
+    return 0;
+}
+
+function token(plan) {
+    console.log(`npm token of ${run("npm", ["whoami"]).trim()}`);
+    const access = JSON.parse(run("npm", ["access", "list", "packages", "@graphty", "--json"]));
+    const missing = unwritable(access, plan.moves);
+    if (missing.length > 0) console.error(`refused: the token cannot write ${missing.join(", ")}`);
+    return missing.length > 0 ? 1 : 0;
+}
+
+function move(plan) {
+    for (const m of plan.moves)
+        run("npm", ["dist-tag", "add", `${m.package}@${m.version}`, plan.distTag], { stdio: "inherit" });
+    return 0;
+}
+
+function record(plan, values) {
+    const configBlob = run("git", ["rev-parse", `${values["config-ref"]}:${values.config}`]).trim();
+    const time = new Date().toISOString();
+    const r = records(plan, { configBlob, configRef: values["config-ref"], approver: values.approver, time });
+    mkdirSync(values.out, { recursive: true });
+    for (const [name, data] of Object.entries(r))
+        writeFileSync(join(values.out, `${name}.json`), `${JSON.stringify(data, null, 2)}\n`);
+    return 0;
+}
+
+const COMMANDS = {
+    check,
+    token,
+    move,
+    record,
+    wait: (plan, values) => waitFor(plan, values.config),
+    releases,
+};
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     process.exitCode = await main(process.argv.slice(2));

@@ -1070,6 +1070,39 @@ export function planRuns(root, shards, selection) {
     return plan;
 }
 
+/** The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). */
+export const BIN_LIMIT_MS = 8 * 60_000;
+/** Milliseconds counted for a file of a family with no recorded file at all. */
+const NO_HISTORY_MS = 30_000;
+
+/**
+ * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
+ * into the first bin it fits (first-fit decreasing). A file with no recorded time counts as the family's longest
+ * recorded file; a file longer than the limit gets a bin of its own.
+ * @param files the selected test files (repository paths)
+ * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
+ * @param [limitMs] the most one bin may hold
+ * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
+ */
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+    const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
+    const sized = [...new Set(files)]
+        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
+    const bins = [];
+    for (const { file, ms } of sized) {
+        const bin = bins.find((b) => b.ms + ms <= limitMs);
+        if (bin) {
+            bin.files.push(file);
+            bin.ms += ms;
+        } else {
+            bins.push({ files: [file], ms });
+        }
+    }
+    for (const b of bins) b.files.sort();
+    return bins.sort((a, b) => b.ms - a.ms);
+}
+
 // --- building the import graph of one package, in a child process ------------------------------------
 
 const NEW_URL = /new\s+URL\(\s*["'`](\.{1,2}\/[^"'`$]+)["'`]\s*,\s*import\.meta\.url\s*\)/gu;

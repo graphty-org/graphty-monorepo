@@ -20,6 +20,7 @@ import {
     loadRules,
     measuredOf,
     outsideOf,
+    packBins,
     rootImportGraph,
     sameOutside,
     planRuns,
@@ -36,6 +37,7 @@ import {
     wholePackageRule,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
+import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
@@ -1158,5 +1160,130 @@ describe("reads of another package's files, path by path", () => {
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }
+    });
+});
+
+describe("packBins", () => {
+    const MIN = 60_000;
+    const ms = new Map([
+        ["p/a.test.ts", 5 * MIN],
+        ["p/b.test.ts", 4 * MIN],
+        ["p/c.test.ts", 3 * MIN],
+        ["p/d.test.ts", 1 * MIN],
+    ]);
+
+    it("packs the longest files first into bins of at most 8 minutes", () => {
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms);
+        assert.deepEqual(bins, [
+            { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
+            { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
+        ]);
+    });
+
+    it("counts a file with no recorded time as the family's longest", () => {
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms);
+        assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
+    });
+
+    it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
+        assert.deepEqual(packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]])), [
+            { files: ["p/x.test.ts"], ms: 9 * MIN },
+            { files: ["p/y.test.ts"], ms: 9 * MIN },
+        ]);
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map()), [{ files: ["p/x.test.ts"], ms: 30_000 }]);
+        assert.deepEqual(packBins([], ms), []);
+    });
+});
+
+describe("light-check-replay", () => {
+    const MIN = 60_000;
+    const fileLevel = new Set(["graphty-element", "graphty"]);
+    const sel = (shard, pkg, mode, files = [], extra = {}) => ({
+        shard,
+        package: pkg,
+        mode,
+        total: extra.total ?? files.length,
+        files: files.map((file) => ({ file })),
+        reasons: extra.reasons ?? [],
+    });
+    const durations = new Map([
+        [
+            "graphty",
+            new Map([
+                ["graphty/a.test.ts", 6 * MIN],
+                ["graphty/b.test.ts", 3 * MIN],
+            ]),
+        ],
+        ["graph-io", new Map([["graph-io/x.test.ts", 2 * MIN]])],
+    ]);
+
+    it("merges a family's slices and runs its longest bin after the setup", () => {
+        const record = {
+            at: "2026-10-23T00:00:00Z",
+            selection: [
+                sel("graphty-1", "graphty", "files", ["graphty/a.test.ts"]),
+                sel("graphty-2", "graphty", "files", ["graphty/a.test.ts", "graphty/b.test.ts"]),
+                sel("graph-format", "graph-format", "none"),
+            ],
+        };
+        const r = replayRecord(record, durations, fileLevel);
+        assert.deepEqual(r, {
+            key: "run:ci.yml:pr",
+            at: record.at,
+            bins: 2,
+            testMs: 6 * MIN,
+            runMs: SETUP_MS + 6 * MIN,
+            overLimit: false,
+        });
+    });
+
+    it("runs a whole family with its unrecorded files at the family's longest", () => {
+        const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
+        const r = replayRecord(record, durations, fileLevel);
+        assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
+        assert.equal(r.bins, 2, "five 2-minute files make bins of 8 and 2 minutes");
+        assert.equal(r.testMs, 8 * MIN);
+    });
+
+    it("keys a global input or a graphty-element build change as pr-wide", () => {
+        assert.equal(keyOf({ everything: "package.json", selection: [] }, [], fileLevel), "run:ci.yml:pr-wide");
+        const dependent = sel("graphty-1", "graphty", "all", [], {
+            reasons: ["depends on graphty-element, whose build changed"],
+        });
+        assert.equal(keyOf({ selection: [dependent] }, [], fileLevel), "run:ci.yml:pr-wide");
+        const longest = [
+            { package: "graphty", ms: 9 },
+            { package: "layout", ms: 3 },
+        ];
+        assert.equal(keyOf({ selection: [] }, longest, fileLevel), "run:ci.yml:pr-layout");
+    });
+
+    it("summarizes p50 and p90 per key and writes them as budgets", () => {
+        assert.equal(percentile([5, 1, 4, 2, 3], 0.5), 3);
+        assert.equal(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9), 9);
+        assert.equal(percentile([], 0.9), 0);
+        const row = (runMs, at) => ({ key: "run:ci.yml:pr", at, bins: 2, runMs, overLimit: false });
+        const table = summarize([row(10 * MIN, "2026-10-22T01:00:00Z"), row(12.5 * MIN, "2026-10-23T01:00:00Z")]);
+        assert.deepEqual(table, [
+            {
+                key: "run:ci.yml:pr",
+                n: 2,
+                p50: 10,
+                p90: 12.5,
+                bins50: 2,
+                bins90: 2,
+                overLimit: 0,
+                from: "2026-10-22",
+                to: "2026-10-23",
+            },
+        ]);
+        const before = { version: 1, budgets: { "run:ci.yml:pr": { minutes: 20, owner: "pipeline" } } };
+        const after = applyBudgets(before, table);
+        assert.equal(before.budgets["run:ci.yml:pr"].minutes, 20, "the input is not changed");
+        assert.deepEqual(after.budgets["run:ci.yml:pr"], {
+            minutes: 13,
+            owner: "pipeline",
+            why: "light-check replay of 2 advisory records (2026-10-22 to 2026-10-23): p50 10 min, p90 12.5 min; table on #3418",
+        });
     });
 });

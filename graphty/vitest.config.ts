@@ -4,10 +4,11 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { workerShare } from "../tools/test-slots.mjs";
+import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
@@ -18,16 +19,6 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 
-/**
- * This run's --shard (`2/3` -> `2-3`), or null when it runs every file. The gate runs the
- * graphty-1, -2 and -3 parts side by side, and with `optimizeDeps.force` below each one rebundles
- * the dependencies when its browser project starts. In one shared cache directory that swapped
- * the dependency chunks out from under a part already running: its page's next dynamic import of
- * one (Babylon's dumpTools, behind a screenshot) answered 404, the browser kept that failure for
- * the module, and the test waiting on the picture timed out. So each part bundles into its own.
- */
-const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
-const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -41,6 +32,50 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     });
+};
+
+/**
+ * The two app modules the app's own tests replace, swapped by Vite as it serves them rather than by
+ * `vi.mock` in the setup file. Every `vi.mock` makes Vitest add a Playwright route to the page's
+ * context, and while a context has a route Playwright switches the browser's HTTP cache off and
+ * holds every request until this process answers it. Registered in the setup file, those routes
+ * covered every test file: each one fetched its whole module graph again, megabytes of dependency
+ * bundles included, through the same Node process that carries every click and keystroke of the
+ * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * 15 seconds (issue #3350).
+ *
+ * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
+ *   imports "@graphty/graphty-element" itself (the real-element project), and every other test
+ *   keeps the tag an empty box.
+ * - `src/workspace/Workspace.tsx` waits for the project frame first. The app loads the frame on
+ *   demand (`workspace/frameLoader.ts`); a test has it from the start, so a project it opens shows
+ *   at once. Only a file that imports the workspace pays for it: the frame is most of the app's
+ *   code, and loading it for every file took about 5 seconds a file on an idle machine and 15 to 20
+ *   on a loaded core (issues #3347 and #3348). A file's own module mocks (Sentry's, most of all) are
+ *   registered before its imports, so they are the ones the frame gets. A file that mocks a module
+ *   the frame needs cannot load it, and goes on without it.
+ * @returns the plugin.
+ */
+const testStandIns = (): Plugin => {
+    const elementLoader = path.join(dirname, "src/elementLoader.ts");
+    const workspace = path.join(dirname, "src/workspace/Workspace.tsx");
+    return {
+        name: "graphty-test-stand-ins",
+        enforce: "pre",
+        // Only the module itself: a test reading a source file's text (`?raw`) gets it unchanged.
+        transform(code, id) {
+            if (id === elementLoader) {
+                return { code: "export const loadGraphtyElement = () => Promise.resolve();", map: { mappings: "" } };
+            }
+            if (id === workspace) {
+                // On the first line, so every original line keeps its number (and its coverage).
+                const preload =
+                    'import { loadFrame as __loadFrame } from "./frameLoader"; await __loadFrame().catch(() => undefined); ';
+                return { code: preload + code, map: null };
+            }
+            return null;
+        },
+    };
 };
 
 /**
@@ -61,8 +96,12 @@ export default defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
+    // Each pre-push gate shard bundles into its own cache (tools/test-slots.mjs shardCacheDir()):
+    // with `optimizeDeps.force` below, the graphty-1 to -5 parts side by side each rebundle when
+    // their browser project starts, and in one shared directory that swapped the chunks out from
+    // under a part already running (a dynamic import answered 404 and the test timed out).
     // Vitest puts each project's bundle under <cacheDir>/vitest/<project hash>.
-    cacheDir: SHARD_KEY ? `node_modules/.vite/shard-${SHARD_KEY}` : "node_modules/.vite",
+    cacheDir: shardCacheDir(),
     optimizeDeps: {
         include: ["@mantine/hooks"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
@@ -91,6 +130,7 @@ export default defineConfig({
         projects: [
             {
                 extends: true,
+                plugins: [testStandIns()],
                 test: {
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
@@ -107,6 +147,7 @@ export default defineConfig({
             },
             {
                 extends: true,
+                plugins: [testStandIns()],
                 test: {
                     name: "real-element",
                     include: [REAL_ELEMENT_TESTS],

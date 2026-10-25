@@ -1,6 +1,6 @@
 # Style fidelity, side by side
 
-A private Storybook (not published to npm) that shows, for each style fidelity sample of graph-io, three
+A Storybook of the graph-io package (not published to npm) that shows, for each style fidelity sample of graph-io, three
 panels side by side, each drawing at the oracle canvas size of 1200 x 900:
 
 1. **The program's own drawing**: the real SVG the program that wrote the file exported (or, where that program
@@ -22,7 +22,7 @@ CI subset `test/browser/oracle-scorecard.test.ts`) run the same comparison and a
 Start it through servherd, which sets `PORT`:
 
 ```jsonc
-servherd_start({ name: "graph-io-fidelity-storybook", cwd: "<repo>/graph-io/fidelity-stories", protocol: "https",
+servherd_start({ name: "graph-io-fidelity-storybook", cwd: "<repo>/graph-io", protocol: "https",
   command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook",
   env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
 ```

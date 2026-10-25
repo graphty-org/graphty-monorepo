@@ -15,7 +15,9 @@ import { isolateGit } from "../isolated-git-env.mjs";
 import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
-import { junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
+import { failureHashes } from "../test-ledger.mjs";
+import { decide } from "../test-quarantine.mjs";
+import { baseId, fileIssues, junitOf, postRecords, prJudge, recordsOf, runGroup, storeList } from "./run-group.mjs";
 
 isolateGit();
 const TMP = mkdtempSync(join(tmpdir(), "results-"));
@@ -294,5 +296,177 @@ describe("runGroup", () => {
         assert.equal(rec.variant, "fake|flags=off|whole");
         assert.equal(rec.outcome, "infra");
         assert.equal(rec.sha.length, 40);
+    });
+});
+
+describe("the pull request rules", () => {
+    const FAMILY = "graphty-element-browser";
+    const o = {
+        shard: "graphty-element-browser-3",
+        family: FAMILY,
+        variant: `${FAMILY}|flags=off|selected`,
+        base: "b1",
+    };
+    const fail = (name, file = "a.test.ts", text = `AssertionError: ${name}`) => ({ file, name, text });
+    const report = (...failures) => ({ files: new Map(), failures });
+    // decide() of a run and its retry, then the judge
+    const judge = (plan, first, second) => {
+        const d = decide({ family: FAMILY, first, firstOutcome: "failed", second, list: storeList(plan) });
+        return prJudge(plan, o)(d, { firstOutcome: "failed" });
+    };
+    const tags = (d) => d.lines.map((l) => `${l.warn ? "warn" : "fail"} ${l.text.split(" ")[0]}`);
+
+    it("passes an unrelated flaky test loudly and names its base check; fails one the pull request touched", () => {
+        const plan = { quarantine: [], failingOnBase: [], affected: ["touched.test.ts"] };
+        const d = judge(plan, report(fail("flips"), fail("mine", "touched.test.ts")), report());
+        assert.deepEqual(tags(d), ["warn [FLAKY-UNRELATED]", "fail [NEW-FLAKY]"]);
+        assert.equal(d.pass, false);
+        assert.match(
+            d.lines[0].text,
+            /gh workflow run base-check\.yml --ref master -f base=b1 -f file=a\.test\.ts -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
+        );
+        assert.equal(judge(plan, report(fail("flips")), report()).pass, true);
+    });
+
+    it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {
+        const { key } = failureHashes("AssertionError: known", "a.test.ts");
+        const row = {
+            variant: `${FAMILY}|flags=off|whole`,
+            sha: "b1",
+            file: "a.test.ts",
+            name: "known",
+            key,
+            issue: 31,
+        };
+        const plan = { quarantine: [], failingOnBase: [row, { ...row, name: "other key", key: "nope" }], affected: [] };
+        const both = report(fail("known"), fail("other key"));
+        const d = judge(plan, both, both);
+        assert.deepEqual(tags(d), ["warn [KNOWN]", "fail [KNOWN?]"]);
+        assert.match(d.lines[0].text, /fails the same way on master b1, issue #31/);
+        assert.match(d.lines[1].text, /-f repeat=1/);
+        assert.equal(judge(plan, report(fail("known")), report(fail("known"))).pass, true);
+        // another family's base failure excuses nothing
+        const elsewhere = { ...plan, failingOnBase: [{ ...row, variant: "layout|flags=off|whole" }] };
+        assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
+    });
+
+    it("lets the store's quarantine through and, with no plan, excuses nothing and counts every test as touched", () => {
+        const plan = { quarantine: [{ family: FAMILY, file: "a.test.ts", name: "q", issue: 9 }], failingOnBase: [] };
+        const d = judge(plan, report(fail("q")), report(fail("q")));
+        assert.deepEqual(
+            [d.pass, d.lines[0].text],
+            [true, "[QUARANTINED] graphty-element-browser-3: a.test.ts > q failed again; issue #9"],
+        );
+        assert.deepEqual(tags(judge(null, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+        assert.deepEqual(tags(judge(null, report(fail("q")), report(fail("q")))), ["fail [FAIL]"]);
+    });
+
+    it("leaves a run that did not end in test failures alone", () => {
+        const d = { pass: false, flaky: [], excused: [], failing: [fail("x")] };
+        assert.equal(prJudge(null, o)(d, { firstOutcome: "error" }), d);
+    });
+
+    it("keeps repeated runs of one job apart", () => {
+        assert.equal(baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "check", RESULTS_REPEAT: "3" }), "5.1.check.s.r3");
+    });
+});
+
+describe("fileIssues", () => {
+    const flaky = {
+        family: "fam",
+        file: "a.test.ts",
+        name: "flips",
+        signature: "sig1",
+        proof: "r1 failed it, r2 passed it",
+        had: null,
+    };
+    const rec = (outcome, failures) => ({ id: "5.1.j.s.1", sha: "b1", outcome, failures });
+    const ghFake = (list = "") => {
+        const calls = [];
+        const gh = (args) => {
+            calls.push(args);
+            if (args[1] === "list") return list;
+            return args[1] === "create" ? "https://github.com/o/r/issues/88\n" : "";
+        };
+        return { gh, calls };
+    };
+
+    it("files one priority:critical issue for a test the store quarantined and posts its number back", async () => {
+        const s = await serve();
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const { gh, calls } = ghFake();
+        const recs = [
+            rec("failed", [{ file: "a.test.ts", name: "flips", message: "AssertionError: x" }]),
+            rec("passed", []),
+        ];
+        const answers = [
+            { ok: true, data: { kind: "full", flaky: [] } },
+            { ok: true, data: { kind: "full", flaky: [flaky] } },
+        ];
+        const out = await fileIssues(cfg, recs, answers, [], gh, Date.UTC(2026, 9, 25));
+        assert.deepEqual(
+            out.map((i) => [i.number, i.kind]),
+            [[88, "flaky"]],
+        );
+        const creates = calls.filter((c) => c[1] === "create");
+        assert.equal(creates.length, 1);
+        assert.ok(creates[0].includes("priority:critical"));
+        const body = creates[0].at(-1);
+        assert.match(body, /<!-- results signature=sig1 -->/);
+        assert.match(body, /AssertionError: x/);
+        assert.match(body, /on 2026-11-08/);
+        const back = s.seen.find((r) => r.url === "/v1/issues");
+        assert.deepEqual(back.body, {
+            signature: "sig1",
+            number: 88,
+            kind: "flaky",
+            family: "fam",
+            file: "a.test.ts",
+            name: "flips",
+        });
+    });
+
+    it("comments on the signature's earlier issue, found by the store or by its marker", async () => {
+        const { gh, calls } = ghFake("41\tOPEN\tFlaky test quarantined: a.test.ts > flips\n");
+        const answers = [
+            { ok: true, data: { flaky: [flaky, { ...flaky, name: "other", signature: "sig2", had: 12 }] } },
+        ];
+        const out = await fileIssues(null, [rec("passed", [])], answers, [], gh);
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [41, 12],
+        );
+        assert.equal(calls.filter((c) => c[1] === "create").length, 0);
+        assert.deepEqual(
+            calls.filter((c) => c[1] === "comment").map((c) => c[2]),
+            ["41", "12"],
+        );
+    });
+
+    it("files one Failing on master issue per signature a base run failed every time", async () => {
+        const { gh, calls } = ghFake();
+        const failures = [
+            { file: "a.test.ts", name: "one", message: "Error: broken 1" },
+            { file: "a.test.ts", name: "two", message: "Error: broken 2" },
+            { file: "a.test.ts", name: "flaky", message: "Error: other" },
+        ];
+        const failing = [
+            { file: "a.test.ts", name: "one" },
+            { file: "a.test.ts", name: "two" },
+        ];
+        const answers = [{ ok: true, data: { kind: "base", flaky: [] } }];
+        const out = await fileIssues(null, [rec("failed", failures)], answers, failing, gh);
+        assert.deepEqual(
+            out.map((i) => i.kind),
+            ["failing-on-master"],
+        );
+        const create = calls.find((c) => c[1] === "create");
+        assert.ok(create.includes("priority:high"));
+        assert.match(create[create.indexOf("--title") + 1], /^Failing on master: Error: broken/);
+        assert.equal(
+            (await fileIssues(null, [rec("failed", failures)], [{ ok: true, data: { kind: "full" } }], failing, gh))
+                .length,
+            0,
+        );
     });
 });

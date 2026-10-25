@@ -79,7 +79,7 @@ async function failingOnBase(db, base, pairs, changed) {
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const rows = await all(
         db,
-        `SELECT DISTINCT i.variant, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
@@ -268,4 +268,50 @@ export async function trendFor(db, kind, posted, budgets, now) {
     return [...byKey]
         .filter(([key, rs]) => keys.has(key) && rs.length >= 5)
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
+}
+
+// Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
+// ran its file, with the same skip count, without failing it (6.1). Only pairs that include `id` are asked.
+const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, a.id AS failedIn, b.id AS passedIn
+     FROM invocation a JOIN failure f ON f.invocation = a.id
+     JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
+     JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
+     JOIN file_run rb ON rb.invocation = b.id AND rb.file = f.file AND coalesce(rb.skipped, 0) = coalesce(ra.skipped, 0)
+     WHERE (a.id = ? OR b.id = ?) AND a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
+       AND a.outcome IN ('passed','failed') AND b.outcome IN ('passed','failed')
+       AND NOT EXISTS (SELECT 1 FROM failure g WHERE g.invocation = b.id AND g.file = f.file AND g.name = f.name)`;
+
+/**
+ * Quarantines the tests a just-stored master-evidence record proves flaky (6.1, 6.5): each enters once, for 14
+ * days, with no issue yet. The answer names them so the job that posted files the issue (6.6) and posts its number
+ * back (POST /v1/issues); `had` is the signature's earlier issue, to comment on instead.
+ * @param db the D1 database
+ * @param id the stored invocation
+ * @param now milliseconds
+ * @returns the newly quarantined tests: family, file, name, signature, proof (the two invocations), had
+ */
+export async function concludeFlaky(db, id, now) {
+    const found = await all(db, DISAGREE, id, id);
+    const out = [];
+    for (const t of found) {
+        const family = t.variant.split("|")[0];
+        if (NEVER_QUARANTINED.test(family) || out.some((o) => o.file === t.file && o.name === t.name)) continue;
+        const active = await db
+            .prepare(
+                "SELECT 1 FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
+            )
+            .bind(family, t.file, t.name, now)
+            .first();
+        if (active) continue;
+        const proof = `${t.failedIn} failed it, ${t.passedIn} passed it`;
+        await db
+            .prepare(
+                "INSERT OR IGNORE INTO quarantine (family, file, name, reason, proof, since, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(family, t.file, t.name, "failed and passed on the same commit and inputs", proof, now, now + 14 * DAY)
+            .run();
+        const had = await db.prepare("SELECT number FROM tracked_issue WHERE signature = ?").bind(t.signature).first();
+        out.push({ family, file: t.file, name: t.name, signature: t.signature, proof, had: had?.number ?? null });
+    }
+    return out;
 }

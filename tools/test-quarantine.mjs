@@ -237,12 +237,15 @@ const brief = (list) => list.map((f) => ({ file: f.file, name: f.name, excerpt: 
  * @param o.state the local state (emptyState() in CI)
  * @param [o.logBudget] the most bytes the first run's output may hold (shard-verdict.mjs); a larger one fails
  *   the shard whatever it exited with, here as in CI, whose test job judges shards only through this wrapper
+ * @param [o.list] the quarantine in force, in place of the committed list and the local state (the results store's)
+ * @param [o.judge] `(decision, { firstOutcome }) => decision` in place of blameChange(): the pull request rules of
+ *   tools/results/run-group.mjs; a decision with `lines` prints those instead of the [FLAKY] and [FAIL] lines
  * @returns the exit code
  */
 export async function runShard(
     shardName,
     command,
-    { root, viaRunTests, env = process.env, state, logBudget = LOG_BUDGET_BYTES },
+    { root, viaRunTests, env = process.env, state, logBudget = LOG_BUDGET_BYTES, list: given, judge },
 ) {
     if (!quarantineEnabled(env)) {
         const r = await sh(command, env, root);
@@ -263,7 +266,7 @@ export async function runShard(
         result.failed = brief(first?.failures ?? []);
         if (r1.code === 0) return flood;
         const family = familyOf(shardName);
-        const list = activeList(committedList(root), state);
+        const list = given ?? activeList(committedList(root), state);
         const runs = expectedRuns(shard?.["test-command"] ?? command);
         const firstOutcome = outcomeOf({ code: r1.code, log: r1.text, runs, junit: first });
         result.firstOutcome = firstOutcome;
@@ -272,7 +275,8 @@ export async function runShard(
                 ? await retryFailed({ root, shard, first, family, list, env, viaRunTests, reports })
                 : null;
         if (retry) result = { ...result, ...retry.facts };
-        const d = blameChange(decide({ family, first, firstOutcome, second: retry?.second, list }), root, family, env);
+        const raw = decide({ family, first, firstOutcome, second: retry?.second, list });
+        const d = judge ? judge(raw, { firstOutcome }) : blameChange(raw, root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;
         printDecision(shardName, d, env, retry ? "" : notRetried(firstOutcome, first, list, family));
@@ -411,6 +415,10 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
  */
 function printDecision(shard, d, env, unretried) {
     const gh = env.GITHUB_ACTIONS === "true";
+    if (d.lines) {
+        for (const l of d.lines) console.log(gh && l.warn ? `::warning::${l.text}` : `test-quarantine: ${l.text}`);
+        return;
+    }
     for (const f of d.flaky) {
         const line = `[FLAKY] ${shard}: ${idOf(f)} failed and passed on the same inputs, so it does not fail the shard`;
         console.log(gh ? `::warning::${line}` : `test-quarantine: ${line}`);
@@ -509,19 +517,19 @@ export function updateState(main, change) {
 }
 
 /**
- * Files the issue for a newly quarantined test, or comments on its earlier one. One call to GitHub.
- * @param t the entry
- * @param had the test's earlier issue, or undefined
- * @param gh `(args) => stdout`
- * @returns the issue number, or 0 when GitHub refused
+ * A quarantined test's issue text.
+ * @param t the entry; `where` replaces the line naming the list, `extra` lines are appended
+ * @returns the body
  */
-export function fileIssue(t, had, gh) {
-    const body = [
+export function issueBody(t) {
+    return [
         `\`${idOf(t)}\` (shard family \`${t.family}\`) ${t.reason}.`,
         "",
-        "It is quarantined (`tools/test-quarantine.json`, `tools/test-quarantine.mjs`): it still runs and is",
-        "reported loudly, but its failures no longer fail the pre-push gate or CI. It leaves the list when this",
-        `issue closes, after ${PASSES_TO_LEAVE} consecutive passing gate runs, or on ${t.expires}.`,
+        ...(t.where ?? [
+            "It is quarantined (`tools/test-quarantine.json`, `tools/test-quarantine.mjs`): it still runs and is",
+            "reported loudly, but its failures no longer fail the pre-push gate or CI. It leaves the list when this",
+            `issue closes, after ${PASSES_TO_LEAVE} consecutive passing gate runs, or on ${t.expires}.`,
+        ]),
         "Find the mechanism: timing or load is not an accepted cause without one.",
         "",
         "First failure:",
@@ -535,7 +543,19 @@ export function fileIssue(t, had, gh) {
                   ...t.suspects.map((l) => `- ${l.sha} ${l.branch}`),
               ]
             : []),
+        ...(t.extra ?? []),
     ].join("\n");
+}
+
+/**
+ * Files the issue for a newly quarantined test, or comments on its earlier one. One call to GitHub.
+ * @param t the entry
+ * @param had the test's earlier issue, or undefined
+ * @param gh `(args) => stdout`
+ * @returns the issue number, or 0 when GitHub refused
+ */
+export function fileIssue(t, had, gh) {
+    const body = issueBody(t);
     try {
         if (had) {
             gh(["issue", "comment", String(had), "--body", `Quarantined again on ${t.since}.\n\n${body}`]);

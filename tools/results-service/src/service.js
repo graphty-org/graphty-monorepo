@@ -1,5 +1,6 @@
 // The test results store: a Cloudflare Worker over D1 that CI jobs and local runs write test-group records,
-// failure events and durations to. It stores and answers; it dispatches nothing and files no issue.
+// failure events and durations to. It stores and answers; it dispatches nothing and files no issue (the job whose
+// record proves a test flaky files it and posts its number back).
 // Design: design/ci/channels-pipeline/results-service.md (sections 4 and 5). Setup: README.md.
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
@@ -8,7 +9,7 @@
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
+import { concludeFlaky, getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -21,6 +22,8 @@ const MASTER_KINDS = {
     "restricted-cpu-stress.yml": "stress",
 };
 const MASTER = "refs/heads/master";
+const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
+const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
 
@@ -229,7 +232,30 @@ async function postInvocation(body, who, db, nowMs) {
         ),
         ...inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.id, body.failures ?? [], body.root, nowMs)),
     ]);
-    return { stored: first.meta.changes === 1, kind: who.kind };
+    const stored = first.meta.changes === 1;
+    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    return { stored, kind: who.kind, flaky: judged ? await concludeFlaky(db, body.id, nowMs) : [] };
+}
+
+// The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names.
+async function postIssue(body, who, db, nowMs) {
+    if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
+    need(body, { signature: "string", number: "number" });
+    if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
+    await db.batch([
+        db
+            .prepare(
+                `INSERT INTO tracked_issue (signature, kind, number, state, opened_at, last_seen) VALUES (?, ?, ?, 'open', ?, ?)
+                 ON CONFLICT(signature) DO UPDATE SET number = excluded.number, state = 'open', last_seen = excluded.last_seen`,
+            )
+            .bind(body.signature, body.kind, body.number, nowMs, nowMs),
+        db
+            .prepare(
+                "UPDATE quarantine SET issue = ? WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND issue IS NULL",
+            )
+            .bind(body.number, body.family ?? "", body.file ?? "", body.name ?? ""),
+    ]);
+    return { stored: true };
 }
 
 async function postFailures(body, who, db, nowMs) {
@@ -285,6 +311,7 @@ const ROUTES = {
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
+    "POST /v1/issues": postIssue,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,

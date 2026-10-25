@@ -121,7 +121,7 @@ describe("POST /v1/invocations", () => {
         const { call, rows } = service();
         assert.deepEqual(await call("POST", "/v1/invocations", { token: pr(), body: record() }), {
             status: 200,
-            body: { stored: true, kind: "pr" },
+            body: { stored: true, kind: "pr", flaky: [] },
         });
         const [inv] = rows("SELECT * FROM invocation");
         assert.equal(inv.kind, "pr");
@@ -136,7 +136,7 @@ describe("POST /v1/invocations", () => {
             [expected.key, expected.signature, "fail", expected.line],
         );
         const again = await call("POST", "/v1/invocations", { token: pr(), body: record() });
-        assert.deepEqual(again.body, { stored: false, kind: "pr" });
+        assert.deepEqual(again.body, { stored: false, kind: "pr", flaky: [] });
         assert.equal(rows("SELECT * FROM invocation").length, 1);
     });
 
@@ -153,7 +153,7 @@ describe("POST /v1/invocations", () => {
                 token: master(file),
                 body: record({ id: `4010.1.job.g.${n}`, kind: "local" }),
             });
-            assert.deepEqual(res.body, { stored: true, kind }, file);
+            assert.deepEqual(res.body, { stored: true, kind, flaky: [] }, file);
         }
         assert.equal(rows("SELECT * FROM invocation").length, 5);
     });
@@ -229,7 +229,7 @@ describe("POST /v1/invocations", () => {
                     body: record({ id: "local.1.host.2.layout" }),
                 })
             ).body,
-            { stored: true, kind: "local" },
+            { stored: true, kind: "local", flaky: [] },
         );
         assert.equal((await call("POST", "/v1/invocations", { token: LOCAL_TOKEN, body: record() })).status, 403);
     });
@@ -501,6 +501,83 @@ describe("GET /v1/plan", () => {
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(v.fileMs, { [X]: 106 });
+    });
+});
+
+describe("flaky tests from master's records", () => {
+    const X = "graphty-element/test/browser/x.test.ts";
+    const passing = (id) => record({ id, sha: "base1", outcome: "passed", files: [[X, 42, 0, 0, 3000]], failures: [] });
+    const failing = (id) => record({ id, sha: "base1" });
+
+    it("quarantines a test two base runs on the same inputs disagree on, once, and takes its issue back", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        const first = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r1.1") });
+        assert.deepEqual(first.body.flaky, []);
+        const second = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.r2.1") });
+        assert.deepEqual(
+            second.body.flaky.map((t) => [t.family, t.file, t.name, t.had]),
+            [["graphty-element-browser", X, "camera > zooms", null]],
+        );
+        assert.match(second.body.flaky[0].proof, /4010\.1\.base\.r1\.1 failed it, 4010\.1\.base\.r2\.1 passed it/);
+        // a third repeat that fails again proves nothing new: the test is already quarantined
+        const third = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r3.1") });
+        assert.deepEqual(third.body.flaky, []);
+        assert.equal(rows("SELECT * FROM quarantine").length, 1);
+
+        const { signature } = second.body.flaky[0];
+        const back = {
+            signature,
+            kind: "flaky",
+            number: 77,
+            family: "graphty-element-browser",
+            file: X,
+            name: "camera > zooms",
+        };
+        assert.equal((await call("POST", "/v1/issues", { token: pr(), body: back })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
+        assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
+        assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);
+        const res = await plan(call, { variants: BROWSER, inputs: "k1" });
+        assert.deepEqual(
+            res.body.quarantine.map((q) => [q.name, q.issue]),
+            [["camera > zooms", 77]],
+        );
+    });
+
+    it("never quarantines from a pull request's records, other inputs, another skip count or a GPU family", async () => {
+        const { call, rows } = service();
+        const token = master("ci.yml");
+        await call("POST", "/v1/invocations", { token: pr(), body: record({ id: "4010.1.pr.1" }) });
+        const prPass = { ...passing("4010.1.pr.2"), sha: "merge7" };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token: pr(), body: prPass })).body.flaky, []);
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const other = { ...passing("4010.1.full.2"), inputs: "other" };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: other })).body.flaky, []);
+        const skipped = { ...passing("4010.1.full.3"), files: [[X, 41, 0, 1, 3000]] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: skipped })).body.flaky, []);
+        const gpu = { variant: "webgpu-graph-algorithms-node|flags=off|whole" };
+        await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.gpu.1"), ...gpu } });
+        const gpuPass = { ...passing("4010.1.gpu.2"), ...gpu };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: gpuPass })).body.flaky, []);
+        assert.equal(rows("SELECT * FROM quarantine").length, 0);
+    });
+
+    it("names a signature's earlier issue so the job comments on it instead of filing another", async () => {
+        const { call, env } = service();
+        const token = master("release.yml");
+        const sig = failureHashes("AssertionError: expected 2 to be 3", X).signature;
+        env.DB.sqlite.prepare(`INSERT INTO tracked_issue VALUES ('${sig}', 'flaky', 12, 'closed', 0, 0)`).run();
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const res = await call("POST", "/v1/invocations", { token, body: passing("4010.1.full.2") });
+        assert.deepEqual(
+            res.body.flaky.map((t) => t.had),
+            [12],
+        );
+        assert.equal(
+            (await call("POST", "/v1/issues", { token, body: { signature: sig, kind: "x", number: 1 } })).status,
+            400,
+        );
     });
 });
 

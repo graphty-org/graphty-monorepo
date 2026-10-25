@@ -1555,18 +1555,18 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
         // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
         const jobs = parseJobs(ci);
-        for (const name of ["stories", "stories-parity"]) {
+        for (const name of ["story-tests", "stories-parity"]) {
             assert.ok(jobs[name], `${name} exists`);
             assert.equal(jobs[name].coe, "true", `${name} is report-only`);
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
         }
-        assert.match(job(ci, "stories"), /VISUAL_REVIEW_STORY_OUT: /);
-        assert.match(job(ci, "stories"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
-        assert.deepEqual(jobs["stories-parity"].needs.sort(), ["stories", "visual"]);
+        assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
+        assert.match(job(ci, "story-tests"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        assert.deepEqual(jobs["stories-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
-        assert.match(job(ci, "stories"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
+        assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
         assert.match(job(ci, "stories-parity"), /project: \[graphty, graphty-element\]/);
-        assert.match(job(ci, "stories"), /format\('"\{0\}"', matrix\.shard\)/);
+        assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
     });
 
     it("is not seen by the workflows that react to master's CI", () => {
@@ -5272,7 +5272,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const reused = Object.keys(jobs).filter((name) =>
             /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
         );
-        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "stories", "test"]);
+        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "story-tests", "test"]);
         for (const name of ["packages", "build", "visual", "all-checks"]) {
             assert.ok(!reused.includes(name), `${name} runs on every run`);
         }

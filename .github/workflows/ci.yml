@@ -1719,8 +1719,8 @@ jobs:
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
     # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
     # different pictures fail its test) is retried once and reported flaky when the retry passes.
-    stories:
-        name: Stories (${{ matrix.project }})
+    story-tests:
+        name: Story tests (${{ matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"'))
         runs-on: ubuntu-24.04
@@ -1835,7 +1835,7 @@ jobs:
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               uses: actions/upload-artifact@v4
               with:
-                  name: stories-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/stories/merged/
                   retention-days: 30
                   if-no-files-found: ignore
@@ -1847,7 +1847,7 @@ jobs:
               run: |
                   f="$RUNNER_TEMP/stories/merged/results.json"
                   {
-                      echo "### Stories ($PROJECT)"
+                      echo "### Story tests ($PROJECT)"
                       if [[ -f "$f" ]]; then
                           jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
@@ -1861,7 +1861,7 @@ jobs:
     # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
     stories-parity:
         name: Stories parity (${{ matrix.project }})
-        needs: [stories, visual]
+        needs: [story-tests, visual]
         if: ${{ !cancelled() }}
         runs-on: ubuntu-24.04
         continue-on-error: true
@@ -1887,7 +1887,7 @@ jobs:
               continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  name: stories-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: captures/new
 
             - name: Compare

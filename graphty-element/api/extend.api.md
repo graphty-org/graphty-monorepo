@@ -1595,6 +1595,18 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_UNKNOWN"
 /**
+* A load an opened project holds has not been run since it opened, so nothing may fetch for it
+* yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+* once the reader approved. Nothing was fetched. `details.id`. Experimental.
+*/
+| "E_SOURCE_PENDING"
+/**
+* No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+* `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+* `details.key`, `details.known`. Experimental.
+*/
+| "E_LOAD_UNKNOWN"
+/**
 * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
 */
 | "E_SOURCE_UNSUPPORTED"
@@ -2194,6 +2206,7 @@ export interface PendingSourceLoad {
     readonly hasQuery: boolean;
     readonly id: string;
     readonly isLocalNetwork: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
 }
 
@@ -2614,6 +2627,7 @@ export interface SourceLoadRecord {
     readonly pages: number;
     readonly source: string;
     readonly total?: number;
+    readonly totalEdges?: number;
     readonly validators: SourceValidators;
     readonly version: number;
 }
@@ -2633,7 +2647,6 @@ export { SourceParamType }
 export interface SourcePreview {
     readonly columns: readonly AttributeDescriptor[];
     readonly edges: readonly Readonly<Record<string, unknown>>[];
-    readonly facts: Readonly<Record<string, string>>;
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
@@ -2649,7 +2662,7 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
 // @public
 export interface SourcePreviewRow {
     readonly id: NodeId_2;
-    readonly name: string | null;
+    readonly name: string;
 }
 
 export { SourceProbe }

@@ -1,0 +1,28 @@
+{
+    "version": 1,
+    "defaults": { "warnRatio": 1.0, "hangRatio": 2.0, "minHangMinutes": 10, "owner": "pipeline" },
+    "budgets": {
+        "run:ci.yml:pr": { "minutes": 20, "why": "light checks; the pull request waits on this" },
+        "run:ci.yml:pr-wide": { "minutes": 35, "why": "graphty-element src/ or global inputs changed" },
+        "run:ci.yml:full": { "minutes": 60, "why": "green full runs measured 31-48 min" },
+        "run:release.yml:full": { "minutes": 75, "why": "full run plus the release lanes" },
+        "run:release.yml:promote": { "minutes": 20, "why": "promotion only: version, publish, site" },
+        "run:gpu.yml": { "minutes": 60, "why": "T4 lane measured about 50 min" },
+        "run:hosts.yml": { "minutes": 60 },
+        "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
+        "step:ci.yml:Build:Plan": { "minutes": 2 },
+        "job:release.yml:version-dry-run": { "minutes": 5 },
+        "job:release.yml:version": { "minutes": 5 },
+        "job:release.yml:publish": { "minutes": 8 },
+        "job:release.yml:site": { "minutes": 10 },
+        "task:graphty:build": {
+            "minutes": 2,
+            "why": "1m23s before the Sentry regression, 60-63 s after the fix (uncached)"
+        },
+        "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
+        "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
+        "ttg:owner-wait": { "record": true, "why": "recorded, no line" },
+        "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },
+        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" }
+    }
+}

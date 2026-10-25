@@ -237,6 +237,8 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // Loaded by its storybook vitest project only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. A default run derives them from the exports map (and hints a repeat as

@@ -76,6 +76,10 @@ describe("verdictOf", () => {
         const v = verdictOf({ ...ALL_GREEN, hosts: "cancelled", ci: "failure" }, 0);
         assert.deepEqual(v, { state: "red", red: ["ci", "hosts"] });
         assert.equal(verdictOf({ ...ALL_GREEN, audit: "abandoned" }, 0).state, "red");
+        assert.deepEqual(verdictOf({ ...ALL_GREEN, t4: "skipped" }, 0).red, ["t4"], "only the LLM lane may skip");
+        const noHosts = { ...ALL_GREEN };
+        delete noHosts.hosts;
+        assert.deepEqual(verdictOf(noHosts, 0).red, ["hosts"], "a lane with no result did not pass");
     });
 
     it("is an owner item when only the LLM lane failed on the provider's refusal", () => {
@@ -98,6 +102,13 @@ describe("differingImages", () => {
             writeFileSync(join(dir, p, "results.json"), JSON.stringify({ items }));
         }
         assert.equal(differingImages(dir), 2);
+        // a re-run's newer attempt replaces the older one's capture of the same project
+        mkdirSync(join(dir, "visual-layout-2"));
+        writeFileSync(
+            join(dir, "visual-layout-2", "results.json"),
+            JSON.stringify({ items: [{ status: "unchanged" }] }),
+        );
+        assert.equal(differingImages(dir), 1);
         assert.equal(differingImages(join(dir, "missing")), null);
     });
 });

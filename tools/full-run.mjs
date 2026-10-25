@@ -73,7 +73,9 @@ export function pick({ mode, head, store, firstParents, stray }) {
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
 export function verdictOf(lanes, images, ownerItem = "") {
-    const red = Object.keys(LANES).filter((l) => !["success", "skipped"].includes(lanes[l] ?? "skipped"));
+    // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass
+    const passed = (l) => lanes[l] === "success" || (l === "llm" && (lanes[l] ?? "skipped") === "skipped");
+    const red = Object.keys(LANES).filter((l) => !passed(l));
     if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
     // no capture at all is not "nothing differs": the owner looks
@@ -87,11 +89,17 @@ export function verdictOf(lanes, images, ownerItem = "") {
  */
 export function differingImages(dir) {
     if (!dir || !existsSync(dir)) return null;
-    const files = readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith("results.json"));
+    // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
+    const newest = new Map();
+    for (const f of readdirSync(dir, { recursive: true }).map(String)) {
+        const m = /^visual-(.+)-(\d+)[/\\].*results\.json$/.exec(f);
+        if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
+    }
+    const files = [...newest.values()].map((v) => v.f);
     if (!files.length) return null;
     let n = 0;
     for (const f of files) {
-        const items = JSON.parse(readFileSync(join(dir, String(f)), "utf8")).items ?? [];
+        const items = JSON.parse(readFileSync(join(dir, f), "utf8")).items ?? [];
         n += items.filter((i) => !PASSING_IMAGES.has(i.status)).length;
     }
     return n;
@@ -237,7 +245,7 @@ async function verdictMain(env) {
     const lanes = JSON.parse(env.LANES);
     const { state, red } = verdictOf(lanes, differingImages(env.CAPTURES), env.LLM_OWNER_ITEM);
     let issue = null;
-    let what = state;
+    let what = state === "owner-item" ? env.LLM_OWNER_ITEM : state;
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
         const bisect = dispatchBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));

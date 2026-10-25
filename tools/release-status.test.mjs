@@ -58,6 +58,15 @@ describe("statusComment", () => {
     it("announces a red full run and an owner item, and counts both as a reported failure", () => {
         const red = statusComment("red", { run: RUN, sha: "abcdef123", what: "CI, Hosts", issue: "41" });
         assert.match(red, /\*\*Full run red\*\*: CI, Hosts failed on abcdef1\. Nothing was published.*Details: #41\./);
+        assert.doesNotMatch(red, /a bisect looks/, "it claims no bisect it was not told of");
+        const noBisect = statusComment("red", {
+            run: RUN,
+            sha: "abcdef123",
+            what: "security audit",
+            issue: "41",
+            bisect: "No bisect: security audit: no bisect; the pipeline round looks.",
+        });
+        assert.match(noBisect, /Nothing was published\. No bisect: security audit/);
         const owner = statusComment("owner-item", { run: RUN, sha: "abcdef123", what: "LLM regression" });
         assert.match(owner, /\*\*Owner item\*\*: the full run on abcdef1 failed for a reason no code change fixes/);
         assert.equal(reportsFailure(red, RUN, "1"), true);

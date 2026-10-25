@@ -100,6 +100,25 @@ describe("pure rules", () => {
     });
 });
 
+describe("patchId", () => {
+    it("is pr-review.sh's id for a non-UTF-8 file too, so its marker matches", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        r.commit("test: a Latin-1 fixture", { "test/latin1.csv": Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]) });
+        const mb = r.git("merge-base", "master", "HEAD");
+        const shell = execFileSync(
+            "bash",
+            [
+                "-c",
+                `git diff -U0 --binary --no-color --no-ext-diff --no-renames --diff-algorithm=myers ${mb} HEAD | git patch-id --stable | cut -d' ' -f1`,
+            ],
+            { cwd: r.dir, encoding: "utf8" },
+        ).trim();
+        assert.ok(shell);
+        assert.equal(patchId(r.dir, mb, "HEAD"), shell);
+    });
+});
+
 describe("prIntegrity", () => {
     it("an agent pull request needs a Proof and a fresh review of its own diff", () => {
         const r = repo();

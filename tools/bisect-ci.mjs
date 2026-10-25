@@ -7,13 +7,14 @@
 //   node tools/bisect-ci.mjs plan  --out <state.json>           the first round's state from LANE, GOOD, BAD,
 //                                                                TARGETS, FAILED_BEFORE; or STATE (a later round)
 //   node tools/bisect-ci.mjs run   --state <f> --sha <s> --out <f>   runs the targets `next.runs` times here
+//   node tools/bisect-ci.mjs setup-failed --state <f> --sha <s> --out <f>   the result of a point that could not build
 //   node tools/bisect-ci.mjs judge --state <f> --results <dir> --out <f>   folds the results in, says what is next
 //
 // Each writes `points`, `runs`, `files` and `done` to GITHUB_OUTPUT when it is set. BISECT_ROOT names the checkout
 // under test when it is not this file's (a point runs master's copy of this tool against the point's own tree).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -57,6 +58,13 @@ export const LANES = {
         rateParent: 1,
         intermittent: false,
         dir: "graphty-element/test/lifecycle/",
+        // the only files work-protection-macos.yml's job conditions name; any other runs the whole lane
+        only: [
+            "graphty-element/test/lifecycle/engines.test.ts",
+            "graphty-element/test/lifecycle/autosave-engines.bench.test.ts",
+            "graphty-element/test/lifecycle/safari.test.ts",
+            "graphty-element/test/lifecycle/ios-simulator.test.ts",
+        ],
     },
 };
 
@@ -67,9 +75,10 @@ export const LANES = {
  * @returns repo-relative paths, space separated
  */
 export function laneFiles(s) {
-    const dir = LANES[s.lane].dir;
+    const { dir, only } = LANES[s.lane];
     const files = [...new Set((s.followed ?? s.targets).map((t) => t.file))];
-    const reached = (f) => f?.startsWith(dir) && !f.includes("/test/browser/"); // the filter runs node projects only
+    // the filter runs node projects only; a lane whose jobs name their files reaches only those
+    const reached = (f) => f?.startsWith(dir) && !f.includes("/test/browser/") && (!only || only.includes(f));
     return dir && files.every(reached) ? files.join(" ") : "";
 }
 
@@ -84,8 +93,53 @@ export const realGit = (cwd = ROOT) => {
         firstParents: (good, bad) => out(["rev-list", "--first-parent", "--reverse", `${good}..${bad}`]).split("\n"),
         parent: (sha) => out(["rev-parse", `${sha}^1`]),
         touches: (sha, paths) => out(["diff", "--name-only", `${sha}^1`, sha, "--", ...paths]) !== "",
+        masterFirstParents: () => new Set(out(["rev-list", "--first-parent", "origin/master"]).split("\n")),
     };
 };
+
+/**
+ * The commits a round would check out that are not on master's first-parent history. A point runs with
+ * master's cache scope and, on the LLM lane, the Google key, so a dispatch (its `state` input above all) may
+ * name only master's own commits.
+ * @param s the state
+ * @param onMaster master's first-parent commits
+ * @returns the commits that are not
+ */
+export function offMaster(s, onMaster) {
+    return [s.good, s.bad, ...(s.next?.points ?? [])].filter((sha) => sha && !onMaster.has(sha));
+}
+
+const QUOTED_QUOTE = String.raw`'\''`;
+const quote = (f) => "'" + f.replaceAll("'", QUOTED_QUOTE) + "'";
+const SAFE_PATH = /^[\w@][\w@./+-]*$/; // never a leading "-": a vitest option is not a path
+
+/**
+ * The targets whose shard or file is not a plain name or path: a file reaches a shell command with the
+ * LLM lane's key in its environment, so a dispatch may name only paths (no spaces, quotes, `;` or `..`).
+ * @param s the state
+ * @returns the unsafe targets, as JSON
+ */
+export function unsafeTargets(s) {
+    return [...(s.targets ?? []), ...(s.followed ?? [])]
+        .filter(
+            (t) => !/^[\w-]*$/.test(t.shard ?? "") || (t.file && (!SAFE_PATH.test(t.file) || t.file.includes(".."))),
+        )
+        .map((t) => JSON.stringify({ shard: t.shard, file: t.file }));
+}
+
+/**
+ * A point whose build failed ran no test: every followed target counts as failed on every run the round asked
+ * for, so a merge that breaks the build is a bad point, not a lost one tested again. bisect.yml records it only
+ * when its build step itself failed; a failed install or download leaves the point lost, to run again.
+ * @param s the state
+ * @param sha the point
+ * @returns the point's result
+ */
+export function setupFailed(s, sha) {
+    const runs = s.next?.runs ?? 1;
+    const ids = (s.followed ?? s.targets ?? []).map((t) => t.id);
+    return { sha, runs, failed: Object.fromEntries(ids.map((i) => [i, runs])) };
+}
 
 /**
  * The first round's state: the range's first-parent merges and the confirming run on the red commit.
@@ -119,6 +173,8 @@ export function start(a, git) {
 
 // Adds a point's runs to what the state already holds for that commit (a parent can be run again, for more runs).
 function addResult(s, r) {
+    // a lost or cancelled T4 point is paid for too, so the cap counts it before the result is set aside
+    if (s.lane === "gpu") s.t4Minutes += r.minutes ?? T4_POINT_MINUTES;
     if ("status" in r && !["success", "failure"].includes(r.status)) return; // cancelled or lost: no run, test it again
     const ids = (s.followed ?? s.targets).map((t) => t.id);
     const got =
@@ -129,7 +185,6 @@ function addResult(s, r) {
     for (const [id, n] of Object.entries(got.failed)) old.failed[id] = (old.failed[id] ?? 0) + n;
     old.runs += got.runs;
     s.results[r.sha] = old;
-    if (s.lane === "gpu") s.t4Minutes += r.minutes ?? T4_POINT_MINUTES;
 }
 
 const finish = (s, answer) => {
@@ -151,6 +206,15 @@ function afterConfirm(s) {
     return finish(s, { status: c.flaky.length === s.targets.length ? "flaky" : "failed", culprit: null });
 }
 
+// Another T4 point would pass the cap on paid minutes: the bisect stops, with no landing named.
+function atT4Cap(s) {
+    if (s.lane !== "gpu" || s.t4Minutes + T4_POINT_MINUTES <= T4_CAP_MINUTES) return null;
+    return finish(s, {
+        culprit: null,
+        noLanding: `stopped at the T4 cap: ${s.t4Minutes} of ${T4_CAP_MINUTES} paid minutes spent`,
+    });
+}
+
 // The first bad merge is the culprit when its parent is the last green commit or passes every run it needs.
 function blame(s, sha) {
     const parent = s.parents[sha];
@@ -158,7 +222,7 @@ function blame(s, sha) {
     const lane = LANES[s.lane];
     const need = s.followed.some((t) => t.rate) ? lane.rateParent : lane.runs;
     const have = s.results[parent]?.runs ?? 0;
-    if (have < need) return { ...s, next: { points: [parent], runs: need - have } };
+    if (have < need) return atT4Cap(s) ?? { ...s, next: { points: [parent], runs: need - have } };
     const why = parentFails(sha, parent, s.results[parent]);
     return finish(s, why ? { culprit: null, noLanding: why } : { culprit: sha });
 }
@@ -178,12 +242,7 @@ export function decide(s) {
     const step = bisectStep({ candidates: s.candidates, points }, lane.width);
     if (step.noLanding) return finish(s, { culprit: null, noLanding: step.noLanding });
     if (step.blame) return blame(s, step.blame);
-    if (s.lane === "gpu" && s.t4Minutes + T4_POINT_MINUTES > T4_CAP_MINUTES)
-        return finish(s, {
-            culprit: null,
-            noLanding: `stopped at the T4 cap: ${s.t4Minutes} of ${T4_CAP_MINUTES} paid minutes spent`,
-        });
-    return { ...s, next: { points: step.points.map((i) => s.candidates[i]), runs: lane.runs } };
+    return atT4Cap(s) ?? { ...s, next: { points: step.points.map((i) => s.candidates[i]), runs: lane.runs } };
 }
 
 /**
@@ -204,34 +263,49 @@ export function judge(s, results) {
 
 /**
  * The command that runs some targets of one shard: its failing files, or the whole shard when none is named.
+ * The matrix and the selector are the point's own (BISECT_ROOT), so an older point may lack either.
  * @param shard the shard's name
  * @param files its failing files
- * @returns arguments for tools/run-tests.sh
+ * @returns arguments for tools/run-tests.sh, or null when the shard does not exist at the point
  */
 export async function runArgs(shard, files) {
     if (shard === "llm-regression")
         return [
             "--command",
             "graphty-element-default",
-            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.join(" ")}`.trimEnd(),
+            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
         ];
-    const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
-    const { selectedCommand } = await import(pathToFileURL(join(ROOT, "tools/test-select.mjs")).href);
+    const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
+    const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
+    const { selectedCommand } = await at("tools/test-select.mjs");
     const entry = SHARDS.find((x) => x.shard === shard);
-    if (!entry) throw new Error(`no shard named ${shard}`);
-    const command = files.length ? selectedCommand(ROOT, entry, files) : null;
+    if (!entry) return null;
+    // a point older than the selector runs the whole shard
+    const command = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
     return command ? ["--command", shard, command] : [shard];
 }
 
-// Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
-// ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
-async function runPoint(s, sha, runs, spawn = spawnSync) {
-    const targets = s.next.confirm ? s.targets : s.followed;
+/**
+ * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
+ * A target whose file or shard does not exist at the point (a later merge adds or renames it) passes there:
+ * vitest would fail on "no test files", or the run would throw and write no result, so every point before
+ * that merge would read as bad, or be lost and picked again every round.
+ * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
+ * @param s the state
+ * @param sha the point
+ * @param runs how many runs
+ * @param [spawn] spawnSync, or a stand-in
+ * @param [exists] whether a repo-relative file exists at the point
+ * @returns the point's result
+ */
+export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => existsSync(join(ROOT, f))) {
+    const targets = (s.next.confirm ? s.targets : s.followed).filter((t) => !t.file || exists(t.file));
     const byShard = Map.groupBy(targets, (t) => t.shard ?? "");
     const r = { sha, runs, failed: {} };
     for (let i = 0; i < runs; i++)
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
+            if (!args) continue;
             const code = spawn(join(ROOT, "tools/run-tests.sh"), args, { cwd: ROOT, stdio: "inherit" }).status;
             if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
         }
@@ -294,12 +368,25 @@ async function main() {
                   },
                   realGit(),
               );
+        const off = offMaster(s, realGit().masterFirstParents());
+        if (off.length) {
+            console.error(`::error::bisect.yml tests only master's first-parent commits; not: ${off.join(", ")}`);
+            process.exit(1);
+        }
+        const unsafe = unsafeTargets(s);
+        if (unsafe.length) {
+            console.error(`::error::bisect.yml runs only plain test paths; not: ${unsafe.join(", ")}`);
+            process.exit(1);
+        }
         return output(s, v.out);
     }
     if (cmd === "run") {
         const s = read(v.state);
         const r = await runPoint(s, v.sha, s.next.runs);
         return writeFileSync(v.out, JSON.stringify(r));
+    }
+    if (cmd === "setup-failed") {
+        return writeFileSync(v.out, JSON.stringify(setupFailed(read(v.state), v.sha)));
     }
     if (cmd === "judge") {
         const files = readdirSync(v.results, { recursive: true }).filter((f) => f.endsWith(".json"));

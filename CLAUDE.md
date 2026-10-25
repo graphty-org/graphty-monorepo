@@ -529,7 +529,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graphty:**
 - `browser` - Browser-based tests (Playwright)
 - `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
-- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`), and the job `Story tests parity (graphty)` compares that capture with the old `visual (graphty)` one
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
@@ -616,7 +616,7 @@ reason); run by `tools/check-links.sh`:
   `deploy-pages.yml` publishes with. It also checks every link inside that built site (VitePress
   sidebars and nav) and that every Storybook deep link (`?path=/story/<id>`) names a story that
   exists (`tools/check-storybook-links.mjs`).
-- **Pre-push** (`tools/prepush.sh`): the offline half, `tools/check-links.sh --offline`, under a second.
+- **`tools/prepush.sh`** (by hand, `pnpm run prepush:fast`; no push runs it now): the offline half, `tools/check-links.sh --offline`, under a second.
   It also builds the docs site as CI's Docs job does (`docs:content`, the API pages, `vitepress build
   docs`; about 3 minutes) when the push affects a package with a `docs:api:<package>` script or changes
   `docs/`, a package's `docs/` that `tools/copy-docs-content.js` copies in, or that script, so a dead
@@ -639,8 +639,8 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
 whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
 in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
-lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
-push starts or restarts a release (the `workflow_run` trigger is gone). Only the owner releases, with
+lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
+trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
@@ -1300,8 +1300,8 @@ Before shipping a change, ask where it takes effect, because that decides how it
 - **In shared code another branch needs** -- open its pull request, but do not wait for it: merge the
   fix branch (or master, once it has merged) into the blocked branch right away.
 
-The pre-push gate (`.husky/pre-push`, `tools/prepush.sh`) still runs on a plain `git push`, but nothing
-pushes that way any more: `tools/pr-open.sh` and `.husky/post-commit` both skip it, and CI is the gate.
+The pre-push gate (`tools/prepush.sh`) no longer runs on any push: `.husky/pre-push` keeps only the Git LFS
+upload, the secret scan and the committed-images limit, and CI is the gate. `pnpm run prepush:fast` runs it by hand.
 
 ## Parallel agents
 

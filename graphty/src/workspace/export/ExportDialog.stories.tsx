@@ -3,7 +3,8 @@ import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { createWorkspaceStore, type WorkspaceState } from "../state/store";
+import { freshStore, storeOf } from "../../stories/freshStore";
+import type { WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";
 
 /** Eight nodes on a ring with two chords, laid out on a flat circle, which places them the same way every time. */
@@ -47,10 +48,11 @@ type Story = StoryObj<typeof meta>;
  * @returns the story.
  */
 function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
-    const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore({ project: { name: "Ring", id: 1 } }),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             store.set({ dialog: null });
             await loadRing(canvasElement);
             store.set({ dialog: "export", exportOn });

@@ -7,6 +7,7 @@ import { createGraphSession, type GraphSession } from "@graphty/graphty-element/
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -137,7 +138,7 @@ describe("the Graph place", () => {
         const place = screen.getByRole("region", { name: "Graph place" });
         place.style.width = "90px";
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(3000));
         assert.equal(tip.textContent, "Les Miserables");
     });
 

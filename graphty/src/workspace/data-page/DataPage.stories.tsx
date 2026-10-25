@@ -4,8 +4,8 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
 
@@ -73,10 +73,11 @@ async function read(canvasElement: HTMLElement): Promise<void> {
  * @returns the story.
  */
 function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof within>) => Promise<void>): Story {
-    const store = createWorkspaceStore(request.intent === "add" ? { project: OPEN_PROJECT } : {});
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore(request.intent === "add" ? { project: OPEN_PROJECT } : {}),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             await customElements.whenDefined("graphty-element");
             store.set({ page: "panels" });
             openDataPage(store, request);

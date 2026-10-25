@@ -26,7 +26,7 @@ import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
-import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS, storiesPlan } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -38,6 +38,7 @@ import {
     mergedPrs,
     revertBody,
     revertTitle,
+    superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
@@ -1372,6 +1373,14 @@ describe("ci.yml", () => {
         assert.equal(releaseDue(red, "fix: z\n\nRefs #90011"), null);
         assert.equal(releaseDue(red, "feat: unrelated"), null);
         assert.equal(releaseDue([], "Refs #9001"), null, "no open red issue: nothing is due");
+        // a Fixes closes the issue as the merge lands, minutes before this job runs
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = (closedAt) => [{ number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt }];
+        assert.deepEqual(releaseDue(closed("2026-10-25T11:55:00Z"), "Fixes #9001", now), {
+            mode: "restart",
+            issue: 9001,
+        });
+        assert.equal(releaseDue(closed("2026-10-24T11:55:00Z"), "Refs #9001", now), null, "closed long ago");
         const due = job(ci, "release-due");
         assert.match(due, /\n {8}needs: all-checks\n/);
         assert.match(
@@ -1649,6 +1658,24 @@ describe("verification runs of ci.yml", () => {
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
     });
 
+    it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
+        // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
+        const jobs = parseJobs(ci);
+        for (const name of ["story-tests", "story-tests-parity"]) {
+            assert.ok(jobs[name], `${name} exists`);
+            assert.equal(jobs[name].coe, "true", `${name} is report-only`);
+            assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
+        }
+        assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
+        assert.match(job(ci, "story-tests"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
+        // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
+        assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
+        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
+        assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
+        assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
+    });
+
     it("is not seen by the workflows that react to master's CI", () => {
         for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
             const on = workflow(name);
@@ -1861,6 +1888,17 @@ describe("the Sentry source map upload", () => {
         assert.ok(inject > 0 && send > inject);
         assert.equal(upload["working-directory"], "graphty");
         assert.equal((ci.match(/SENTRY_RELEASE: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
+    });
+
+    it("never cancels or fails the build: six master builds were cancelled by a hanging set-commits", () => {
+        assert.equal(String(upload["continue-on-error"]), "true");
+        assert.ok(Number(upload["timeout-minutes"]) > 0 && Number(upload["timeout-minutes"]) <= 5);
+        // every sentry-cli call is bounded (written out per line, so knip sees the binary)
+        const start = ci.indexOf("- name: Upload graphty's source maps to Sentry");
+        const body = ci.slice(start, ci.indexOf("- name: Upload all package builds", start));
+        const calls = body.match(/^.*pnpm exec sentry-cli.*$/gm) ?? [];
+        assert.equal(calls.length, 5);
+        for (const call of calls) assert.match(call, /timeout \d+ pnpm exec sentry-cli /);
     });
 });
 
@@ -2868,13 +2906,56 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
-        assert.equal(decide(run("CI", "cancelled")), "none");
+        assert.equal(decide(run("CI", "cancelled")), "stopped");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
         // Hosts and the T4 run only in the release train, which files its own issue
         assert.equal(decide(run("Hosts", "failure", "schedule")), "none");
         assert.equal(decide(run("Hosts", "failure", "workflow_dispatch")), "none");
         assert.equal(decide(run("GPU", "failure")), "none");
         assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Deploy to GitHub Pages"\]/);
+    });
+
+    // Master CI runs 40227703075 to 40231980144 ended `cancelled` (the Build job ran into its timeout) and the
+    // guard, acting only on `failure`, said nothing (#3560).
+    it("alarms on a master CI run that stopped without a verdict, unless a newer run superseded it", async () => {
+        assert.equal(decide(run("CI", "cancelled")), "stopped");
+        assert.equal(decide(run("CI", "startup_failure")), "stopped");
+        assert.equal(decide(run("CI", "cancelled", "pull_request")), "none");
+        // timed_out and failure stay red: freeze, revert and issue as before
+        assert.equal(decide(run("CI", "timed_out")), "red");
+        assert.equal(decide(run("CI", "failure")), "red");
+
+        const stopped = {
+            id: 6,
+            head_sha: "c".repeat(40),
+            created_at: "2026-10-25T10:00:00Z",
+            updated_at: "2026-10-25T10:12:30Z",
+        };
+        const lister = (runs) => {
+            const calls = [];
+            const gh = async (path) => {
+                calls.push(path);
+                assert.match(path, /^\/actions\/workflows\/ci\.yml\/runs\?branch=master&event=push/);
+                return { workflow_runs: [...runs, stopped] };
+            };
+            return { gh, calls };
+        };
+        const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
+
+        // cancelled by its timeout: a later push five minutes in did not stop it, so it alarms
+        let fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, stopped), false);
+        assert.equal(fake.calls.length, 1, "one runs-list call");
+        // no newer run at all, or only a re-run of the same commit
+        assert.equal(await superseded(lister([]).gh, stopped), false);
+        assert.equal(
+            await superseded(lister([{ ...newer("2026-10-25T10:12:20Z"), head_sha: stopped.head_sha }]).gh, stopped),
+            false,
+        );
+        // cancelled the moment a run for a later commit was queued: superseded, no alarm
+        fake = lister([newer("2026-10-25T10:12:29Z")]);
+        assert.equal(await superseded(fake.gh, stopped), true);
+        assert.equal(fake.calls.length, 1);
     });
 
     it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
@@ -3216,7 +3297,7 @@ describe("release.yml", () => {
         assert.match(verdict, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run\]/);
         assert.match(
             verdict,
-            /if: \$\{\{ always\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && \(needs.pick.outputs.release == 'true' \|\| \(needs.pick.result != 'success' && needs.pick.result != 'skipped'\)\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && \(needs.pick.outputs.release == 'true' \|\| \(needs.pick.result != 'success' && needs.pick.result != 'skipped'\)\) \}\}/,
         );
         // a held major's projects make the dry run's failure an owner item
         assert.match(verdict, /VERSION_HELD: \$\{\{ needs.version_dry_run.outputs.held \}\}/);
@@ -5512,7 +5593,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const reused = Object.keys(jobs).filter((name) =>
             /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
         );
-        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "test"]);
+        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "story-tests", "test"]);
         for (const name of ["packages", "build", "visual", "all-checks"]) {
             assert.ok(!reused.includes(name), `${name} runs on every run`);
         }
@@ -5652,6 +5733,101 @@ describe("release.yml's version dry run with nothing releasable", () => {
     });
 });
 
+describe("promote.yml", () => {
+    const promote = workflow("promote.yml");
+    const main = job(promote, "promote");
+    const nightlySite = job(promote, "nightly-site");
+    const channelRef = job(promote, "channel-ref");
+    // each step of a job, as text, from its "- " line to the next one
+    const steps = (text) =>
+        text
+            .replace(/^\s*#.*\n/gm, "")
+            .split(/\n(?= {12}- )/)
+            .slice(1);
+
+    it("is dispatched only, with the nightly, the channel, dry_run (on by default) and config_only", () => {
+        const on = /^on:\n([\s\S]*?)\n\S/m.exec(promote)[1];
+        assert.deepEqual(
+            [...on.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]),
+            ["workflow_dispatch"],
+        );
+        assert.match(on, /\n {12}nightly:\n[\s\S]*?default: newest\n/);
+        assert.match(
+            on,
+            /\n {12}channel:\n[\s\S]*?type: choice\n\s+default: production\n\s+options:\n\s+- production\n\s+- nightly\n/,
+        );
+        assert.match(on, /\n {12}dry_run:\n[^\n]*\n\s+type: boolean\n\s+default: true\n/);
+        assert.match(on, /\n {12}config_only:\n[^\n]*\n\s+type: boolean\n\s+default: false\n/);
+    });
+
+    it("waits for the owner: the job runs in environment production, from master only, and checks production has a reviewer", () => {
+        assert.match(main, /\n {8}environment: production\n/);
+        assert.match(main, /\n {8}if: \$\{\{ github.ref == 'refs\/heads\/master' \}\}\n/);
+        assert.match(main, /required_reviewers/);
+        // the refusals come before anything that can move
+        const order = [
+            "promote.mjs gather",
+            "promote.mjs check",
+            "promote.mjs token",
+            "promote.mjs move",
+            "promote-push.sh",
+            "promote.mjs releases",
+        ];
+        const at = order.map((s) => main.indexOf(s));
+        assert.ok(
+            at.every((i) => i > 0),
+            JSON.stringify(at),
+        );
+        assert.deepEqual(
+            [...at].sort((a, b) => a - b),
+            at,
+        );
+    });
+
+    it("moves nothing in a dry run: every step that writes outside the run is off unless dry_run is false", () => {
+        const writers = steps(main).filter((s) =>
+            /promote\.mjs (move|releases)|promote-push\.sh|ssh-key|promote\.mjs wait/.test(s),
+        );
+        assert.equal(writers.length, 5);
+        for (const s of writers) assert.match(s, /if: \$\{\{ inputs.dry_run != true && /, s);
+        assert.match(nightlySite, /\n {8}if: \$\{\{ inputs.dry_run != true && inputs.channel == 'nightly' \}\}\n/);
+        assert.match(
+            channelRef,
+            /\n {8}if: \$\{\{ always\(\) && inputs.dry_run != true && inputs.config_only != true && needs.promote.result == 'success'/,
+        );
+        // no push happens anywhere else
+        assert.deepEqual(
+            [...promote.matchAll(/git push[^\n]*/g)].map((m) => m[0]),
+            [
+                'git push --no-verify --force-with-lease="${ref}:${old}" origin "${COMMIT}:${ref}"',
+                'git push --no-verify origin "${COMMIT}:${ref}"',
+            ],
+        );
+    });
+
+    it("config_only moves no tag and marks no release; channel: nightly deploys only from environment nightly", () => {
+        for (const s of steps(main).filter((s) => /promote\.mjs (move|releases)/.test(s)))
+            assert.match(s, /inputs.config_only != true/);
+        for (const s of steps(main).filter((s) => /graphty-site|promote-push\.sh|releases/.test(s)))
+            assert.match(s, /inputs.channel == 'production'/);
+        assert.match(nightlySite, /\n {8}environment: nightly\n/);
+        assert.match(nightlySite, /NIGHTLY_SITE_DEPLOY_KEY/);
+        assert.doesNotMatch(main, /NIGHTLY_SITE_DEPLOY_KEY/);
+    });
+
+    it("keeps each key in its own environment: the dist-tag token and graphty-site's key in production, the release key in release", () => {
+        assert.equal(promote.match(/secrets.RELEASE_DEPLOY_KEY/g).length, 1);
+        assert.match(channelRef, /\n {8}environment: release # the deploy key\n/);
+        assert.match(channelRef, /secrets.RELEASE_DEPLOY_KEY/);
+        assert.doesNotMatch(channelRef.replace(/^\s*#.*$/gm, ""), /npm |setup-node|pnpm/);
+        for (const secret of ["NPM_DIST_TAG_TOKEN", "PRODUCTION_SITE_DEPLOY_KEY"]) {
+            assert.ok(promote.includes(secret));
+            assert.doesNotMatch(nightlySite + channelRef, new RegExp(secret));
+        }
+        assert.match(promote, /\npermissions:\n {4}contents: read\n/);
+    });
+});
+
 describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     const ci = workflow("ci.yml");
     const build = job(ci, "packages");
@@ -5779,5 +5955,127 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
         assert.equal(verdict("3", "failure").status, 1);
         assert.equal(verdict("3", "cancelled").status, 1);
+    });
+});
+
+describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const stories = job(ci, "stories");
+    const runOf = (name) => {
+        const m = new RegExp(`- name: ${name}\\n[\\s\\S]*?\\n {14}run: \\|\\n([\\s\\S]*?)\\n\\n`).exec(stories);
+        assert.ok(m, `Stories has the step ${name}`);
+        return m[1];
+    };
+
+    it("is a Stories (<project>-<bin>) matrix from the Build job's plan, only when a story was selected", () => {
+        assert.match(stories, /\n {8}name: Stories \(\$\{\{ matrix\.name \}\}\)\n/);
+        assert.match(stories, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.stories-matrix\) \}\}/);
+        assert.match(stories, /fromJSON\(needs\.packages\.outputs\.stories-count \|\| '0'\) > 0/);
+        const build = job(ci, "packages");
+        assert.match(build, /stories-matrix: \$\{\{ steps\.bins\.outputs\.stories-matrix \}\}/);
+        assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)='/);
+    });
+
+    it("is report-only: outside All Checks Pass, and nothing in it fails the job", () => {
+        assert.doesNotMatch(job(ci, "all-checks"), /needs: \[[^\]]*\bstories\b/);
+        assert.match(stories, /\n {8}continue-on-error: true\n/);
+        assert.match(stories, /- name: Capture the selected stories\n[\s\S]*?\n {14}continue-on-error: true\n/);
+        // its partial captures are not visual-* artifacts, which the visual gate and the flaky report read
+        assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
+    });
+
+    it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {
+        assert.match(stories, /git archive HEAD\^1 visual-review\/capture visual-review\/trusted \| tar -x/);
+        assert.match(
+            stories,
+            /run: pnpm exec visual-review capture --project \$\{\{ matrix\.project \}\} --out "\$RUNNER_TEMP\/visual" --reference "\$\{\{ steps\.reference\.outputs\.dir \}\}" --stories "\$STORIES"\n/,
+        );
+        const dir = mkdtempSync(join(TMP, "stories-"));
+        writeFileSync(
+            join(dir, "index.json"),
+            JSON.stringify({
+                v: 5,
+                entries: {
+                    "a--one": { id: "a--one", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--two": { id: "a--two", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--docs": { id: "a--docs", type: "docs", importPath: "./stories/A.stories.ts" },
+                    "b--one": { id: "b--one", type: "story", importPath: "./stories/B.stories.ts" },
+                },
+            }),
+        );
+        const pick = (files, ids) => {
+            const out = join(dir, "out.txt");
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-c", runOf("Pick the selected stories")], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    FILES: JSON.stringify(files),
+                    IDS: JSON.stringify(ids),
+                    STORYBOOK: dir,
+                    GITHUB_OUTPUT: out,
+                },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            return readFileSync(out, "utf8").trim();
+        };
+        assert.equal(pick(["graphty-element/stories/A.stories.ts"], []), "stories=a--one,a--two");
+        assert.equal(pick([], ["c--changed-baseline"]), "stories=c--changed-baseline");
+        assert.equal(
+            pick(["graphty-element/stories/C.stories.ts"], []),
+            "stories=",
+            "an unbuilt file captures nothing",
+        );
+    });
+
+    it("reports a changed picture in the job summary and passes", () => {
+        const dir = mkdtempSync(join(TMP, "stories-report-"));
+        mkdirSync(join(dir, "visual"));
+        writeFileSync(
+            join(dir, "visual", "results.json"),
+            JSON.stringify({
+                reference: null,
+                items: [
+                    { file: "a--one.png", status: "changed" },
+                    { file: "a--two.png", status: "unchanged" },
+                ],
+            }),
+        );
+        const summary = join(dir, "summary.md");
+        const r = spawnSync("bash", ["-e", "-c", runOf("Report the changed pictures \\(does not block\\)")], {
+            encoding: "utf8",
+            env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: summary, NAME: "graphty-element-1" },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        const text = readFileSync(summary, "utf8");
+        assert.match(text, /### Stories \(graphty-element-1\), report-only/);
+        assert.match(text, /\n- changed: a--one\.png\n/);
+        assert.doesNotMatch(text, /- unchanged/);
+    });
+
+    it("storiesPlan() makes one entry per story bin with its project's Storybook artifact", () => {
+        assert.deepEqual(storiesPlan(undefined), []);
+        assert.deepEqual(storiesPlan({ bins: [] }), []);
+        const [e] = storiesPlan({
+            storyBins: [
+                {
+                    name: "graphty-element-1",
+                    project: "graphty-element",
+                    storybook: "graphty-element/storybook-static",
+                    files: ["graphty-element/stories/A.stories.ts"],
+                    ids: [],
+                    ms: 1000,
+                },
+            ],
+        });
+        assert.deepEqual(e, {
+            name: "graphty-element-1",
+            project: "graphty-element",
+            artifact: "build-storybook-element",
+            storybook: "graphty-element/storybook-static",
+            files: ["graphty-element/stories/A.stories.ts"],
+            ids: [],
+        });
+        assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
     });
 });

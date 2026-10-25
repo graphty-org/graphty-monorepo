@@ -16,7 +16,8 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
+    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
+    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
     # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:

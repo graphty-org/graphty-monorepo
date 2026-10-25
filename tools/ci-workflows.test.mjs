@@ -1506,9 +1506,8 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
     });
 });
 
-describe("verification of golden in CI (golden-verify.yml)", () => {
+describe("verification runs of ci.yml", () => {
     const ci = workflow("ci.yml");
-    const verify = workflow("golden-verify.yml");
 
     // The plan step's script, run as GitHub runs it (bash -eo pipefail), with nx answered by a stub.
     const planStep = (env) => {
@@ -1605,39 +1604,18 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         );
     });
 
-    it("runs on a push to exactly the four scratch branches, and on dispatch with a ref and shards", () => {
-        assert.match(
-            verify,
-            /\non:\n {4}push:\n {8}branches: \[golden-candidate, golden-cut-candidate, golden-bisect-1, golden-bisect-2\]\n {4}workflow_dispatch:\n/,
+    // A called run checks out inputs.ref in the caller's cache scope. A caller that took the ref from a dispatch
+    // input could run any commit's code in master's scope and plant a cache master later restores (CodeQL
+    // actions/cache-poisoning; golden-verify.yml did, and is gone). The release train passes the commit it was
+    // dispatched on (pick's CANDIDATE is github.sha).
+    it("is called only by the release train, with the commit it was dispatched on", () => {
+        const callers = readdirSync(new URL("../.github/workflows/", import.meta.url)).filter((f) =>
+            /uses: \.\/\.github\/workflows\/ci\.yml/.test(workflow(f)),
         );
-        assert.match(verify, /\n {12}ref:\n(?: {16}.*\n)*? {16}required: true\n/);
-        assert.match(verify, /\n {12}shards:\n(?: {16}.*\n)*? {16}required: false\n/);
-        const triggers = verify.slice(verify.indexOf("\non:\n"), verify.indexOf("\nconcurrency:\n"));
-        assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
-    });
-
-    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
-        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-    });
-
-    it("never cancels a run, one group per commit, pushed or dispatched", () => {
-        assert.match(
-            verify,
-            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
-        );
-    });
-
-    it("has one named job that calls ci.yml as a verification run, so no check is a bare All Checks Pass", () => {
-        const jobs = verify.slice(verify.indexOf("\njobs:\n")).match(/\n {4}[\w-]+:\n/g);
-        assert.deepEqual(jobs, ["\n    verify:\n"]);
-        const body = job(verify, "verify");
-        // The caller job's name prefixes every check of the called run: "Verify / All Checks Pass".
-        assert.match(body, /\n {8}name: Verify\n/);
-        assert.match(body, /\n {8}uses: \.\/\.github\/workflows\/ci\.yml\n/);
-        assert.match(body, /\n {12}ref: \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-        assert.match(body, /\n {12}verify: true\n/);
-        assert.match(body, /\n {8}secrets: inherit\n/);
-        assert.match(verify, /\npermissions:\n {4}contents: read\n {4}actions: read\n {4}checks: write\n/);
+        assert.deepEqual(callers, ["release.yml"]);
+        const release = workflow("release.yml");
+        assert.match(release, /\n {18}CANDIDATE: \$\{\{ github\.sha \}\}\n/);
+        assert.match(job(release, "ci"), /\n {12}ref: \$\{\{ needs\.pick\.outputs\.sha \}\}\n/);
     });
 
     it("leaves the visual job and the visual gate step exactly as master has them", () => {

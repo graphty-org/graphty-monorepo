@@ -1525,7 +1525,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         assert.deepEqual(bin.files, ["graph-io/test/a.test.ts"]);
         assert.equal(bin.coverage, undefined, "a bin uploads no coverage");
         assert.equal(bin["needs-browser"], false);
-        assert.match(bin["test-command"], /^node tools\/test-quarantine\.mjs run graph-io-1 'cd graph-io && /u);
+        assert.match(bin["test-command"], /^node tools\/results\/run-group\.mjs graph-io-1 'cd graph-io && /u);
         const group = include.find((e) => e.shard === "small-node");
         assert.match(group["test-command"], /graph-format/u, "a whole shard runs as today");
         assert.doesNotMatch(group["test-command"], /==> layout/u, "a shard with nothing selected is left out");
@@ -1638,6 +1638,7 @@ describe("the import graphs' cache key", () => {
             const git = (...a) =>
                 execFileSync("git", a, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
             git("init", "-q");
+            git("config", "commit.gpgsign", "false");
             for (const [f, t] of [
                 ["pkg/a.ts", "1"],
                 ["pnpm-lock.yaml", "a"],
@@ -1649,19 +1650,7 @@ describe("the import graphs' cache key", () => {
                 mkdirSync(dirname(join(repo, f)), { recursive: true });
                 writeFileSync(join(repo, f), t);
             }
-            const commit = () =>
-                git(
-                    "-c",
-                    "user.name=t",
-                    "-c",
-                    "user.email=t@t",
-                    "-c",
-                    "commit.gpgsign=false",
-                    "commit",
-                    "-qam",
-                    "c",
-                    "--no-verify",
-                );
+            const commit = () => git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "c", "--no-verify");
             git("add", ".");
             commit();
             const k1 = graphCacheKey(repo, ["pkg"]);

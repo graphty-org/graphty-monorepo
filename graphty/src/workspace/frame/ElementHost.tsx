@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { loadGraphtyElement } from "../../elementLoader";
+import { siteConfig } from "../../siteConfig";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { LAYOUT_SEED } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
@@ -129,6 +130,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
             // On the tag, so the reader's policy is in force before the element's first GPU probe.
             acceleration={readPreference(ACCELERATION)}
+            // The site's experiments and the address's ?features=, read when the session is made.
+            features={siteConfig().features}
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

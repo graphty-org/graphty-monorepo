@@ -31,8 +31,8 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
-        const fs = await import("fs");
-        const path = await import("path");
+        const fs = await import("node:fs");
+        const path = await import("node:path");
         const { mergeConfig, loadEnv } = await import("vite");
 
         // Load env file from monorepo root (one level up from this package)

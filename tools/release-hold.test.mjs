@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { holdAllBut, problems, releaseProjects, unversionable } from "./release-hold.mjs";
+import { holdAllBut, privateProjects, problems, releaseProjects, unversionable } from "./release-hold.mjs";
 
 const PROJECTS = ["graphty-element", "algorithms", "@graphty/remote-logger"];
 const held = (entry) => ({
@@ -112,5 +112,20 @@ describe("unversionable", () => {
             /x has no x@<version> tag and no version/,
         );
         assert.equal(unversionable([project({ version: "" }), project({ name: "y", tagged: true })]).length, 1);
+    });
+});
+
+describe("privateProjects", () => {
+    it("accepts projects that are not private", () => {
+        assert.deepEqual(privateProjects([{ name: "x", isPrivate: false }, { name: "y" }]), []);
+    });
+
+    it("rejects a private project", () => {
+        const found = privateProjects([
+            { name: "x", isPrivate: true },
+            { name: "y", isPrivate: false },
+        ]);
+        assert.equal(found.length, 1);
+        assert.match(found[0], /x is private/);
     });
 });

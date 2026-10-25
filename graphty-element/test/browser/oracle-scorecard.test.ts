@@ -44,7 +44,7 @@ describe("style fidelity against the programs' own SVG drawings", () => {
 
     it.each(CI_ORACLES)("%s", async (id) => {
         const run = await runOracle(id, { write: false });
-        const { dropped, unfloored, newlyFailing } = checkFloors(id, run, stored);
+        const { dropped, unfloored, newlyFailing } = checkFloors(run, stored);
         assert.deepEqual(dropped, [], `${id}: a property fell below its floor in oracle-floors.json`);
         assert.deepEqual(unfloored, [], `${id}: a property is judged that has no floor; record the floors`);
         assert.deepEqual(newlyFailing, [], `${id}: an element fails that oracle-known-failures.json does not list`);

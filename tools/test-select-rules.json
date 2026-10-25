@@ -12,8 +12,7 @@
             "^tools/run-tests\\.sh$",
             "^tools/ci-test-matrix\\.mjs$",
             "^tools/shard-verdict\\.mjs$",
-            "^tools/vitest-time-budget\\.mjs$",
-            "^vitest-time-budget-allowlist\\.json$"
+            "^tools/vitest-time-budget\\.mjs$"
         ]
     },
     "noTests": {

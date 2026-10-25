@@ -171,3 +171,44 @@ describe("autosave off", () => {
         }
     });
 });
+
+describe("the ephemeral fact", () => {
+    /**
+     * The ephemeral fact autosave reports once started on a page.
+     * @param change - What to change on the test's page.
+     * @returns The fact.
+     */
+    async function ephemeral(change: (env: AutosaveEnvironment) => AutosaveEnvironment): Promise<string> {
+        const { autosave } = await started(change(page().env), memoryAutosaveStore());
+        const fact = autosave.api.status.ephemeral;
+        autosave.depart();
+        return fact;
+    }
+
+    it("is unknown on a normal profile whose quota is small, as on a small disk", async () => {
+        const fact = await ephemeral((env) => ({
+            ...env,
+            storage: {
+                ...env.storage,
+                estimate: () => Promise.resolve({ usage: 1000, quota: 50 * 2 ** 20 }),
+                getDirectory: () => Promise.resolve({} as FileSystemDirectoryHandle),
+            },
+        }));
+        assert.strictEqual(fact, "unknown");
+    });
+
+    it("is likely where the origin private file system is refused (Safari's, Firefox's private windows)", async () => {
+        const fact = await ephemeral((env) => ({
+            ...env,
+            storage: {
+                ...env.storage,
+                getDirectory: () => Promise.reject(new DOMException("denied", "SecurityError")),
+            },
+        }));
+        assert.strictEqual(fact, "likely");
+    });
+
+    it("is likely in another site's frame", async () => {
+        assert.strictEqual(await ephemeral((env) => ({ ...env, thirdParty: () => true })), "likely");
+    });
+});

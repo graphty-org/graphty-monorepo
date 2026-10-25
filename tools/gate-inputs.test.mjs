@@ -30,10 +30,13 @@ const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
-// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, ...):
+// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
+// PUSH_REMOTE_*, ...):
 // a test sets each one it needs.
 const OUR_ENV = Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_")),
+    Object.entries(process.env).filter(
+        ([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_") && !k.startsWith("PUSH_REMOTE"),
+    ),
 );
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
@@ -380,6 +383,8 @@ describe("prepush.sh with a gate that already passed", () => {
         const ran = join(TMP, `steps-${made}.log`);
         writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
+        writeFileSync(join(r.dir, "tools/check-figma-lock.mjs"), "");
+        writeFileSync(join(r.dir, "tools/release-dry-run.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
         writeFileSync(
             join(r.dir, "tools/sonar-gate.mjs"),
@@ -429,17 +434,18 @@ describe("prepush.sh with a gate that already passed", () => {
         const r = gateRepo();
         const first = r.gate();
         assert.equal(first.status, 0, first.stdout + first.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar"]);
+        // SonarQube runs in the background beside the other source checks, so the two log in either order.
+        assert.deepEqual(r.steps().sort(), ["links", "sonar"]);
         assert.equal(r.inputs("passed", "gate").status, 0, "a whole-gate pass is recorded");
 
         const second = r.gate();
         assert.equal(second.status, 0, second.stdout + second.stderr);
         assert.match(second.stdout, /\[SKIP\] The whole gate: it already passed on exactly these inputs/);
-        assert.deepEqual(r.steps(), ["links", "sonar"], "no step ran again");
+        assert.deepEqual(r.steps().sort(), ["links", "sonar"], "no step ran again");
 
         const again = r.gate({ PREPUSH_RERUN_ALL: "1" });
         assert.equal(again.status, 0, again.stdout + again.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
     });
 
     it("records no pass that SonarQube did not check, so the next push of the same files is scanned", () => {
@@ -449,14 +455,17 @@ describe("prepush.sh with a gate that already passed", () => {
         assert.equal(r.inputs("passed", "source").status, 1);
         assert.equal(r.inputs("passed", "gate").status, 1);
         assert.equal(r.gate().status, 0);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
     });
 
     it("PREPUSH_LIGHT=1 runs build, lint and the NVIDIA GPU tests but no test shard and no screenshot", () => {
         const r = gateRepo('["webgpu-graph-algorithms"]');
         const light = r.gate({ PREPUSH_LIGHT: "1" });
         assert.equal(light.status, 0, light.stdout + light.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar", "build", "lint", "gpu"]);
+        // the source checks first (SonarQube beside the rest), then the build, then lint beside the GPU tests
+        assert.deepEqual(r.steps().slice(0, 2).sort(), ["links", "sonar"]);
+        assert.deepEqual(r.steps().slice(2, 3), ["build"]);
+        assert.deepEqual(r.steps().slice(3).sort(), ["gpu", "lint"]);
         assert.match(light.stdout, /\[LIGHT\] tests run in CI verification/);
         assert.equal(r.inputs("passed", "gate").status, 1, "a light pass is not recorded for the full gate's key");
 
@@ -570,6 +579,8 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: gate,
+                    // Run under tools/low-priority.sh, the holders would all wait for slot 4 and never start.
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
@@ -614,6 +625,7 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: "off",
@@ -624,5 +636,51 @@ wait`,
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
         assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
+    });
+
+    it("gives the next free slot to the high lane (the cut's preview), ahead of a gate's shard that waited first", () => {
+        const dir = join(TMP, "high-lane");
+        mkdirSync(dir, { recursive: true });
+        // Four holders fill the slots. A gate's shard starts waiting, looking every 0.02 s; then the cut's preview
+        // starts waiting, looking every second. One slot frees: the preview takes it, the shard keeps waiting.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+for i in 1 2 3 4; do "$GATE" sh -c "touch held.$i; while [ ! -e go.$i ]; do sleep 0.05; done" & done
+until [ -e held.1 ] && [ -e held.2 ] && [ -e held.3 ] && [ -e held.4 ]; do sleep 0.05; done
+hold='while [ ! -e done ]; do sleep 0.05; done'
+TEST_SLOT_GATE=1 BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo shard >> order; $hold" 2> shard.err &
+until grep -q "waiting for one of 4" shard.err 2>/dev/null; do sleep 0.05; done
+BROWSER_SLOT_PRIORITY=high BROWSER_SLOT_POLL=1 "$GATE" sh -c "echo preview >> order; $hold" 2> preview.err &
+until grep -q "waiting for one of 4" preview.err 2>/dev/null; do sleep 0.05; done
+touch go.1
+until [ -s order ]; do sleep 0.05; done
+first=$(head -1 order)
+touch go.2 go.3 go.4
+until [ "$(wc -l < order)" -eq 2 ]; do sleep 0.05; done
+touch done
+wait
+[ "$first" = preview ] || { echo "first: $first"; exit 9; }
+ls -a browser-slots | grep -q '^\\.high-' && { echo "a high mark was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    // the caller's lane (tools/low-priority.sh sets low, which waits for slot 4 only) would
+                    // keep the four holders from filling the slots
+                    BROWSER_SLOT_PRIORITY: "",
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    PIPELINE_WAIT_LOG: "off",
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "no-gates"),
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
     });
 });

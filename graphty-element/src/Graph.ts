@@ -22,6 +22,7 @@ import {
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
+    WebXRState,
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
@@ -462,6 +463,20 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
+/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
+const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+
+/**
+ * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
+ * not reached the queue yet: the element's page loads, held while autosave decides its restore.
+ * No entry point exports it.
+ * @param graph - The graph.
+ * @param pending - Settles once those loads are queued.
+ */
+export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
+    loadsAhead.set(graph, pending);
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -607,6 +622,28 @@ export class Graph implements GraphContext {
         //     this.updateManager.enableZoomToFit();
         // }
     };
+
+    /**
+     * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
+     * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
+     * the element's ResizeObserver.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery, a box
+        // change that keeps the render size, or a window resize the loop already drew are not.
+        // An XR session draws in its own frames, so nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.renderManager.drawNow();
+        }
+    }
 
     /**
      * The one acceleration controller this graph, its session and its element share.
@@ -1209,6 +1246,10 @@ export class Graph implements GraphContext {
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
+        // A change on its way through the derivation lane is paint on its way: its styles hook runs
+        // after the graph and layout hooks it awaits, so until the pass ends the framing a
+        // settling layout ends with, and the finished picture, wait for it (issue #3378).
+        this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -5054,10 +5095,10 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        await loadsAhead.get(this)?.();
         // Suggested styles first: their reordering moves reach the queue only once they are due.
         await this.#suggestionsStacked;
-        // Wait for operation queue to complete all operations
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
         // Style edits are not queued: they are written at once and repainted on the session's
         // derivation lane, which this waits for, along with anything a finished run painted.
         await this.session.styles.settled();
@@ -5163,8 +5204,10 @@ export class Graph implements GraphContext {
         // The queue first: a layout change or a data load that has not run yet is going to move
         // the picture, so a frame that is final right now is final about the wrong graph. Suggested
         // styles before the queue, because they queue their reordering only once they are due.
+        // Loads not queued yet (the element's, held behind the autosave restore) before both.
+        await loadsAhead.get(this)?.();
         await this.#suggestionsStacked;
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
 
         if (!this.updateManager.frameIsStable) {
             await this.untilFrameStableEvent(track);
@@ -5175,6 +5218,17 @@ export class Graph implements GraphContext {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         if (declutter instanceof LabelDeclutter) {
             await declutter.whenPublished();
+        }
+    }
+
+    /**
+     * Wait until every queued operation has run, including a queued command that gave its slot up
+     * to wait for a key held beside the queue: the queue goes idle while that one is still owed.
+     */
+    private async untilQueueDrained(): Promise<void> {
+        await this.operationQueue.waitForCompletion();
+        while (await dispatcherOf(this.session).waitersSettled()) {
+            await this.operationQueue.waitForCompletion();
         }
     }
 

@@ -495,7 +495,7 @@ describe("vary by layer", () => {
     });
 
     it.each([true, false])(
-        "opens a clicked '+' menu on its first item, so Enter adds it (several layers: %s)",
+        "opens a clicked '+' menu, and ArrowDown then Enter adds its first item (several layers: %s)",
         async (many) => {
             const session = await openSample();
             // A color, not a size: Shape's "+" then has Shape and Size to offer, so it opens a menu.
@@ -522,8 +522,13 @@ describe("vary by layer", () => {
 
             await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
             const first = (await screen.findAllByRole("menuitem"))[0];
+            // Opened by a click, the menu itself has focus and no row is highlighted (Figma).
             await waitFor(() => {
-                assert.strictEqual(document.activeElement, first, "the first item is active on open");
+                assert.strictEqual(document.activeElement, screen.getByRole("menu"), "the menu is focused on open");
+            });
+            await userEvent.keyboard("{ArrowDown}");
+            await waitFor(() => {
+                assert.strictEqual(document.activeElement, first, "ArrowDown reaches the first item");
             });
             await userEvent.keyboard("{Enter}");
             await line("node.shape");
@@ -831,7 +836,9 @@ describe("several layers holding different values", () => {
         await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         await userEvent.click(within(popover).getAllByRole("button", { name: /^Layer .* color/ })[1]);
-        await screen.findByRole("dialog", { name: "Color" });
+        const picker = await screen.findByRole("dialog", { name: "Color" });
+        // Enter applies the value and keeps the picker open (Figma); Escape closes it, then the popover.
+        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
@@ -847,7 +854,9 @@ describe("several layers holding different values", () => {
         const second = session.styles.get(layers[1])?.name ?? "";
         await userEvent.click(within(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }));
         const picker = await screen.findByRole("dialog", { name: "Color" });
-        // Tab out of the value box applies it and leaves the picker open (Enter would close it).
+        // The picker opens focused on itself (Figma); the reader clicks into the value box, and Tab
+        // out of it applies the value and leaves the picker open.
+        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Tab}");
         assert.isTrue(picker.isConnected, "the picker is still open");
         await userEvent.keyboard("{Escape}");

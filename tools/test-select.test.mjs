@@ -350,13 +350,25 @@ describe("the rules file", () => {
         assert.ok(wholePackageRule("test/fixtures/k.ts", real));
     });
 
-    it("allows file-level selection only in the packages the design starts with", () => {
+    it("allows file-level selection only in the packages a clean mutation run admitted", () => {
         assert.deepEqual([...real.fileLevel].sort(), [
+            "algorithms",
             "compact-mantine",
+            "cytoscape-extensions",
             "graph-format",
+            "graph-io",
+            "graph-samples",
             "graphty",
             "graphty-element",
+            "layout",
             "remote-logger",
+        ]);
+        assert.deepEqual([...real.fileLevelBrowser].sort(), [
+            "algorithms",
+            "compact-mantine",
+            "graph-io",
+            "graphty",
+            "graphty-element",
         ]);
     });
 });

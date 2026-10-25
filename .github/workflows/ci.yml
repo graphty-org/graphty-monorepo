@@ -1905,7 +1905,17 @@ jobs:
         steps:
             - name: Check all jobs passed
               env:
-                  NEEDS: ${{ toJSON(needs) }}
+                  # Only the results, never toJSON(needs): that holds every job's outputs, and the light
+                  # check's bins (a file list per bin) make it longer than one environment variable may be
+                  # ("Argument list too long", the job then fails before its first line).
+                  R_PACKAGES: ${{ needs.packages.result }}
+                  R_BUILD: ${{ needs.build.result }}
+                  R_LINT: ${{ needs.lint.result }}
+                  R_CHECKS: ${{ needs.checks.result }}
+                  R_DOCS: ${{ needs.docs.result }}
+                  R_TEST: ${{ needs.test.result }}
+                  R_LINKS: ${{ needs.links.result }}
+                  R_COST: ${{ needs.cost-accuracy.result }}
                   BUILD: ${{ needs.packages.result }}
                   FULL: ${{ needs.packages.outputs.full }}
                   ADVISORY: ${{ needs.packages.outputs.advisory-checks }}
@@ -1914,6 +1924,13 @@ jobs:
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
                   TEST_COUNT: ${{ needs.packages.outputs.test-count }}
               run: |
+                  # The tests set NEEDS themselves; in CI it is built from the results above.
+                  [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
+                      --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
+                      --arg links "$R_LINKS" --arg cost "$R_COST" \
+                      '{packages: {result: $packages}, build: {result: $build}, lint: {result: $lint},
+                        checks: {result: $checks}, docs: {result: $docs}, test: {result: $test},
+                        links: {result: $links}, "cost-accuracy": {result: $cost}}')
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
                       exit 1

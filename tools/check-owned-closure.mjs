@@ -100,6 +100,13 @@ export function withoutComments(file, text) {
     return file.endsWith(".json") ? text : text.replaceAll(/(^|\s)#.*$/gmu, "$1");
 }
 
+// A loop, not a regex such as /\/+$/, which backtracks on a long run of the character.
+const trimEnd = (text, ch) => {
+    let end = text.length;
+    while (end > 0 && text[end - 1] === ch) end--;
+    return text.slice(0, end);
+};
+
 /**
  * The tracked files one file references: its relative imports and `../` literals (the selector's graph)
  * and the repository paths its text names, resolved from its folder or the checkout's root (a leading `/`,
@@ -125,16 +132,11 @@ export function referencedFiles(root, file, index) {
     const bases = [posix.dirname(file), ""];
     if (/\.ya?ml$/u.test(file)) {
         for (const [, dir] of text.matchAll(WORKING_DIR)) {
-            let base = dir.replace(/^\.\//u, "");
-            while (base.endsWith("/")) base = base.slice(0, -1); // not /\/+$/: it backtracks on a run of slashes
-            bases.push(base);
+            bases.push(trimEnd(dir.replace(/^\.\//u, ""), "/"));
         }
     }
     for (const [run] of text.replaceAll(ROOT_VAR, " ").matchAll(PATH_RUN)) {
-        let path = run;
-        while (path.endsWith(".")) {
-            path = path.slice(0, -1);
-        }
+        const path = trimEnd(run, ".");
         if (!path.includes("/") || !PATH_EXT.test(path)) {
             continue;
         }

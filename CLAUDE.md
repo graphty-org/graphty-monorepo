@@ -575,7 +575,8 @@ grouped jobs. ci.yml still holds the handling for Mergify merge-queue runs (draf
 `mergify/merge-queue/*` branches, reported as `Queue Checks Pass`), but `.mergify.yml` is deleted
 and Mergify is retired, so no such runs happen. A push to master runs no
 tests: ci.yml builds every package, Storybook and docs site and skips every test, link, cost and
-screenshot job, and graphty.app deploys after every green master build. A red master build opens a
+screenshot job; every green master build keeps its site as artifact `site-<sha>`, and graphty.app deploys
+only from a release's version merge, so it moves with npm's `latest`. A red master build opens a
 revert (`master-guard.yml`). Releases run on the release train every 6 hours
 (see "Release versioning"), which runs the full suite, the T4 GPU lane, Hosts and the security
 audit on the exact commit it releases and publishes Coveralls' coverage from that run. While
@@ -599,7 +600,7 @@ writes this into the golden pull request's description from the landed commit me
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
-| `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
+| `deploy-pages.yml` | After every green CI run (the build) on master | Assemble graphty.app (app, docs, Storybooks, hosted data) and keep it as artifact `site-<sha>` (14 days); deploy it to GitHub Pages only when the commit is the version merge release.yml's land job pushed |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |

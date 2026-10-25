@@ -114,6 +114,35 @@ describe("the On shards", () => {
             );
         } else {
             assert.throws(() => parseOnly('["features-on"]'), /declares no experiment/);
+            assert.throws(() => parseOnly('["features-on","graphty-element-default"]'), /declares no experiment/);
+        }
+    });
+
+    it("stay out of a pull request's light plan: a bin of an On shard is dropped unless it is a full run", () => {
+        const on = shards.find((s) => s["full-run-only"]);
+        const light = { bins: [{ name: `${on.shard}-1`, shard: on.shard, files: [], command: "true" }] };
+        const include = plan(PACKAGES, undefined, light, false, shards);
+        assert.ok(include.length > 0);
+        assert.ok(!include.some((e) => e["full-run-only"] || e.shard === `${on.shard}-1`));
+    });
+
+    it("never join an Off shard: no Off command's --project filters match an On twin's name", () => {
+        // vitest includes a project when ANY filter matches it (wildcards, "!" negates one filter)
+        const matches = (filter, name) => {
+            const neg = filter.startsWith("!");
+            const body = (neg ? filter.slice(1) : filter)
+                .split("*")
+                .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                .join(".*");
+            return new RegExp(neg ? `^(?!${body}$)` : `^${body}$`, "i").test(name);
+        };
+        for (const s of SHARDS.filter((x) => !x["full-run-only"] && /^graphty(-element)?$/.test(x.package))) {
+            const filters = [...s["test-command"].matchAll(/--project=(?:'([^']+)'|(\S+))/g)].map((m) => m[1] ?? m[2]);
+            assert.ok(filters.length > 0, `${s.shard} names its projects`);
+            for (const twin of ["browser", "real-element", "storybook", "default", "mesh", "xr", "interactions"]) {
+                const name = `${twin}-features-on`;
+                assert.ok(!filters.some((f) => matches(f, name)), `${s.shard} would run ${name}`);
+            }
         }
     });
 });
@@ -137,5 +166,15 @@ describe("with an empty FEATURES table", { skip: FEATURES_DECLARED && "an experi
 
     it("a capture without VISUAL_REVIEW_STORY_QUERY opens the same story URL", () => {
         assert.equal(storyUrl("a--b", null, ""), "iframe.html?id=a--b&viewMode=story&chromatic=true");
+        const saved = process.env.VISUAL_REVIEW_STORY_QUERY;
+        try {
+            delete process.env.VISUAL_REVIEW_STORY_QUERY;
+            assert.equal(storyUrl("a--b", null), "iframe.html?id=a--b&viewMode=story&chromatic=true");
+            process.env.VISUAL_REVIEW_STORY_QUERY = "features=all";
+            assert.equal(storyUrl("a--b", null), "iframe.html?id=a--b&viewMode=story&chromatic=true&features=all");
+        } finally {
+            if (saved === undefined) delete process.env.VISUAL_REVIEW_STORY_QUERY;
+            else process.env.VISUAL_REVIEW_STORY_QUERY = saved;
+        }
     });
 });

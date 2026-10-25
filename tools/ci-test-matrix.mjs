@@ -198,11 +198,12 @@ const OFF_SHARDS = [
     // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
     // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
     // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
-    // where for the upload.
+    // where for the upload. The projects are named, not "!storybook": vitest includes a project that any
+    // one filter matches, so no negated filter could also leave out the On twins (tools/features-on.mjs).
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/5 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project=browser --project=real-element --project=eslint-rules --project=node --shard=${n}/5 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
@@ -463,11 +464,12 @@ export function plan(affected, only, light, full = false, shards = SHARDS) {
     const grouped = new Set(Object.values(GROUPS).flat());
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
+    const runs = (s) => !s?.["full-run-only"] || full || only !== undefined;
     const wanted = (s) =>
         affected.includes(s.package) &&
         (only === undefined || only.includes(s.shard)) &&
         !replaced.has(s.shard) &&
-        (!s["full-run-only"] || full || only !== undefined);
+        runs(s);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = shards
@@ -485,7 +487,8 @@ export function plan(affected, only, light, full = false, shards = SHARDS) {
         }
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
-    const all = [...include, ...(light?.bins ?? []).map(binEntry)];
+    const bins = (light?.bins ?? []).filter((b) => runs(shards.find((s) => s.shard === b.shard)));
+    const all = [...include, ...bins.map(binEntry)];
     return [...all.filter((e) => !e["full-run-only"]), ...all.filter((e) => e["full-run-only"])];
 }
 
@@ -543,12 +546,11 @@ export function parseOnly(arg) {
     }
     // "features-on" names every On shard: ci.yml's dispatch with shards='["features-on"]' runs the On
     // configuration for one branch on demand.
-    const only = asked.flatMap((n) =>
-        n === ON_SUFFIX ? SHARDS.filter((s) => s["full-run-only"]).map((s) => s.shard) : [n],
-    );
-    if (only.length === 0) {
+    const on = SHARDS.filter((s) => s["full-run-only"]).map((s) => s.shard);
+    if (asked.includes(ON_SUFFIX) && on.length === 0) {
         throw new Error("--only features-on: graphty-element declares no experiment, so there is no On shard");
     }
+    const only = asked.flatMap((n) => (n === ON_SUFFIX ? on : [n]));
     const unknown = only.filter((n) => !SHARDS.some((s) => s.shard === n));
     if (unknown.length > 0) {
         throw new Error(`--only names shards that do not exist: ${unknown.join(", ")}`);

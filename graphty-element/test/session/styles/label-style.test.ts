@@ -288,6 +288,7 @@ describe("a layer can switch a label off without taking its words away", () => {
  * it until the field reaches the renderer.
  */
 const EVERY_FIELD: Required<LabelStyle> = {
+    look: "card",
     enabled: true,
     font: "'JetBrains Mono', monospace",
     sizePx: 64,
@@ -308,7 +309,6 @@ const EVERY_FIELD: Required<LabelStyle> = {
     minScreenSize: 6.5,
     declutter: "size",
     minNodeScreenSize: 12,
-    onTop: true,
     textAlign: "right",
     opacity: 0.4,
     background: "#222222",
@@ -358,6 +358,8 @@ const EVERY_FIELD: Required<LabelStyle> = {
     depthFade: true,
     depthFadeNear: 33,
     depthFadeFar: 77,
+    onTop: true,
+    pickable: true,
     badge: "count",
     icon: "star",
     iconPosition: "right",
@@ -390,7 +392,6 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     minScreenSize: 6.5,
     declutter: "size",
     minNodeScreenSize: 12,
-    onTop: true,
     textAlign: "right",
     textOpacity: 0.4,
     backgroundColor: "#222222",
@@ -441,6 +442,8 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     depthFadeEnabled: true,
     depthFadeNear: 33,
     depthFadeFar: 77,
+    onTop: true,
+    pickable: true,
     badge: "count",
     icon: "star",
     iconPosition: "right",

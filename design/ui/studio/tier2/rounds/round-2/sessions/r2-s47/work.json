@@ -1,0 +1,36 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "Florentine families"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [
+   "note_01M4HZ945E734QB4Y3X7QBBFME Marriages only; business ties are a separate list",
+   "note_01M4HZ7XEJBJQ6ZBYRQVKBRBFE Check the 1434 return from exile"
+  ],
+  "steps": [],
+  "sources": [
+   "Florentine families"
+  ]
+ },
+ "gone": {}
+}

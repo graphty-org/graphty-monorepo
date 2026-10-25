@@ -1,0 +1,2 @@
+--click role=button:Samples
+--click How the Medici brokered power

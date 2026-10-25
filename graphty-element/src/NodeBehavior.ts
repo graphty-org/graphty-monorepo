@@ -19,6 +19,7 @@ import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
+import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
@@ -27,7 +28,7 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
  *
  * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
- * on top (rendering group 1, `onTop`) covers every node, even one nearer the camera, so the nearest
+ * on top (`ON_TOP_RENDERING_GROUP`, `onTop`) covers every node, even one nearer the camera, so the nearest
  * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
  * on top that is hit wins; otherwise the nearest hit does.
  * @param scene - The scene to pick in.
@@ -41,7 +42,7 @@ export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | 
     const onTop = scene.pick(
         x,
         y,
-        alongRay(scene, ray, (mesh) => mesh.renderingGroupId > 0 && pickable(mesh)),
+        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
     );
     return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
 }
@@ -629,6 +630,9 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -722,6 +726,9 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -971,14 +978,39 @@ export class NodeDragHandler {
                     data: this.node.data,
                 });
             }
+
+            // The scene hears the pointer only while it is over the canvas, so leaving the
+            // canvas -- for a panel, a menu, another window -- is heard here or never.
+            this.pointerArea()?.addEventListener("pointerleave", this.endHover);
         } else if (!isOverThisNode && this.isHovered) {
-            // Reset hover state when leaving
-            this.isHovered = false;
-            this.roster.hovered.delete(this);
-            this.node.hideTooltip();
-            this.getContext().getSelectionManager?.()?.leave(this.node.id);
+            this.endHover();
         }
     }
+
+    /**
+     * The element the scene takes pointer events from.
+     * @returns The canvas, or null when the engine has none (a headless engine).
+     */
+    private pointerArea(): HTMLElement | null {
+        const engine = this.scene.getEngine();
+        return engine.getInputElement() ?? engine.getRenderingCanvas();
+    }
+
+    /**
+     * The pointer left this node, or the canvas: the tooltip goes and the node is no longer
+     * hovered, so the next arrival on it starts a hover again.
+     */
+    private readonly endHover = (): void => {
+        this.pointerArea()?.removeEventListener("pointerleave", this.endHover);
+        this.roster.hovered.delete(this);
+        if (!this.isHovered) {
+            return;
+        }
+
+        this.isHovered = false;
+        this.node.hideTooltip();
+        this.getContext().getSelectionManager?.()?.leave(this.node.id);
+    };
 
     /**
      * Whether the pointer placed the node, which is what `pinOnDrag` pins for.
@@ -1011,13 +1043,19 @@ export class NodeDragHandler {
      * out) and emit node-click event.
      */
     private handleClick(): void {
-        // Get the selection manager from the graph context
         const context = this.getContext();
+        // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
+        // replaces it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
-        if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
-            selectionManager.toggle(this.node);
-        } else if (selectionManager) {
-            selectionManager.select(this.node);
+        // A right-click is a request for a menu about the selection, so on a node already in it
+        // the selection stays whole; on any other node it selects that node, as a click does.
+        const secondary = this.clickState?.pointerEvent?.button === 2;
+        if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
+            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                selectionManager.toggle(this.node);
+            } else {
+                selectionManager.select(this.node);
+            }
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user
@@ -1111,7 +1149,9 @@ export class NodeDragHandler {
         }
 
         this.roster.engaged.delete(this);
-        this.roster.hovered.delete(this);
+
+        // A node removed under the pointer is no longer hovered.
+        this.endHover();
     }
 }
 
@@ -1132,9 +1172,11 @@ export class NodeBehavior {
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
-        // Create unified drag handler (replaces SixDofDragBehavior)
-        const dragHandler = new NodeDragHandler(node);
-        node.dragHandler = dragHandler;
+        // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
+        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
+        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // telling the selection, so a Hovered layer kept painting a node the pointer had left.
+        node.dragHandler ??= new NodeDragHandler(node);
 
         this.addClickBehavior(node);
     }

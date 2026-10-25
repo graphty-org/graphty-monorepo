@@ -29,7 +29,7 @@ const NODES = [
  * canvas: a "center" label hangs in front of its node, toward the camera, so it is drawn larger
  * than the node's own depth would make it.
  */
-const LONG = "a label wide enough";
+const LONG = "a label quite wide";
 
 /** A spot with nothing drawn under it. */
 const EMPTY: Point = { x: 20, y: HEIGHT - 20 };

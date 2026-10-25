@@ -175,7 +175,8 @@ describe("Workspace autosave with the real graphty-element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(second.store.get().project?.name, RENAMED);
-        await screen.findByText(/^Restored your work from/);
+        // The toast; the status line speaks the same words (state/store.ts).
+        await screen.findByText(/^Restored your work from/, { selector: ".cm-toast-message" });
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(element.autosaver.status.entry, entry);

@@ -1,7 +1,7 @@
 /**
- * How the start screen opens a project: a sample by URL, or a file the reader chose or dropped.
- * Either way the data goes through graphty-element's ordinary import, so the import report and
- * Undo work as for any file, and nothing is run on it.
+ * How the start screen opens a project: a sample, a dataset, a generated graph or a web address
+ * through graphty-element's ordinary import, or a file the reader chose or dropped through its `project.open`, the one intake verb
+ * Recent projects also uses. Nothing is run on what opens.
  */
 
 import {
@@ -14,7 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
-import { fileNameWithoutExtension, openProjectFile } from "../project/actions";
+import { openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -111,22 +111,10 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
- * Opens a file through graphty-element's `project.open`, which decides what it is: a project file
- * opens as the project (in place of the open one, asking first over unsaved changes); a data file
- * opens from the start screen as a new project named after the file, and inside a project is
- * added to it (tier1-design.md section 2.1, the File list's intake).
- * @param ctx - the command context.
- * @param file - the file.
- */
-export function openFile(ctx: CommandContext, file: File): void {
-    void openProjectFile(ctx, file, { name: fileNameWithoutExtension(file.name), intake: true });
-}
-
-/**
  * Asks the browser for one file.
  * @returns the file, or undefined when the reader cancels.
  */
-function pickFile(): Promise<File | undefined> {
+export function pickFile(): Promise<File | undefined> {
     return new Promise((resolve) => {
         const input = document.createElement("input");
         input.type = "file";
@@ -141,12 +129,13 @@ function pickFile(): Promise<File | undefined> {
 }
 
 /**
- * Open project or file...: the browser's file picker, then the file opens.
+ * Open project or file...: the browser's file picker, then the file opens through
+ * graphty-element's `project.open` (see `openProjectFile`).
  * @param ctx - the command context.
  */
 export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
     const file = await pickFile();
     if (file !== undefined) {
-        openFile(ctx, file);
+        await openProjectFile(ctx, file);
     }
 }

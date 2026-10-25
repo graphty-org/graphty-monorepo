@@ -47,7 +47,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { STORYBOOKS } from "./ci-reuse-plan.mjs";
-import { FEATURES_DECLARED, ON_SUFFIX } from "./features-on.mjs";
+import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
@@ -315,7 +315,7 @@ const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).j
 /**
  * The "On" configuration (design/ci/channels-pipeline/features.md, section 7.3): the graphty-element and
  * graphty shards again with every declared experiment switched on, through the "<project>-features-on"
- * vitest projects (tools/features-on.mjs). The same commands as their Off twins without coverage (judged on
+ * vitest projects (tools/features-on.mjs), which exist only under GRAPHTY_FEATURES_ON=1. The same commands as their Off twins without coverage (judged on
  * the Off run) or a blob report (the Off run's reports are the ones merged). "full-run-only": planned only
  * in a full run, never on a pull request (plan()). They exist only while graphty-element declares an
  * experiment: with none, On would equal Off, and SHARDS holds no On shard at all.
@@ -324,31 +324,31 @@ export const FEATURES_ON_SHARDS = [
     {
         shard: `graphty-element-default-${ON_SUFFIX}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run ${on("default", "mesh")} ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("default", "mesh")} ${ELEMENT_REPORTERS}`,
         "needs-browser": false,
     },
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
     })),
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-storybook-${ON_SUFFIX}-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run ${on("storybook")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
     })),
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${ON_SUFFIX}-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && pnpm exec vitest run ${on("browser", "real-element")} --shard=${n}/5`,
+        "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "real-element")} --shard=${n}/5`,
         "needs-browser": true,
     })),
     {
         shard: `graphty-storybook-${ON_SUFFIX}`,
         package: "graphty",
-        "test-command": `cd graphty && pnpm exec vitest run ${on("storybook")}`,
+        "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")}`,
         "needs-browser": true,
     },
 ].map((s) => ({ ...s, "full-run-only": true, local: "never" }));

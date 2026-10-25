@@ -10,8 +10,10 @@ import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
 import { FEATURES_ON_SHARDS, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { FEATURES_DECLARED, withFeaturesOn } from "./features-on.mjs";
+import { FEATURES_DECLARED, ON_ENV, withFeaturesOn } from "./features-on.mjs";
 import { candidateShards } from "./test-changed.mjs";
+import { quarantined } from "./test-quarantine.mjs";
+import { selectedCommand } from "./test-select.mjs";
 import { storyUrl } from "../visual-review/capture/capture.mjs";
 
 const SETUP = "./test/setup-features-on.ts";
@@ -49,6 +51,12 @@ describe("withFeaturesOn", () => {
         assert.notEqual(twin.test.browser, projects[1].test.browser);
         assert.notEqual(twin.test.browser.instances[0], projects[1].test.browser.instances[0]);
         assert.deepEqual(twin.test.browser.instances, projects[1].test.browser.instances);
+    });
+
+    it("adds no twin to a run that did not ask for the On configuration", () => {
+        // the default is FEATURES_DECLARED && GRAPHTY_FEATURES_ON=1; this process never sets it
+        assert.equal(process.env[ON_ENV], undefined);
+        assert.equal(withFeaturesOn(projects, ["default", "browser"], SETUP), projects);
     });
 });
 
@@ -124,6 +132,25 @@ describe("the On shards", () => {
         const include = plan(PACKAGES, undefined, light, false, shards);
         assert.ok(include.length > 0);
         assert.ok(!include.some((e) => e["full-run-only"] || e.shard === `${on.shard}-1`));
+    });
+
+    it("set GRAPHTY_FEATURES_ON=1, which a selected run of their files keeps", () => {
+        for (const s of FEATURES_ON_SHARDS)
+            assert.match(s["test-command"], /&& GRAPHTY_FEATURES_ON=1 pnpm exec vitest run /);
+        const on = FEATURES_ON_SHARDS.find((s) => s.shard === "graphty-element-default-features-on");
+        assert.equal(
+            selectedCommand(".", on, ["graphty-element/test/a.test.ts"]),
+            "cd graphty-element && GRAPHTY_FEATURES_ON=1 pnpm exec vitest run --project=default-features-on --project=mesh-features-on 'test/a.test.ts'",
+        );
+    });
+
+    it("are excused by their Off family's quarantine entries", () => {
+        const t = { file: "test/a.test.ts", name: "a > b" };
+        const list = [{ ...t, family: "graphty-element-browser" }];
+        assert.ok(quarantined(list, "graphty-element-browser-features-on", t));
+        assert.ok(quarantined(list, "graphty-element-browser", t));
+        assert.equal(quarantined(list, "graphty-element-storybook-features-on", t), undefined);
+        assert.ok(quarantined([{ ...t, family: "graphty" }], "graphty-features-on", t));
     });
 
     it("never join an Off shard: no Off command's --project filters match an On twin's name", () => {

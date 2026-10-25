@@ -22,6 +22,12 @@ export const FEATURES_DECLARED = FEATURES.length > 0;
 export const ON_SUFFIX = "features-on";
 
 /**
+ * The variable the On shards set (GRAPHTY_FEATURES_ON=1): only then do the vitest configs hold the twins, so
+ * a run with no --project filter (npm run test:run, coverage) never runs them.
+ */
+export const ON_ENV = "GRAPHTY_FEATURES_ON";
+
+/**
  * One project's On twin: renamed, with `setupFile` last in its setupFiles. The browser config and its
  * instances are copied, because vitest writes each instance's name into the object it is handed.
  * @param project a vitest inline project config
@@ -42,15 +48,20 @@ export function featuresOnTwin(project, setupFile) {
 }
 
 /**
- * A projects list with an On twin of each named project appended, or the list unchanged when no
- * experiment is declared.
+ * A projects list with an On twin of each named project appended, or the list unchanged unless an
+ * experiment is declared and the run asked for the On configuration (GRAPHTY_FEATURES_ON=1).
  * @param projects vitest inline project configs
  * @param names the names of the projects to twin
  * @param setupFile the setup file that switches every experiment on
- * @param [declared] whether any experiment is declared (for tests)
+ * @param [declared] whether to add the twins (for tests)
  * @returns the projects to run
  */
-export function withFeaturesOn(projects, names, setupFile, declared = FEATURES_DECLARED) {
+export function withFeaturesOn(
+    projects,
+    names,
+    setupFile,
+    declared = FEATURES_DECLARED && process.env[ON_ENV] === "1",
+) {
     if (!declared) {
         return projects;
     }

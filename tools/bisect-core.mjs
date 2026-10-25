@@ -155,17 +155,20 @@ const recordedCheck = (queues) => (sha, targets, full) => {
     return r;
 };
 
+// The first bad landing is the culprit when its parent is the last good commit or passes every run.
+function replayBlame(rec, check, followed, sha) {
+    const parent = rec.parents[sha];
+    const why = parent === rec.from ? null : parentFails(sha, parent, check(parent, followed, true));
+    return why ? { culprit: null, noLanding: why } : { culprit: sha };
+}
+
 // The bisect over a recording's candidates: `{ culprit }` or `{ noLanding }`.
 function replayBisect(rec, check, followed) {
     const b = { candidates: rec.candidates, points: {} };
     for (;;) {
         const step = bisectStep(b, rec.width);
         if (step.noLanding) return { culprit: null, noLanding: step.noLanding };
-        if (step.blame) {
-            const parent = rec.parents[step.blame];
-            const why = parent === rec.from ? null : parentFails(step.blame, parent, check(parent, followed, true));
-            return why ? { culprit: null, noLanding: why } : { culprit: step.blame };
-        }
+        if (step.blame) return replayBlame(rec, check, followed, step.blame);
         for (const i of step.points) {
             const bad = badTargets(check(b.candidates[i], followed, false), followed).length > 0;
             b.points[b.candidates[i]] = bad ? "bad" : "good";

@@ -281,7 +281,7 @@ jobs:
             - name: Release the SM clock lock
               if: ${{ always() && steps.clocks.outcome != 'skipped' }}
               run: sudo nvidia-smi -rgc || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: ${{ !cancelled() }}
               with:
                   {

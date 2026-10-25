@@ -39,13 +39,16 @@ that still says otherwise is marked superseded where it stands.
 16. Four CODEOWNERS lists, the broadest owning all of `tools/` and every CLAUDE.md. The narrow list
     in the main document (section 6.2): 27 of 117 recent landings would have waited instead of 43.
 17. Agent git identity per worktree with a token in `.env` vs `GH_CONFIG_DIR` and global config in
-    `.claude/settings.json`. The latter covers every checkout and the review server.
+    `.claude/settings.json`. The latter covers every checkout; servherd's servers (the review
+    server, the status broker) get both variables in their own `servherd_start` env, since they do
+    not inherit the settings file.
 18. `site.json` in the site repositories vs `graphty/sites/` in this repository. The latter, read
     from master's tip at each deploy.
 19. On-configuration stories without screenshots vs compared with Off baselines. Compared: stronger,
     and adds no images.
-20. Canary domain first vs at the domain swap. A Pages site has one custom domain, so at the swap;
-    graphty.app is frozen on the flushed release meanwhile.
+20. Canary domain first vs at the domain swap. A Pages site has one custom domain, so canary's at the
+    swap; graphty.app is frozen meanwhile. That reason does not apply to graphty-nightly, which sets
+    nightly.graphty.app at step 7.
 21. Shadow full run vs straight to red handling. The full run bisects and reverts but publishes
     nothing until nightly is turned on; `latest` stays put until the first promotion.
 22. Stories shadow: 5 full runs overall vs two clean runs per project. Per project, two, after the
@@ -63,8 +66,21 @@ that still says otherwise is marked superseded where it stands.
 30. "Prevent self-review" on the `production` environment vs the owner dispatching `promote.yml`
     himself. Off: GitHub would refuse his own approval of a run he started, and the agent is no
     reviewer, so his approval is already the control.
-31. Bisect dispatched by the Worker vs started by the pipeline round. The Worker, once per full run;
-    the round runs only GPU bisects on the local card, and only when the bisect records that it needs
-    one.
+31. Bisect dispatched by the Worker vs started by the pipeline round. Neither: release.yml
+    dispatches it once per full run, and the Worker decides nothing (results section 2.1). The round
+    runs GPU bisects on the local card when the bisect records that it needs one, and a CI bisect only
+    when a red verdict has no bisect record.
 32. `require_last_push_approval` on vs off. Off: with 0 required approvals its effect is unverified,
     and dismissing stale reviews already stops an approval surviving a push.
+33. Fresh-review marker: the head commit vs the branch's own change. The patch id of
+    `git diff origin/master...HEAD`, so a merge of master keeps the review.
+34. LLM regression when AI code changed vs once per candidate. Once per candidate whose ci.yml lane
+    is green, as decided; its cost against the $60 ceiling is put to the owner (main section 13 item 2).
+35. `release-router.yml` vs a job of ci.yml's master push. The job; one workflow fewer.
+36. Stale nightly gate code from `channel/nightly` vs master's tip. Master's tip at the run's start:
+    code-owned, and it cannot deadlock behind a promotion.
+37. A newer candidate supersedes the one under review vs the offered candidate frozen. Frozen.
+38. Unrelated flaky test on a pull request fails it vs passes loudly. Passes as `[FLAKY-UNRELATED]`;
+    a base check on master gathers the evidence.
+39. Baselines guarded by the gate at promotion only vs a signature check on every pull request and
+    every promotion. Both, since CODEOWNERS never covered `visual-baselines/`.

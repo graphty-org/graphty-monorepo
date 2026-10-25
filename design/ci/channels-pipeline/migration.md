@@ -34,6 +34,10 @@ deletion step is done, and each step judged by a number.
 
 Golden gets nothing new; what it holds reaches master and ships through the held release #3318.
 
+0. **Freeze graphty.app first.** The last landing on golden is one condition in `deploy-pages.yml`:
+   assemble and upload `site-<sha>`, record it, but do not deploy graphty.app (an owner-approved
+   `mode: legacy` deploy aside, below). So the flush's ship does not move graphty.app to a build no
+   full run passed; graphty.app moves next with #3318's release, through that mode.
 1. **Stop landing.** The pipeline-round skill gets one paragraph at its top: "Flush in progress: no
    `land` and no `sync`; `revert` and `cut-fix` only, for a failure verification found." Only
    pipeline-round lands, so no code change is needed. Subagents keep committing on their branches,
@@ -60,8 +64,14 @@ screenshot review).
 **Failure modes:**
 
 - _The audit stays red because the advisory has no patched version._ Rollout steps 1 to 9 need
-  golden on master, not a release, so they go ahead once the ship merges, except that step 3's
-  freeze then pins graphty.app to the shipped master build; only deletion (step 10) waits for #3318. Nothing shipped from 10-21 to 10-23 while everything waited on one red lane.
+  golden on master, not a release, so they go ahead once the ship merges (step 0's release check
+  waived for them); graphty.app stays where it is today, master `a870943`, because the freeze landed
+  first, until #3318 releases through `mode: legacy`, and only deletion (step 10) waits for #3318. Nothing shipped from 10-21 to 10-23 while everything waited on one red lane.
+- _Production needs a fix during steps 3 to 8_ (a security advisory, a production bug). release.yml
+  keeps today's ad hoc path as `mode: legacy`, dispatched only on the owner's word: the full lanes on
+  master's tip, then publish to `latest` and deploy graphty.app, with both of those jobs in
+  environment `production`, so nothing goes out until the owner approves it in GitHub. It is deleted
+  in step 10, once `promote.yml` exists.
 - _A session lands anyway._ `land.mjs status` shows it; the round reverts it, and the branch goes
   in as a pull request.
 
@@ -69,6 +79,22 @@ screenshot review).
 
 A step starts when the steps it depends on have passed their checks; "parallel" steps can start
 during the flush. The numbering is the main document's section 12.
+
+**One owner-reviewed pull request per step.** Steps 5 to 10 mostly edit the same code-owned files
+(ci.yml, release.yml), and each pull request that waits for the owner's review is dismissed by any
+later push, so each step's code-owned edits go in one pull request, listed here up front, which gets
+its own `ACTION NEEDED` line the moment it is green:
+
+| Step | The step's owned-path pull request                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2    | `tools/results-service/`, `tools/results/`, `results-service.yml`, the reporter step in ci.yml                                                         |
+| 3    | CODEOWNERS, `pr-integrity.yml`, `dependabot-automerge.yml`, `.claude/settings.json`, release.yml's shadow and `legacy` modes, `release-approvals.json` |
+| 5    | ci.yml's light check and `release-due` job, `ci-budgets.json`, `pr-open.sh`, `check-quick.sh`, the nx cache Worker, root CLAUDE.md, the skills         |
+| 6    | release.yml's full run, `bisect.yml`, `bisect-core.mjs`, the lane filter inputs, `base-check.yml`, `hosts.yml`'s cron removed                          |
+| 7    | release.yml's `land`, `publish` and `site` jobs with their environments, `graphty/sites/nightly.json`                                                  |
+| 8    | `promote.yml`, `tools/dataset-overlay.mjs`, `graphty/sites/production.json`, the site repositories' `deploy.yml`                                       |
+| 9    | per project: its `.storybook/vitest.setup.*`, `visual-review/capture/`, then the old capture job removed                                               |
+| 10   | the deletions                                                                                                                                          |
 
 | #   | Step                                                            | Starts after                                | Undo                                                       |
 | --- | --------------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
@@ -110,16 +136,20 @@ would be strictly less guarded for days.
 
 One pull request, owner-reviewed, merged right after the flush ships and before any other:
 
-- `deploy-pages.yml` assembles and uploads `site-<sha>` but no longer deploys, so graphty.app keeps
-  serving the master commit #3318 released, until step 8 moves it to graphty-site.
+- `deploy-pages.yml` already stopped deploying graphty.app (step 0), so graphty.app keeps serving the
+  commit #3318 released until step 8 moves it to graphty-site.
 - release.yml runs in shadow: it may test, but its `land` and `publish` jobs are switched off until
-  step 7, and step 7 publishes only under `next`. `latest` moves only at the first `promote.yml`.
+  step 7, and step 7 publishes only under `next`. `latest` moves only at the first `promote.yml`, or
+  through the owner-approved `mode: legacy` (section 2).
+- Before PR Integrity becomes required, `check-test-integrity.mjs` is replayed over the 96 `land:`
+  merges of 2026-10-18 to 10-24; each false positive (a moved or rewritten test) is fixed in the
+  check, and the count of real hits goes in main section 6.2.
 - `.github/CODEOWNERS` (main section 6.2), `pr-integrity.yml` (integrity, proof, fresh review, the
   breaking-change guard and its exemptions), `dependabot-automerge.yml`.
 - `.claude/settings.json` gains `GH_CONFIG_DIR=~/.config/gh-agent` and
   `GIT_CONFIG_GLOBAL=~/.config/git-agent/config`, so every later commit and pull request is the agent's.
 
-Then the owner (main section 13 item 6): environments, the tag ruleset, code-owner review with last-
+Then the owner (main section 13 items 6 and 7): environments, the tag ruleset, code-owner review with last-
 push approval off, the four required checks, the admin bypass removed, squash off, Actions read-only.
 The ruleset settings are tried first on a scratch ruleset that targets a scratch branch, with exactly
 the planned settings.
@@ -130,7 +160,10 @@ the planned settings.
 machine-account pull request touching an owned path waits for the owner's review; one touching only
 `graphty/src/` auto-merges; `gh pr merge --admin` is refused; the ruleset's `bypass_actors` lists only
 `DeployKey`; an agent push of a `*@*` tag is refused; a mechanical revert, an accept-only pull request
-and a Dependabot pull request each pass PR Integrity; a pull request titled `feat!:` fails it.
+and a Dependabot pull request each pass PR Integrity; a pull request titled `feat!:` fails it, and so
+does one adding an unsigned PNG under `visual-baselines/`; a merge of master into a reviewed branch
+keeps the fresh-review check green and a fix push turns it red; an accept commit pushed from the
+review server shows author graphty-agent; `git credential fill` returns no password for the owner.
 
 ### Step 4: selection readiness (parallel)
 
@@ -139,10 +172,14 @@ and a Dependabot pull request each pass PR Integrity; a pull request titled `fea
   a browser project) after a clean run, or its longest shard is sliced under 8 minutes.
 - The `everything.patterns` edits and nx's `projectsAffectedByDependencyUpdates: "auto"` (merging
   section 4.3); the selector's import graphs cached from master (merging section 4.1).
-- The stories parity spike on 50 graphty and graphty-element stories (stories section 9).
+- The stories parity spike on 50 graphty and graphty-element stories, in dev and production mode
+  (stories section 9).
+- The light-check replay: `tmp/test-select/advisory.jsonl` through the bin packing of merging section
+  4.1, giving each budget key of main section 7 its measured value.
 
-**Done when** every package's light-check shards run under 8 minutes or have their own budget key,
-and the spike's outcome (parity, or one re-baseline per project) is recorded on #3418.
+**Done when** every package's light-check bins run under 8 minutes or have their own budget key, the
+light-check budgets come from the replay, and the spike's outcome (parity, or one re-baseline per
+project) is recorded on #3418.
 
 ### Step 5: pull requests into master
 
@@ -160,15 +197,19 @@ After step 3's checks pass:
   `MAIN_FOLLOWS` in `tools/land.mjs` becomes `"master"`; `.github/dependabot.yml`'s
   `target-branch: golden` becomes `master` (merging section 4.5).
 - Store reads go live (results section 12 step 3): quarantine and the base excuse come from the store.
+- Kept tools lose their golden-era parts: `tools/test-slots.mjs` its gate lane and marks
+  (`TEST_SLOT_GATE`, `tmp/test-slots/.gate-<pid>`), `tools/branch-push.sh` its merge of the nightly
+  sync, `tools/with-browser.sh` its gate-shard lane.
 - CLAUDE.md "Landing changes" becomes "Shipping a change" (section 6) and the skills are rewritten,
   in the same pull request, so the instructions and the flow change at the same moment.
 
 **Undo:** `git branch golden origin/master`, push it, restore the old CLAUDE.md section; `land.mjs`
 still exists until step 10.
 
-**Done when**, over the first 20 merged pull requests: median from opened to All Checks Pass under
-20 minutes (the report-only `visual` job is not counted); at least 18 of 20 merged without a person
-touching them; master's build green after each.
+**Done when**, over the first 20 merged pull requests: median from opened to All Checks Pass within
+its budget key (the report-only `visual` job is not counted); at least 18 of 20 merged without a
+person touching them; master's build green after each; one Dependabot pull request auto-merged and
+started a master build.
 
 **Failure modes:** combined pull requests keep breaking master (each passed alone): the skew-break
 trigger proposes Mergify (merging section 7). The light check fails on itself, as the light landing
@@ -178,9 +219,9 @@ or `tools/` changed.
 ### Step 6: the full run on master every 6 hours
 
 `release.yml`, dispatched by the existing scheduler at 00:00, 06:00, 12:00 and 18:00 UTC, runs the
-full run on canary's commit (channels section 5). Red: the Worker dispatches the bisect, the round
-reverts the culprit by pull request, the fix goes forward on its branch (channels section 6). Still
-publishing nothing.
+full run on the newest green master build (channels section 5). Red: release.yml dispatches the
+bisect, the round reverts the culprit by pull request, the fix goes forward on its branch (channels
+section 6). Still publishing nothing. `hosts.yml` loses its 05:41 UTC cron in the same pull request.
 
 **Undo:** stop the scheduler's dispatch; production is frozen, so nothing else needs undoing.
 
@@ -190,14 +231,19 @@ revert made the next slot pass, with no slot skipped for a reason other than "al
 ### Step 7: nightly
 
 The publish job declares `environment: release` and lands first; then the owner binds each npm
-trusted publisher to that environment (main section 13 item 9); in that order, because a publisher
-bound before the job declares the environment refuses the publish. Then a green full run with no
-changed screenshots promotes automatically: `next` on npm and nightly.graphty.app (channels
-section 7). With changed screenshots it waits for the owner's Finish.
+trusted publisher to that environment (main section 13 item 10); in that order, because a publisher
+bound before the job declares the environment refuses the publish. The owner also sets the custom
+domain nightly.graphty.app on graphty-nightly and enforces HTTPS (main section 13 item 9): it
+conflicts with nothing, and an assembled site built for the root path does not work under a
+`/graphty-nightly/` project path. Then a green full run with no changed screenshots promotes
+automatically: `next` on npm and nightly.graphty.app (channels section 7). With changed screenshots
+it waits for the owner's Finish.
 
 **Done when** two promotions have happened, one automatic and one after a Finish, and for each:
-nightly.graphty.app's build stamp names the promoted commit, and
-`npm view @graphty/graphty-element dist-tags.next` is the version tagged on that commit.
+nightly.graphty.app's build stamp names the promoted commit; `npm view @graphty/graphty-element
+dist-tags.next` is the version tagged on that commit; the `site-<sha>` tag was pushed by the `land`
+job and the release's asset sha256 equals the store's; graphty-nightly's deploy report reached the
+store.
 
 ### Step 8: production promotion, and the domain move
 
@@ -207,7 +253,7 @@ its datasets (every published graph-samples downloads from `https://graphty.app/
 1. The first promotion writes the current production build, `/data/` included, into graphty-site.
 2. `tools/check-site.mjs` (new, about 40 lines) compares graphty-site's file list and hashes with the
    deployed build. Every dataset path must be present.
-3. The owner swaps the custom domains (main section 13 item 10). The apex records already point at
+3. The owner swaps the custom domains (main section 13 item 12). The apex records already point at
    GitHub Pages and do not change. Expect seconds to minutes of gap, and up to an hour before HTTPS
    certificates are issued.
 4. `deploy-pages.yml` deploys again, now to canary.graphty.app; the check script runs against all
@@ -217,7 +263,10 @@ its datasets (every published graph-samples downloads from `https://graphty.app/
 
 **Done when** the check script passes on all three sites: every page in the site map and every
 dataset under `/data/graph-samples/v1/` returns 200 over HTTPS; each site's build stamp names the
-expected commit; a `promote.yml` dry run waited for the owner's approval.
+expected commit; a `promote.yml` dry run waited for the owner's approval; `channel/production` was
+moved by the `channel-ref` job; `tools/dataset-overlay.mjs`'s test over two real `build-hosted.mjs`
+outputs (one adding a dataset, one with re-rendered thumbnails and a re-gzipped unchanged snapshot)
+passes.
 
 ### Step 9: stories as tests replace the separate capture
 
@@ -233,9 +282,10 @@ authorizes it in writing on the issue, because agents never edit those files.
 One pull request (owner-reviewed: it touches owned paths), after steps 5 to 8 have passed their
 checks, 7 days have passed without an undo, and #3318 is closed. Section 4 lists what goes. Each check
 of `tools/prepush-source-checks.sh` is in ci.yml by then (merging section 4.1). The checks:
-`pnpm run lint`, `knip` and the full run all green with the files gone, and
-`grep -rE 'land\.mjs|verify\.mjs|push-queue|golden-cut|gate-live|land-live' --include=*.md
---include=*.mjs --include=*.yml .` finds nothing outside `design/` and `.claudehistory/`.
+`pnpm run lint`, `knip` and the full run all green with the files gone;
+`grep -rE 'land\.mjs|verify\.mjs|push-queue|golden-cut|gate-live|land-live|test-quarantine\.json|visual-preview|visual-seed|golden pull request|no environment' --include=*.md
+--include=*.mjs --include=*.yml .` finds nothing outside `design/` and `.claudehistory/`; and the
+line count of section 4's table shows the net deletion it promises.
 
 **Undo:** `git revert` of that one merge.
 
@@ -260,6 +310,27 @@ Deleted in step 10, unless noted:
 | CLAUDE.md sections "Landing changes (golden-local)", "Verification after landing", the gate and land parts of "Where a change takes effect", and their rows in the tools table | about 9,000 words   | "Shipping a change" (section 6)                                                                        |
 | `tmp/golden/`, `tmp/push-gate-logs/`, `tmp/prepush-passes/`, `tmp/test-ledger/` (after import)                                                                                 | local only          | the test store                                                                                         |
 
+**Lines added against lines deleted** (pipeline code only: `tools/`, `.github/`, `.husky/`; product
+code such as the features module is not counted). Moves are counted as both, so the net is honest:
+
+| Component                                                                                                                                  | Deleted      | Added (cap)   |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ------------- |
+| `land.mjs`, `branch-sync.mjs`, `ship-risks.mjs`, `visual-preview.sh`                                                                       | 4,078        | 0             |
+| `verify.mjs` -> `bisect-core.mjs` and `bisect.yml`                                                                                         | 2,241        | 1,200         |
+| Gate: `push-queue.sh`, `prepush*.sh`, `prepush-tests.mjs`, the rest                                                                        | 3,500        | 0             |
+| `test-ledger.mjs`, `test-quarantine.mjs` -> `tools/results/` and the Worker                                                                | 1,797        | 2,500         |
+| `golden-verify.yml`, `visual-seed.yml`, ci.yml's draft, Mergify and visual parts                                                           | 650          | 0             |
+| `promote.yml`, release.yml's modes, `base-check.yml`, `pr-integrity.yml`, `dependabot-automerge.yml`, `release-due`, two site `deploy.yml` | 0            | 1,100         |
+| `pr-open.sh`, `check-quick.sh`, `check-test-integrity.mjs`, `ci-budgets.mjs`, `dataset-overlay.mjs`, `check-site.mjs`                      | 0            | 750           |
+| `visual-review/capture/story-test.mjs`, the story selector rules                                                                           | 0            | 600           |
+| nx cache Worker                                                                                                                            | 0            | 300           |
+| Total                                                                                                                                      | about 12,300 | at most 6,450 |
+
+So at step 10 the pipeline code is at least about 5,800 lines smaller. A component over its cap is
+cut before it lands (each cap is checked in its step's pull request); the simpler rung is taken
+where one holds: no `release-router.yml` (ci.yml's `release-due` job), no Worker cron or outbox
+(results section 2.1), no merge queue.
+
 ## 5. What is kept, and where it moves
 
 | Kept                                                                                                                                                                                                                                                                   | Where it runs now                                                                                        |
@@ -281,14 +352,46 @@ Deleted in step 10, unless noted:
 
 All in pull requests the owner reviews where they touch owned paths (code-owned from step 3).
 
-- **Root CLAUDE.md**, step 5: "Landing changes (golden-local)" and "Verification after landing"
-  become "Shipping a change", at most 600 words: worktree from master, commit, pull request with
-  auto-merge, stop; the round owns a red pull request; the 6-hour full run; the three sites;
+- **Root CLAUDE.md**, section by section (target under 9,000 words, from 20,070). "Shipping a
+  change" (at most 600 words) replaces the landing sections: worktree from master, commit, review,
+  `pr-open.sh`, stop; the round owns a red pull request; the 6-hour full run; the three sites;
   promotion is the owner's; the owner's own pipeline edits go through an agent pull request he
-  approves; reading the test store. Step 10 removes the rest. Target: under 9,000
-  words, from 20,070.
+  approves; reading the test store.
+
+| Root CLAUDE.md section                                        | Action  | Step  | What changes                                                                                                                                              |
+| ------------------------------------------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project Overview to Shared Configuration                      | keep    |       |                                                                                                                                                           |
+| Tools Directory                                               | rewrite | 5, 10 | rows for deleted tools go at 10; `test-slots`, `branch-push`, `worktree-new`, `prepush.sh` rows rewritten at 5                                            |
+| Secret Scan and Secret Files                                  | rewrite | 5     | pre-push is LFS, secret scan and images only; no source checks or push queue                                                                              |
+| SonarQube                                                     | rewrite | 5     | a step of the opt-in quick check and the master watcher, not a pre-push step                                                                              |
+| Starting Servers                                              | rewrite | 3     | `visual-review` and `pr-status-broker` get `GH_CONFIG_DIR` and `GIT_CONFIG_GLOBAL` in their env                                                           |
+| Testing Infrastructure, Test Projects, Coverage Thresholds    | keep    |       | the `llm-regression` line: once per candidate in the full run                                                                                             |
+| CI/CD Pipeline and "Live today"                               | rewrite | 5     | the channels, the light check, the full run; no golden pull request, drafts or Mergify                                                                    |
+| Workflows table                                               | rewrite | 5-8   | new workflows, `golden-verify.yml` and `visual-seed.yml` gone, `hosts.yml` without cron                                                                   |
+| Dead Links                                                    | rewrite | 5     | pre-push no longer runs links; graphty.app links resolve against canary                                                                                   |
+| Release versioning                                            | rewrite | 7     | the full run and nightly; `next` then `latest` by promotion; no `workflow_run` restart; the red state instead of the train hold; `release-approvals.json` |
+| A new package's first npm publish                             | rewrite | 7     | trusted publisher with environment `release`, never "no environment"; the first version needs a `release-approvals.json` entry                            |
+| CI Test Shards                                                | rewrite | 5     | light check bins; the full run's two configurations                                                                                                       |
+| Architecture & Key Patterns to Important Development Notes    | keep    |       |                                                                                                                                                           |
+| Testing (bullets)                                             | rewrite | 5     | the gate, `PREPUSH_SELECT` and the test-slots gate lanes go; `test:changed` from master                                                                   |
+| Quarantined tests                                             | rewrite | 5     | the store's rules; no `test-quarantine.json`, `write` or "only from the gate"; `[NEW-FLAKY]` and `[FLAKY-UNRELATED]`                                      |
+| Storybook                                                     | keep    |       |                                                                                                                                                           |
+| Visual review                                                 | rewrite | 5, 9  | no golden pull request, `visual-preview.sh` or seed pull request; Finish on the offered candidate; the signature check                                    |
+| GitHub Pages URLs, Build System                               | rewrite | 8     | three sites; graphty.app is production                                                                                                                    |
+| Breaking changes and major releases                           | rewrite | 5     | the breaking-change guard and `release-approvals.json`                                                                                                    |
+| Public API review, Module System, Design Documents, Debugging | keep    |       |                                                                                                                                                           |
+| Landing changes (golden-local), Verification after landing    | delete  | 5     | replaced by "Shipping a change"                                                                                                                           |
+| Where a change takes effect                                   | rewrite | 5     | gate and land parts go; local tools through `live.sh` stay                                                                                                |
+| Parallel agents                                               | rewrite | 5     | a subagent opens its own pull request with `pr-open.sh` and stops (no "a subagent does not push")                                                         |
+| The GitHub API budget                                         | rewrite | 3     | two accounts: the agent's budget and the owner's                                                                                                          |
+| Claude Session History                                        | keep    |       |                                                                                                                                                           |
+
 - **Package CLAUDE.md files** naming golden, the gate or `land.mjs` (algorithms, layout,
-  graph-format, graph-samples, webgpu-graph-algorithms, githerd; 20 references): step 10.
+  graph-format, graph-samples, webgpu-graph-algorithms, githerd; 20 references): step 10. Also
+  `compact-mantine/CLAUDE.md` (the Figma lock runs "in the pre-push gate": it runs in the light
+  check's Checks job) at step 5, and `graph-samples/CLAUDE.md`'s dataset paragraph at step 8: a
+  dataset reaches graphty.app only at a production promotion, through the dataset overlay, and a
+  content change to an existing dataset needs a new path.
 - **pipeline-round skill** (6,887 words), rewritten in step 5 and trimmed in step 10, in the order of
   main section 12. Gone: "Keep golden moving", "Land what subagents
   finished", "Nightly branch sync", the live copies. `tools/pipeline-round-skill.test.mjs` is updated

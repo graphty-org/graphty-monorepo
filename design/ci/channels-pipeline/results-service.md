@@ -40,8 +40,10 @@ Words used below:
   against a test (4.3), and failures sent instantly survive a job that dies later.
 - **The pipeline's own machinery caused most gate failures.** Every call fails open with a fast timeout;
   a missing answer can only make a run longer or stricter (section 8).
-- **The shared GitHub account ran out of API requests on 2026-10-04.** The Worker files issues and
-  dispatches workflows as a GitHub App installation, which has its own budget.
+- **The shared GitHub account ran out of API requests on 2026-10-04.** Issues and dispatches come from
+  the workflows that act on the store's answers, each with its own `GITHUB_TOKEN` budget (2.1).
+- **githerd, a standing daemon with write power, added failure modes without removing any.** The
+  Worker stores and answers; it decides nothing on GitHub (2.1).
 - **A CI Build regression went unnoticed for four days.** Job, step and nx task durations land in the
   same store, so the time-budget alarms have a history (section 10).
 - **Local and CI screenshots differed and were worked around.** A clean local failure where CI passed
@@ -65,15 +67,34 @@ Words used below:
 - **Ownership:** both directories are CODEOWNERS paths owned by the owner, like every pipeline path.
   Agents propose; the owner's review merges. The pipeline round operates the service (reads `status`,
   works its issues) and never changes its rules in the same pull request as a product fix.
-- **GitHub identity:** the existing App `graphty-release-scheduler` has Actions read and write and
-  Issues read and write (`tools/release-scheduler/README.md`). That covers dispatching `bisect.yml`
-  and `base-check.yml` with `workflow_dispatch` (`POST /actions/workflows/<file>/dispatches`, never
-  `repository_dispatch`, which needs Contents: write), re-running a pull request's failed jobs, and
-  issues. The ancestry check (is `baseSha` on master's history: `GET /compare/master...<sha>`) needs
-  **Contents: read**, which the owner adds; the App never gets Contents: write. It gets a second
-  private key so the two Workers share none. Secrets on `graphty-results`: `APP_ID`,
-  `INSTALLATION_ID`, `PRIVATE_KEY`, `LOCAL_TOKEN_HASHES`. `buildJwt()` from
-  `tools/release-scheduler/src/worker.js` is reused.
+- **GitHub identity:** the Worker reads GitHub only, for the ancestry check (is `baseSha` on master's
+  history: `GET /compare/master...<sha>`), with the existing App `graphty-release-scheduler` and the
+  **Contents: read** the owner adds; the App never gets Contents: write. It gets a second private key
+  so the two Workers share none. Secrets on `graphty-results`: `APP_ID`, `INSTALLATION_ID`,
+  `PRIVATE_KEY`, `LOCAL_TOKEN_HASHES`. `buildJwt()` from `tools/release-scheduler/src/worker.js` is
+  reused.
+
+### 2.1 The Worker decides nothing
+
+Earlier drafts had the Worker dispatch every CI bisect, re-run pull requests' failed jobs, dispatch
+base checks, file and close issues through an outbox cron and end quarantines on a cron: a standing
+decision-maker with write power, the shape of githerd that the pipeline already removed once, and one
+whose outage would fail the red loop closed. Superseded. The Worker computes and answers; the actor
+is always a workflow on master or the pipeline round:
+
+| Decision                                                          | Who acts on the store's answer                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Dispatch the bisect, file the red issue                           | release.yml (`bisect-ci` job, or the verdict), with `GITHUB_TOKEN` (channels 6)      |
+| File or comment a quarantine issue                                | the full-run or bisect job's `run-group.mjs` that the answer names, `issues: write`  |
+| A quarantine leaves on issue close                                | release.yml's `pick` posts the closed quarantine issues (one GraphQL query) each run |
+| 20 passes, 14 days, `infra` for a job that died before its record | computed when the plan or status is read; no cron                                    |
+| Base check of a pull request failure, re-run of its job           | the pipeline round (agent token, Actions: write)                                     |
+| Budget trend alarm                                                | the `timings` job that received it (budgets 1.6)                                     |
+
+If the Worker is down, release.yml still files the red issue and dispatches the bisect from the
+lanes' own results, so the red loop fails open like everything else. There is no `outbox` table and
+no cron except the daily retention delete.
+
 - **Tests:** D1 speaks SQLite, so the Worker's tests run the real migrations and queries on
   `node:sqlite` through a 20-line adapter (`test/d1-shim.mjs`: `prepare().bind().all()/first()/run()`,
   `batch()`), with GitHub and the OIDC key set injected as in `tools/release-scheduler/test/`. No new
@@ -88,7 +109,9 @@ Words used below:
 inputs = sha256( shard input key   inputKey() from tools/prepush-inputs.mjs: the package, the packages
                                    it depends on or reads by path, their build outputs, root files, lockfile
                + selected files    sorted, for run shape "selected"
-               + env               runner image (ImageOS + ImageVersion), Node version, browser revision
+               + env               runner image (ImageOS + ImageVersion) and class, CPU count, file
+                                   parallelism, Node version, browser revision, GPU adapter (vendor,
+                                   architecture, driver; T4, Hosts and local GPU runs)
                + flags             "off" or "on"
                + baselines         for a story test: the git blob id of its baseline PNG ) [first 16 hex]
 ```
@@ -96,7 +119,10 @@ inputs = sha256( shard input key   inputKey() from tools/prepush-inputs.mjs: the
 `inputKey()` and `shardKeys()` move to `tools/results/inputs.mjs`; the gate-only parts of
 `tools/prepush-inputs.mjs` (`gateKey`, `passStore`, the `PREPUSH_*` lane variables) are deleted. The
 baseline blob makes approving a new picture start a new history, as the owner decided. The runner image
-makes a GitHub image update start new histories instead of looking like flakiness.
+makes a GitHub image update start new histories instead of looking like flakiness, and the CPU count
+and parallelism keep a bisect's repetitions from counting as the same inputs as a full-run shard
+under other load. The GPU, Hosts, macOS work protection, lifecycle and LLM jobs run their tests
+through `run-group.mjs` too, so each lane's records carry this key and serve as bisect evidence.
 
 ## 4. Data model
 
@@ -126,8 +152,6 @@ CREATE TABLE quarantine (family TEXT NOT NULL, file TEXT NOT NULL, name TEXT NOT
   passes INTEGER NOT NULL DEFAULT 0, left_at INTEGER, left_why TEXT, PRIMARY KEY (family, file, name, since));
 CREATE TABLE tracked_issue (signature TEXT PRIMARY KEY, kind TEXT NOT NULL,  -- flaky | failing-on-master | parity
   number INTEGER, state TEXT, opened_at INTEGER, last_seen INTEGER);
-CREATE TABLE outbox (id INTEGER PRIMARY KEY, action TEXT NOT NULL, payload TEXT NOT NULL,
-  tries INTEGER NOT NULL DEFAULT 0, done_at INTEGER);
 CREATE TABLE duration (run_id INTEGER NOT NULL, attempt INTEGER NOT NULL, workflow TEXT NOT NULL,
   job TEXT NOT NULL, step TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', sha TEXT, kind TEXT,
   started_at INTEGER, ms INTEGER, conclusion TEXT, PRIMARY KEY (run_id, attempt, job, step, task)) WITHOUT ROWID;
@@ -176,19 +200,16 @@ pending`), which the wrapper prints.
 `tools/results/reporter.mjs` in `onTestCaseResult` (Vitest 4.1). Not awaited; the reporter settles its
 promises in `onTestRunEnd`. The record later completes the row. Two things depend on it:
 
-- **The full run's bisect starts before the run ends.** The first failure from a `full` invocation with
-  `try = 2` (the retry failed it too: broken on that commit and inputs) makes the Worker dispatch
-  `bisect.yml` on master with `{ runId, sha }`, once per full run (concurrency `bisect-<sha>`). Every
-  later broken test of that run is appended to the run's broken list in the store, and each bisect
-  phase reads the current list, so one red run has exactly one bisect and the pipeline round starts
-  none. In the record a failing job finished a
-  median of 24 to 63 minutes into its run (`tmp/failure-position/ci-out.txt`); the bisect no longer
-  waits for the slowest of 25 jobs.
-- **A cap.** The reporter sends at most the first 20 failures of an invocation as events, then one
-  summary event with the count; the record carries the rest. A broken setup failing thousands of tests
-  would otherwise fire thousands of requests during the full run's busiest minutes.
-- **A job that dies keeps its evidence.** Failures with no record 6 hours after their run completed are
-  closed by the Worker's cron as outcome `infra`: shown, never counted.
+- **The bisect reads a live list.** _Superseded: the Worker dispatches nothing (2.1)._ release.yml
+  dispatches `bisect.yml` when the ci.yml lane ends red (channels section 6); every broken test of the
+  run (`try = 2` failed too) is appended to the run's broken list in the store as it happens, and each
+  bisect phase reads the current list, so one red run has exactly one bisect.
+- **Batching, never dropping.** The reporter sends each of an invocation's first 20 failures at once;
+  after that it sends one event every 5 seconds holding every failure since the last, so a failure
+  never waits for the last step and a broken setup failing thousands of tests sends a few events a
+  minute, not thousands.
+- **A job that dies keeps its evidence.** Failures whose run ended with no record of their invocation
+  read as outcome `infra` when the store is queried: shown, never counted.
 
 ### 5.3 Read once at the start of a run
 
@@ -250,11 +271,14 @@ A flaky test is quarantined at once (6.5) with a `bug`, `priority:critical`, `ef
 owner's rule of 2026-10-22). On a full run or a bisect the job is then green, and its summary says so.
 
 **`[NEW-FLAKY]` on a pull request.** 78% of flaky tests are flaky from the day they were written, so a
-pull request may not merge new flakiness behind a quarantine. On kind `pr`, a test that failed and
-then passed fails the check as `[NEW-FLAKY]` when the pull request changed the test's file or its
-import closure, or when the store has no flaky evidence for that test on master (`full` or `bisect`
-records). Only flakiness already seen on master lets a pull request through, and the quarantine it
-creates is still filed. An `unstable` story (two shots disagree) follows the same rule.
+pull request may not merge new flakiness. On kind `pr`, a test that failed and then passed fails the
+check as `[NEW-FLAKY]` only when the pull request changed the test's file or its import closure.
+Otherwise the pull request could not have caused it and cannot fix it (pipeline and test changes stay
+separate), so it passes loudly as `[FLAKY-UNRELATED]` with a warning annotation, and the pipeline round
+dispatches `base-check.yml` with `repeat: 5` for that file at the base. That run is master's code, so
+its records are evidence: a pass and a fail there quarantine the test with its `priority:critical`
+issue. A pull request's own records never quarantine. An `unstable` story (two shots disagree)
+follows the same rule.
 
 ### 6.2 Broken
 
@@ -273,16 +297,16 @@ fails test T in file F:
 1. T stays failing if the pull request changes F or its import closure.
 2. T is excused if the plan's `failingOnBase` has T with the same key, from `full`, `bisect` or `base`
    records only.
-3. Otherwise the job fails, says `[KNOWN?] base check running`, and the Worker dispatches
-   `base-check.yml` on master (`workflow_dispatch`, inputs `base`, `file`, `variant`), which checks out
-   the base, builds the package from nx's cache, runs F once and posts kind `base`. If F fails there with
-   the same key (for an expired wait: fails there at all), the Worker re-runs the pull request's failed
-   job, whose plan now excuses T. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's
+3. Otherwise the job fails and says `[KNOWN?] no master evidence`. The pipeline round dispatches
+   `base-check.yml` on master (`workflow_dispatch`, inputs `base`, `file`, `variant`, `repeat`), which
+   checks out the base, builds the package from nx's cache, runs F and posts kind `base`. If F fails
+   there with the same key (for an expired wait: fails there at all), the round re-runs the pull
+   request's failed job, whose plan now excuses T. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's
    code. It costs one file's run, only when a pull request fails, and the result serves every later
    pull request on that base.
 
-An excused failure prints `[KNOWN] <test> fails the same way on master <sha>, issue #N`, and the Worker
-files or updates one `Failing on master: <first line>` issue per signature (`bug`, `priority:high`,
+An excused failure prints `[KNOWN] <test> fails the same way on master <sha>, issue #N`; the base-check
+run files or updates one `Failing on master: <first line>` issue per signature (`bug`, `priority:high`,
 `effort:medium`). Full runs and bisects never excuse anything.
 
 ### 6.4 Local and CI disagree
@@ -295,23 +319,24 @@ feed nothing else.
 
 ### 6.5 Quarantine
 
-The Worker owns it.
+The Worker holds the list and computes it; workflows file its issues (2.1).
 
 - **Enters** only through 6.1: never by hand, never through an API call naming a test.
 - **Applies** to every pull request and full run through the plan. A quarantined test still runs; its
   failure prints `[QUARANTINED] ... issue #N` with a warning annotation and does not fail the job. Never
   for `webgpu-graph-algorithms*` families or the screenshot gate (the rules of `checkQuarantine()` in
   `tools/test-ledger.mjs`, now enforced by the Worker).
-- **Leaves** when its issue closes (an hourly cron, one GraphQL query for all open quarantine issues),
-  after 20 consecutive passing evidence verdicts, or after 14 days (the owner's rules of 2026-10-22).
+- **Leaves** when its issue closes (release.yml's `pick` posts closed quarantine issues every run),
+  after 20 consecutive passing evidence verdicts, or after 14 days (the owner's rules of 2026-10-22),
+  each computed when the plan is read.
 - **With no plan nothing is quarantined,** so the failure fails the job: stricter, never looser.
 
 ### 6.6 Issue filing
 
-A decision that files or comments writes an `outbox` row in the record's batch, then calls GitHub at
-once (`ctx.waitUntil`); the cron retries what failed every 5 minutes until it succeeds. One issue per
-signature (`tracked_issue`), carrying `<!-- results signature=<sig> -->` so a lost row is found again.
-Issue text is `fileIssue()` from `tools/test-quarantine.mjs` plus invocation links.
+_Superseded (2.1): no outbox._ The Worker's answer to a record names the issues to file or comment;
+the job that posted it does so with its `GITHUB_TOKEN` and posts the issue number back. One issue per
+signature (`tracked_issue`), carrying `<!-- results signature=<sig> -->` so a lost post-back is found
+again by a search. Issue text is `fileIssue()` from `tools/test-quarantine.mjs` plus invocation links.
 
 ## 7. Test selection by history
 
@@ -338,14 +363,14 @@ failure event, one try (the full run's plan read gets one retry, 5.3). Unknown m
   `results-spool-<job>`. A `Results backfill` job at the end of `ci.yml` (`if: always()`, not required,
   about 20 seconds) re-posts them. Still down: that history is lost, so later runs only reuse less.
 - **Failure event lost:** the record carries it; only the early bisect start is lost.
-- **Job killed before its record:** its events are stored; the cron marks it `infra` (5.2).
+- **Job killed before its record:** its events are stored and read as `infra` (5.2).
 - **Duplicate post** (a retried step, a backfill): `INSERT OR IGNORE` on the id.
 - **No OIDC token** (a fork, a missing permission, a run Dependabot triggered, which gets a read-only
   token and no `id-token: write`): nothing read, empty plan, the record spooled; the `Results backfill`
   job of a Dependabot run cannot post either, so `results-backfill.yml` (on `workflow_run`, master's
   ref) posts spooled records of such runs as kind `pr`. Reason in the summary.
-- **GitHub down for issues or dispatch:** outbox and cron. A missed bisect dispatch also shows in
-  `GET /v1/status`, which the pipeline round reads.
+- **GitHub down for issues or dispatch:** the acting job fails and says so; a red verdict with no
+  bisect record shows in `GET /v1/status`, and the pipeline round dispatches it.
 - **Lost or damaged database:** D1 Time Travel restores any minute of the last 30 days. Nothing is
   decided from the store that a re-run cannot re-establish.
 
@@ -372,9 +397,8 @@ requests a month; this uses under a tenth of each. Expected cost: 5 dollars a mo
 
 The time-limit alarms (another section of this design) read the `duration` table:
 
-- **Jobs and steps:** every 15 minutes the Worker lists completed runs of `ci.yml`, the full-run workflow
-  and `release.yml` and reads each run's jobs with steps (one REST call per run, about 40 runs a day, on
-  the App's budget). This also records jobs that were killed, which a step inside them could not.
+- **Jobs and steps:** _superseded (settled 3): no Worker poll._ Each run's last `timings` job
+  (`if: always()`, so it sees killed jobs too) reads its own run's jobs and steps and posts them.
 - **nx tasks:** the Build job runs nx with `NX_PROFILE=tmp/nx-profile.json` and posts the task spans to
   `POST /v1/durations`. The Sentry plugin regression would have shown as one task growing.
 - **Test files:** `file_run.ms`.
@@ -396,7 +420,8 @@ Durations never judge a test result.
   Insights is deleted: it duplicated this store.
 - Locally, `pnpm run test:changed` posts `local` records when `GRAPHTY_RESULTS_TOKEN` is set
   (`GRAPHTY_RESULTS=0` turns it off). `node tools/results/cli.mjs why <file> [> <test>]` and `status`
-  (open quarantines, failing-on-master tests, the last full run's failures, outbox depth, last write)
+  (open quarantines, failing-on-master tests, the last full run's failures, red verdicts with no
+  bisect, last write)
   replace `tools/test-ledger.mjs status` and `tools/test-quarantine.mjs status` in the pipeline round.
 
 ## 12. Rollout, and what happens to the local ledger

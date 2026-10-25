@@ -47,20 +47,26 @@ Unchanged from today, because they work:
 One new script, about 40 lines, replaces `node tools/land.mjs land <branch>`:
 
 ```
-tools/pr-open.sh [--no-check "<reason>"]
+tools/pr-open.sh --review <file>
 ```
 
-It runs in the worktree, in the foreground, and returns in minutes:
+It runs in the worktree and returns in seconds; it runs no tests (CI is the only gate):
 
-1. Refuses if the worktree has uncommitted changes, or if the branch has no issue number.
-2. Runs the quick local check (section 6) unless `--no-check "<reason>"` is given; the reason goes
-   into the pull request description, so a skipped check is visible.
-3. `git merge origin/master` when the branch is behind (never rebase; `tools/no-copy.sh` still refuses
-   rebases and cherry-picks), then `git push origin HEAD`.
-4. `gh pr create --base master --head <branch> --title "<first commit header>" --body "<summary>
+1. Refuses if the worktree has uncommitted changes, if the branch has no issue number, or if the
+   review file's patch id does not match the branch's own diff.
+2. `git merge origin/master` when the branch is behind (never rebase; `tools/no-copy.sh` still refuses
+   rebases and cherry-picks), then `git push origin HEAD`. A clean merge keeps the patch id, so the
+   review still applies (budgets section 4.3).
+3. `gh pr create --base master --head <branch> --title "<first commit header>" --body "<summary>
 Fixes #N"` as the machine account. A pull request that already exists is reused.
+4. Posts the fresh review as a pull request review (`COMMENT`) carrying `<!-- fresh-review <patch id> -->`.
 5. `gh pr merge <number> --auto --merge`: GitHub merges it the moment every required check passes.
 6. Prints the pull request URL and exits. It never waits for CI.
+
+The quick check (section 6) is opt-in: an agent that wants an answer before CI runs
+`pnpm run check:quick` with `run_in_background` and ends its turn, never in the foreground of a turn,
+because every local vitest run waits for a machine-wide test slot and a wait past 5 minutes drops the
+prompt cache.
 
 Rules that follow from it:
 
@@ -109,7 +115,7 @@ Failure modes:
 - **The owner's own token is still on this machine.** `gh auth status` shows `apowers313` logged in
   with `repo` and `workflow` scopes in `~/.config/gh/hosts.yml`, readable by every agent session on
   this Unix account. Rulesets cannot stop an admin token from editing the ruleset itself. The owner
-  logs it out here (main section 13 item 3).
+  logs it out here (main section 13 item 4).
 
 ## 4. The light check
 
@@ -118,12 +124,12 @@ Failure modes:
 ci.yml keeps its name and its one required summary, "All Checks Pass", so the ruleset needs no new
 check names. On a pull request it runs:
 
-- **Plan (first step of `Build`)** (always): `nx show projects --affected --base=<merge base with origin/master>`; `node tools/test-select.mjs --base origin/master --head HEAD --json` for the test files of each shard; the story selector for affected stories; the run's one read of the Cloudflare store, handed to every job as the artifact `results-plan` (fails open). The selector's Vite import graphs (about 100 MB, keyed per package tree, cold in CI) are restored read-only from an `actions/cache` entry that only master builds write; a miss builds them, and the step has its own budget (`step:ci.yml:Build:Plan`, measured cold before the budgets are set).
+- **Plan (first step of `Build`)** (always): `nx show projects --affected --base=<merge base with origin/master>`; `node tools/test-select.mjs --base origin/master --head HEAD --json` for the test files of each shard; the story selector for affected stories; the run's one read of the Cloudflare store, handed to every job as the artifact `results-plan` (fails open). The selector's Vite import graphs (about 10 MB a set, keyed by a hash of the graph inputs, not the commit) are restored read-only from an `actions/cache` entry that only master builds write, and master deletes the superseded key (budgets section 1.8); a miss builds them, and the step has its own budget (`step:ci.yml:Build:Plan`, measured cold before the budgets are set). The plan also packs each shard family's selected files into bins (below).
 - **Build** (something is affected): `nx affected -t build` with the remote cache (section 5); uploads the dist folders, as today.
 - **Checks** (always; each is seconds to a minute): every step today's ci.yml Checks job runs, unchanged: Knip and Knip (production dependencies), Published dependencies, ESLint root config, Formatting, Bundle size (graphty-element and cytoscape-extensions), Public API report, Declared build tools, Release hold list, Element data sources on graph-io, Migration count script, Legacy graph API use, No committed walk screenshots, compact-mantine Figma lock. Added: `nx affected -t lint typecheck`, `tools/check-links.sh --offline`, "No signing bypass in tools/ and .husky/" (the one source check only `prepush-source-checks.sh` runs today, moved into ci.yml before that script is deleted), `ci-budgets.mjs lint`, `check-features.mjs`, `check-test-integrity.mjs` runs in PR Integrity.
 - **Tool tests** (only when `.github/**`, `tools/**`, `nx.json` or a root config changed): CI workflow tests (`pnpm run test:ci-workflows`), `tools/*.test.mjs`, "Release dry run", the SonarQube gate script tests. These are the gate-tooling self-tests, the only steps that leave the always-on list.
-- **`Test (<shard>)`** (the selector chose files for it): each selected shard runs its selected files once, with the shard's own command from `tools/ci-test-matrix.mjs`, without coverage and without slicing, through `tools/results/run-group.mjs` (the store-backed successor of `tools/test-quarantine.mjs`).
-- **`Stories (<project>)`** (a story was selected): run the selected stories as tests in the project's storybook Vitest project (no `build-storybook`); a changed picture is reported, not a failure. Until rollout step 9 switches a project, the old `visual` capture runs beside it, report-only and outside All Checks Pass.
+- **`Test (<family>-<bin>)`** (the selector chose files for it): _superseded "without slicing"._ `tools/test-select.mjs`'s `planRuns()` merges a family's slices that select the same files into one run; a graphty-element `src/` change selects 376 to 378 of 416 browser files, 50 of 50 storybook files and 164 of 164 graphty files, which unsliced is 61.6 min of browser tests in one job (run 40051811635's five slices) with `fileParallelism: false`. So the plan packs a family's selected files into bins of at most 8 minutes from the plan's `fileMs` (a file with no history counts as the family's longest), sizes the matrix from the selected seconds, and each bin runs once with the family's command from `tools/ci-test-matrix.mjs`, without coverage, through `tools/results/run-group.mjs` (the store-backed successor of `tools/test-quarantine.mjs`).
+- **`Stories (<project>-<bin>)`** (a story was selected): run the selected stories as tests in the project's storybook Vitest project (no `build-storybook`), packed into bins of at most 8 minutes as tests are; a changed picture is reported, not a failure. For an accept-only pull request the Stories jobs are report-only, outside All Checks Pass, because their result decides nothing (stories section 7). Until rollout step 9 switches a project, the old `visual` capture runs beside it, report-only and outside All Checks Pass.
 - **Docs** (`docs/`, a package `docs/`, or a package with a `docs:api:*` script changed): `vitepress build docs`.
 - **All Checks Pass** (always): the summary; skipped jobs count as passed.
 
@@ -141,9 +147,18 @@ capture (18.8) and the two grouped small shards (16.5). The light check removes 
 running selected files instead of whole shards, and the build by caching.
 
 Critical path for a change inside one package: checkout and `pnpm install` 1.5 min, plan about 1
-(graphs from cache), Build 3 min (most packages cache hits), then selected tests 3 min or selected
-stories 2 to 4 min in parallel: about 9 minutes, plus queue time while a full run holds runners
-(recorded separately, budgets section).
+(graphs from cache), Build 3 min (most packages cache hits; `graphty:build` never hits, because it
+hashes the commit), then the selected tests' bins and stories in parallel, each under 8 min: about
+10 to 15 minutes, plus queue time while a full run holds runners (recorded separately).
+
+A graphty-element `src/` change (59 of the last 200 merges) or a global input is different, and
+nothing measured supports a few minutes of tests for it: it selects nearly every test file of
+graphty-element and graphty, so the light check costs about the full test matrix's wall time, about
+15 minutes on about 25 jobs, plus Build and setup: p50 about 25 minutes. The replay of the
+selection agrees: file-level selection saved only 7 to 10% of shard time on branch pushes and 34% on
+landings (design/ci/test-selection-replay.md). Before rollout step 5 the light-check budgets are set
+from a replay of the selector's advisory records (`tmp/test-select/advisory.jsonl`) through this
+bin packing, not from these estimates.
 
 These numbers hold only where file-level selection exists. `tools/test-select-rules.json` lists
 graph-format, remote-logger, compact-mantine, graphty and graphty-element in `fileLevel` (and only
@@ -159,11 +174,11 @@ compact-mantine selects all 1,004 stories on any compact-mantine change (stories
 
 Budgets (in the CI budgets file, owned by the time-limits section):
 
-- Light check, change in one package: target p50 10 min, warn above 15 min.
-- Light check, change in graphty-element (most dependents): target p50 14 min, warn above 20 min.
-- Light check, global inputs changed (runs every shard's selected tests): target p50 22 min, warn above 30 min.
+- Light check, change in one package: target p50 10 to 15 min, warn above 20 min (`run:ci.yml:pr`).
+- Light check, graphty-element `src/` or global inputs: target p50 25 min, warn above 35 min (`run:ci.yml:pr-wide`).
 - Build job: target p50 3 min, warn above 6 min.
-- `graphty:build` task: target p50 1.5 min (measured 60 to 63 s after the Sentry fix), warn above 3 min.
+- `graphty:build` task (uncached on every run): target p50 1.5 min (measured 60 to 63 s after the Sentry fix), warn above 2 min.
+- Main section 7 holds the starting values; the replay above replaces them before step 5.
 
 A budget crossed warns on the pull request that crossed it and feeds the trend alarm; it never fails
 the check. Raising a budget is a reviewed change to the budgets file (CODEOWNERS).
@@ -220,8 +235,10 @@ master:
   no master build (GitHub starts no workflow for an event caused by that token). New
   `.github/workflows/dependabot-automerge.yml`, on `pull_request_target` for `dependabot[bot]` only:
   `dependabot/fetch-metadata`, then `gh pr merge --auto --merge` with the agent account's
-  `AGENT_AUTOMERGE_TOKEN` (pull requests write only) from a master-only environment. It never checks
-  out the pull request's code.
+  `AGENT_AUTOMERGE_TOKEN` (fine-grained, graphty-monorepo only, Contents: write and Pull requests:
+  write: GitHub's merge needs Contents: write) from a master-only environment. It never checks out the
+  pull request's code. Rollout step 5 is done only once one Dependabot pull request has auto-merged
+  and started a master build.
 - **Required checks.** `pr-issue-link.yml` accepts `dependabot[bot]` without an issue line; PR
   Integrity exempts it from Proof and fresh review (no agent wrote it) and still applies test
   integrity and the breaking-change rule.
@@ -273,17 +290,30 @@ pushed the Git LFS baseline caches toward eviction from the 10 GB Actions cache.
 Commit 0436c01e02 on branch `perf/ci-build-sentry-after-build` (Fixes #3415): the `@sentry/vite-plugin`
 injected debug ids and regenerated the source map of every one of graphty's 24 chunks during the
 build, which took `graphty:build` from 1m23s to 13m33s and the master Build job to 16 to 24 minutes.
-The fix removes the plugin and, on master pushes only, runs `sentry-cli` after "Build all"
-(`sourcemaps inject`, 1 s; then the release upload, named `github.sha`). `SENTRY_AUTH_TOKEN` lives in
-the master-only environment `master-build`, declared by that upload job, not in `full-run`. Measured: graphty's build 60 to
-63 s. It lands through the current release path before the switch, because the
-master-push build is what canary deploys from. The `graphty:build` budget (section 4.2) is set so that
-the next regression of this kind warns within one run instead of four days.
+The fix removes the plugin (measured: graphty's build 60 to 63 s), but as committed it breaks this
+design's own rule: its "Upload graphty's source maps to Sentry (master push)" step sits in the Build
+job with `if: github.event_name == 'push' && github.ref == 'refs/heads/master'`, holds
+`SENTRY_AUTH_TOKEN`, and runs `sentry-cli sourcemaps inject dist`, which rewrites graphty's dist in
+place. So canary's bytes, which the full run tests, would differ from every pull request's build,
+and the "Build all" step still has `VITE_SENTRY_DSN/ORG/PROJECT: secrets.*` in its env, which
+`ci-budgets.mjs lint` fails. Before it lands it changes to:
+
+- a separate `sentry` job after Build, on every event: download graphty's dist artifact, `sentry-cli
+sourcemaps inject` (needs no secret), re-upload the artifact, so every event's graphty bytes carry
+  debug ids the same way;
+- a `sentry-upload` step in that job, master pushes only, in environment `master-build` with
+  `SENTRY_AUTH_TOKEN` (an upload, which the lint allows after the build);
+- `VITE_SENTRY_DSN`, `VITE_SENTRY_ORG` and `VITE_SENTRY_PROJECT` as repository variables
+  (`vars.*`): they are not secrets.
+
+`graphty:build` lists `git rev-parse HEAD` and `SENTRY_RELEASE` as nx inputs, so it never hits the
+remote cache; its budget assumes an uncached build. It lands through the current release path before
+the switch, because the master-push build is what canary deploys from.
 
 ## 6. What replaces the local gate: the quick check
 
-`pnpm run check:quick` (new `tools/check-quick.sh`, about 40 lines), run by `pr-open.sh` and by hand
-whenever an agent wants an answer before CI:
+`pnpm run check:quick` (new `tools/check-quick.sh`, about 40 lines), run by hand, in the background,
+whenever an agent wants an answer before CI (`pr-open.sh` does not run it; section 2.2):
 
 1. `prettier --check` on the files changed since the merge base with `origin/master`;
 2. `nx affected -t lint typecheck --base=origin/master` (local nx cache);
@@ -297,8 +327,13 @@ whenever an agent wants an answer before CI:
    `hosts.yml` keeps its advisory pull request trigger on `webgpu-graph-algorithms/` and
    `graph-format/`.
 
-It runs with every `GRAPHTY_*`, `PREPUSH_*` and `VK_*` variable removed (`env -u`), so no setting of
-the old gate can change what a test sees. It runs no tool self-tests and no screenshots: those caused
+It unsets the variables the old gate set, by an explicit list in the script (`PREPUSH_*`,
+`TEST_SLOT_GATE`, `TEST_LEDGER_*`, `GRAPHTY_TEST_QUARANTINE`, `PREPUSH_ROOT`), so no setting of the
+old gate can change what a test sees; it keeps `GRAPHTY_TEST_SLOTS` and `GRAPHTY_RESULTS_TOKEN`, so
+local records still reach the store for parity detection. Its GPU step sets
+`GRAPHTY_GPU_REQUIRE=nvidia` and the extracted libEGL path (`GRAPHTY_EGL_LIB_DIR`) explicitly, as
+`tools/prepush.sh` does today (lines 256 to 270): without them the webgpu tests skip when no adapter
+is found, and the only real-GPU look before the T4 would pass while testing nothing. It runs no tool self-tests and no screenshots: those caused
 the old gate's failures and its local-versus-CI disagreements. Expected time 2 to 6 minutes, under
 `tools/low-priority.sh`. It is a habit, not a gate: CI decides, and a failure here only means "you
 would have found out in CI".
@@ -331,7 +366,9 @@ is the alternative if Mergify's terms or limits have changed by then.
 ## 8. Master pushes
 
 A merge to master runs ci.yml's build path as today (no tests): build every package with the cache
-(write token), the Storybooks and docs, the Sentry step, then the canary deploy (canary section).
+(write token), the Storybooks and docs, the `sentry` job with its upload, then the canary deploy
+(canary section), and a last `release-due` job that dispatches release.yml only when a restart or a
+resume is due (channels section 5).
 A red master build opens a revert through `master-guard.yml`, kept and simplified: it reverts by pull
 request as the machine account, the revert gets the light check and auto-merges.
 
@@ -372,10 +409,11 @@ Deleted (after golden is flushed through release #3318):
 
 Kept: `tools/worktree-new.sh` (base changed), `tools/branch-push.sh`, `tools/no-copy.sh`,
 `tools/test-select.mjs` and its rules and mutation check, `tools/test-changed.mjs`,
-`tools/ci-test-matrix.mjs`, `tools/run-tests.sh`, `tools/test-quarantine.mjs` (on the Cloudflare
-store), `tools/test-slots.mjs` and `tools/with-browser.sh` (local concurrency), `tools/sonar-gate.mjs`,
-`tools/pr-status-broker.mjs`, `master-guard.yml`, `pr-title.yml`, `pr-issue-link.yml`, the Mergify Test
-Insights upload (live, cannot fail a job).
+`tools/ci-test-matrix.mjs`, `tools/run-tests.sh`, `tools/test-slots.mjs` (its gate lane and marks
+removed in step 5) and `tools/with-browser.sh` (local concurrency), `tools/sonar-gate.mjs`,
+`tools/pr-status-broker.mjs`, `master-guard.yml`, `pr-title.yml`, `pr-issue-link.yml`.
+_Superseded (settled 29, main 12): `tools/test-quarantine.mjs` becomes `tools/results/run-group.mjs`
+and the Mergify Test Insights upload is deleted once store reads are live._
 
 Added: `tools/pr-open.sh`, `tools/check-quick.sh`, `tools/nx-cache-worker/`, `.github/CODEOWNERS`, the
 `nx-cache-write` environment.
@@ -390,7 +428,7 @@ drafts; subagents open their own pull requests; non-strict required checks; the 
 2 in 7 days; R2 for the build cache with master-only writes; workflows out of `sharedGlobals`;
 SonarQube in the local quick check (and the master watcher); the budget numbers in section 4.2.
 
-Settled since (main section 13 item 3, kept here for the reasoning):
+Settled since (main section 13 item 4, kept here for the reasoning):
 
 1. **Your GitHub token on this machine.** `~/.config/gh/hosts.yml` holds `apowers313`'s token with
    `repo` and `workflow` scopes, readable by every agent on this Unix account. While it is there, an

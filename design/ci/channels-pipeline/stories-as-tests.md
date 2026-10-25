@@ -38,7 +38,18 @@ function has finished, while the story is still mounted. Each step mirrors one s
 `shootOnce()` in `visual-review/capture/capture.mjs`, aiming for identical bytes. Nobody has shown yet
 that a shot inside Vitest's tester iframe matches capture.mjs's shot of Storybook's `iframe.html`
 (preview-head, the layout parameter's padding and `staticDirs` may differ), so section 9 starts with a
-spike that measures it:
+spike that measures it.
+
+**Build mode.** capture.mjs shoots the built Storybook: a production Vite build, production React,
+CSS in build order. Vitest browser mode serves through dev-server transforms by default: development
+React (StrictMode's double effects, dev-only warnings that can trip `failOnConsole`), CSS injected per
+module in import order, `import.meta.env.DEV` branches taken. So the story-test projects are
+configured for production semantics: `mode: "production"`, `define` of `process.env.NODE_ENV` as
+`"production"`, and the same CSS handling as `build-storybook`. Which mode the baselines represent is
+recorded in results.json (`environment.mode`). The spike measures dev against production mode as one
+of its variables; if byte parity with the built Storybook cannot be reached, the full run keeps one
+built-Storybook capture of the candidate (today's `visual` job, every project) as the shipped-bytes
+check that gates nightly, and the story tests' shots only inform.
 
 | Today (capture.mjs)                                                                                                                   | In the story test                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,12 +76,12 @@ today: `unchanged` (with `flaky: true` when only the second matched), `changed`,
 
 What the test does with the result:
 
-| Status                                                       | Test outcome on a pull request and in the full run                                                                                                                                                                                                 |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unchanged`, `moved`, `excluded`                             | Passes                                                                                                                                                                                                                                             |
-| `changed`, `new`                                             | Passes. The image is written for review (section 4). It never blocks a merge                                                                                                                                                                       |
-| `unstable` (two shots disagree)                              | A flaky test (results section 6.1): fails a pull request as `[NEW-FLAKY]` when the pull request touched the story's import closure or master never saw it unstable; otherwise quarantined with a `priority:critical` issue. Fails nothing silently |
-| `failed` (render error, never settled, `failOnConsole` line) | Fails, as the play test does today                                                                                                                                                                                                                 |
+| Status                                                       | Test outcome on a pull request and in the full run                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unchanged`, `moved`, `excluded`                             | Passes                                                                                                                                                                                                                                                                                   |
+| `changed`, `new`                                             | Passes. The image is written for review (section 4). It never blocks a merge                                                                                                                                                                                                             |
+| `unstable` (two shots disagree)                              | A flaky test (results section 6.1): fails a pull request as `[NEW-FLAKY]` when the pull request touched the story's import closure; otherwise `[FLAKY-UNRELATED]`, passing loudly, and the round's base check can quarantine it with a `priority:critical` issue. Fails nothing silently |
+| `failed` (render error, never settled, `failOnConsole` line) | Fails, as the play test does today                                                                                                                                                                                                                                                       |
 
 Code location: one new module, `visual-review/capture/story-test.mjs`, exporting the browser
 command (`visualShot`), the annotation (`visualAfterEach(project)`), the provider options
@@ -133,15 +144,20 @@ read-only on pull requests (with restore-keys, so an older tree still helps); th
 graphty's 285 MB, all seven projects 880 MB; the bytes each run downloads are recorded with its
 durations.
 
-**Shards.** graph-io-fidelity's 575 stories (19 to 22 minutes as one job) run in shards of at most 8
-minutes on a pull request and in the full run, as graphty-element's storybook project already runs in
-5, combined by `merge-results`.
+**Shards.** Every project whose selected stories can exceed 8 minutes runs them in shards of at most
+8 minutes, packed from the store's per-story durations, on a pull request and in the full run, as
+graphty-element's storybook project already runs in 5, combined by `merge-results`:
+graph-io-fidelity's 575 stories (19 to 22 minutes as one job), graphty's 399 in light and dark (13.5
+minutes in run 40051811635, and selected whole by any graphty-element `src/` change, since the import
+graph follows its stories into the element, or by a compact-mantine theme change), and
+compact-mantine's 1,004 (11 to 12 minutes). Each project's Stories budget comes from its measured
+capture time, not one shared value.
 
 **compact-mantine** is on Storybook 8.6.18 without the `storybookTest` plugin: its stories run from
 one hand-written file (`tests/stories/play.storybook.test.tsx`) that imports every story through an
 eager `import.meta.glob`. The import graph therefore selects all 1,004 stories for any compact-mantine
 change, and a per-story-file `afterEach` annotation does not apply. Until it is upgraded (section 9),
-every compact-mantine pull request runs its whole story set (about 11 minutes, budgeted as such).
+every compact-mantine pull request runs its whole story set (about 11 to 12 minutes, in shards of at most 8).
 
 **In the full run every 6 hours:** every story of every project, in both shards layouts as
 defined in `tools/ci-test-matrix.mjs`, plus `merge-results`. This is the capture the owner
@@ -214,10 +230,11 @@ The flow for a full run on master's tip, commit C:
    approval": a pending commit status `promotion/screenshots` on C, not a failure, so the pipeline
    round has nothing to fix. `visual-review notify` sends one push notification. The review page
    offers C's full run (today's `--master-run <run id>` path, renamed `--candidate`).
-3. **Decisions carry over by hash:** when a newer full run C2 starts while the owner is
-   reviewing, the page moves to C2, and every item whose `capture_sha` the owner already decided
-   arrives decided. An image that changed three times between promotions is looked at once, and a
-   Finish round is never repeated for an image whose bytes did not change.
+3. **The offered candidate is frozen.** _Superseded: the page no longer moves to a newer run._ The
+   page offers the oldest unpromoted green-images candidate C and keeps it until C is promoted or
+   rejected; a newer green-images candidate C2 queues behind it (the cut moving under review cost 3
+   to 6 Finish rounds per cut and a cancelled ship). When C2 is offered, every item whose
+   `capture_sha` the owner already decided arrives decided, so an image is never decided twice.
 4. **Finish** commits the accepted PNGs, the review record and the signed approval as one accept
    commit A whose parent is C, on branch `visual/approve-<C short sha>`. The review server runs as the
    agent account (`GH_CONFIG_DIR` from `.claude/settings.json`), so the agent pushes A and opens the
@@ -231,20 +248,28 @@ The flow for a full run on master's tip, commit C:
 5. **The accept pull request's light check** runs the stories whose baselines changed (rule 2 of
    section 5), but on `refs/pull/N/merge`, which is master's current tip merged with A, not C. A merge
    since C may have changed an approved story's rendering, so that result is reported and decides
-   nothing; the pull request merges on its other checks.
+   nothing: those Stories jobs run outside All Checks Pass, and the pull request auto-merges on its
+   cheap checks and PR Integrity's signature check (budgets section 4.6). Its merge is judged by
+   inheritance (`tools/release-diff.mjs`), so it starts no full run of its own.
 6. **The resume step** (release.yml's catch-up, channels section 5 and 7) runs the gate unchanged on
    C's own full-run capture against A's baselines. A's PNGs are byte copies of C's captures, so for
    every approved image `capture_sha == baseline_sha` and the gate reads it as `unchanged`; it still
    passes only with a passkey-signed statement of exactly A's baselines tree. The step first checks
-   that `git diff --name-only C A` holds only the two directories, then runs the gate from the
-   promoted side so a candidate cannot loosen it:
-   `git archive <channel/nightly> visual-review/trusted | tar -x -C "$gate"`, then
+   that `git diff --name-only C A` holds only the two directories, then runs the gate with the code
+   taken from master's tip at the full run's start (recorded in `channel.json`; both paths are
+   code-owned, so a candidate cannot loosen them unseen):
+   `git archive <run-start tip> visual-review/trusted | tar -x -C "$gate"`, then
    `node "$gate/visual-review/trusted/cli.mjs" gate --captures <C's capture> --base <channel/nightly> --head A`.
    A is in master's history once its pull request merged, so the gate's ancestry rule holds. Nothing
-   is re-rendered.
+   is re-rendered. C promotes when it is newer than `channel/nightly`.
 7. **Rejected images:** the review page names the pull request that changed each one (section 6);
-   the pipeline round reverts it or fixes forward on master, and the next full run is the next
-   candidate.
+   the pipeline round reverts it or fixes forward on master. C is dropped and the oldest queued
+   green-images candidate is offered, with the rejected images still rejected by hash until a pull
+   request changes them; with none queued, the next full run after the revert is the next candidate.
+8. **Green-clean is gated too.** A `green-clean` verdict runs `gate --base channel/nightly --head C`
+   before promoting: C's baselines tree must equal nightly's or carry a signed statement of exactly
+   that tree. Together with PR Integrity's signature check (budgets section 4.6), no baseline reaches
+   nightly without the owner's signature, whichever way it reached master.
 
 The gate step moves out of ci.yml into the promotion workflow; ci.yml's pull request runs have no
 gate step at all. That edit touches the gate step, which is the owner's to review; the owner's
@@ -256,8 +281,12 @@ visual-review/capture visual-review/trusted`), so a change to capture is first e
 run after it. On a pull request the story tests run the pull request's own `story-test.mjs`,
 which is acceptable because a pull request's screenshots decide nothing. The full run, whose
 captures the gate judges, replaces `visual-review/capture/` and `visual-review/trusted/` with the
-copies at the current nightly commit before running the story tests, the same `git archive` step
-as today. CODEOWNERS on `visual-review/trusted/`, `visual-review/capture/` and every
+copies at master's tip when the run starts before running the story tests, the same `git archive`
+step as today. _Superseded: earlier drafts took them from `channel/nightly`. That could deadlock: a
+capture or gate bug would make nearly every candidate green-images or refused, and its fix could
+reach the judging code only through a nightly promotion the bug itself blocked; before the first
+nightly there is no `channel/nightly` at all._ Master's copy is no less trusted, because the paths are
+code-owned; the first full run uses the flushed master's. CODEOWNERS on `visual-review/trusted/`, `visual-review/capture/` and every
 `.storybook/vitest.setup.*`, and the integrity check on vitest configs, mean a change that could
 loosen the capture needs the owner's review before it reaches master.
 
@@ -295,7 +324,8 @@ How mismatches are found, mechanically:
 
 **First, a spike** (rollout step 4), before the six-project plan is committed to: the visual step on 50
 stories each of graphty and graphty-element, both captures on the same CI runner, byte parity
-measured with `visual-review parity`. Its outcome decides the rest, and both outcomes are planned:
+measured with `visual-review parity`, in dev and in production mode (section 3). Its outcome decides
+the rest, and both outcomes are planned:
 
 - **Parity** (every hash equal, or every difference traced to a fixable harness bug): the projects
   migrate as below with no re-baselining.
@@ -338,20 +368,20 @@ time jumps shows up in the trend alarm like any other task.
 
 ## 10. Failure modes
 
-| Failure                                                   | Handling                                                                                                                                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The store is unreachable or slow                          | Fail open: the test still compares with the checkout's baseline; rows are lost, selection treats missing history as "run"                                                            |
-| A baseline is an LFS pointer                              | `readBaseline()` throws with "run git lfs pull"; the test fails with that message                                                                                                    |
-| A shard is killed mid-run                                 | Its partial directory is missing; `merge-results` writes an incomplete result; the gate refuses it; the full run's failed job is re-run                                              |
-| A story never settles                                     | The test fails (`failed`); there is no silent second try; recurrence is judged in the store                                                                                          |
-| Two shots disagree                                        | `unstable`: the flaky rule (results 6.1): `[NEW-FLAKY]` on the pull request that caused it, else quarantined with a critical issue                                                   |
-| A Playwright, Chromium or font bump                       | A global input: every story runs on that pull request; real changes wait for the owner at the next promotion                                                                         |
-| A new story                                               | `new`: passes on the pull request, the owner accepts its first baseline at promotion                                                                                                 |
-| A story renamed                                           | `renames.json` as today: `moved` when the picture is the same                                                                                                                        |
-| A pull request commits a PNG into `visual-baselines/`     | Its story reads `unchanged`, but the gate at promotion refuses a baselines tree without the owner's signed approval of exactly that tree, and CODEOWNERS requires the owner's review |
-| A pull request loosens the comparison code                | Its own screenshots decide nothing; the full run uses the capture code at the promoted nightly commit; CODEOWNERS covers the files                                                   |
-| The owner has not reviewed yet                            | Pending status; canary keeps moving; the next candidate carries earlier decisions by hash                                                                                            |
-| A story's picture depends on the story rendered before it | Found by the parity run (different from the fresh-context capture) or as `unstable`; fixed in the component or story                                                                 |
+| Failure                                                   | Handling                                                                                                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The store is unreachable or slow                          | Fail open: the test still compares with the checkout's baseline; rows are lost, selection treats missing history as "run"                                                                                    |
+| A baseline is an LFS pointer                              | `readBaseline()` throws with "run git lfs pull"; the test fails with that message                                                                                                                            |
+| A shard is killed mid-run                                 | Its partial directory is missing; `merge-results` writes an incomplete result; the gate refuses it; the full run's failed job is re-run                                                                      |
+| A story never settles                                     | The test fails (`failed`); there is no silent second try; recurrence is judged in the store                                                                                                                  |
+| Two shots disagree                                        | `unstable`: the flaky rule (results 6.1): `[NEW-FLAKY]` on the pull request that caused it, else quarantined with a critical issue                                                                           |
+| A Playwright, Chromium or font bump                       | A global input: every story runs on that pull request; real changes wait for the owner at the next promotion                                                                                                 |
+| A new story                                               | `new`: passes on the pull request, the owner accepts its first baseline at promotion                                                                                                                         |
+| A story renamed                                           | `renames.json` as today: `moved` when the picture is the same                                                                                                                                                |
+| A pull request commits a PNG into `visual-baselines/`     | PR Integrity fails it without a signed approval of the resulting tree (budgets section 4.6), and the verdict runs the gate on every promotion, green-clean included. CODEOWNERS does not cover the directory |
+| A pull request loosens the comparison code                | Its own screenshots decide nothing; the full run uses the capture code at master's tip, which CODEOWNERS covers, so the owner reviewed the change first                                                      |
+| The owner has not reviewed yet                            | Pending status; canary keeps moving; the offered candidate stays frozen and newer ones queue, carrying earlier decisions by hash                                                                             |
+| A story's picture depends on the story rendered before it | Found by the parity run (different from the fresh-context capture) or as `unstable`; fixed in the component or story                                                                                         |
 
 ## 11. What is deleted
 

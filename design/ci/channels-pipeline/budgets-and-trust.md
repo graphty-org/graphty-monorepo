@@ -51,15 +51,17 @@ example below shows the shape; the starting numbers are the main document's sect
     "version": 1,
     "defaults": { "warnRatio": 1.0, "hangRatio": 2.0, "minHangMinutes": 10, "owner": "pipeline" },
     "budgets": {
-        "run:ci.yml:pr": { "minutes": 15, "why": "light checks; the PR waits on this" },
+        "run:ci.yml:pr": { "minutes": 20, "why": "light checks; the PR waits on this" },
         "run:ci.yml:full": { "minutes": 60, "why": "green full runs measured 31-48 min" },
         "run:gpu.yml": { "minutes": 60, "why": "T4 lane measured about 50 min" },
         "run:hosts.yml": { "minutes": 60 },
-        "job:ci.yml:Build": { "minutes": 8, "why": "4.2 min median before #3415's regression" },
+        "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
         "step:ci.yml:Build:Build all": { "minutes": 6 },
         "task:graphty:build": { "minutes": 2, "why": "1m23s before the Sentry regression, 60-63 s after the fix" },
         "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
-        "job:ci.yml:visual (*)": { "minutes": 15 }
+        "job:ci.yml:Stories (graphty)": { "minutes": 8, "why": "13.5 min unsharded in 40051811635; sharded under 8" },
+        "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },
+        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" }
     }
 }
 ```
@@ -97,8 +99,10 @@ which:
 
 **One build for every event.** The Sentry regression hid because the plugin switched on only where
 `SENTRY_AUTH_TOKEN` was set, a push to master, so pull requests never paid for it. Rule: a build
-step gets the same inputs on every event; only upload and deploy steps after it may differ (the fix,
-commit 0436c01e02 on `perf/ci-build-sentry-after-build`, already does this). `ci-budgets.mjs lint`
+step gets the same inputs on every event; only upload and deploy steps after it may differ. The fix
+as committed (0436c01e02 on `perf/ci-build-sentry-after-build`) does not yet: its master-only step
+in the Build job rewrites graphty's dist, and "Build all" still reads `secrets.VITE_SENTRY_*`. It is
+changed before it lands (merging section 5.3). `ci-budgets.mjs lint`
 fails when a step running `nx` build targets has a `secrets.` value in its `env` or an `if:` on
 `github.event_name` or `github.ref`.
 
@@ -149,15 +153,18 @@ CREATE INDEX durations_key_time ON durations (key, run_kind, recorded_at);
 The Worker checks after every master or full-run `POST /durations` (`ci-budgets.mjs trend` runs the
 same code locally):
 
-- For each key, over master and full runs only: `recent` = median of the last 5 runs, `earlier` =
-  median of the 10 runs before them.
+- For each key and run kind (master, full and pull request runs alike, each compared only within
+  its kind): `recent` = median of the last 5 runs that ran that key, `earlier` = median of the 10 runs
+  before them. Pull-request-only keys (the plan step, story selection, Stories jobs, queue time) are
+  alarmed this way too, so a cold selector cache or an evicted LFS cache does not go unnoticed for days.
 - Alarm when `recent > budget`, or when `recent > 1.3 x earlier` and `recent - earlier >= 60 s`.
 - Suspects: master's first-parent merges between the last run under the line and the first over it;
   each merge is one pull request with its issue.
 - ONE issue per key (`CI budget: <key> <earlier> -> <recent>`; labels `bug`, `ci-budget`,
   `priority:high`, `effort:medium`, the owner label) listing runs, numbers and suspects; later alarms
-  comment on it. Filed by the Worker with a GitHub App installation token (issues: write only), the
-  App that `tools/release-scheduler/` already uses.
+  comment on it. The Worker only computes the alarm in its answer to `POST /durations`; the `timings`
+  job of a master or full run that receives it files or updates the issue with its own `GITHUB_TOKEN`
+  (`issues: write`). A pull request's `timings` job only comments on its own pull request.
 - It closes on an event: the first check with `recent` back under both lines.
 
 Against the record: at about 15 master pushes a day the Build regression fills 3 of the last 5
@@ -174,6 +181,32 @@ and its parent (the full-run section's bisect, with the task in place of the tes
   `timings` job in ci.yml, gpu.yml, hosts.yml, work-protection-macos.yml and release.yml.
 - Deleted: nothing; the old failing time gate is already gone (the reporter's header says so).
 
+### 1.8 Caches and Git LFS
+
+The Actions cache is already over its limit (10.5 GB of 10 GB in 169 entries, 2026-10-24), so GitHub
+evicts the least recently used entries, which is how the old nx cache failed (merging 5.1). Every key
+family, its size and how often it is written:
+
+| Family                         | Size         | Written by, how often                         | Kept                       |
+| ------------------------------ | ------------ | --------------------------------------------- | -------------------------- |
+| LFS baselines, one per project | 15 to 437 MB | master build when that project's tree changed | the newest key per project |
+| Selector import graphs         | about 10 MB  | master build when the graph inputs changed    | the newest key             |
+| Vitest duration history        | none         | moved to the store                            | none                       |
+| pnpm store (setup-node)        | about 600 MB | master build when the lockfile changed        | the newest key per OS      |
+
+The import-graph key is a hash of the inputs the graph is built from (package source trees, configs
+and the lockfile), not of the commit, and one set is about 10 MB (graphty-element's is 1.2 to 2.4
+MB; the "100 MB" figure was a local folder holding 368 accumulated versions). After saving, the
+master job deletes the superseded keys of its family (`gh cache delete`), so the total stays near
+1.5 GB and the LFS entries are not pushed out. The `timings` job records each job's cache hit or
+miss and the bytes Git LFS downloaded.
+
+The org's Git LFS allowance on Team is 250 GiB of bandwidth a month, and exceeding it blocks every
+checkout that needs baselines (design/visual-testing/roadmap.md:72). A full run on a cache miss
+pulls up to 880 MB; at about 6 full runs a day with misses that is 100 to 150 GB a month, so
+`bytes:lfs` warns at 150 GiB. If the hit rate stays low, the baselines move to R2 beside the nx
+cache, keyed by blob sha (same Cloudflare account, no egress cost).
+
 ---
 
 ## 2. The agent identity
@@ -189,22 +222,27 @@ and its parent (the full-run section's bisect, with the task in place of the tes
 
 ### 2.2 Keys on this machine
 
-| Credential                                                                                                                                                                                                                                  | Where                                                                | Used for                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
-| SSH authentication key `~/.ssh/graphty-agent_ed25519`                                                                                                                                                                                       | Added to the agent account                                           | `git push` of branches                               |
-| SSH signing key `~/.ssh/graphty-agent-signing_ed25519`                                                                                                                                                                                      | Added to the agent account as a signing key                          | Every agent commit shows "Verified" as graphty-agent |
-| Fine-grained personal access token, repository graphty-monorepo only: contents, pull requests, issues read/write; actions, checks, metadata read; workflows read/write (so a branch may carry a workflow change that CODEOWNERS then gates) | `gh auth login --with-token` into `GH_CONFIG_DIR=~/.config/gh-agent` | `gh` calls by agents                                 |
+| Credential                                                                                                                                                                                                                                                                                                                      | Where                                                                | Used for                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| SSH authentication key `~/.ssh/graphty-agent_ed25519`                                                                                                                                                                                                                                                                           | Added to the agent account                                           | `git push` of branches                               |
+| SSH signing key `~/.ssh/graphty-agent-signing_ed25519`                                                                                                                                                                                                                                                                          | Added to the agent account as a signing key                          | Every agent commit shows "Verified" as graphty-agent |
+| Fine-grained personal access token, repository graphty-monorepo only: contents, pull requests, issues, actions read/write (a dispatch is harmless: everything that publishes or deploys is environment-gated); checks, metadata read; workflows read/write (so a branch may carry a workflow change that CODEOWNERS then gates) | `gh auth login --with-token` into `GH_CONFIG_DIR=~/.config/gh-agent` | `gh` calls by agents                                 |
 
 How a session picks them up, with no secret in any committed file:
 
 - `.claude/settings.json` (committed) sets `"env": { "GH_CONFIG_DIR": "/home/apowers/.config/gh-agent" }`
   so every `gh` call an agent makes is the agent account.
-- `tools/worktree-new.sh` (reused, about 10 lines added) writes worktree-local git config, with
-  `extensions.worktreeConfig=true` set once in the main checkout:
-  `user.name graphty-agent`, `user.email <id>+graphty-agent@users.noreply.github.com`,
-  `gpg.format ssh`, `user.signingkey ~/.ssh/graphty-agent-signing_ed25519.pub`, `commit.gpgsign true`,
-  `core.sshCommand "ssh -i ~/.ssh/graphty-agent_ed25519 -o IdentitiesOnly=yes"`.
-  The memory rule "commit scripts must sign" still holds: agent commits are signed, by the agent key.
+- _Superseded (settled 17): no worktree-local identity._ `.claude/settings.json` also sets
+  `GIT_CONFIG_GLOBAL=/home/apowers/.config/git-agent/config`, which holds `user.name graphty-agent`,
+  `user.email <id>+graphty-agent@users.noreply.github.com`, `gpg.format ssh`,
+  `user.signingkey ~/.ssh/graphty-agent-signing_ed25519.pub`, `commit.gpgsign true`,
+  `core.sshCommand "ssh -i ~/.ssh/graphty-agent_ed25519 -o IdentitiesOnly=yes"` and
+  `url."git@github.com:".pushInsteadOf https://github.com/`, so pushes leave over the agent's SSH key
+  although `origin` stays an HTTPS URL, and no credential helper is configured. The memory rule
+  "commit scripts must sign" still holds: agent commits are signed, by the agent key.
+- servherd's servers do not inherit `.claude/settings.json`: `visual-review` and `pr-status-broker`
+  are started with `GH_CONFIG_DIR` and `GIT_CONFIG_GLOBAL` in their `servherd_start` env, so the
+  review server's accept commit and push are the agent's. Rollout step 3 checks the author of one.
 - `tools/commit-changes.sh` and the hooks need no change; they sign with whatever key git config
   names.
 - `MASTER_GUARD_TOKEN`, the optional token master-guard.yml uses so its revert pull requests start
@@ -214,10 +252,14 @@ How a session picks them up, with no secret in any committed file:
   URL, and pass PR Integrity as mechanical reverts (section 4.5).
 
 **Residual risk.** Agents run as the owner's Unix user, so they can read his `gh` token
-(`~/.config/gh/hosts.yml`) and use his GPG key. The split is real only once the owner runs
-`gh auth logout` here, moves his GPG key off the machine (or behind an uncached passphrase), and does
-owner-only actions (code-owner approvals, production approval, Finish) in the browser with his
-passkey. Until then it stops accidents, not a determined agent.
+(`~/.config/gh/hosts.yml`), use his GPG key, and ask git for his credentials: `~/.gitconfig` sets
+`credential.helper cache --timeout=2592000` and `credential.https://github.com.helper !/usr/bin/gh auth
+git-credential`, so after `gh auth logout` the cache can still hand out his token for up to 30 days.
+The split is real only once the owner runs `gh auth logout` and `git credential-cache exit`, removes
+both helpers from `~/.gitconfig` (or moves them to a config only his shell loads), puts his GPG key
+behind an uncached passphrase, and does owner-only actions in the browser with his passkey. The check
+that nothing is left: `printf 'url=https://github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential
+fill` prints no password. Until then it stops accidents, not a determined agent.
 
 ### 2.3 What gh and git do as the agent
 
@@ -240,13 +282,20 @@ Deliberately not owned, because the integrity check (section 4.1) covers what in
 check: test files, package vitest and Storybook configs, package CLAUDE.md files, the rest of
 `tools/`, and every `package.json` (a change to any `scripts` entry needs an owner approval through
 the integrity check, so a dependency bump stays unowned while redefining `lint:knip` as a no-op does
-not). Also not owned: `visual-baselines/` and `visual-review-approvals/`, which the visual gate's
-passkey-signed statement of the exact tree already covers.
+not). Also not owned: `visual-baselines/` and `visual-review-approvals/`. They are guarded by a check
+instead (section 4.6): PR Integrity fails a pull request that changes a baseline without a signed
+approval of the resulting tree, and the verdict runs the gate on every promotion.
+`release-approvals.json` is owned (main section 3).
 
 The first draft owned all of `tools/`, `.github/`, `.husky/` and every CLAUDE.md: 43 of the 117
 golden landings of 2026-10-18 to 10-24 would have waited for the owner. The narrow list holds 27,
-about 4 a day at today's rate and about 9 at 40 merges a day, which the pipeline round batches into
-one daily review list.
+about 4 a day at today's rate and about 9 at 40 merges a day. The integrity check adds more: a line
+heuristic over the 96 `land:` merges of the same week found 33 that removed a test or assertion line
+or changed a script (tmp/perf-review/integrity.sh), an overcount because rewrites count. The real
+check is replayed over those landings before step 3 and its number goes in main section 6.2; the
+daily review list is planned for the measured total. A code-owned fix for an open red, release-held
+or red-master issue, and each rollout step's pull request, skip the list and get their own
+`ACTION NEEDED` line the moment they are green.
 
 ---
 
@@ -267,7 +316,12 @@ release.yml as `RELEASE_DEPLOY_KEY`.
 ### 3.2 Target
 
 - bypass actors: `DeployKey` only. The release's version commit and tags are the one push to master
-  without a pull request, and it stays.
+  without a pull request, and it stays. The `DeployKey` actor exempts every deploy key with write
+  access on the repository, not one key, so a write key added later would bypass master and the tag
+  ruleset silently. The scheduler Worker (which already holds the App key and files an issue when it
+  cannot dispatch) checks once a day, with the App's Administration: read, that
+  `repos/graphty-org/graphty-monorepo/keys` holds exactly one write key, id 164375816, and that the
+  ruleset's bypass list is unchanged, and files a `priority:critical` issue otherwise.
 - pull request rule: `require_code_owner_review: true`, `required_approving_review_count: 0` (a pull
   request that touches no owned path needs no review and auto-merges on green),
   `dismiss_stale_reviews_on_push: true`, `require_last_push_approval: false`. GitHub documents
@@ -302,7 +356,12 @@ release.yml as `RELEASE_DEPLOY_KEY`.
       `environment: ${{ github.event_name == 'pull_request' && '' || 'full-run' }}`.
     - environment `master-build` (master only): `SENTRY_AUTH_TOKEN`, declared by the master-push
       Sentry upload job, which is not part of the full run.
-    - environment `dependabot-automerge` (master only): `AGENT_AUTOMERGE_TOKEN` (merging section 4.5).
+    - environment `dependabot-automerge` (master only): `AGENT_AUTOMERGE_TOKEN`, a fine-grained
+      agent token with Contents: write and Pull requests: write on graphty-monorepo only (enabling
+      auto-merge and the merge itself need Contents: write; merging section 4.5).
+    - The deploy key never leaves `release`: the `site-<sha>` tag is pushed by release.yml's `land`
+      job, and `channel/production` by promote.yml's `channel-ref` job in `release`. Main section
+      6.3 lists each job's environment and secrets.
 
 ### 3.3 Order of the change
 
@@ -340,7 +399,9 @@ checks on every pull request, over `git diff origin/master...HEAD`. It fails whe
 matching `*.test.*`, `*.spec.*`, `*.stories.*` or a vitest config:
 
 - a test file is deleted, or renamed with its tests removed;
-- the count of test declarations (`it(`, `test(`, `it.each(`, `test.each(` and story exports) drops;
+- the count of test declarations (`it(`, `test(`, `it.each(`, `test.each(` and story exports) drops,
+  counted per file net of the whole pull request and following renames (`git diff -M`), so a test
+  moved to another file or rewritten in place does not count as gone;
 - `.skip`, `.todo`, `.fails`, `.skipIf`, `.runIf`, `describe.skip` or `.only` is added;
 - the count of assertions (`expect(`, `assert`, `assert.`) in a file drops;
 - a timeout number grows (`timeout:`, `testTimeout`, `hookTimeout`, a `{ timeout: N }` argument to
@@ -350,8 +411,11 @@ matching `*.test.*`, `*.spec.*`, `*.stories.*` or a vitest config:
 - any `package.json` `scripts` entry changes (CI's commands are package scripts).
 
 It passes anyway when the pull request has an approving review from a code owner on its head
-commit; the check re-runs on `pull_request_review`, so the owner's approval clears it without
-another push. Legitimate deletions (a story removed with its feature, issue #3414 deleting a fake
+commit. The check runs on `pull_request` (opened, synchronize, edited, reopened) and
+`pull_request_review` (submitted, dismissed), never on comment events (an `issue_comment` run
+attaches to master's head and cannot satisfy a pull request's required check), so the owner's
+approval clears it without another push. Before it is required (rollout step 3) it is replayed over
+the 96 landings of 2026-10-18 to 10-24 and every false positive is fixed in the check. Legitimate deletions (a story removed with its feature, issue #3414 deleting a fake
 story) therefore cost one owner review, and say why in the pull request.
 
 Reused beside it: the `local/no-test-timing` lint rule (`tools/eslint-rules/no-test-timing.mjs`).
@@ -377,9 +441,13 @@ The check sees that proof was written; the fresh-context reviewer checks that it
 Before an agent enables auto-merge, a review subagent that has not seen the author's conversation
 reads only the issue, `git diff origin/master...HEAD` and the Proof section, using the existing
 `/code-review` skill at `high`. It posts its findings as one `COMMENT` review from the agent account
-with the marker `<!-- fresh-review <head sha> -->`. The author fixes or answers each finding before
-enabling auto-merge; a new push needs a new review. PR Integrity confirms a marker
-for the head commit: it catches forgetting, not malice, which CODEOWNERS and section 4.1 cover.
+with the marker `<!-- fresh-review <patch id> -->`, where the patch id is `git patch-id --stable` of
+`git diff origin/master...HEAD` with merge commits excluded: the branch's own change. PR Integrity
+recomputes it for the head. A merge of master into the branch (by `pr-open.sh` or the round) leaves
+it unchanged, so it needs no new review; a fix push or a conflict resolution changes it and needs one.
+The author fixes or answers each finding before `pr-open.sh` arms auto-merge. It catches forgetting,
+not malice, which CODEOWNERS and section 4.1 cover. Rollout step 3 tests both cases: a master merge
+keeps the check green, a fix push turns it red until a new review.
 
 ### 4.4 Lines added to CLAUDE.md
 
@@ -400,12 +468,23 @@ even a revert), and the grouped major stays held, so the guard must come before 
 | Pull request                                                                                                   | Proof | Fresh review | Test integrity | Why                                                                              |
 | -------------------------------------------------------------------------------------------------------------- | ----- | ------------ | -------------- | -------------------------------------------------------------------------------- |
 | A revert: its tree equals `git revert -m 1 <m>` of a first-parent merge `m` of master, recomputed by the check | no    | no           | no             | it restores a tree master already had; removing the culprit's tests is the point |
-| An accept pull request: touches only `visual-baselines/` and `visual-review-approvals/`                        | no    | no           | no             | the passkey-signed gate judges it at promotion                                   |
+| An accept pull request: touches only `visual-baselines/` and `visual-review-approvals/`                        | no    | no           | no             | its signed approval is checked instead (section 4.6)                             |
 | `dependabot[bot]`                                                                                              | no    | no           | yes            | no agent wrote it; a dependency bump never needs to drop a test                  |
 
 master-guard's and the round's reverts still carry a Proof naming the red run; the accept pull
 request is opened by the review server, which runs as the agent account. Each kind has a test in
 rollout step 3's done criteria.
+
+### 4.6 Baselines need the owner's signature
+
+PR Integrity fails any pull request that adds, changes or deletes a PNG or a story settings file
+under `visual-baselines/` (records under `visual-baselines/reviews/` aside) unless
+`visual-review-approvals/` holds a passkey-signed statement of exactly the pull request's resulting
+baselines tree, verified with master's own `visual-review/trusted/lib/approval.mjs` (`git archive
+origin/master`, never the pull request's copy). A revert, recomputed as in 4.5, restores a tree
+master already had and is excepted. The verdict job also runs the gate on every `green-clean`
+candidate (channels section 7), so a baseline that reached master any other way still cannot reach
+nightly unsigned.
 
 ---
 
@@ -414,8 +493,11 @@ rollout step 3's done criteria.
 The skill keeps its shape (one round, priority order, never waits in a turn, asks the owner once
 per item) and loses about two thirds of its 45 KB. In order:
 
-1. **Red full run.** The Worker has already dispatched the bisect (results section 5.2); the round
-   never starts a second one. It runs the GPU bisect on the local NVIDIA card only when `bisect.yml`
+_Superseded order: main section 12 wins. The red master build comes first, because a red build also
+blocks canary and every light check's cache; the red full run second._
+
+1. **Red full run.** release.yml has already dispatched the bisect (channels section 6); the round
+   starts one only when the store shows a red verdict with no bisect record, or cannot be reached. It runs the GPU bisect on the local NVIDIA card only when `bisect.yml`
    records `gpu: local`. When a culprit is named it opens the revert pull request as the agent unless
    the store records one open for that culprit (auto-merge on green), comments on the culprit's
    issue, and starts the fix forward on a branch.
@@ -424,7 +506,10 @@ per item) and loses about two thirds of its 45 KB. In order:
    can act.
 2. **Red master build or a master-guard revert pull request.** As today's section 1.
 3. **Flaky or load-sensitive tests** (`priority:critical`, from the store: passed and failed on the
-   same commit and inputs). Find the mechanism; never a longer wait.
+   same commit and inputs). Find the mechanism; never a longer wait. Also the base checks: for each
+   `[KNOWN?]` pull request failure with no master evidence, dispatch `base-check.yml` and re-run the
+   pull request's failed job if the base fails the same way; for each `[FLAKY-UNRELATED]` test,
+   dispatch `base-check.yml` with `repeat: 5`, whose master records can quarantine it.
 4. **CI budget alarms** (`ci-budget` issues). Read the suspect range, find the task's cause, revert
    or fix. A budget raise is its own pull request with its measurement, for the owner to review.
 5. **Promotion waiting on the owner.** When a green full run has changed screenshots, one
@@ -433,7 +518,9 @@ per item) and loses about two thirds of its 45 KB. In order:
 7. **Agent pull requests that are red, conflicted or have unanswered review findings.** Merge
    master into the branch (never rebase), fix, push. A pull request waiting on the owner's
    code-owner review is never merged with master unless it conflicts (the push would dismiss his
-   approval); all such pull requests go into one daily review list with one `ACTION NEEDED` line.
+   approval); all such pull requests go into one daily review list with one `ACTION NEEDED` line,
+   except a code-owned fix for an open red, release-held or red-master issue, or a rollout step's pull
+   request, which gets its own `ACTION NEEDED` line the moment it is green.
    Also: 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`, one `ACTION NEEDED` line to renew the token.
 8. **Finished worktrees.** `tools/worktree-cleanup.mjs`, as today.
 

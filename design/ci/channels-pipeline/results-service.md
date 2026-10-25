@@ -1,5 +1,7 @@
 # The test results service
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 Status: proposed, 2026-10-24. Issue #3418. Part of the channels pipeline design (canary, nightly and
 graphty.app; every branch reaches master through its own pull request; the full run every 6 hours).
 

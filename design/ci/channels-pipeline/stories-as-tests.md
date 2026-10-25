@@ -1,5 +1,7 @@
 # Stories as tests: screenshots taken and compared inside each story's test
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 Part of the channels pipeline design (canary.graphty.app = master, nightly.graphty.app,
 graphty.app = production). This section covers how Storybook screenshots are taken, compared,
 selected, recorded and approved once every branch reaches master through its own pull request.

@@ -1,5 +1,7 @@
 # Feature flags
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 How unfinished features land on master in small pieces without reaching readers or third-party
 consumers before they are ready, how one build of the graphty app serves three sites with
 different features switched on, how both configurations are tested, and how a flag is removed.

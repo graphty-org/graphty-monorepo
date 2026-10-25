@@ -1,5 +1,7 @@
 # CI time budgets, the agent identity, and the agent rules
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 This section of the channels pipeline design covers how long each part of CI may take and what
 happens when it takes longer; the GitHub account agents work under; removing the admin bypass from
 master's ruleset; the rules that keep a green check honest; and the new job of the pipeline round

@@ -1,5 +1,7 @@
 # Migration and deletion
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 Part of the channels pipeline design (issue #3418): how the repository gets from today's golden
 pipeline to the new one, in what order, how each step is undone and judged done, what is deleted,
 what is kept, and what only the owner can do. Terms: **canary** is master (canary.graphty.app);

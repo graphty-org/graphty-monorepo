@@ -1,5 +1,7 @@
 # Channels and promotion: canary, nightly, production
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 Status: design, 2026-10-24. Issue #3418. Part of the channels pipeline design
 (`design/ci/channels-pipeline/`); the pull request checks, the Cloudflare test store, stories as tests,
 feature flags and CI time budgets are their own sections and are only referenced here.

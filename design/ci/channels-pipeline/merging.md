@@ -1,5 +1,7 @@
 # Merging and fast pull-request checks
 
+Appendix of `design/ci/channels-pipeline.md`; where the two disagree, the main document wins.
+
 Part of the channels pipeline design. How a change gets from a branch to master: the pull request,
 the light check, CI's build and test selection, the build cache, the local habit that replaces the
 pre-push gate, when a merge queue comes back, and the GitHub API cost.

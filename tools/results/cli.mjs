@@ -45,7 +45,7 @@ export function fromLedger(r) {
         startedAt: Date.parse(r.started_at),
         secs: r.secs ?? 0,
         dirty: !!r.dirty,
-        note: `ledger ${r.kind}${r.branch ? ` on ${r.branch}` : ""}`,
+        note: r.branch ? `ledger ${r.kind} on ${r.branch}` : `ledger ${r.kind}`,
         files: (r.files ?? []).map(([file, passed, failed, skipped, ms]) => [file, passed, failed, skipped, ms]),
         failures: (r.failures ?? []).map((f) => ({
             file: f.file,

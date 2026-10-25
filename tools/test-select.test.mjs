@@ -1269,5 +1269,13 @@ describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md 
         assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0", " # x")), null, "settings change every package");
         assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0").replace("resolution: {}", "resolution: {x}")), null);
         assert.equal(changedImporters(null, lock("1.0.0")), null);
+        // graph-format's bump also re-resolved a package layout installs too: layout's own block is unchanged,
+        // but what it installs is not, so the change cannot be put on graph-format alone
+        const withShared = (fmtVer, sharedDep) =>
+            `${lock(fmtVer)}\nsnapshots:\n\n  shared@1.0.0:\n    dependencies:\n      dep: ${sharedDep}\n`;
+        assert.deepEqual(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.0.0")), [
+            "graph-format",
+        ]);
+        assert.equal(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.1.0")), null);
     });
 });

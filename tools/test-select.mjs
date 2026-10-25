@@ -108,38 +108,42 @@ const LOCK = "pnpm-lock.yaml";
 const FOLLOWS_IMPORTERS = new Set(["importers", "catalogs", "packages", "snapshots"]);
 
 /**
- * A pnpm lockfile's top-level sections and its importer blocks, as text.
+ * A pnpm lockfile's top-level sections and each section's entries (an importer, a package, a snapshot), as
+ * text.
  * @param text the lockfile
- * @returns `{ top: Map(section -> text), importers: Map(importer path -> text) }`
+ * @returns `{ top: Map(section -> text), entries: Map(section -> Map(entry key -> text)) }`
  */
 export function lockSections(text) {
     const top = new Map();
-    const importers = new Map();
+    const entries = new Map();
     let section = null;
-    let importer = null;
+    let entry = null;
     for (const line of text.split("\n")) {
         const head = /^(\S[^:]*):/u.exec(line);
         if (head) {
             section = head[1];
-            importer = null;
+            entry = null;
+            entries.set(section, new Map());
         }
-        const sub = section === "importers" && /^ {2}(\S.*):$/u.exec(line);
+        const sub = section !== null && /^ {2}(\S.*):$/u.exec(line);
         if (sub) {
-            importer = sub[1].replaceAll(/(?:^['"])|(?:['"]$)/gu, "");
+            entry = sub[1].replaceAll(/(?:^['"])|(?:['"]$)/gu, "");
         }
         top.set(section, `${top.get(section) ?? ""}${line}\n`);
-        if (importer !== null) {
-            importers.set(importer, `${importers.get(importer) ?? ""}${line}\n`);
+        if (entry !== null) {
+            const m = entries.get(section);
+            m.set(entry, `${m.get(entry) ?? ""}${line}\n`);
         }
     }
-    return { top, importers };
+    return { top, entries };
 }
 
 /**
  * The importers (package directories, "." for the root) whose resolved dependencies differ between two
  * lockfiles, as nx's projectsAffectedByDependencyUpdates "auto" reads them. null when the change cannot be
- * put on importers: a lockfile is missing, a section every package installs from changed, or the resolved
- * packages changed while no importer did.
+ * put on importers: a lockfile is missing, a section every package installs from changed, the resolved
+ * packages changed while no importer did, or a package or snapshot both lockfiles hold was rewritten (a
+ * re-resolved transitive dependency, which reaches importers whose own block did not change).
  * @param before the lockfile text at the base, or null
  * @param after the lockfile text at the head, or null
  * @returns importer paths, or null
@@ -151,10 +155,14 @@ export function changedImporters(before, after) {
     const a = lockSections(before);
     const b = lockSections(after);
     const differ = (x, y) => [...new Set([...x.keys(), ...y.keys()])].filter((k) => x.get(k) !== y.get(k));
-    const importers = differ(a.importers, b.importers);
+    const of = (s, sec) => s.entries.get(sec) ?? new Map();
+    const importers = differ(of(a, "importers"), of(b, "importers"));
     const sections = differ(a.top, b.top);
-    if (sections.some((k) => !FOLLOWS_IMPORTERS.has(k)) || (importers.length === 0 && sections.length > 0)) {
-        return null;
+    const rewritten = ["packages", "snapshots"].some((sec) =>
+        differ(of(a, sec), of(b, sec)).some((k) => of(a, sec).has(k) && of(b, sec).has(k)),
+    );
+    if (sections.some((k) => !FOLLOWS_IMPORTERS.has(k)) || importers.length === 0 || rewritten) {
+        return sections.length === 0 ? [] : null;
     }
     return importers;
 }

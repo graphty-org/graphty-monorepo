@@ -1,5 +1,4 @@
-// The pipeline-round and issue-round skills after golden's retirement (#3418): the interim rules sit above every
-// step, every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
+// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
 // command that now refuses, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
@@ -19,11 +18,9 @@ const claude = read("CLAUDE.md");
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 describe("pipeline-round skill", () => {
-    it("puts the interim rules above every step", () => {
-        assert.ok(flat.indexOf("**Interim rules") < flat.indexOf("### 1."));
-        assert.match(flat, /\*\*Production is frozen\.\*\*/);
-        assert.match(flat, /\*\*Screenshots still gate pull requests\.\*\*/);
-        assert.match(flat, /changes a screenshot\*\* gets its own immediate `ACTION NEEDED` line/);
+    it("names no interim rule: the skill describes only the channels pipeline", () => {
+        assert.doesNotMatch(flat, /\*\*Interim rules/);
+        assert.doesNotMatch(flat, /\bgolden\b/);
     });
 
     it("sends every fix through its own pull request from origin/master", () => {
@@ -34,8 +31,11 @@ describe("pipeline-round skill", () => {
 
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
         const at = (s) => flat.indexOf(s);
-        assert.ok(at("### 1. Red master") < at("### 3. Red pull requests"));
-        assert.ok(at("### 3. Red pull requests") < at("### 5. Finished branches with no pull request"));
+        assert.ok(at("### 1. Red master") >= 0);
+        assert.ok(at("### 1. Red master") < at("### 7. Red or conflicted agent pull requests"));
+        assert.ok(
+            at("### 7. Red or conflicted agent pull requests") < at("### 8. Finished branches with no pull request"),
+        );
         assert.match(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -71,7 +71,7 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const step = flat.slice(flat.indexOf("### 3. Red pull requests"), flat.indexOf("### 4."));
+        const step = flat.slice(flat.indexOf("### 7. Red or conflicted agent pull requests"), flat.indexOf("### 8."));
         assert.match(step, /opened by graphty-agent \(its `author`\)/);
         assert.match(step, /#1677/);
     });
@@ -95,9 +95,7 @@ describe("CLAUDE.md", () => {
 
 // The channels pipeline (design/ci/channels-pipeline.md section 12) rewrites the skill to work in this
 // order, and deletes the golden landing tools. `channelsProblems` lists what keeps a skill from that
-// shape. Until the rewrite (#3446) lands, the real skill's check is a todo: it runs and reports what is
-// missing without failing the run; the rewrite removes the `todo` option, and the golden-era tests above
-// go with it.
+// shape; the real skill must have none.
 const ROUND_ORDER = [
     ["red master build and its reverts", /red master/i],
     ["red full run", /full run/i],
@@ -162,11 +160,13 @@ describe("pipeline-round skill in the channels order", () => {
         );
     });
 
-    it(
-        "the skill follows the channels order and names no deleted command",
-        { todo: "until #3446 rewrites the skill" },
-        () => {
-            assert.deepEqual(channelsProblems(skill), []);
-        },
-    );
+    it("the skill follows the channels order and names no deleted command", () => {
+        assert.deepEqual(channelsProblems(skill), []);
+    });
+
+    it("names the full run's, flaky and budget tools the design names", () => {
+        for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[KNOWN?]", "[FLAKY-UNRELATED]"]) {
+            assert.ok(skill.includes(name), name);
+        }
+    });
 });

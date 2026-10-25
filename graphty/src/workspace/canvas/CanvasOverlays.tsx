@@ -10,7 +10,7 @@ import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { KeyRoom, LegendCard } from "./LegendCard";
+import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
@@ -252,7 +252,6 @@ export function CanvasOverlays(): React.JSX.Element | null {
 
     return (
         <>
-            {legendShown && keyed ? <KeyRoom /> : null}
             {/* Asked for over nothing, the card says nothing is styled yet. */}
             {legendShown && (keyed || legendAsked) ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}

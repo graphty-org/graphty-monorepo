@@ -5794,6 +5794,9 @@ export class Graph implements GraphContext {
             return;
         }
 
+        // Nothing a pass tracks moves with the camera, so the last frame would still count as final.
+        this.updateManager.viewMoved();
+
         // Get the active camera controller
         const controller = this.camera.getActiveController();
 

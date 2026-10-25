@@ -1481,7 +1481,15 @@ export class Graphty extends LitElement {
     set dataSource(value: string | undefined) {
         const oldValue = this.dataSource;
         if (typeof value === "string" && value !== "") {
-            this.#importSource({ type: value, config: this.#source().config ?? this.#assigned.config });
+            // Once the pair's load is recorded, the graph keeps only a description of its
+            // configuration (no `data`, no `file`); the pair this element loaded is the
+            // configuration as assigned, so re-assigning the same type re-assigns that pair.
+            const loaded = this.#loadedPair;
+            const config =
+                loaded?.type === value && this.#source().type === value
+                    ? loaded.config
+                    : (this.#source().config ?? this.#assigned.config);
+            this.#importSource({ type: value, config });
         }
 
         this.requestUpdate("dataSource", oldValue);

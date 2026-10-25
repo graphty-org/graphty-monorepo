@@ -3334,7 +3334,7 @@ describe("release.yml", () => {
 
     it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
         const due = llm.indexOf("run: node tools/llm-due.mjs");
-        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@v4"), "decides before installing anything");
+        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@v6"), "decides before installing anything");
         assert.match(llm, /id: due\n/);
         assert.match(llm, /actions: read/);
         // every step after the decision is skipped when the lane is not due, so the job passes without paying

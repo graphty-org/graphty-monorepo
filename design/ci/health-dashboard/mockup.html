@@ -898,11 +898,12 @@
             <span class="spacer"></span>
             <span class="hdr-meta"
                 ><span class="range">09-28 to 10-25 UTC</span
-                ><span
+                ><a href="#sources" title="worst source state against its age and volume limits"
                     ><svg class="ic" viewBox="0 0 12 12">
-                        <path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="var(--good)" stroke-width="2" />
+                        <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                        <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
                     </svg>
-                    worst data age 9 min</span
+                    sources: 1 warn, 1 no data</a
                 ></span
             >
         </header>
@@ -956,9 +957,9 @@
                         <span class="b-run" style="width: 59.4%"></span><span class="b-q" style="width: 40.6%"></span
                         ><span class="b-lim" style="left: 59.4%"></span>
                     </div>
-                    <div class="tf">
-                        <span>longest wait <b>23 min</b></span
-                        ><span>limit 60, wait 5 min</span>
+                    <div class="tf" style="flex-direction: column; align-items: flex-start">
+                        <span>wait <b>23 min</b></span
+                        ><span>limit 60, warn 5 min</span>
                     </div>
                     <div class="src">jobs, 1 min</div></a
                 ><a class="tile t-ok" href="#ci"
@@ -1060,9 +1061,9 @@
                             >warn</span
                         >
                     </div>
-                    <div class="tv">12<span class="tu">jobs</span></div>
-                    <div class="ts">9 warn, 3 hang</div>
-                    <div class="tf"><span>+4</span><span>any hang = warn</span></div></a
+                    <div class="tv">13<span class="tu">jobs</span></div>
+                    <div class="ts">9 warn, 4 hang, none in 24 h</div>
+                    <div class="tf"><span>+4</span><span>hang in 24 h = bad</span></div></a
                 ><a class="tile t-ok" href="#ci"
                     ><div class="th">
                         <span class="tn">CI minutes</span><span class="scope">partial</span
@@ -1117,7 +1118,7 @@
                         class="area f-s2"
                     />
                     <line x1="40" x2="1352" y1="65.27272727272727" y2="65.27272727272727" class="limit" />
-                    <text x="1350" y="62.272727272727266" class="limit-t" text-anchor="end">limit 60 (org)</text>
+                    <text x="44" y="62.272727272727266" class="limit-t" text-anchor="start">limit 60 (org)</text>
                     <text x="1320.715350223547" y="17.163636363636357" class="band-label" text-anchor="end">
                         saturated 6 h today
                     </text>
@@ -1697,12 +1698,12 @@
                     <span class="seg f-s1" style="width: 48%" title="ci.yml pr: 48%">ci.yml pr 48%</span
                     ><span class="seg f-s4" style="width: 22%" title="release.yml: 22%">release.yml 22%</span
                     ><span class="seg f-s3" style="width: 9%" title="hosts.yml: 9%">9%</span
-                    ><span class="seg f-c1" style="width: 5%" title="gpu.yml (T4): 5%"></span
+                    ><span class="seg" style="width: 5%; background: var(--ink2)" title="gpu.yml (T4): 5%"></span
                     ><span class="seg f-s5" style="width: 16%" title="other: 16%">16%</span>
                 </div>
                 <div class="legend">
                     <span class="lg"><i class="sw f-s3"></i>hosts.yml <b>9%</b></span
-                    ><span class="lg"><i class="sw f-c1"></i>gpu.yml (T4) <b>5%</b></span
+                    ><span class="lg"><i class="sw" style="background: var(--ink2)"></i>gpu.yml (T4) <b>5%</b></span
                     ><span class="lg"><i class="sw f-s5"></i>other <b>16%</b></span>
                 </div>
             </div>
@@ -1821,7 +1822,7 @@
                     <div class="tf"><span></span><span>p50 60 min</span></div></a
                 ><a class="tile t-warn" href="#prs"
                     ><div class="th">
-                        <span class="tn">Screenshots</span><span class="scope">now</span
+                        <span class="tn">Review backlog</span><span class="scope">now</span
                         ><span class="st st-warn"
                             ><svg class="ic" viewBox="0 0 12 12">
                                 <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
@@ -3726,7 +3727,7 @@
                 </div>
                 <div class="card">
                     <h3>
-                        Time to merge distribution <span class="unit">n=1,004 merged</span
+                        Time to merge distribution <span class="unit">n=1,004 merged; amber = over 60 min target</span
                         ><span class="age">pull requests</span>
                     </h3>
                     <svg
@@ -3748,11 +3749,11 @@
                             <title>30-60: 290</title>
                         </rect>
                         <text x="231.25" y="117" class="tick" text-anchor="middle">30-60</text>
-                        <rect x="271.5" y="46.82131661442006" width="72.5" height="57.17868338557994" class="f-s1">
+                        <rect x="271.5" y="46.82131661442006" width="72.5" height="57.17868338557994" class="f-over">
                             <title>1-2h: 190</title>
                         </rect>
                         <text x="307.75" y="117" class="tick" text-anchor="middle">1-2h</text>
-                        <rect x="348" y="70.89655172413794" width="72.5" height="33.103448275862064" class="f-s1">
+                        <rect x="348" y="70.89655172413794" width="72.5" height="33.103448275862064" class="f-over">
                             <title>2-4h: 110</title>
                         </rect>
                         <text x="384.25" y="117" class="tick" text-anchor="middle">2-4h</text>
@@ -3790,13 +3791,13 @@
                         <line x1="40" x2="652" y1="8" y2="8" class="grid" />
                         <text x="36" y="11" class="tick" text-anchor="end">40</text>
                         <text x="116.5" y="117" class="tick" text-anchor="middle"></text>
-                        <rect x="70.6" y="89.6" width="91.8" height="14.400000000000006" class="f-s4" />
+                        <rect x="70.6" y="89.6" width="91.8" height="14.400000000000006" class="f-c0" />
                         <text x="116.5" y="86.6" class="limit-t" text-anchor="middle">6% n=412</text>
                         <text x="116.5" y="117" class="tick" text-anchor="middle">1-10 lines</text>
-                        <rect x="223.6" y="77.6" width="91.8" height="26.400000000000006" class="f-s4" />
+                        <rect x="223.6" y="77.6" width="91.8" height="26.400000000000006" class="f-c0" />
                         <text x="269.5" y="74.6" class="limit-t" text-anchor="middle">11% n=388</text>
                         <text x="269.5" y="117" class="tick" text-anchor="middle">11-100 lines</text>
-                        <rect x="376.6" y="58.4" width="91.8" height="45.6" class="f-s4" />
+                        <rect x="376.6" y="58.4" width="91.8" height="45.6" class="f-c0" />
                         <text x="422.5" y="55.4" class="limit-t" text-anchor="middle">19% n=201</text>
                         <text x="422.5" y="117" class="tick" text-anchor="middle">101-1,000 lines</text>
                         <rect x="529.6" y="22.400000000000006" width="91.8" height="81.6" class="hollow" />
@@ -3833,7 +3834,9 @@
             </div>
             <div class="card">
                 <h3>
-                    Open pull requests <span class="unit">non-draft, oldest first; bar = time by phase</span
+                    Open pull requests
+                    <span class="unit"
+                        >4 of 11 non-draft, oldest first; bar = time by phase; <a href="#">all 11</a></span
                     ><span class="age">broker, 1 min</span>
                 </h3>
                 <table>
@@ -3982,7 +3985,7 @@
         </section>
         <section id="flaky" class="page">
             <div class="band-h">Flaky tests -- 28 d, per day</div>
-            <div class="tiles" style="grid-template-columns: repeat(7, minmax(0, 1fr))">
+            <div class="tiles" style="grid-template-columns: repeat(8, minmax(0, 1fr))">
                 <a class="tile t-ok" href="#flaky"
                     ><div class="th">
                         <span class="tn">Newly flaky</span
@@ -4046,7 +4049,7 @@
                     <div class="tf"><span></span><span>under 1</span></div></a
                 ><a class="tile t-ok" href="#flaky"
                     ><div class="th">
-                        <span class="tn">Quarantined</span><span class="scope">now</span
+                        <span class="tn">In quarantine</span><span class="scope">now</span
                         ><span class="st st-ok"
                             ><svg class="ic" viewBox="0 0 12 12">
                                 <path
@@ -4061,6 +4064,19 @@
                     <div class="tv">1<span class="tu"></span></div>
                     <div class="ts">oldest 3 d (#3485)</div>
                     <div class="tf"><span></span><span>warn 7 d</span></div></a
+                ><a class="tile t-warn" href="#flaky" title="met the flaky rule in CI in 7 d, no quarantine entry"
+                    ><div class="th">
+                        <span class="tn">Flaky, no entry</span><span class="scope">7 d</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">1<span class="tu"></span></div>
+                    <div class="ts">#3490, 9 PRs</div>
+                    <div class="tf"><span></span><span>warn 1</span></div></a
                 ><a class="tile t-ok" href="#flaky"
                     ><div class="th">
                         <span class="tn">Detected to fixed</span
@@ -4697,8 +4713,7 @@
                     ><span class="mxc" style="opacity: 1" title="10-23: 0"></span
                     ><span class="mxc" style="opacity: 1" title="10-24: 0"></span
                     ><span class="mxc mxp" style="opacity: 1" title="10-25: 0"></span><span class="num">2</span
-                    ><span class="mxt"
-                        ><i class="qd" title="quarantined"></i>storybook-2: Layout/ForceAtlas2 seeded</span
+                    ><span class="mxt">storybook-2: Layout/ForceAtlas2 seeded</span
                     ><span class="mxc" style="opacity: 1" title="09-28: 0"></span
                     ><span class="mxc" style="opacity: 1" title="09-29: 0"></span
                     ><span class="mxc" style="opacity: 1" title="09-30: 0"></span
@@ -4860,64 +4875,6 @@
                     ><span class="mxc" style="opacity: 1" title="10-16: 0"></span
                     ><span class="mxc" style="opacity: 1" title="10-17: 0"></span
                     ><span class="mxc" style="opacity: 0.63; background: var(--c1)" title="10-18: 2"></span
-                    ><span class="mxc" style="opacity: 1" title="10-19: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-20: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-21: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-22: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-23: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-24: 0"></span
-                    ><span class="mxc mxp" style="opacity: 1" title="10-25: 0"></span><span class="num">0</span
-                    ><span class="mxt">interactions: pinch zoom clamps</span
-                    ><span class="mxc" style="opacity: 1" title="09-28: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="09-29: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="09-30: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-01: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-02: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-03: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-04: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-05: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-06: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-07: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-08: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-09: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-10: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-11: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-12: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-13: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-14: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-15: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-16: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-17: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-18: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-19: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-20: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-21: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-22: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-23: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-24: 0"></span
-                    ><span class="mxc mxp" style="opacity: 1" title="10-25: 0"></span><span class="num">0</span
-                    ><span class="mxt">storybook-4: StyleManager repaint</span
-                    ><span class="mxc" style="opacity: 1" title="09-28: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="09-29: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="09-30: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-01: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-02: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-03: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-04: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-05: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-06: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-07: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-08: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-09: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-10: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-11: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-12: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-13: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-14: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-15: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-16: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-17: 0"></span
-                    ><span class="mxc" style="opacity: 1" title="10-18: 0"></span
                     ><span class="mxc" style="opacity: 1" title="10-19: 0"></span
                     ><span class="mxc" style="opacity: 1" title="10-20: 0"></span
                     ><span class="mxc" style="opacity: 1" title="10-21: 0"></span
@@ -5613,8 +5570,11 @@
                     <h3>
                         Stability
                         <span class="k"
-                            ><span><i style="border-color: var(--s1)"></i>CFR nightly</span
-                            ><span><i style="border-color: var(--s4)"></i>rework rate = canary CFR</span></span
+                            ><span><i style="border-color: var(--s4)"></i>rework rate = canary CFR</span
+                            ><span
+                                ><i style="border-color: var(--hatch); background: var(--hatch)"></i>CFR nightly: no
+                                data</span
+                            ></span
                         >
                         <span class="unit">% per week; production CFR 0 of 2 promotions; restore p50 3.2 h</span
                         ><span class="age">git + issues</span>
@@ -5637,9 +5597,9 @@
                         <text x="422.5" y="107" class="tick" text-anchor="middle">wk 10-12</text>
                         <text x="575.5" y="107" class="tick" text-anchor="middle">partial wk</text>
                         <line x1="40" x2="652" y1="29.5" y2="29.5" class="target" />
-                        <text x="650" y="26.5" class="limit-t" text-anchor="end">CFR target 15%</text>
-                        <path d="M116.5,68.2L269.5,55.3L422.5,76.8" class="ln s1" />
-                        <path d="M422.5,76.8L575.5,81.1" class="ln s1 stub" />
+                        <text x="650" y="26.5" class="limit-t" text-anchor="end">nightly CFR target 15%</text>
+                        <rect x="40" y="70" width="612" height="24" fill="url(#hatch)" />
+                        <text x="46" y="86" class="tick">CFR nightly: no data, no promotions</text>
                         <path d="M116.5,59.6L269.5,46.7L422.5,63.9" class="ln s4" />
                         <path d="M422.5,63.9L575.5,72.5" class="ln s4 stub" />
                     </svg>
@@ -6321,7 +6281,7 @@
                         >
                     </div>
                     <div class="tv">97<span class="tu">%</span></div>
-                    <div class="ts">build + full run | full run 2.4 h ago</div>
+                    <div class="ts">build + full run | full run 2.1 h ago</div>
                     <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
                         <path
                             d="M0.0,15.5L3.7,22.0L7.4,19.1L11.1,5.3L14.8,8.2L18.5,8.5L22.2,15.1L25.9,6.7L29.6,4.5L33.3,7.8L37.0,10.6L40.7,12.4L44.4,16.8L48.1,15.7L51.9,13.9L55.6,13.9L59.3,12.4L63.0,9.3L66.7,10.5L70.4,11.1L74.1,9.2L77.8,6.1L81.5,6.9L85.2,4.0L88.9,15.0L92.6,14.1L96.3,4.6L100.0,4.3"
@@ -6418,8 +6378,8 @@
                         ><span class="b-lim" style="left: 59.4%"></span>
                     </div>
                     <div class="tf">
-                        <span>longest wait <b>23 min</b></span
-                        ><span>limit 60, wait 5 min</span>
+                        <span>wait <b>23 min</b></span
+                        ><span>limit 60, warn 5 min</span>
                     </div>
                     <div class="src">jobs, 1 min</div></a
                 >
@@ -7270,6 +7230,20 @@
                                 <td>flake block, from 1st fail</td>
                                 <td class="num">26 h</td>
                                 <td><a href="#">#3497</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-warn"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                            <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                                        >warn</span
+                                    >
+                                </td>
+                                <td class="what">Flaky, not quarantined: storybook-2 ForceAtlas2 (9 PRs)</td>
+                                <td>flaky in CI, from 1st flake</td>
+                                <td class="num">4 d</td>
+                                <td><a href="#">#3490</a></td>
                             </tr>
                         </tbody>
                     </table>

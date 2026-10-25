@@ -254,6 +254,19 @@ describe("pr-open.sh", () => {
         ]);
     });
 
+    it("leaves auto-merge off for a path master's CODEOWNERS owns", () => {
+        mkdirSync(join(work, ".github"), { recursive: true });
+        writeFileSync(join(work, ".github/CODEOWNERS"), "# owned\n/nx.json @o\n**/.storybook/vitest.setup.* @o\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "owners");
+        git(work, "push", "-q", "origin", "master");
+        branch("ci/1246-nx", { "nx.json": "{}\n", "graphty/.storybook/vitest.setup.ts": "x\n" }, "ci(ci): change nx");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /guards the owner: graphty\/\.storybook\/vitest\.setup\.ts nx\.json/);
+        assert.equal(armed().length, 0);
+    });
+
     it("never arms auto-merge on a pull request someone else opened", () => {
         branch("fix/1245-owners");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });

@@ -121,6 +121,13 @@ fi
 # What only the owner merges. A pull request runs its own copy of ci.yml and the files it reads, so a change to
 # them would judge itself; the others guard the owner's credentials, approvals and releases.
 OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$)'
+# Plus every path master's .github/CODEOWNERS owns, as an ERE: a leading / anchors, a trailing / is a
+# directory, ** is any number of directories, * stays inside one. The list above stays as the floor.
+owners=$(git show "$base:.github/CODEOWNERS" 2>/dev/null |
+    sed -nE 's/^([^#[:space:]]+)[[:space:]].*/\1/p' |
+    sed -E 's/[.+?()|{}^$]/\\&/g; s#\*\*/#@#g; s#\*#[^/]*#g; s#@#(.*/)?#g; s#^/#^#; s#^([^^])#(^|/)\1#; s#([^/])$#\1$#' |
+    paste -sd'|' -) || true
+[ -z "$owners" ] || OWNER_PATHS="$OWNER_PATHS|$owners"
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then

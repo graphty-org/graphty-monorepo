@@ -78,7 +78,7 @@ jobs:
               run: |
                   node tools/bisect-ci.mjs plan --out state.json
                   echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with: { name: bisect-state, path: state.json, retention-days: 14 }
 
     # A point of the ci or LLM lane: master's copy of the tool runs the point's own tree, with its own shard commands.
@@ -114,7 +114,7 @@ jobs:
             - name: Build every package
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
               run: pnpm exec nx run-many -t build
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: "${{ runner.temp }}/state" }
             - name: Run the failing files
               env:
@@ -126,7 +126,7 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/result"
                   node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
                       --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with: { name: "bisect-result-${{ matrix.sha }}", path: "${{ runner.temp }}/result/", retention-days: 14 }
 
     # The lane workflows, one point a round, each in a concurrency group of its own (bisect-<bad>-<point>).
@@ -169,9 +169,9 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with: { sparse-checkout: tools }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: state }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               if: ${{ inputs.lane == 'ci' || inputs.lane == 'llm' }}
               with: { pattern: bisect-result-*, path: results, merge-multiple: true }
             - name: A lane point is judged by its one run
@@ -202,6 +202,6 @@ jobs:
             - name: Keep the answer
               if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
               run: cp "$([ -f next.json ] && echo next.json || echo state/state.json)" answer.json
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
               with: { name: bisect-answer, path: answer.json, retention-days: 90 }

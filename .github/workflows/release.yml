@@ -591,7 +591,7 @@ jobs:
 
             - name: Download the screenshot captures
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual
@@ -805,13 +805,13 @@ jobs:
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
             # publish (gh run rerun <id> --failed) still finds them (CI keeps its own for a day).
             - name: Download the tested commit's builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the publish job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
@@ -859,7 +859,7 @@ jobs:
             # The version commit itself, so the land job pushes exactly this commit (the tags name it, and the
             # publish job checks it out) without running nx again.
             - name: Keep the version commit for the land job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/release.bundle
@@ -925,7 +925,7 @@ jobs:
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
             - name: Download the version commit
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/release
@@ -1046,7 +1046,7 @@ jobs:
                       --what "Publishing on re-run ${GITHUB_RUN_ATTEMPT}" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
             - name: Download the tested builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds

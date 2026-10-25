@@ -147,7 +147,10 @@ export function referencedFiles(root, file, index) {
  */
 export function unownedClosure(root, rules) {
     const index = pathIndex(root);
-    const owned = [...index.files].filter((f) => isOwned(rules, f) && FOLLOWED.test(f) && !NOT_ROOT.test(f));
+    // A file left out when reached (a test an owned directory or glob covers) starts no walk either.
+    const owned = [...index.files].filter(
+        (f) => isOwned(rules, f) && FOLLOWED.test(f) && !NOT_ROOT.test(f) && !leftOut(f),
+    );
     const seen = new Map(owned.map((f) => [f, { from: f, via: null }]));
     const todo = [...owned];
     const unowned = new Map();

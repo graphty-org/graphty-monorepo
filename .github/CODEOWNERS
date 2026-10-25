@@ -1,25 +1,29 @@
-# Paths that can loosen a check or take authority wait for the owner's review
-# (design/ci/channels-pipeline.md, section 6.2). Everything else merges on green.
+# What only the owner merges: the files that decide whether a pull request passes (a pull request runs its
+# own copy of them, so a change here would judge itself), the screenshot gate, the release and the agents'
+# own guards (design/ci/channels-pipeline.md, section 6.2). Everything else merges on green. It takes effect
+# once the master ruleset requires a code owner's review. tools/pr-open.sh reads this file and leaves
+# auto-merge off for a pull request that changes an owned path.
 #
 # Owned closure: tools/check-owned-closure.mjs fails when an owned script or workflow reaches an
 # unowned file through its imports or the paths it runs; such a file is added below, in its own
 # pull request. Test files are deliberately not owned (the integrity check covers them).
 
-/.github/workflows/ @apowers313
-/.github/CODEOWNERS @apowers313
+/.github/ @apowers313
 /.claude/ @apowers313
 /CLAUDE.md @apowers313
+/tools/ci-* @apowers313
+/tools/test-quarantine.json @apowers313
+/tools/test-quarantine.mjs @apowers313
+/tools/test-select* @apowers313
+/tools/claude-owner-credential-guard.mjs @apowers313
+/visual-review/ @apowers313
+/visual-review.config.json @apowers313
+/release-*.json @apowers313
 /ci-budgets.json @apowers313
-/release-hold.json @apowers313
-/release-approvals.json @apowers313
 /nx.json @apowers313
 /vitest.shared.config.ts @apowers313
 /vitest.ci-junit.mjs @apowers313
 **/.storybook/vitest.setup.* @apowers313
-/visual-review/trusted/ @apowers313
-/visual-review/capture/ @apowers313
-/visual-review/passkeys.json @apowers313
-/visual-review.config.json @apowers313
 /graphty/sites/nightly.json @apowers313
 /graphty/sites/production.json @apowers313
 
@@ -40,17 +44,13 @@
 /tools/release-version.sh @apowers313
 /tools/publish-hold.mjs @apowers313
 /tools/changelog-renderer.cjs @apowers313
-/tools/ci-test-matrix.mjs @apowers313
 /tools/run-tests.sh @apowers313
-/tools/test-select.mjs @apowers313
-/tools/test-select-rules.json @apowers313
 
 # tools/: the integrity, features, budgets, pull request and quick-check scripts
 /tools/check-test-integrity.mjs @apowers313
 /tools/check-owned-closure.mjs @apowers313
 /tools/pr-integrity.mjs @apowers313
 /tools/check-features.mjs @apowers313
-/tools/ci-budgets.mjs @apowers313
 /tools/pr-open.sh @apowers313
 /tools/pr-review.sh @apowers313
 /tools/check-quick.sh @apowers313
@@ -67,8 +67,6 @@
 /tools/assemble-pages-site.sh @apowers313
 /tools/check-links.sh @apowers313
 /tools/check-storybook-links.mjs @apowers313
-/tools/ci-advisory-checks.json @apowers313
-/tools/ci-reuse-plan.mjs @apowers313
 /tools/claude-area-rules.mjs @apowers313
 /tools/claude-no-foreground-wait.mjs @apowers313
 /tools/eslint-rules/no-test-timing.mjs @apowers313
@@ -82,8 +80,6 @@
 /tools/restricted-cpu-stress.mjs @apowers313
 /tools/shard-verdict.mjs @apowers313
 /tools/test-ledger.mjs @apowers313
-/tools/test-quarantine.json @apowers313
-/tools/test-quarantine.mjs @apowers313
 /tools/test-select-mutate.mjs @apowers313
 /tools/test-slots.mjs @apowers313
 /tools/visual-capture-plan.mjs @apowers313
@@ -95,8 +91,3 @@
 /tsconfig.base.json @apowers313
 /vite.shared.config.ts @apowers313
 /vitest.browser-coverage-setup.ts @apowers313
-
-# Kept from the list this replaced: the rest of .github/ (the pull request template, Dependabot's
-# settings, the composite actions) and the agents' credential guard.
-/.github/ @apowers313
-/tools/claude-owner-credential-guard.mjs @apowers313

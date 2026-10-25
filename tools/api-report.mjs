@@ -154,6 +154,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "path",
     "mediaType",
     "color",
+    // the hex color the background is drawn in (SessionConfig.backgroundColor)
+    "backgroundColor",
     // network sources: a source's id, the service's address and origin, when a load finished,
     // and the reader's own user name on that service
     "source",
@@ -164,6 +166,10 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // a shader's id and the data path a layer's boundary groups its nodes by
     "shader",
     "groupBy",
+    // a shader's GLSL source and its low-detail body, the consumer's own text handed back parsed
+    // (ShaderTextResult.registration)
+    "glsl",
+    "lowDetail",
     // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
     // text a reader typed into a find (FindContainsRow.text)
     "folder",

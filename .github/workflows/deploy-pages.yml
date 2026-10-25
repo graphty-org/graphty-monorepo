@@ -245,7 +245,7 @@ jobs:
               run: tar -cf "site-${SHA}.tar" -C ./public .
 
             - name: Upload the site
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: site-${{ env.SHA }}
                   path: site-${{ env.SHA }}.tar

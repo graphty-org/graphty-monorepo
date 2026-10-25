@@ -440,9 +440,8 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         layoutBehavior,
     });
     const config = JSON.parse(text) as Record<string, unknown>;
-    for (const [path, fallback] of ADDED_SETTINGS) {
-        const parent = parentOf(config, path);
-        const leaf = path[path.length - 1];
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
         if (parent !== undefined && JSON.stringify(parent[leaf]) === JSON.stringify(fallback)) {
             Reflect.deleteProperty(parent, leaf);
         }
@@ -459,22 +458,22 @@ function configOf(session: GraphSession): ProjectConfigPatch {
  * One left out reads back as its default.
  * A new setting goes here.
  */
-const ADDED_SETTINGS: readonly (readonly [path: readonly string[], fallback: unknown])[] = [
-    [["data", "knownFields", "edgeWeightMeaning"], null],
-    [["selectionStyle", "edgeColor"], DEFAULT_SELECTION_STYLE.edgeColor],
-    [["selectionStyle", "edgeScale"], DEFAULT_SELECTION_STYLE.edgeScale],
-    [["selectionStyle", "edgeOpacity"], DEFAULT_SELECTION_STYLE.edgeOpacity],
+const ADDED_SETTINGS: readonly (readonly [group: readonly string[], leaf: string, fallback: unknown])[] = [
+    [["data", "knownFields"], "edgeWeightMeaning", null],
+    [["selectionStyle"], "edgeColor", DEFAULT_SELECTION_STYLE.edgeColor],
+    [["selectionStyle"], "edgeScale", DEFAULT_SELECTION_STYLE.edgeScale],
+    [["selectionStyle"], "edgeOpacity", DEFAULT_SELECTION_STYLE.edgeOpacity],
 ];
 
 /**
- * The object holding a setting's leaf.
+ * The object holding a setting.
  * @param config - The settings.
- * @param path - The setting's path.
+ * @param group - The path to the object holding the setting.
  * @returns The object, or undefined when one on the way is missing.
  */
-function parentOf(config: Record<string, unknown>, path: readonly string[]): Record<string, unknown> | undefined {
+function parentOf(config: Record<string, unknown>, group: readonly string[]): Record<string, unknown> | undefined {
     let at = config;
-    for (const key of path.slice(0, -1)) {
+    for (const key of group) {
         if (!isObject(at[key])) {
             return undefined;
         }
@@ -492,9 +491,8 @@ function parentOf(config: Record<string, unknown>, path: readonly string[]): Rec
  */
 function withAddedDefaults(saved: unknown): Record<string, unknown> {
     const config = isObject(saved) ? structuredClone(saved) : {};
-    for (const [path, fallback] of ADDED_SETTINGS) {
-        const parent = parentOf(config, path);
-        const leaf = path[path.length - 1];
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
         if (parent !== undefined && !(leaf in parent)) {
             parent[leaf] = fallback;
         }

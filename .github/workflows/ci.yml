@@ -414,21 +414,27 @@ jobs:
             # place, so the deployed files carry them), then the upload under the release the build
             # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
+            # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
+            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
               working-directory: graphty
+              continue-on-error: true
+              timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  pnpm exec sentry-cli sourcemaps inject dist
-                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
-                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
-                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
-                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
-                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -1725,7 +1731,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1739,13 +1745,31 @@ jobs:
                 include:
                     - project: graphty
                       shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook
+                    # One job for the whole project: without coverage its story tests do not slow down as
+                    # they run, which is why the coverage shards split it in five.
+                    - project: graphty-element
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: algorithms
+                      shard: algorithms-browser
+                      command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
         steps:
+            # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
+            # every step below but the summary is.
+            - name: Skip a project this run does not test
+              id: skip
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              run: echo "skip=true" >> "$GITHUB_OUTPUT"
+
             - uses: actions/checkout@v4
+              if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - name: Restore this project's baseline images
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache/restore@v4
               with:
                   path: .git/lfs/objects
@@ -1753,22 +1777,27 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: steps.skip.outputs.skip != 'true'
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             - uses: pnpm/action-setup@v4
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             - name: Download all package builds
+              if: steps.skip.outputs.skip != 'true'
               id: download-packages
               continue-on-error: true
               uses: actions/download-artifact@v4
@@ -1777,13 +1806,14 @@ jobs:
                   path: .
 
             - name: Download all package builds (retry)
-              if: steps.download-packages.outcome == 'failure'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.download-packages.outcome == 'failure') }}
               uses: actions/download-artifact@v4
               with:
                   name: build-packages
                   path: .
 
             - name: Cache Playwright browsers
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache@v4
               id: playwright-cache
               with:
@@ -1791,31 +1821,35 @@ jobs:
                   key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Install Playwright system packages
+              if: steps.skip.outputs.skip != 'true'
               uses: ./.github/actions/playwright-system-deps
               with:
                   browsers: chromium
 
             - name: Install Playwright browsers
-              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.playwright-cache.outputs.cache-hit != 'true') }}
               run: pnpm exec playwright install chromium
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
             - name: Run the story tests with their screenshots
+              if: steps.skip.outputs.skip != 'true'
               env:
                   SHARD: ${{ matrix.shard }}
+                  COMMAND: ${{ matrix.command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
-              run: node tools/results/run-group.mjs "$SHARD"
+              run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine tools/test-quarantine.json --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               uses: actions/upload-artifact@v4
               with:
                   name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
@@ -1830,7 +1864,7 @@ jobs:
               run: |
                   f="$RUNNER_TEMP/stories/merged/results.json"
                   {
-                      echo "### Stories ($PROJECT)"
+                      echo "### Story tests ($PROJECT)"
                       if [[ -f "$f" ]]; then
                           jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
@@ -1852,7 +1886,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty]
+                project: [graphty, graphty-element, algorithms]
         steps:
             - uses: actions/checkout@v4
               with:

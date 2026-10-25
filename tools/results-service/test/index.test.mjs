@@ -176,7 +176,7 @@ describe("POST /v1/invocations", () => {
         const other = oidc({
             event_name: "workflow_dispatch",
             ref: "refs/heads/master",
-            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            job_workflow_ref: `${REPO}/.github/workflows/links-weekly.yml@refs/heads/master`,
         });
         for (const token of [branch, copy, other]) {
             const res = await call("POST", "/v1/invocations", { token, body: record() });
@@ -518,6 +518,56 @@ describe("GET /v1/plan", () => {
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(v.fileMs, { [X]: 106 });
+        // files and no variants (test-changed.mjs's ranking): the same facts over every variant, for those files
+        const flat = (await plan(call, { files: `${X},a.test.ts,b.test.ts,too-old.test.ts` })).body;
+        assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
+        assert.deepEqual(flat.fileMs, { [X]: 106 });
+        assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
+    });
+});
+
+describe("POST /v1/sites", () => {
+    const SHA = "a".repeat(40);
+    const deployPages = (claims = {}) =>
+        oidc({
+            event_name: "workflow_run",
+            ref: "refs/heads/master",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            ...claims,
+        });
+
+    it("records master's deploy-pages.yml site once, and the candidate pick lists it", async () => {
+        const { call, rows } = service();
+        assert.deepEqual(await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } }), {
+            status: 200,
+            body: { stored: true, sha: SHA },
+        });
+        const again = await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } });
+        assert.deepEqual(again.body, { stored: false, sha: SHA });
+        assert.deepEqual(rows("SELECT sha, built_at, run_id FROM site"), [{ sha: SHA, built_at: NOW, run_id: 4010 }]);
+        assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body.candidate, {
+            sha: SHA,
+            builtAt: NOW,
+        });
+    });
+
+    it("refuses every other writer, a short sha, and test records from deploy-pages.yml", async () => {
+        const { call, rows } = service();
+        const branch = deployPages({
+            ref: "refs/heads/x",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/x`,
+        });
+        const siteRepo = oidc({ repository: "graphty-org/graphty-site", repository_id: "1429353022" });
+        for (const token of [branch, master("ci.yml"), pr(), siteRepo, LOCAL_TOKEN]) {
+            assert.equal((await call("POST", "/v1/sites", { token, body: { sha: SHA } })).status, 403);
+        }
+        assert.equal((await call("POST", "/v1/sites", { token: deployPages(), body: { sha: "abc" } })).status, 400);
+        const id = "4010.1.site.0.1";
+        assert.equal(
+            (await call("POST", "/v1/invocations", { token: deployPages(), body: record({ id }) })).status,
+            403,
+        );
+        assert.deepEqual(rows("SELECT * FROM site"), []);
     });
 });
 
@@ -528,16 +578,82 @@ describe("GET /v1/candidate", () => {
         assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
             candidate: null,
             judged: null,
+            recent: [],
+            sites: [],
         });
         s.site("c1", NOW - 2 * HOUR);
         s.site("c2", NOW - HOUR);
         assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
             candidate: { sha: "c2", builtAt: NOW - HOUR },
             judged: null,
+            recent: [],
+            sites: ["c2", "c1"],
         });
+        s.verdict("c1", "red", NOW - 40 * DAY);
+        s.verdict("c1", "green-images", NOW - 20);
         s.verdict("c2", "green-clean", NOW - 10);
-        const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
+        const { judged, recent } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
         assert.deepEqual([judged.sha, judged.state], ["c2", "green-clean"]);
+        assert.deepEqual(
+            recent.map((v) => [v.sha, v.state]),
+            [
+                ["c2", "green-clean"],
+                ["c1", "green-images"],
+            ],
+            "each commit's latest verdict of the last 30 days, newest first",
+        );
+    });
+});
+
+describe("POST /v1/verdicts", () => {
+    it("takes a verdict only from master's release.yml, under its own run", async () => {
+        const { call, env } = service();
+        const body = { sha: "c9", state: "red", lane: "ci", issue: 12 };
+        const post = (token, b = body) => call("POST", "/v1/verdicts", { token, body: b });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: true });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: false }, "a repeated post stores nothing");
+        for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
+            assert.equal((await post(token)).status, 403);
+        }
+        assert.equal((await post(master("release.yml"), { ...body, state: "approved" })).status, 400);
+        assert.equal((await post(master("release.yml"), { ...body, issue: "12" })).status, 400);
+        const [v] = env.DB.sqlite.prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict").all();
+        assert.deepEqual({ ...v }, { run_id: 4010, attempt: 1, sha: "c9", state: "red", lane: "ci", issue: 12 });
+        const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
+        assert.equal(judged, null, "a verdict without a site is no candidate");
+    });
+});
+
+describe("GET /v1/failures", () => {
+    it("lists a run's failing tests by shard, and those master saw fail before the good commit", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("good", NOW - 10 * HOUR);
+        s.inv("3001.1.test.graphty-element-browser-2.1", { at: NOW - HOUR, outcome: "failed" });
+        s.inv("3001.1.test.graphty-element-browser-2.2", { at: NOW - HOUR, outcome: "failed" });
+        s.fail("3001.1.test.graphty-element-browser-2.1", { name: "old > flake" });
+        s.fail("3001.1.test.graphty-element-browser-2.2", { name: "old > flake" });
+        s.fail("3001.1.test.graphty-element-browser-2.1", { name: "new > break" });
+        s.inv("30011.1.test.layout.1", { at: NOW - HOUR, outcome: "failed" });
+        s.fail("30011.1.test.layout.1", { file: "layout/x.test.ts", name: "another run" });
+        s.inv("2000.1.test.graphty-element-browser-2.1", { at: NOW - 20 * HOUR, outcome: "failed" });
+        s.fail("2000.1.test.graphty-element-browser-2.1", { name: "old > flake" });
+        // a failure long before the good commit excuses nothing
+        s.inv("1000.1.test.graphty-element-browser-2.1", { at: NOW - 30 * DAY, outcome: "failed" });
+        s.fail("1000.1.test.graphty-element-browser-2.1", { name: "new > break" });
+        s.inv("local.1.h.2.graphty-element-browser-2", { kind: "local", at: NOW - 20 * HOUR, outcome: "failed" });
+        s.fail("local.1.h.2.graphty-element-browser-2", { name: "new > break" });
+        const read = async (q) => (await call("GET", `/v1/failures?${q}`, { token: LOCAL_TOKEN })).body;
+        const shard = "graphty-element-browser-2";
+        assert.deepEqual(await read("run=3001&good=good"), {
+            tests: [
+                { shard, file: X, name: "new > break" },
+                { shard, file: X, name: "old > flake" },
+            ],
+            failedBefore: [`${shard}: ${X} > old > flake`],
+        });
+        assert.deepEqual((await read("run=3001")).failedBefore, [], "no good commit: nothing is known before it");
+        assert.equal((await call("GET", "/v1/failures?run=30%25", { token: LOCAL_TOKEN })).status, 400);
     });
 });
 
@@ -615,6 +731,47 @@ describe("POST /v1/durations trend", () => {
         env.DB.sqlite.prepare("DELETE FROM duration WHERE run_id = 4010").run();
         const [t] = (await post({ "job:ci.yml:Build": 600 })).body.trend;
         assert.deepEqual([t.alarm, t.earlier], [false, null]);
+    });
+});
+
+describe("GET /v1/durations/medians", () => {
+    it("answers master's median seconds per key over the last n runs of a kind, cancelled runs left out", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        for (let i = 0; i < 12; i++) s.duration(i, (i < 2 ? 900 : 100 + i) * 1000, NOW - DAY + i);
+        s.duration(50, 30_000, NOW - DAY, "pr");
+        s.duration(51, 60_000, NOW - DAY, "full", "Lint");
+        env.DB.sqlite.prepare("UPDATE duration SET conclusion = 'cancelled' WHERE run_id = 11").run();
+        const { status, body } = await call("GET", "/v1/durations/medians?workflows=ci.yml&kind=full&n=4", {
+            token: pr(),
+        });
+        assert.equal(status, 200);
+        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
+        assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);
+    });
+});
+
+describe("/v1/durations/tests/<name>", () => {
+    const path = "/v1/durations/tests/graphty-element-browser-1";
+    it("keeps a shard's history written by master's runs and answers it to any credential", async () => {
+        const { call } = service();
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, {});
+        const history = { "browser\u0000a.test.ts\u0000zooms": [120, 130] };
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: history })).status, 200);
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, history);
+        const next = { "browser\u0000a.test.ts\u0000zooms": [130, 140] };
+        await call("PUT", path, { token: master("release.yml"), body: next });
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, next);
+    });
+    it("refuses a pull request's or a local write, a bad name and a body that is not an object", async () => {
+        const { call } = service();
+        assert.equal((await call("PUT", path, { token: pr(), body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: LOCAL_TOKEN, body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: [1] })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/tests/a%2Fb", { token: pr() })).status, 400);
+        assert.equal((await call("DELETE", path, { token: master("ci.yml") })).status, 404);
     });
 });
 

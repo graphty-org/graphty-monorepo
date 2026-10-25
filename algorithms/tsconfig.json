@@ -11,5 +11,5 @@
         "noUnusedParameters": false
     },
     "include": ["src/**/*.ts", "algorithms.ts", ".storybook/**/*.ts"],
-    "exclude": ["node_modules", "vitest.config.ts", "dist", "stories/**/*"]
+    "exclude": ["node_modules", "vitest.config.ts", ".storybook/vitest.setup*.ts", "dist", "stories/**/*"]
 }

@@ -687,10 +687,7 @@ export class Graphty extends LitElement {
 
         // Watch for container size changes and resize the canvas accordingly
         this.#resizeObserver = new ResizeObserver(() => {
-            // Resize the Babylon.js engine when the container size changes
-            this.#graph.engine.resize();
-            // Update camera projection to match new aspect ratio (prevents visual shifts)
-            this.#graph.camera.onResize();
+            this.#graph.resize();
         });
         this.#resizeObserver.observe(this);
 

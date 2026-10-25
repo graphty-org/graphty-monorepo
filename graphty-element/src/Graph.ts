@@ -22,6 +22,7 @@ import {
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
+    WebXRState,
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
@@ -609,6 +610,28 @@ export class Graph implements GraphContext {
         //     this.updateManager.enableZoomToFit();
         // }
     };
+
+    /**
+     * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
+     * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
+     * the element's ResizeObserver.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery, a box
+        // change that keeps the render size, or a window resize the loop already drew are not.
+        // An XR session draws in its own frames, so nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.renderManager.drawNow();
+        }
+    }
 
     /**
      * The one acceleration controller this graph, its session and its element share.

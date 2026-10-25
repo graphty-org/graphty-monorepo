@@ -2355,6 +2355,8 @@ export class Graph implements GraphContext {
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    // @internal
+    resize(): void;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -5550,6 +5552,8 @@ export class RenderManager implements Manager {
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;
+    // @internal
+    drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {

@@ -258,9 +258,8 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
 //
 // - `chevronLeft` has no snippet of its own inside a row, so it is the exact
 //   mirror of `chevronRight` rather than the larger header chevron of 14.3.
-// - `reset` is the same X as `close`: the vocabulary spells the reset
-//   affordance as the 12px X of the number input, so the two differ by their
-//   title, not by their drawing.
+// - `reset` is the same bar as `minus`, Figma's glyph for removing a value
+//   from a row, so the two differ by their title, not by their drawing.
 // - `minus` is the horizontal bar of `plus`, so that a control which adds and
 //   a control which removes are drawn at one weight.
 //

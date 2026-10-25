@@ -22,7 +22,7 @@ interface OpacityInputProps {
     onCommit: (value: number, event?: React.SyntheticEvent) => void;
     /** Accessible name of the text box. */
     ariaLabel: string;
-    /** Draw the value as the default (italic, secondary) rather than as the reader's own. */
+    /** The value is the default rather than the reader's own (said in its state; drawn as any value, as Figma does). */
     isDefault?: boolean;
     disabled?: boolean;
     /** id of a hidden description (a disabled reason). */

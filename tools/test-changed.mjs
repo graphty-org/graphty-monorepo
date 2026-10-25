@@ -3,16 +3,21 @@
  * test-changed.mjs -- run only the tests the change in this worktree can affect (design/ci/minimal-tests.md,
  * section 1.1). Exposed as `pnpm run test:changed`.
  *
- * The change is everything since the merge base with origin/golden: commits, staged and unstaged edits and
+ * The change is everything since the merge base with origin/master: commits, staged and unstaged edits and
  * untracked files git does not ignore. tools/test-select.mjs decides per test shard, with the gate's own
  * rules: "none" runs nothing, "files" runs one `vitest run` of the selected files with the shard's config and
  * --project filters (no coverage, no --shard slice), "all" runs the shard as CI does (tools/run-tests.sh).
  * The "never" shards (graphty-element-lifecycle) are left out, as the gate leaves them out. The packages the runs need are built first; every run takes a test slot.
  *
- * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--base <ref>]
- *   --dry-run  print the selection and why, run nothing
+ * The file-level runs' files are ranked by the test ledger's history (tools/test-history.mjs,
+ * design/ci/history-selection.md) and printed with why; history never adds or drops a file unless --budget asks.
+ *
+ * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--base <ref>] [--budget <s>]
+ *   --dry-run  print the selection, the history ranking and why, run nothing
+ *   --budget   run only the highest-ranked selected files that fit in <s> seconds of recorded time
+ *              (whole-shard runs are not cut)
  *   --all      every shard the change touches runs whole
- *   --base     compare with another ref (default origin/golden)
+ *   --base     compare with another ref (default origin/master)
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -22,7 +27,8 @@ import { fileURLToPath } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
 import { projectGraph } from "./prepush-inputs.mjs";
-import { planRuns, selectChange } from "./test-select.mjs";
+import { budget, explain, rankFiles } from "./test-history.mjs";
+import { planRuns, selectChange, selectedCommand } from "./test-select.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -79,6 +85,35 @@ export function describePlan(plan) {
  */
 export const candidateShards = () => SHARDS.filter((s) => s.local !== "never");
 
+// A file-level run with only the files a budget kept; with none kept it runs nothing.
+function keepOnly(p, keep) {
+    if (p.mode !== "files") return p;
+    const files = p.files.filter((f) => keep.has(f.file));
+    if (files.length === 0) return { ...p, mode: "none", files };
+    return { ...p, files, command: selectedCommand(ROOT, p.shard, files.map((f) => f.file).sort()) };
+}
+
+/**
+ * Ranks the file-level runs' files by history and says why; with a budget, keeps only the ranked files that fit.
+ * @param plan planRuns()
+ * @param changed the change's files
+ * @param [secs] the budget in seconds, or undefined (run everything)
+ * @param [ranker] rankFiles (tests replace it)
+ * @returns `{ plan, lines }`
+ */
+export function rankPlan(plan, changed, secs, ranker = rankFiles) {
+    const files = plan.filter((p) => p.mode === "files").flatMap((p) => p.files.map((f) => f.file));
+    if (files.length === 0) return { plan, lines: [] };
+    const { ranked, why } = ranker(files, changed);
+    const head = why ? `history: unavailable (${why}); ranking by import selection only` : "History ranking:";
+    const taken = secs === undefined ? ranked : budget(ranked, secs).taken;
+    const keep = new Set(taken.map((r) => r.file));
+    const lines = [head, ...ranked.map((r) => `  ${keep.has(r.file) ? "" : "[OUT] "}${explain(r)}`)];
+    if (secs === undefined) return { plan, lines };
+    lines.push(`  budget: ${taken.length} of ${ranked.length} selected file(s) fit in ${secs} s`);
+    return { plan: plan.map((p) => keepOnly(p, keep)), lines };
+}
+
 function build(plan) {
     const graph = projectGraph(ROOT);
     const byDir = new Map([...(graph?.roots ?? [])].map(([n, d]) => [d, n]));
@@ -105,8 +140,8 @@ function run(p) {
 }
 
 async function main(argv) {
-    const at = argv.indexOf("--base");
-    const base = at === -1 ? "origin/golden" : argv[at + 1];
+    const baseAt = argv.indexOf("--base");
+    const base = baseAt === -1 ? "origin/master" : argv[baseAt + 1];
     const changed = changedSince(ROOT, base);
     console.log(`${changed.length} file(s) changed since the merge base with ${base}.`);
     if (changed.length === 0) {
@@ -115,7 +150,7 @@ async function main(argv) {
     const shards = candidateShards();
     let selection;
     try {
-        selection = (await selectChange(ROOT, changed, shards)).shards;
+        selection = (await selectChange(ROOT, changed, shards, undefined, false, { base, head: null })).shards;
     } catch (e) {
         console.log(`The selector failed (${e.message.split("\n")[0]}); every candidate shard runs whole.`);
         selection = [];
@@ -123,8 +158,10 @@ async function main(argv) {
     if (argv.includes("--all")) {
         selection = selection.map((s) => (s.mode === "none" ? s : { ...s, mode: "all", reasons: ["--all"] }));
     }
-    const plan = planRuns(ROOT, shards, selection);
-    console.log(describePlan(plan).join("\n"));
+    const at = argv.indexOf("--budget");
+    const ranked = rankPlan(planRuns(ROOT, shards, selection), changed, at === -1 ? undefined : Number(argv[at + 1]));
+    const plan = ranked.plan;
+    console.log([...describePlan(plan), ...ranked.lines].join("\n"));
     const todo = plan.filter((p) => p.mode !== "none");
     if (argv.includes("--dry-run") || todo.length === 0) {
         return 0;

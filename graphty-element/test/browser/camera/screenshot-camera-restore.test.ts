@@ -1,14 +1,7 @@
 /**
- * @file With `reframeOnViewInsets` on, the element's own framing lands on the same picture whether
- * the view insets arrive before or after it.
- *
- * A load or a new layout asks for a framing that lands on a later frame, and reads the view insets
- * in force when it does. An application that reports a key card's room as an inset writes it on its
- * own schedule, so on a slow machine the inset arrives first and the graph is framed beside the key,
- * and on a fast one the framing lands first and the graph stays centered under the key (issue
- * #3372). Both orders are forced here: the inset written before the data, and the inset written
- * after `waitForStableFrame()` says the framing has landed. With the option on, both end on the
- * framing inside the free area. A camera the reader placed is left alone.
+ * @file A screenshot with its own camera puts everything back: the screen's view insets, the
+ * camera, whether the camera counts as placed by the reader, and the element's own framing --
+ * also when the capture fails.
  */
 
 import "../../../src/graphty-element";
@@ -16,7 +9,6 @@ import "../../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
-import { nextFrame, wheel } from "../../helpers/real-input";
 
 const WIDTH = 900;
 const HEIGHT = 600;
@@ -46,7 +38,7 @@ async function load(element: Graphty): Promise<void> {
     await element.waitForStableFrame();
 }
 
-describe("reframeOnViewInsets", () => {
+describe("a screenshot's own camera", () => {
     let container: HTMLDivElement;
 
     beforeEach(() => {
@@ -61,54 +53,16 @@ describe("reframeOnViewInsets", () => {
     });
 
     /**
-     * A fresh element with the option on.
+     * A fresh element.
      * @returns The element.
      */
     function create(): Graphty {
         const element = document.createElement("graphty-element");
-        element.reframeOnViewInsets = true;
         container.appendChild(element);
         return element;
     }
 
-    it("frames the graph the same whether the inset lands before or after the framing", async () => {
-        // The inset is in force before the framing is asked for.
-        const early = create();
-        early.viewInsets = { left: LEFT };
-        await load(early);
-        const insetFirst = framing(early);
-        early.remove();
-
-        // The framing lands first, then the key card reports its room.
-        const late = create();
-        await load(late);
-        const centered = framing(late);
-        late.viewInsets = { left: LEFT };
-        await late.waitForStableFrame();
-
-        assert.notStrictEqual(centered, insetFirst, "the two orders start from different framings");
-        assert.strictEqual(framing(late), insetFirst, "the late inset is framed as the early one was");
-        assert.isEmpty(late.nodesInRect({ x: 0, y: 0, width: LEFT, height: HEIGHT }), "no node under the key");
-        late.remove();
-    });
-
-    it("leaves a camera the reader placed where it is", async () => {
-        const element = create();
-        await load(element);
-        assert.isFalse(element.cameraPlaced, "the element framed the graph itself");
-        await wheel(element.graph.canvas, { x: 100, y: 100 }, -400);
-        await nextFrame();
-        await element.waitForStableFrame();
-        assert.isTrue(element.cameraPlaced, "the reader's wheel placed the camera");
-        const placed = framing(element);
-
-        element.viewInsets = { left: LEFT };
-        await element.waitForStableFrame();
-        assert.strictEqual(framing(element), placed);
-        element.remove();
-    });
-
-    it("frames nothing for a capture's own margins, even when the capture fails", async () => {
+    it("puts the screen's margins and the camera back when the capture fails", async () => {
         const element = create();
         element.viewInsets = { left: LEFT };
         await load(element);
@@ -128,19 +82,19 @@ describe("reframeOnViewInsets", () => {
         assert.strictEqual(framing(element), framed);
         element.remove();
     });
-    it("does not count a capture's own camera as placed: a later inset change still frames", async () => {
+
+    it("does not count a capture's own camera as the reader placing it", async () => {
         const element = create();
         await load(element);
+        const framed = framing(element);
         await element.captureScreenshot({ camera: { preset: "fitToGraph" } });
         assert.isFalse(element.cameraPlaced, "the capture's camera was there only for the picture");
-
-        element.viewInsets = { left: LEFT };
         await element.waitForStableFrame();
-        assert.isEmpty(element.nodesInRect({ x: 0, y: 0, width: LEFT, height: HEIGHT }), "no node under the key");
+        assert.strictEqual(framing(element), framed, "the camera is back where it was");
         element.remove();
     });
 
-    it("puts the screen's margins and the option back when placing the capture's camera fails", async () => {
+    it("puts the screen's margins back and places nothing when placing the capture's camera fails", async () => {
         const element = create();
         element.viewInsets = { left: LEFT };
         await load(element);
@@ -163,7 +117,6 @@ describe("reframeOnViewInsets", () => {
         graph.setCameraState = setCameraState;
         assert.isTrue(failed, "the capture reported the failure");
         assert.strictEqual(element.viewInsets.left, LEFT, "the screen's margins are back");
-        assert.isTrue(element.reframeOnViewInsets, "the option is back on");
         assert.isFalse(element.cameraPlaced, "the failed capture placed nothing");
         element.remove();
     });

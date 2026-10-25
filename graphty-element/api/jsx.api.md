@@ -231,7 +231,6 @@ export interface GraphtyElementJSXProps {
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
-    "reframe-on-view-insets"?: boolean;
     "render-on-demand"?: boolean;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
@@ -272,7 +271,6 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
-    reframeOnViewInsets?: Graphty["reframeOnViewInsets"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
     repeatedEdges?: Graphty["repeatedEdges"];

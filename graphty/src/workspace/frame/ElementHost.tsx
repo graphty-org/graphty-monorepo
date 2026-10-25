@@ -72,8 +72,6 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
-    // The legend card's margins: the element keeps every fit clear of them.
-    const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
     useEffect(() => {
         let disposed = false;
@@ -108,7 +106,6 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={layoutBehavior}
             lighting={lighting}
-            viewInsets={viewInsets}
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}

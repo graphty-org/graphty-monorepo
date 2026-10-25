@@ -217,7 +217,6 @@ export class ScreenshotCapture {
             // screen's chrome in it: the only thing over it is the key this capture draws, so that
             // is the one margin the framing keeps clear.
             insets: "preset" in camera ? this.graph.getViewInsets() : undefined,
-            reframeOnViewInsets: this.graph.getReframeOnViewInsets(),
             // The capture's camera is there for a moment, not placed by the reader, so the
             // element's own framing goes on as before once the capture puts the camera back.
             restorePlacement: this.graph.saveCameraPlacement(),
@@ -238,8 +237,6 @@ export class ScreenshotCapture {
 
     /**
      * Swap the screen's margins for the capture's key and resolve the named view inside them.
-     * The margins are the capture's for a moment, not a change of the screen's, so they frame
-     * nothing on their own.
      * @param options - Screenshot configuration options.
      * @param camera - The named view the capture asked for.
      * @returns Where the camera stands for the picture.
@@ -248,7 +245,6 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
     ): CameraState {
-        this.graph.setReframeOnViewInsets(false);
         const legend = options.legend ?? [];
         this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
         const { params } = camera;
@@ -264,7 +260,6 @@ export class ScreenshotCapture {
     private async restoreCamera(override: CameraOverride): Promise<void> {
         if (override.insets) {
             this.graph.setViewInsets(override.insets);
-            this.graph.setReframeOnViewInsets(override.reframeOnViewInsets);
         }
 
         await this.graph.setCameraState(override.original);
@@ -892,7 +887,6 @@ export class ScreenshotCapture {
 interface CameraOverride {
     readonly original: CameraState;
     readonly insets: Required<ViewInsets> | undefined;
-    readonly reframeOnViewInsets: boolean;
     readonly restorePlacement: () => void;
     readonly zoomToFitWasEnabled: boolean;
 }

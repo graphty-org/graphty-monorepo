@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -20,18 +20,11 @@ import {
     elevationValue,
 } from "../../src/theme/tokens";
 
-/** The Figma study, when this checkout has it (design/ui/figma, found by walking up). */
-function figmaStudy(): string | null {
-    for (let dir = __dirname; dir !== dirname(dir); dir = dirname(dir)) {
-        const candidate = join(dir, "design/ui/figma");
-        if (existsSync(join(candidate, "components.md"))) {
-            return candidate;
-        }
-    }
-    return null;
-}
-
-const STUDY = figmaStudy();
+/** Figma's CSS variables, light and dark, from the study (tests/figma/figma-fixture.mjs writes them). */
+const FIGMA_VARIABLES = JSON.parse(readFileSync(join(__dirname, "../figma/figma-variables.json"), "utf8")) as {
+    light: Record<string, string>;
+    dark: Record<string, string>;
+};
 
 function expandHex(value: string): string {
     const v = value.trim().toLowerCase();
@@ -86,22 +79,8 @@ describe("type roles (spec 2.3)", () => {
     });
 });
 
-describe.skipIf(!STUDY)("color tokens equal the Figma variables (spec 2.1)", () => {
-    const study = STUDY ?? "";
-    const light = STUDY
-        ? (
-              JSON.parse(readFileSync(join(study, "tokens/css-variables.json"), "utf8")) as {
-                  vars: Record<string, string>;
-              }
-          ).vars
-        : {};
-    const dark = STUDY
-        ? (
-              JSON.parse(readFileSync(join(study, "tokens/css-variables-dark.json"), "utf8")) as {
-                  vars: Record<string, string>;
-              }
-          ).vars
-        : {};
+describe("color tokens equal the Figma variables (spec 2.1)", () => {
+    const { light, dark } = FIGMA_VARIABLES;
     const traced = (Object.entries(CM_COLORS) as [string, CmColorToken][]).filter(([, t]) => t.figma);
 
     it.each(traced)("--cm-%s", (_name, token) => {
@@ -132,6 +111,15 @@ describe("the AA option (spec 2.9)", () => {
                 "text-danger",
                 "bg-danger",
                 "bg-success",
+                "text-warning",
+                "text-success",
+                "swatch-ring",
+                "chart-bar-ring",
+                "tab-edge",
+                "tree-parent-selected",
+                "tree-child-hover",
+                "text-menu-page-secondary",
+                "menu-onbrand-secondary",
             ].sort(),
         );
     });

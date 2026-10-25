@@ -82,22 +82,35 @@ const config: KnipConfig = {
                 "test/styles/formats/*.ts",
                 "test/styles/isolated.ts",
                 "scripts/**/*.{ts,js,mjs}",
+                // the style fidelity Storybook (npm run build-storybook), which loads graphty-element from source
+                "fidelity-stories/.storybook/*.ts",
+                "fidelity-stories/stories/**/*.stories.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: [
+                "src/**/*.ts!",
+                "test/**/*.ts",
+                "benchmarks/**/*.ts",
+                "scripts/**/*.{ts,js,mjs}",
+                "fidelity-stories/**/*.ts",
+            ],
             // `neo4j-driver` is an optional peer (and a devDependency), loaded by `await import()` only for
             // the Cypher source's Bolt transport. `lint:knip:prod` runs --strict and would report it as
             // unlisted; the default run resolves it as a devDependency and hints an ignore as redundant.
-            ignoreDependencies: production ? ["neo4j-driver"] : [],
-        },
-
-        // graph-io-fidelity (private): the side-by-side style fidelity Storybook. It loads graphty-element and
-        // graph-io's fidelity harness from source by relative path (the scene extractor reads the renderer's own
-        // classes), so the two workspace dependencies are there for nx's project graph, not for an import; lit is
-        // the web-components Storybook renderer's peer.
-        "graph-io/fidelity-stories": {
-            entry: [".storybook/*.ts", "stories/**/*.stories.ts"],
-            project: [".storybook/*.ts", "stories/**/*.ts"],
-            ignoreDependencies: ["@graphty/graph-io", "@graphty/graphty-element", "lit"],
+            ignoreDependencies: [
+                ...(production ? ["neo4j-driver"] : []),
+                // the pinned libraries that draw the web-library oracles, loaded by createRequire and by
+                // esbuild from test/fidelity/oracles/tools/web/ and test/fidelity/generators/specimens/
+                "@resvg/resvg-js",
+                "@sigma/export-image",
+                "esbuild",
+                "graphology",
+                "sigma",
+                "svgcanvas",
+                "vis-data",
+                "vis-network",
+                // the peer of the fidelity Storybook's web-components renderer
+                "lit",
+            ],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -299,7 +312,7 @@ const config: KnipConfig = {
             ],
         },
 
-        // graphty React app
+        // graphty React app (left out of the production run: see ignoreWorkspaces below)
         graphty: {
             entry: [
                 "src/App.tsx!",
@@ -309,12 +322,6 @@ const config: KnipConfig = {
                 "scripts/**/*.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
-            ignoreDependencies: [
-                // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
-                // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own
-                // dependencies, and would otherwise report it as unlisted.
-                ...(production ? ["eruda"] : []),
-            ],
         },
 
         // remote-logger package
@@ -385,6 +392,11 @@ const config: KnipConfig = {
     // `stripInternal`, so there the tag also keeps a symbol that other modules import out of the
     // published .d.ts files, and removing it would publish it. Tag hints never fail the gate;
     // configuration hints do (below).
+    // graphty publishes only its built site (dist/), which bundles everything and imports nothing, so
+    // every one of its dependencies is a devDependency and it has no production code for
+    // `lint:knip:prod` to check; tools/check-published-deps.mjs checks what it ships. The default run
+    // still checks it.
+    ignoreWorkspaces: production ? ["graphty"] : [],
     tags: ["-internal"],
 
     // A configuration hint means knip.config.ts has gone stale (an ignore that matches nothing,

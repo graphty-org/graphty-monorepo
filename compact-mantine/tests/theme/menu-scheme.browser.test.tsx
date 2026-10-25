@@ -109,11 +109,12 @@ describe("menus follow the page's scheme", () => {
     }
 
     for (const scheme of ["light", "dark"] as const) {
-        it(`${scheme}: text meets 4.5:1 and the highlight 3:1, at rest and under the pointer`, async () => {
-            const { container } = await renderThemed(<TestMenu />, { scheme });
+        // Figma's own menu values miss AA in places; the AA option (highContrast) meets it.
+        it(`${scheme}, AA option: text meets 4.5:1 and the highlight 3:1, at rest and under the pointer`, async () => {
+            const { container } = await renderThemed(<TestMenu />, { scheme, highContrast: true });
             const surface = await openMenu(container);
             const ground = getComputedStyle(surface).backgroundColor;
-            // Opening focuses the first row, so "File" is at rest; then the pointer takes it.
+            // A click opens it with no row highlighted, so "File" is at rest; then the pointer takes it.
             const file = item("File");
             const shortcut = part(file, '[data-position="right"]');
             expect(contrast(over(getComputedStyle(file).color, ground), ground)).toBeGreaterThanOrEqual(4.5);

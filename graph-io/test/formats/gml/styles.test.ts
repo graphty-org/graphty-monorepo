@@ -394,6 +394,23 @@ describe("GML styles: who wrote the file", () => {
         }
     });
 
+    it("centers a plain GML node's label on its node, where the GML draft names no place for it", async () => {
+        const doc = [
+            "graph [",
+            '  node [ id 1 label "A" graphics [ x 0 y 0 w 20 h 20 ] ]',
+            '  node [ id 2 label "B" graphics [ x 40 y 0 w 20 h 20 ] ]',
+            '  edge [ source 1 target 2 label "e" graphics [ fill "#000000" ] ]',
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "center"]);
+        // yEd's GML keeps its own label models
+        const yed = await load(
+            'Creator "yFiles"\ngraph [ node [ id 1 label "A" graphics [ x 0 y 0 w 20 h 20 ] LabelGraphics [ text "A" anchor "n" ] ] ]',
+        );
+        expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
+    });
+
     it("gives igraph's file, which holds no graphics, no styles; a color attribute stays data", async () => {
         const result = await read(file("igraph-flat-attributes.gml"));
         expect(result.snapshot.meta.creator).toMatch(/^igraph/);

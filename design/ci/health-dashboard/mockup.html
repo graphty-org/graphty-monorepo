@@ -1,0 +1,2954 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Pipeline Health</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --page: #f6f6f4;
+                --surface: #fcfcfb;
+                --ink: #0b0b0b;
+                --ink2: #52514e;
+                --muted: #898781;
+                --grid: #e1e0d9;
+                --axis: #c3c2b7;
+                --border: rgba(11, 11, 11, 0.12);
+                --s1: #2a78d6;
+                --s2: #eb6834;
+                --s3: #1baf7a;
+                --s4: #6250d6;
+                --s5: #898781;
+                --good: #0ca30c;
+                --warn: #fab219;
+                --bad: #d03b3b;
+                --hatch: #d8d6cf;
+                --redspan: rgba(208, 59, 59, 0.12);
+                --sat: rgba(235, 104, 52, 0.13);
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme="light"]) {
+                    color-scheme: dark;
+                    --page: #0d0d0d;
+                    --surface: #1a1a19;
+                    --ink: #f0efec;
+                    --ink2: #c3c2b7;
+                    --muted: #898781;
+                    --grid: #2c2c2a;
+                    --axis: #383835;
+                    --border: rgba(255, 255, 255, 0.12);
+                    --s1: #3987e5;
+                    --s2: #d95926;
+                    --s3: #199e70;
+                    --s4: #9085e9;
+                    --hatch: #3a3a37;
+                    --redspan: rgba(208, 59, 59, 0.22);
+                    --sat: rgba(217, 89, 38, 0.2);
+                }
+            }
+            :root[data-theme="dark"] {
+                color-scheme: dark;
+                --page: #0d0d0d;
+                --surface: #1a1a19;
+                --ink: #f0efec;
+                --ink2: #c3c2b7;
+                --grid: #2c2c2a;
+                --axis: #383835;
+                --border: rgba(255, 255, 255, 0.12);
+                --s1: #3987e5;
+                --s2: #d95926;
+                --s3: #199e70;
+                --s4: #9085e9;
+                --hatch: #3a3a37;
+                --redspan: rgba(208, 59, 59, 0.22);
+                --sat: rgba(217, 89, 38, 0.2);
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--page);
+                color: var(--ink);
+                font:
+                    12px/1.35 system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+                min-width: 1000px;
+            }
+            header .sel:nth-of-type(2) {
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 6px 16px;
+                background: var(--surface);
+                border-bottom: 1px solid var(--border);
+                height: 40px;
+            }
+            header h1 {
+                font-size: 14px;
+                margin: 0 8px 0 0;
+            }
+            .seg-ctl {
+                display: inline-flex;
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .seg-ctl span {
+                padding: 3px 9px;
+                border-right: 1px solid var(--border);
+                color: var(--ink2);
+            }
+            .seg-ctl span:last-child {
+                border-right: 0;
+            }
+            .seg-ctl .on {
+                background: var(--ink);
+                color: var(--surface);
+                font-weight: 600;
+            }
+            .sel {
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                padding: 3px 8px;
+                color: var(--ink2);
+            }
+            .spacer {
+                flex: 1;
+            }
+            .hdr-meta {
+                display: flex;
+                gap: 14px;
+                color: var(--ink2);
+                align-items: center;
+            }
+            .sample {
+                position: absolute;
+                right: 16px;
+                top: 46px;
+                background: var(--warn);
+                color: #000;
+                font-weight: 700;
+                padding: 3px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                z-index: 9;
+            }
+            nav {
+                display: flex;
+                gap: 2px;
+                padding: 0 16px;
+                background: var(--surface);
+                border-bottom: 1px solid var(--border);
+                height: 30px;
+                align-items: end;
+            }
+            nav a {
+                padding: 6px 12px;
+                color: var(--ink2);
+                border-bottom: 2px solid transparent;
+                display: flex;
+                gap: 5px;
+                align-items: center;
+            }
+            nav a.on {
+                color: var(--ink);
+                border-bottom-color: var(--ink);
+                font-weight: 600;
+            }
+            .page {
+                display: none;
+                padding: 6px 16px 10px;
+                scroll-margin-top: 200px;
+            }
+            .page:target,
+            #overview.default {
+                display: block;
+            }
+            .page:target ~ #overview {
+                display: none;
+            }
+            .band-h {
+                font-size: 10px;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin: 2px 0 4px;
+            }
+            .tiles {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 6px;
+                margin-bottom: 6px;
+            }
+            .tile {
+                display: block;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-left: 4px solid var(--border);
+                border-radius: 4px;
+                padding: 6px 8px;
+                position: relative;
+                min-height: 0;
+            }
+            .tile:hover {
+                outline: 1px solid var(--axis);
+            }
+            .t-warn {
+                border-left-color: var(--warn);
+            }
+            .t-bad {
+                border-left-color: var(--bad);
+            }
+            .t-none {
+                background: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--page) 6px 8px);
+            }
+            .th {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .tn {
+                font-weight: 600;
+            }
+            .scope {
+                font-size: 10px;
+                color: var(--muted);
+                border: 1px solid var(--border);
+                border-radius: 3px;
+                padding: 0 4px;
+            }
+            .st {
+                margin-left: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                font-size: 11px;
+                color: var(--ink2);
+            }
+            .ic {
+                width: 12px;
+                height: 12px;
+                flex: none;
+                vertical-align: -2px;
+                display: inline-block;
+            }
+            .tv {
+                font-size: 21px;
+                font-weight: 600;
+                line-height: 1.15;
+                white-space: nowrap;
+            }
+            .tv.sm {
+                font-size: 17px;
+                margin-top: 6px;
+            }
+            .tu {
+                font-size: 12px;
+                font-weight: 400;
+                color: var(--ink2);
+                margin-left: 4px;
+            }
+            .tq {
+                font-size: 13px;
+                color: var(--ink2);
+                font-weight: 500;
+            }
+            .ts {
+                color: var(--ink2);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .tf {
+                display: flex;
+                justify-content: space-between;
+                gap: 6px;
+                color: var(--muted);
+                font-size: 11px;
+                margin-top: 2px;
+            }
+            .src {
+                position: absolute;
+                right: 8px;
+                bottom: -1px;
+                font-size: 9px;
+                color: var(--muted);
+                display: none;
+            }
+            .tile:hover .src {
+                display: block;
+            }
+            .spark {
+                width: 100%;
+                height: 16px;
+                display: block;
+                margin-top: 1px;
+            }
+            .dots {
+                display: flex;
+                gap: 3px;
+                margin-top: 8px;
+            }
+            .dot {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                background: var(--good);
+            }
+            .d-bad {
+                background: var(--bad);
+            }
+            .d-held {
+                background: var(--warn);
+            }
+            .d-none {
+                background: transparent;
+                border: 1px solid var(--muted);
+            }
+            .bullet {
+                position: relative;
+                height: 12px;
+                background: var(--grid);
+                border-radius: 2px;
+                margin: 6px 0 4px;
+                display: flex;
+                overflow: visible;
+            }
+            .b-run {
+                background: var(--s1);
+                border-radius: 2px 0 0 2px;
+            }
+            .b-q {
+                background: var(--s2);
+                margin-left: 2px;
+                border-radius: 0 2px 2px 0;
+            }
+            .b-lim {
+                position: absolute;
+                top: -3px;
+                width: 2px;
+                height: 18px;
+                background: var(--ink);
+            }
+            .grid2 {
+                display: grid;
+                grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+                gap: 8px;
+            }
+            .card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                padding: 5px 8px;
+                margin-bottom: 6px;
+                position: relative;
+            }
+            .card h3 {
+                font-size: 12px;
+                margin: 0 0 2px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .card h3 .unit {
+                font-weight: 400;
+                color: var(--muted);
+            }
+            .card h3 .age {
+                margin-left: auto;
+                font-weight: 400;
+                color: var(--muted);
+                font-size: 10px;
+            }
+            .card .k {
+                display: flex;
+                gap: 10px;
+                color: var(--ink2);
+                font-size: 11px;
+                flex-wrap: wrap;
+            }
+            .card .k i {
+                display: inline-block;
+                width: 14px;
+                height: 0;
+                border-top: 2px solid;
+                vertical-align: middle;
+                margin-right: 3px;
+            }
+            svg {
+                width: 100%;
+                display: block;
+                overflow: visible;
+            }
+            .grid {
+                stroke: var(--grid);
+                stroke-width: 1;
+            }
+            .tick {
+                fill: var(--muted);
+                font-size: 9px;
+            }
+            .axis-title {
+                fill: var(--muted);
+                font-size: 9px;
+            }
+            .band-label {
+                fill: var(--ink2);
+                font-size: 9px;
+            }
+            .ln {
+                fill: none;
+                stroke-width: 2;
+                stroke-linejoin: round;
+                stroke-linecap: round;
+            }
+            .s1 {
+                stroke: var(--s1);
+            }
+            .s2 {
+                stroke: var(--s2);
+            }
+            .dash {
+                stroke-dasharray: 5 3;
+            }
+            .stub {
+                stroke-dasharray: 2 3;
+            }
+            .s1t {
+                fill: var(--s1);
+            }
+            .s2t {
+                fill: var(--s2);
+            }
+            .end {
+                font-size: 10px;
+                font-weight: 600;
+            }
+            .partial {
+                fill: var(--page);
+                opacity: 0.7;
+            }
+            .redspan {
+                fill: var(--redspan);
+            }
+            .satspan {
+                fill: var(--sat);
+            }
+            .bar {
+                fill: var(--s1);
+            }
+            .bar-sat {
+                fill: var(--s2);
+            }
+            .s2b {
+                fill: var(--s2);
+            }
+            .bar-partial {
+                opacity: 0.45;
+            }
+            .area {
+                stroke: none;
+            }
+            .s1f {
+                fill: var(--s1);
+                opacity: 0.8;
+            }
+            .s2f {
+                fill: var(--s2);
+                opacity: 0.8;
+            }
+            .limit {
+                stroke: var(--ink);
+                stroke-width: 1.5;
+            }
+            .budget {
+                stroke: var(--ink2);
+                stroke-width: 1;
+                stroke-dasharray: 2 2;
+            }
+            .limit-t {
+                fill: var(--ink2);
+                font-size: 9px;
+            }
+            .st-green {
+                fill: var(--good);
+                opacity: 0.55;
+            }
+            .st-red {
+                fill: var(--bad);
+            }
+            .st-gold {
+                fill: url(#hatch);
+            }
+            .mk-revert {
+                fill: var(--ink);
+            }
+            .mk-release {
+                fill: var(--s4);
+            }
+            .hbar {
+                display: flex;
+                gap: 2px;
+                height: 16px;
+                margin: 4px 0;
+            }
+            .hbar .seg {
+                display: block;
+                height: 100%;
+            }
+            .hbar .seg:first-child {
+                border-radius: 3px 0 0 3px;
+            }
+            .hbar .seg:last-child {
+                border-radius: 0 3px 3px 0;
+            }
+            .p1 {
+                background: var(--s2);
+            }
+            .p2 {
+                background: var(--s1);
+            }
+            .p3 {
+                background: var(--s3);
+            }
+            .p4 {
+                background: var(--s4);
+            }
+            .p5 {
+                background: var(--s5);
+            }
+            .legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 3px 10px;
+                color: var(--ink2);
+                font-size: 11px;
+            }
+            .lg b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            .sw {
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 2px;
+                margin-right: 4px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th {
+                font-weight: 600;
+                text-align: left;
+                color: var(--muted);
+                font-size: 10px;
+                border-bottom: 1px solid var(--border);
+                padding: 3px 6px;
+            }
+            td {
+                padding: 2px 6px;
+                border-bottom: 1px solid var(--grid);
+                white-space: nowrap;
+            }
+            td.what {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 380px;
+            }
+            td.num,
+            th.num {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+            td a {
+                color: var(--s1);
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .markers {
+                display: flex;
+                gap: 10px;
+                color: var(--ink2);
+                font-size: 11px;
+                align-items: center;
+            }
+            .markers label {
+                display: flex;
+                gap: 3px;
+                align-items: center;
+            }
+            .chk {
+                width: 11px;
+                height: 11px;
+                border: 1px solid var(--ink2);
+                border-radius: 2px;
+                display: inline-block;
+                background: var(--ink);
+            }
+            .chk.off {
+                background: transparent;
+            }
+            .hatchkey {
+                display: inline-block;
+                width: 14px;
+                height: 9px;
+                background: repeating-linear-gradient(135deg, var(--hatch) 0 2px, transparent 2px 5px);
+                border: 1px solid var(--border);
+            }
+            .bb {
+                position: relative;
+                height: 12px;
+                background: var(--grid);
+                border-radius: 2px;
+                min-width: 200px;
+            }
+            .bb-ok {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                background: var(--grid);
+            }
+            .bb-warn {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                background: var(--hatch);
+            }
+            .bb-v {
+                position: absolute;
+                left: 0;
+                top: 3px;
+                height: 6px;
+                background: var(--ink2);
+                border-radius: 2px;
+            }
+            .bb-t {
+                position: absolute;
+                top: -2px;
+                width: 2px;
+                height: 16px;
+                background: var(--ink);
+            }
+            .bcell {
+                width: 40%;
+            }
+            .srcg {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 4px 10px;
+                margin-top: 4px;
+            }
+            .srcc {
+                display: flex;
+                gap: 5px;
+                align-items: center;
+                white-space: nowrap;
+                padding: 2px 4px;
+                border-radius: 3px;
+            }
+            .srcc .sn {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .s-warn {
+                background: rgba(250, 178, 25, 0.15);
+            }
+            .s-bad {
+                background: rgba(208, 59, 59, 0.12);
+            }
+            @media (max-width: 1300px) {
+                .tiles {
+                    grid-template-columns: repeat(5, minmax(0, 1fr));
+                }
+                .tv {
+                    font-size: 20px;
+                }
+                .tf span:last-child {
+                    display: none;
+                }
+            }
+            @media (max-width: 1300px) {
+                .markers label {
+                    display: none;
+                }
+                .markers .mk-sel {
+                    display: inline-block;
+                }
+                .hdr-meta .range {
+                    display: none;
+                }
+            }
+            @media (max-width: 1100px) {
+                .tv {
+                    font-size: 18px;
+                }
+                .tv.sm {
+                    font-size: 15px;
+                }
+                .tile {
+                    padding: 5px 6px;
+                }
+                .ts,
+                .tf {
+                    font-size: 10.5px;
+                }
+                td.what {
+                    max-width: 220px;
+                }
+                .tq {
+                    font-size: 11px;
+                }
+            }
+            @media (max-width: 900px) {
+                .grid2 {
+                    grid-template-columns: 1fr;
+                }
+                .tiles {
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                }
+            }
+            .seg-ctl span,
+            .sel,
+            header h1,
+            .hdr-meta span {
+                white-space: nowrap;
+            }
+            .mk-sel {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute">
+            <defs>
+                <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width="6" height="6" fill="var(--surface)" />
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="var(--hatch)" stroke-width="2.5" />
+                </pattern>
+            </defs>
+        </svg>
+        <div class="sample">SAMPLE DATA - mockup, not live</div>
+        <header>
+            <h1>Pipeline health</h1>
+            <span class="seg-ctl" aria-label="time range"
+                ><span>24 h</span><span>7 d</span><span class="on">28 d</span><span>90 d</span><span>12 mo</span
+                ><span>custom</span></span
+            >
+            <span class="sel">bucket: auto (day)</span>
+            <span class="sel">authors: all</span>
+            <span class="markers"
+                ><label><i class="chk"></i>releases</label><label><i class="chk"></i>reverts</label
+                ><label><i class="chk"></i>red master</label><label><i class="chk off"></i>quarantine</label
+                ><span class="sel mk-sel">markers: 3 of 4</span></span
+            >
+            <span class="spacer"></span>
+            <span class="hdr-meta"
+                ><span class="range">09-28 to 10-25 UTC</span
+                ><span
+                    ><svg class="ic" viewBox="0 0 12 12">
+                        <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                        <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
+                    </svg>
+                    worst data age 41 min</span
+                ></span
+            >
+        </header>
+        <nav>
+            <a href="#overview" class="on">Overview</a
+            ><a href="#prs"
+                ><svg class="ic" viewBox="0 0 12 12">
+                    <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                    <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                >Pull requests</a
+            ><a href="#ci"
+                ><svg class="ic" viewBox="0 0 12 12">
+                    <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                    <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                >CI</a
+            ><a href="#flaky"
+                ><svg class="ic" viewBox="0 0 12 12">
+                    <path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="var(--good)" stroke-width="2" /></svg
+                >Flaky tests</a
+            ><a href="#releases"
+                ><svg class="ic" viewBox="0 0 12 12">
+                    <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                    <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                >Releases</a
+            ><a href="#local"
+                ><svg class="ic" viewBox="0 0 12 12"><path d="M2.5 6h7" stroke="var(--muted)" stroke-width="2" /></svg
+                >Local</a
+            ><a href="#sources"
+                ><svg class="ic" viewBox="0 0 12 12">
+                    <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                    <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                >Sources</a
+            >
+        </nav>
+
+        <section id="ci" class="page">
+            <div class="band-h">CI -- 28 d, per day</div>
+            <div class="tiles" style="grid-template-columns: repeat(6, minmax(0, 1fr))">
+                <a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Queue p50 / p95</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">2.4 / 11<span class="tu">min</span></div>
+                    <div class="ts"></div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,16.8L3.7,19.0L7.4,19.5L11.1,18.6L14.8,16.8L18.5,19.8L22.2,18.4L25.9,17.2L29.6,17.4L33.3,18.2L37.0,19.5L40.7,19.0L44.4,16.1L48.1,6.9L51.9,19.1L55.6,15.9L59.3,16.6L63.0,17.6L66.7,15.6L70.4,17.6L74.1,21.4L77.8,21.3L81.5,21.8L85.2,21.3L88.9,21.3L92.6,22.0L96.3,21.9L100.0,4.0"
+                            class="ln s2"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>p95 +6 min vs prior 28 d</span><span>p95 target 5 min</span></div></a
+                ><a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Run p50 / p95</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">13 / 24<span class="tu">min</span></div>
+                    <div class="ts"></div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,9.2L3.7,6.0L7.4,4.2L11.1,9.2L14.8,11.5L18.5,9.1L22.2,9.2L25.9,7.6L29.6,9.2L33.3,11.3L37.0,4.5L40.7,11.9L44.4,8.8L48.1,4.4L51.9,11.5L55.6,6.2L59.3,9.9L63.0,6.7L66.7,6.6L70.4,4.0L74.1,20.7L77.8,21.4L81.5,20.4L85.2,19.7L88.9,20.2L92.6,22.0L96.3,21.7L100.0,8.6"
+                            class="ln s1"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>-1 min</span><span>budget 20 min</span></div></a
+                ><a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">First-attempt pass</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">74<span class="tu">%</span></div>
+                    <div class="ts">1,412 of 1,908 suites</div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,9.2L3.7,10.4L7.4,10.6L11.1,22.0L14.8,19.4L18.5,11.1L22.2,13.9L25.9,14.5L29.6,16.9L33.3,4.0L37.0,6.3L40.7,12.1L44.4,6.2L48.1,21.2L51.9,8.8L55.6,6.2L59.3,9.7L63.0,9.6L66.7,6.6L70.4,15.0L100.0,16.4"
+                            class="ln s1"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>-4 pt</span><span>target 85%</span></div></a
+                ><a class="tile t-ok" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Reruns</span
+                        ><span class="st st-ok"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            >ok</span
+                        >
+                    </div>
+                    <div class="tv">412<span class="tu">in 28 d</span></div>
+                    <div class="ts"></div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,6.7L3.7,17.3L7.4,8.7L11.1,13.3L14.8,10.0L18.5,4.7L22.2,8.7L25.9,8.0L29.6,6.7L33.3,14.7L37.0,5.3L40.7,14.7L44.4,16.0L48.1,4.0L51.9,8.0L55.6,17.3L59.3,5.3L63.0,13.3L66.7,4.7L70.4,15.3L74.1,20.7L77.8,20.7L81.5,20.7L85.2,20.0L88.9,19.3L92.6,22.0L96.3,20.0L100.0,17.3"
+                            class="ln s1"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>+38</span><span></span></div></a
+                ><a class="tile t-bad" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Budget violations</span
+                        ><span class="st st-bad"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                            >bad</span
+                        >
+                    </div>
+                    <div class="tv">57<span class="tu">jobs</span></div>
+                    <div class="ts">49 warn, 8 hang</div>
+                    <div class="tf"><span>+21</span><span>ci-budgets.json</span></div></a
+                ><a class="tile t-none" href="#ci"
+                    ><div class="th">
+                        <span class="tn">CI minutes</span
+                        ><span class="st st-none"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M2.5 6h7" stroke="var(--muted)" stroke-width="2" /></svg
+                            >no data</span
+                        >
+                    </div>
+                    <div class="tv">212k<span class="tu">min</span></div>
+                    <div class="ts">T4 1,140 min, rate unset</div>
+                    <div class="tf"><span>LLM 41 of 60 USD</span><span>set T4 rate</span></div></a
+                >
+            </div>
+            <div class="card">
+                <h3>
+                    Runner concurrency
+                    <span class="unit">Linux jobs per hour, running (blue) + queued (orange), last 7 d</span
+                    ><span class="age">jobs, 1 min</span>
+                </h3>
+                <svg
+                    viewBox="0 0 1360 150"
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label="Linux jobs running and queued per hour against the 60-job limit"
+                    style="height: 150px"
+                >
+                    <rect x="519.2335329341317" y="8" width="31.42514970059881" height="126" class="satspan" />
+                    <rect x="1147.7365269461077" y="8" width="204.2634730538923" height="126" class="satspan" />
+                    <line x1="40" x2="1352" y1="134" y2="134" class="grid" />
+                    <text x="36" y="137" class="tick" text-anchor="end">0</text>
+                    <line x1="40" x2="1352" y1="99.63636363636363" y2="99.63636363636363" class="grid" />
+                    <text x="36" y="102.63636363636363" class="tick" text-anchor="end">30</text>
+                    <line x1="40" x2="1352" y1="65.27272727272727" y2="65.27272727272727" class="grid" />
+                    <text x="36" y="68.27272727272727" class="tick" text-anchor="end">60</text>
+                    <line x1="40" x2="1352" y1="30.909090909090907" y2="30.909090909090907" class="grid" />
+                    <text x="36" y="33.90909090909091" class="tick" text-anchor="end">90</text>
+                    <text x="40" y="147" class="tick">10-19</text>
+                    <text x="228.55089820359282" y="147" class="tick">10-20</text>
+                    <text x="417.10179640718565" y="147" class="tick">10-21</text>
+                    <text x="605.6526946107784" y="147" class="tick">10-22</text>
+                    <text x="794.2035928143713" y="147" class="tick">10-23</text>
+                    <text x="982.754491017964" y="147" class="tick">10-24</text>
+                    <text x="1171.3053892215569" y="147" class="tick">10-25</text>
+                    <text x="2" y="10" class="axis-title">jobs</text>
+                    <path
+                        d="M40,134L40.0,120.1L47.9,126.5L55.7,120.4L63.6,108.1L71.4,112.0L79.3,111.4L87.1,106.4L95.0,110.2L102.9,92.5L110.7,91.5L118.6,72.2L126.4,96.1L134.3,68.2L142.1,72.1L150.0,77.8L157.8,75.2L165.7,81.2L173.6,84.4L181.4,69.7L189.3,80.3L197.1,69.6L205.0,90.3L212.8,112.5L220.7,118.3L228.6,119.2L236.4,124.0L244.3,114.8L252.1,123.0L260.0,107.7L267.8,109.4L275.7,120.5L283.5,112.6L291.4,69.5L299.3,95.7L307.1,89.1L315.0,68.0L322.8,99.6L330.7,95.1L338.5,86.0L346.4,98.9L354.3,75.8L362.1,68.8L370.0,93.7L377.8,92.3L385.7,67.1L393.5,75.6L401.4,124.3L409.2,125.6L417.1,113.9L425.0,127.9L432.8,109.7L440.7,114.7L448.5,111.1L456.4,125.3L464.2,120.7L472.1,111.9L480.0,66.8L487.8,80.8L495.7,79.4L503.5,72.9L511.4,75.5L519.2,65.3L527.1,65.3L534.9,65.3L542.8,65.3L550.7,65.3L558.5,78.0L566.4,71.7L574.2,91.4L582.1,68.5L589.9,127.1L597.8,112.4L605.7,119.0L613.5,110.1L621.4,113.2L629.2,109.8L637.1,125.9L644.9,107.2L652.8,116.8L660.6,109.4L668.5,85.0L676.4,69.9L684.2,72.5L692.1,74.6L699.9,68.4L707.8,70.1L715.6,93.1L723.5,74.9L731.4,94.3L739.2,95.3L747.1,67.0L754.9,66.8L762.8,97.7L770.6,97.0L778.5,122.3L786.3,106.7L794.2,108.3L802.1,106.4L809.9,121.9L817.8,123.7L825.6,127.6L833.5,117.5L841.3,115.5L849.2,125.0L857.1,88.5L864.9,83.1L872.8,91.8L880.6,97.7L888.5,98.1L896.3,96.4L904.2,78.0L912.0,83.6L919.9,71.9L927.8,74.6L935.6,82.1L943.5,75.6L951.3,86.3L959.2,78.6L967.0,106.2L974.9,110.6L982.8,106.2L990.6,112.0L998.5,114.5L1006.3,109.9L1014.2,124.4L1022.0,126.8L1029.9,111.6L1037.7,113.5L1045.6,84.8L1053.5,80.9L1061.3,86.3L1069.2,82.6L1077.0,95.4L1084.9,97.4L1092.7,96.9L1100.6,87.5L1108.5,87.8L1116.3,92.8L1124.2,77.6L1132.0,95.3L1139.9,97.8L1147.7,65.3L1155.6,65.3L1163.4,65.3L1171.3,65.3L1179.2,65.3L1187.0,65.3L1194.9,65.3L1202.7,65.3L1210.6,65.3L1218.4,65.3L1226.3,65.3L1234.2,65.3L1242.0,65.3L1249.9,65.3L1257.7,65.3L1265.6,65.3L1273.4,65.3L1281.3,65.3L1289.1,65.3L1297.0,65.3L1304.9,65.3L1312.7,65.3L1320.6,65.3L1328.4,65.3L1336.3,65.3L1344.1,65.3L1352.0,65.3L1352,134Z"
+                        class="area s1f"
+                    />
+                    <path
+                        d="M40,120.07648889897567L40.0,120.1L47.9,126.5L55.7,120.4L63.6,108.1L71.4,112.0L79.3,111.4L87.1,106.4L95.0,110.2L102.9,92.5L110.7,91.5L118.6,72.2L126.4,96.1L134.3,68.2L142.1,72.1L150.0,77.8L157.8,75.2L165.7,81.2L173.6,84.4L181.4,69.7L189.3,80.3L197.1,69.6L205.0,90.3L212.8,112.5L220.7,118.3L228.6,119.2L236.4,124.0L244.3,114.8L252.1,123.0L260.0,107.7L267.8,109.4L275.7,120.5L283.5,112.6L291.4,69.5L299.3,95.7L307.1,89.1L315.0,68.0L322.8,99.6L330.7,95.1L338.5,86.0L346.4,98.9L354.3,75.8L362.1,68.8L370.0,93.7L377.8,92.3L385.7,67.1L393.5,75.6L401.4,124.3L409.2,125.6L417.1,113.9L425.0,127.9L432.8,109.7L440.7,114.7L448.5,111.1L456.4,125.3L464.2,120.7L472.1,111.9L480.0,66.8L487.8,80.8L495.7,79.4L503.5,72.9L511.4,75.5L519.2,25.5L527.1,46.4L534.9,39.6L542.8,38.6L550.7,24.7L558.5,78.0L566.4,71.7L574.2,91.4L582.1,68.5L589.9,127.1L597.8,112.4L605.7,119.0L613.5,110.1L621.4,113.2L629.2,109.8L637.1,125.9L644.9,107.2L652.8,116.8L660.6,109.4L668.5,85.0L676.4,69.9L684.2,72.5L692.1,74.6L699.9,68.4L707.8,70.1L715.6,93.1L723.5,74.9L731.4,94.3L739.2,95.3L747.1,67.0L754.9,66.8L762.8,97.7L770.6,97.0L778.5,122.3L786.3,106.7L794.2,108.3L802.1,106.4L809.9,121.9L817.8,123.7L825.6,127.6L833.5,117.5L841.3,115.5L849.2,125.0L857.1,88.5L864.9,83.1L872.8,91.8L880.6,97.7L888.5,98.1L896.3,96.4L904.2,78.0L912.0,83.6L919.9,71.9L927.8,74.6L935.6,82.1L943.5,75.6L951.3,86.3L959.2,78.6L967.0,106.2L974.9,110.6L982.8,106.2L990.6,112.0L998.5,114.5L1006.3,109.9L1014.2,124.4L1022.0,126.8L1029.9,111.6L1037.7,113.5L1045.6,84.8L1053.5,80.9L1061.3,86.3L1069.2,82.6L1077.0,95.4L1084.9,97.4L1092.7,96.9L1100.6,87.5L1108.5,87.8L1116.3,92.8L1124.2,77.6L1132.0,95.3L1139.9,97.8L1147.7,16.5L1155.6,46.4L1163.4,36.1L1171.3,13.8L1179.2,47.7L1187.0,40.3L1194.9,31.9L1202.7,41.6L1210.6,19.6L1218.4,15.7L1226.3,36.1L1234.2,36.8L1242.0,14.8L1249.9,22.5L1257.7,15.3L1265.6,17.4L1273.4,11.4L1281.3,37.3L1289.1,35.8L1297.0,41.9L1304.9,23.2L1312.7,30.4L1320.6,16.8L1328.4,39.3L1336.3,47.2L1344.1,17.4L1352.0,15.8L1352.0,65.3L1344.1,65.3L1336.3,65.3L1328.4,65.3L1320.6,65.3L1312.7,65.3L1304.9,65.3L1297.0,65.3L1289.1,65.3L1281.3,65.3L1273.4,65.3L1265.6,65.3L1257.7,65.3L1249.9,65.3L1242.0,65.3L1234.2,65.3L1226.3,65.3L1218.4,65.3L1210.6,65.3L1202.7,65.3L1194.9,65.3L1187.0,65.3L1179.2,65.3L1171.3,65.3L1163.4,65.3L1155.6,65.3L1147.7,65.3L1139.9,97.8L1132.0,95.3L1124.2,77.6L1116.3,92.8L1108.5,87.8L1100.6,87.5L1092.7,96.9L1084.9,97.4L1077.0,95.4L1069.2,82.6L1061.3,86.3L1053.5,80.9L1045.6,84.8L1037.7,113.5L1029.9,111.6L1022.0,126.8L1014.2,124.4L1006.3,109.9L998.5,114.5L990.6,112.0L982.8,106.2L974.9,110.6L967.0,106.2L959.2,78.6L951.3,86.3L943.5,75.6L935.6,82.1L927.8,74.6L919.9,71.9L912.0,83.6L904.2,78.0L896.3,96.4L888.5,98.1L880.6,97.7L872.8,91.8L864.9,83.1L857.1,88.5L849.2,125.0L841.3,115.5L833.5,117.5L825.6,127.6L817.8,123.7L809.9,121.9L802.1,106.4L794.2,108.3L786.3,106.7L778.5,122.3L770.6,97.0L762.8,97.7L754.9,66.8L747.1,67.0L739.2,95.3L731.4,94.3L723.5,74.9L715.6,93.1L707.8,70.1L699.9,68.4L692.1,74.6L684.2,72.5L676.4,69.9L668.5,85.0L660.6,109.4L652.8,116.8L644.9,107.2L637.1,125.9L629.2,109.8L621.4,113.2L613.5,110.1L605.7,119.0L597.8,112.4L589.9,127.1L582.1,68.5L574.2,91.4L566.4,71.7L558.5,78.0L550.7,65.3L542.8,65.3L534.9,65.3L527.1,65.3L519.2,65.3L511.4,75.5L503.5,72.9L495.7,79.4L487.8,80.8L480.0,66.8L472.1,111.9L464.2,120.7L456.4,125.3L448.5,111.1L440.7,114.7L432.8,109.7L425.0,127.9L417.1,113.9L409.2,125.6L401.4,124.3L393.5,75.6L385.7,67.1L377.8,92.3L370.0,93.7L362.1,68.8L354.3,75.8L346.4,98.9L338.5,86.0L330.7,95.1L322.8,99.6L315.0,68.0L307.1,89.1L299.3,95.7L291.4,69.5L283.5,112.6L275.7,120.5L267.8,109.4L260.0,107.7L252.1,123.0L244.3,114.8L236.4,124.0L228.6,119.2L220.7,118.3L212.8,112.5L205.0,90.3L197.1,69.6L189.3,80.3L181.4,69.7L173.6,84.4L165.7,81.2L157.8,75.2L150.0,77.8L142.1,72.1L134.3,68.2L126.4,96.1L118.6,72.2L110.7,91.5L102.9,92.5L95.0,110.2L87.1,106.4L79.3,111.4L71.4,112.0L63.6,108.1L55.7,120.4L47.9,126.5L40.0,120.1Z"
+                        class="area s2f"
+                    />
+                    <line x1="40" x2="1352" y1="65.27272727272727" y2="65.27272727272727" class="limit" />
+                    <text x="1350" y="62.272727272727266" class="limit-t" text-anchor="end">limit 60</text>
+                    <text x="1218.443113772455" y="19.454545454545453" class="band-label">saturated 27 h</text>
+                </svg>
+            </div>
+            <div class="card">
+                <h3>
+                    Queue vs run time <span class="unit">minutes per job</span
+                    ><span class="k"
+                        ><span><i style="border-color: var(--s2)"></i>queue</span
+                        ><span><i style="border-color: var(--s1)"></i>run</span
+                        ><span><i style="border-color: var(--ink2); border-top-style: dashed"></i>p95</span></span
+                    ><span class="age">jobs, 2 min</span>
+                </h3>
+                <svg
+                    viewBox="0 0 1360 130"
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label="queue time and run time, median and 95th percentile"
+                    style="height: 130px"
+                >
+                    <line x1="40" x2="1352" y1="114" y2="114" class="grid" />
+                    <text x="36" y="117" class="tick" text-anchor="end">0</text>
+                    <line x1="40" x2="1352" y1="78.66666666666666" y2="78.66666666666666" class="grid" />
+                    <text x="36" y="81.66666666666666" class="tick" text-anchor="end">15</text>
+                    <line x1="40" x2="1352" y1="43.33333333333333" y2="43.33333333333333" class="grid" />
+                    <text x="36" y="46.33333333333333" class="tick" text-anchor="end">30</text>
+                    <line x1="40" x2="1352" y1="8" y2="8" class="grid" />
+                    <text x="36" y="11" class="tick" text-anchor="end">45</text>
+                    <rect x="1305.1428571428573" y="8" width="46.857142857142854" height="106" class="partial" />
+                    <text x="63.42857142857143" y="127" class="tick" text-anchor="middle">09-28</text>
+                    <text x="391.42857142857144" y="127" class="tick" text-anchor="middle">10-05</text>
+                    <text x="719.4285714285714" y="127" class="tick" text-anchor="middle">10-12</text>
+                    <text x="1047.4285714285716" y="127" class="tick" text-anchor="middle">10-19</text>
+                    <text x="1328.5714285714287" y="127" class="tick" text-anchor="middle">partial</text>
+                    <rect x="196.1904761904762" y="8" width="23.428571428571416" height="106" class="redspan" />
+                    <rect x="469.5238095238095" y="8" width="15.619047619047649" height="106" class="redspan" />
+                    <rect x="664.7619047619048" y="8" width="70.28571428571422" height="106" class="redspan" />
+                    <rect x="840.4761904761905" y="8" width="7.809523809523853" height="106" class="redspan" />
+                    <rect x="1312.952380952381" y="8" width="23.42857142857133" height="106" class="redspan" />
+                    <line x1="40" x2="1352" y1="66.88888888888889" y2="66.88888888888889" class="budget" />
+                    <text x="44" y="63.888888888888886" class="limit-t">run budget 20 min</text>
+                    <path
+                        d="M63.4,62.3L110.3,54.2L157.1,49.7L204.0,62.2L250.9,68.0L297.7,61.9L344.6,62.2L391.4,58.3L438.3,62.2L485.1,67.6L532.0,50.5L578.9,69.2L625.7,61.3L672.6,50.2L719.4,68.1L766.3,54.7L813.1,64.0L860.0,56.1L906.9,55.8L953.7,49.2L1000.6,91.2L1047.4,93.0L1094.3,90.5L1141.1,88.7L1188.0,90.0L1234.9,94.6L1281.7,93.7"
+                        class="ln s1 dash"
+                    />
+                    <path
+                        d="M1281.7142857142858,93.72654962288934L1328.5714285714287,60.8305199802271"
+                        class="ln s1 dash stub"
+                    />
+                    <path
+                        d="M63.4,81.8L110.3,83.7L157.1,82.0L204.0,78.2L250.9,77.7L297.7,83.8L344.6,83.1L391.4,80.6L438.3,84.0L485.1,86.3L532.0,77.2L578.9,87.2L625.7,85.3L672.6,87.8L719.4,81.4L766.3,86.5L813.1,83.1L860.0,83.9L906.9,76.4L953.7,79.0L1000.6,99.8L1047.4,102.1L1094.3,101.1L1141.1,97.9L1188.0,99.4L1234.9,101.7L1281.7,101.6"
+                        class="ln s1"
+                    />
+                    <path
+                        d="M1281.7142857142858,101.592597171578L1328.5714285714287,78.96883924276048"
+                        class="ln s1 stub"
+                    />
+                    <path
+                        d="M63.4,86.8L110.3,97.1L157.1,99.6L204.0,95.1L250.9,86.8L297.7,101.1L344.6,94.5L391.4,88.8L438.3,89.8L485.1,93.6L532.0,99.3L578.9,97.0L625.7,83.5L672.6,40.3L719.4,97.8L766.3,82.7L813.1,86.0L860.0,90.4L906.9,81.3L953.7,90.4L1000.6,108.5L1047.4,108.1L1094.3,110.3L1141.1,107.8L1188.0,108.1L1234.9,111.3L1281.7,110.7"
+                        class="ln s2 dash"
+                    />
+                    <path
+                        d="M1281.7142857142858,110.7398579518755L1328.5714285714287,26.69420449941977"
+                        class="ln s2 dash stub"
+                    />
+                    <path
+                        d="M63.4,110.8L110.3,106.9L157.1,107.0L204.0,109.7L250.9,108.6L297.7,106.3L344.6,110.3L391.4,106.6L438.3,110.5L485.1,111.6L532.0,108.3L578.9,112.0L625.7,110.6L672.6,108.1L719.4,110.7L766.3,111.4L813.1,106.0L860.0,106.5L906.9,110.1L953.7,109.0L1000.6,113.0L1047.4,112.7L1094.3,112.1L1141.1,112.0L1188.0,113.3L1234.9,113.1L1281.7,111.7"
+                        class="ln s2"
+                    />
+                    <path
+                        d="M1281.7142857142858,111.73389943709003L1328.5714285714287,95.2944727683052"
+                        class="ln s2 stub"
+                    />
+                    <path d="M207.8095238095238,114L215.8095238095238,114L211.8095238095238,107Z" class="mk-revert">
+                        <title>revert</title>
+                    </path>
+                    <path d="M473.3333333333333,114L481.3333333333333,114L477.3333333333333,107Z" class="mk-revert">
+                        <title>revert</title>
+                    </path>
+                    <path d="M723.2380952380952,114L731.2380952380952,114L727.2380952380952,107Z" class="mk-revert">
+                        <title>revert</title>
+                    </path>
+                    <path d="M1324.5714285714287,114L1332.5714285714287,114L1328.5714285714287,107Z" class="mk-revert">
+                        <title>revert</title>
+                    </path>
+                    <path
+                        d="M157.14285714285714,6L161.14285714285714,10L157.14285714285714,14L153.14285714285714,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M297.7142857142857,6L301.7142857142857,10L297.7142857142857,14L293.7142857142857,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M438.2857142857143,6L442.2857142857143,10L438.2857142857143,14L434.2857142857143,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M625.7142857142857,6L629.7142857142857,10L625.7142857142857,14L621.7142857142857,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M781.9047619047619,6L785.9047619047619,10L781.9047619047619,14L777.9047619047619,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M1211.4285714285713,6L1215.4285714285713,10L1211.4285714285713,14L1207.4285714285713,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                    <path
+                        d="M1281.7142857142858,6L1285.7142857142858,10L1281.7142857142858,14L1277.7142857142858,10Z"
+                        class="mk-release"
+                    >
+                        <title>release</title>
+                    </path>
+                </svg>
+            </div>
+            <div class="grid2" style="grid-template-columns: 1fr 1fr">
+                <div class="card">
+                    <h3>Reruns <span class="unit">per day</span><span class="age">runs, 2 min</span></h3>
+                    <svg
+                        viewBox="0 0 660 110"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="reruns per day"
+                        style="height: 110px"
+                    >
+                        <line x1="40" x2="652" y1="94" y2="94" class="grid" />
+                        <text x="36" y="97" class="tick" text-anchor="end">0</text>
+                        <line x1="40" x2="652" y1="65.33333333333333" y2="65.33333333333333" class="grid" />
+                        <text x="36" y="68.33333333333333" class="tick" text-anchor="end">10</text>
+                        <line x1="40" x2="652" y1="36.666666666666664" y2="36.666666666666664" class="grid" />
+                        <text x="36" y="39.666666666666664" class="tick" text-anchor="end">20</text>
+                        <line x1="40" x2="652" y1="8" y2="8" class="grid" />
+                        <text x="36" y="11" class="tick" text-anchor="end">30</text>
+                        <rect x="630.1428571428571" y="8" width="21.857142857142858" height="86" class="partial" />
+                        <text x="50.92857142857143" y="107" class="tick" text-anchor="middle">09-28</text>
+                        <text x="203.92857142857142" y="107" class="tick" text-anchor="middle">10-05</text>
+                        <text x="356.92857142857144" y="107" class="tick" text-anchor="middle">10-12</text>
+                        <text x="509.92857142857144" y="107" class="tick" text-anchor="middle">10-19</text>
+                        <text x="641.0714285714286" y="107" class="tick" text-anchor="middle">partial</text>
+                        <rect
+                            x="43.06"
+                            y="28.066666666666663"
+                            width="15.737142857142857"
+                            height="65.93333333333334"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>09-28: 23 reruns</title>
+                        </rect>
+                        <rect
+                            x="64.91714285714285"
+                            y="73.93333333333334"
+                            width="15.737142857142857"
+                            height="20.066666666666663"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>09-29: 7 reruns</title>
+                        </rect>
+                        <rect
+                            x="86.77428571428571"
+                            y="36.666666666666664"
+                            width="15.737142857142857"
+                            height="57.333333333333336"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>09-30: 20 reruns</title>
+                        </rect>
+                        <rect
+                            x="108.63142857142857"
+                            y="56.733333333333334"
+                            width="15.737142857142857"
+                            height="37.266666666666666"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-01: 13 reruns</title>
+                        </rect>
+                        <rect
+                            x="130.48857142857145"
+                            y="42.4"
+                            width="15.737142857142857"
+                            height="51.6"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-02: 18 reruns</title>
+                        </rect>
+                        <rect
+                            x="152.34571428571428"
+                            y="19.46666666666667"
+                            width="15.737142857142857"
+                            height="74.53333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-03: 26 reruns</title>
+                        </rect>
+                        <rect
+                            x="174.20285714285717"
+                            y="36.666666666666664"
+                            width="15.737142857142857"
+                            height="57.333333333333336"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-04: 20 reruns</title>
+                        </rect>
+                        <rect x="196.06" y="33.8" width="15.737142857142857" height="60.2" rx="2" class="bar">
+                            <title>10-05: 21 reruns</title>
+                        </rect>
+                        <rect
+                            x="217.91714285714284"
+                            y="28.066666666666663"
+                            width="15.737142857142857"
+                            height="65.93333333333334"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-06: 23 reruns</title>
+                        </rect>
+                        <rect
+                            x="239.77428571428572"
+                            y="62.46666666666667"
+                            width="15.737142857142857"
+                            height="31.53333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-07: 11 reruns</title>
+                        </rect>
+                        <rect
+                            x="261.63142857142856"
+                            y="22.33333333333333"
+                            width="15.737142857142857"
+                            height="71.66666666666667"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-08: 25 reruns</title>
+                        </rect>
+                        <rect
+                            x="283.48857142857145"
+                            y="62.46666666666667"
+                            width="15.737142857142857"
+                            height="31.53333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-09: 11 reruns</title>
+                        </rect>
+                        <rect
+                            x="305.3457142857143"
+                            y="68.2"
+                            width="15.737142857142857"
+                            height="25.799999999999997"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-10: 9 reruns</title>
+                        </rect>
+                        <rect
+                            x="327.2028571428571"
+                            y="16.599999999999994"
+                            width="15.737142857142857"
+                            height="77.4"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-11: 27 reruns</title>
+                        </rect>
+                        <rect x="349.06" y="33.8" width="15.737142857142857" height="60.2" rx="2" class="bar">
+                            <title>10-12: 21 reruns</title>
+                        </rect>
+                        <rect
+                            x="370.91714285714284"
+                            y="73.93333333333334"
+                            width="15.737142857142857"
+                            height="20.066666666666663"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-13: 7 reruns</title>
+                        </rect>
+                        <rect
+                            x="392.7742857142857"
+                            y="22.33333333333333"
+                            width="15.737142857142857"
+                            height="71.66666666666667"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-14: 25 reruns</title>
+                        </rect>
+                        <rect
+                            x="414.63142857142856"
+                            y="56.733333333333334"
+                            width="15.737142857142857"
+                            height="37.266666666666666"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-15: 13 reruns</title>
+                        </rect>
+                        <rect
+                            x="436.4885714285714"
+                            y="19.46666666666667"
+                            width="15.737142857142857"
+                            height="74.53333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-16: 26 reruns</title>
+                        </rect>
+                        <rect
+                            x="458.3457142857143"
+                            y="65.33333333333333"
+                            width="15.737142857142857"
+                            height="28.66666666666667"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-17: 10 reruns</title>
+                        </rect>
+                        <rect
+                            x="480.2028571428571"
+                            y="88.26666666666667"
+                            width="15.737142857142857"
+                            height="5.733333333333334"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-18: 2 reruns</title>
+                        </rect>
+                        <rect
+                            x="502.06"
+                            y="88.26666666666667"
+                            width="15.737142857142857"
+                            height="5.733333333333334"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-19: 2 reruns</title>
+                        </rect>
+                        <rect
+                            x="523.9171428571428"
+                            y="88.26666666666667"
+                            width="15.737142857142857"
+                            height="5.733333333333334"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-20: 2 reruns</title>
+                        </rect>
+                        <rect
+                            x="545.7742857142857"
+                            y="85.4"
+                            width="15.737142857142857"
+                            height="8.599999999999994"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-21: 3 reruns</title>
+                        </rect>
+                        <rect
+                            x="567.6314285714286"
+                            y="82.53333333333333"
+                            width="15.737142857142857"
+                            height="11.466666666666669"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-22: 4 reruns</title>
+                        </rect>
+                        <rect x="589.4885714285715" y="94" width="15.737142857142857" height="0" rx="2" class="bar">
+                            <title>10-23: 0 reruns</title>
+                        </rect>
+                        <rect
+                            x="611.3457142857143"
+                            y="85.4"
+                            width="15.737142857142857"
+                            height="8.599999999999994"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-24: 3 reruns</title>
+                        </rect>
+                        <rect
+                            x="633.2028571428572"
+                            y="73.93333333333334"
+                            width="15.737142857142857"
+                            height="20.066666666666663"
+                            rx="2"
+                            class="bar bar-partial"
+                        >
+                            <title>10-25: 7 reruns</title>
+                        </rect>
+                    </svg>
+                </div>
+                <div class="card">
+                    <h3>
+                        Queue time distribution <span class="unit">n=8,417 jobs</span
+                        ><span class="age">jobs, 2 min</span>
+                    </h3>
+                    <svg
+                        viewBox="0 0 660 120"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="histogram of job queue times"
+                        style="height: 120px"
+                    >
+                        <line x1="40" x2="652" y1="104" y2="104" class="grid" />
+                        <text x="36" y="107" class="tick" text-anchor="end">0k</text>
+                        <line x1="40" x2="652" y1="61.333333333333336" y2="61.333333333333336" class="grid" />
+                        <text x="36" y="64.33333333333334" class="tick" text-anchor="end">2k</text>
+                        <line x1="40" x2="652" y1="18.66666666666667" y2="18.66666666666667" class="grid" />
+                        <text x="36" y="21.66666666666667" class="tick" text-anchor="end">4k</text>
+                        <rect
+                            x="42"
+                            y="16.10666666666667"
+                            width="83.42857142857143"
+                            height="87.89333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title><1 min: 4120 jobs</title>
+                        </rect>
+                        <text x="83.71428571428572" y="117" class="tick" text-anchor="middle"><1</text>
+                        <rect
+                            x="129.42857142857144"
+                            y="65.38666666666666"
+                            width="83.42857142857143"
+                            height="38.613333333333344"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>1-2 min: 1810 jobs</title>
+                        </rect>
+                        <text x="171.14285714285714" y="117" class="tick" text-anchor="middle">1-2</text>
+                        <rect
+                            x="216.85714285714286"
+                            y="77.54666666666667"
+                            width="83.42857142857143"
+                            height="26.453333333333333"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>2-5 min: 1240 jobs</title>
+                        </rect>
+                        <text x="258.57142857142856" y="117" class="tick" text-anchor="middle">2-5</text>
+                        <rect
+                            x="304.2857142857143"
+                            y="89.28"
+                            width="83.42857142857143"
+                            height="14.719999999999999"
+                            rx="2"
+                            class="bar s2b"
+                        >
+                            <title>5-10 min: 690 jobs</title>
+                        </rect>
+                        <text x="346" y="117" class="tick" text-anchor="middle">5-10</text>
+                        <rect
+                            x="391.7142857142857"
+                            y="95.89333333333333"
+                            width="83.42857142857143"
+                            height="8.10666666666667"
+                            rx="2"
+                            class="bar s2b"
+                        >
+                            <title>10-20 min: 380 jobs</title>
+                        </rect>
+                        <text x="433.42857142857144" y="117" class="tick" text-anchor="middle">10-20</text>
+                        <rect
+                            x="479.14285714285717"
+                            y="101.01333333333334"
+                            width="83.42857142857143"
+                            height="2.9866666666666646"
+                            rx="2"
+                            class="bar s2b"
+                        >
+                            <title>20-40 min: 140 jobs</title>
+                        </rect>
+                        <text x="520.8571428571429" y="117" class="tick" text-anchor="middle">20-40</text>
+                        <rect
+                            x="566.5714285714286"
+                            y="103.21066666666667"
+                            width="83.42857142857143"
+                            height="0.7893333333333317"
+                            rx="2"
+                            class="bar s2b"
+                        >
+                            <title>40+ min: 37 jobs</title>
+                        </rect>
+                        <text x="608.2857142857142" y="117" class="tick" text-anchor="middle">40+</text>
+                        <text x="2" y="10" class="axis-title">jobs (queue time, min, log bins)</text>
+                    </svg>
+                </div>
+            </div>
+            <div class="card">
+                <h3>
+                    Budget violations
+                    <span class="unit"
+                        >p95 against ci-budgets.json, sorted by overrun; tick = budget, shaded = up to hang (2x)</span
+                    ><span class="age">past jobs judged by today's file</span>
+                </h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>job</th>
+                            <th>p95 vs budget</th>
+                            <th class="num">p95 min</th>
+                            <th class="num">budget min</th>
+                            <th class="num">hangs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                    <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
+                                </svg>
+                            </td>
+                            <td class="what">Test (graphty-element-storybook-2)</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 21.4 min against budget 15 min">
+                                    <span class="bb-ok" style="width: 46.875%"></span
+                                    ><span class="bb-warn" style="left: 46.875%; width: 46.875%"></span>
+                                    <span class="bb-v" style="width: 66.875%"></span
+                                    ><span class="bb-t" style="left: 46.875%"></span>
+                                </div>
+                            </td>
+                            <td class="num">21.4</td>
+                            <td class="num">15</td>
+                            <td class="num">2</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                    <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
+                                </svg>
+                            </td>
+                            <td class="what">Test (graphty-element-browser-4)</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 17.9 min against budget 15 min">
+                                    <span class="bb-ok" style="width: 46.875%"></span
+                                    ><span class="bb-warn" style="left: 46.875%; width: 46.875%"></span>
+                                    <span class="bb-v" style="width: 55.93749999999999%"></span
+                                    ><span class="bb-t" style="left: 46.875%"></span>
+                                </div>
+                            </td>
+                            <td class="num">17.9</td>
+                            <td class="num">15</td>
+                            <td class="num">1</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                    <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
+                                </svg>
+                            </td>
+                            <td class="what">Build</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 6.6 min against budget 6 min">
+                                    <span class="bb-ok" style="width: 18.75%"></span
+                                    ><span class="bb-warn" style="left: 18.75%; width: 18.75%"></span>
+                                    <span class="bb-v" style="width: 20.625%"></span
+                                    ><span class="bb-t" style="left: 18.75%"></span>
+                                </div>
+                            </td>
+                            <td class="num">6.6</td>
+                            <td class="num">6</td>
+                            <td class="num">1</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="var(--good)" stroke-width="2" />
+                                </svg>
+                            </td>
+                            <td class="what">Test (graphty-3)</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 13.8 min against budget 15 min">
+                                    <span class="bb-ok" style="width: 46.875%"></span
+                                    ><span class="bb-warn" style="left: 46.875%; width: 46.875%"></span>
+                                    <span class="bb-v" style="width: 43.125%"></span
+                                    ><span class="bb-t" style="left: 46.875%"></span>
+                                </div>
+                            </td>
+                            <td class="num">13.8</td>
+                            <td class="num">15</td>
+                            <td class="num">0</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="var(--good)" stroke-width="2" />
+                                </svg>
+                            </td>
+                            <td class="what">Lint</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 7.1 min against budget 10 min">
+                                    <span class="bb-ok" style="width: 31.25%"></span
+                                    ><span class="bb-warn" style="left: 31.25%; width: 31.25%"></span>
+                                    <span class="bb-v" style="width: 22.1875%"></span
+                                    ><span class="bb-t" style="left: 31.25%"></span>
+                                </div>
+                            </td>
+                            <td class="num">7.1</td>
+                            <td class="num">10</td>
+                            <td class="num">0</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="var(--good)" stroke-width="2" />
+                                </svg>
+                            </td>
+                            <td class="what">Test (small-browser)</td>
+                            <td class="bcell">
+                                <div class="bb" role="img" aria-label="p95 9.2 min against budget 15 min">
+                                    <span class="bb-ok" style="width: 46.875%"></span
+                                    ><span class="bb-warn" style="left: 46.875%; width: 46.875%"></span>
+                                    <span class="bb-v" style="width: 28.749999999999996%"></span
+                                    ><span class="bb-t" style="left: 46.875%"></span>
+                                </div>
+                            </td>
+                            <td class="num">9.2</td>
+                            <td class="num">15</td>
+                            <td class="num">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>Minutes by workflow <span class="unit">% of 212k min</span></h3>
+                <div class="hbar" role="img" aria-label="CI minutes by workflow">
+                    <span class="seg p2" style="width: 48%" title="ci.yml pr: 48%"></span
+                    ><span class="seg p1" style="width: 22%" title="release.yml: 22%"></span
+                    ><span class="seg p3" style="width: 9%" title="hosts.yml: 9%"></span
+                    ><span class="seg p4" style="width: 5%" title="gpu.yml (T4): 5%"></span
+                    ><span class="seg p5" style="width: 16%" title="other: 16%"></span>
+                </div>
+                <div class="legend">
+                    <span class="lg"><i class="sw p2"></i>ci.yml pr <b>48%</b></span
+                    ><span class="lg"><i class="sw p1"></i>release.yml <b>22%</b></span
+                    ><span class="lg"><i class="sw p3"></i>hosts.yml <b>9%</b></span
+                    ><span class="lg"><i class="sw p4"></i>gpu.yml (T4) <b>5%</b></span
+                    ><span class="lg"><i class="sw p5"></i>other <b>16%</b></span>
+                </div>
+            </div>
+        </section>
+
+        <section id="prs" class="page">
+            <div class="card">
+                <h3>Pull requests</h3>
+                <div class="muted">Not drawn in this mockup. Layout: section 2.3 of design/ci/health-dashboard.md.</div>
+            </div>
+        </section>
+        <section id="flaky" class="page">
+            <div class="card">
+                <h3>Flaky tests</h3>
+                <div class="muted">Not drawn in this mockup.</div>
+            </div>
+        </section>
+        <section id="releases" class="page">
+            <div class="card">
+                <h3>Releases</h3>
+                <div class="muted">Not drawn in this mockup.</div>
+            </div>
+        </section>
+        <section id="local" class="page">
+            <div class="card">
+                <h3>Local</h3>
+                <div class="muted">Not drawn in this mockup.</div>
+            </div>
+        </section>
+        <section id="sources" class="page">
+            <div class="card">
+                <h3>Sources</h3>
+                <div class="muted">Not drawn in this mockup.</div>
+            </div>
+        </section>
+
+        <section id="overview" class="page default">
+            <div class="band-h">Health</div>
+            <div class="tiles">
+                <a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Master green</span><span class="scope">28 d</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">89<span class="tu">%</span></div>
+                    <div class="ts">5 red spans, longest 36 h</div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,17.9L3.7,7.4L7.4,4.4L11.1,19.3L14.8,5.2L18.5,12.8L22.2,19.9L25.9,18.3L29.6,11.1L33.3,19.0L37.0,20.7L40.7,17.1L44.4,10.3L48.1,12.0L51.9,13.3L55.6,4.0L59.3,20.7L63.0,14.6L66.7,16.4L70.4,22.0L74.1,22.0L77.8,14.6L81.5,20.4L85.2,17.8L88.9,5.3L92.6,7.9L96.3,8.2L100.0,14.1"
+                            class="ln s1"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>-3 pt vs prior 28 d</span><span>target 95%</span></div>
+                    <div class="src">runs, 2 min</div></a
+                ><a class="tile t-ok" href="#releases"
+                    ><div class="th">
+                        <span class="tn">Canary</span
+                        ><span class="st st-ok"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            >ok</span
+                        >
+                    </div>
+                    <div class="tv sm">3f2a91c</div>
+                    <div class="ts">deployed 42 min ago</div>
+                    <div class="dots" aria-label="last 14 outcomes">
+                        <i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-bad" title="bad"></i><i class="dot d-ok" title="ok"></i></div></a
+                ><a class="tile t-none" href="#releases"
+                    ><div class="th">
+                        <span class="tn">Nightly</span
+                        ><span class="st st-none"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M2.5 6h7" stroke="var(--muted)" stroke-width="2" /></svg
+                            >no data</span
+                        >
+                    </div>
+                    <div class="tv sm">--</div>
+                    <div class="ts">nothing recorded yet | needs channel_move</div>
+                    <div class="dots" aria-label="last 14 outcomes">
+                        <i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i
+                        ><i class="dot d-none" title="none"></i><i class="dot d-none" title="none"></i></div></a
+                ><a class="tile t-ok" href="#releases"
+                    ><div class="th">
+                        <span class="tn">Production</span
+                        ><span class="st st-ok"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            >ok</span
+                        >
+                    </div>
+                    <div class="tv sm">element 3.30.0</div>
+                    <div class="ts">3 d ago | 187 commits waiting</div>
+                    <div class="dots" aria-label="last 14 outcomes">
+                        <i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-bad" title="bad"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-held" title="held"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-held" title="held"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-ok" title="ok"></i><i class="dot d-ok" title="ok"></i
+                        ><i class="dot d-held" title="held"></i><i class="dot d-ok" title="ok"></i></div></a
+                ><a class="tile t-bad" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Runners</span><span class="scope">now</span
+                        ><span class="st st-bad"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                            >bad</span
+                        >
+                    </div>
+                    <div class="tv">60<span class="tu">running</span> <span class="tq">+ 41 queued</span></div>
+                    <div class="bullet" role="img" aria-label="101 jobs against a limit of 60">
+                        <span class="b-run" style="width: 59.4%"></span><span class="b-q" style="width: 40.6%"></span
+                        ><span class="b-lim" style="left: 59.4%"></span>
+                    </div>
+                    <div class="tf">
+                        <span>longest wait <b>23 min</b></span
+                        ><span>limit 60, wait 5 min</span>
+                    </div>
+                    <div class="src">jobs, 1 min</div></a
+                >
+            </div>
+            <div class="tiles">
+                <a class="tile t-bad" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Release holds</span><span class="scope">now</span
+                        ><span class="st st-bad"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                            >bad</span
+                        >
+                    </div>
+                    <div class="tv">1<span class="tu">open</span></div>
+                    <div class="ts">oldest 19 h: T4 GPU</div>
+                    <div class="tf"><span>4 opened in 28 d</span><span>target 0</span></div>
+                    <div class="src">issues, 3 min</div></a
+                ><a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Screenshot backlog</span><span class="scope">now</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">14<span class="tu">pictures</span></div>
+                    <div class="ts">oldest 31 h, 3 PRs</div>
+                    <div class="tf"><span>+9 vs 24 h ago</span><span>warn 24 h</span></div>
+                    <div class="src">reviews, 1 min</div></a
+                ><a class="tile t-bad" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Open PRs</span><span class="scope">now</span
+                        ><span class="st st-bad"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" /></svg
+                            >bad</span
+                        >
+                    </div>
+                    <div class="tv">23<span class="tu">non-draft</span></div>
+                    <div class="ts">longest open 4.6 d (#3433)</div>
+                    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                            d="M0.0,7.7L3.7,4.7L7.4,9.3L11.1,13.2L14.8,15.7L18.5,22.0L22.2,20.3L25.9,17.8L29.6,17.9L33.3,15.8L37.0,11.5L40.7,13.1L44.4,14.0L48.1,11.3L51.9,6.9L55.6,8.0L59.3,4.0L63.0,19.5L66.7,18.1L70.4,4.9L100.0,4.4"
+                            class="ln s1"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    </svg>
+                    <div class="tf"><span>+11 vs prior 28 d</span><span>limit 15, longest 72 h</span></div>
+                    <div class="src">broker, 1 min</div></a
+                ><a class="tile t-warn" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Red on same check</span><span class="scope">now</span
+                        ><span class="st st-warn"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            >warn</span
+                        >
+                    </div>
+                    <div class="tv">2<span class="tu">PRs</span></div>
+                    <div class="ts">Test (graphty-element-browser-3)</div>
+                    <div class="tf"><span>max 11 on 10-21</span><span>warn 2, bad 3</span></div>
+                    <div class="src">broker, 1 min</div></a
+                ><a class="tile t-ok" href="#ci"
+                    ><div class="th">
+                        <span class="tn">Quarantined</span><span class="scope">now</span
+                        ><span class="st st-ok"
+                            ><svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            >ok</span
+                        >
+                    </div>
+                    <div class="tv">1<span class="tu">tests</span></div>
+                    <div class="ts">oldest 3 d (#3485), 12/20 clean</div>
+                    <div class="tf"><span>5 left today</span><span>warn 7 d</span></div>
+                    <div class="src">quarantine, 9 min</div></a
+                >
+            </div>
+            <div class="band-h">Trends -- 28 d, per day, shared x-axis</div>
+            <div class="grid2">
+                <div class="card">
+                    <h3>
+                        Master <span class="unit">green / red / golden-local (build only)</span
+                        ><span class="age">runs, 2 min</span>
+                    </h3>
+                    <svg
+                        viewBox="0 0 860 34"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="master status strip"
+                        style="height: 34px"
+                    >
+                        <rect x="40" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="42.416666666666664" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="44.833333333333336" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="47.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="49.666666666666664" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="52.08333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="54.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="56.916666666666664" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="59.33333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="61.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="64.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="66.58333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="69" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="71.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="73.83333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="76.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="78.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="81.08333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="83.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="85.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="88.33333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="90.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="93.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="95.58333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="98" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="100.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="102.83333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="105.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="107.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="110.08333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="112.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="114.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="117.33333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="119.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="122.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="124.58333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="127" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="129.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="131.83333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="134.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="136.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="139.08333333333331" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="141.5" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="143.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="146.33333333333331" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="148.75" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="151.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="153.58333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="156" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="158.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="160.83333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="163.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="165.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="168.08333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="170.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="172.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="175.33333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="177.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="180.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="182.58333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="185" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="187.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="189.83333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="192.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="194.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="197.08333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="199.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="201.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="204.33333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="206.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="209.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="211.58333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="214" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="216.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="218.83333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="221.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="223.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="226.08333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="228.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="230.91666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="233.33333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="235.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="238.16666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="240.58333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="243" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="245.41666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="247.83333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="250.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="252.66666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="255.08333333333331" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="257.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="259.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="262.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="264.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="267.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="269.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="272" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="274.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="276.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="279.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="281.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="284.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="286.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="288.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="291.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="293.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="296.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="298.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="301" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="303.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="305.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="308.25" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="310.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="313.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="315.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="317.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="320.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="322.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="325.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="327.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="330" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="332.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="334.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="337.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="339.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="342.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="344.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="346.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="349.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="351.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="354.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="356.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="359" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="361.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="363.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="366.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="368.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="371.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="373.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="375.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="378.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="380.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="383.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="385.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="388" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="390.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="392.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="395.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="397.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="400.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="402.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="404.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="407.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="409.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="412.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="414.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="417" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="419.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="421.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="424.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="426.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="429.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="431.5" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="433.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="436.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="438.75" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="441.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="443.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="446" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="448.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="450.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="453.25" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="455.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="458.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="460.5" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="462.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="465.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="467.75" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="470.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="472.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="475" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="477.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="479.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="482.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="484.66666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="487.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="489.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="491.91666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="494.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="496.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="499.16666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="501.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="504" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="506.41666666666663" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="508.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="511.24999999999994" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="513.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="516.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="518.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="520.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="523.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="525.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="528.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="530.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="533" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="535.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="537.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="540.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="542.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="545.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="547.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="549.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="552.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="554.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="557.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="559.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="562" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="564.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="566.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="569.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="571.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="574.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="576.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="578.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="581.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="583.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="586.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="588.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="591" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="593.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="595.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="598.25" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="600.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="603.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="605.5" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="607.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="610.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="612.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="615.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="617.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="620" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="622.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="624.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="627.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="629.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="632.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="634.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="636.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="639.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="641.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="644.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="646.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="649" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="651.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="653.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="656.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="658.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="661.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="663.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="665.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="668.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="670.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="673.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="675.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="678" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="680.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="682.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="685.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="687.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="690.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="692.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="694.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="697.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="699.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="702.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="704.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="707" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="709.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="711.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="714.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="716.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="719.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="721.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="723.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="726.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="728.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="731.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="733.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="736" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="738.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="740.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="743.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="745.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="748.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="750.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="752.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="755.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="757.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="760.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="762.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="765" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="767.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="769.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="772.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="774.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="777.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="779.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="781.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="784.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="786.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="789.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="791.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="794" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="796.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="798.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="801.25" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="803.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="806.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="808.5" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="810.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="813.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="815.75" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="818.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="820.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-gold" />
+                        <rect x="823" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="825.4166666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="827.8333333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="830.25" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="832.6666666666666" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="835.0833333333333" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="837.5" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="839.9166666666666" y="10" width="2.6166666666666667" height="14" class="st-red" />
+                        <rect x="842.3333333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="844.75" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="847.1666666666666" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <rect x="849.5833333333333" y="10" width="2.6166666666666667" height="14" class="st-green" />
+                        <path d="M142.33333333333331,33L150.33333333333331,33L146.33333333333331,26Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M306.66666666666663,33L314.66666666666663,33L310.66666666666663,26Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M461.3333333333333,33L469.3333333333333,33L465.3333333333333,26Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M833.5,33L841.5,33L837.5,26Z" class="mk-revert"><title>revert</title></path>
+                        <path d="M112.5,1L116.5,5L112.5,9L108.5,5Z" class="mk-release"><title>release</title></path>
+                        <path d="M199.5,1L203.5,5L199.5,9L195.5,5Z" class="mk-release"><title>release</title></path>
+                        <path d="M286.5,1L290.5,5L286.5,9L282.5,5Z" class="mk-release"><title>release</title></path>
+                        <path d="M402.5,1L406.5,5L402.5,9L398.5,5Z" class="mk-release"><title>release</title></path>
+                        <path
+                            d="M499.16666666666663,1L503.16666666666663,5L499.16666666666663,9L495.16666666666663,5Z"
+                            class="mk-release"
+                        >
+                            <title>release</title>
+                        </path>
+                        <path d="M765,1L769,5L765,9L761,5Z" class="mk-release"><title>release</title></path>
+                        <path d="M808.5,1L812.5,5L808.5,9L804.5,5Z" class="mk-release"><title>release</title></path>
+                        <text x="2" y="21" class="axis-title">master</text>
+                    </svg>
+                    <h3 style="margin-top: 2px">
+                        PRs created vs merged <span class="unit">per day</span
+                        ><span class="k"
+                            ><span><i style="border-color: var(--s2)"></i>created</span
+                            ><span><i style="border-color: var(--s1)"></i>merged</span></span
+                        ><span class="age">pull requests, 3 min</span>
+                    </h3>
+                    <svg
+                        viewBox="0 0 860 84"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="pull requests created and merged per day"
+                        style="height: 84px"
+                    >
+                        <line x1="40" x2="852" y1="68" y2="68" class="grid" />
+                        <text x="36" y="71" class="tick" text-anchor="end">0</text>
+                        <line x1="40" x2="852" y1="46.57142857142857" y2="46.57142857142857" class="grid" />
+                        <text x="36" y="49.57142857142857" class="tick" text-anchor="end">50</text>
+                        <line x1="40" x2="852" y1="25.142857142857146" y2="25.142857142857146" class="grid" />
+                        <text x="36" y="28.142857142857146" class="tick" text-anchor="end">100</text>
+                        <rect x="620" y="8" width="203" height="60" fill="url(#hatch)" />
+                        <text x="721.5" y="20" class="band-label" text-anchor="middle">
+                            golden-local: no pull requests
+                        </text>
+                        <rect x="823" y="8" width="29" height="60" class="partial" />
+                        <text x="54.5" y="81" class="tick" text-anchor="middle">09-28</text>
+                        <text x="257.5" y="81" class="tick" text-anchor="middle">10-05</text>
+                        <text x="460.5" y="81" class="tick" text-anchor="middle">10-12</text>
+                        <text x="663.5" y="81" class="tick" text-anchor="middle">10-19</text>
+                        <text x="837.5" y="81" class="tick" text-anchor="middle">partial</text>
+                        <rect x="136.66666666666669" y="8" width="14.5" height="60" class="redspan" />
+                        <rect x="305.8333333333333" y="8" width="9.666666666666686" height="60" class="redspan" />
+                        <rect x="426.6666666666667" y="8" width="43.5" height="60" class="redspan" />
+                        <rect x="535.4166666666667" y="8" width="4.8333333333332575" height="60" class="redspan" />
+                        <rect x="827.8333333333334" y="8" width="14.5" height="60" class="redspan" />
+                        <path
+                            d="M54.5,48.7L83.5,37.1L112.5,34.1L141.5,36.3L170.5,39.7L199.5,38.0L228.5,37.6L257.5,43.6L286.5,28.6L315.5,29.9L344.5,35.0L373.5,29.4L402.5,32.9L431.5,38.4L460.5,36.7L489.5,33.3L518.5,29.9L547.5,40.1L576.5,33.3L605.5,44.4"
+                            class="ln s2"
+                        />
+                        <path
+                            d="M54.5,53.9L83.5,47.9L112.5,47.9L141.5,44.9L170.5,52.6L199.5,50.9L228.5,53.0L257.5,50.4L286.5,45.7L315.5,49.6L344.5,51.7L373.5,41.9L402.5,47.0L431.5,54.7L460.5,47.4L489.5,47.0L518.5,41.0L547.5,53.4L576.5,47.9L605.5,53.0"
+                            class="ln s1"
+                        />
+                    </svg>
+                    <h3>Runner peak <span class="unit">max concurrent Linux jobs per day</span></h3>
+                    <svg
+                        viewBox="0 0 860 64"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="runner peak per day against the 60-job limit"
+                        style="height: 64px"
+                    >
+                        <line x1="40" x2="852" y1="48" y2="48" class="grid" />
+                        <text x="36" y="51" class="tick" text-anchor="end">0</text>
+                        <line x1="40" x2="852" y1="30.857142857142858" y2="30.857142857142858" class="grid" />
+                        <text x="36" y="33.85714285714286" class="tick" text-anchor="end">30</text>
+                        <line x1="40" x2="852" y1="13.714285714285715" y2="13.714285714285715" class="grid" />
+                        <text x="36" y="16.714285714285715" class="tick" text-anchor="end">60</text>
+                        <rect x="823" y="8" width="29" height="40" class="partial" />
+                        <text x="54.5" y="61" class="tick" text-anchor="middle">09-28</text>
+                        <text x="257.5" y="61" class="tick" text-anchor="middle">10-05</text>
+                        <text x="460.5" y="61" class="tick" text-anchor="middle">10-12</text>
+                        <text x="663.5" y="61" class="tick" text-anchor="middle">10-19</text>
+                        <text x="837.5" y="61" class="tick" text-anchor="middle">partial</text>
+                        <rect x="44.06" y="24" width="20.88" height="24" rx="2" class="bar">
+                            <title>09-28: peak 42 jobs</title>
+                        </rect>
+                        <rect
+                            x="73.06"
+                            y="18.857142857142858"
+                            width="20.88"
+                            height="29.142857142857142"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>09-29: peak 51 jobs</title>
+                        </rect>
+                        <rect
+                            x="102.06"
+                            y="14.857142857142854"
+                            width="20.88"
+                            height="33.142857142857146"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>09-30: peak 58 jobs</title>
+                        </rect>
+                        <rect
+                            x="131.06"
+                            y="14.857142857142854"
+                            width="20.88"
+                            height="33.142857142857146"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-01: peak 58 jobs</title>
+                        </rect>
+                        <rect
+                            x="160.06"
+                            y="14.857142857142854"
+                            width="20.88"
+                            height="33.142857142857146"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-02: peak 58 jobs</title>
+                        </rect>
+                        <rect
+                            x="189.06"
+                            y="25.714285714285715"
+                            width="20.88"
+                            height="22.285714285714285"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-03: peak 39 jobs</title>
+                        </rect>
+                        <rect
+                            x="218.06"
+                            y="22.285714285714285"
+                            width="20.88"
+                            height="25.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-04: peak 45 jobs</title>
+                        </rect>
+                        <rect
+                            x="247.06"
+                            y="21.714285714285715"
+                            width="20.88"
+                            height="26.285714285714285"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-05: peak 46 jobs</title>
+                        </rect>
+                        <rect
+                            x="276.06"
+                            y="18.285714285714285"
+                            width="20.88"
+                            height="29.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-06: peak 52 jobs</title>
+                        </rect>
+                        <rect
+                            x="305.06"
+                            y="16.571428571428573"
+                            width="20.88"
+                            height="31.428571428571427"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-07: peak 55 jobs</title>
+                        </rect>
+                        <rect
+                            x="334.06"
+                            y="21.714285714285715"
+                            width="20.88"
+                            height="26.285714285714285"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-08: peak 46 jobs</title>
+                        </rect>
+                        <rect
+                            x="363.06"
+                            y="24.571428571428573"
+                            width="20.88"
+                            height="23.428571428571427"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-09: peak 41 jobs</title>
+                        </rect>
+                        <rect
+                            x="392.06"
+                            y="18.285714285714285"
+                            width="20.88"
+                            height="29.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-10: peak 52 jobs</title>
+                        </rect>
+                        <rect
+                            x="421.06"
+                            y="13.714285714285715"
+                            width="20.88"
+                            height="34.285714285714285"
+                            rx="2"
+                            class="bar-sat"
+                        >
+                            <title>10-11: peak 60 jobs</title>
+                        </rect>
+                        <rect
+                            x="450.06"
+                            y="24.571428571428573"
+                            width="20.88"
+                            height="23.428571428571427"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-12: peak 41 jobs</title>
+                        </rect>
+                        <rect x="479.06" y="28" width="20.88" height="20" rx="2" class="bar">
+                            <title>10-13: peak 35 jobs</title>
+                        </rect>
+                        <rect
+                            x="508.06"
+                            y="13.714285714285715"
+                            width="20.88"
+                            height="34.285714285714285"
+                            rx="2"
+                            class="bar-sat"
+                        >
+                            <title>10-14: peak 60 jobs</title>
+                        </rect>
+                        <rect
+                            x="537.06"
+                            y="22.285714285714285"
+                            width="20.88"
+                            height="25.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-15: peak 45 jobs</title>
+                        </rect>
+                        <rect
+                            x="566.06"
+                            y="25.714285714285715"
+                            width="20.88"
+                            height="22.285714285714285"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-16: peak 39 jobs</title>
+                        </rect>
+                        <rect
+                            x="595.06"
+                            y="26.285714285714285"
+                            width="20.88"
+                            height="21.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-17: peak 38 jobs</title>
+                        </rect>
+                        <rect
+                            x="624.06"
+                            y="40.57142857142857"
+                            width="20.88"
+                            height="7.428571428571431"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-18: peak 13 jobs</title>
+                        </rect>
+                        <rect
+                            x="653.06"
+                            y="38.285714285714285"
+                            width="20.88"
+                            height="9.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-19: peak 17 jobs</title>
+                        </rect>
+                        <rect
+                            x="682.06"
+                            y="42.285714285714285"
+                            width="20.88"
+                            height="5.714285714285715"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-20: peak 10 jobs</title>
+                        </rect>
+                        <rect
+                            x="711.06"
+                            y="42.857142857142854"
+                            width="20.88"
+                            height="5.142857142857146"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-21: peak 9 jobs</title>
+                        </rect>
+                        <rect
+                            x="740.06"
+                            y="36.57142857142857"
+                            width="20.88"
+                            height="11.42857142857143"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-22: peak 20 jobs</title>
+                        </rect>
+                        <rect
+                            x="769.06"
+                            y="43.42857142857143"
+                            width="20.88"
+                            height="4.571428571428569"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-23: peak 8 jobs</title>
+                        </rect>
+                        <rect
+                            x="798.06"
+                            y="39.42857142857143"
+                            width="20.88"
+                            height="8.57142857142857"
+                            rx="2"
+                            class="bar"
+                        >
+                            <title>10-24: peak 15 jobs</title>
+                        </rect>
+                        <rect
+                            x="827.06"
+                            y="13.714285714285715"
+                            width="20.88"
+                            height="34.285714285714285"
+                            rx="2"
+                            class="bar-sat bar-partial"
+                        >
+                            <title>10-25: peak 60 jobs</title>
+                        </rect>
+                        <line x1="40" x2="852" y1="13.714285714285715" y2="13.714285714285715" class="limit" />
+                        <text x="850" y="10.714285714285715" class="limit-t" text-anchor="end">limit 60</text>
+                    </svg>
+                    <h3>
+                        Queue vs run time <span class="unit">min per job</span
+                        ><span class="k"
+                            ><span><i style="border-color: var(--s2)"></i>queue</span
+                            ><span><i style="border-color: var(--s1)"></i>run</span
+                            ><span><i style="border-color: var(--ink2); border-top-style: dashed"></i>p95</span></span
+                        >
+                    </h3>
+                    <svg
+                        viewBox="0 0 860 84"
+                        preserveAspectRatio="none"
+                        role="img"
+                        aria-label="queue time and run time, median and 95th percentile"
+                        style="height: 84px"
+                    >
+                        <line x1="40" x2="852" y1="68" y2="68" class="grid" />
+                        <text x="36" y="71" class="tick" text-anchor="end">0</text>
+                        <line x1="40" x2="852" y1="48" y2="48" class="grid" />
+                        <text x="36" y="51" class="tick" text-anchor="end">15</text>
+                        <line x1="40" x2="852" y1="28" y2="28" class="grid" />
+                        <text x="36" y="31" class="tick" text-anchor="end">30</text>
+                        <line x1="40" x2="852" y1="8" y2="8" class="grid" />
+                        <text x="36" y="11" class="tick" text-anchor="end">45</text>
+                        <rect x="823" y="8" width="29" height="60" class="partial" />
+                        <text x="54.5" y="81" class="tick" text-anchor="middle">09-28</text>
+                        <text x="257.5" y="81" class="tick" text-anchor="middle">10-05</text>
+                        <text x="460.5" y="81" class="tick" text-anchor="middle">10-12</text>
+                        <text x="663.5" y="81" class="tick" text-anchor="middle">10-19</text>
+                        <text x="837.5" y="81" class="tick" text-anchor="middle">partial</text>
+                        <rect x="136.66666666666669" y="8" width="14.5" height="60" class="redspan" />
+                        <rect x="305.8333333333333" y="8" width="9.666666666666686" height="60" class="redspan" />
+                        <rect x="426.6666666666667" y="8" width="43.5" height="60" class="redspan" />
+                        <rect x="535.4166666666667" y="8" width="4.8333333333332575" height="60" class="redspan" />
+                        <rect x="827.8333333333334" y="8" width="14.5" height="60" class="redspan" />
+                        <line x1="40" x2="852" y1="41.33333333333333" y2="41.33333333333333" class="budget" />
+                        <text x="44" y="38.33333333333333" class="limit-t">run budget 20 min</text>
+                        <path
+                            d="M54.5,38.7L83.5,34.2L112.5,31.6L141.5,38.7L170.5,42.0L199.5,38.5L228.5,38.7L257.5,36.5L286.5,38.7L315.5,41.7L344.5,32.1L373.5,42.6L402.5,38.2L431.5,31.9L460.5,42.0L489.5,34.4L518.5,39.7L547.5,35.2L576.5,35.1L605.5,31.3L634.5,55.1L663.5,56.1L692.5,54.7L721.5,53.7L750.5,54.4L779.5,57.0L808.5,56.5"
+                            class="ln s1 dash"
+                        />
+                        <path d="M808.5,56.52446205069208L837.5,37.90406791333609" class="ln s1 dash stub" />
+                        <path
+                            d="M54.5,49.8L83.5,50.8L112.5,49.9L141.5,47.8L170.5,47.5L199.5,50.9L228.5,50.5L257.5,49.1L286.5,51.0L315.5,52.3L344.5,47.2L373.5,52.8L402.5,51.8L431.5,53.2L460.5,49.6L489.5,52.5L518.5,50.5L547.5,51.0L576.5,46.7L605.5,48.2L634.5,59.9L663.5,61.3L692.5,60.7L721.5,58.9L750.5,59.7L779.5,61.0L808.5,61.0"
+                            class="ln s1"
+                        />
+                        <path d="M808.5,60.97694179523283L837.5,48.17104108080782" class="ln s1 stub" />
+                        <path
+                            d="M54.5,52.6L83.5,58.4L112.5,59.9L141.5,57.3L170.5,52.6L199.5,60.7L228.5,57.0L257.5,53.7L286.5,54.3L315.5,56.5L344.5,59.7L373.5,58.4L402.5,50.7L431.5,26.3L460.5,58.8L489.5,50.3L518.5,52.2L547.5,54.6L576.5,49.5L605.5,54.6L634.5,64.9L663.5,64.7L692.5,65.9L721.5,64.5L750.5,64.6L779.5,66.5L808.5,66.2"
+                            class="ln s2 dash"
+                        />
+                        <path d="M808.5,66.1546365765333L837.5,18.581625188350813" class="ln s2 dash stub" />
+                        <path
+                            d="M54.5,66.2L83.5,64.0L112.5,64.0L141.5,65.6L170.5,64.9L199.5,63.7L228.5,65.9L257.5,63.8L286.5,66.0L315.5,66.7L344.5,64.8L373.5,66.9L402.5,66.1L431.5,64.6L460.5,66.1L489.5,66.5L518.5,63.5L547.5,63.7L576.5,65.8L605.5,65.1L634.5,67.4L663.5,67.3L692.5,66.9L721.5,66.9L750.5,67.6L779.5,67.5L808.5,66.7"
+                            class="ln s2"
+                        />
+                        <path d="M808.5,66.71730156816416L837.5,57.4119657179086" class="ln s2 stub" />
+                        <path d="M142.33333333333331,68L150.33333333333331,68L146.33333333333331,61Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M306.6666666666667,68L314.6666666666667,68L310.6666666666667,61Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M461.3333333333333,68L469.3333333333333,68L465.3333333333333,61Z" class="mk-revert">
+                            <title>revert</title>
+                        </path>
+                        <path d="M833.5,68L841.5,68L837.5,61Z" class="mk-revert"><title>revert</title></path>
+                        <path d="M112.5,6L116.5,10L112.5,14L108.5,10Z" class="mk-release"><title>release</title></path>
+                        <path d="M199.5,6L203.5,10L199.5,14L195.5,10Z" class="mk-release"><title>release</title></path>
+                        <path d="M286.5,6L290.5,10L286.5,14L282.5,10Z" class="mk-release"><title>release</title></path>
+                        <path d="M402.5,6L406.5,10L402.5,14L398.5,10Z" class="mk-release"><title>release</title></path>
+                        <path
+                            d="M499.1666666666667,6L503.1666666666667,10L499.1666666666667,14L495.1666666666667,10Z"
+                            class="mk-release"
+                        >
+                            <title>release</title>
+                        </path>
+                        <path d="M765,6L769,10L765,14L761,10Z" class="mk-release"><title>release</title></path>
+                        <path d="M808.5,6L812.5,10L808.5,14L804.5,10Z" class="mk-release"><title>release</title></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="card">
+                        <h3>Where PR time goes <span class="unit">hours, merged PRs, n=1,061</span></h3>
+                        <div class="hbar" role="img" aria-label="share of pull request open time by phase">
+                            <span class="seg p1" style="width: 31%" title="runner wait: 31%"></span
+                            ><span class="seg p2" style="width: 24%" title="CI running: 24%"></span
+                            ><span class="seg p3" style="width: 27%" title="fix wait: 27%"></span
+                            ><span class="seg p4" style="width: 12%" title="owner wait: 12%"></span
+                            ><span class="seg p5" style="width: 6%" title="merge wait: 6%"></span>
+                        </div>
+                        <div class="legend">
+                            <span class="lg"><i class="sw p1"></i>runner wait <b>31%</b></span
+                            ><span class="lg"><i class="sw p2"></i>CI running <b>24%</b></span
+                            ><span class="lg"><i class="sw p3"></i>fix wait <b>27%</b></span
+                            ><span class="lg"><i class="sw p4"></i>owner wait <b>12%</b></span
+                            ><span class="lg"><i class="sw p5"></i>merge wait <b>6%</b></span>
+                        </div>
+                        <div class="tf">
+                            <span
+                                ><svg class="ic" viewBox="0 0 12 12">
+                                    <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                    <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" />
+                                </svg>
+                                runner wait 31%</span
+                            ><span>warn over 25%</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Why PR checks fail <span class="unit">412 failed attempts</span></h3>
+                        <div class="hbar" role="img" aria-label="failed attempts by cause">
+                            <span class="seg p2" style="width: 58%" title="change: 58%"></span
+                            ><span class="seg p1" style="width: 17%" title="flaky: 17%"></span
+                            ><span class="seg p3" style="width: 14%" title="broken on master: 14%"></span
+                            ><span class="seg p4" style="width: 8%" title="infrastructure: 8%"></span
+                            ><span class="seg p5" style="width: 3%" title="conflict: 3%"></span>
+                        </div>
+                        <div class="legend">
+                            <span class="lg"><i class="sw p2"></i>change <b>58%</b></span
+                            ><span class="lg"><i class="sw p1"></i>flaky <b>17%</b></span
+                            ><span class="lg"><i class="sw p3"></i>broken on master <b>14%</b></span
+                            ><span class="lg"><i class="sw p4"></i>infrastructure <b>8%</b></span
+                            ><span class="lg"><i class="sw p5"></i>conflict <b>3%</b></span>
+                        </div>
+                        <div class="tf">
+                            <span
+                                ><svg class="ic" viewBox="0 0 12 12">
+                                    <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                    <path d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4" stroke="#fff" stroke-width="1.5" />
+                                </svg>
+                                not the change 42%</span
+                            ><span>target under 20%</span>
+                        </div>
+                        <div class="tf"><span>before 10-25 classified by job, not test</span></div>
+                    </div>
+                    <div class="card">
+                        <h3>First-attempt pass rate <span class="unit">% of PR suites</span></h3>
+                        <svg
+                            viewBox="0 0 400 70"
+                            preserveAspectRatio="none"
+                            role="img"
+                            aria-label="first-attempt pass rate per day"
+                            style="height: 70px"
+                        >
+                            <line x1="40" x2="392" y1="54" y2="54" class="grid" />
+                            <text x="36" y="57" class="tick" text-anchor="end">0</text>
+                            <line x1="40" x2="392" y1="31" y2="31" class="grid" />
+                            <text x="36" y="34" class="tick" text-anchor="end">50</text>
+                            <line x1="40" x2="392" y1="8" y2="8" class="grid" />
+                            <text x="36" y="11" class="tick" text-anchor="end">100</text>
+                            <rect x="291.42857142857144" y="8" width="88" height="46" fill="url(#hatch)" />
+                            <text x="335.42857142857144" y="20" class="band-label" text-anchor="middle">
+                                golden-local
+                            </text>
+                            <rect x="379.42857142857144" y="8" width="12.571428571428571" height="46" class="partial" />
+                            <text x="46.285714285714285" y="67" class="tick" text-anchor="middle">09-28</text>
+                            <text x="134.28571428571428" y="67" class="tick" text-anchor="middle">10-05</text>
+                            <text x="222.28571428571428" y="67" class="tick" text-anchor="middle">10-12</text>
+                            <text x="310.2857142857143" y="67" class="tick" text-anchor="middle">10-19</text>
+                            <text x="385.7142857142857" y="67" class="tick" text-anchor="middle">partial</text>
+                            <line x1="40" x2="392" y1="14.899999999999999" y2="14.899999999999999" class="budget" />
+                            <text x="44" y="11.899999999999999" class="limit-t">target 85%</text>
+                            <path
+                                d="M46.3,17.3L58.9,17.9L71.4,18.0L84.0,24.2L96.6,22.8L109.1,18.3L121.7,19.8L134.3,20.1L146.9,21.4L159.4,14.5L172.0,15.7L184.6,18.8L197.1,15.7L209.7,23.8L222.3,17.1L234.9,15.7L247.4,17.6L260.0,17.5L272.6,15.9L285.1,20.4"
+                                class="ln s1"
+                            />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="band-h">Needs a person</div>
+            <div class="grid2">
+                <div class="card" style="padding-top: 2px">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>status</th>
+                                <th>item</th>
+                                <th>why</th>
+                                <th class="num">age</th>
+                                <th>link</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="st st-bad"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                            <path
+                                                d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4"
+                                                stroke="#fff"
+                                                stroke-width="1.5"
+                                            /></svg
+                                        >bad</span
+                                    >
+                                </td>
+                                <td class="what">Release held: T4 GPU failed on 6c1e0a2</td>
+                                <td>hold</td>
+                                <td class="num">19 h</td>
+                                <td><a href="#">#3529</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-bad"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <circle cx="6" cy="6" r="5.5" fill="var(--bad)" />
+                                            <path
+                                                d="M3.8 3.8l4.4 4.4M8.2 3.8l-4.4 4.4"
+                                                stroke="#fff"
+                                                stroke-width="1.5"
+                                            /></svg
+                                        >bad</span
+                                    >
+                                </td>
+                                <td class="what">#3433 fix(graphty): label panel sizing</td>
+                                <td>open 4.6 d, fix wait</td>
+                                <td class="num">4.6 d</td>
+                                <td><a href="#">#3433</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-warn"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                            <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                                        >warn</span
+                                    >
+                                </td>
+                                <td class="what">#3502 auto-merge armed, checks green</td>
+                                <td>stuck auto-merge</td>
+                                <td class="num">3.1 h</td>
+                                <td><a href="#">#3502</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-warn"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                            <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                                        >warn</span
+                                    >
+                                </td>
+                                <td class="what">Screenshots: #3497 (9), #3510 (4), #3519 (1)</td>
+                                <td>owner review</td>
+                                <td class="num">31 h</td>
+                                <td><a href="#">review</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-warn"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                            <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                                        >warn</span
+                                    >
+                                </td>
+                                <td class="what">Weekly CPU stress run: ran, 0 issues filed</td>
+                                <td>silent source</td>
+                                <td class="num">6 h</td>
+                                <td><a href="#">run 1873</a></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="st st-ok"
+                                        ><svg class="ic" viewBox="0 0 12 12">
+                                            <path
+                                                d="M2 6.5l2.5 2.5L10 3.5"
+                                                fill="none"
+                                                stroke="var(--good)"
+                                                stroke-width="2"
+                                            /></svg
+                                        >ok</span
+                                    >
+                                </td>
+                                <td class="what">renders label sprite after resize (storybook)</td>
+                                <td>quarantine 12/20</td>
+                                <td class="num">3 d</td>
+                                <td><a href="#">#3485</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card">
+                    <h3>Sources <span class="unit">last write, rows in range</span></h3>
+                    <div class="srcg">
+                        <div class="srcc s-ok" title="expected 1 min / 5 min">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">status broker</span><span class="num">1 min</span
+                            ><span class="num muted">40,320</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 5 min / 15 min">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">GitHub runs + jobs</span><span class="num">2 min</span
+                            ><span class="num muted">31,904</span>
+                        </div>
+                        <div class="srcc s-warn" title="expected 5 min / 30 min">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            ><span class="sn">results service</span><span class="num">41 min</span
+                            ><span class="num muted">1,212</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 24 h">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">test ledger</span><span class="num">38 min</span
+                            ><span class="num muted">2,880</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 24 h">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">quarantine</span><span class="num">9 min</span
+                            ><span class="num muted">6</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 15 min / 1 h">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">npm</span><span class="num">6 min</span><span class="num muted">212</span>
+                        </div>
+                        <div class="srcc s-warn" title="expected weekly">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path d="M6 1L11.5 11H.5Z" fill="var(--warn)" />
+                                <path d="M6 4.5v3M6 9v.5" stroke="#000" stroke-width="1.2" /></svg
+                            ><span class="sn">stress run</span><span class="num">6 h</span
+                            ><span class="num muted">0 filed</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 30 h">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">host matrix</span><span class="num">11 h</span
+                            ><span class="num muted">28</span>
+                        </div>
+                        <div class="srcc s-ok" title="expected 7 h">
+                            <svg class="ic" viewBox="0 0 12 12">
+                                <path
+                                    d="M2 6.5l2.5 2.5L10 3.5"
+                                    fill="none"
+                                    stroke="var(--good)"
+                                    stroke-width="2"
+                                /></svg
+                            ><span class="sn">release train</span><span class="num">2.1 h</span
+                            ><span class="num muted">112</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <script>
+            function nav() {
+                var h = location.hash || "#overview";
+                document.querySelectorAll("nav a").forEach(function (a) {
+                    a.classList.toggle("on", a.getAttribute("href") === h);
+                });
+            }
+            addEventListener("hashchange", nav);
+            nav();
+        </script>
+    </body>
+</html>

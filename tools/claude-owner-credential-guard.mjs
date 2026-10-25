@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escape = (s) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 /**
  * The patterns of the owner's credential paths, each with the home directory spelled any of the ways a
@@ -31,19 +31,21 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * @returns [name, RegExp] pairs.
  */
 function pathRules(home) {
-    const h = `(?:~|\\$HOME|\\$\\{HOME\\}|${escape(home)})`;
-    const end = "(?=$|[\\s\"'`;|&)<>/])";
+    const h = String.raw`(?:~|\$HOME|\$\{HOME\}|${escape(home)})`;
+    const end = String.raw`(?=$|[\s"'${"`"};|&)<>/])`;
+    const name = String.raw`[^\s"'${"`"};|&)<>/]`;
+    const under = (path) => new RegExp(String.raw`${h}/${path}${end}`);
     return [
-        ["the owner's gh login (~/.config/gh/)", new RegExp(`${h}/\\.config/gh${end}`)],
-        ["the owner's git config (~/.gitconfig)", new RegExp(`${h}/\\.gitconfig${end}`)],
-        ["the owner's git config (~/.config/git/)", new RegExp(`${h}/\\.config/git${end}`)],
-        ["the owner's git credentials (~/.git-credentials)", new RegExp(`${h}/\\.git-credentials${end}`)],
-        ["the owner's npm login (~/.npmrc)", new RegExp(`${h}/\\.npmrc${end}`)],
-        ["the owner's GnuPG keys (~/.gnupg/)", new RegExp(`${h}/\\.gnupg${end}`)],
+        ["the owner's gh login (~/.config/gh/)", under(String.raw`\.config/gh`)],
+        ["the owner's git config (~/.gitconfig)", under(String.raw`\.gitconfig`)],
+        ["the owner's git config (~/.config/git/)", under(String.raw`\.config/git`)],
+        ["the owner's git credentials (~/.git-credentials)", under(String.raw`\.git-credentials`)],
+        ["the owner's npm login (~/.npmrc)", under(String.raw`\.npmrc`)],
+        ["the owner's GnuPG keys (~/.gnupg/)", under(String.raw`\.gnupg`)],
         // A file in ~/.ssh/ other than the agent's keys, a public key or known_hosts.
         [
             "an SSH key that is not the agent's (~/.ssh/)",
-            new RegExp(`${h}/\\.ssh/(?!graphty-agent|known_hosts)(?![^\\s"'\`;|&)<>/]*\\.pub${end})[^\\s"'\`;|&)<>/]+`),
+            new RegExp(String.raw`${h}/\.ssh/(?!graphty-agent|known_hosts)(?!${name}*\.pub${end})${name}+`),
         ],
     ];
 }
@@ -60,8 +62,8 @@ const COMMAND_RULES = [
 const IDENTITY_VARS = ["GIT_CONFIG_GLOBAL", "GH_CONFIG_DIR", "NPM_CONFIG_USERCONFIG", "GNUPGHOME", "SSH_AUTH_SOCK"];
 const VARS = IDENTITY_VARS.join("|");
 // An assignment (`X=v`, `export X=v`, `env X=v`) whose value is not /dev/null or an agent path, or an unset.
-const ASSIGN = new RegExp(`(?:^|[\\s;|&(])(${VARS})=("[^"]*"|'[^']*'|[^\\s;|&)]*)`, "g");
-const UNSET = new RegExp(`(?:\\bunset\\b[^;|&\\n]*\\b|\\benv\\b[^;|&\\n]*-u\\s*)(${VARS})\\b`);
+const ASSIGN = new RegExp(String.raw`(?:^|[\s;|&(])(${VARS})=("[^"]*"|'[^']*'|[^\s;|&)]*)`, "g");
+const UNSET = new RegExp(String.raw`(?:\bunset\b[^;|&\n]*\b|\benv\b[^;|&\n]*-u\s*)(${VARS})\b`);
 
 /**
  * Why a Bash command is refused, or null.
@@ -72,7 +74,7 @@ const UNSET = new RegExp(`(?:\\bunset\\b[^;|&\\n]*\\b|\\benv\\b[^;|&\\n]*-u\\s*)
 function commandReason(command, home) {
     for (const [name, re] of [...pathRules(home), ...COMMAND_RULES]) if (re.test(command)) return name;
     for (const m of command.matchAll(ASSIGN)) {
-        const value = m[2].replace(/^["']|["']$/g, "");
+        const value = m[2].replaceAll(/(?:^["'])|(?:["']$)/g, "");
         if (value !== "/dev/null" && !/-agent\b/.test(value)) return `setting ${m[1]} away from the agent identity`;
     }
     const unset = UNSET.exec(command);

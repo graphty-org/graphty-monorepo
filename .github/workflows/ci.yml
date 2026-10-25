@@ -127,6 +127,9 @@ jobs:
             test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            docs: ${{ steps.optional.outputs.docs }}
+            tool-tests: ${{ steps.optional.outputs.tool-tests }}
+            cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
@@ -245,9 +248,41 @@ jobs:
                       echo "light=true" >> "$GITHUB_OUTPUT"
                       only=(--only "$SHARDS")
                   fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
+                  pr=()
+                  [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && pr=(--pull-request)
+                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" "${pr[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+
+            # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
+            # only when a docs input changed (the pre-push gate's rule: docs/, a package's docs/ that
+            # tools/copy-docs-content.js copies in, that script, tools/sanitize-api-docs.js, or an affected package
+            # with a root `docs:api:<package>` script); the CI workflow tests only when tools/, .github/, .husky/,
+            # .claude/ or a root file changed; Cost Estimate Accuracy only when its own files changed. Every other
+            # run (the full run, a dispatch, a master push) runs them all, so nothing runs nowhere.
+            - name: Plan the optional jobs
+              id: optional
+              env:
+                  EVENT: ${{ github.event_name }}
+                  BASE_REF: ${{ github.base_ref }}
+                  AFFECTED: ${{ steps.plan.outputs.affected }}
+              run: |
+                  if [[ "$EVENT" != "pull_request" || "$MERGE_QUEUE" == "true" ]]; then
+                      printf 'docs=true\ntool-tests=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  changed=$(git diff --name-only "origin/$BASE_REF" HEAD)
+                  has() { grep -qE "$1" <<<"$changed" && echo true || echo false; }
+                  pkg_docs=$(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js | paste -sd'|')
+                  docs=$(has "^(docs/|$pkg_docs|tools/copy-docs-content\.js$|tools/sanitize-api-docs\.js$)")
+                  for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
+                      jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
+                  done
+                  {
+                      echo "docs=$docs"
+                      echo "tool-tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$')"
+                      echo "cost-accuracy=$(has '^graphty-element/(src/session/cost|test/session/cost)/')"
+                  } | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
             # the accepted baselines and the signed approval to the branch) needs no new test run. When
@@ -357,9 +392,9 @@ jobs:
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
-                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
 
             # The light check's test bins (merging.md 4.1), a pull request's own run only: the run's one read of the
             # results store (the file durations the bins are packed by), then the selector's plan, whose bins
@@ -389,7 +424,7 @@ jobs:
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
                       "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
-                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
+                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" --pull-request \
                       | grep -E '^test-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
 
             # The run's one read of the results store and the light plan it fed, for every later job (quarantine
@@ -423,9 +458,9 @@ jobs:
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
-                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
 
             # graphty's source maps to Sentry, only on a push to master, the one build deploy-pages.yml
@@ -843,10 +878,25 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption. On a pull
+            # request only when it changed the tooling they test (the Build job's "Plan the optional jobs").
             - name: CI workflow tests
-              if: needs.packages.outputs.light != 'true'
+              if: needs.packages.outputs.light != 'true' && needs.packages.outputs.tool-tests == 'true'
               run: pnpm run test:ci-workflows
+
+            # Every job of every workflow has the timeout its budget in ci-budgets.json asks for, and no build step
+            # reads a secret or depends on the event (tools/ci-budgets.mjs).
+            - name: CI budgets
+              run: node tools/ci-budgets.mjs lint
+
+            # Relative links, anchors and links to this repository's own files, against this checkout, with no
+            # network (about a second). The network half runs in the full run's Links job.
+            - name: Links (offline)
+              run: ./tools/check-links.sh --offline
+
+            # No checked-in commit tooling may turn GPG signing off (moved here from tools/prepush-source-checks.sh).
+            - name: No signing bypass in tools/ and .husky/
+              run: "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
 
             # Every package's dist is downloaded above (the packages job builds every project on both
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
@@ -935,7 +985,7 @@ jobs:
     docs:
         name: Docs
         needs: packages
-        if: needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.reuse-run == '' && needs.packages.outputs.docs == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
@@ -1018,7 +1068,7 @@ jobs:
         needs: packages
         if: github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == ''
         runs-on: ubuntu-24.04
-        timeout-minutes: 15
+        timeout-minutes: 20
         continue-on-error: true
         steps:
             - uses: actions/checkout@v4
@@ -1263,7 +1313,7 @@ jobs:
                   if-no-files-found: ignore
 
             - name: Upload coverage (graphty-element)
-              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && startsWith(matrix.shard, 'graphty-element') }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
@@ -1275,7 +1325,7 @@ jobs:
             # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
             # coverage.yml lifts them back out before tools/merge-coverage.sh reads them.
             - name: Collect the shard group's coverage
-              if: ${{ !cancelled() && matrix.coverage }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.coverage }}
               env:
                   COVERAGE: ${{ matrix.coverage }}
               run: |
@@ -1287,7 +1337,7 @@ jobs:
                   done
 
             - name: Upload coverage (shard group)
-              if: ${{ !cancelled() && matrix.coverage }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.coverage }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-group-${{ matrix.shard }}
@@ -1298,7 +1348,7 @@ jobs:
             # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.shard == 'webgpu-graph-algorithms-node' }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
@@ -1312,7 +1362,7 @@ jobs:
             # above before rewriting the paths (it already does this for the graphty-element shards). Its
             # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-webgpu-graph-algorithms-node-device-errors
@@ -1339,7 +1389,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.full == 'true' && needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -1516,7 +1566,7 @@ jobs:
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: packages
-        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.cost-accuracy == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -1785,6 +1835,7 @@ jobs:
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
                   TEST_COUNT: ${{ needs.packages.outputs.test-count }}
+                  DOCS: ${{ needs.packages.outputs.docs }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
@@ -1797,6 +1848,8 @@ jobs:
                   # tests equals that run's apart from the screenshot records) skips the jobs that run
                   # passed; skipped then passes for them, and Build and Storybooks must still succeed.
                   strict='["packages","build","lint","checks","docs"]'
+                  # a pull request that changed no docs input skips Docs (the Build job's "Plan the optional jobs")
+                  [[ "$DOCS" == "false" ]] && strict='["packages","build","lint","checks"]'
                   if [[ -n "$REUSE_RUN" ]]; then
                       strict='["packages","build"]'
                       echo "::notice title=Results reused::Lint, Checks, Docs, Test, Links and Cost Estimate Accuracy are reused from $REUSE_URL, which tested the same tree apart from the screenshot records"

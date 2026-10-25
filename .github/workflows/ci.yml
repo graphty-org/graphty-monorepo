@@ -1168,7 +1168,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
@@ -1838,7 +1838,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
               if: steps.skip.outputs.skip != 'true'
@@ -2364,7 +2364,7 @@ jobs:
     release-due:
         name: Release due
         needs: all-checks
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
         # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
         continue-on-error: true
@@ -2393,11 +2393,12 @@ jobs:
     # ref each key of a family (a key without its trailing hash, run id and versions) that is not the
     # family's most recently read key there and that nothing has read for a day; then reports each
     # family's size per ref against ci-budgets.json (tools/cache-hygiene.mjs). Green master pushes only;
-    # a failure must not turn master red.
+    # a failure must not turn master red. `!cancelled()`: without a status function the implicit success()
+    # also checks All Checks Pass's own needs, which are skipped on a master push, so the job never ran.
     cache-hygiene:
         name: Cache hygiene
         needs: all-checks
-        if: ${{ needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 10

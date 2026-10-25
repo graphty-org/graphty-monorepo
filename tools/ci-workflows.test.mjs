@@ -1385,7 +1385,7 @@ describe("ci.yml", () => {
         assert.match(due, /\n {8}needs: all-checks\n/);
         assert.match(
             due,
-            /\n {8}if: github.event_name == 'push' && github.ref == 'refs\/heads\/master' && !inputs.ref\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && !inputs\.ref \}\}\n/,
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
@@ -1397,7 +1397,7 @@ describe("ci.yml", () => {
         const hygiene = job(ci, "cache-hygiene");
         assert.match(
             hygiene,
-            /\n {8}if: \$\{\{ needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' \}\}\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' \}\}\n/,
         );
         const doc = parseYaml(ci).jobs["cache-hygiene"];
         assert.deepEqual(doc.permissions, { contents: "read", actions: "write", "pull-requests": "read" });

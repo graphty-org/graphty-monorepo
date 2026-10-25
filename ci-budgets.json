@@ -41,7 +41,7 @@
         },
         "cache:playwright-*": {
             "gb": 0.6,
-            "why": "per ref: browsers 0.26 GB, two while an older version is still read"
+            "why": "per ref, each of playwright-Linux (visual jobs, by version) and playwright-lock-Linux (test jobs, by lockfile): browsers 0.26 GB, two while an older one is still read"
         },
         "cache:test-select-graphs": { "gb": 0.05, "why": "per ref: the selector's import graphs, about 10 MB" },
         "cache:test-durations-*": { "gb": 0.01, "why": "per ref: a key per shard per run, KB each" },

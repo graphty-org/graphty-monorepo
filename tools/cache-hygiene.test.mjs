@@ -34,6 +34,8 @@ describe("cache hygiene", () => {
         // a version upgrade stays in its family, so the new version supersedes the old one
         assert.equal(family("playwright-Linux-1.57.0"), "playwright-Linux");
         assert.equal(family("playwright-Linux-1.64.1"), "playwright-Linux");
+        // the lockfile-keyed browsers of the test jobs are another cache than the visual jobs' versioned ones
+        assert.equal(family("playwright-lock-Linux-" + "ab".repeat(32)), "playwright-lock-Linux");
         assert.equal(family("playwright-debs-ubuntu24-20261023.334.3-1.57.0"), "playwright-debs-ubuntu24");
     });
 

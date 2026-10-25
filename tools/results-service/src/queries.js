@@ -73,13 +73,13 @@ async function activeQuarantine(db, families, now) {
 
 // Failures master's own runs saw on exactly `base`, or with the same variant and inputs key (6.3).
 async function failingOnBase(db, base, pairs, changed) {
-    const same = pairs.map(() => "(i.variant = ? AND i.inputs = ?)").join(" OR ");
+    const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const rows = await all(
         db,
         `SELECT DISTINCT f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
-         WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed' AND (i.sha = ?${same ? ` OR ${same}` : ""})`,
+         WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed' AND (i.sha = ?${same})`,
         base ?? "",
         ...pairs.flat(),
     );
@@ -197,7 +197,7 @@ export async function getReleaseState(q, who, db, now) {
     const nightlyBuilt = nightly
         ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ?? 0)
         : 0;
-    const last = states.filter((s) => !["approved", "rejected"].includes(s.state)).at(-1);
+    const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);
     const unpromoted = !!canary && canary.sha !== nightly?.sha && canary.builtAt > nightlyBuilt;
     const start = nightly?.movedAt ?? (await db.prepare("SELECT min(built_at) AS at FROM site").first())?.at;
@@ -215,8 +215,10 @@ export async function getReleaseState(q, who, db, now) {
     };
 }
 
-const keyOf = (r) =>
-    r.task ? `task:${r.task}` : r.step ? `step:${r.workflow}:${r.job}:${r.step}` : `job:${r.workflow}:${r.job}`;
+function keyOf(r) {
+    if (r.task) return `task:${r.task}`;
+    return r.step ? `step:${r.workflow}:${r.job}:${r.step}` : `job:${r.workflow}:${r.job}`;
+}
 
 function judgeTrend(rows, budgetSeconds) {
     const secs = rows.map((r) => r.ms / 1000);

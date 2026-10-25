@@ -4063,8 +4063,9 @@ describe("release.yml", () => {
             );
         });
 
-        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's parents)
-        const decide = (message, { parents = 2, live = "0ld" } = {}) => {
+        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's second
+        // parent, the first tag's annotated tag object and the commit that tag points at)
+        const decide = (message, { parents = 2, live = "0ld", tagged = "v1" } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
@@ -4075,7 +4076,7 @@ describe("release.yml", () => {
             );
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents};;\n*/compare/*) echo ahead;;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents === 2 ? "v1" : ""};;\n*/git/ref/tags/graphty%401.2.0) echo "tag t1";;\n*/git/ref/tags/*) exit 1;;\n*/git/tags/t1) echo ${tagged};;\n*/compare/*) echo ahead;;\nesac\n`,
                 { mode: 0o755 },
             );
             const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
@@ -4108,6 +4109,13 @@ describe("release.yml", () => {
                 "the version commit itself",
             );
             assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+        });
+
+        it("does not deploy a merge that only borrows the release subject", () => {
+            // a pull request merged with the release's subject: its second parent is not the tagged commit
+            assert.equal(decide(RELEASE, { tagged: "old" }).deploy, "deploy=false");
+            // a subject naming a tag that does not exist
+            assert.equal(decide("chore(release): publish nope@9.9.9 onto master").deploy, "deploy=false");
         });
 
         it("does not deploy a release that is live already", () => {

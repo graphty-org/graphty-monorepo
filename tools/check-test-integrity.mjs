@@ -118,11 +118,13 @@ function netFinding(files, measure, sign, what) {
 function weakened(was, now, { grows, added }) {
     if (was === undefined) return added && now !== undefined ? "added" : null;
     if (now === undefined) return grows ? null : "removed";
-    return (grows ? now > was : now < was) ? `${was} -> ${now}` : null;
+    const worse = grows ? now > was : now < was;
+    return worse ? `${was} -> ${now}` : null;
 }
 
 function numberFindings(f, re, rule) {
-    const pick = (vals) => (vals ? (rule.grows ? Math.max : Math.min)(...vals) : undefined);
+    const extreme = rule.grows ? Math.max : Math.min;
+    const pick = (vals) => (vals ? extreme(...vals) : undefined);
     const [before, after] = [values(re, f.removed), values(re, f.added)];
     const out = [];
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {

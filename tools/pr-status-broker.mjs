@@ -15,7 +15,7 @@
  * Once, for a look: node tools/pr-status-broker.mjs --once
  *
  * The file: { fetchedAt, rateLimit: { remaining, resetAt, cost }, truncated?, error?, pullRequests:
- * [{ number, title, head, headSha, base, draft, mergeable, labels: [...], state, checks: { "<check name>":
+ * [{ number, title, author, head, headSha, base, draft, mergeable, labels: [...], state, checks: { "<check name>":
  * "<conclusion or status>" }, checksTruncated? }] }. A head commit can carry several check runs of one
  * name (a re-run, or a draft run and the run that started when it was marked ready); `checks` keeps the
  * newest by start time; `hiddenFailures` names the checks that also have an older failing run, which
@@ -38,7 +38,7 @@ const QUERY = `{
   rateLimit { remaining resetAt cost }
   repository(owner: "graphty-org", name: "graphty-monorepo") {
     pullRequests(states: OPEN, first: 100) { pageInfo { hasNextPage } nodes {
-      number title headRefName headRefOid baseRefName isDraft mergeable
+      number title author { login } headRefName headRefOid baseRefName isDraft mergeable
       labels(first: 20) { nodes { name } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state
         contexts(first: 100) { pageInfo { hasNextPage }
@@ -75,6 +75,8 @@ export function summarize(data) {
         const record = {
             number: pr.number,
             title: pr.title,
+            // who opened it: graphty-agent for tools/pr-open.sh, the owner, dependabot[bot], ...
+            author: pr.author?.login ?? null,
             head: pr.headRefName,
             headSha: pr.headRefOid,
             base: pr.baseRefName,

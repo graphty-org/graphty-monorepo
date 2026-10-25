@@ -62,9 +62,9 @@ describe("Undo from the reader's keys", () => {
         const { session, store } = await openSample();
         // The sample is drawn before its load settles; settling clears the history, and Undo's
         // name drops the load's step.
-        const undo = await screen.findByRole("button", { name: "Undo" }, { timeout: TIMEOUT_MS });
         await waitFor(() => {
             assert.isFalse(session.canUndo, "opening is not a change to undo");
+            const undo = screen.getByRole("button", { name: "Undo" });
             assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");
         });
         assert.isFalse(session.project.dirty, "an opened sample has no unsaved changes");
@@ -108,7 +108,7 @@ describe("Undo from the reader's keys", () => {
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
             assert.isTrue(session.canUndo);

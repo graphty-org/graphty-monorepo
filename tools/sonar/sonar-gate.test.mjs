@@ -23,6 +23,8 @@ import {
     mapOldLineExact,
     nosonarComment,
     parseHunks,
+    scannedBase,
+    scannedCommits,
     scannerFailure,
     scoredSpan,
     spanText,
@@ -236,6 +238,94 @@ describe("sonar-gate: when it cannot check", () => {
         const s = await server({ admin: true });
         const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
         assert.doesNotMatch(r.out, /administrator|no SONAR_TOKEN|token was rejected/);
+    });
+});
+
+describe("sonar-gate: commits pushed past the gate", () => {
+    const c = (sha, more = {}) => ({
+        sha: sha.padEnd(40, "0"),
+        committer: "dev@example.com",
+        files: ["src/x.ts"],
+        ...more,
+    });
+
+    it("reads the scanned commits from gate.log: passed, bypassed and reused, never blocked or skipped", () => {
+        const log = [
+            "2026-10-23T00:00:00.000Z golden aaaaaaaaaaaa passed left-out:0",
+            "2026-10-23T00:00:00.000Z golden bbbbbbbbbbbb blocked left-out:0",
+            "2026-10-23T00:00:00.000Z golden cccccccccccc skipped:unreachable left-out:0",
+            "2026-10-23T00:00:00.000Z (detached) dddddddddddd bypassed left-out:0",
+            "2026-10-23T00:00:00.000Z golden eeeeeeeeeeee reused left-out:0",
+            "",
+        ].join("\n");
+        assert.deepEqual([...scannedCommits(log)].sort(), ["aaaaaaaaaaaa", "dddddddddddd", "eeeeeeeeeeee"]);
+    });
+
+    it("keeps a scanned base, and moves back past unscanned commits to the newest scanned one", () => {
+        const scanned = new Set(["a".padEnd(12, "0")]);
+        assert.deepEqual(scannedBase([c("a"), c("b")], scanned), { base: c("a").sha, missed: [] });
+        const r = scannedBase([c("e"), c("d"), c("a"), c("b")], scanned);
+        assert.equal(r.base, c("a").sha);
+        assert.deepEqual(
+            r.missed.map((x) => x.sha[0]),
+            ["e", "d"],
+        );
+    });
+
+    it("counts GitHub's merges and release commits and the owner's approval commits as scanned", () => {
+        const none = new Set();
+        assert.equal(scannedBase([c("m", { committer: "noreply@github.com" })], none).missed.length, 0);
+        const bot = "41898282+github-actions[bot]@users.noreply.github.com";
+        assert.equal(scannedBase([c("r", { committer: bot })], none).missed.length, 0);
+        const approval = c("v", { files: ["visual-baselines/x/a.png", "visual-review-approvals/t.json"] });
+        assert.equal(scannedBase([approval], none).missed.length, 0);
+        assert.equal(scannedBase([c("v", { files: ["visual-baselines/a.png", "src/a.ts"] })], none).missed.length, 1);
+    });
+
+    it("says when no scanned commit is in the history it looked at", () => {
+        const r = scannedBase([c("e"), c("d")], new Set());
+        assert.equal(r.base, null);
+        assert.equal(r.missed.length, 2);
+    });
+
+    it("scans the lines of a commit that reached origin/master with --no-verify, and names it", async () => {
+        // origin/master's scanned commit, then one pushed past the gate that adds src/b.ts with an issue,
+        // then this push, which changes only src/a.ts. Measured from its merge base alone, b.ts would
+        // never be scanned by anyone.
+        const dir = repo(HEAD_NEW);
+        const scannedSha = git(dir, "rev-parse", "origin/master");
+        git(dir, "switch", "-q", "--detach", "origin/master");
+        writeFileSync(join(dir, "src/b.ts"), "export const c = 3;\n");
+        git(dir, "add", ".");
+        git(dir, "commit", "-q", "-m", "pushed with --no-verify");
+        const unscanned = git(dir, "rev-parse", "HEAD");
+        git(dir, "update-ref", "refs/remotes/origin/master", "HEAD");
+        git(dir, "switch", "-q", "feature");
+        git(dir, "merge", "-q", "--no-edit", "origin/master");
+        writeFileSync(
+            join(dir, ".git/sonar/gate.log"),
+            `2026-10-23T00:00:00.000Z master ${scannedSha.slice(0, 12)} passed left-out:0\n`,
+        );
+        const bIssue = issue(1, "export const c = 3;", { component: "proj-local:src/b.ts" });
+        const s = await server({ local: [bIssue] });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN, PUSH_BASE_REF: "origin/master" });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /reached the push base without a SonarQube scan/);
+        assert.match(r.out, new RegExp(`${unscanned.slice(0, 12)} pushed with --no-verify`));
+        assert.match(r.out, /src\/b\.ts:1 {2}typescript:S1234/);
+
+        // Once that commit is recorded as scanned, the push is measured from its merge base again.
+        writeFileSync(
+            join(dir, ".git/sonar/gate.log"),
+            `2026-10-23T00:00:00.000Z master ${unscanned.slice(0, 12)} passed left-out:0\n`,
+        );
+        const again = await gate(dir, {
+            SONAR_HOST_URL: s.url,
+            SONAR_SCAN_TOKEN: TOKEN,
+            PUSH_BASE_REF: "origin/master",
+        });
+        assert.equal(again.code, 0, again.out);
+        assert.doesNotMatch(again.out, /without a SonarQube scan/);
     });
 });
 

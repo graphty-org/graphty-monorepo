@@ -6,7 +6,8 @@
 //
 //   node --test tools/push-queue.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import {
     copyFileSync,
     existsSync,
@@ -131,6 +132,58 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         assert.deepEqual(readdirSync(ctx.env.PUSH_QUEUE_DIR), []);
     });
 
+    // The gate stages its screenshot capture under HEAD; the queue promotes it to the pull request's
+    // preview only once the push is accepted, and a rejected push keeps the old preview (2026-10-24: a
+    // rejected push of golden-cut replaced the cut's owner-reviewed preview).
+    function withPreview(ctx) {
+        mkdirSync(join(ctx.repo, "tools"));
+        copyFileSync(
+            new URL("./visual-preview.sh", import.meta.url).pathname,
+            join(ctx.repo, "tools/visual-preview.sh"),
+        );
+        writeFileSync(join(ctx.repo, "visual-review.config.json"), "{}\n");
+        mkdirSync(join(ctx.repo, "tmp/pr-status"), { recursive: true });
+        writeFileSync(
+            join(ctx.repo, "tmp/pr-status/status.json"),
+            JSON.stringify({ pullRequests: [{ head: "main", number: 77 }] }),
+        );
+        const local = join(ctx.repo, "tmp/visual-review/local");
+        mkdirSync(join(local, "77"), { recursive: true });
+        writeFileSync(join(local, "77/status.json"), JSON.stringify({ head: "old" }));
+        // The gate's part, as tools/prepush.sh does it once every check passed: stage a capture of HEAD
+        // and promote it.
+        writeFileSync(
+            join(ctx.repo, ".git/hooks/pre-push"),
+            `#!/bin/sh\nd=tmp/visual-review/local/.pending-$(git rev-parse HEAD)\nmkdir -p $d\necho "{\\"head\\":\\"$(git rev-parse HEAD)\\"}" > $d/status.json\nPREPUSH_ROOT=$PWD tools/visual-preview.sh --promote $(git rev-parse HEAD)\n`,
+            { mode: 0o755 },
+        );
+        const sha = ctx.git("rev-parse", "HEAD").stdout.trim();
+        const head = () => JSON.parse(readFileSync(join(local, "77/status.json"), "utf8")).head;
+        return { local, sha, head };
+    }
+
+    it("promotes the gate's staged screenshot preview only after the push is accepted", () => {
+        const ctx = setup();
+        const { local, sha, head } = withPreview(ctx);
+        drive(ctx, `"$Q" git push -q origin HEAD:main`);
+        assert.equal(head(), sha);
+        assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
+    });
+
+    it("keeps the old screenshot preview and discards the staged one when the push is rejected", () => {
+        const ctx = setup();
+        const { local, sha, head } = withPreview(ctx);
+        writeFileSync(join(ctx.root, "origin.git/hooks/pre-receive"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+        const r = spawnSync("bash", ["-c", `"${QUEUE}" git push -q origin HEAD:main`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        assert.notEqual(r.status, 0, r.stdout + r.stderr);
+        assert.equal(head(), "old");
+        assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
+    });
+
     it("pushes with no live gate worktree and logs the push line githerd reads", () => {
         const ctx = setup();
         assert.equal(existsSync(ctx.env.PUSH_QUEUE_GATE), false);
@@ -171,6 +224,44 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         assert.match(line.startedAt, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
         // The private copy lives in the main checkout's tmp/ and is removed when the push ends.
         assert.deepEqual(readdirSync(join(ctx.repo, "tmp", "push-queue-copies")), []);
+    });
+
+    it("stops before the gate when the remote branch holds a commit the push lacks, unless forced", () => {
+        const ctx = setup();
+        writeFileSync(join(ctx.repo, "b.txt"), "b\n");
+        ctx.git("add", "b.txt");
+        ctx.git("commit", "-q", "-m", "b");
+        ctx.git("push", "-q", "origin", "HEAD:feat/x");
+        ctx.git("checkout", "-q", "-b", "other", "HEAD~1");
+        writeFileSync(join(ctx.repo, "c.txt"), "c\n");
+        ctx.git("add", "c.txt");
+        ctx.git("commit", "-q", "-m", "c");
+        const origin = () =>
+            spawnSync("git", ["--git-dir", join(ctx.root, "origin.git"), "rev-parse", "feat/x"], {
+                encoding: "utf8",
+            }).stdout.trim();
+        const before = origin();
+        const r = spawnSync("bash", ["-c", `"${QUEUE}" sh -c 'touch ran; git push -q origin HEAD:feat/x'`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        // A non-git command is never judged; the git push below is.
+        assert.equal(existsSync(join(ctx.repo, "ran")), true, r.stdout + r.stderr);
+        const refused = spawnSync("bash", ["-c", `"${QUEUE}" git push -q origin HEAD:feat/x`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+        assert.match(
+            refused.stderr,
+            /stopped before the gate -- origin's feat\/x is at [0-9a-f]{12}, which [0-9a-f]{12} does not contain/,
+        );
+        assert.match(refused.stderr, /git merge origin\/feat\/x/);
+        assert.equal(origin(), before);
+        drive(ctx, `"$Q" git push -q origin +HEAD:feat/x`);
+        assert.equal(origin(), ctx.git("rev-parse", "HEAD").stdout.trim());
     });
 
     it("logs a failed command with its exit code", () => {
@@ -369,4 +460,90 @@ printf '%s' "$buf"
             assert.equal(r.status, 0, r.stdout + r.stderr);
         });
     }
+});
+
+// The gate runs from a snapshot of its live copy (tools/gate-snapshot.sh), so a `tools/live.sh gate` in the
+// middle of a push changes nothing the push runs. The live copy here is a worktree of the repository, as
+// .worktrees/gate-live is; its hook reads a rule file, makes a new rule live, and reads the rule again.
+describe("push-queue: the gate snapshot", () => {
+    const SNAPSHOT = new URL("./gate-snapshot.sh", import.meta.url).pathname;
+    const HOOK = `#!/bin/sh
+# PREPUSH_ROOT: the gate checks the pushed checkout
+GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cat >/dev/null
+echo "rule before: $(cat "$GATE_DIR/tools/rule.txt")"
+echo "rule $(($(git -C "$LIVE" rev-list --count HEAD) + 1))" >"$LIVE/tools/rule.txt"
+git -C "$LIVE" commit -q -am "a new rule goes live" >&2
+echo "rule after: $(cat "$GATE_DIR/tools/rule.txt")"
+echo "queue settings seen by the gate: [\${PUSH_QUEUE_GATE-}\${PUSH_QUEUE_COPY-}]"
+`;
+    function setupLive() {
+        const ctx = setup();
+        const live = join(ctx.repo, ".worktrees", "gate-live");
+        writeFileSync(join(ctx.repo, ".gitignore"), ".worktrees/\ntmp/\n");
+        mkdirSync(join(ctx.repo, "tools"));
+        mkdirSync(join(ctx.repo, ".husky"));
+        copyFileSync(QUEUE, join(ctx.repo, "tools", "push-queue.sh"));
+        copyFileSync(SNAPSHOT, join(ctx.repo, "tools", "gate-snapshot.sh"));
+        writeFileSync(join(ctx.repo, "tools", "rule.txt"), "rule 2\n");
+        writeFileSync(join(ctx.repo, ".husky", "pre-push"), HOOK);
+        ctx.git("add", ".");
+        ctx.git("update-index", "--chmod=+x", "tools/push-queue.sh", "tools/gate-snapshot.sh");
+        ctx.git("commit", "-q", "-m", "gate");
+        ctx.git("worktree", "add", "-q", "--detach", live, "HEAD");
+        // husky's generated wrapper, untracked and ignored, as in a real checkout
+        mkdirSync(join(live, ".husky", "_"));
+        writeFileSync(join(live, ".husky", "_", ".gitignore"), "*\n");
+        const wrapper = '#!/bin/sh\nexec sh "$(dirname "$0")/../pre-push" "$@"\n';
+        writeFileSync(join(live, ".husky", "_", "pre-push"), wrapper, { mode: 0o755 });
+        ctx.env.PUSH_QUEUE_GATE = live;
+        ctx.env.LIVE = live;
+        return { ...ctx, live };
+    }
+    const snapshots = (ctx) => readdirSync(join(ctx.repo, ".worktrees")).filter((d) => d.startsWith("gate-snapshot-"));
+    const liveHead = (ctx) =>
+        spawnSync("git", ["-C", ctx.live, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+    const push = (ctx, branch, extra) => drive(ctx, `"$Q" git push -q origin HEAD:${branch}`, extra).stdout;
+
+    it("runs the whole push from one snapshot while live.sh moves the live copy, and removes the old one", () => {
+        const ctx = setupLive();
+        const first = `gate-snapshot-${liveHead(ctx).slice(0, 12)}`;
+        const out = push(ctx, "feat/x");
+        assert.match(out, /rule before: rule 2/);
+        assert.match(out, /rule after: rule 2/, "the rule that went live mid-push is not this push's");
+        assert.deepEqual(snapshots(ctx), [first]);
+        const list = spawnSync("git", ["worktree", "list", "--porcelain"], { cwd: ctx.repo, encoding: "utf8" }).stdout;
+        assert.match(list, /locked gate snapshot/, "locked, so tools/worktree-cleanup.mjs leaves it");
+        // The next push runs the new rule from its start, and the snapshot nobody holds is gone.
+        assert.match(push(ctx, "feat/y"), /rule before: rule 3/);
+        assert.equal(snapshots(ctx).includes(first), false);
+    });
+
+    // 2026-10-24: the snapshot's PUSH_QUEUE_GATE reached githerd's tests in the gate, whose own
+    // throwaway repositories' tools/push-queue.sh then pushed through the machine's snapshot.
+    it("never hands its own settings to the gate, so a queue the gate's tests run stays in its checkout", () => {
+        const ctx = setupLive();
+        assert.match(push(ctx, "feat/x"), /queue settings seen by the gate: \[\]/);
+    });
+
+    it("keeps a snapshot a landing holds (--hold) for its next push, and removes it once let go", async () => {
+        const ctx = setupLive();
+        const holder = spawn(SNAPSHOT, ["--hold", ctx.live], { env: ctx.env, stdio: ["pipe", "pipe", "inherit"] });
+        // A failed assertion still lets the holder go, so the test file ends.
+        after(() => holder.stdin.end());
+        const [line] = await once(holder.stdout, "data");
+        const snap = line.toString().trim();
+        assert.ok(existsSync(join(snap, ".gate-snapshot")), snap);
+        // The landing's push: the snapshot as PUSH_QUEUE_GATE; a rule going live meanwhile does not reach it.
+        const out = push(ctx, "feat/x", { PUSH_QUEUE_GATE: snap });
+        assert.match(out, /the gate is the snapshot/);
+        assert.match(out, /rule after: rule 2/);
+        // Another push snapshots the newer rule; the held snapshot stays.
+        assert.match(push(ctx, "feat/y"), /rule before: rule 3/);
+        assert.ok(existsSync(join(snap, ".gate-snapshot")), "a held snapshot is never removed");
+        holder.stdin.end();
+        await once(holder, "exit");
+        push(ctx, "feat/z");
+        assert.equal(existsSync(snap), false, "let go, the next snapshot removes it");
+    });
 });

@@ -2456,6 +2456,8 @@ export class Graph implements GraphContext {
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    // @internal
+    resize(): void;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -5773,6 +5775,8 @@ export class RenderManager implements Manager {
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;
+    // @internal
+    drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {
@@ -6459,7 +6463,7 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
 // @public
 export interface SourcePreviewRow {
     readonly id: NodeId;
-    readonly label: string | null;
+    readonly name: string | null;
 }
 
 export { SourceProbe }
@@ -6621,6 +6625,7 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;

@@ -40,6 +40,15 @@ const { width: W, height: H } = ORACLE_CANVAS;
 const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
     ...oracleFloors.floors,
     ...oracleFloors.standInFloors,
+    ...oracleFloors.specificationFloors,
+};
+
+/** Who judged a sheet judged per setting, one line per reference (judges.json). */
+const REFERENCE_TITLE: Readonly<Record<string, string>> = {
+    oracle: "Judged by the sheet's oracle",
+    "cytoscape-gml": "Judged by Cytoscape desktop's GML reader (STAND-IN, scored apart)",
+    gml2gv: "Judged by gml2gv | neato -n2 (STAND-IN, scored apart)",
+    specification: "Judged by the specification (not a program: each expectation cites its section in judges.json)",
 };
 const ALLOWED: Readonly<Record<string, unknown>> = oracleFloors.allowedDrops;
 
@@ -68,34 +77,37 @@ function provenance(meta: Record<string, unknown>): string {
  * @param id - the sample
  * @param report - the comparison
  * @param scored - false for a sketch no program drew, which is reported but never scored
+ * @param judgedOnly - list only the properties it judged (one reference's share of a sheet judged per setting)
  * @returns HTML
  */
-function table(id: string, report: OracleReport, scored: boolean): string {
+function table(id: string, report: OracleReport, scored: boolean, judgedOnly = false): string {
     const c = report.counts;
     const t = report.transform;
     const floors = FLOORS[id] ?? {};
-    const rows = ORACLE_PROPERTIES.map((p) => {
-        const r = report.properties[p];
-        const floor = floors[p];
-        let color: string = COLORS.unjudged;
-        let shown = "not judged";
-        if (r.passRate !== null) {
-            const below = floor !== undefined && r.passRate < floor - 1e-9 && !(`${id}/${p}` in ALLOWED);
-            if (below) {
-                color = COLORS.fail;
-            } else {
-                color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
+    const rows = ORACLE_PROPERTIES.filter((p) => !judgedOnly || report.properties[p].n > 0)
+        .map((p) => {
+            const r = report.properties[p];
+            const floor = floors[p];
+            let color: string = COLORS.unjudged;
+            let shown = "not judged";
+            if (r.passRate !== null) {
+                const below = floor !== undefined && r.passRate < floor - 1e-9 && !(`${id}/${p}` in ALLOWED);
+                if (below) {
+                    color = COLORS.fail;
+                } else {
+                    color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
+                }
+                shown = `${String(r.pass)}/${String(r.n)} (${String(Math.round(r.passRate * 100))}%)`;
             }
-            shown = `${String(r.pass)}/${String(r.n)} (${String(Math.round(r.passRate * 100))}%)`;
-        }
-        const worst = r.worst
-            .slice(0, 3)
-            .map((w) => `${w.id}: oracle ${JSON.stringify(w.oracle)}, graphty ${JSON.stringify(w.graphty)}`)
-            .join("\n");
-        const title = [r.tolerance, worst].filter(Boolean).join("\n");
-        const floorText = floor === undefined ? "-" : `${String(Math.round(floor * 100))}%`;
-        return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${color}">${esc(shown)}</td><td>${floorText}</td></tr>`;
-    }).join("");
+            const worst = r.worst
+                .slice(0, 3)
+                .map((w) => `${w.id}: oracle ${JSON.stringify(w.oracle)}, graphty ${JSON.stringify(w.graphty)}`)
+                .join("\n");
+            const title = [r.tolerance, worst].filter(Boolean).join("\n");
+            const floorText = floor === undefined ? "-" : `${String(Math.round(floor * 100))}%`;
+            return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${color}">${esc(shown)}</td><td>${floorText}</td></tr>`;
+        })
+        .join("");
     const fit = t
         ? `Fit residual ${(t.rms * 100).toFixed(1)}% of the diagonal${t.unrelatedLayout ? " (unrelated layouts: positions and routes not judged)" : ""}.`
         : "No fit.";
@@ -231,8 +243,18 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
                 right.lastElementChild?.remove();
                 if (hasOracle) {
-                    const { report, scores } = await compareWithOracle(sample.id, element, sha256, loaded);
-                    right.insertAdjacentHTML("beforeend", table(sample.id, report, Object.keys(scores).length > 0));
+                    const { report, scores, references } = await compareWithOracle(sample.id, element, sha256, loaded);
+                    if (references.length === 0) {
+                        right.insertAdjacentHTML("beforeend", table(sample.id, report, Object.keys(scores).length > 0));
+                    }
+                    // a sheet judged per setting: each reference's share, with the floors of its own key
+                    for (const r of references) {
+                        const key = r.reference === "oracle" ? sample.id : `${sample.id}~${r.reference}`;
+                        right.insertAdjacentHTML(
+                            "beforeend",
+                            `<h2>${esc(REFERENCE_TITLE[r.reference] ?? r.reference)}</h2>${table(key, r.report, true, true)}`,
+                        );
+                    }
                 } else {
                     right.insertAdjacentHTML("beforeend", "<p>Nothing to compare against.</p>");
                 }

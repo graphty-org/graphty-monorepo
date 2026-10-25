@@ -1465,6 +1465,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             init: LIFECYCLE,
             update: RENDER,
+            resize: RENDER,
             setBackground: calls(
                 [{ backgroundType: "color", color: "#202020" }],
                 [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
@@ -3360,6 +3361,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdFrames: RENDER,
             setPixelRatio: RENDER,
             drawHeld: RENDER,
+            drawNow: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
             backgroundOverride: RENDER,

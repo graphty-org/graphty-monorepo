@@ -597,7 +597,11 @@ describe("LayoutManager", () => {
 
     describe("catalogue ids", () => {
         it("setLayout accepts every id catalog.layouts() publishes, and engine names still work", async () => {
-            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            // Each node has a location, which the location map reads from its columns.
+            graph.getDataManager().addNodes([
+                { id: "a", latitude: 45.43, longitude: 12.33 },
+                { id: "b", latitude: 45.44, longitude: 12.34 },
+            ] as Record<string, unknown>[]);
             graph.getDataManager().addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
             // The options each layout requires; everything else runs on its defaults.
             const required: Record<string, object> = {

@@ -194,7 +194,7 @@ describe("data.previewSource", () => {
             assert.strictEqual(preview.facts.product, "Neo4j");
             assert.deepInclude(preview.serverFacts, { code: "source.product", params: { value: "Neo4j" } });
             assert.strictEqual(preview.rows.length, 25);
-            assert.isTrue(preview.rows.every((row) => typeof row.label === "string"));
+            assert.isTrue(preview.rows.every((row) => typeof row.name === "string"));
             assert.isFalse(
                 preview.columns.some((c) => c.name.startsWith("_source.")),
                 "no bookkeeping column in a preview",

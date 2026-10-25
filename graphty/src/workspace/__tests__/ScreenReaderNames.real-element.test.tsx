@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { createWorkspaceStore } from "../state/store";
 import { colorName } from "../style/words";
@@ -117,11 +118,8 @@ describe("screen-reader names on the real element", () => {
 
         const chip = within(legend).getByRole("img", { name: colorName("#e69f00") });
         await userEvent.hover(chip);
-        await waitFor(
-            () => {
-                assert.include(screen.getByRole("tooltip", { hidden: true }).textContent, colorName("#e69f00"));
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            assert.include(screen.getByRole("tooltip", { hidden: true }).textContent, colorName("#e69f00"));
+        }, storyWaitOptions(3000));
     });
 });

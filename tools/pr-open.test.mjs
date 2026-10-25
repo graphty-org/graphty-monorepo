@@ -83,6 +83,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         HOME: home,
         PATH: `${bin}:${process.env.PATH}`,
         PR_OPEN_SCAN: "true",
+        PR_OPEN_TITLE_LINT: "true",
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: "user.name",
         GIT_CONFIG_VALUE_0: "the-owner",
@@ -93,6 +94,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
     const r = spawnSync("bash", [script, ...args], { cwd: work, env, encoding: "utf8" });
     return { code: r.status, out: r.stdout + r.stderr };
 };
+const armed = () => calls().filter((x) => x.a[1] === "merge" && x.a.includes("--auto"));
 const calls = () =>
     readFileSync(ghLog, "utf8")
         .trim()
@@ -152,7 +154,7 @@ describe("pr-open.sh", () => {
 
     it("reuses an open pull request instead of opening a second", () => {
         branch("fix/1235-again");
-        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/7" });
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent" });
         assert.equal(r.code, 0, r.out);
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 0);
         assert.deepEqual(
@@ -233,9 +235,82 @@ describe("pr-open.sh", () => {
         branch("feat/1243-break", { "b.txt": "b\n" }, "feat(tools)!: drop a flag");
         const r = run();
         assert.equal(r.code, 0, r.out);
-        assert.match(r.out, /holds a breaking change; auto-merge is NOT on/);
-        assert.equal(calls().filter((x) => x.a[1] === "merge").length, 0);
+        assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
+        assert.equal(armed().length, 0);
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
+    });
+
+    it("leaves auto-merge off, and turns it off, for a change to what judges a pull request", () => {
+        branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n" }, "ci(ci): change the gate");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /changes what judges a pull request or guards the owner: \.github\/workflows\/ci\.yml/);
+        assert.equal(armed().length, 0);
+        assert.deepEqual(calls().find((x) => x.a[1] === "merge").a, [
+            "pr",
+            "merge",
+            "https://github.com/o/r/pull/8",
+            "--disable-auto",
+        ]);
+    });
+
+    it("never arms auto-merge on a pull request someone else opened", () => {
+        branch("fix/1245-owners");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /opened by apowers313, not by graphty-agent/);
+        assert.equal(armed().length, 0);
+    });
+
+    it("takes the issue from --issue or the branch's config, and only right after the type prefix", () => {
+        branch("docs/2026-10-25-notes");
+        let r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /names no issue/, "a date is not an issue");
+        r = run(["--proof", proof, "--issue", "4321"]);
+        assert.equal(r.code, 0, r.out);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^Fixes #4321$/m);
+        git(work, "checkout", "-q", "-b", "revert/abc1234");
+        git(work, "commit", "-q", "--allow-empty", "-m", "revert: something");
+        git(work, "config", "branch.revert/abc1234.issue", "777");
+        rmSync(ghLog, { force: true });
+        r = run();
+        assert.equal(r.code, 0, r.out);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^Fixes #777$/m);
+    });
+
+    it("merges commits pushed to GitHub's copy of the branch (the owner's approvals) before pushing", () => {
+        branch("fix/1246-approved");
+        run();
+        const other = join(dir, `other-${n}`);
+        git(dir, "clone", "-q", "-b", "fix/1246-approved", git(work, "remote", "get-url", "origin"), other);
+        writeFileSync(join(other, "approval.json"), "{}\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): approve");
+        git(other, "push", "-q", "origin", "fix/1246-approved");
+        git(work, "commit", "-q", "--allow-empty", "-m", "fix(tools): more");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        assert.equal(git(work, "rev-parse", "origin/fix/1246-approved"), git(work, "rev-parse", "HEAD"));
+        assert.equal(readFileSync(join(work, "approval.json"), "utf8"), "{}\n");
+    });
+
+    it("refuses a title Lint PR Title would reject, before opening anything", () => {
+        branch("fix/1247-title", undefined, "wip");
+        const r = run(undefined, { PR_OPEN_TITLE_LINT: "false" });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /Lint PR Title would reject "wip"; pass --title/);
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+    });
+
+    it("lists at most 50 commits in the description", () => {
+        branch("fix/1248-many");
+        for (let i = 0; i < 54; i += 1) git(work, "commit", "-q", "--allow-empty", "-m", `fix(tools): step ${i}`);
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        const body = readFileSync(join(dir, "body.md"), "utf8");
+        assert.equal(body.match(/^- fix/gm).length, 50);
+        assert.match(body, /^- and 5 more$/m);
     });
 
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {

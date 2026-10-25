@@ -13,6 +13,7 @@ import { SHARDS } from "./ci-test-matrix.mjs";
 import {
     advisoryMisses,
     buildInput,
+    changedImporters,
     estimate,
     failingFiles,
     globToRe,
@@ -35,6 +36,7 @@ import {
     startAdvisory,
     testRefs,
     wholePackageRule,
+    withLockfile,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
@@ -333,8 +335,15 @@ describe("the replay's log parsing", () => {
 describe("the rules file", () => {
     const real = loadRules(ROOT);
 
-    it("runs everything for any change under .github/, the actions CI's shards use included", () => {
-        assert.ok(real.everything.some((re) => re.test(".github/actions/early-verdict/action.yml")));
+    it("runs the smoke shards, not everything, for ci.yml and the actions CI's shards use", () => {
+        for (const f of [".github/workflows/ci.yml", ".github/actions/early-verdict/action.yml", "pnpm-lock.yaml"]) {
+            assert.ok(!real.everything.some((re) => re.test(f)), f);
+        }
+        assert.ok(real.smoke.patterns.some((re) => re.test(".github/actions/early-verdict/action.yml")));
+        assert.ok(
+            real.smoke.shards.every((sh) => SHARDS.some((s) => s.shard === sh)),
+            "every smoke shard exists",
+        );
     });
 
     it("judges code under src/ by the import graph, never by a data-folder rule", () => {
@@ -837,7 +846,7 @@ describe("misses found by mutation testing", () => {
         assert.deepEqual([...sel.specs.keys()], ["graphty/src/a.test.tsx"]);
     });
 
-    it("a design/ file a test names in a string runs its package whole (graph-io's style defaults record)", () => {
+    it("a design/ file a test names in a string runs that test (graph-io's style defaults record)", () => {
         const g = {
             ...empty("graph-io")[0],
             projects: { unit: { specs: ["graph-io/test/styles/core.test.ts"], setup: [] } },
@@ -846,7 +855,8 @@ describe("misses found by mutation testing", () => {
         const sel = run(["design/graph-io/style-tool-defaults.md"], ["graph-io"], {
             graphs: new Map([["graph-io", [g]]]),
         }).packages.get("graph-io");
-        assert.equal(sel.mode, "all");
+        assert.equal(sel.mode, "files");
+        assert.deepEqual([...sel.specs.keys()], ["graph-io/test/styles/core.test.ts"]);
         assert.ok(
             [...run(["design/graph-io/other-notes.md"], ["graph-io"]).packages.values()].every(
                 (p) => p.mode === "none",
@@ -1160,6 +1170,115 @@ describe("reads of another package's files, path by path", () => {
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }
+    });
+});
+
+describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md section 4.3)", () => {
+    const real = new Map([
+        ["graph-format", "graph-format"],
+        ["graph-io", "graph-io"],
+        ["algorithms", "algorithms"],
+        ["layout", "layout"],
+    ]);
+    const realDeps = new Map([
+        ["graph-format", new Set()],
+        ["graph-io", new Set(["graph-format"])],
+        ["algorithms", new Set(["graph-format"])],
+        ["layout", new Set(["graph-format"])],
+    ]);
+    const noGraphs = new Map([...real.values()].map((d) => [d, []]));
+    const run = (changed, lockfile) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps: realDeps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+            lockfile,
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        const picked = selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke);
+        return { everything: sel.everything, shards: picked.filter((s) => s.mode !== "none").map((s) => s.shard) };
+    };
+
+    it("a ci.yml change runs only the smoke shards, and another workflow none", () => {
+        assert.deepEqual(run([".github/workflows/ci.yml"]), {
+            everything: null,
+            shards: ["graph-format", "algorithms-browser"],
+        });
+        assert.deepEqual(run([".github/actions/early-verdict/action.yml"]).shards, [
+            "graph-format",
+            "algorithms-browser",
+        ]);
+        assert.deepEqual(run([".github/workflows/release.yml", ".github/dependabot.yml"]), {
+            everything: null,
+            shards: [],
+        });
+    });
+
+    it("a lockfile change runs the packages whose importers changed and their dependents", () => {
+        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), { everything: null, shards: ["layout"] });
+        const fmt = run(["pnpm-lock.yaml"], ["graph-format"]).shards;
+        for (const sh of ["graph-format", "graph-io", "algorithms-default", "layout"]) {
+            assert.ok(fmt.includes(sh), `${sh} in ${fmt.join(", ")}`);
+        }
+        assert.equal(run(["pnpm-lock.yaml"], ["."]).everything, "package.json", "the root importer runs everything");
+        assert.equal(run(["pnpm-lock.yaml"], null).everything, "pnpm-lock.yaml", "unknown importers run everything");
+        assert.equal(run(["pnpm-lock.yaml"]).everything, "pnpm-lock.yaml");
+    });
+
+    it("withLockfile puts the lockfile on the changed importers' package.json", () => {
+        assert.deepEqual(withLockfile(["pnpm-lock.yaml", "a.md"], ["layout", "."]), [
+            "a.md",
+            "layout/package.json",
+            "package.json",
+        ]);
+        assert.deepEqual(withLockfile(["pnpm-lock.yaml"], null), ["pnpm-lock.yaml"]);
+        assert.deepEqual(withLockfile(["a.md"], ["layout"]), ["a.md"]);
+    });
+
+    it("changedImporters reads which importers changed, and null when it cannot tell", () => {
+        const lock = (fmtVer, extra = "") =>
+            [
+                "lockfileVersion: '9.0'",
+                "",
+                `settings:${extra}`,
+                "  autoInstallPeers: true",
+                "",
+                "importers:",
+                "",
+                "  .:",
+                "    devDependencies:",
+                "      vitest: 4.0.0",
+                "",
+                "  graph-format:",
+                "    devDependencies:",
+                `      tsx: ${fmtVer}`,
+                "",
+                "  layout:",
+                "    devDependencies:",
+                "      tsx: 1.0.0",
+                "",
+                "packages:",
+                "",
+                `  tsx@${fmtVer}:`,
+                "    resolution: {}",
+                "",
+            ].join("\n");
+        assert.deepEqual(changedImporters(lock("1.0.0"), lock("1.1.0")), ["graph-format"]);
+        assert.deepEqual(changedImporters(lock("1.0.0"), lock("1.0.0")), []);
+        assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0", " # x")), null, "settings change every package");
+        assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0").replace("resolution: {}", "resolution: {x}")), null);
+        assert.equal(changedImporters(null, lock("1.0.0")), null);
+        // graph-format's bump also re-resolved a package layout installs too: layout's own block is unchanged,
+        // but what it installs is not, so the change cannot be put on graph-format alone
+        const withShared = (fmtVer, sharedDep) =>
+            `${lock(fmtVer)}\nsnapshots:\n\n  shared@1.0.0:\n    dependencies:\n      dep: ${sharedDep}\n`;
+        assert.deepEqual(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.0.0")), [
+            "graph-format",
+        ]);
+        assert.equal(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.1.0")), null);
     });
 });
 

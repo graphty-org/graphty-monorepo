@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
@@ -52,14 +51,7 @@ export default defineConfig(({ mode }) => {
         buildStampPlugin(),
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
-        // Only include Sentry plugin in CI when auth token is available
-        process.env.SENTRY_AUTH_TOKEN &&
-            sentryVitePlugin({
-                org: env.VITE_SENTRY_ORG,
-                project: env.VITE_SENTRY_PROJECT,
-                authToken: process.env.SENTRY_AUTH_TOKEN,
-            }),
-    ].filter(Boolean);
+    ];
 
     const config: UserConfig = {
         plugins,
@@ -76,6 +68,10 @@ export default defineConfig(({ mode }) => {
                     }
                 ).version,
             ),
+            // The release Sentry files this build's events under (the SDK reads __SENTRY_RELEASE__).
+            // CI sets it to the commit and uploads the source maps under the same name after the
+            // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
+            ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
         server: {
             host: true,

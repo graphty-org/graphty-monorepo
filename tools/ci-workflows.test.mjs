@@ -1765,18 +1765,39 @@ describe("dependabot.yml", () => {
 });
 
 describe("the Sentry source map upload", () => {
-    it("runs only in the build graphty.app deploys, a push to master (run 40051811635: 18 of 20 minutes)", () => {
-        const uses = workflow("ci.yml").match(/SENTRY_AUTH_TOKEN: .*/g);
-        assert.ok(uses.length >= 1);
-        for (const line of uses) {
-            assert.equal(
-                line,
-                "SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && " +
-                    "!inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}",
-            );
-        }
-        // deploy-pages.yml publishes only a push run's build, so that one keeps the upload
+    const ci = workflow("ci.yml");
+    const steps = Object.values(parseJobs(ci)).flatMap((j) => j.steps);
+    const upload = steps.find((s) => s.name === "Upload graphty's source maps to Sentry (master push)");
+
+    it("is never inside a build: the plugin's per-chunk re-mapping took graphty's build from 53 s to 13m33s", () => {
+        // The token is what would switch a Sentry build plugin on, so only the upload step may hold it
+        assert.deepEqual(ci.match(/SENTRY_AUTH_TOKEN: .*/g), ["SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}"]);
+        assert.ok(
+            !/sentry.*-plugin/i.test(readFileSync(new URL("../graphty/vite.config.ts", import.meta.url), "utf8")),
+        );
+    });
+
+    it("runs right after the build, only on a push to master, the build graphty.app deploys", () => {
+        assert.ok(upload);
+        assert.equal(
+            upload.if,
+            "steps.plan.outputs.full == 'true' && github.event_name == 'push' && " +
+                "github.ref == 'refs/heads/master' && !inputs.ref",
+        );
+        const i = steps.indexOf(upload);
+        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the merge queue)");
+        assert.equal(steps[i + 1].name, "Upload all package builds");
+        // deploy-pages.yml publishes only a push run's build, so that one carries the debug ids
         assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
+    });
+
+    it("injects debug ids before uploading, under the release the build stamped", () => {
+        const body = ci.slice(ci.indexOf("- name: Upload graphty's source maps to Sentry"));
+        const inject = body.indexOf("sentry-cli sourcemaps inject dist");
+        const send = body.indexOf('sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist');
+        assert.ok(inject > 0 && send > inject);
+        assert.equal(upload["working-directory"], "graphty");
+        assert.equal((ci.match(/SENTRY_RELEASE: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
     });
 });
 

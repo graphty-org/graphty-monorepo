@@ -150,7 +150,7 @@ async function main(argv) {
     const shards = candidateShards();
     let selection;
     try {
-        selection = (await selectChange(ROOT, changed, shards)).shards;
+        selection = (await selectChange(ROOT, changed, shards, undefined, false, { base, head: null })).shards;
     } catch (e) {
         console.log(`The selector failed (${e.message.split("\n")[0]}); every candidate shard runs whole.`);
         selection = [];

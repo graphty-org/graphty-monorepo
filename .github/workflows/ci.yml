@@ -674,6 +674,12 @@ jobs:
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
+            # No pile of images committed outside the folders that hold them (more than 20 new images or
+            # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
+            # The same check runs in tools/prepush-source-checks.sh.
+            - name: No committed walk screenshots
+              run: pnpm run check:committed-images
+
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now

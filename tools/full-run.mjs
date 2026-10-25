@@ -223,7 +223,7 @@ const openRedIssue = () =>
         "--json",
         "number,title",
         "--jq",
-        `[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\\(.number) \\(.title)"`,
+        String.raw`[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\(.number) \(.title)"`,
     ]);
 const openRed = () => openRedIssue().split(" ")[0];
 
@@ -281,6 +281,27 @@ function dispatchBisect(plan) {
     return `Bisect dispatched: bisect.yml, lane ${plan.inputs.lane}, ${short(plan.inputs.good)}..${short(plan.inputs.bad)}.`;
 }
 
+// A dispatch that fails must not lose the red: the issue and the record still follow.
+function tryBisect(plan) {
+    try {
+        return dispatchBisect(plan);
+    } catch (error) {
+        const why = error.message.split("\n")[0];
+        console.log(`::warning::bisect.yml was not dispatched: ${why}`);
+        return `No bisect: dispatching bisect.yml failed (${why}); the pipeline round looks.`;
+    }
+}
+
+function closeRedOnGreen(state, env) {
+    const [open, ...title] = openRedIssue().split(" ");
+    if (!open) return;
+    if (greenCloses(title.join(" "), env.SHA, ancestor)) {
+        sh("gh", ["issue", "close", open, "--comment", `The full run is ${state} on ${env.SHA}: ${env.RUN_URL}`]);
+    } else {
+        console.log(`::notice::#${open} stays open: its red commit is not in ${short(env.SHA)}'s history`);
+    }
+}
+
 async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
@@ -297,23 +318,11 @@ async function verdictMain(env) {
     }
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
-        // a dispatch that fails must not lose the red: the issue and the record still follow
-        let bisect;
-        try {
-            bisect = dispatchBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
-        } catch (error) {
-            console.log(`::warning::bisect.yml was not dispatched: ${error.message.split("\n")[0]}`);
-            bisect = `No bisect: dispatching bisect.yml failed (${error.message.split("\n")[0]}); the pipeline round looks.`;
-        }
+        const bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
         issue = fileRed(redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect }));
         what = red.map((l) => LANES[l].name).join(", ");
     } else if (state !== "owner-item") {
-        const [open, ...title] = openRedIssue().split(" ");
-        if (open && greenCloses(title.join(" "), env.SHA, ancestor)) {
-            sh("gh", ["issue", "close", open, "--comment", `The full run is ${state} on ${env.SHA}: ${env.RUN_URL}`]);
-        } else if (open) {
-            console.log(`::notice::#${open} stays open: its red commit is not in ${short(env.SHA)}'s history`);
-        }
+        closeRedOnGreen(state, env);
     }
     // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });

@@ -23,6 +23,8 @@
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //   --dry-run (cut-fix)                             merge into golden-cut and land on golden as dry runs, push nothing
 //   While <main checkout>/tmp/golden/flush exists, land and sync refuse; revert and cut-fix still run.
+//   Golden is retired (#3418): land, cut, cut-fix, ship, auto-ship and sync always refuse, pointing to
+//   tools/pr-open.sh; revert, status and prune-branches still run.
 //
 // Every run executes one copy of this tool, the live copy in <main checkout>/.worktrees/land-live (put a new
 // version there with `tools/live.sh land <branch>`), whichever checkout's copy was called: it re-runs the live
@@ -2563,6 +2565,8 @@ export function context(cwd, overrides = {}) {
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
         syncCheck: defaultCheck,
+        // Golden is retired (#3418): every change reaches master through its own pull request.
+        retired: true,
         ...base,
     };
 }
@@ -2583,6 +2587,8 @@ export async function main(argv, ctx = context(process.cwd())) {
     const reason = takeOption(copies.rest, "--reason");
     const allowCopies = copies.value?.split(",").filter(Boolean) ?? [];
     const [command, ...branches] = reason.rest.filter((a) => !a.startsWith("--"));
+    const retired = retiredRefusal(ctx, command);
+    if (retired) return fail(retired);
     const flushing = flushRefusal(ctx, command, argv);
     if (flushing) return fail(flushing);
     if (command === "sync") return syncCommand(ctx, argv);
@@ -2602,6 +2608,18 @@ export async function main(argv, ctx = context(process.cwd())) {
         if (command === "revert") return revert(ctx, branch);
         return branches.length > 1 ? landMany(ctx, branches, { dryRun }) : land(ctx, branch, { dryRun, allowCopies });
     });
+}
+
+// Golden is retired (design/ci/channels-pipeline-plan.md, issue #3418): nothing lands on golden or golden-cut
+// and nothing ships from them. A change reaches master through its own pull request (tools/pr-open.sh);
+// revert, status and prune-branches still run, for what golden already holds.
+const RETIRED = new Set(["land", "cut", "cut-fix", "ship", "auto-ship", "sync"]);
+function retiredRefusal(ctx, command) {
+    if (!ctx.retired || !RETIRED.has(command)) return null;
+    return (
+        `${command} is retired: golden no longer reaches master (#3418). Open a pull request into master ` +
+        'instead: tools/pr-open.sh (see "Shipping a change" in CLAUDE.md). Only revert, status and prune-branches run'
+    );
 }
 
 // The flush of golden to master (design/ci/channels-pipeline-plan.md, step 0): while the main checkout's

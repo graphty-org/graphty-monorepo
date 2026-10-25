@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * test-select-mutate.mjs -- checks the test selector by breaking files (design/ci/minimal-tests.md, section 5).
- * In a scratch worktree of its own (<main checkout>/.worktrees/<--worktree, default select-mutate>, at this
- * checkout's HEAD) it picks source files of a package, seeded (or takes --files), and:
+ * In a scratch worktree of its own (<main checkout>/.worktrees/select-mutate-<--name>, or select-mutate without
+ * --name, at this checkout's HEAD) it picks source files of a package, seeded (or takes --files), and:
  *  1. asks the selector which tests a change to each one file runs (the file-level answer, `measured` where
  *     the package is not allowed file by file yet);
  *  2. breaks the files: a code file gets a top-level `throw new Error("select-mutant")` at its end, so every
@@ -17,14 +17,16 @@
  * one of the shared browser slots (tools/with-browser.sh). With --reader, a broken source file of a package the
  * reader loads through its build is built into that package's dist/ before each run (and the unbroken build
  * put back after), so the reader's tests load the broken code as the gate's would; only source files under
- * src/ are picked then. Exit 1 on any miss or inconclusive run.
+ * src/ are picked then. Exit 1 on any miss or inconclusive run. What it prints is also written to its report,
+ * <main checkout>/tmp/select-mutate/<--name, default "default">/report.txt, so runs with different names can
+ * run at once, each in its own worktree with its own report.
  *
  * Usage: node tools/test-select-mutate.mjs <package> [--count N] [--seed S] [--files a,b,...] [--batch K]
- *            [--reader <package>] [--shard <name>]... [--worktree <name>]
+ *            [--reader <package>] [--shard <name>]... [--name <n>] [--worktree <dir name>]
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -101,16 +103,45 @@ export function unexplained(failing, broken, chosen) {
     return [...groups.values()];
 }
 
+/**
+ * Where a run named `name` works and reports, so runs with different names never share either.
+ * @param main the main checkout
+ * @param name the --name, or null
+ * @param worktree the --worktree directory name, or null (overrides the one the name gives)
+ * @returns `{ worktree, report }` absolute paths
+ */
+export function runPaths(main, name, worktree) {
+    return {
+        worktree: join(main, ".worktrees", worktree ?? (name ? `select-mutate-${name}` : "select-mutate")),
+        report: join(main, "tmp", "select-mutate", name ?? "default", "report.txt"),
+    };
+}
+
+let reportFile = null;
+
+/**
+ * Prints a line and appends it to the run's report.
+ * @param parts what console.log would print
+ */
+function log(...parts) {
+    console.log(...parts);
+    if (reportFile) {
+        appendFileSync(reportFile, `${parts.join(" ")}\n`);
+    }
+}
+
 class BuildBroken extends Error {}
 
-function scratch(head, name) {
-    const main = dirname(
+function mainCheckout() {
+    return dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
             cwd: HERE,
             encoding: "utf8",
         }).trim(),
     );
-    const wt = join(main, ".worktrees", name);
+}
+
+function scratch(head, main, wt) {
     const env = { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" };
     const git = (...a) => execFileSync("git", a, { cwd: existsSync(wt) ? wt : main, stdio: "inherit", env });
     if (existsSync(wt)) {
@@ -195,12 +226,12 @@ function firstRun(shard, run, put) {
         if (r.summary) {
             return r;
         }
-        console.log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
+        log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
     } catch (e) {
         if (!(e instanceof BuildBroken)) {
             throw e;
         }
-        console.log(`${shard.shard}: SKIPPED, ${e.message}`);
+        log(`${shard.shard}: SKIPPED, ${e.message}`);
         put([]);
     }
     return null;
@@ -243,7 +274,7 @@ async function mutateBatch({ wt, files, shards, allShards, graphs, rebuild }) {
             .get(f)
             .filter((s) => shards.some((x) => x.shard === s.shard))
             .map((s) => `${s.shard}=${s.mode === "files" ? s.files.length : s.mode}`);
-        console.log(`  ${f}: ${what.join(" ")}`);
+        log(`  ${f}: ${what.join(" ")}`);
     }
     let misses = 0;
     let inconclusive = 0;
@@ -265,7 +296,7 @@ async function mutateBatch({ wt, files, shards, allShards, graphs, rebuild }) {
         const over = all
             ? "whole shard selected"
             : `${[...selected].filter((x) => !run.files.includes(x)).length} selected without failing`;
-        console.log(
+        log(
             `${shard.shard}: ${run.files.length} failed, ${over}` +
                 (found.length > 0 ? `, MISSED: ${found.join(", ")}` : ""),
         );
@@ -293,9 +324,9 @@ function crossCheck(shard, g, failing) {
     for (const f of again) {
         const by = g.non.filter((m) => alone.get(m).has(f));
         if (flaky.has(f)) {
-            console.log(`${shard.shard}: flaky ${f} (fails unbroken)`);
+            log(`${shard.shard}: flaky ${f} (fails unbroken)`);
         } else if (by.length === 0) {
-            console.log(`${shard.shard}: ${f} fails only with several of ${g.non.join(" ")} broken together`);
+            log(`${shard.shard}: ${f} fails only with several of ${g.non.join(" ")} broken together`);
             inconclusive++;
         } else {
             by.forEach((m) => found.push(`${m} -> ${f}`));
@@ -313,7 +344,13 @@ async function main(argv) {
     const only = argv.flatMap((a, i) => (argv[i - 1] === "--shard" ? [a] : []));
     const reader = opt("--reader", pkg);
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: HERE, encoding: "utf8" }).trim();
-    const wt = scratch(head, opt("--worktree", "select-mutate"));
+    const main = mainCheckout();
+    const paths = runPaths(main, opt("--name", null), opt("--worktree", null));
+    mkdirSync(dirname(paths.report), { recursive: true });
+    writeFileSync(paths.report, "");
+    reportFile = paths.report;
+    log(`test-select-mutate ${argv.join(" ")} at ${head}, worktree ${paths.worktree}`);
+    const wt = scratch(head, main, paths.worktree);
     const { SHARDS } = await import(pathToFileURL(join(wt, "tools/ci-test-matrix.mjs")).href);
     const commands = new Set();
     const shards = SHARDS.filter(
@@ -324,10 +361,10 @@ async function main(argv) {
         return c && !commands.has(c) && commands.add(c);
     });
     if (shards.length === 0) {
-        console.error(`no shard of ${reader} is a plain vitest run`);
+        log(`no shard of ${reader} is a plain vitest run`);
         return 2;
     }
-    console.log("Building every package...");
+    log("Building every package...");
     execFileSync(
         "pnpm",
         // every package: each one's import graph resolves the others through their dist, as in the gate
@@ -346,7 +383,7 @@ async function main(argv) {
     // every package's graph, as the gate has them: a package without one is assumed to read anything
     const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
     if ((graphs.get(reader) ?? []).includes(null)) {
-        console.error(`the import graph of ${reader} could not be built; the selection would run it whole`);
+        log(`the import graph of ${reader} could not be built; the selection would run it whole`);
         return 2;
     }
     // the reader's graphs walk the package's source in place of its build: its tests load the build
@@ -360,12 +397,12 @@ async function main(argv) {
     let inconclusive = 0;
     for (let i = 0; i < picked.length; i += size) {
         const batch = picked.slice(i, i + size);
-        console.log(`Batch ${i / size + 1}: ${batch.length} broken file(s)`);
+        log(`Batch ${i / size + 1}: ${batch.length} broken file(s)`);
         const r = await mutateBatch({ wt, files: batch, shards, allShards: SHARDS, graphs, rebuild });
         misses += r.misses;
         inconclusive += r.inconclusive;
     }
-    console.log(
+    log(
         misses === 0 && inconclusive === 0
             ? `No misses in ${picked.length} mutant(s).`
             : `${misses} miss(es), ${inconclusive} inconclusive.`,

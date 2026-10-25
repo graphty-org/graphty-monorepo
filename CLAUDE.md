@@ -641,6 +641,14 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 
 ### Release versioning
 
+**Shadow mode (channels pipeline step 3, #3424).** release.yml now only tests: every run, scheduled or
+dispatched, is `mode: shadow` unless dispatched with `-f mode=legacy`, and a shadow run lands and publishes
+nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
+push starts or restarts a release (the `workflow_run` trigger is gone). Only the owner releases, with
+`gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
+(production)` job in GitHub, then land and publish run in environment `release` as described below. The
+rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
+
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11).
 The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App,
 because GitHub's own scheduler delays or drops this repository's scheduled runs (setup and

@@ -17,6 +17,11 @@
 # Every other command defaults to 4. Slots 1 to 4 are the ones the pre-push gate's shards share;
 # slots 5 and up are the studio's alone.
 #
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low, and for every command while a pre-push gate runs its
+# test shards (a live gate mark, <main checkout>/tmp/test-slots/.gate-<pid>, tools/test-slots.mjs), this script
+# takes none of the shared slots 1 to 3, only slot 4 and the studio's own 5 and up, so the gate's browser
+# shards always find a slot first.
+#
 # BROWSER_SLOT_TRY=1 takes a free slot at once or gives up (exit 75), never waits, and never takes a
 # slot while anyone waits in the queue or one of the four shared slots: the warm pool (real.mjs --warm)
 # fills only spare slots above 4, so a waiting start or a test shard never waits behind it.
@@ -68,6 +73,15 @@ if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
     done
     exit 75
 fi
+# Whether this command keeps off slots 1 to 3 now (the low-priority lane, above).
+low_lane() {
+    [[ "${BROWSER_SLOT_PRIORITY:-}" == low ]] && return 0
+    local f
+    for f in "${GRAPHTY_TEST_SLOTS_DIR:-$main/tmp/test-slots}"/.gate-*; do
+        [[ -e "$f" ]] && kill -0 "${f##*/.gate-}" 2>/dev/null && return 0
+    done
+    return 1
+}
 ticket="$DIR/queue/$(date +%s%N)-$$"
 : >"$ticket"
 trap 'rm -f "$ticket"' EXIT
@@ -84,7 +98,9 @@ first_in_line() {
 }
 while true; do
     if first_in_line; then
-        for i in $(seq 1 "$SLOTS"); do
+        first=1
+        low_lane && first=$((SLOTS < 4 ? SLOTS : 4))
+        for i in $(seq "$first" "$SLOTS"); do
             exec 9>"$DIR/slot$i"
             if flock -n 9; then
                 rm -f "$ticket"

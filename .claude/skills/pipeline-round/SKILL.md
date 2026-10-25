@@ -93,12 +93,39 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
   a `fix attempt` marker and a fix subagent (the "Two attempts" rule applies); and a one-line comment on the issue of
   every open branch that contains the culprit (`git branch -r --contains <culprit sha>`, each branch's issue from its
   name or `git config branch.<b>.issue`) saying it holds a reverted landing and should merge `origin/golden-verified`
-  again once verification passes. When the revert is pushed: `node tools/verify.mjs handled`.
-- **`last: failed ... NOT REPRODUCED`:** the failing shard passed when run again on the same commit. Never call it a
-  flake and never just re-run: claim it, find the mechanism (the gate log, the lessons file), fix the cause or file the
+  again once verification passes. When the revert is pushed: `node tools/verify.mjs handled`. A culprit whose line
+  ends `(judged by 1 run)` failed outside the test shards and was judged by one whole gate per point: revert it the
+  same way, and say so in the comment.
+- **A newly intermittent test is a regression.** A test that passed a confirming run but has no failure in the test
+  ledger before the range (none at the last verified commit, none before the range's first landing) was made
+  intermittent by a landing: verification bisects it like a consistent failure, a point bad when it fails at least 1
+  of 5 runs and good only at 5 of 5, and names the landing only when that landing's parent passes 5 of 5. Its
+  culprit is handled exactly as above: claim, revert at once, comment. Never quarantine it by hand instead.
+- **`last: flaky`:** every failing test passed in one of verification's confirming runs on the same commit, was
+  already flaky before the range, and is now quarantined with a `priority:critical` issue that lists the range's
+  landings as suspects. Nothing to revert or claim; the next verification runs with them quarantined. The issue is
+  step 1's critical alarm: start its fix subagent like any critical issue (a test that fails because of load or
+  timing is a critical defect, owner 2026-10-22).
+- **`last: failed ... INTERMITTENT`** (a test passed a confirming run but is not quarantined: the quarantine is off,
+  or it was a whole shard or another step) **or `fails every time` / `is newly intermittent` `but no landing is to
+blame`** (`noLanding` says why, such as a parent that failed 1 of 5): revert nothing.
+  Never call it a flake and never just re-run: claim it, find the mechanism (the gate log, the lessons file), fix the cause or file the
   issue the failure classes call for, then `handled`, and `start --again` once the cause is fixed.
 - **A culprit that is not a landing** (an owner's accept commit, a sync merge of master): revert nothing; claim it,
   diagnose, and file or fix like any golden failure.
+- **`last: failed-known`:** the same tests failed the same way as the verification before, so verification filed a
+  `Failing on golden` issue for each (issue-round picks them up). Nothing to revert again and nothing to claim;
+  `golden-verified` and cuts wait for the fix. Land checks meanwhile re-run those tests on golden's tip and excuse them
+  (`[KNOWN]` in the landing's summary), so unrelated landings go through. After reverting a culprit, `verify.mjs
+handled` closes the issues land checks filed for its failures; a verification that still sees them reopens them.
+- **The test ledger** (`node tools/test-ledger.mjs status`, design `design/ci/test-ledger.md`): failures on golden,
+  and flaky and broken tests. Nothing in the ledger is this round's to act on but the quarantine:
+- **The quarantine** (`node tools/test-quarantine.mjs status`): the gate quarantines a test itself when it fails and
+  then passes on the same inputs, and files its issue; the entry holds at once on this machine, from its local state.
+  When the status lists an entry the committed `tools/test-quarantine.json` lacks (or the state ended one), carry it
+  into git: a branch of its own from `origin/golden-verified`, `node tools/test-quarantine.mjs write`, commit only that
+  file (`test(workspace): quarantine <n> flaky tests`) and land it alone. CI applies only the committed list. Never
+  quarantine a `webgpu-graph-algorithms*` test by hand.
 - **Lessons.** When a round resolves a failure mode `lessons.md` does not hold, add an entry there (symptom, how it was
   told apart from a real failure, the fix) on the round's next docs branch.
 
@@ -264,39 +291,36 @@ At most one per round, and only when nothing above acted.
 
 ### 7. Finished worktrees
 
-Merged branches stay on GitHub and here as history; this step removes only finished worktrees, never a
-branch on GitHub. At most five removals per round. List candidates (read-only; it skips the main checkout, locked worktrees and the live
-tool worktrees in `tools/live-tools.json` plus `golden-local`):
+`tools/worktree-cleanup.mjs` removes finished worktrees on its own: the servherd server `worktree-cleanup` runs
+`--apply` every 15 minutes from its live copy `.worktrees/worktree-cleanup-live` (`tools/live-tools.json`). It removes
+only worktrees whose work is finished and that pass every safety check (see its header), never a branch on GitHub.
+This step only checks that it runs:
 
-```bash
-cd /home/apowers/Projects/graphty-monorepo
-fp=$(mktemp); git rev-list --first-parent origin/master origin/golden >"$fp"
-git worktree list --porcelain | awk '/^worktree /{w=$2; l=0} /^locked/{l=1} /^branch /{sub("refs/heads/","",$2); if (!l) print w, $2}' |
-while read -r dir br; do
-  case "$dir" in "$PWD"|*/golden-local|*/gate-live|*/githerd|*/visual-review-server-v3|*/sonar-baseline-runner) continue;; esac
-  [ "$(git rev-list --count "refs/heads/$br" --not origin/master origin/golden)" = 0 ] || continue
-  grep -qx "$(git rev-parse "refs/heads/$br")" "$fp" && continue
-  git log origin/golden --format=%s | grep -qxF "Revert \"land: $br\"" && { echo "keep (reverted) $dir"; continue; }
-  cat tmp/pipeline-round/state.json tmp/issue-round/state.json 2>/dev/null | grep -qF -- "branch $br," && { echo "keep (taken) $dir"; continue; }
-  if ls -l /proc/[0-9]*/cwd 2>/dev/null | grep -qF -- "-> $dir"; then echo "keep (process) $dir"
-  elif [ -n "$(git -C "$dir" --no-optional-locks status --porcelain)" ]; then echo "keep (dirty) $dir"
-  else echo "remove $dir $br"; fi
-done; rm -f "$fp"
-```
-
-Every commit of a `remove` line's branch is on origin/master or origin/golden, and the branch has commits of its own (a
-fresh branch sits on the first-parent line and is skipped). A branch reverted from golden, or named by a `taken` marker
-in the state files, is kept: a fix is due on it. The process check sees only processes whose working directory is
-inside the worktree, never Claude agents (they work by absolute path), which is why the marker check is there. Ignored
-files go with the worktree: move a non-empty `<dir>/tmp/` to the main checkout's `tmp/<worktree name>/` first; build
-output and `node_modules` are discarded. Remove with `git worktree remove <dir>`, then `git branch -d <branch>` (git
-refuses `-d` for a branch that is only on golden; that is fine, the branch stays). A refusal is reported, never forced.
-If `live-tools.json` gains a tool, add its worktree to the `case` line.
+- `servherd_list` shows `worktree-cleanup` online. If not, start it:
+  `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
+- The last `pass` line in `tmp/worktree-cleanup/log.jsonl` of the main checkout is under an hour old. Its kept counts
+  say why the rest stay; a large "uncommitted or untracked files" count is worktrees an owner must look at, never a
+  reason to force anything.
+- `node tools/worktree-cleanup.mjs` (a dry run, from any checkout) prints the plan with every reason.
 
 Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
 `git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.
 
-### 8. Keep the watcher running
+### 8. Nightly branch sync
+
+Every round, from the main checkout, start the nightly branch sync detached; it does nothing unless it is due
+(none started today, local time 01:00 or later), so the round never waits on it:
+
+```bash
+mkdir -p tmp/branch-sync && setsid nohup node tools/land.mjs sync --if-due >>tmp/branch-sync/sync.log 2>&1 </dev/null &
+```
+
+It merges golden (up to the `golden-good` tag) into every branch with a commit in the last 7 days, runs each
+branch's checks at the lowest priority, and writes the result into the branch's note (the `sync` column of the
+open-work table). A branch it reports blocked is its owner's to fix (the sync comments on the issue); a stranded
+blocked branch is step 6 material. Never run it without `--if-due` from a round. Design: `design/ci/branch-sync.md`.
+
+### 9. Keep the watcher running
 
 End every round that left no unclaimed verification failure by making sure one watcher runs, so a failure recorded
 between rounds wakes this session at once instead of at the next round:
@@ -304,7 +328,7 @@ between rounds wakes this session at once instead of at the next round:
 pgrep from matching its own command line). Its exit notice means a failure was recorded: run step 3's verification
 part then, not the whole round.
 
-### 9. Nothing to do
+### 10. Nothing to do
 
 End with one line, for example `pipeline-round: nothing due (golden 3 landings, review pending since <sha7>).` No
 ACTION NEEDED line unless something in "Escalation" is newly due. The review request is about the cut pull request
@@ -333,7 +357,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **master-guard still freezes and lifts a Mergify queue.** That no longer stops anything; ignore it.
 - **npm `previously staged version` (409).** The publish succeeded and is propagating (minutes). Not a failure.
 - **Worktrees git refuses to remove** because of untracked build output an old branch's `.gitignore` did not cover:
-  they show as `keep (dirty)`. Leave them; a tool fix belongs in `tools/worktree-prune.sh`, not a forced removal.
+  they count as "uncommitted or untracked files" in `tools/worktree-cleanup.mjs`. Leave them; a tool fix belongs
+  there, not a forced removal.
 - **About three dozen open pull requests from the retired Mergify flow.** They are step 6 material. `hold` means do not
   merge, not do not touch.
 - **The baseline seed pull request** from `visual-seed.yml` merges into master directly; it is not a stray.

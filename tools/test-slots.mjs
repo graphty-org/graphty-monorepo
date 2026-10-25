@@ -50,6 +50,16 @@
  *  - Liveness is a signal-0 check of the pid plus its start time from /proc, never pgrep (whose
  *    pattern matches its own command line).
  *
+ * Three lanes, by the first character of the ticket name, so the names sort in priority order:
+ *  - the gate lane ("!"): a pre-push gate's shards (tools/prepush-tests.mjs sets TEST_SLOT_GATE in their
+ *    environment) go ahead of every other waiting run;
+ *  - the ordinary lane (no prefix);
+ *  - the low lane ("~"): a run with GRAPHTY_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs,
+ *    and tools/low-priority.sh), and EVERY run outside a gate while a gate runs its test shards (a live gate
+ *    marker, markGate()), queues behind every other run.
+ * A waiting run's place is the number of runs that hold a slot (marked `granted` in their tickets) plus its
+ * index among the waiting tickets, so a run that holds a slot keeps it whatever lane arrives later.
+ *
  * Off on GitHub Actions (GITHUB_ACTIONS=true: one job per runner, nothing to share) and when
  * GRAPHTY_TEST_SLOTS=0. Not keyed on CI: tools/run-tests.sh sets CI=true for every local shard.
  */
@@ -207,6 +217,73 @@ function ancestors(pid) {
     return out;
 }
 
+const LOW = "~";
+const GATE = "!"; // sorts before the digits of an ordinary ticket, as "~" sorts after them
+
+/**
+ * A ticket's place in line: the tickets that hold a slot, plus its index among the waiting ones (sorted by
+ * name: the gate lane, then ordinary tickets, then the low lane, each by arrival).
+ * @param live the live tickets, sorted
+ * @param name this run's ticket
+ * @returns 0 for the first, -1 when the ticket is gone
+ */
+export function placeInLine(live, name) {
+    if (!live.some((t) => t.name === name)) return -1;
+    const waiting = live.filter((t) => !t.granted || t.name === name);
+    return live.length - waiting.length + waiting.findIndex((t) => t.name === name);
+}
+
+/**
+ * Marks a pre-push gate as running its test shards, until the returned function is called or the process
+ * ends: meanwhile every run outside a gate takes the low lane, here and in the browser slots
+ * (tools/with-browser.sh and the design studio's with-browser.sh look for the same files).
+ * @param dir the ticket directory
+ * @param pid the gate's process
+ * @returns a function that removes the mark
+ */
+export function markGate(dir = slotDir(), pid = process.pid) {
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `.gate-${pid}`);
+    writeFileSync(file, JSON.stringify({ pid, start: startOf(pid), since: Date.now() }));
+    return () => rmSync(file, { force: true });
+}
+
+/**
+ * Whether a gate is running its test shards: a gate mark whose process is alive (a dead one is removed).
+ * @param dir the ticket directory
+ * @returns the live marks' `{ pid, since }`
+ */
+export function liveGates(dir = slotDir()) {
+    const out = [];
+    let names = [];
+    try {
+        names = readdirSync(dir).filter((f) => f.startsWith(".gate-"));
+    } catch {
+        return out;
+    }
+    for (const name of names) {
+        try {
+            const mark = JSON.parse(readFileSync(join(dir, name), "utf8"));
+            if (alive(mark)) out.push(mark);
+            else rmSync(join(dir, name), { force: true });
+        } catch {
+            // removed under us, or half written
+        }
+    }
+    return out;
+}
+
+/**
+ * The lane prefix of a new ticket.
+ * @param env the run's environment
+ * @param gates the live gate marks (liveGates)
+ * @returns "!", "" or "~"
+ */
+export function laneOf(env, gates) {
+    if (env.TEST_SLOT_GATE) return GATE;
+    return env.GRAPHTY_SLOT_PRIORITY === "low" || gates.length > 0 ? LOW : "";
+}
+
 const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`);
 
 /**
@@ -222,6 +299,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.list reads the live tickets (a test replaces it)
  * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
  * @param options.waitLog records a wait that happened (a test replaces it)
+ * @param options.gates reads the live gate marks (liveGates; a test replaces it)
  * @returns a function that gives the slot back (a no-op when none was taken)
  */
 export async function acquire({
@@ -235,6 +313,7 @@ export async function acquire({
     list = liveTickets,
     kind = "test",
     waitLog = logWait,
+    gates = liveGates,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -264,21 +343,28 @@ export async function acquire({
     if ((await look()).some((t) => mine.has(t.pid))) {
         return none; // this process or one it runs under already holds a slot
     }
-    const name = `${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
+    const lane = laneOf(env, gates(dir));
+    const name = `${lane}${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
     const tmp = join(dir, `.${name}`);
-    writeFileSync(tmp, JSON.stringify({ pid, start: startOf(pid), label, since: Date.now() }));
-    renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    const ticket = { pid, start: startOf(pid), label, since: Date.now() };
+    const writeTicket = (fields) => {
+        writeFileSync(tmp, JSON.stringify(fields));
+        renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    };
+    writeTicket(ticket);
     const release = () => rmSync(join(dir, name), { force: true });
     const start = Date.now();
     let holders = null;
     for (;;) {
         const live = await look();
-        const at = live.findIndex((t) => t.name === name);
+        const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, gates });
         }
         if (at < slots) {
+            // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
+            writeTicket({ ...ticket, granted: true });
             if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
             return release;
         }
@@ -325,8 +411,35 @@ export default async function setup(project) {
     return release;
 }
 
-// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>
+/**
+ * `node tools/test-slots.mjs status`: the gates running their test shards and every live ticket.
+ * @param dir the ticket directory
+ * @returns lines
+ */
+export function statusLines(dir = slotDir()) {
+    const lane = (n) => ({ [GATE]: "gate", [LOW]: "low" })[n[0]] ?? "ordinary";
+    let tickets = [];
+    try {
+        tickets = liveTickets(dir);
+    } catch {
+        // no directory yet: nothing runs
+    }
+    return [
+        `slots: ${slotCount()} in ${dir}`,
+        ...liveGates(dir).map((g) => `gate running its test shards: pid ${g.pid} (${age(Date.now() - g.since)})`),
+        ...tickets.map(
+            (t) =>
+                `${t.granted || placeInLine(tickets, t.name) < slotCount() ? "holds" : "waits"} (${lane(t.name)}): pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`,
+        ),
+    ];
+}
+
+// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>, or `status`
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+    if (process.argv[2] === "status") {
+        console.log(statusLines().join("\n"));
+        process.exit(0);
+    }
     const gpu = process.argv[2] === "--gpu";
     const [cmd, ...args] = process.argv.slice(gpu ? 3 : 2);
     if (!cmd) {
@@ -337,7 +450,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
     // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
     const take = gpu
-        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {}, kind: "gpu" })
+        ? () =>
+              acquire({
+                  label,
+                  dir: slotDir("gpu"),
+                  slots: Math.min(1, slotCount()),
+                  env: {},
+                  kind: "gpu",
+                  gates: () => [], // one card, first come first served: a gate's own NVIDIA step must not go low
+              })
         : () => acquire({ label });
     const release = off() ? () => {} : await take();
     process.on("exit", release);

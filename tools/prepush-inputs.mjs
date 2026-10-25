@@ -18,13 +18,15 @@
  *   tools/prepush.sh a pass of the whole gate; tools/push-queue.sh lets a push whose whole gate already
  *   passed skip the source-only checks and the wait for a gate slot.
  * - The input key of a test shard: the shard's definition, the Node version, the GRAPHTY_ and VK_
- *   environment, the installed lockfile, the gate's version, every file outside the workspace packages
- *   (root configs, the lockfile, tools/, ...), every file of the shard's package and of each package it
- *   is related to, and the build outputs (dist/ ...) of those packages. "Related" is the closure of
- *   nx's project graph dependencies and of any path reference to another package's directory in the
- *   package's own files (`../layout/...`), which covers tests that read another package without
- *   importing it. tools/prepush-tests.mjs skips a shard whose key has a recorded pass, and records a
- *   pass only when the key is the same after the run as before it.
+ *   environment, the installed lockfile, the gate's rule for judging a shard's run
+ *   (tools/shard-verdict.mjs), every file outside the workspace packages (root configs, the lockfile,
+ *   tools/, ...), and every file of the shard's package and of each package it is related to. "Related"
+ *   is the closure of nx's project graph dependencies and of any path reference to another package's
+ *   directory in the package's own files (`../layout/...`), which covers tests that read another
+ *   package without importing it. Nothing git ignores counts (shardKeys says why): not the build
+ *   outputs, not what a run writes (coverage, reports, caches). tools/prepush-tests.mjs skips a shard
+ *   whose key has a recorded pass, and records a pass only when the key is the same after the run as
+ *   before it.
  *
  * Passes are kept in <main checkout>/tmp/prepush-passes/<kind>/<key>.json (kind: source, gate or
  * shard), shared by every worktree; records older than 14 days are removed.
@@ -156,16 +158,22 @@ export const GATE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /**
  * The environment that chooses what the gate runs: GRAPHTY_* and VK_* (lanes, GPU and browser
- * choices) and PREPUSH_ALL, without the test-slot bookkeeping.
+ * choices), PREPUSH_ALL and PREPUSH_SELECT (a gate that ran only selected tests is not a gate that ran
+ * every shard), without the test-slot bookkeeping.
  * @param env the environment
  * @returns sorted `[name, value]` pairs
  */
 export function laneEnv(env = process.env) {
-    return Object.keys(env)
-        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || k === "PREPUSH_ALL")
+    const pairs = Object.keys(env)
+        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || ["PREPUSH_ALL", "PREPUSH_SELECT", "PREPUSH_EXONERATE"].includes(k))
         .filter((k) => !k.startsWith("GRAPHTY_TEST_SLOT"))
         .sort()
         .map((k) => [k, env[k]]);
+    // a push to the cut or master never selects (prepush-tests.mjs selectionOn), so its gate is not one that did
+    if (/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")) {
+        pairs.push(["PREPUSH_SELECT_BASE", "cut"]);
+    }
+    return pairs;
 }
 
 /**
@@ -354,7 +362,7 @@ export function related(name, ...edges) {
  * @param include the projects whose files and outputs count (the shard's package and its related ones)
  * @param outputs Map of a build output path to its outputHash(), for the projects in `include`
  * @param env the environment
- * @param context gateContext(): the installed lockfile and the gate's version
+ * @param context the installed lockfile and the gate's rule for judging a run (shardKeys)
  * @returns hex hash
  */
 export function inputKey(shard, files, roots, include, outputs, env = process.env, context = {}) {
@@ -366,7 +374,8 @@ export function inputKey(shard, files, roots, include, outputs, env = process.en
         JSON.stringify({
             shard,
             node: process.version,
-            env: laneEnv(env).filter(([k]) => k !== "PREPUSH_ALL"),
+            // a whole shard runs the same whichever way the gate chose it; a selected run has its own key
+            env: laneEnv(env).filter(([k]) => !["PREPUSH_ALL", "PREPUSH_SELECT", "PREPUSH_SELECT_BASE"].includes(k)),
             files: sortedEntries(counted),
             outputs: sortedEntries(outputs),
             ...context,
@@ -376,12 +385,24 @@ export function inputKey(shard, files, roots, include, outputs, env = process.en
 
 /**
  * Input keys for the shards of a checkout. The package structure is read once; each call of the
- * returned function reads the files and build outputs as they are now.
+ * returned function reads the files as they are now.
+ *
+ * Only what is the same for the same tree anywhere on this machine counts, so a tree that passed in
+ * one worktree is not tested again in another, and nothing a run writes changes its own key:
+ * - Not the build outputs (dist/). They are built from the files the key holds, by the gate's Build
+ *   step just before the tests, but not byte for byte the same in two worktrees: graph-format stamps
+ *   the commit it was built at into its bundle (and so into every bundle that includes it), nx's cache
+ *   restores a build made at another commit, and tsbuildinfo records which copy of a type package tsc
+ *   happened to resolve. Same commit, two worktrees: equal files, nine different dist/ hashes.
+ * - Not the gate's whole tools/ and .husky/, only tools/shard-verdict.mjs, the rule that judges a run.
+ *   The checkout's own tools/ (run-tests.sh, the CI matrix) are among its files. The live gate moves
+ *   whenever a gate fix goes live, often during a run, and every pass then went unrecorded with "its
+ *   inputs changed while it ran".
  * @param root the checkout
+ * @param graph the package structure, projectGraph() by default
  * @returns `() => (shard) => key`, or null when the package structure cannot be read
  */
-export function shardKeys(root) {
-    const graph = projectGraph(root);
+export function shardKeys(root, graph = projectGraph(root)) {
     if (!graph) {
         return null;
     }
@@ -389,24 +410,18 @@ export function shardKeys(root) {
     const refs = pathRefs(root, graph.roots);
     return () => {
         const files = treeFiles(root);
-        const context = gateContext(root);
-        const outputs = new Map();
+        // ponytail: a dist/ left stale by a build that did not run is not seen; the gate always builds first.
+        const context = {
+            lock: outputHash(join(root, "node_modules/.pnpm/lock.yaml")),
+            judge: outputHash(join(GATE_ROOT, "tools/shard-verdict.mjs")),
+        };
         return (shard) => {
             const name = byDir.get(shard.package);
             if (!name) {
                 return null;
             }
             const include = related(name, graph.deps, refs);
-            const mine = new Map();
-            for (const p of include) {
-                for (const o of graph.outputs.get(p) ?? []) {
-                    if (!outputs.has(o)) {
-                        outputs.set(o, outputHash(join(root, o)));
-                    }
-                    mine.set(o, outputs.get(o));
-                }
-            }
-            return inputKey(shard, files, graph.roots, include, mine, process.env, context);
+            return inputKey(shard, files, graph.roots, include, new Map(), process.env, context);
         };
     };
 }
@@ -469,7 +484,7 @@ const KEEP_DAYS = 14;
 export function passStore(main) {
     const dir = (kind) => join(main, "tmp/prepush-passes", kind);
     const file = (kind, key) => {
-        if (!/^[a-z]+$/.test(kind) || !/^[0-9a-f]{64}$/.test(key)) {
+        if (!/^[a-z]+(-[a-z]+)*$/.test(kind) || !/^[0-9a-f]{64}$/.test(key)) {
             throw new Error(`not a pass kind and key: ${kind} ${key}`);
         }
         return join(dir(kind), `${key}.json`);

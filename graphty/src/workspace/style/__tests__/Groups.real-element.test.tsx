@@ -440,19 +440,44 @@ describe("per-group settings", () => {
         );
     });
 
-    it("College football: the largest 8, N more, search, sort, fold, the selected node's group, Select these", async () => {
+    /**
+     * College football's Leiden groups in the layer's color binding, the largest 8 listed.
+     * @returns the session, the layer, its path, the groups and the popover.
+     */
+    async function footballGroups(): Promise<{
+        session: GraphSession;
+        store: WorkspaceStore;
+        layer: Layer;
+        path: string;
+        groups: ReturnType<GraphSession["styles"]["groups"]>;
+        popover: HTMLElement;
+    }> {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("College football", 115);
         const { layer, path } = await runGroups(session, "leiden");
         const groups = session.styles.groups(layer.id, path);
         assert.isAbove(groups.length, 8, "Leiden finds more than 8 groups");
-        const foldedBefore = groups.filter((g) => g.folded === true).length;
-        let popover = await openBinding(store, layer);
+        const popover = await openBinding(store, layer);
         assert.lengthOf(gridRows(popover), 8, "the largest 8");
+        return { session, store, layer, path, groups, popover };
+    }
+
+    /**
+     * Lists every group: "N more" under the largest 8.
+     * @param popover - the binding popover.
+     * @param groups - the groups.
+     */
+    async function showAll(popover: HTMLElement, groups: readonly unknown[]): Promise<void> {
         await userEvent.click(within(popover).getByRole("button", { name: `${String(groups.length - 8)} more` }));
         await waitFor(() => {
             assert.lengthOf(gridRows(popover), groups.length);
         });
+    }
+
+    // One case per step group: the whole walk in one case sat at its time limit on a loaded machine.
+    it("College football: the largest 8, N more, and search by value and by name", async () => {
+        const { groups, popover } = await footballGroups();
+        await showAll(popover, groups);
 
         // Search finds a group by its raw value and by its name.
         const last = groups[groups.length - 1];
@@ -469,7 +494,12 @@ describe("per-group settings", () => {
             const names = gridRows(popover).map((row) => nameCell(row).firstChild?.textContent);
             assert.include(names, "Group 3");
         });
-        await userEvent.clear(search);
+    });
+
+    it("College football: sort by name, and fold small groups into Other and back", async () => {
+        const { session, layer, path, groups, popover } = await footballGroups();
+        const foldedBefore = groups.filter((g) => g.folded === true).length;
+        await showAll(popover, groups);
 
         // Sort by name.
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Sort by/ }));
@@ -502,13 +532,18 @@ describe("per-group settings", () => {
             assert.isTrue(binding !== undefined && "by" in binding && binding.other === undefined);
             assert.equal(session.styles.groups(layer.id, path).filter((g) => g.folded === true).length, foldedBefore);
         });
+    });
 
-        // Select these: the group's nodes, from its row's menu.
-        const target = gridRows(popover)[0];
+    it("College football: Select these selects a group, and the selected node's group is pinned first", async () => {
+        const { session, store, layer, path, popover: list } = await footballGroups();
+
+        // Select these: the group's nodes, from its row's menu. The second row, so pinning it
+        // first is a move.
+        const target = gridRows(list)[1];
         const targetKey = target.querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
         const targetName = nameCell(target).firstChild?.textContent ?? "";
         await userEvent.click(within(target).getByRole("button", { name: new RegExp(` ${targetName} actions$`) }));
-        await userEvent.click(await within(popover).findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(await within(list).findByRole("menuitem", { name: /^Select these / }));
         const count = session.styles.groups(layer.id, path).find((g) => String(g.value) === targetKey)?.count;
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, count);
@@ -519,7 +554,7 @@ describe("per-group settings", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Color binding" }));
         });
-        popover = await openBinding(store, layer);
+        const popover = await openBinding(store, layer);
         const selectedName = session.data.name(session.selection.nodes[0]) ?? "";
         await waitFor(() => {
             const [top] = gridRows(popover);

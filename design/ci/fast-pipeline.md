@@ -452,8 +452,9 @@ gate step or the visual job.
   every revert.
 - The owner reviews screenshots before anything is offered to master (formerly "before pushing").
 - No step waits on the owner; breaking changes only with the owner's go, grouped into one major.
-- Paid GPU testing only at release; no silent fallbacks; never blame timing; no automatic retries;
-  quarantine only with the owner's yes (`ci-cd-plan.md` sections 7, 9). A GPU lane counts as stable
+- Paid GPU testing only at release; no silent fallbacks; never blame timing; one automatic retry of
+  failed test files and automatic quarantine of flaky tests, each with an issue (owner, 2026-10-22;
+  `ci-cd-plan.md` sections 7, 9). A GPU lane counts as stable
   after three consecutive green release-train runs.
 - No nightly or fixed-interval job gates anything. Jobs that gate nothing may run on a schedule;
   the nightly Hosts run moves off the release train's hours so the two never compete for macOS
@@ -507,6 +508,20 @@ Decided by the owner on 2026-10-21:
    pipeline round is their watchdog, acts on their results and keeps a lessons file; its loop wakes
    on a recorded failure (section 4.3).
 7. **The old rules in sections 7 and 8** are kept, narrowed or dropped as listed there.
+
+Decided by the owner on 2026-10-23 ("I'm fine with deferring downstream tests"):
+
+8. **A landing check defers downstream packages' tests to verification.** It runs the tests of the
+   packages the change touches (file-level where the selector allows) and every fixed check (build of
+   the affected packages, lint, API report, bundle size, docs site, SonarQube), but not the shards of
+   packages reached only as dependents or readers of a changed package: a graph-io change no longer
+   runs graphty-element's or the graphty app's shards before landing. A change to a shared root file
+   (nx's sharedGlobals, the lockfile, the rules' "everything" list) still runs everything. The switch is
+   `PREPUSH_DEFER_DOWNSTREAM` in `tools/prepush-tests.mjs`, on by default since 2026-10-23
+   (`PREPUSH_DEFER_DOWNSTREAM=0` turns it off), now that verification names a culprit only on a failure
+   that fails all five confirming runs of its test files, bisects only `land:` merges, judges each probe by
+   the same five-run rule and requires the culprit's parent to pass every run; a test that passes any
+   confirming run goes to the quarantine, never to a revert.
 
 ## 10. Build order
 

@@ -15,6 +15,13 @@
 # writes the branch's progress note on it (tools/branch-note.mjs): branch, worktree, owning session,
 # latest commit, and what is done, left and next.
 #
+# The design/** images (the design studio's walk screenshots and the mockups, about 10 GB of Git LFS
+# PNGs) are checked out as small LFS pointer files, not images: nothing an ordinary worktree builds,
+# tests or checks reads them, and every worktree would otherwise write its own full copy. Every other
+# LFS file (visual-baselines/, visual-fonts/, the graph-io fidelity references) is checked out in full.
+# To get the design images later, in the worktree: git lfs pull --include "design/**"
+# A later merge or pull that brings in a changed design/** image checks that one image out in full.
+#
 # Usage:
 #   ./tools/worktree-new.sh <branch> [base] [name] [--issue N | --new-issue "<title>"] [--owner O]
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
@@ -26,6 +33,7 @@
 #               fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
 #               --priority (default medium) and --effort (default medium)
 #     --owner   who owns the work, for the note (default: this Claude Code session)
+#     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
 #
 # golden and golden-cut (made by tools/land.mjs) need no issue and are not pushed from here.
 # The worktree lands in .worktrees/<name>. Remove finished ones with tools/worktree-prune.sh.
@@ -38,7 +46,7 @@ retry() { "$@" || { sleep 2; "$@"; } || { sleep 5; "$@"; }; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 POS=()
-ISSUE="" NEW_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT=""
+ISSUE="" NEW_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --issue) ISSUE="${2:-}"; shift 2 ;;
@@ -47,6 +55,7 @@ while [ $# -gt 0 ]; do
         --type) TYPE="${2:-}"; shift 2 ;;
         --priority) PRIORITY="${2:-}"; shift 2 ;;
         --effort) EFFORT="${2:-}"; shift 2 ;;
+        --full-images) FULL_IMAGES=1; shift ;;
         --*) die "unknown option $1" ;;
         *) POS+=("$1"); shift ;;
     esac
@@ -54,7 +63,7 @@ done
 BRANCH="${POS[0]:-}"
 BASE="${POS[1]:-}"
 NAME="${POS[2]:-${BRANCH//\//-}}"
-[ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name] [--issue N | --new-issue \"<title>\"] [--owner O]"
+[ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name] [--issue N | --new-issue \"<title>\"] [--owner O] [--full-images]"
 
 case "$BRANCH" in golden | golden-cut) TRACKED="" ;; *) TRACKED=1 ;; esac
 if [ -n "$TRACKED" ]; then
@@ -79,13 +88,17 @@ if [ -z "$BASE" ]; then
     BASE=origin/master
     git -C "$MAIN" rev-parse -q --verify origin/golden-verified >/dev/null && BASE=origin/golden-verified
 fi
+# git-lfs's smudge filter writes the pointer instead of the image for a path lfs.fetchexclude matches.
+# Given with -c, the exclude applies to this checkout only, never to the repository's config.
+LFS_SLIM=(-c "lfs.fetchexclude=design/**")
+[ -n "$FULL_IMAGES" ] && LFS_SLIM=()
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
     || git -C "$MAIN" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
     # an origin-only branch gets a local tracking branch of the same name
-    git -C "$MAIN" worktree add "$DIR" "$BRANCH"
+    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
 else
     # --no-track: the new branch's upstream is set by its first `git push -u` below, not to the base
-    git -C "$MAIN" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
+    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
     # A branch started from another branch is stacked on it: record that, so the pre-push gate
     # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
     # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
@@ -116,3 +129,4 @@ fi
 (cd "$DIR" && pnpm install --frozen-lockfile)
 
 echo "ready: $DIR${ISSUE:+ (issue #$ISSUE)}"
+[ -n "$FULL_IMAGES" ] || echo "the design/** images are LFS pointers here; to get them: git -C $DIR lfs pull --include \"design/**\""

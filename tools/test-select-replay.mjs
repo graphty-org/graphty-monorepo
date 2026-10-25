@@ -38,6 +38,7 @@ import {
     loadRules,
     measuredOf,
     repoPath,
+    rootImportGraph,
     selectPackages,
     selectShards,
     strip,
@@ -437,6 +438,7 @@ async function main(argv) {
             refs: testRefs(ROOT, packages, graphs, pathRefs(ROOT, nx.roots)),
             graphs,
             rules,
+            rootImporters: rootImportGraph(ROOT, [...packages.values()]),
         },
     };
     const replayed = pushes(main, since);

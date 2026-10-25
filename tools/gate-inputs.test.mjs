@@ -161,6 +161,84 @@ describe("the gate key", () => {
     });
 });
 
+describe("a test shard's key", () => {
+    // Package p depends on q; r is unrelated. The gate is a checkout of its own, as .worktrees/gate-live
+    // is, holding a copy of the gate's scripts.
+    const graph = {
+        roots: new Map([
+            ["p", "p"],
+            ["q", "q"],
+            ["r", "r"],
+        ]),
+        outputs: new Map([
+            ["p", ["p/dist"]],
+            ["q", ["q/dist"]],
+        ]),
+        deps: new Map([["p", new Set(["q"])]]),
+    };
+    const shard = { shard: "p-1", package: "p", "test-command": "cd p && vitest run", "needs-browser": false };
+    const write = (dir, path, text) => {
+        mkdirSync(join(dir, path, ".."), { recursive: true });
+        writeFileSync(join(dir, path), text);
+    };
+    const gate = repo();
+    for (const f of ["shard-verdict.mjs", "x.mjs"]) write(gate.dir, `tools/${f}`, `${f}\n`);
+    const gateInputs = import(join(gate.dir, "tools/prepush-inputs.mjs"));
+    const checkout = () => {
+        const r = repo();
+        for (const p of ["p", "q", "r"]) write(r.dir, `${p}/src/a.ts`, `${p}\n`);
+        write(r.dir, ".gitignore", "node_modules/\ndist/\ntmp/\ncoverage/\n.coverage-parts/\n");
+        r.git("add", ".");
+        r.git("commit", "-q", "-m", "packages");
+        return r;
+    };
+    const keyOf = async (dir) => (await gateInputs).shardKeys(dir, graph)()(shard);
+
+    it("is the same for the same tree in two worktrees, whatever their build outputs hold", async () => {
+        const r = checkout();
+        const other = join(TMP, `shard-worktree-${made}`);
+        r.git("worktree", "add", "-q", "--detach", other, "HEAD");
+        write(other, "node_modules/.pnpm/lock.yaml", "lock\n");
+        // graph-format stamps the commit it was built at; nx's cache restores another commit's build.
+        write(r.dir, "q/dist/q.js", 'producer = "@graphty/graph-format@29f982b6ae06"\n');
+        write(other, "q/dist/q.js", 'producer = "@graphty/graph-format@c09057348c37"\n');
+        write(other, "p/dist/tsconfig.tsbuildinfo", "buffer@5.7.1\n");
+        assert.equal(await keyOf(other), await keyOf(r.dir));
+    });
+
+    it("is not changed by what a run writes, nor by a gate change outside the rule that judges a run", async () => {
+        const r = checkout();
+        const before = await keyOf(r.dir);
+        write(r.dir, "p/coverage/index.html", "report\n");
+        write(r.dir, "p/.coverage-parts/p-1/coverage-final.json", "{}\n");
+        write(r.dir, "p/dist/p.js", "rebuilt\n");
+        write(r.dir, "tmp/prepush-tests/p-1.log", "Tests  1 passed (1)\n");
+        write(gate.dir, "tools/x.mjs", "a gate fix that went live during the run\n");
+        write(r.dir, "r/src/a.ts", "a package p does not read\n");
+        assert.equal(await keyOf(r.dir), before);
+    });
+
+    it("changes with the files the shard reads, the installed lockfile and the gate's verdict rule", async () => {
+        const r = checkout();
+        const base = await keyOf(r.dir);
+        const changed = async (why, dir, path, text) => {
+            const old = existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null;
+            write(dir, path, text);
+            assert.notEqual(await keyOf(r.dir), base, why);
+            if (old === null) rmSync(join(dir, path));
+            else writeFileSync(join(dir, path), old);
+            assert.equal(await keyOf(r.dir), base, `${why}, undone`);
+        };
+        await changed("its package's source", r.dir, "p/src/a.ts", "p 2\n");
+        await changed("a new test file, not yet committed", r.dir, "p/test/a.test.ts", "t\n");
+        await changed("a dependency's source", r.dir, "q/src/a.ts", "q 2\n");
+        await changed("a root file", r.dir, "pnpm-lock.yaml", "lock 2\n");
+        await changed("the checkout's own tools", r.dir, "tools/run-tests.sh", "x\n");
+        await changed("the installed lockfile", r.dir, "node_modules/.pnpm/lock.yaml", "lock 2\n");
+        await changed("the gate's verdict rule", gate.dir, "tools/shard-verdict.mjs", "stricter\n");
+    });
+});
+
 describe("pass records (prepush-inputs.mjs passed / record)", () => {
     it("are found from any worktree with the same inputs, and never after a change", () => {
         const r = repo();
@@ -292,6 +370,7 @@ describe("prepush.sh with a gate that already passed", () => {
             copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
         const ran = join(TMP, `steps-${made}.log`);
         writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
+        writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
         writeFileSync(
             join(r.dir, "tools/sonar-gate.mjs"),
@@ -452,6 +531,7 @@ wait`,
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
+                    GRAPHTY_TEST_SLOTS_DIR: join(TMP, "no-gates"), // a gate running on this machine changes nothing here
                 },
             },
         );
@@ -462,5 +542,45 @@ wait`,
         assert.equal(fifth?.kind, "browser-slot", JSON.stringify(lines));
         assert.equal(fifth.heldBy.length, 4);
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
+    });
+
+    it("while a gate runs its test shards, keeps every other browser command to slot 4; the gate's own take any", () => {
+        const dir = join(TMP, "gate-lane");
+        const slotsDir = join(dir, "test-slots");
+        mkdirSync(slotsDir, { recursive: true });
+        // A live gate mark: this test process stands in for the gate.
+        writeFileSync(join(slotsDir, `.gate-${process.pid}`), JSON.stringify({ pid: process.pid, since: Date.now() }));
+        // The holder is outside the gate, so it takes slot 4; the gate's command then takes slot 1 at once,
+        // and another command outside the gate waits for slot 4 although slots 2 and 3 are free.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+"$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
+until [ -e held.4 ]; do sleep 0.05; done
+TEST_SLOT_GATE=1 "$GATE" sh -c "echo gate > gate"
+"$GATE" sh -c "echo other > other" 2> other.err &
+until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
+[ ! -e other ] || exit 9
+touch go
+wait`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "0.1",
+                    PIPELINE_WAIT_LOG: "off",
+                    GRAPHTY_TEST_SLOTS_DIR: slotsDir,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
+        assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
     });
 });

@@ -17,7 +17,7 @@
         ]
     },
     "noTests": {
-        "$comment": "Root paths no test shard reads: the screenshot lane, design notes and agent settings.",
+        "$comment": "Root paths no test shard reads: the screenshot lane, design notes and agent settings. Asked only after the import graphs and the test-side string literals (test-select.mjs, rootFiles), so a design file a test imports or names still runs that test. A root file that matches none of these and that no import, rule or test accounts for runs everything, except code under tools/.",
         "patterns": [
             "^design/",
             "^\\.claude/",
@@ -25,11 +25,25 @@
             "^visual-baselines/",
             "^visual-review-approvals/",
             "^visual-fonts/",
-            "^[^/]+\\.md$"
+            "^[^/]+\\.md$",
+            "^docs/",
+            "^\\.env\\.example$",
+            "^\\.git-blame-ignore-revs$",
+            "^\\.lycheeignore$",
+            "^lychee\\.toml$",
+            "^\\.mcp\\.json$",
+            "^\\.pt-config\\.json$",
+            "^\\.secretlint(rc\\.json|ignore)$",
+            "^\\.worktree-config\\.json$",
+            "^sonar-project\\.properties$",
+            "^release-hold\\.json$",
+            "^commitlint\\.config\\.js$",
+            "^\\.gitattributes$",
+            "^\\.gitignore$"
         ]
     },
     "wholePackage": {
-        "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run. A code file under the package's src/ is never matched (src/data/ holds data-source code): the import graph judges it.",
+        "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run. A code file under the package's src/ is never matched (src/data/ holds data-source code): the import graph judges it. public/ is Vite's publicDir, served by URL (graphty's samples), which no import shows.",
         "patterns": [
             "(^|/)(fixtures|__fixtures__|data|recordings|golden|goldens|__snapshots__|snapshots|corpus|conformance|baselines)/",
             "(^|/)setup/",
@@ -37,23 +51,34 @@
             "^project\\.json$",
             "^tsconfig[^/]*\\.json$",
             "^(vite|vitest)[^/]*\\.config\\.[cm]?[jt]s$",
-            "^\\.storybook/"
+            "^\\.storybook/",
+            "^public/"
         ]
     },
     "fileLevel": {
         "$comment": "Packages whose shards may run a list of test files instead of the whole shard, adopted one by one as the replay shows no misses (design/ci/fast-pipeline.md section 5.1, item 2). A shard that runs a browser project still runs whole. Elsewhere the file-level answer is measured and logged, never used.",
-        "packages": ["graph-format", "remote-logger", "compact-mantine", "graphty"]
+        "packages": ["graph-format", "remote-logger", "compact-mantine", "graphty", "graphty-element"]
+    },
+    "fileLevelBrowser": {
+        "$comment": "Packages of fileLevel whose shards that run a browser project may also run a list of test files (design/ci/minimal-tests.md section 3). A package joins only after tools/test-select-mutate.mjs finds no miss in its browser projects.",
+        "packages": ["compact-mantine", "graphty", "graphty-element"]
     },
     "alsoRun": {
         "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",
-        "entries": []
+        "entries": [
+            {
+                "pattern": "^\\.prettier(rc|ignore)$",
+                "packages": ["graph-io", "cytoscape-extensions"],
+                "why": "their reference-page generators format with prettier.resolveConfig, which reads the root .prettierrc, in a child process"
+            }
+        ]
     },
     "readAtRunTime": {
         "$comment": "Data files. One that no test imports (a query-suffix import is an import) can only be read at run time, so a change to it runs the package's tests that read files (opaqueTest) instead of the whole package. A changed code file that no test imports still runs the whole package.",
         "pattern": "\\.(md|mdx|txt|json|jsonl|html|css|csv|tsv|xml|ya?ml|svg|png|jpe?g|gif|webp|gz|wgsl|glsl|net|gml|graphml|gexf|dot|gv|obo|cx2?|xgmml|cys)$"
     },
     "opaqueTest": {
-        "$comment": "A test whose own files (outside src/) read files, list directories or run programs at run time. Such a test runs whenever any file of its package other than another test changes, because what it reads is invisible to the import graph.",
-        "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\("
+        "$comment": "A test whose own files (outside src/) read files, list directories or run programs at run time. Such a test runs whenever any file of its package other than another test changes, because what it reads is invisible to the import graph. Any use of child_process or node:fs counts, so a program run through promisify(execFile) is seen; so do ESLint (which loads its config at run time) and fetch() of a served file.",
+        "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\(|promisify\\(|\\bexecFile\\b|\\bspawn\\b|child_process|node:fs|new ESLint\\(|loadESLint|calculateConfigForFile|\\bfetch\\(|page\\.goto"
     }
 }

@@ -73,7 +73,7 @@ describe("the Data place's words", () => {
         );
         assert.deepEqual(
             FIELD_ENTRIES.nodes.map((entry) => entry.name),
-            ["Label", "Kind", "Weight", "Time", "Location"],
+            ["Label", "Kind", "Weight", "Time", "Latitude", "Longitude", "Coordinates", "Country", "Region", "City"],
         );
         assert.deepEqual(
             FIELD_ENTRIES.edges.map((entry) => entry.name),

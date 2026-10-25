@@ -365,7 +365,7 @@ export class RenderManager implements Manager {
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
      * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
      * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
-     * resize ({@link drawNow}) counts as drawn.
+     * resize (`drawNow`) counts as drawn.
      */
     readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */

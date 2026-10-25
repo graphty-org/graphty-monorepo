@@ -79,7 +79,8 @@ async function verifyOidc(token, doFetch, nowMs) {
     const claims = part(payload);
     const now = nowMs / 1000;
     if (claims.iss !== ISSUER || claims.aud !== AUDIENCE) refuse(401, `OIDC token is not for ${AUDIENCE}`);
-    if (!(claims.exp > now) || claims.nbf > now + 60) refuse(401, "OIDC token expired or not yet valid");
+    if (typeof claims.exp !== "number" || claims.exp <= now || claims.nbf > now + 60)
+        refuse(401, "OIDC token expired or not yet valid");
     return claims;
 }
 

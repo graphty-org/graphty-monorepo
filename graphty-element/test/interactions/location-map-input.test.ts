@@ -57,6 +57,30 @@ async function applied(element: Graphty): Promise<void> {
 }
 
 /**
+ * Wait until the map reports a state, now or in a later basemap-status event: tiles take as long
+ * as they take, so no deadline.
+ * @param element - The element.
+ * @param state - The state.
+ * @param source - The source it must be drawing, when it matters.
+ */
+function basemapIs(element: Graphty, state: string, source?: string): Promise<void> {
+    const is = (s: { state: string; source: string }): boolean =>
+        s.state === state && (source === undefined || s.source === source);
+    if (is(element.basemapStatus)) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+        const on = (event: CustomEvent<{ state: string; source: string }>): void => {
+            if (is(event.detail)) {
+                element.removeEventListener("basemap-status", on);
+                resolve();
+            }
+        };
+        element.addEventListener("basemap-status", on);
+    });
+}
+
+/**
  * A mounted element holding the cities (or other places), laid out on the map.
  * @param viewMode - The view mode.
  * @param options - The layout's options.
@@ -498,7 +522,10 @@ async function heightsWhileHeld(element: Graphty, key: string, count: number): P
     const frame = element.mapFrame;
     const radius = frame?.mapDimension === "3d" ? frame.radius : Number.NaN;
     const scene = element.graph.getScene();
-    const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
+    // The camera's own position under the pivot at the globe's center, not its globalPosition:
+    // that comes from the world matrix in single precision, about 1e-6 of a height near the
+    // surface, which is the closeness these ratios are held to.
+    const height = (): number => (scene.activeCamera?.position.length() ?? Number.NaN) / radius - 1;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get("orbit");
     assert.isDefined(input);
     const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
@@ -625,9 +652,7 @@ describe("zooming a map whose nodes keep their size on screen", () => {
 describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
         const element = await mounted("3d", { mapDimension: "3d", extent: "world" });
-        await vi.waitFor(() => {
-            assert.strictEqual(element.basemapStatus.state, "ready");
-        });
+        await basemapIs(element, "ready");
         const placed = scenePositions(element);
         // One 2 x 1 pixel picture of the whole world, as a reader's own image would be.
         const picture =
@@ -644,11 +669,10 @@ describe("the globe's map", () => {
         ] as const;
         for (const [map, source] of sources) {
             await element.session.layout.set("location-map", { options: { mapDimension: "3d", extent: "world", map } });
-            await vi.waitFor(async () => {
-                await applied(element);
-                assert.strictEqual(element.basemapStatus.source, source);
-                assert.strictEqual(element.basemapStatus.state, "ready", source);
-            });
+            await basemapIs(element, "ready", source);
+            await applied(element);
+            assert.strictEqual(element.basemapStatus.source, source);
+            assert.strictEqual(element.basemapStatus.state, "ready", source);
             const tiles = globeTiles(element);
             assert.isAbove(tiles.length, 0, `${source} is drawn on the globe`);
             assert.isTrue(
@@ -662,10 +686,9 @@ describe("the globe's map", () => {
         await element.session.layout.set("location-map", {
             options: { mapDimension: "3d", extent: "world", map: { source: "openstreetmap" } },
         });
-        await vi.waitFor(async () => {
-            await applied(element);
-            assert.strictEqual(element.basemapStatus.state, "ready");
-        });
+        await basemapIs(element, "ready", "openstreetmap");
+        await applied(element);
+        assert.strictEqual(element.basemapStatus.state, "ready");
         const far = Math.max(...globeTiles(element).map((t) => t.z));
         for (let i = 0; i < 12; i++) {
             await wheel(element, CENTER, -400);

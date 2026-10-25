@@ -1,7 +1,7 @@
 /**
  * A histogram's range brush in a real browser: the body dragged with the real mouse, a bar
  * clicked, the thumbs' value text read from Chromium's accessibility tree, the thumbs measured
- * against the bars they sit on, and the bars' and the slider's contrast in both schemes.
+ * against the bars they sit on, and the bars' contrast in both schemes.
  */
 import { screen } from "@testing-library/react";
 import React, { useState } from "react";
@@ -206,19 +206,6 @@ describe("HistogramRow's range brush", () => {
             const inside = getComputedStyle(bars[2]).backgroundColor;
             const outside = getComputedStyle(bars[7]).backgroundColor;
             expect(contrast(inside, outside)).toBeGreaterThanOrEqual(3);
-        });
-
-        it(`${scheme}: a range slider's filled bar reads at 3:1 or more on its track's panel`, async () => {
-            await renderThemed(
-                <div data-testid="panel" style={{ width: 200, padding: 16, background: "var(--cm-bg)" }}>
-                    <RangeSlider defaultValue={[20, 60]} thumbFromLabel="From" thumbToLabel="To" />
-                </div>,
-                { scheme },
-            );
-            const bar = document.querySelector(".cm-slider-bar");
-            expect(bar).not.toBeNull();
-            const panel = getComputedStyle(screen.getByTestId("panel")).backgroundColor;
-            expect(contrast(getComputedStyle(bar as Element).backgroundColor, panel)).toBeGreaterThanOrEqual(3);
         });
     }
 

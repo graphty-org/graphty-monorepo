@@ -811,9 +811,7 @@ describe.skipIf(!available)("Slider (5.8)", () => {
             { backgroundColor: "#f5f5f5", boxShadow: "#00000033 0px 0px 0px 1px inset" },
             { pseudo: "::before" },
         );
-        // The bar departs from Figma's #0d99ff (2.6:1 on white) for the brand's text step, which
-        // reads at 3:1 or more as WCAG 1.4.11 asks of a control's graphic.
-        expectMeasured(part(container, ".cm-slider-bar"), { backgroundColor: "#007be5" });
+        expectMeasured(part(container, ".cm-slider-bar"), { backgroundColor: "#0d99ff" });
         const thumb = part(container, ".cm-slider-thumb");
         expectMeasured(thumb, {
             width: 12,

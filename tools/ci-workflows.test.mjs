@@ -2993,7 +2993,17 @@ describe("release.yml", () => {
         assert.match(land, /\n {8}environment: release # the deploy key\n/);
         assert.match(publish, /\n {8}environment: release # /);
         assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 4);
+        // pick and held read Pushover only for a legacy run's announcements
+        assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        assert.equal(release.match(/\n {8}environment: /g).length, 6);
+        // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
+        for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
+            const body = job(release, name);
+            if (/secrets\.(?!GITHUB_TOKEN\b)\w+/.test(body) && !/secrets: inherit/.test(body)) {
+                assert.match(body, /\n {8}environment: /, `${name} reads a secret, so it declares its environment`);
+            }
+        }
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {

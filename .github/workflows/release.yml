@@ -104,6 +104,8 @@ jobs:
         name: Pick the release candidate
         if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
+        # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
+        environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
         permissions:
             contents: write # delete the branch of a release pull request left from the old design
             issues: write # close a publish hold npm has ended (tools/publish-hold.mjs settle)
@@ -396,6 +398,8 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true')))) }}
         runs-on: ubuntu-24.04
+        # Pushover for a legacy hold's announcement; a shadow run announces nothing, so it takes no environment
+        environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
         permissions:
             actions: read
             contents: read

@@ -27,7 +27,8 @@ export async function listCandidates(get) {
         return {
             commit: v.sha,
             runId: v.runId,
-            waiting: v.state === "green-images" && !promoted,
+            // an inherited verdict's run captured nothing to review (tools/full-run.mjs records its lane)
+            waiting: v.state === "green-images" && !promoted && !String(v.lane ?? "").startsWith("inherited"),
             verdict: v.state,
             promoted,
             at: v.at,

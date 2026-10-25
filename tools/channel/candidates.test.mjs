@@ -28,6 +28,24 @@ describe("listCandidates", () => {
         ]);
     });
 
+    it("never calls an inherited verdict waiting: its run captured nothing", async () => {
+        const inherited = {
+            ...answers,
+            "/v1/candidate": {
+                recent: [
+                    {
+                        sha: "d".repeat(40),
+                        state: "green-images",
+                        lane: "inherited from cccccccccc",
+                        runId: 40,
+                        at: 4000,
+                    },
+                ],
+            },
+        };
+        assert.equal((await listCandidates(async (path) => inherited[path]))[0].waiting, false);
+    });
+
     it("works before the first nightly", async () => {
         const none = async (path) => (path === "/v1/release-state" ? { nightly: null } : answers[path]);
         assert.equal((await listCandidates(none))[0].promoted, false);

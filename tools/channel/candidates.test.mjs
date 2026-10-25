@@ -22,9 +22,9 @@ const get = async (path) => answers[path];
 describe("listCandidates", () => {
     it("lists every judged commit with its run, verdict and whether it promoted", async () => {
         assert.deepEqual(await listCandidates(get), [
-            { commit: "c".repeat(40), runId: 30, verdict: "green-images", promoted: false, at: 3000 },
-            { commit: "b".repeat(40), runId: 20, verdict: "approved", promoted: true, at: 2500 },
-            { commit: "a".repeat(40), runId: 10, verdict: "green-clean", promoted: true, at: 1000 },
+            { commit: "c".repeat(40), runId: 30, waiting: true, verdict: "green-images", promoted: false, at: 3000 },
+            { commit: "b".repeat(40), runId: 20, waiting: false, verdict: "approved", promoted: true, at: 2500 },
+            { commit: "a".repeat(40), runId: 10, waiting: false, verdict: "green-clean", promoted: true, at: 1000 },
         ]);
     });
 

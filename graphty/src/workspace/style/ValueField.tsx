@@ -169,10 +169,9 @@ function NumberValueField(props: KindFieldProps): React.JSX.Element {
             label={label}
             width={compact ? 64 : "100%"}
             numeric
-            variant="outlined"
             options={[]}
             value={mixed ? "" : (toShown(value) ?? toShown(shown) ?? "")}
-            placeholder={mixed ? "Mixed" : undefined}
+            mixed={mixed}
             suffix={scale === 100 ? "%" : undefined}
             min={min === undefined ? undefined : min * scale}
             max={max === undefined ? undefined : max * scale}
@@ -289,7 +288,6 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
             // Keyed by the value, so Undo or another edit shows the new words.
             key={mixed ? "mixed-field" : words}
             size="xs"
-            variant="outlined"
             aria-label={label}
             defaultValue={mixed ? "" : words}
             placeholder={placeholder}

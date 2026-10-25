@@ -644,6 +644,8 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /** Whether {@link drawNow} drew past the fence still unsignalled; see {@link drawNow}. */
+    private drawnAhead = false;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
@@ -675,7 +677,8 @@ export class RenderManager implements Manager {
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
      * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
-     * demand, on a machine whose frame rate it does not control.
+     * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
+     * resize (`drawNow`) counts as drawn.
      */
     readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
@@ -723,6 +726,7 @@ export class RenderManager implements Manager {
      */
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
+        this.drawnAhead = false;
         this.drawOwed = true;
         this.shaderGuard.ignore();
         this.flashCheck = null;
@@ -1004,29 +1008,11 @@ export class RenderManager implements Manager {
 
                 // The frame before this one, measured now that its GPU wait is known.
                 this.measureFrame(drawAt - drewBefore, waitMs, gpuWasBehind);
-
-                // Cleared BEFORE the frame, so anything the frame itself announces asks for the
-                // next one.
-                const owed = this.drawOwed;
-                this.drawOwed = false;
-                const drawnReady = this.readyToDrawChange();
-                this.scene.render();
-                this.ticks.drawn++;
-                this.checkFlashing(drawAt, owed);
-                this.fenceFrame();
-                this.noteDrawnFrom(drawnReady);
+                this.drawFrame(drawAt);
                 this.lastDrawAt = drawAt;
                 this.workEndedAt = performance.now();
             } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                this.eventManager.emitGraphError(null, err, "other", {
-                    component: "RenderManager",
-                    phase: "render-loop",
-                });
-
-                // Don't stop render loop on error, but log it
-                console.error("Error in render loop:", error);
-                reportCaught(error);
+                this.reportFrameError(error);
             }
         });
     }
@@ -1138,6 +1124,80 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Draws one frame, for the loop's tick and for {@link drawNow}.
+     * @param at - When the frame was drawn, by `performance.now()`.
+     */
+    private drawFrame(at: number): void {
+        // Cleared BEFORE the frame, so anything the frame itself announces asks for the next one.
+        const owed = this.drawOwed;
+        this.drawOwed = false;
+        const drawnReady = this.readyToDrawChange();
+        this.scene.render();
+        this.ticks.drawn++;
+        this.checkFlashing(at, owed);
+        this.fenceFrame();
+        this.noteDrawnFrom(drawnReady);
+    }
+
+    /**
+     * Reports what a frame threw, without stopping the loop.
+     * @param error - What it threw.
+     */
+    private reportFrameError(error: unknown): void {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.eventManager.emitGraphError(null, err, "other", {
+            component: "RenderManager",
+            phase: "render-loop",
+        });
+
+        // Don't stop render loop on error, but log it
+        console.error("Error in render loop:", error);
+        reportCaught(error);
+    }
+
+    /**
+     * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
+     *
+     * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
+     * resize found by a ResizeObserver lands after the step's animation frames have run, so
+     * without this the page paints that step with an empty canvas -- and a full-page screenshot,
+     * which resizes the page, captures it (#3373). Drawn while the GPU is still behind, since
+     * waiting for it left the canvas blank, but only once until it catches up: a continuous resize
+     * (a window edge dragged) then queues at most one frame past {@link gpuBehind}'s pacing.
+     *
+     * Wrapped in the engine's frame, as Babylon's own loop wraps every tick: WebGPU submits what a
+     * frame encoded only when the frame ends, and the frame observers fire as for any other frame.
+     * @internal
+     */
+    drawNow(): void {
+        if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
+            return;
+        }
+
+        if (this.gpuBehind()) {
+            if (this.drawnAhead) {
+                return;
+            }
+
+            this.drawnAhead = true;
+        }
+
+        this.engine.beginFrame();
+        // The time since the last frame, which no update was handed; the loop's next update is.
+        this.skippedMs += this.engine.getDeltaTime();
+        // A frame between two of the loop's: the frame guard does not measure the loop's next one.
+        this.lastDrawAt = Number.NaN;
+        try {
+            this.drawFrame(performance.now());
+        } catch (error) {
+            this.drawOwed = true;
+            this.reportFrameError(error);
+        } finally {
+            this.engine.endFrame();
+        }
+    }
+
+    /**
      * Whether the GPU is still drawing the last frame, so drawing another now would only queue it.
      *
      * Nothing else stops the loop from issuing frames faster than the GPU finishes them, and the
@@ -1161,6 +1221,7 @@ export class RenderManager implements Manager {
 
         gl.deleteSync(this.lastFrameFence);
         this.lastFrameFence = null;
+        this.drawnAhead = false;
         return false;
     }
 
@@ -1172,6 +1233,12 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGL2RenderingContext | undefined) : undefined;
         if (typeof gl?.fenceSync !== "function") {
             return;
+        }
+
+        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
+        // newer one signals after it, so the older is no longer needed.
+        if (this.lastFrameFence !== null) {
+            gl.deleteSync(this.lastFrameFence);
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);

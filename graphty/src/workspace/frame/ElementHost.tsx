@@ -76,34 +76,49 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
+    // React 19 writes a prop onto a custom element as a property only when the tag is defined at
+    // commit time; before that it writes `String(value)` as an attribute, or drops a `false`, and
+    // never tries again (issue #3375). The frame's code can arrive before the element's, so the tag
+    // is rendered only once it is defined, as graphty-element's React guide asks.
+    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
     useEffect(() => {
-        let disposed = false;
-        let unbindShaders: (() => void) | null = null;
-        const bind = (): void => {
-            const element = ref.current;
-            // Undefined until the tag has upgraded to the element.
-            const session: GraphSession | undefined = element?.session;
-            if (!disposed && element !== null && session !== undefined) {
-                // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
-                session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
-                // The reader's shader preferences and remembered approvals (Graph settings).
-                unbindShaders = bindShaderSettings(element);
-                setHosted(session);
-                onReady(element, session);
-            }
+        if (defined) {
+            return undefined;
+        }
+        let live = true;
+        void loadGraphtyElement()
+            .then(() => customElements.whenDefined("graphty-element"))
+            .then(() => {
+                if (live) {
+                    setDefined(true);
+                }
+            });
+        return () => {
+            live = false;
         };
-        if (customElements.get("graphty-element") === undefined) {
-            void loadGraphtyElement();
-            void customElements.whenDefined("graphty-element").then(bind);
-        } else {
-            bind();
+    }, [defined]);
+
+    useEffect(() => {
+        const element = ref.current;
+        const session: GraphSession | undefined = element?.session;
+        let unbindShaders: (() => void) | null = null;
+        if (defined && element !== null && session !== undefined) {
+            // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
+            session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+            // The reader's shader preferences and remembered approvals (Graph settings).
+            unbindShaders = bindShaderSettings(element);
+            setHosted(session);
+            onReady(element, session);
         }
         return () => {
-            disposed = true;
             unbindShaders?.();
             onReady(null, null);
         };
-    }, [onReady]);
+    }, [onReady, defined]);
+
+    if (!defined) {
+        return <div data-element-host="loading" style={{ display: "block", width: "100%", height: "100%" }} />;
+    }
 
     return (
         <graphty-element

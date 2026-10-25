@@ -139,8 +139,8 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             transitionProps: NO_TRANSITION,
             events: { hover: true, focus: true, touch: false },
             // flip's options derived per side tried (Mantine passes a non-boolean flip straight
-            // to floating-ui): a side where the bubble would cover another control or an error
-            // line is passed over (see tooltipPlacement.ts).
+            // to floating-ui): below by default, the opposite side only when there is no room
+            // (see tooltipPlacement.ts).
             middlewares: { flip: tooltipFlip as unknown as boolean, shift: { padding: VIEWPORT_MARGIN } },
         },
         classNames: compactTooltipClassNames,

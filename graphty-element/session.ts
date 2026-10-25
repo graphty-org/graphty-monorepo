@@ -98,6 +98,7 @@ export type {
     GraphStatistics,
     GroupOutlineClick,
     HistoryCause,
+    HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
     HistoryStep,

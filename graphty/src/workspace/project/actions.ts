@@ -384,7 +384,7 @@ function openedData(
     }
     if (fresh) {
         // Opened as a new graph, so it starts its history (a project file does so itself).
-        session.history.clear();
+        session.history.clear({ pending: "keep" });
         focusOpenedGraph();
     } else {
         workspace.set({ notice: heldNotice(workspace, session, { message: `Added ${file.name} to this project` }) });

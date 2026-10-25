@@ -23,8 +23,10 @@ of every round. Design: "Keeping work moving without a router" in `design/ci/gol
 - **Verify, never trust.** A subagent's summary, an exit status read through a pipe, or a run conclusion after re-runs
   is a claim. What counts: the commit exists, `git merge-base --is-ancestor <sha> origin/golden` (landed) or
   `origin/master` (shipped), the issue's state, what npm lists.
-- **Never copy, always merge**: never cherry-pick or rebase (the hooks refuse both). A fix the cut needs starts from
-  `origin/golden-cut` and goes in with `node tools/land.mjs cut-fix <branch>`, which lands it on golden too.
+- **Never copy, always merge**: never cherry-pick or rebase (the hooks refuse both). A fix for a red master, a failed
+  deploy or a release hold starts from `origin/golden-cut` and goes in with
+  `node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>`, which lands it on golden too; every other fix
+  lands on golden.
 - **Every branch belongs to an issue and is on GitHub.** `./tools/worktree-new.sh` requires the issue and pushes the
   branch; every commit pushes it again. Open work is the table `node tools/land.mjs status` prints.
 - **Never** stash, `checkout` files, `reset`, `restore` or `clean`; never `--no-verify`; never
@@ -48,6 +50,9 @@ gh api graphql -f query='{
     golden: pullRequests(headRefName: "golden", baseRefName: "master", states: OPEN, first: 1) { nodes {
       number isDraft autoMergeRequest { enabledAt } headRefOid
       comments(last: 100) { nodes { createdAt body } } } }
+    cut: pullRequests(headRefName: "golden-cut", baseRefName: "master", states: OPEN, first: 1) { nodes {
+      number isDraft autoMergeRequest { enabledAt } headRefOid
+      comments(last: 30) { nodes { createdAt body } } } }
     status: issues(labels: ["release-status"], states: OPEN, first: 1) { nodes { number
       comments(last: 3) { nodes { createdAt body } } } } }
   alarms: search(type: ISSUE, first: 30, query: "repo:graphty-org/graphty-monorepo is:open label:priority:critical") {
@@ -59,6 +64,8 @@ gh api graphql -f query='{
 }' | tee "$d/state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
+for wf in deploy-pages.yml release.yml; do gh run list -R graphty-org/graphty-monorepo --workflow $wf --status completed \
+  --limit 1 --json conclusion,headSha,databaseId,url --jq ".[] | \"$wf \(.conclusion) \(.headSha[0:9]) \(.url)\""; done
 ```
 
 issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do
@@ -67,6 +74,8 @@ say so and work on what it returned. If git, the
 broker file or GitHub cannot be read, say so in one line and end the round: unknown is a state, not "nothing to do".
 If the broker's `fetchedAt` is more than a few minutes old, start it (see "The GitHub API budget" in CLAUDE.md).
 master's build is **red** when the newest _completed_ run above failed (an in-progress run is no verdict).
+graphty.app is **down-level** when the newest deploy run above failed: master can be green while graphty.app still
+serves an older build.
 
 ## Markers
 

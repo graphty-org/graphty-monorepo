@@ -339,6 +339,15 @@ export class DerivationLane {
     }
 
     /**
+     * Whether a pass is running or waiting to run: {@link DerivationLane.settled} asked without
+     * waiting, for a renderer that has to decide inside a frame.
+     * @returns True until the picture has caught up with every change made so far.
+     */
+    get deriving(): boolean {
+        return this.current !== null || this.next !== null;
+    }
+
+    /**
      * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
      * calls no further hook, and whatever awaits a pass is released. A hook run after its
      * session was disposed would read a store that is already gone.

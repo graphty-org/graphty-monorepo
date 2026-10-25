@@ -122,7 +122,6 @@
         "Layout/3D::ngraph",
         "Layout/GPU::ForceAtlas2Fake",
         "Layout/GPU::ForceAtlas2WebGpu",
-        "Layout/GPU::SpringFake",
         "Layout/Graphviz::Dot",
         "Layout/Graphviz::Neato",
         "Layout/Graphviz::Fdp",
@@ -339,6 +338,11 @@
             "id": "Data/Click To Expand::BeforeExpanding",
             "why": "It drew the seed node alone before any expansion and checked that it was the only node: the same picture and the same check as the click-to-expand start story, which it duplicated under a second Data title. DoubleClickToExpand, kept as a hidden regression story, still loads this recorded seed before it expands it.",
             "replacedBy": "Data/Network sources/Click to expand::StartFromOneNode"
+        },
+        {
+            "id": "Layout/GPU::SpringFake",
+            "why": "Removed at the owner's request (issue #3414): the spring layout on the fake accelerator was unreliable under capture and had been excluded from the screenshot gate. The fake-accelerator path is still drawn by ForceAtlas2Fake, and spring on the accelerator is still covered by test/browser/simulation-layout-engine.test.ts.",
+            "replacedBy": "Layout/GPU::ForceAtlas2Fake"
         }
     ]
 }

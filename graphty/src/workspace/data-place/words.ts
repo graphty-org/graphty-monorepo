@@ -425,6 +425,7 @@ export function columnOf(id: string): ColumnRef | null {
 /** What a load is called when the reader gave it no name and its source has none. */
 const KIND_NAMES: Readonly<Record<LoadedSource["kind"], string>> = {
     file: "File",
+    url: "Web address",
     server: "Server",
     sample: "Sample",
     join: "Joined table",

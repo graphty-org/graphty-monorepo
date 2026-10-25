@@ -53,6 +53,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { type EnabledFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -248,7 +249,9 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
  * read live. No entry point exports it.
  * @internal
  */
-export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config"> {
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config" | "features"> {
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features?: () => readonly string[] | undefined;
     /** The store to read. When absent the session builds one of its own and disposes it. */
     readonly store?: LaneStore;
     /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
@@ -349,6 +352,8 @@ interface SessionParts {
     readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features: () => readonly string[] | undefined;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** Stops the renumbering delivery from a store someone else built. */
@@ -510,6 +515,9 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
+    private readonly requestedFeatures: () => readonly string[] | undefined;
+    /** The experiments, settled on first read. */
+    private resolvedFeatures: EnabledFeatures | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -523,6 +531,7 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
+        this.requestedFeatures = parts.features;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -655,6 +664,16 @@ class Session implements ElementSession {
      * Whether `undo()` would do something.
      * @returns True when it would undo a step or cancel pending work.
      */
+    /**
+     * The experiments this session switched on; settled on first read, so an element's session
+     * sees every attribute the page declared.
+     * @returns The enabled and unknown ids.
+     */
+    get features(): EnabledFeatures {
+        this.resolvedFeatures ??= resolveFeatures(this.requestedFeatures());
+        return this.resolvedFeatures;
+    }
+
     get canUndo(): boolean {
         return this.dispatcher.nextUndo !== null;
     }
@@ -2249,11 +2268,12 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs } = options;
+    const { config, acceleration, runs, features } = options;
     return buildSession({
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        ...(features === undefined ? {} : { features: () => features }),
     });
 }
 
@@ -3397,6 +3417,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             attributes: () => data.attributes(),
             results: () => results,
         }),
+        features: options.features ?? (() => undefined),
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,

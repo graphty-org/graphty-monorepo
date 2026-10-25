@@ -465,6 +465,19 @@ export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
     loadsAhead.set(graph, pending);
 }
 
+/** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
+const requestedFeatures = new WeakMap<Graph, () => readonly string[] | undefined>();
+
+/**
+ * Make the graph's session read its experiments from the element's `features`, when the session
+ * first settles them. No entry point exports it.
+ * @param graph - The graph.
+ * @param read - The ids the element asked for; `undefined` takes the page default.
+ */
+export function featuresFrom(graph: Graph, read: () => readonly string[] | undefined): void {
+    requestedFeatures.set(graph, read);
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -851,6 +864,7 @@ export class Graph implements GraphContext {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
                 store: laneStoreOf(this.dataManager),
+                features: () => requestedFeatures.get(this)?.(),
                 runs: {
                     // The element's own queue, so a run takes its turn among the loads, the layouts
                     // and the style passes rather than interleaving with them.

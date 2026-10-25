@@ -42,7 +42,8 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
+import type { EnabledFeatures } from "./features/resolve";
+import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -230,6 +231,7 @@ export class Graphty extends LitElement {
             const graph = new Graph(this.#element);
             this.#builtGraph = graph;
             waitFirstFor(graph, () => this.#pageLoadsQueued());
+            featuresFrom(graph, () => this.#featuresValue);
             // The graph is never rebuilt, so this subscription lives as long as the element.
             graph.onNodeLabelCounts.add((counts) => {
                 this.dispatchEvent(
@@ -768,6 +770,10 @@ export class Graphty extends LitElement {
         // What the page declared is in: data assigned from here on is the reader's, and undoable.
         this.#settingUp = false;
         super.firstUpdated(changedProperties);
+        // Every attribute the page declared is in, so this is when the session settles its features.
+        this.dispatchEvent(
+            new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
+        );
 
         this.asyncFirstUpdated().catch((e: unknown) => {
             throw e;
@@ -1004,6 +1010,43 @@ export class Graphty extends LitElement {
     });
     #autosaveTimer: ReturnType<typeof setTimeout> | undefined;
     #autosaveValue: string | null = null;
+    #featuresValue: readonly string[] | undefined;
+
+    /**
+     * The experiments to switch on, space separated (`features="timeline location-map"`); `all`
+     * switches on every one this build declares. Absent takes the page default
+     * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
+     * Features marked `@experimental` may change or disappear in a minor release.
+     * @returns The ids as set, or `undefined` when none were.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "features" })
+    get features(): readonly string[] | undefined {
+        return this.#featuresValue;
+    }
+    /**
+     * Sets the ids: an array, or a space-separated string as the attribute carries them.
+     */
+    set features(value: readonly string[] | string | null | undefined) {
+        const oldValue = this.#featuresValue;
+        this.#featuresValue =
+            typeof value === "string" ? value.split(/\s+/).filter((id) => id !== "") : (value ?? undefined);
+        this.requestUpdate("features", oldValue);
+    }
+
+    /**
+     * What the element switched on, and the requested ids this build does not know. The same
+     * object the `graphty-features` event carries.
+     * @returns The enabled and unknown ids.
+     * @since 3.31.0
+     */
+    get enabledFeatures(): EnabledFeatures {
+        return this.session.features;
+    }
     #autosaveRestoreValue: "auto" | "manual" = "auto";
     #autosaveOptionsValue: Partial<AutosaveOptions> = {};
     /** Page-supplied loads, one after another, after the restore. */
@@ -5427,6 +5470,7 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-features": CustomEvent<EnabledFeatures>;
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
@@ -5451,6 +5495,7 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-features": CustomEvent<EnabledFeatures>;
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;

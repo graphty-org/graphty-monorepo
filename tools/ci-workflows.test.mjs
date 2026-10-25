@@ -6100,6 +6100,8 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         mkdirSync(join(dir, "tools"));
         copyFileSync("package.json", join(dir, "package.json"));
         copyFileSync("tools/copy-docs-content.js", join(dir, "tools/copy-docs-content.js"));
+        mkdirSync(join(dir, "visual-review/docs"), { recursive: true });
+        copyFileSync("visual-review/docs/index.md", join(dir, "visual-review/docs/index.md"));
         git("init", "-q", "-b", "master");
         git("add", ".");
         git("commit", "-qm", "base");
@@ -6112,7 +6114,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         git("commit", "-qm", "change", "--allow-empty");
         const out = join(dir, "out");
         writeFileSync(out, "");
-        const r = spawnSync("bash", ["-e", "-c", step("packages", "Plan the optional jobs").run], {
+        const r = spawnSync("bash", ["-eo", "pipefail", "-c", step("packages", "Plan the optional jobs").run], {
             cwd: dir,
             encoding: "utf8",
             env: {
@@ -6159,6 +6161,22 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
         assert.equal(optional(["graph-format/README.md"], { affected: ["graph-format"] }).docs, "false");
+    });
+
+    it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {
+        assert.equal(optional(["visual-review/README.md"]).docs, "true");
+    });
+
+    it("runs the tool tests when a package file a tool test reads changed", () => {
+        for (const f of [
+            "visual-review/templates/visual-review.yml",
+            "visual-review/vitest.config.mjs",
+            "visual-review/trusted/lib/results.mjs",
+            "compact-mantine/tests/figma/figma-fixture.mjs",
+        ]) {
+            assert.equal(optional([f])["tool-tests"], "true", f);
+        }
+        assert.equal(optional(["visual-review/src/x.mjs"])["tool-tests"], "false");
     });
 
     it("runs the tool tests when tools/, .github/, .husky/, .claude/ or a root file changed", () => {

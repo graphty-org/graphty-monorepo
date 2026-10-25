@@ -260,9 +260,11 @@ jobs:
             # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
             # only when a docs input changed (the pre-push gate's rule: docs/, a package's docs/ that
             # tools/copy-docs-content.js copies in, that script, tools/sanitize-api-docs.js, or an affected package
-            # with a root `docs:api:<package>` script); the CI workflow tests only when tools/, .github/, .husky/,
-            # .claude/ or a root file changed; Cost Estimate Accuracy only when its own files changed. Every other
-            # run (the full run, a dispatch, a master push) runs them all, so nothing runs nowhere.
+            # with a root `docs:api:<package>` script, or a file a docs page pulls in with `<!--@include: ...-->`);
+            # the CI workflow tests only when tools/, .github/, .husky/, .claude/, a root file or a package file they
+            # read changed;
+            # Cost Estimate Accuracy only when its own files changed. Every other run (the full run, a dispatch, a
+            # master push) runs them all, so nothing runs nowhere.
             - name: Plan the optional jobs
               id: optional
               env:
@@ -281,9 +283,17 @@ jobs:
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
+                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
+                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                  done || true)
+                  [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
+                  # plus the package files the tool tests read: visual-review's template, gate and capture, its vitest
+                  # config, and compact-mantine's Figma fixture
+                  tool_tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$|^visual-review/(templates|trusted|capture)/|^visual-review/vitest\.config\.mjs$|^compact-mantine/tests/figma/')
                   {
                       echo "docs=$docs"
-                      echo "tool-tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$')"
+                      echo "tool-tests=$tool_tests"
                       echo "cost-accuracy=$(has '^graphty-element/(src/session/cost|test/session/cost)/')"
                   } | tee -a "$GITHUB_OUTPUT"
 
@@ -1574,9 +1584,9 @@ jobs:
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
-    # same on this runner as on a workstation. It runs on every pull request that affects
-    # graphty-element and on every full run, and "All Checks Pass" needs it: a check that ran only on
-    # master could only ever turn master red (design/ci/ci-cd-plan.md, section 3). Each failure names
+    # same on this runner as on a workstation. A pull request runs it only when it changes the cost model or
+    # its test (the Build job's "Plan the optional jobs"), and then "All Checks Pass" needs it; every full run
+    # runs it, which catches a change elsewhere that moves the estimates. Each failure names
     # the row, the graph, n, m, both times and the ratio; every row's ratio also lands in the job summary.
     cost-accuracy:
         name: Cost Estimate Accuracy

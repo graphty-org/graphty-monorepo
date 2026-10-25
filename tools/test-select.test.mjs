@@ -1456,6 +1456,12 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             assert.doesNotMatch(b.command, /--coverage|--shard/u);
             assert.ok(b.files.every((f) => b.command.includes(`'${f.slice("graphty/".length)}'`)));
         }
+        const include = matrixPlan(["graphty"], ["graphty-1", "graphty-2"], out);
+        assert.deepEqual(
+            include.map((e) => e.shard).filter((s) => /^graphty-\d+$/u.test(s)),
+            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+            "no slice the bins stand in for runs whole beside them",
+        );
     });
 
     it("runs a family whole when one of its shards runs whole", () => {

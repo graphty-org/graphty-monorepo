@@ -1272,8 +1272,9 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, files, ms, command }], whole: [shard], none: [shard] }`; a bin's
- *   `shard` is the SHARDS entry its command comes from, `name` is `<family>-<n>`
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
+ *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
     const out = { bins: [], whole: [], none: [] };
@@ -1296,7 +1297,14 @@ export function lightPlan(root, shards, selection, durations = {}) {
             )) {
                 n += 1;
                 const command = selectedCommand(root, run.shard, bin.files);
-                out.bins.push({ name: `${family}-${n}`, family, shard: run.shard.shard, ...bin, command });
+                out.bins.push({
+                    name: `${family}-${n}`,
+                    family,
+                    shard: run.shard.shard,
+                    covers: run.covers,
+                    ...bin,
+                    command,
+                });
             }
         }
     }
@@ -1375,7 +1383,7 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
     // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
     const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
     return hit
-        ? { mode: "all", files: [], reasons: [`${hit.sel.package} is selected and ${project} has no story graph`] }
+        ? { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${project} has no story graph`] }
         : { mode: "none", files: [], reasons: [] };
 }
 

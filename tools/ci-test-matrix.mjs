@@ -400,7 +400,7 @@ export function ciCommand(shard) {
 export function plan(affected, only, light) {
     const grouped = new Set(Object.values(GROUPS).flat());
     // a light plan's binned and empty shards run as bins, or not at all
-    const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).map((b) => b.shard)]);
+    const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
     const wanted = (s) =>
         affected.includes(s.package) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own

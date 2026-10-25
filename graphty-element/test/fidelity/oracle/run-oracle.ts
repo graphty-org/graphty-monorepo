@@ -21,6 +21,7 @@ import { pairNodes } from "./compare-oracle";
 import {
     checkScored,
     type FloorCheck,
+    type FloorSection,
     mergeRecords,
     type OracleFloors,
     type OracleRecord,
@@ -39,7 +40,7 @@ import {
 import { boxOfPoints, type Pt } from "./primitives";
 import { RASTER_REGIONS, rasterCompare } from "./raster";
 
-export type { AllowedDrop, FloorCheck, OracleFloors, OracleRecord, OracleScored } from "./floors";
+export type { AllowedDrop, FloorCheck, FloorSection, OracleFloors, OracleRecord, OracleScored } from "./floors";
 export { ORACLE_CANVAS, ORACLE_IDS, oracleGraphName, oraclesWithoutMetadata } from "./oracle-library";
 
 /** The floors file, relative to graphty-element. */
@@ -50,6 +51,9 @@ export const ORACLE_KNOWN_FAILURES = "test/fidelity/oracle-known-failures.json";
 export const ORACLE_OUT = "tmp/oracle-report";
 /** The floors key of a sample's position-matched comparison. */
 export const matchedKey = (id: string): string => `${id}@matched`;
+/** The floors key of what one reference judged of a sheet judged per setting (the sheet's own oracle keeps the id). */
+export const referenceKey = (id: string, reference: string): string =>
+    reference === "oracle" ? id : `${id}~${reference}`;
 
 /**
  * graphty's canvas as a PNG: one more frame of the settled scene, read back in the same task (so
@@ -68,6 +72,13 @@ function captureCanvas(element: Graphty): string {
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 }
 
+/** One floors key's measurement: a comparison, or one reference's judgments of a sheet judged per setting. */
+export interface OraclePart {
+    key: string;
+    section: FloorSection;
+    scored: OracleScored;
+}
+
 /** What one comparison measured. */
 export interface OracleRun extends OracleScored {
     /** The sample file's sha256 and the oracle's record of it. */
@@ -77,6 +88,45 @@ export interface OracleRun extends OracleScored {
     standIn: boolean;
     /** graphty drawn at the program's own node positions, so style is judged apart from layout; null when no node pairs. */
     matched: OracleScored | null;
+    /** Every floors key the run measured: the sample and its position-matched comparison, per reference. */
+    parts: OraclePart[];
+}
+
+/**
+ * The floors keys of one comparison: the sample's own, or, for a sheet judged per setting, one per reference, each
+ * kept with the programs, the stand-ins or the specification by what judged it.
+ * @param id - the floors key of the comparison (the sample, or its position-matched key)
+ * @param comparison - the comparison
+ * @param scores - the scores of the sample's own key (with the raster regions where they are asserted)
+ * @param standIn - the sample's oracle is a stand-in
+ * @returns the parts
+ */
+export function partsOf(
+    id: string,
+    comparison: OracleComparison,
+    scores: Record<string, number>,
+    standIn: boolean,
+): OraclePart[] {
+    if (comparison.references.length === 0) {
+        return [
+            { key: id, section: standIn ? "standInFloors" : "floors", scored: { report: comparison.report, scores } },
+        ];
+    }
+    const [base, matched] = id.split("@");
+    return comparison.references.map((r) => {
+        const key = referenceKey(base, r.reference);
+        let section: FloorSection = "standInFloors";
+        if (r.reference === "specification") {
+            section = "specificationFloors";
+        } else if (!isStandIn(r.meta)) {
+            section = "floors";
+        }
+        return {
+            key: matched === undefined ? key : `${key}@${matched}`,
+            section,
+            scored: { report: r.report, scores: r.reference === "oracle" ? scores : r.scores },
+        };
+    });
 }
 
 /** The inverse of a fitted similarity: the point it takes to `q`. */
@@ -196,7 +246,9 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     // The raster regions are asserted like every property, at 2 places (a region's similarity is a mean over its
     // pixels, which a renderer's antialiasing moves in the third), and only where the layouts are related: between
     // unrelated layouts the regions of one drawing fall on nothing of the other.
-    if (raster !== null && report.transform?.unrelatedLayout === false) {
+    // A sheet judged per setting has no raster score: a region's similarity is a mean over every element in it, whatever
+    // reference judges each one's properties, so no one drawing can judge it.
+    if (raster !== null && report.transform?.unrelatedLayout === false && first.references.length === 0) {
         for (const r of RASTER_REGIONS) {
             const sim = raster.regions[r].similarity;
             if (sim !== null) {
@@ -206,14 +258,12 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     }
     const scenes = { oracle: association.scene, graphty };
     let matched: OracleScored | null = null;
+    const parts = partsOf(id, first, scores, isStandIn(meta));
+    let second: OracleComparison | null = null;
     if (await matchPositions(element, first, meta.mirrored === true)) {
-        const second = await compareWithOracle(
-            id,
-            element,
-            sha256,
-            `${command}; nodes moved to the oracle's positions`,
-        );
+        second = await compareWithOracle(id, element, sha256, `${command}; nodes moved to the oracle's positions`);
         matched = { report: second.report, scores: { ...second.scores } };
+        parts.push(...partsOf(matchedKey(id), second, { ...second.scores }, isStandIn(meta)));
     }
     if (options.write) {
         await commands.writeFile(`${ORACLE_OUT}/${id}.graphty.png`, shot, { encoding: "base64" });
@@ -235,7 +285,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
                   };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
-            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched: matched, scenes }, null, 1)}\n`,
+            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched: matched, scenes, references: referencesOf(first, second) }, null, 1)}\n`,
         );
     }
     return {
@@ -245,7 +295,26 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         oracleSha256: typeof meta.sha256 === "string" ? meta.sha256 : null,
         standIn: isStandIn(meta),
         matched,
+        parts,
     };
+}
+
+/**
+ * For the report files: which reference judged what of a sheet judged per setting, each with its report, its
+ * position-matched report and its drawing.
+ * @param first - the comparison
+ * @param second - the position-matched comparison, or null
+ * @returns one entry per reference, empty for any other sample
+ */
+function referencesOf(first: OracleComparison, second: OracleComparison | null): unknown[] {
+    return first.references.map((r, i) => ({
+        reference: r.reference,
+        meta: r.meta,
+        report: r.report,
+        scores: r.scores,
+        positionMatched: second?.references[i]?.report ?? null,
+        scene: r.scene,
+    }));
 }
 
 /**
@@ -259,6 +328,7 @@ export async function readOracleFloors(): Promise<OracleFloors> {
         about: f.about ?? "",
         floors: f.floors ?? {},
         standInFloors: f.standInFloors ?? {},
+        specificationFloors: f.specificationFloors ?? {},
         allowedDrops: f.allowedDrops ?? {},
         lowered: f.lowered ?? {},
         known: k.known ?? {},
@@ -267,23 +337,18 @@ export async function readOracleFloors(): Promise<OracleFloors> {
 
 /**
  * What fell below its floor, what is judged with no floor yet, and which elements newly fail, for a sample and its
- * position-matched comparison.
- * @param id - the sample
+ * position-matched comparison, per reference where it is judged per setting.
  * @param run - its measurement
  * @param stored - the floors
  * @param today - `YYYY-MM-DD`, for the allowed drops' expiry
  * @returns the messages
  */
 export function checkFloors(
-    id: string,
     run: OracleRun,
     stored: OracleFloors,
     today = new Date().toISOString().slice(0, 10),
 ): FloorCheck {
-    const parts = [checkScored(id, run, run.standIn, stored, today)];
-    if (run.matched !== null) {
-        parts.push(checkScored(matchedKey(id), run.matched, run.standIn, stored, today));
-    }
+    const parts = run.parts.map((p) => checkScored(p.key, p.scored, p.section, stored, today));
     return {
         dropped: parts.flatMap((p) => p.dropped),
         unfloored: parts.flatMap((p) => p.unfloored),
@@ -293,20 +358,16 @@ export function checkFloors(
 
 /**
  * A run's records, by floors key.
- * @param id - the sample
  * @param run - its measurement
  * @returns the records
  */
-export function recordOf(id: string, run: OracleRun): OracleRecord {
-    const out: OracleRecord = { [id]: { scores: run.scores, failures: run.report.failures, standIn: run.standIn } };
-    if (run.matched !== null) {
-        out[matchedKey(id)] = {
-            scores: run.matched.scores,
-            failures: run.matched.report.failures,
-            standIn: run.standIn,
-        };
-    }
-    return out;
+export function recordOf(run: OracleRun): OracleRecord {
+    return Object.fromEntries(
+        run.parts.map((p) => [
+            p.key,
+            { scores: p.scored.scores, failures: p.scored.report.failures, section: p.section },
+        ]),
+    );
 }
 
 /**
@@ -316,11 +377,12 @@ export function recordOf(id: string, run: OracleRun): OracleRecord {
  */
 export async function writeOracleFloors(stored: OracleFloors, recorded: OracleRecord): Promise<void> {
     const fresh = await readOracleFloors().catch(() => stored);
-    const { floors, standInFloors, known } = mergeRecords(fresh, recorded);
+    const { floors, standInFloors, specificationFloors, known } = mergeRecords(fresh, recorded);
     const file = {
         about: fresh.about,
         floors,
         standInFloors,
+        specificationFloors,
         allowedDrops: fresh.allowedDrops,
         lowered: fresh.lowered,
     };

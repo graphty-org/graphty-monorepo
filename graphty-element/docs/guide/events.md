@@ -80,6 +80,11 @@ graph.on("data-loading-complete", ({ nodesLoaded, edgesLoaded, report }) => {
 The same report is available afterwards, without keeping the event, as
 `element.session.data.lastImport()`.
 
+`data-loading-complete` and `data-loaded` are heard once the load is in the graph for good: its
+step is in the history, its nodes are placed and painted, and a replacing load or `clearData` can
+no longer withdraw it. A load that is withdrawn before then emits neither, and its promise rejects
+with `E_SUPERSEDED`.
+
 ### Every load has an id
 
 `addDataFromSource`, `loadFromFile` and `loadFromUrl` resolve to `{ loadId }`, and every event

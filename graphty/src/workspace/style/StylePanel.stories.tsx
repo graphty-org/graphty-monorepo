@@ -596,6 +596,15 @@ export const FootballConference: Story = {
             expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
         });
         await within(popover).findByRole("combobox", { name: /^Palette/ });
+        // The key card the binding brings up reserves room at the canvas's left edge. The circular
+        // layout's own framing lands on a later frame, before or after that room exists depending
+        // on the machine's speed, and a framing that lands after it keeps clear of it: two pictures
+        // of one story (#3360). The frame the story ends on is made the same everywhere: the room
+        // in force, then one framing asked for inside it.
+        await waitFor(() => {
+            expect(element.viewInsets.left).toBeGreaterThan(0);
+        });
+        element.zoomToFit();
         await element.waitForStableFrame();
     },
 };

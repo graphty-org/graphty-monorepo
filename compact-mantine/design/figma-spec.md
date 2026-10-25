@@ -1693,6 +1693,10 @@ ColorPicker (color).
 
 ## 14. Deliberate departures from exact Figma (kept or added on purpose)
 
+**This list is owner-approved and closed (2026-10-23).** Adding a row, removing one or changing one
+needs the owner's approval, given as a `Figma-Approved: <reason>` trailer on the commit
+(`tools/check-figma-lock.mjs` enforces it).
+
 These are the places the result will NOT match Figma, and why. Everything else matches.
 
 | Where                                                                   | Figma                                          | Ours                                                           | Why                                                                   |

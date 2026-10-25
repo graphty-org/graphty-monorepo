@@ -54,10 +54,11 @@ describe("Undo from the reader's keys", () => {
     it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        // The toolbar comes up on its own render after the element has the data: wait for it.
-        const undo = await screen.findByRole("button", { name: "Undo" });
+        // The import is a step in the element's history until the app starts the project's
+        // history after the load; until then the button reads "Undo importing Les Miserables".
         await waitFor(() => {
             assert.isFalse(session.canUndo, "opening is not a change to undo");
+            const undo = screen.getByRole("button", { name: "Undo" });
             assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");
         });
         assert.isFalse(session.project.dirty, "an opened sample has no unsaved changes");

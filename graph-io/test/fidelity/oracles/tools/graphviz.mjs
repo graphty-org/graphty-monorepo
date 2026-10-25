@@ -83,10 +83,10 @@ const version = /version (\S+ \(\S+\))/.exec(
 if (!version) throw new Error(`no Graphviz at ${bin}`);
 const wanted = new Set(process.argv.slice(2));
 
-function write(id, file, svg, fields, rasterEnv = "") {
+function write(id, file, svg, fields, rasterEnv = "", path = id) {
     const bytes = readFileSync(join(testDir, file));
     const [, w, h] = /<svg width="([\d.]+)pt" height="([\d.]+)pt"/.exec(svg.toString()) ?? [];
-    writeFileSync(join(oracles, `${id}.svg`), svg);
+    writeFileSync(join(oracles, `${path}.svg`), svg);
     const meta = {
         sample: id,
         file: `graph-io/test/${file}`,
@@ -104,9 +104,9 @@ function write(id, file, svg, fields, rasterEnv = "") {
         fonts: "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
         svgPostprocessing: "none: the SVG is Graphviz's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
-        regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && ${rasterEnv}node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,
+        regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && ${rasterEnv}node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${path}.svg`))}`,
     };
-    writeFileSync(join(oracles, `${id}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
+    writeFileSync(join(oracles, `${path}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
     console.log(`${id}: ${meta.canvas.widthPx} x ${meta.canvas.heightPx} px`);
 }
 
@@ -146,9 +146,12 @@ for (const [id, file] of GML) {
 // Warnings are recorded, not fatal: they are gml2gv's and Graphviz's own reading of keys they do not know.
 const GML_SPECIMENS = join(testDir, "fidelity/specimens/gml");
 const gmlRoutes = JSON.parse(readFileSync(join(GML_SPECIMENS, "oracle-routes.json"), "utf8")).sheets;
-for (const [sheet, { route }] of Object.entries(gmlRoutes).sort()) {
+// A sheet whose oracle draws only part of its keys is also drawn by gml2gv, as a stand-in for the settings the oracle
+// does not draw (specimens/gml/judges.json), into oracles/stand-ins/.
+for (const [sheet, { route, standIns }] of Object.entries(gmlRoutes).sort()) {
     const id = `gml-${sheet}`;
-    if (route !== "gml2gv" || (wanted.size && !wanted.has(id))) continue;
+    const standIn = route !== "gml2gv";
+    if ((standIn && !standIns?.includes("gml2gv")) || (wanted.size && !wanted.has(id))) continue;
     const file = `fidelity/specimens/gml/${sheet}.gml`;
     const conv = spawnSync(join(bin, "gml2gv"), [join(testDir, file)], { env, maxBuffer: 1 << 28 });
     if (conv.status !== 0) throw new Error(`${id}: gml2gv exited ${conv.status}: ${conv.stderr}`);
@@ -159,20 +162,27 @@ for (const [sheet, { route }] of Object.entries(gmlRoutes).sort()) {
     });
     if (r.status !== 0) throw new Error(`${id}: neato exited ${r.status}: ${r.stderr}`);
     const warnings = [...new Set(`${conv.stderr}${r.stderr}`.split("\n").map((l) => l.trim()))].filter(Boolean).sort();
-    write(id, file, r.stdout, {
-        engine: "neato -n2",
-        command: `gml2gv <file> | neato -n2 -Nlabel= -Gpad=0.2361 -Tsvg -Gsize="${SIZE}"`,
-        standIn: true,
-        standInReason:
-            "yEd (and Graphlet, for the GML draft's keys) cannot run on this machine; this is Graphviz's own drawing " +
-            "of gml2gv's conversion, pinned at the file's x/y with neato -n2. gml2gv maps fill to the outline color " +
-            "(no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (mirrored top to bottom), " +
-            "files LabelGraphics fontSize as a font name (so every label is 14 pt), reads Line points as spline " +
-            "control points, copies yEd's style names (line, dashed_dotted) that Graphviz does not know, and reads " +
-            "no arrow, anchor, model, fill2, fontStyle or group key.",
-        mirrored: true,
-        warnings,
-    });
+    write(
+        id,
+        file,
+        r.stdout,
+        {
+            engine: "neato -n2",
+            command: `gml2gv <file> | neato -n2 -Nlabel= -Gpad=0.2361 -Tsvg -Gsize="${SIZE}"`,
+            standIn: true,
+            standInReason:
+                "yEd (and Graphlet, for the GML draft's keys) cannot run on this machine; this is Graphviz's own drawing " +
+                "of gml2gv's conversion, pinned at the file's x/y with neato -n2. gml2gv maps fill to the outline color " +
+                "(no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (mirrored top to bottom), " +
+                "files LabelGraphics fontSize as a font name (so every label is 14 pt), reads Line points as spline " +
+                "control points, copies yEd's style names (line, dashed_dotted) that Graphviz does not know, and reads " +
+                "no arrow, anchor, model, fill2, fontStyle or group key.",
+            mirrored: true,
+            warnings,
+        },
+        "",
+        standIn ? `stand-ins/${id}.gml2gv` : id,
+    );
 }
 
 // The GML specimen sheets Graphviz itself wrote (route "graphviz"): gv2gml converted the laid-out DOT file

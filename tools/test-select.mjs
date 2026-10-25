@@ -1355,7 +1355,9 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
     if (lockMoved) {
         return `${LOCK} moves a package every picture depends on`;
     }
-    const own = rules.projectGlobal.map((p) => new RegExp(p.replaceAll("{dir}", dir.replaceAll(".", "\\.")), "u"));
+    const own = rules.projectGlobal.map(
+        (p) => new RegExp(p.replaceAll("{dir}", dir.replaceAll(".", String.raw`\.`)), "u"),
+    );
     const theme = rules.theme.projects.includes(project) ? [new RegExp(rules.theme.pattern, "u")] : [];
     const hit = changed.find((f) => [...rules.global, ...own, ...theme].some((re) => re.test(f)));
     return hit ? `${hit} changes every story of the project` : null;
@@ -1422,6 +1424,44 @@ export function selectStories({ projects, changed, everything, shards, selection
             : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
         return { project, ...sel, baselines };
     });
+}
+
+const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
+
+/**
+ * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
+ * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
+ * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * @param stories selectStories()
+ * @param projects visual-review.config.json `projects`
+ * @param listFiles (dir) => the repository paths under dir
+ * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ */
+export function storyBins(stories, projects, listFiles, durations = {}) {
+    const out = [];
+    for (const s of stories) {
+        const { storybook } = projects[s.project];
+        const dir = storybook.replace(/\/storybook-static$/u, "");
+        const files = s.mode === "all" ? listFiles(dir).filter((f) => STORY_FILE.test(f)) : s.files;
+        if (files.length === 0 && s.baselines.length === 0) {
+            continue;
+        }
+        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
+        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
+        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        bins.forEach((bin, i) =>
+            out.push({
+                name: `${s.project}-${i + 1}`,
+                project: s.project,
+                storybook,
+                files: bin.files,
+                ids: i === 0 ? s.baselines : [],
+                ms: bin.ms,
+            }),
+        );
+    }
+    return out;
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------
@@ -2055,7 +2095,7 @@ export function graphCacheKey(root, dirs) {
         .split("\n")
         .filter((f) => !f.includes("/") && /\.([cm]?[jt]s|json|ya?ml)$/u.test(f));
     const paths = [...[...dirs].sort(), ...rootFiles.sort(), "tools/test-select.mjs", "tools/test-select-rules.json"];
-    const trees = paths.map((p) => `${p}=${git(["rev-parse", `HEAD:${p}`])}`);
+    const trees = paths.map((p) => `${p}=${git(["rev-parse", "HEAD:" + p])}`);
     return createHash("sha256")
         .update([GRAPH_VERSION, ...trees].join("\0"))
         .digest("hex");
@@ -2491,7 +2531,7 @@ export function describe(selection) {
  * @param input.base the base ref
  * @param input.head the head ref
  * @param input.durations lightPlan()'s durations
- * @returns `{ changed, everything, bins, whole, none, stories }`
+ * @returns `{ changed, everything, bins, whole, none, stories, storyBins }`
  */
 function planOf(root, { changed, selection, shards, base, head, durations }) {
     const show = (rev) => {
@@ -2505,19 +2545,23 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
     const mb = execFileSync("git", ["merge-base", base, head], { cwd: root, encoding: "utf8" }).trim();
     const lockMoved = changed.includes(LOCK) && lockMoves(show(mb), show(head), rules.lockfile);
     const projects = JSON.parse(readFileSync(join(root, "visual-review.config.json"), "utf8")).projects;
+    const stories = selectStories({
+        projects,
+        changed,
+        everything: selection.everything,
+        shards,
+        selection: selection.shards,
+        rules,
+        lockMoved,
+    });
+    const listFiles = (dir) =>
+        execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
     return {
         changed: changed.length,
         everything: selection.everything,
         ...lightPlan(root, shards, selection.shards, durations),
-        stories: selectStories({
-            projects,
-            changed,
-            everything: selection.everything,
-            shards,
-            selection: selection.shards,
-            rules,
-            lockMoved,
-        }),
+        stories,
+        storyBins: storyBins(stories, projects, listFiles, durations),
     };
 }
 

@@ -80,7 +80,7 @@ jobs:
                   VITE_BASE_PATH: /
 
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: stress-build-packages
                   path: |
@@ -126,7 +126,7 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: stress-build-packages
                   path: .
@@ -200,7 +200,7 @@ jobs:
 
             - name: Upload the junit reports
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
@@ -224,7 +224,7 @@ jobs:
                   node-version: 22.x
 
             - name: Download the junit reports
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: junit-*
                   path: junit

@@ -4208,6 +4208,7 @@ describe("pr-status-broker", () => {
         const pr = (number, rollup) => ({
             number,
             title: "t",
+            author: number === 1 ? { login: "graphty-agent" } : null,
             headRefName: "h",
             headRefOid: "abc123",
             baseRefName: "master",
@@ -4244,6 +4245,7 @@ describe("pr-status-broker", () => {
         assert.deepEqual(a, {
             number: 1,
             title: "t",
+            author: "graphty-agent",
             head: "h",
             headSha: "abc123",
             base: "master",
@@ -4256,6 +4258,7 @@ describe("pr-status-broker", () => {
             checksTruncated: true,
         });
         assert.equal(b.state, null);
+        assert.equal(b.author, null, "a deleted account");
         assert.deepEqual(b.checks, {});
     });
 });

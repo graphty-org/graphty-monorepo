@@ -1,4 +1,4 @@
-import { expect, waitFor } from "@storybook/test";
+import { expect, waitFor } from "storybook/test";
 
 import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
 

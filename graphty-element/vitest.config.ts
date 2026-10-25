@@ -839,7 +839,7 @@ export default defineConfig({
                         storybookUrl: process.env.STORYBOOK_URL ?? "https://localhost:6006",
                     }),
                 ],
-                ...(VISUAL && { mode: PRODUCTION.mode }),
+                ...(VISUAL && { mode: PRODUCTION.mode, appType: PRODUCTION.appType }),
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only

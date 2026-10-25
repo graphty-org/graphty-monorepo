@@ -24,6 +24,7 @@
             "why": "1m23s before the Sentry regression, 60-63 s after the fix (uncached)"
         },
         "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
+        "job:ci.yml:Stories (*)": { "minutes": 10, "why": "story bins of at most 8 min plus setup (report-only)" },
         "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
         "ttg:owner-wait": { "record": true, "why": "recorded, no line" },
         "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },

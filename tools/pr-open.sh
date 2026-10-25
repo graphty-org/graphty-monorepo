@@ -143,7 +143,7 @@ if ! grep -qF -- "$marker" <<<"$(gh pr view "$url" --json reviews --jq '.reviews
 fi
 # What only the owner merges. A pull request runs its own copy of ci.yml and the files it reads, so a change to
 # them would judge itself; the others guard the owner's credentials, approvals and releases.
-OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$)'
+OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$|(.*/)?\.storybook/vitest\.setup\.)'
 # Plus every path master's .github/CODEOWNERS owns, as an ERE: a leading / anchors, a trailing / is a
 # directory, ** is any number of directories, * stays inside one. The list above stays as the floor.
 owners=$(git show "$base:.github/CODEOWNERS" 2>/dev/null |

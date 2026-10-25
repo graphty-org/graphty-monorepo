@@ -45,6 +45,8 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { STORYBOOKS } from "./ci-reuse-plan.mjs";
+
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
@@ -447,6 +449,30 @@ export function binEntry(bin) {
 }
 
 /**
+ * The `Stories (<project>-<bin>)` jobs' matrix (merging.md section 4.1): one entry per story bin of the light
+ * plan, with the Storybook artifact the build job uploads for its project.
+ * @param [light] tools/test-select.mjs --plan output
+ * @returns the matrix's include list, empty without a plan or with no story selected
+ */
+export function storiesPlan(light) {
+    const artifactOf = Object.fromEntries(Object.entries(STORYBOOKS).map(([name, dir]) => [dir, name]));
+    return (light?.storyBins ?? []).map((bin) => {
+        const artifact = artifactOf[bin.storybook];
+        if (!artifact) {
+            throw new Error(`story bin ${bin.name} names a Storybook no build job uploads: ${bin.storybook}`);
+        }
+        return {
+            name: bin.name,
+            project: bin.project,
+            artifact,
+            storybook: bin.storybook,
+            files: bin.files,
+            ids: bin.ids,
+        };
+    });
+}
+
+/**
  * The --only argument as a list of shard names.
  * @param arg the argument's JSON text, or undefined when it was not given
  * @returns the names, or undefined for no filter
@@ -506,6 +532,9 @@ function main() {
     console.log(`affected=${JSON.stringify(affected)}`);
     console.log(`test-matrix=${JSON.stringify({ include })}`);
     console.log(`test-count=${include.length}`);
+    const stories = storiesPlan(light);
+    console.log(`stories-matrix=${JSON.stringify({ include: stories })}`);
+    console.log(`stories-count=${stories.length}`);
 }
 
 // Run only as the entry point, not when imported.

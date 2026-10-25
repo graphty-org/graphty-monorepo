@@ -232,6 +232,21 @@ describe("check-test-integrity: vitest configs", () => {
     });
 });
 
+describe("check-test-integrity: odd paths and lines", () => {
+    it("judges a file whose path git quotes", () => {
+        const name = 'src/we"ird.test.mjs';
+        has(
+            repo({ [name]: TWO }).change({ [name]: TWO.split("\n").slice(0, 2).join("\n") + "\n" }),
+            `tests -1 net: ${name}`,
+        );
+    });
+
+    it("counts a removed line that starts with -- as content, not a header", () => {
+        const before = `${TWO}-- a line of text\n`;
+        assert.deepEqual(repo({ "src/a.test.mjs": before }).change({ "src/a.test.mjs": TWO }), []);
+    });
+});
+
 describe("check-test-integrity: the tool test list", () => {
     const LIST = "tools/tool-tests.txt";
     const files = { [LIST]: "tools/a.test.mjs\ntools/b.test.mjs\n", "tools/a.test.mjs": "x", "tools/b.test.mjs": "y" };
@@ -272,6 +287,22 @@ describe("check-test-integrity: package.json and capture settings", () => {
         );
         assert.deepEqual(
             r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", "docs:dev": "vitepress" }) }),
+            [],
+        );
+        has(
+            r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", postinstall: "x" }) }),
+            "scripts.postinstall added",
+        );
+        has(
+            r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", prelint: "x" }) }),
+            "scripts.prelint added",
+        );
+    });
+
+    it("passes a new script whose name only starts with pre or post", () => {
+        const scripts = { test: "vitest run", preview: "vite preview", "prettier:fix": "p", "postcss:build": "c" };
+        assert.deepEqual(
+            repo({ "package.json": pkg({ test: "vitest run" }) }).change({ "package.json": pkg(scripts) }),
             [],
         );
     });

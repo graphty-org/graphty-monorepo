@@ -51,13 +51,27 @@ export class AnnotationMeshes {
     readonly scene: Scene;
     private meshes: Mesh[] = [];
     private drawn: unknown = undefined;
+    /** The pictures still loading, which the frame on screen does not show yet. */
+    private readonly loading = new Set<HTMLImageElement>();
+    private readonly onPicture: () => void;
 
     /**
      * Draw nothing yet.
      * @param scene - The scene to draw into.
+     * @param onPicture - Called when a picture that was loading has been painted, or failed to load, so the frame
+     *     that shows it is drawn.
      */
-    constructor(scene: Scene) {
+    constructor(scene: Scene, onPicture: () => void = () => undefined) {
         this.scene = scene;
+        this.onPicture = onPicture;
+    }
+
+    /**
+     * Whether a picture annotation is still loading, so the picture on screen is not the finished one (issue #3383).
+     * @returns True while any picture has neither loaded nor failed.
+     */
+    get isLoading(): boolean {
+        return this.loading.size > 0;
     }
 
     /**
@@ -92,6 +106,13 @@ export class AnnotationMeshes {
     }
 
     private clear(): void {
+        // a picture of a disposed texture paints nothing and is waited for by nothing
+        for (const image of this.loading) {
+            image.onload = null;
+            image.onerror = null;
+        }
+
+        this.loading.clear();
         for (const mesh of this.meshes) {
             mesh.material?.getActiveTextures().forEach((t) => {
                 t.dispose();
@@ -138,7 +159,11 @@ export class AnnotationMeshes {
         paint(ctx, a);
         uploadPremultiplied(texture);
         if (a.kind === "image") {
-            paintImage(texture, ctx, a);
+            const image = paintImage(texture, ctx, a, () => {
+                this.loading.delete(image);
+                this.onPicture();
+            });
+            this.loading.add(image);
         }
 
         const material = new StandardMaterial(`annotation_${a.id}`, this.scene);
@@ -373,8 +398,15 @@ function paintShape(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
  * @param texture - The texture the context paints.
  * @param ctx - The canvas context, in file units with y up.
  * @param a - The picture.
+ * @param settled - Called once the picture is painted, or has failed to load.
+ * @returns The picture, loading.
  */
-function paintImage(texture: DynamicTexture, ctx: CanvasRenderingContext2D, a: ImageAnnotation): void {
+function paintImage(
+    texture: DynamicTexture,
+    ctx: CanvasRenderingContext2D,
+    a: ImageAnnotation,
+    settled: () => void,
+): HTMLImageElement {
     const box = boxOf(a);
     const outline = (): void => {
         if (a.borderWidth > 0 && a.borderOpacity > 0) {
@@ -398,8 +430,11 @@ function paintImage(texture: DynamicTexture, ctx: CanvasRenderingContext2D, a: I
         ctx.drawImage(image, 0, 0, a.width, a.height);
         ctx.restore();
         outline();
+        settled();
     };
+    image.onerror = settled;
     image.src = a.url;
+    return image;
 }
 
 /**

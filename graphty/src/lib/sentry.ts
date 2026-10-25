@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react";
 
+import { siteConfig } from "../siteConfig";
 import { privacyFilters } from "./sentryPrivacy";
 
 let initialized = false;
@@ -24,9 +25,12 @@ interface SentryConfig {
  * @returns The default Sentry configuration
  */
 function getDefaultConfig(): SentryConfig {
+    const { site, sentryEnvironment } = siteConfig();
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN,
-        environment: import.meta.env.MODE,
+        // The site's label from its site.json, so canary's errors are not labelled production; a
+        // site that serves none is labelled as the build was before site.json existed.
+        environment: sentryEnvironment ?? (site === "unknown" ? import.meta.env.MODE : site),
         isProd: import.meta.env.PROD,
     };
 }

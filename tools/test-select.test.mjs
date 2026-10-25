@@ -34,6 +34,7 @@ import {
     selectPackages,
     selectShards,
     selectStories,
+    storyBins,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -47,7 +48,7 @@ import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } fr
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, seededPick, unexplained } from "./test-select-mutate.mjs";
+import { mutant, runPaths, seededPick, unexplained } from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -356,13 +357,25 @@ describe("the rules file", () => {
         assert.ok(wholePackageRule("test/fixtures/k.ts", real));
     });
 
-    it("allows file-level selection only in the packages the design starts with", () => {
+    it("allows file-level selection only in the packages a clean mutation run admitted", () => {
         assert.deepEqual([...real.fileLevel].sort(), [
+            "algorithms",
             "compact-mantine",
+            "cytoscape-extensions",
             "graph-format",
+            "graph-io",
+            "graph-samples",
             "graphty",
             "graphty-element",
+            "layout",
             "remote-logger",
+        ]);
+        assert.deepEqual([...real.fileLevelBrowser].sort(), [
+            "algorithms",
+            "compact-mantine",
+            "graph-io",
+            "graphty",
+            "graphty-element",
         ]);
     });
 });
@@ -779,6 +792,26 @@ describe("mutation testing of the selection", () => {
             { non: ["x.ts", "y.ts"], files: ["t/d"] },
         ]);
         assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
+    });
+
+    it("gives runs with different names their own worktree and report", () => {
+        const a = runPaths("/r", "graph-io", null);
+        const b = runPaths("/r", "layout", null);
+        assert.deepEqual(a, {
+            worktree: "/r/.worktrees/select-mutate-graph-io",
+            report: "/r/tmp/select-mutate/graph-io/report.txt",
+        });
+        assert.notEqual(a.worktree, b.worktree);
+        assert.notEqual(a.report, b.report);
+        assert.deepEqual(runPaths("/r", null, null), {
+            worktree: "/r/.worktrees/select-mutate",
+            report: "/r/tmp/select-mutate/default/report.txt",
+        });
+        assert.equal(runPaths("/r", "x", "mine").worktree, "/r/.worktrees/mine");
+        // the worktree is reset and cleaned, so a name must not reach outside .worktrees
+        assert.throws(() => runPaths("/r", "/../..", null), /--name/);
+        assert.throws(() => runPaths("/r", "..", null), /--name/);
+        assert.throws(() => runPaths("/r", null, "a/b"), /--worktree/);
     });
 });
 
@@ -1636,5 +1669,67 @@ describe("the import graphs' cache key", () => {
         } finally {
             rmSync(repo, { recursive: true, force: true });
         }
+    });
+});
+
+describe("the light check's story bins (merging.md section 4.1, #3443 part b)", () => {
+    const projects = {
+        "graphty-element": { storybook: "graphty-element/storybook-static" },
+        layout: { storybook: "layout/storybook-static" },
+        "graph-io-fidelity": { storybook: "graph-io/fidelity-stories/storybook-static" },
+    };
+    const entry = (project, mode, files = [], baselines = []) => ({ project, mode, files, baselines, reasons: [] });
+    const list = (dir) =>
+        ({
+            layout: ["layout/stories/A.stories.ts", "layout/stories/helpers.ts", "layout/src/x.ts"],
+            "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
+        })[dir] ?? [];
+
+    it("packs selected story files into bins of at most 8 minutes by their storybook family's times", () => {
+        const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
+        const durations = {
+            "graphty-element-storybook": {
+                "graphty-element/stories/A.stories.ts": 300_000,
+                "graphty-element/stories/B.stories.ts": 300_000,
+            },
+        };
+        const bins = storyBins([entry("graphty-element", "files", files)], projects, list, durations);
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files, b.ms]),
+            [
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
+            ],
+        );
+        assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("bins every story file of a project selected whole, and nothing for one selected none", () => {
+        const bins = storyBins(
+            [entry("layout", "all"), entry("graph-io-fidelity", "all"), entry("graphty-element", "none")],
+            projects,
+            list,
+        );
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files]),
+            [
+                ["layout-1", ["layout/stories/A.stories.ts"]],
+                ["graph-io-fidelity-1", ["graph-io/fidelity-stories/F.stories.tsx"]],
+            ],
+        );
+    });
+
+    it("captures a story whose baseline changed even when no file selects it", () => {
+        const bins = storyBins([entry("graphty-element", "none", [], ["a--one"])], projects, list);
+        assert.deepEqual(bins, [
+            {
+                name: "graphty-element-1",
+                project: "graphty-element",
+                storybook: "graphty-element/storybook-static",
+                files: [],
+                ids: ["a--one"],
+                ms: 0,
+            },
+        ]);
     });
 });

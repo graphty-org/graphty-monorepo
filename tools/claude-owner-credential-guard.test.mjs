@@ -46,6 +46,17 @@ const REFUSED_BASH = [
     "NPM_CONFIG_USERCONFIG=/x/.npmrc npm whoami",
     "unset GH_CONFIG_DIR; gh api user",
     "env -u GIT_CONFIG_GLOBAL git config user.name",
+    "env -i git push origin HEAD",
+    "env --ignore-environment PATH=/usr/bin git push",
+    "env - git push",
+    "cat ~/.config/g?/hosts.yml",
+    "cat ~/.config/*/hosts.yml",
+    "cat ~/.ssh/*",
+    "cd ~/.config && cat gh/hosts.yml",
+    "find ~ -name hosts.yml -exec cat {} \\;",
+    "python3 -c \"open(os.path.expanduser('~/.config/gh/hosts.yml'))\"",
+    "cd ~/.ssh && cat id_rsa",
+    "cat git_signing_claude",
 ];
 
 const ALLOWED_BASH = [
@@ -64,6 +75,10 @@ const ALLOWED_BASH = [
     "cat .gitconfig.example",
     "grep -rn npmrc tools/",
     "node tools/land.mjs status",
+    "cat ~/.config/gh-agent/hosts.yml",
+    "env CI=1 node x.mjs -i",
+    "env | grep -i path",
+    "cat id_rsa.pub",
 ];
 
 describe("claude-owner-credential-guard", () => {
@@ -100,6 +115,16 @@ describe("claude-owner-credential-guard", () => {
         assert.equal(refusal({ tool_name: "Glob", tool_input: { pattern: "tools/*.mjs" } }, HOME), null);
     });
 
+    it("checks servherd_start, whose command runs with the owner's environment", () => {
+        const start = (command, env) => ({ tool_name: "mcp__servherd__servherd_start", tool_input: { command, env } });
+        assert.ok(refusal(start("git push origin HEAD"), HOME));
+        assert.ok(refusal(start("gh pr list"), HOME));
+        assert.ok(refusal(start("node x.mjs", { GH_CONFIG_DIR: "/home/someone/.config/gh" }), HOME));
+        assert.ok(refusal(start("cat ~/.npmrc"), HOME));
+        assert.equal(refusal(start("npm run storybook", { PORT: "{{port}}", HOST: "0.0.0.0" }), HOME), null);
+        assert.equal(refusal(start("node tools/pr-status-broker.mjs"), HOME), null);
+    });
+
     it("answers with a deny decision, and with nothing when allowed", () => {
         const out = JSON.parse(respond(bash("gh auth token"), HOME));
         assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
@@ -126,9 +151,10 @@ describe("claude-owner-credential-guard", () => {
             h.hooks.some((x) => x.command.includes("claude-owner-credential-guard.mjs")),
         );
         assert.ok(entry, "registered");
-        for (const tool of ["Bash", "Read", "Edit", "Write", "Grep", "Glob"])
+        for (const tool of ["Bash", "Read", "Edit", "Write", "Grep", "Glob", "mcp__servherd__servherd_start"])
             assert.ok(entry.matcher.split("|").includes(tool), tool);
         assert.match(settings.env.GIT_CONFIG_GLOBAL, /\.config\/git-agent\/config$/);
         assert.match(settings.env.GH_CONFIG_DIR, /\.config\/gh-agent$/);
+        assert.equal(settings.env.SSH_AUTH_SOCK, "", "no ssh-agent: a plain ssh cannot use the owner's keys");
     });
 });

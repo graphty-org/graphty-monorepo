@@ -6,15 +6,19 @@
 //
 // - his gh login (~/.config/gh/, never ~/.config/gh-agent/), his git configs (~/.gitconfig,
 //   ~/.config/git/config) with their credential helpers, ~/.git-credentials, ~/.npmrc, ~/.gnupg/, and
-//   every key in ~/.ssh/ but the agent's (graphty-agent*), public keys and known_hosts;
+//   every key in ~/.ssh/ but the agent's (graphty-agent*), public keys and known_hosts; also a wildcard under
+//   ~/.config/ or ~/.ssh/, and the names hosts.yml (but the agent's), id_rsa, id_ed25519, id_ecdsa and
+//   git_signing_claude however the path is spelled (relative after a cd, in find -name);
 // - commands that hand out or switch credentials: `git credential fill|approve|reject`,
 //   `git credential-cache|credential-store`, a `credential.helper` override, `gh auth token|switch|login`,
-//   `gh auth status --show-token`, `ssh-add`;
+//   `gh auth status --show-token`, `ssh-add`, and `env -i` (it drops GIT_CONFIG_GLOBAL, so git falls back to
+//   ~/.gitconfig and its credential helper);
 // - setting or unsetting GIT_CONFIG_GLOBAL, GH_CONFIG_DIR, NPM_CONFIG_USERCONFIG, GNUPGHOME or SSH_AUTH_SOCK,
 //   except to /dev/null or an agent path (`*-agent*`).
 //
-// Bash commands, the paths of Read, Edit, Write, MultiEdit and NotebookEdit, and the path and glob of Grep
-// and Glob are checked. It stops accidents and casual reads, not a determined agent
+// Bash commands, the paths of Read, Edit, Write, MultiEdit and NotebookEdit, the path and glob of Grep
+// and Glob, and the command of servherd_start (which runs in servherd's environment, the owner's: there it
+// also refuses `gh` and git's network commands) are checked. It stops accidents and casual reads, not a determined agent
 // (design/ci/channels-pipeline-plan.md, section 1, change 2). Any failure of the hook itself allows the call.
 //
 //   echo '{"tool_name":"Read","tool_input":{"file_path":"~/.npmrc"}}' | node tools/claude-owner-credential-guard.mjs
@@ -47,6 +51,14 @@ function pathRules(home) {
             "an SSH key that is not the agent's (~/.ssh/)",
             new RegExp(String.raw`${h}/\.ssh/(?!graphty-agent|known_hosts)(?!${name}*\.pub${end})${name}+`),
         ],
+        ["a wildcard under ~/.config/ or ~/.ssh/", new RegExp(String.raw`${h}/\.(?:config|ssh)/${name}*[*?[]`)],
+        ["a gh login file (hosts.yml)", /(?<!gh-agent\/)\bhosts\.yml\b/],
+        [
+            "the owner's SSH or signing key, by name",
+            new RegExp(
+                String.raw`\b(?:id_rsa|id_ed25519|id_ecdsa|git_signing_claude)(?!${name}*\.pub${end})${name}*${end}`,
+            ),
+        ],
     ];
 }
 
@@ -57,7 +69,13 @@ const COMMAND_RULES = [
     ["gh auth token/switch/login", /\bgh\s+auth\s+(?:token|switch|login|refresh)\b/],
     ["gh auth status --show-token", /\bgh\s+auth\s+status\b[^;|&\n]*(?:--show-token|-t\b)/],
     ["ssh-add", /\bssh-add\b/],
+    // Only among env's own options and assignments, before the command it runs.
+    [
+        "env -i (it drops the agent identity)",
+        /\benv(?:\s+(?:-u\s+\S+|-[^\s]+|\w+=\S*))*?\s+(?:-i|--ignore-environment|-)(?=\s|$)/,
+    ],
 ];
+const NETWORK = /\bgh\s|\bgit\b[^;|&\n]*\b(?:push|fetch|pull|clone|ls-remote)\b/;
 
 const IDENTITY_VARS = ["GIT_CONFIG_GLOBAL", "GH_CONFIG_DIR", "NPM_CONFIG_USERCONFIG", "GNUPGHOME", "SSH_AUTH_SOCK"];
 const VARS = IDENTITY_VARS.join("|");
@@ -91,6 +109,12 @@ export function refusal(input, home = process.env.HOME || homedir()) {
     const tool = input?.tool_name;
     const args = input?.tool_input ?? {};
     if (tool === "Bash") return typeof args.command === "string" ? commandReason(args.command, home) : null;
+    if (tool === "mcp__servherd__servherd_start") {
+        const command = typeof args.command === "string" ? args.command : "";
+        const env = Object.entries(args.env ?? {}).map(([k, v]) => `${k}=${JSON.stringify(String(v))}`);
+        if (NETWORK.test(command)) return "GitHub through servherd, which runs as the owner";
+        return commandReason([...env, command].join(" "), home);
+    }
     // Grep's pattern is a search regex, not a path; Glob's pattern is one.
     const fields = { Grep: ["path", "glob"], Glob: ["path", "pattern"] }[tool] ?? [
         "file_path",

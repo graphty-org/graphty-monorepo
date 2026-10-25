@@ -363,6 +363,52 @@ jobs:
                   fi
                   exit "$status"
 
+    # The version and major-bump dry run, a lane like the others (design/ci/channels-pipeline/channels.md, "A planned
+    # major or a first publish"; #3455): versions the candidate locally as the version job will, then fails when
+    # that commit publishes a major or a project's first version with no entry in the code-owned
+    # release-approvals.json (tools/release-approvals.mjs). Its `held` output names those projects. Nothing leaves
+    # this runner.
+    version_dry_run:
+        name: Version dry run
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        outputs:
+            held: ${{ steps.approvals.outputs.held }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Version the candidate and check majors and first publishes
+              id: approvals
+              env:
+                  PACKAGES: ${{ inputs.packages }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  commit=$(tools/release-version.sh "$PACKAGES")
+                  [ -n "$commit" ] || { echo "::error::nx versioned nothing on ${SHA}, although the pick job did"; exit 1; }
+                  node tools/release-approvals.mjs dry-run "$SHA" "$commit"
+
     # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
     # never holds the release.
     coverage:
@@ -395,7 +441,7 @@ jobs:
     # A shadow run opens no issue: it comments once on #3418 (the channels pipeline) and announces nothing.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land]
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, version, approve, land]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true')))) }}
         runs-on: ubuntu-24.04
         # Pushover for a legacy hold's announcement; a shadow run announces nothing, so it takes no environment
@@ -415,6 +461,7 @@ jobs:
             AUDIT_RESULT: ${{ needs.audit.result }}
             LLM_RESULT: ${{ needs.llm.result }}
             LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+            VERSION_DRY_RUN_RESULT: ${{ needs.version_dry_run.result }}
             VERSION_RESULT: ${{ needs.version.result }}
             LAND_RESULT: ${{ needs.land.result }}
         steps:
@@ -439,7 +486,7 @@ jobs:
                   [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
-                      "work protection (macOS)=$AUTOSAVE_MACOS_RESULT" "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "versioning=$VERSION_RESULT" \
+                      "work protection (macOS)=$AUTOSAVE_MACOS_RESULT" "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "version dry run=$VERSION_DRY_RUN_RESULT" "versioning=$VERSION_RESULT" \
                       "landing on master=$LAND_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
@@ -536,8 +583,8 @@ jobs:
     # holds no deploy key, because it runs the repository's install scripts and nx.
     version:
         name: Version the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read

@@ -647,6 +647,10 @@ push starts or restarts a release (the `workflow_run` trigger is gone). Only the
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
+Every run also has a `Version dry run` lane (`tools/release-approvals.mjs`): it versions the candidate and
+fails when a project would publish a major or its first version without an entry in the code-owned
+`release-approvals.json` (`project`, `kind` major or first, `merge`, `approval` URL, `since`), naming each such
+project in its `held` output. A legacy run then lands nothing; `pnpm run check:release-hold` validates the file.
 
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11).
 The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App,

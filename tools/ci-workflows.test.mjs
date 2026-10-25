@@ -3078,11 +3078,19 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm\]/);
+        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run\]/);
         assert.match(
             version,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' \}\}/,
         );
+        // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
+        const dryRun = job(release, "version_dry_run");
+        assert.match(dryRun, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(dryRun, /ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+fetch-depth: 0/);
+        assert.match(dryRun, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
+        assert.match(dryRun, /node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"/);
+        assert.match(dryRun, /held: \$\{\{ steps.approvals.outputs.held \}\}/);
+        assert.doesNotMatch(dryRun, /environment:|git push|upload-artifact|id-token/);
         // the release ships the builds of its own CI call, not a master run's
         assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
         assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
@@ -3146,7 +3154,10 @@ describe("release.yml", () => {
     });
 
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land\]/);
+        assert.match(
+            held,
+            /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, version, approve, land\]/,
+        );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -3165,6 +3176,7 @@ describe("release.yml", () => {
             ["HOSTS", "Hosts"],
             ["AUTOSAVE_MACOS", "work protection (macOS)"],
             ["AUDIT", "security audit"],
+            ["VERSION_DRY_RUN", "version dry run"],
             ["VERSION", "versioning"],
             ["LAND", "landing on master"],
         ]) {
@@ -3209,15 +3221,25 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "approve", "land"].map(
-                        (j) => [
-                            j,
-                            {
-                                result: results[j] ?? "success",
-                                outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
-                            },
-                        ],
-                    ),
+                    [
+                        "pick",
+                        "ci",
+                        "t4",
+                        "hosts",
+                        "autosave_macos",
+                        "audit",
+                        "llm",
+                        "version_dry_run",
+                        "version",
+                        "approve",
+                        "land",
+                    ].map((j) => [
+                        j,
+                        {
+                            result: results[j] ?? "success",
+                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
+                        },
+                    ]),
                 ),
             );
         // every result a job can end with, including the ones GitHub does not document
@@ -3232,6 +3254,7 @@ describe("release.yml", () => {
                 "autosave_macos",
                 "audit",
                 "llm",
+                "version_dry_run",
                 "version",
                 "land",
             ]);
@@ -3383,6 +3406,7 @@ describe("release.yml", () => {
                         AUDIT_RESULT: "success",
                         LLM_RESULT: "success",
                         LLM_OWNER_ITEM: "",
+                        VERSION_DRY_RUN_RESULT: "success",
                         VERSION_RESULT: "success",
                         LAND_RESULT: "skipped",
                         ...env,

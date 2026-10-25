@@ -1939,6 +1939,12 @@ export type ElementAtResult = {
 };
 
 // @public
+export interface EnabledFeatures {
+    readonly enabled: readonly FeatureId[];
+    readonly unknown: readonly string[];
+}
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -2054,6 +2060,9 @@ export interface ExportResult {
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
+export type FeatureId = "data-management" | "timeline" | "location-map";
 
 // @public
 export interface FindAtLeastRow {
@@ -2355,6 +2364,8 @@ export class Graph implements GraphContext {
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    // @internal
+    resize(): void;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -2366,6 +2377,8 @@ export class Graph implements GraphContext {
     runAlgorithmsFromTemplate(): Promise<void>;
     get runAlgorithmsOnLoad(): boolean;
     set runAlgorithmsOnLoad(value: boolean);
+    // @internal
+    saveCameraPlacement(): () => void;
     saveCameraPreset(name: string, camera?: CameraState): void;
     // (undocumented)
     scene: Scene;
@@ -2700,10 +2713,13 @@ export class Graphty extends LitElement {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
+    get enabledFeatures(): EnabledFeatures;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
+    get features(): readonly string[] | undefined;
+    set features(value: readonly string[] | string | null | undefined);
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
@@ -5434,6 +5450,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
@@ -5550,6 +5567,8 @@ export class RenderManager implements Manager {
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;
+    // @internal
+    drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {
@@ -6330,9 +6349,10 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
-    drawArrivedPaint(): void;
+    drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
@@ -6347,11 +6367,12 @@ export class UpdateManager implements Manager {
     renderFrames(count: number): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
-    syncStyles(): void;
+    syncStyles(budgetMs?: number): void;
     syncViewMasks(): void;
     thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
+    viewMoved(): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

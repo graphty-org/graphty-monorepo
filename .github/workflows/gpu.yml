@@ -146,7 +146,7 @@ jobs:
                   nvidia-smi
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v4
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
@@ -252,7 +252,7 @@ jobs:
             - name: Release the SM clock lock
               if: ${{ always() && steps.clocks.outcome != 'skipped' }}
               run: sudo nvidia-smi -rgc || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: ${{ !cancelled() }}
               with:
                   {
@@ -261,3 +261,26 @@ jobs:
                       retention-days: 90,
                       overwrite: true,
                   }
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own timings job reports the whole run.
+    timings:
+        name: Timings
+        needs: [test-gpu]
+        if: ${{ always() && contains(github.workflow_ref, '/gpu.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}

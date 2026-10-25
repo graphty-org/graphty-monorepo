@@ -53,6 +53,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -65,6 +66,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, recommendLayout } from "./layout";
+import { loadLineOf } from "./loadLine";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -177,6 +179,7 @@ import type {
     FindResult,
     GraphSession,
     GraphSettingKey,
+    HistoryClearOptions,
     HistoryOutcome,
     PositionEntry,
     ProjectConfig,
@@ -247,7 +250,9 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
  * read live. No entry point exports it.
  * @internal
  */
-export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config"> {
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config" | "features"> {
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features?: () => readonly string[] | undefined;
     /** The store to read. When absent the session builds one of its own and disposes it. */
     readonly store?: LaneStore;
     /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
@@ -348,6 +353,8 @@ interface SessionParts {
     readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features: () => readonly string[] | undefined;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** Stops the renumbering delivery from a store someone else built. */
@@ -509,6 +516,9 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
+    private readonly requestedFeatures: () => readonly string[] | undefined;
+    /** The experiments, settled on first read. */
+    private resolvedFeatures: EnabledFeatures | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -522,6 +532,7 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
+        this.requestedFeatures = parts.features;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -648,6 +659,16 @@ class Session implements ElementSession {
                 },
             },
         });
+    }
+
+    /**
+     * The experiments this session switched on; settled on first read, so an element's session
+     * sees every attribute the page declared.
+     * @returns The enabled and unknown ids.
+     */
+    get features(): EnabledFeatures {
+        this.resolvedFeatures ??= resolveFeatures(this.requestedFeatures());
+        return this.resolvedFeatures;
     }
 
     /**
@@ -1487,8 +1508,8 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
         },
         restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
         cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
-        clear: () => {
-            dispatcher.clear();
+        clear: (options?: HistoryClearOptions) => {
+            dispatcher.clear(options?.pending === "keep");
         },
     });
 }
@@ -1893,6 +1914,28 @@ function structureCandidate(name: string, data: SessionDataApi): Path | undefine
 }
 
 /**
+ * Whether a path names a value this session answers on one kind of element: an attribute, a
+ * run's field or a node's structure.
+ *
+ * Every attribute's path, and an edge's endpoints, are `data.` paths. Anything else is a run's or
+ * the structure's, so it is looked up without describing the attributes: that walks every record,
+ * and a run's own suggested layer is checked just after the run has moved the tick the
+ * description is cached on (3,214 nodes and 36,906 edges: over 200 ms at a 6x CPU throttle).
+ * @param data - The session's data surface.
+ * @param runs - The runs.
+ * @param path - The path.
+ * @param target - Nodes or edges.
+ * @returns Whether it is answered.
+ */
+function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
+    if (path.startsWith("data.")) {
+        return answerablePaths(data, runs, target).includes(path);
+    }
+
+    return runFieldPaths(runs, target).includes(path) || (target === "node" && structurePaths(data).includes(path));
+}
+
+/**
  * What a rule reads that nothing answers, with the readable values each unknown path may have
  * meant: those whose catalog name is the path's last name, ignoring case, else
  * the node structure value of that name.
@@ -1944,13 +1987,13 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
-                return target === "edge" && answerablePaths(data, runs, "node").includes(end.node);
+                return target === "edge" && answersReadable(data, runs, end.node, "node");
             }
 
             return (
                 noteFieldOf(path) !== undefined ||
                 answersFileStyle(fileStyles(), path, target) ||
-                answerablePaths(data, runs, target).includes(path)
+                answersReadable(data, runs, path, target)
             );
         },
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
@@ -2226,11 +2269,15 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs } = options;
+    const { config, acceleration, runs, features } = options;
+    // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
+    // must not reach a session that already exists.
+    const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
     return buildSession({
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        features: () => requested,
     });
 }
 
@@ -2355,6 +2402,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         {
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
+            loadLine: loadLineOf(dispatcher),
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
@@ -3179,10 +3227,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
     // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
-    // every layer kept across the change is repainted. Layers added or removed with the run are
-    // the `styles` hook's, which runs after this one.
+    // every kept layer that reads a changed run is repainted. Layers added or removed with the
+    // run are the `styles` hook's, which runs after this one.
+    //
+    // ONLY THE READERS. Repainting every kept layer repainted the element's own "Edge defaults"
+    // layer, which matches every edge, after every finished run: a community run over 36,906
+    // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
+    // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        if (![...dirty].some((id) => rendered.runs.get(id) !== target.runs.get(id))) {
+        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        if (changed.size === 0) {
             return;
         }
 
@@ -3190,10 +3244,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const kept = new Set(rendered.styles);
         // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
         const stack = paintingOf(styles, target.styles);
-        // ponytail: repaints every kept layer, not only those reading the changed runs -- the
-        // cost the element paid before on every finished run; name the readers if it shows.
+        // An edge reading a value at one of its ends (`graphty.source.results.<run>...`) reads that run.
+        const readsChanged = (path: Path): boolean => {
+            const dependency = dependencyOf(edgeEndPathOf(path)?.node ?? path);
+            return "run" in dependency && changed.has(dependency.run);
+        };
+        // A layer over a set may read a run through the set's own rule, which its `reads` do not
+        // list, so it is repainted whatever run changed, as every layer was before.
         const edits = stack
-            .filter((_entry, index) => kept.has(target.styles[index]))
+            .filter(
+                (entry, index) =>
+                    kept.has(target.styles[index]) &&
+                    (entry.selector.match === "member" || entry.reads.some(readsChanged)),
+            )
             .map((entry) => ({ previous: entry, next: entry }));
 
         if (edits.length > 0) {
@@ -3359,6 +3422,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             attributes: () => data.attributes(),
             results: () => results,
         }),
+        features: options.features ?? (() => undefined),
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,

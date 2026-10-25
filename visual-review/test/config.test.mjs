@@ -43,7 +43,7 @@ describe("the monorepo's visual-review.config.json", () => {
             const dir = CONFIG.projects[name].storybook;
             expect(dir).toBe(storybook);
             expect(buildJob()).toMatch(
-                new RegExp(`uses: actions/upload-artifact@v4\\s+with:\\s+name: ${artifact}\\s+path: ${dir}/`),
+                new RegExp(`uses: actions/upload-artifact@v7\\s+with:\\s+name: ${artifact}\\s+path: ${dir}/`),
             );
         }
     });
@@ -68,6 +68,7 @@ describe("normalizeConfig", () => {
             fontconfig: null,
             updateCheck: null,
             usage: false,
+            ignoreBranches: [],
             projects: {
                 web: {
                     storybook: "storybook-static",
@@ -113,6 +114,8 @@ describe("normalizeConfig", () => {
         [{ projects: { a: { storybook: "s", waitFor: { selector: "x" } } } }, /waitFor needs/],
         [{ defaultBranch: "", projects: { a: { storybook: "s" } } }, /defaultBranch must be/],
         [{ issueLabels: "bug", projects: { a: { storybook: "s" } } }, /issueLabels/],
+        [{ ignoreBranches: "dependabot/", projects: { a: { storybook: "s" } } }, /ignoreBranches/],
+        [{ ignoreBranches: [""], projects: { a: { storybook: "s" } } }, /ignoreBranches/],
     ])("refuses %j", (raw, message) => {
         expect(() => normalizeConfig(raw)).toThrow(message);
     });

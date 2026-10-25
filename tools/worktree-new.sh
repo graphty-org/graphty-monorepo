@@ -25,8 +25,7 @@
 # Usage:
 #   ./tools/worktree-new.sh <branch> [base] [name] [--issue N | --new-issue "<title>"] [--owner O]
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
-#     [base]    the start point of a new branch (default origin/golden-verified, the newest golden commit
-#               verification passed, else origin/master; fetched first)
+#     [base]    the start point of a new branch (default origin/master; fetched first)
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #     the issue, one of: a number of three or more digits in <branch> (fix/1234-scroll), --issue N, or
 #               --new-issue "<title>", which opens one labelled with a type (from the branch's prefix:
@@ -45,6 +44,22 @@ die() { echo "tools/worktree-new.sh: $*" >&2; exit 1; }
 retry() { "$@" || { sleep 2; "$@"; } || { sleep 5; "$@"; }; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Every run executes one copy of this script, the live copy in <main checkout>/.worktrees/land-live (put a
+# new version there with `tools/live.sh land <branch>`), whichever checkout's copy was called, as
+# tools/land.mjs does: it runs the live copy with the same arguments and directory. Without a live copy it
+# runs itself and says so. LAND_LIVE names the live worktree instead (tests). A handed-off run carries
+# WORKTREE_NEW_LIVE_COPY and never hands off again, and drops the mark so nothing it starts inherits it.
+if [ -z "${WORKTREE_NEW_LIVE_COPY:-}" ]; then
+    LIVE_ROOT="${LAND_LIVE:-$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo .)")/.worktrees/land-live}"
+    LIVE="$LIVE_ROOT/tools/worktree-new.sh"
+    if [ ! -f "$LIVE" ]; then
+        echo "tools/worktree-new.sh: no live copy at $LIVE; running $HERE/worktree-new.sh instead" >&2
+    elif [ "$(realpath "$LIVE")" != "$(realpath "$HERE/worktree-new.sh")" ]; then
+        WORKTREE_NEW_LIVE_COPY="$LIVE" exec "$LIVE" "$@"
+    fi
+fi
+unset WORKTREE_NEW_LIVE_COPY
 POS=()
 ISSUE="" NEW_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
 while [ $# -gt 0 ]; do
@@ -86,7 +101,6 @@ fi
 retry git -C "$MAIN" fetch --quiet origin
 if [ -z "$BASE" ]; then
     BASE=origin/master
-    git -C "$MAIN" rev-parse -q --verify origin/golden-verified >/dev/null && BASE=origin/golden-verified
 fi
 # git-lfs's smudge filter writes the pointer instead of the image for a path lfs.fetchexclude matches.
 # Given with -c, the exclude applies to this checkout only, never to the repository's config.

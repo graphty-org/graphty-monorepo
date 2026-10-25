@@ -194,6 +194,9 @@ describe("the Data page on the real element", () => {
         );
         assert.isNotNull(within(tables).getByText("les-miserables.gml"), "a graph file is one row named after it");
         assert.isNotNull(screen.getAllByText("Set by the file")[0]);
+        // Roles the file sets are words, not disabled boxes a reader takes for menus.
+        assert.isNotEmpty(screen.getAllByTestId("fixed-role"));
+        assert.isEmpty(screen.queryAllByRole("combobox", { name: /^Role of / }));
         await waitFor(() => {
             assert.equal(document.activeElement, loadButton());
         });
@@ -254,6 +257,7 @@ describe("the Data page on the real element", () => {
         assert.equal(session.data.lastImport()?.counts.nodes, 4);
         assert.deepEqual(session.data.lastImport()?.unmatched, { rows: 1, values: 1 });
         assert.equal(session.data.node("a")?.name, "Ann");
+        assert.isFalse(session.canUndo, "a new graph starts its history: its load is not a change to undo");
     });
 
     it("a table with a row the load leaves out wears a warning with the count, and only the way back shows", async () => {

@@ -165,16 +165,29 @@ describe("the load CALLED last wins", () => {
         assert.deepStrictEqual(ids(graph), { nodes: ["late"], edges: 0 });
     });
 
-    test("load ids rise in call order, not in the order the reads finish", async () => {
+    test("adding loads land, and their ids rise, in call order, not in the order the reads finish", async () => {
         const graph = await graphWith(GOOD);
 
         const held = heldFile(OTHER);
-        const fileLoad = graph.loadFromFile(held.file);
-        const late = await graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) });
+        const landed: string[] = [];
+        const fileLoad = graph.loadFromFile(held.file).then((load) => {
+            landed.push("file");
+            return load;
+        });
+        // Asked for later and with nothing to read, it still waits for the file read ahead of it
+        // (issue #3382): the session's loads go in the order they were asked for.
+        const lateLoad = graph
+            .addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) })
+            .then((load) => {
+                landed.push("late");
+                return load;
+            });
         held.release();
-        const file = await fileLoad;
+        const [file, late] = await Promise.all([fileLoad, lateLoad]);
 
         assert.isBelow(file.loadId, late.loadId);
+        assert.deepStrictEqual(landed, ["file", "late"]);
+        assert.deepStrictEqual(ids(graph).nodes, ["a", "b", "late", "x", "y", "z"]);
     });
 
     test("clearData abandons a load in flight, so it cannot bring its data back", async () => {

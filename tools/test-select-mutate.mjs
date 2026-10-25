@@ -21,8 +21,20 @@
  * <main checkout>/tmp/select-mutate/<--name, default "default">/report.txt, so runs with different names can
  * run at once, each in its own worktree with its own report.
  *
+ * With --stories <project> it checks story selection (selectStories(), design/ci/channels-pipeline/stories-as-tests.md
+ * section 5) for one visual-review project instead: it builds the project's Storybook and captures every story
+ * unbroken, then for each picked file of the project's package (source and story files) asks which stories a
+ * change to it runs (as if the project were in the rules' stories.selectProjects), breaks it, builds the
+ * Storybook again and captures every story. Every story whose capture differs from the unbroken one (different
+ * bytes, or failed to capture) must have been selected; one that was not is captured again unbroken, and is a
+ * MISS unless that capture differs too (flaky). A file the Storybook does not build with is SKIPPED: the
+ * Storybooks build job fails that change. Its report is tmp/select-mutate/stories-<project>/report.txt. A
+ * project joins stories.selectProjects only after a clean run.
+ *
  * Usage: node tools/test-select-mutate.mjs <package> [--count N] [--seed S] [--files a,b,...] [--batch K]
  *            [--reader <package>] [--shard <name>]... [--name <n>] [--worktree <dir name>]
+ *        node tools/test-select-mutate.mjs --stories <project> [--count N] [--seed S] [--files a,b,...]
+ *            [--name <n>] [--worktree <dir name>]
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -34,10 +46,12 @@ import {
     buildGraphs,
     buildInput,
     failingFiles,
+    loadRules,
     measuredOf,
     repoPath,
     selectChange,
     selectedCommand,
+    selectStories,
     shardRuns,
     shardSpecs,
 } from "./test-select.mjs";
@@ -346,12 +360,195 @@ function crossCheck(shard, g, failing) {
     return { found, inconclusive };
 }
 
+/**
+ * The changed stories a selection did not run.
+ * @param changed story ids whose capture changed
+ * @param sel the project's selectStories() entry
+ * @param fileOf (story id) => its repo-relative story file, or undefined
+ * @returns the ids not selected
+ */
+export function storiesMissed(changed, sel, fileOf) {
+    if (sel.mode === "all") {
+        return [];
+    }
+    return changed.filter((id) => !sel.baselines.includes(id) && !sel.files.includes(fileOf(id)));
+}
+
+/**
+ * Story id -> repo-relative story file, from a built Storybook's index.json.
+ * @param index the parsed index.json
+ * @param dir the project's Storybook directory, repo-relative
+ * @returns a Map
+ */
+export function storyFiles(index, dir) {
+    const out = new Map();
+    for (const e of Object.values(index.entries ?? {})) {
+        if (e.type === "story") {
+            out.set(e.id, join(dir, e.importPath));
+        }
+    }
+    return out;
+}
+
+/**
+ * Story selection's check for one visual-review project (--stories); see the file comment.
+ * @param project the project id
+ * @param opt (flag, default) => its value
+ * @returns the exit code
+ */
+async function storiesMain(project, opt) {
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: HERE, encoding: "utf8" }).trim();
+    const main = mainCheckout();
+    const paths = runPaths(main, opt("--name", `stories-${project}`), opt("--worktree", null));
+    mkdirSync(dirname(paths.report), { recursive: true });
+    writeFileSync(paths.report, "");
+    reportFile = paths.report;
+    log(`test-select-mutate --stories ${project} at ${head}, worktree ${paths.worktree}`);
+    const wt = scratch(head, main, paths.worktree);
+    const cfg = JSON.parse(readFileSync(join(wt, "visual-review.config.json"), "utf8")).projects;
+    if (!cfg[project]) {
+        log(`no visual-review project ${project}; projects: ${Object.keys(cfg).join(", ")}`);
+        return 2;
+    }
+    const dir = cfg[project].storybook.replace(/\/storybook-static$/u, "");
+    const pkg = dir.split("/")[0];
+    const { SHARDS } = await import(pathToFileURL(join(wt, "tools/ci-test-matrix.mjs")).href);
+    log("Building every package...");
+    execFileSync("pnpm", ["exec", "nx", "run-many", "-t", "build", "--outputStyle=static"], {
+        cwd: wt,
+        stdio: "inherit",
+    });
+    const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
+    const rules = { ...loadRules(wt).stories, selectProjects: [project] };
+    const work = join(main, "tmp", "select-mutate", `stories-${project}`);
+    // no baselines: only the captures' bytes are compared, unbroken against broken
+    const empty = join(work, "no-baselines");
+    mkdirSync(empty, { recursive: true });
+    const build = () =>
+        spawnSync("bash", ["-c", cfg[project].build], { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 });
+    const { parity, readResults } = await import(pathToFileURL(join(wt, "visual-review/trusted/lib/parity.mjs")).href);
+    const capture = async (name, ids) => {
+        const out = join(work, name);
+        const args = ["visual-review/trusted/cli.mjs", "capture", "--project", project, "--out", out];
+        const r = spawnSync(
+            "bash",
+            [
+                "tools/with-browser.sh",
+                process.execPath,
+                ...args,
+                "--baselines",
+                empty,
+                ...(ids ? ["--stories", ids.join(",")] : []),
+            ],
+            { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 },
+        );
+        if (r.status !== 0 || !existsSync(join(out, "results.json"))) {
+            log(
+                `capture ${name} failed (exit ${r.status}): ${`${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join(" | ")}`,
+            );
+            return null;
+        }
+        return readResults(out);
+    };
+    // the story ids whose capture differs between two captures
+    const changedIds = (a, b) => {
+        const idOf = new Map([...a.items, ...b.items].map((i) => [i.file, i.id]));
+        return [...new Set(parity(a, b).differences.map((d) => idOf.get(d.file)))].sort();
+    };
+    log(`Building and capturing the unbroken ${project} Storybook...`);
+    const unbroken = build();
+    if (unbroken.status !== 0) {
+        log(`the unbroken ${project} Storybook does not build:\n${unbroken.stderr.slice(-2000)}`);
+        return 2;
+    }
+    const fileOf = storyFiles(JSON.parse(readFileSync(join(wt, cfg[project].storybook, "index.json"), "utf8")), dir);
+    const ref = await capture("unbroken", null);
+    if (!ref) {
+        return 2;
+    }
+    log(`${ref.items.length} captures of ${fileOf.size} stories`);
+    const candidates = execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
+        .split("\n")
+        .filter((f) => f && (CODE.test(f) || DATA.test(f)))
+        .filter(
+            (f) =>
+                !f.endsWith(".d.ts") && !/\.config\.[cm]?[jt]s$/u.test(f) && !/\.(test|spec)\.[cm]?[jt]sx?$/u.test(f),
+        )
+        // the Storybook setup runs every story (stories.projectGlobal); tests and docs draw no story
+        .filter((f) => !/\/(\.storybook|test|tests|__tests__|docs|benchmarks?)\//u.test(f))
+        .filter((f) => buildInput(f.slice(pkg.length + 1)) || f.startsWith(`${dir}/`));
+    const given = opt("--files", null);
+    const picked = given
+        ? given.split(",")
+        : seededPick(candidates, Number(opt("--count", "5")), Number(opt("--seed", "1")));
+    let misses = 0;
+    let inconclusive = 0;
+    for (const [n, f] of picked.entries()) {
+        const change = await selectChange(wt, [f], SHARDS, graphs);
+        const sel = selectStories({
+            projects: cfg,
+            changed: [f],
+            everything: change.everything,
+            shards: SHARDS,
+            selection: change.shards,
+            rules,
+            lockMoved: false,
+        }).find((p) => p.project === project);
+        log(`Mutant ${n + 1}: ${f}: ${sel.mode === "files" ? `${sel.files.length} story file(s)` : sel.mode}`);
+        const original = readFileSync(join(wt, f));
+        writeFileSync(join(wt, f), mutant(f, original.toString("utf8")));
+        let broken;
+        try {
+            broken = build().status === 0 ? await capture(`mutant-${n + 1}`, null) : "unbuilt";
+        } finally {
+            writeFileSync(join(wt, f), original);
+        }
+        if (broken === "unbuilt") {
+            log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
+            continue;
+        }
+        if (!broken) {
+            inconclusive++;
+            continue;
+        }
+        const changed = changedIds(ref, broken);
+        const missed = storiesMissed(changed, sel, (id) => fileOf.get(id));
+        let found = [];
+        if (missed.length > 0) {
+            build();
+            const again = await capture(`mutant-${n + 1}-unbroken`, missed);
+            if (!again) {
+                inconclusive++;
+                continue;
+            }
+            const flaky = new Set(changedIds({ ...ref, items: ref.items.filter((i) => missed.includes(i.id)) }, again));
+            flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
+            found = missed.filter((id) => !flaky.has(id));
+        }
+        misses += found.length;
+        log(
+            `  ${changed.length} stories changed, ${changed.length - missed.length} of them selected` +
+                (found.length > 0 ? `, MISSED: ${found.map((id) => `${id} (${fileOf.get(id)})`).join(", ")}` : ""),
+        );
+    }
+    build();
+    log(
+        misses === 0 && inconclusive === 0
+            ? `No misses in ${picked.length} mutant(s) of ${project}.`
+            : `${misses} miss(es), ${inconclusive} inconclusive.`,
+    );
+    return misses === 0 && inconclusive === 0 ? 0 : 1;
+}
+
 async function main(argv) {
-    const pkg = argv[0];
     const opt = (name, dflt) => {
         const i = argv.indexOf(name);
         return i === -1 ? dflt : argv[i + 1];
     };
+    if (argv[0] === "--stories") {
+        return storiesMain(argv[1], opt);
+    }
+    const pkg = argv[0];
     const only = argv.flatMap((a, i) => (argv[i - 1] === "--shard" ? [a] : []));
     const reader = opt("--reader", pkg);
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: HERE, encoding: "utf8" }).trim();

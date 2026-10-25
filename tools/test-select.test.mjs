@@ -48,7 +48,7 @@ import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } fr
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, runPaths, seededPick, unexplained } from "./test-select-mutate.mjs";
+import { mutant, runPaths, seededPick, storiesMissed, storyFiles, unexplained } from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -792,6 +792,32 @@ describe("mutation testing of the selection", () => {
             { non: ["x.ts", "y.ts"], files: ["t/d"] },
         ]);
         assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
+    });
+
+    it("--stories: maps story ids to their files and finds the changed stories a selection did not run", () => {
+        const index = {
+            entries: {
+                "a--one": { type: "story", id: "a--one", importPath: "./stories/A.stories.ts" },
+                "a--docs": { type: "docs", id: "a--docs", importPath: "./stories/A.mdx" },
+                "b--two": { type: "story", id: "b--two", importPath: "./stories/B.stories.ts" },
+            },
+        };
+        const files = storyFiles(index, "layout");
+        assert.deepEqual(
+            [...files],
+            [
+                ["a--one", "layout/stories/A.stories.ts"],
+                ["b--two", "layout/stories/B.stories.ts"],
+            ],
+        );
+        const of = (id) => files.get(id);
+        const sel = (mode, f = [], baselines = []) => ({ mode, files: f, baselines });
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("all"), of), []);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("none"), of), ["a--one", "b--two"]);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("files", ["layout/stories/A.stories.ts"]), of), [
+            "b--two",
+        ]);
+        assert.deepEqual(storiesMissed(["b--two"], sel("none", [], ["b--two"]), of), [], "a changed baseline runs");
     });
 
     it("gives runs with different names their own worktree and report", () => {
@@ -1538,8 +1564,9 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 });
 
 describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md section 5)", () => {
-    const stories = loadRules(ROOT).stories;
     const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;
+    // every project as if proven, so these tests judge the selection itself
+    const stories = { ...loadRules(ROOT).stories, selectProjects: Object.keys(projects) };
     const byName = (name) => SHARDS.find((s) => s.shard === name);
     const shards = [
         "graphty-storybook",
@@ -1607,6 +1634,15 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.equal(theme.layout.mode, "none");
         assert.ok(Object.values(pick(none, ["pnpm-lock.yaml"], { lockMoved: true })).every((p) => p.mode === "all"));
         assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
+    });
+
+    it("runs every story of a project not yet proven by test-select-mutate --stories, on any change", () => {
+        assert.ok(Array.isArray(loadRules(ROOT).stories.selectProjects), "the rules list the proven projects");
+        const out = pick(none, ["graphty-element/src/a.ts"], { rules: { ...stories, selectProjects: ["layout"] } });
+        assert.equal(out.layout.mode, "none", "a proven project is selected as before");
+        assert.equal(out["graphty-element"].mode, "all");
+        assert.match(out["graphty-element"].reasons[0], /test-select-mutate --stories/u);
+        assert.equal(out.graphty.mode, "all", "even with nothing of it changed");
     });
 
     it("runs a story whose baseline changed", () => {

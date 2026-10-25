@@ -414,21 +414,27 @@ jobs:
             # place, so the deployed files carry them), then the upload under the release the build
             # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
+            # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
+            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
               working-directory: graphty
+              continue-on-error: true
+              timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  pnpm exec sentry-cli sourcemaps inject dist
-                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
-                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
-                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
-                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
-                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -1722,7 +1728,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1738,6 +1744,9 @@ jobs:
                     - project: graphty-element
                       shard: graphty-element-storybook-1
                       command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: algorithms
+                      shard: algorithms-browser
+                      command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: layout
                       shard: layout
                       command: cd layout && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -1872,7 +1881,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, layout]
+                project: [graphty, graphty-element, algorithms, layout]
         steps:
             - uses: actions/checkout@v4
               with:

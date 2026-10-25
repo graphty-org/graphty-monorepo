@@ -38,6 +38,7 @@ import {
     mergedPrs,
     revertBody,
     revertTitle,
+    superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
@@ -1565,8 +1566,9 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, layout\]/);
+        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms, layout\]/);
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
+        assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
     });
 
@@ -1782,6 +1784,17 @@ describe("the Sentry source map upload", () => {
         assert.ok(inject > 0 && send > inject);
         assert.equal(upload["working-directory"], "graphty");
         assert.equal((ci.match(/SENTRY_RELEASE: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
+    });
+
+    it("never cancels or fails the build: six master builds were cancelled by a hanging set-commits", () => {
+        assert.equal(String(upload["continue-on-error"]), "true");
+        assert.ok(Number(upload["timeout-minutes"]) > 0 && Number(upload["timeout-minutes"]) <= 5);
+        // every sentry-cli call is bounded (written out per line, so knip sees the binary)
+        const start = ci.indexOf("- name: Upload graphty's source maps to Sentry");
+        const body = ci.slice(start, ci.indexOf("- name: Upload all package builds", start));
+        const calls = body.match(/^.*pnpm exec sentry-cli.*$/gm) ?? [];
+        assert.equal(calls.length, 5);
+        for (const call of calls) assert.match(call, /timeout \d+ pnpm exec sentry-cli /);
     });
 });
 
@@ -2788,7 +2801,7 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
-        assert.equal(decide(run("CI", "cancelled")), "none");
+        assert.equal(decide(run("CI", "cancelled")), "stopped");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
         // Hosts runs on master only as the nightly: a push to master runs no Hosts
         assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
@@ -2798,6 +2811,49 @@ describe("master-guard", () => {
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
         assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+    });
+
+    // Master CI runs 40227703075 to 40231980144 ended `cancelled` (the Build job ran into its timeout) and the
+    // guard, acting only on `failure`, said nothing (#3560).
+    it("alarms on a master CI run that stopped without a verdict, unless a newer run superseded it", async () => {
+        assert.equal(decide(run("CI", "cancelled")), "stopped");
+        assert.equal(decide(run("CI", "startup_failure")), "stopped");
+        assert.equal(decide(run("CI", "cancelled", "pull_request")), "none");
+        // timed_out and failure stay red: freeze, revert and issue as before
+        assert.equal(decide(run("CI", "timed_out")), "red");
+        assert.equal(decide(run("CI", "failure")), "red");
+
+        const stopped = {
+            id: 6,
+            head_sha: "c".repeat(40),
+            created_at: "2026-10-25T10:00:00Z",
+            updated_at: "2026-10-25T10:12:30Z",
+        };
+        const lister = (runs) => {
+            const calls = [];
+            const gh = async (path) => {
+                calls.push(path);
+                assert.match(path, /^\/actions\/workflows\/ci\.yml\/runs\?branch=master&event=push/);
+                return { workflow_runs: [...runs, stopped] };
+            };
+            return { gh, calls };
+        };
+        const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
+
+        // cancelled by its timeout: a later push five minutes in did not stop it, so it alarms
+        let fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, stopped), false);
+        assert.equal(fake.calls.length, 1, "one runs-list call");
+        // no newer run at all, or only a re-run of the same commit
+        assert.equal(await superseded(lister([]).gh, stopped), false);
+        assert.equal(
+            await superseded(lister([{ ...newer("2026-10-25T10:12:20Z"), head_sha: stopped.head_sha }]).gh, stopped),
+            false,
+        );
+        // cancelled the moment a run for a later commit was queued: superseded, no alarm
+        fake = lister([newer("2026-10-25T10:12:29Z")]);
+        assert.equal(await superseded(fake.gh, stopped), true);
+        assert.equal(fake.calls.length, 1);
     });
 
     it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {

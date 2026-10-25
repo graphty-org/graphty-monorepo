@@ -161,11 +161,61 @@ const latestVerdict = (db, sha) =>
  * @param q the query string
  * @param who the caller
  * @param db the D1 database
- * @returns candidate (sha, builtAt) or null, and judged: its latest verdict or null
+ * @param now milliseconds
+ * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, and recent
  */
-export async function getCandidate(q, who, db) {
+export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
-    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)) };
+    // every commit's latest verdict of the last 30 days: the pick walks master's first parents through them for a
+    // restart's own commit, a judgement by inheritance and the bisect's last green commit
+    const recent = await all(
+        db,
+        `SELECT v.sha, v.state, v.lane, v.issue, v.run_id AS runId, v.at FROM verdict v
+         WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at DESC`,
+        now - 30 * DAY,
+    );
+    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent };
+}
+
+/**
+ * GET /v1/failures?run=&good= : the tests a full run saw fail, for its bisect (channels 6). `run` is the run id;
+ * `good` the last green full-run commit: `failedBefore` names the tests master's own runs saw fail before that
+ * commit's site was built (flaky before the range, so never bisected).
+ * @param q the query string
+ * @param who the caller
+ * @param db the D1 database
+ * @returns tests ({ shard, file, name }, distinct) and failedBefore (their bisect ids)
+ */
+export async function getFailures(q, who, db) {
+    const run = q.get("run") ?? "";
+    if (!/^\d+$/.test(run)) refuse(400, "run must be a run id");
+    const rows = await all(
+        db,
+        `SELECT DISTINCT f.invocation, f.file, f.name FROM failure f WHERE f.invocation LIKE ? || '.%' ORDER BY f.file, f.name`,
+        run,
+    );
+    // the id is <run>.<attempt>.<job>.<shard>.<try> (tools/results/run-group.mjs)
+    const seen = new Map();
+    for (const r of rows) {
+        const t = { shard: r.invocation.split(".")[3], file: r.file, name: r.name };
+        seen.set(`${t.shard}: ${t.file} > ${t.name}`, t);
+    }
+    const built = q.get("good")
+        ? (await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(q.get("good")).first())?.built_at
+        : undefined;
+    const failedBefore = [];
+    for (const [id, t] of built ? seen : []) {
+        const [hit] = await all(
+            db,
+            `SELECT 1 FROM failure f JOIN invocation i ON i.id = f.invocation
+             WHERE f.file = ? AND f.name = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.started_at < ? LIMIT 1`,
+            t.file,
+            t.name,
+            built,
+        );
+        if (hit) failedBefore.push(id);
+    }
+    return { tests: [...seen.values()], failedBefore };
 }
 
 // What holds canary's commit back from nightly, by its latest verdict state.
@@ -236,6 +286,38 @@ function judgeTrend(rows, budgetSeconds) {
     const first = rows.findIndex((r, i) => i >= rows.length - 5 && r.ms / 1000 > line);
     const range = first > 0 ? `${rows[first - 1].sha}..${rows[first].sha}` : null;
     return { recent, earlier, alarm: overBudget || overTrend, range };
+}
+
+/**
+ * Master's median seconds per key (budgets 1.5), for a pull request's "slower than master" comment: over the
+ * last `n` runs (10, at most 50) of `kind` (full: master's own ci.yml and release.yml runs) of the asked
+ * workflows in 30 days, cancelled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
+ * more than a URL holds.
+ * @param query `workflows` (comma list), `kind`, `n`
+ * @param _who the caller
+ * @param db the D1 database
+ * @param now milliseconds
+ * @returns seconds by key (`job:<workflow>:<job>`, `step:<workflow>:<job>:<step>`, `task:<task>`)
+ */
+export async function getMedians(query, _who, db, now) {
+    const workflows = list(query.get("workflows"));
+    if (!workflows.length || workflows.length > 20) refuse(400, "workflows names 1 to 20 workflow files");
+    const n = Math.min(Math.max(Number(query.get("n")) || 10, 1), 50);
+    const rows = await all(
+        db,
+        `SELECT workflow, job, step, task, ms FROM (SELECT d.*, row_number() OVER
+           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
+           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
+             AND coalesce(conclusion, '') != 'cancelled')
+         WHERE n <= ?`,
+        query.get("kind") || "full",
+        ...workflows,
+        now - 30 * DAY,
+        n,
+    );
+    return Object.fromEntries(
+        [...Map.groupBy(rows, keyOf)].map(([key, rs]) => [key, median(rs.map((r) => r.ms / 1000))]),
+    );
 }
 
 /**

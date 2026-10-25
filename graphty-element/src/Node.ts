@@ -484,6 +484,11 @@ export class Node {
     private drawnAsGroup = false;
     /** The border built for this node drawn as a group at its box's size, while it is the border drawn. */
     private groupBorder: AbstractMesh | null = null;
+    /**
+     * The cached border instance a group's ring took the place of, kept hidden: while it lives, the
+     * mesh cache keeps its source, and with it the material the ring is drawn with.
+     */
+    private groupBorderSource: AbstractMesh | null = null;
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
@@ -659,6 +664,8 @@ export class Node {
      * @param style - The resolved style.
      */
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
+        this.groupBorderSource?.dispose();
+        this.groupBorderSource = null;
         const scale = this.screenScale(style);
         const perSize = NodeMesh.extentPerSize(style.shape);
         let { border } = style;
@@ -984,11 +991,20 @@ export class Node {
                       this.context.getScene(),
                   );
         if (old !== null && ring !== null) {
-            // The cached border's material, shared: the ring's own disposal never takes it.
+            // The cached border's material, shared: the ring's own disposal never takes it. The
+            // cached instance is hidden rather than disposed, because the cache disposes a source
+            // with no instance left -- and its material with it -- on the next repaint's prune,
+            // which drew every group whose ring was built before that prune with no outline at all
+            // (issue #3478).
             ring.material = old.material;
             ring.parent = this.mesh;
             ring.scaling.copyFrom(inverse);
-            old.dispose(false, false);
+            if (old === this.groupBorder) {
+                old.dispose(false, false);
+            } else {
+                old.setEnabled(false);
+                this.groupBorderSource = old;
+            }
             this.border = ring;
             this.groupBorder = ring;
         }

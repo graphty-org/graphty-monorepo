@@ -4056,13 +4056,83 @@ describe("release.yml", () => {
         });
     });
 
-    it("deploys graphty.app from every green CI run of a push to master", () => {
+    describe("deploy-pages.yml", () => {
         const deploy = workflow("deploy-pages.yml");
-        assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
-        assert.match(
-            job(deploy, "check"),
-            /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
-        );
+
+        it("keeps the site of every green CI run of a push to master as site-<sha>", () => {
+            assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
+            assert.match(
+                job(deploy, "check"),
+                /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
+            );
+            const build = job(deploy, "build");
+            assert.doesNotMatch(build, /\n {8}if:/, "the site is assembled on every green master build");
+            assert.match(
+                build,
+                /name: site-\$\{\{ env.SHA \}\}\n\s+path: site-\$\{\{ env.SHA \}\}.tar\n\s+retention-days: 14/,
+            );
+            assert.match(
+                build,
+                /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n\s+uses: actions\/upload-pages-artifact/,
+            );
+            assert.match(job(deploy, "deploy"), /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}/);
+            assert.doesNotMatch(
+                deploy,
+                /^concurrency:/m,
+                "an ordinary build must not replace a pending release deploy",
+            );
+        });
+
+        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's parents)
+        const decide = (message, { parents = 2, live = "0ld" } = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
+            const bin = join(dir, "bin");
+            mkdirSync(bin);
+            writeFileSync(
+                join(bin, "curl"),
+                `#!/bin/bash\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                { mode: 0o755 },
+            );
+            writeFileSync(
+                join(bin, "gh"),
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents};;\n*/compare/*) echo ahead;;\nesac\n`,
+                { mode: 0o755 },
+            );
+            const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
+            const out = join(dir, "out");
+            const r = spawnSync("bash", ["-e", "-c", script], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    MESSAGE: message,
+                    SHA: "abc1",
+                    GITHUB_REPOSITORY: "o/r",
+                    GITHUB_OUTPUT: out,
+                    PATH: `${bin}:${process.env.PATH}`,
+                },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            const result = { deploy: readFileSync(out, "utf8").trim(), gh: existsSync(join(dir, "gh.log")) };
+            rmSync(dir, { recursive: true, force: true });
+            return result;
+        };
+        const RELEASE = "chore(release): publish graphty@1.2.0, layout@1.10.6 onto master";
+
+        it("deploys graphty.app only for the version merge release.yml's land job pushes", () => {
+            assert.deepEqual(decide(`${RELEASE}\n\nbody`), { deploy: "deploy=true", gh: true });
+            assert.equal(decide("Merge pull request #3500 from graphty-org/golden-cut\n\nship").deploy, "deploy=false");
+            assert.equal(decide("Merge pull request #3500").gh, false, "an ordinary merge asks GitHub nothing");
+            assert.equal(
+                decide("chore(release): publish graphty@1.2.0").deploy,
+                "deploy=false",
+                "the version commit itself",
+            );
+            assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+        });
+
+        it("does not deploy a release that is live already", () => {
+            assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        });
     });
 });
 

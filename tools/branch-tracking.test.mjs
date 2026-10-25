@@ -331,14 +331,23 @@ describe("tools/worktree-new.sh", () => {
         assert.match(r.stdout, new RegExp(`issue #${n}`));
     });
 
-    it("starts a new branch from golden-verified when GitHub has it, measured as a branch of golden", () => {
+    it("starts a new branch from master even when GitHub has golden-verified", () => {
         git(repo, "commit", "-q", "--allow-empty", "-m", "verified on golden");
         git(repo, "push", "-q", "origin", "HEAD:golden-verified");
-        const verified = git(repo, "rev-parse", "HEAD");
-        const r = make("feat/513-on-verified");
+        const r = make("feat/513-on-master");
         assert.equal(r.status, 0, r.stderr);
-        assert.equal(git(join(repo, ".worktrees/feat-513-on-verified"), "rev-parse", "HEAD"), verified);
-        assert.equal(git(repo, "config", "branch.feat/513-on-verified.prBase"), "golden");
+        const master = git(repo, "rev-parse", "origin/master");
+        const wt = join(repo, ".worktrees/feat-513-on-master");
+        assert.equal(git(wt, "merge-base", "HEAD", "origin/master"), master);
+        assert.equal(git(repo, "config", "--default", "", "branch.feat/513-on-master.prBase"), "");
+    });
+
+    it("starts from golden-verified when asked, measured as a branch of golden", () => {
+        const verified = git(repo, "rev-parse", "origin/golden-verified");
+        const r = make("feat/516-on-verified", "origin/golden-verified");
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(git(join(repo, ".worktrees/feat-516-on-verified"), "rev-parse", "HEAD"), verified);
+        assert.equal(git(repo, "config", "branch.feat/516-on-verified.prBase"), "golden");
     });
 
     it("hands itself to the live copy with the same arguments and directory, passing its exit code", () => {

@@ -1,61 +1,94 @@
-// The pipeline-round skill's routing rules that cost hours when they were missing: a fix for a red
-// master, a failed deploy or a train hold goes alone through cut-fix from the cut (never land, verify,
-// cut, and never into a cut in the owner's review), a passed verification starts a cut unless one awaits
-// the owner, red deploy and release runs raise an alarm, and branches behind golden and live tool copies
-// ahead of it are warned about.
+// The pipeline-round and issue-round skills after golden's retirement (#3418): the interim rules sit above every
+// step, every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
+// command that now refuses, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const read = (name) => readFileSync(new URL(`../.claude/skills/pipeline-round/${name}`, import.meta.url), "utf8");
-const skill = read("SKILL.md");
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const skill = read(".claude/skills/pipeline-round/SKILL.md");
 const flat = skill.replace(/\s*\n\s*>?\s*/g, " ");
-const shared = read("shared.md");
+const shared = read(".claude/skills/pipeline-round/shared.md");
+const flatShared = shared.replace(/\s*\n\s*>?\s*/g, " ");
+const issueRound = read(".claude/skills/issue-round/SKILL.md");
+const claude = read("CLAUDE.md");
+
+// The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
+const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 describe("pipeline-round skill", () => {
-    it("sends a deploy, release or red-master fix alone through cut-fix from the cut", () => {
-        assert.match(flat, /fast route: a fix for a red master build, a failed graphty\.app deploy or a train hold/);
-        assert.match(flat, /node tools\/land\.mjs cut-fix --priority <branch> --reason <alarm>/);
-        assert.match(flat, /never add it to a cut that awaits the owner/);
-        assert.match(shared, /cut-fix <branch> --reason <issue>\|run:<id>/);
-        assert.match(flat, /Leave out a fast-route branch/);
+    it("puts the interim rules above every step", () => {
+        assert.ok(flat.indexOf("**Interim rules") < flat.indexOf("### 1."));
+        assert.match(flat, /\*\*Production is frozen\.\*\*/);
+        assert.match(flat, /\*\*Screenshots still gate pull requests\.\*\*/);
+        assert.match(flat, /changes a screenshot\*\* gets its own immediate `ACTION NEEDED` line/);
     });
 
-    it("gives the fix prompt a worktree from origin/golden-cut", () => {
+    it("sends every fix through its own pull request from origin/master", () => {
         const prompt = flat.slice(flat.indexOf("**Fix prompt**"), flat.indexOf("### 2."));
-        assert.match(prompt, /worktree-new\.sh <branch> origin\/golden-cut/);
+        assert.match(prompt, /worktree-new\.sh <branch> origin\/master/);
+        assert.match(prompt, /tools\/pr-open\.sh --proof <file>/);
     });
 
-    it("routes a train hold's fix by the fast route", () => {
-        assert.match(flat, /Train hold:.*fix subagent by the fast route/);
+    it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
+        const at = (s) => flat.indexOf(s);
+        assert.ok(at("### 1. Red master") < at("### 3. Red pull requests"));
+        assert.ok(at("### 3. Red pull requests") < at("### 5. Finished branches with no pull request"));
+        assert.match(flat, /at most 10 open at once/);
+        assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
 
-    it("cuts only when no cut awaits the owner", () => {
-        assert.match(flat, /\*\*Make a cut\*\* when verification passed on a commit `golden-cut` lacks/);
-        assert.match(flat, /`last\.status` is `passed`/);
-        assert.match(
-            flat,
-            /git merge-base --is-ancestor <last\.commit> origin\/golden-cut` fails\), no cut awaits the owner/,
-        );
-        assert.match(flat, /Never cut while a cut awaits the owner/);
-        assert.match(flat, /`cut` and `cut-fix` both refuse then/);
+    it("names no retired land.mjs command, in either skill or the shared rules", () => {
+        for (const [name, text] of [
+            ["pipeline-round", skill],
+            ["shared", shared],
+            ["issue-round", issueRound],
+        ]) {
+            assert.doesNotMatch(
+                text.replace(/`land\.mjs land`, `cut`, `cut-fix`, `ship`, `auto-ship` and `sync` refuse/, ""),
+                RETIRED,
+                name,
+            );
+        }
+        assert.doesNotMatch(skill, /golden-verified|golden-cut|verify\.mjs/);
     });
 
-    it("reads the newest deploy-pages and release runs every round and alarms when red", () => {
-        assert.match(shared, /for wf in deploy-pages\.yml release\.yml; do gh run list/);
-        assert.match(shared, /cut: pullRequests\(headRefName: "golden-cut"/);
-        assert.match(flat, /\*\*Red deploy or release run:\*\*/);
+    it("ends every subagent with pr-open.sh and merges origin/master, never golden", () => {
+        assert.match(flatShared, /open its pull request with `tools\/pr-open\.sh --proof <file>`/);
+        assert.match(flatShared, /`git merge origin\/master` \(never rebase\)/);
+        assert.doesNotMatch(shared, /origin\/golden/);
+        assert.match(issueRound, /tools\/pr-open\.sh --proof tmp\/<name>\/proof\.md/);
+        assert.match(flatShared, /keep it in tmp\/<name>\/, because an untracked file in the worktree is refused/);
+        assert.doesNotMatch(issueRound, /origin\/golden/);
     });
 
-    it("warns on branches with no golden merge for 3 days", () => {
-        assert.match(flat, /\*\*Behind golden:\*\*/);
-        assert.match(skill, /259200/);
+    it("never arms auto-merge on a breaking change or merges past a check", () => {
+        assert.match(flatShared, /never merge a pull request past a check or with `--admin`/);
+        assert.match(flatShared, /never arm auto-merge on a breaking \(`!`\) change without the owner's go/);
+        assert.match(flatShared, /or on one opened by anyone but graphty-agent, dependabot or a master-guard revert/);
     });
 
-    it("warns when a live copy holds commits golden lacks", () => {
-        assert.match(flat, /\*\*Live copies ahead of golden:\*\*/);
-        assert.match(skill, /for w in gate-live land-live/);
+    it("fixes only graphty-agent's red pull requests, never the owner's", () => {
+        const step = flat.slice(flat.indexOf("### 3. Red pull requests"), flat.indexOf("### 4."));
+        assert.match(step, /opened by graphty-agent \(its `author`\)/);
+        assert.match(step, /#1677/);
+    });
+
+    it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
+        assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
+        assert.match(shared, /git merge -q --ff-only origin\/master/);
+    });
+});
+
+describe("CLAUDE.md", () => {
+    it("replaces the golden landing sections with Shipping a change", () => {
+        assert.match(claude, /\n## Shipping a change\n/);
+        assert.doesNotMatch(claude, /\n## Landing changes \(golden-local\)\n/);
+        assert.doesNotMatch(claude, /\n### Verification after landing\n/);
+        assert.match(claude, /tools\/pr-open\.sh --proof tmp\/<task>\/proof\.md/);
+        assert.match(claude, /\*\*Rolling out a change to this flow\.\*\* /);
+        assert.doesNotMatch(claude, /node tools\/land\.mjs land <branch>/, "no instruction to land on golden");
     });
 });

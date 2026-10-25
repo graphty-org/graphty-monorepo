@@ -2588,7 +2588,12 @@ export async function main(argv, ctx = context(process.cwd())) {
     const allowCopies = copies.value?.split(",").filter(Boolean) ?? [];
     const [command, ...branches] = reason.rest.filter((a) => !a.startsWith("--"));
     const retired = retiredRefusal(ctx, command);
-    if (retired) return fail(retired);
+    if (retired) {
+        // A refused command still keeps the main checkout on master, so new sessions read the new flow.
+        git(ctx, ctx.main, ["fetch", "-q", "origin"], { ok: true });
+        updateMainCheckout(ctx);
+        return fail(retired);
+    }
     const flushing = flushRefusal(ctx, command, argv);
     if (flushing) return fail(flushing);
     if (command === "sync") return syncCommand(ctx, argv);

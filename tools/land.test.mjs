@@ -1665,6 +1665,19 @@ describe("golden retired (#3418)", () => {
         const r = await run("status");
         assert.doesNotMatch(r.out, /is retired/);
     });
+
+    it("still brings the main checkout to GitHub's master when it refuses", async () => {
+        write(other, "retired-main.txt", "m\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "chore: master moves");
+        git(other, "pull", "-q", "--no-rebase", "origin", "master");
+        git(other, "push", "-q", "origin", "master");
+        const to = git(other, "rev-parse", "HEAD");
+        const r = await run("land", "any/branch");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /moved the main checkout's master from [0-9a-f]{10} to /);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
+    });
 });
 
 describe("open work", () => {

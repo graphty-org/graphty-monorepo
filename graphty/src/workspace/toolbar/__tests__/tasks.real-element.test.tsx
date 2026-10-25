@@ -285,7 +285,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             .find((row) => row.getAttribute("aria-selected") === "true");
         assert.include(current?.textContent, "Recommended");
 
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.equal(session.layout.id, "circular");

@@ -1,0 +1,414 @@
+# CI time budgets, the agent identity, and the agent rules
+
+This section of the channels pipeline design covers how long each part of CI may take and what
+happens when it takes longer; the GitHub account agents work under; removing the admin bypass from
+master's ruleset; the rules that keep a green check honest; and the new job of the pipeline round
+(the recurring agent routine in `.claude/skills/pipeline-round/SKILL.md`).
+
+Each choice answers something that went wrong in the record:
+
+| What went wrong                                                                                                                                                                           | Answered here by                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| graphty's build went from 1m23s to 13m33s (the Sentry plugin re-mapping 24 chunks), the Build job from about 4 to 16-24 minutes on master, and nobody noticed for four days (issue #3415) | Budgets per job, step and Nx task, checked on every run, and a trend alarm that files an issue within hours (section 1) |
+| `small-browser` once ran over 64 minutes; only 2 of ci.yml's jobs have a `timeout-minutes`, so every other job may run for GitHub's default of 6 hours                                    | Every job gets a hang guard derived from its budget, enforced by a lint check (section 1.4)                             |
+| A time-limit gate on tests failed unrelated changes at random (durations vary about 2x between runs of one commit)                                                                        | Budgets warn and file issues; they never fail a pull request (section 1.3)                                              |
+| Every push is made as the owner (500 of the last 500 commits), so CODEOWNERS review is impossible                                                                                         | A GitHub Team machine account for agents (section 2)                                                                    |
+| Master's ruleset lets the admin role merge without required checks; the owner banned admin merges, but only the rule stops it                                                             | Remove the admin bypass; keep only the release deploy key (section 3)                                                   |
+| Agents raised timeouts, added retries, narrowed selection and edited the gate to go green; six landing systems in five weeks, 21.7% of all commits pipeline work                          | A test-integrity check, CODEOWNERS on pipeline paths, proof of work and a fresh-context review (section 4)              |
+| Agents waited on gates inside turns (about $800 of cache rebuilds in 27 hours)                                                                                                            | The pipeline round reacts to recorded events (section 5)                                                                |
+
+---
+
+## 1. CI time budgets
+
+### 1.1 What is measured
+
+Four levels, all from data CI already has:
+
+| Level         | Source                                                                                                                          | Example key                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Run (overall) | The run's `created_at` to the last job's `completed_at`                                                                         | `run:ci.yml:pr`               |
+| Job           | `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` (one call per run; returns every job with `started_at`, `completed_at`)  | `job:ci.yml:Build`            |
+| Step          | The same call: each job lists its steps with start and end                                                                      | `step:ci.yml:Build:Build all` |
+| Nx task       | `NX_PROFILE=tmp/nx-profile.json` on every `nx run-many` / `nx affected` call (Nx writes a Chrome trace with one entry per task) | `task:graphty:build`          |
+
+Test file durations travel in the test-group records of the test results section, not here; per-test
+slowness stays with `tools/vitest-time-budget.mjs`. Matrix jobs are keyed by matrix name
+(`job:ci.yml:Test (graphty-1)`); a skipped job records nothing; only a run's latest attempt counts.
+
+### 1.2 The budgets file
+
+`ci-budgets.json` at the repository root. It is owned by the owner through CODEOWNERS (section
+2.4), so raising a budget is a reviewed pull request, never a side effect of another change.
+
+```json
+{
+    "version": 1,
+    "defaults": { "warnRatio": 1.0, "hangRatio": 2.0, "minHangMinutes": 10, "owner": "pipeline" },
+    "budgets": {
+        "run:ci.yml:pr": { "minutes": 15, "why": "light checks; the PR waits on this" },
+        "run:ci.yml:full": { "minutes": 60, "why": "green full runs measured 31-48 min" },
+        "run:gpu.yml": { "minutes": 60, "why": "T4 lane measured about 50 min" },
+        "run:hosts.yml": { "minutes": 60 },
+        "job:ci.yml:Build": { "minutes": 8, "why": "4.2 min median before #3415's regression" },
+        "step:ci.yml:Build:Build all": { "minutes": 6 },
+        "task:graphty:build": { "minutes": 2, "why": "1m23s before the Sentry regression, 60-63 s after the fix" },
+        "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
+        "job:ci.yml:visual (*)": { "minutes": 15 }
+    }
+}
+```
+
+Rules for the file:
+
+- `(*)` matches every matrix entry of a job; a specific key wins.
+- A new job's first budget is 1.5 times its median over its first 5 runs, rounded up to a minute;
+  until then it shows as "no budget" (a warning), so a new job cannot hide.
+- `owner` acts on an alarm: `pipeline` is the pipeline round, anything else a label on the issue.
+- `why` is the measurement behind the number; a raise states a new one.
+
+`tools/ci-budgets.mjs` (new, about 200 lines) is the only reader, with commands `lint`, `report`
+and `trend`.
+
+### 1.3 Every run: warn, never fail
+
+The last job of every budgeted workflow is `timings` (`if: always()`, `needs:` every other job,
+`permissions: actions: read`). It runs `node tools/ci-budgets.mjs report --run ${{ github.run_id }}`,
+which:
+
+1. reads the run's jobs and steps (one API call per 100 jobs) and the Nx profiles the jobs
+   uploaded as 1-day artifacts `nx-profile-<job>`;
+2. writes a table to `$GITHUB_STEP_SUMMARY`: key, measured, budget, master's median of the last 10
+   runs of the same kind, and the change;
+3. emits `::warning title=Over budget::<key> took 13m33s, budget 2m` for each key over budget;
+4. on a pull request, compares each key with master's median for the same key and, for any key
+   that is over 1.5 times that median and at least 60 seconds slower, writes or updates ONE comment
+   on the pull request (marker `<!-- ci-budgets -->`) naming the key, both numbers and the files
+   the pull request changed under that task's project. It never sets a failing exit code;
+5. sends the run's rows to the store (section 1.5) with `curl --max-time 10`. A failed send prints
+   a warning and the job still passes.
+
+**One build for every event.** The Sentry regression hid because the plugin switched on only where
+`SENTRY_AUTH_TOKEN` was set, a push to master, so pull requests never paid for it. Rule: a build
+step gets the same inputs on every event; only upload and deploy steps after it may differ (the fix,
+commit 0436c01e02 on `perf/ci-build-sentry-after-build`, already does this). `ci-budgets.mjs lint`
+fails when a step running `nx` build targets has a `secrets.` value in its `env` or an `if:` on
+`github.event_name` or `github.ref`.
+
+### 1.4 Hang guards
+
+`timeout-minutes` on every job is `max(hangRatio x budget, minHangMinutes)`, so twice the budget.
+`node tools/ci-budgets.mjs lint` runs in the light checks and fails when a job in a budgeted
+workflow has no `timeout-minutes` or one that disagrees with the file. Changing a hang guard
+therefore needs the budgets file to change, which needs the owner.
+
+This is not an arbitrary timeout: a hung job emits no event, and the guard ends only a job already
+twice over budget. It fails red, `report` labels it `hung`, and the pipeline round files it as a
+defect, never re-runs it or raises the guard. Existing step guards for known hangs (gpu.yml line
+219; work-protection-macos.yml) move into the file as `step:` keys.
+
+### 1.5 Data shape in the store
+
+Durations go into the Cloudflare Worker and D1 database of the test results section (which defines
+the Worker, its token and fail-open rules), as one more table and two routes.
+
+```sql
+CREATE TABLE durations (
+  run_id      INTEGER NOT NULL,
+  attempt     INTEGER NOT NULL,
+  workflow    TEXT    NOT NULL,   -- 'ci.yml'
+  run_kind    TEXT    NOT NULL,   -- 'pr' | 'master' | 'full' | 'promotion' | 'dispatch'
+  sha         TEXT    NOT NULL,
+  pr          INTEGER,            -- null off a pull request
+  key         TEXT    NOT NULL,   -- 'job:ci.yml:Build'
+  level       TEXT    NOT NULL,   -- 'run' | 'job' | 'step' | 'task'
+  seconds     REAL    NOT NULL,
+  outcome     TEXT    NOT NULL,   -- 'success' | 'failure' | 'cancelled' | 'hung'
+  runner      TEXT,               -- 'ubuntu-latest', 'machine.dev-t4', 'macos-26'
+  recorded_at TEXT    NOT NULL,
+  PRIMARY KEY (run_id, attempt, key)
+);
+CREATE INDEX durations_key_time ON durations (key, run_kind, recorded_at);
+```
+
+- `POST /durations`: one body per run (a full run is about 45 jobs, 500 steps, 60 Nx tasks: about
+  600 rows; a pull request run about 150). `GET /durations/medians?keys=...&kind=master&n=10`.
+- Volume: 4 full runs, about 15 master pushes and 30 pull request runs a day is about 16,000 rows,
+  under D1's free 100,000 writes a day beside the test records. At 70% of the quota the Worker opens
+  one issue; the answer is the $5 a month Workers Paid plan.
+- 120 days of rows, pruned by the Worker's daily cron. Cancelled rows are excluded from medians.
+
+### 1.6 Trend alarms
+
+The Worker checks after every master or full-run `POST /durations` (`ci-budgets.mjs trend` runs the
+same code locally):
+
+- For each key, over master and full runs only: `recent` = median of the last 5 runs, `earlier` =
+  median of the 10 runs before them.
+- Alarm when `recent > budget`, or when `recent > 1.3 x earlier` and `recent - earlier >= 60 s`.
+- Suspects: master's first-parent merges between the last run under the line and the first over it;
+  each merge is one pull request with its issue.
+- ONE issue per key (`CI budget: <key> <earlier> -> <recent>`; labels `bug`, `ci-budget`,
+  `priority:high`, `effort:medium`, the owner label) listing runs, numbers and suspects; later alarms
+  comment on it. Filed by the Worker with a GitHub App installation token (issues: write only), the
+  App that `tools/release-scheduler/` already uses.
+- It closes on an event: the first check with `recent` back under both lines.
+
+Against the record: at about 15 master pushes a day the Build regression fills 3 of the last 5
+runs within about 5 hours, and `report` warns on the first slow run; it went four days. An alarm
+names a range, never a culprit by timing; a culprit is named only by running the task on a merge
+and its parent (the full-run section's bisect, with the task in place of the tests).
+
+### 1.7 Reused, changed, deleted
+
+- Reused: `tools/vitest-time-budget.mjs`, unchanged; its `VITEST_DURATION_HISTORY` file is written
+  from the store's one read at job start instead of the Actions cache. The first `why` values come
+  from `tmp/failure-position/analyze-ci.mjs`.
+- New: `ci-budgets.json`, `tools/ci-budgets.mjs` (+ `tools/ci-budgets.test.mjs`, node:test), the
+  `timings` job in ci.yml, gpu.yml, hosts.yml, work-protection-macos.yml and release.yml.
+- Deleted: nothing; the old failing time gate is already gone (the reporter's header says so).
+
+---
+
+## 2. The agent identity
+
+### 2.1 The account
+
+- A GitHub machine account, `graphty-agent` (the owner creates it; the name can be renamed later).
+  graphty-org is on the Team plan with 2 of 2 seats filled, so this is a third seat.
+- Two-factor authentication on; recovery codes stay with the owner.
+- Role **Write** on graphty-monorepo (branches, pull requests, auto-merge, labels, dispatch; no
+  rulesets, settings, secrets or environments). No access to the nightly and production site
+  repositories, which only this repository's workflows write (section 3.2).
+
+### 2.2 Keys on this machine
+
+| Credential                                                                                                                                                                                                                                  | Where                                                                | Used for                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| SSH authentication key `~/.ssh/graphty-agent_ed25519`                                                                                                                                                                                       | Added to the agent account                                           | `git push` of branches                               |
+| SSH signing key `~/.ssh/graphty-agent-signing_ed25519`                                                                                                                                                                                      | Added to the agent account as a signing key                          | Every agent commit shows "Verified" as graphty-agent |
+| Fine-grained personal access token, repository graphty-monorepo only: contents, pull requests, issues read/write; actions, checks, metadata read; workflows read/write (so a branch may carry a workflow change that CODEOWNERS then gates) | `gh auth login --with-token` into `GH_CONFIG_DIR=~/.config/gh-agent` | `gh` calls by agents                                 |
+
+How a session picks them up, with no secret in any committed file:
+
+- `.claude/settings.json` (committed) sets `"env": { "GH_CONFIG_DIR": "/home/apowers/.config/gh-agent" }`
+  so every `gh` call an agent makes is the agent account.
+- `tools/worktree-new.sh` (reused, about 10 lines added) writes worktree-local git config, with
+  `extensions.worktreeConfig=true` set once in the main checkout:
+  `user.name graphty-agent`, `user.email <id>+graphty-agent@users.noreply.github.com`,
+  `gpg.format ssh`, `user.signingkey ~/.ssh/graphty-agent-signing_ed25519.pub`, `commit.gpgsign true`,
+  `core.sshCommand "ssh -i ~/.ssh/graphty-agent_ed25519 -o IdentitiesOnly=yes"`.
+  The memory rule "commit scripts must sign" still holds: agent commits are signed, by the agent key.
+- `tools/commit-changes.sh` and the hooks need no change; they sign with whatever key git config
+  names.
+- `MASTER_GUARD_TOKEN`, the optional token master-guard.yml uses so its revert pull requests start
+  CI (a pull request opened with the workflow's own token starts no workflows), becomes a second
+  fine-grained token of the agent account with contents and pull requests write only. Its revert
+  pull requests are then authored by the agent account and merge like any other.
+
+**Residual risk.** Agents run as the owner's Unix user, so they can read his `gh` token
+(`~/.config/gh/hosts.yml`) and use his GPG key. The split is real only once the owner runs
+`gh auth logout` here, moves his GPG key off the machine (or behind an uncached passphrase), and does
+owner-only actions (code-owner approvals, production approval, Finish) in the browser with his
+passkey. Until then it stops accidents, not a determined agent.
+
+### 2.3 What gh and git do as the agent
+
+- Branches, commits, pull requests, issue comments, labels, `gh workflow run` for the out-of-schedule
+  full run: all as graphty-agent.
+- Agents never approve (GitHub refuses an author's approval; agent reviews are `COMMENT` only). The
+  agent enables auto-merge (`gh pr merge --auto --merge`); checks and, on owned paths, the owner's
+  approval decide when it merges.
+
+### 2.4 CODEOWNERS
+
+`.github/CODEOWNERS` (new) has one line per path, each `<path> @apowers313` (CODEOWNERS takes one
+pattern per line): `/.github/`, `/tools/`, `/.husky/`, `/.claude/`, `/ci-budgets.json`, `/nx.json`,
+`/release-hold.json`, `/sonar-project.properties`, `/eslint.config.js`, `/vitest.shared.config.ts`,
+`/vitest.ci-junit.mjs`, `**/vitest*.config.*`, `/lychee.toml`, `/.lycheeignore`,
+`/.secretlintignore`, `/visual-review/trusted/`, `/visual-review/passkeys.json`,
+`/visual-review.config.json` and `CLAUDE.md` (every one, at any depth).
+
+Deliberately not owned: test files (agents write tests every day; the integrity check in section
+4.1 covers weakening) and `visual-baselines/` and `visual-review-approvals/` (the visual gate already
+requires the owner's passkey-signed statement of the exact tree, which is stronger than a review).
+
+During the rollout most pull requests touch owned paths; that review is the intended brake on six
+pipeline systems in five weeks.
+
+---
+
+## 3. Removing master's admin bypass
+
+### 3.1 Today
+
+Ruleset "Protect master" (id 23973898), read on 2026-10-24:
+
+- bypass actors: `DeployKey` (mode `always`) and `RepositoryRole` id 5, the admin role (mode
+  `pull_request`, which is the merge-without-checks button the owner banned);
+- pull request required, merge commits only, 0 approvals, `require_code_owner_review: false`;
+- required checks `All Checks Pass` and `Lint PR Title`.
+
+The one deploy key is "release workflow push (version commit and tags)" (id 164375816), used by
+release.yml as `RELEASE_DEPLOY_KEY`.
+
+### 3.2 Target
+
+- bypass actors: `DeployKey` only. The release's version commit and tags are the one push to master
+  without a pull request, and it stays.
+- pull request rule: `require_code_owner_review: true`, `required_approving_review_count: 0` (a pull
+  request that touches no owned path needs no review and auto-merges on green),
+  `dismiss_stale_reviews_on_push: true`, `require_last_push_approval: true` (an approval does not
+  survive a new push by the agent).
+- required checks: the light check summary job the pull request section names, `Lint PR Title`,
+  and `Link PR Issue`.
+- Repository Actions settings: default workflow permissions read-only; "Allow GitHub Actions to
+  create and approve pull requests" off.
+- **Secrets that change the outside world live in master-only environments.** A same-repository
+  pull request runs its branch's own workflow files with repository secrets, so a branch could use
+  any repository-level secret before CODEOWNERS sees it. So:
+    - environment `release` (deployment branches: `master` only): `RELEASE_DEPLOY_KEY`, the Pushover
+      keys, the npm publish job. The owner configures each npm trusted publisher with environment
+      `release` during the trusted-publishing transition, so only a job in that environment can mint
+      an npm token.
+    - environment `nightly` (master only, no reviewer): the token that pushes built files to the
+      nightly site repository.
+    - environment `production` (master only, required reviewer: the owner, "prevent self-review" on):
+      the production site token and the `latest` dist-tag move. Approving this deployment IS the
+      owner's promotion trigger, enforced by GitHub (a clean candidate had nothing for the passkey to
+      sign).
+    - Secrets used by tests (`GOOGLE_API_KEY` for LLM regression, `SENTRY_AUTH_TOKEN`) go to an
+      environment `full-run`, master only, so they are spent only by the scheduled full run.
+
+### 3.3 Order of the change
+
+1. The agent account and its credentials exist (section 2.2); the owner's credentials are off the
+   machine.
+2. Environments and CODEOWNERS land in a pull request the owner approves as code owner, which also
+   proves the approval path.
+3. One agent pull request outside owned paths auto-merges on green with no human.
+4. Every way master moves is a pull request or the deploy key: the golden pull request (gone after
+   the flush), the `visual-seed.yml` seed pull request, master-guard's reverts (agent token), the
+   release land job (deploy key). Nothing else.
+5. The owner removes the admin role from the bypass list;
+   `gh api repos/graphty-org/graphty-monorepo/rulesets/23973898 --jq .bypass_actors` must then list
+   only the deploy key. Rollback is one setting, owner only.
+
+If a renamed required check blocks every merge, the fix is a pull request restoring the name, or the
+owner edits the ruleset's check list. An agent never asks for the bypass back.
+
+---
+
+## 4. Agent rules
+
+Anthropic's harness guidance ("it is unacceptable to remove or edit tests"), the EvilGenie
+benchmark (Claude Code hardcoding test cases in 2.1% of runs) and this repository's record agree:
+rules nothing checks get broken under pressure to go green. Each rule here has a check, with what
+it does not catch.
+
+### 4.1 Never weaken a test: the test-integrity check
+
+`tools/check-test-integrity.mjs` (new, about 250 lines, with node:test tests) runs in the light
+checks on every pull request, over `git diff origin/master...HEAD`. It fails when, in any file
+matching `*.test.*`, `*.spec.*`, `*.stories.*` or a vitest config:
+
+- a test file is deleted, or renamed with its tests removed;
+- the count of test declarations (`it(`, `test(`, `it.each(`, `test.each(` and story exports) drops;
+- `.skip`, `.todo`, `.fails`, `.skipIf`, `.runIf`, `describe.skip` or `.only` is added;
+- the count of assertions (`expect(`, `assert`, `assert.`) in a file drops;
+- a timeout number grows (`timeout:`, `testTimeout`, `hookTimeout`, a `{ timeout: N }` argument to
+  `waitFor` or `expect.poll`), or `retry:`/`retries` is added or raised;
+- a coverage threshold drops.
+
+It passes anyway when the pull request has an approving review from a code owner on its head
+commit; the check re-runs on `pull_request_review`, so the owner's approval clears it without
+another push. Legitimate deletions (a story removed with its feature, issue #3414 deleting a fake
+story) therefore cost one owner review, and say why in the pull request.
+
+Reused beside it: the `local/no-test-timing` lint rule (`tools/eslint-rules/no-test-timing.mjs`).
+The check itself and its workflow are under owned paths, so an agent cannot weaken them unseen. It
+misses an assertion rewritten to expect a wrong value; the fresh-context review is for that.
+
+### 4.2 Proof of work
+
+`.github/pull_request_template.md` (new) has a `## Proof` section. `pr-issue-link.yml` (reused; it
+already requires an issue line) also requires, for pull requests authored by graphty-agent, a
+non-empty `## Proof` section holding at least one of:
+
+- the command run and the last lines of its output (`pnpm run test:changed`, a shard through
+  `./tools/run-tests.sh`);
+- for a bug fix, the name of the test that failed before the fix, and the commit where it failed
+  (the test commit comes before the fix commit, so anyone can check it out);
+- for anything a reader sees, a screenshot path or an affected-story capture from the pull
+  request's own screenshot job.
+
+The check sees that proof was written; the fresh-context reviewer checks that it is true.
+
+### 4.3 Fresh-context review
+
+Before an agent enables auto-merge, a review subagent that has not seen the author's conversation
+reads only the issue, `git diff origin/master...HEAD` and the Proof section, using the existing
+`/code-review` skill at `high`. It posts its findings as one `COMMENT` review from the agent account
+with the marker `<!-- fresh-review <head sha> -->`. The author fixes or answers each finding before
+enabling auto-merge; a new push needs a new review. A light check ("Fresh review") confirms a marker
+for the head commit: it catches forgetting, not malice, which CODEOWNERS and section 4.1 cover.
+
+### 4.4 Lines added to CLAUDE.md
+
+Five rules, one line each: never delete, skip or loosen a test, assertion, timeout, retry count or
+coverage threshold to pass a check; every pull request has a `## Proof`; a fresh subagent reviews
+the diff before auto-merge; pipeline and CI-config changes go in their own pull request; a budget is
+raised only by a pull request to `ci-budgets.json` with a new measurement.
+
+---
+
+## 5. The pipeline round's new job
+
+The skill keeps its shape (one round, priority order, never waits in a turn, asks the owner once
+per item) and loses about two thirds of its 45 KB. In order:
+
+1. **Red full run.** The full run's record in the store names the failing tests. The round starts
+   the bisect over master's first-parent merges since the last green full run (the full-run
+   section's workflow), and when it names a culprit opens the revert pull request as the agent
+   (auto-merge on green), comments on the culprit's issue, and starts the fix forward on a branch.
+   No culprit (bisect names none, or the failure is outside the code: a lost T4 spot runner, an
+   advisory with no patched version) means one issue and one `ACTION NEEDED` line if only the owner
+   can act.
+2. **Red master build or a master-guard revert pull request.** As today's section 1.
+3. **Flaky or load-sensitive tests** (`priority:critical`, from the store: passed and failed on the
+   same commit and inputs). Find the mechanism; never a longer wait.
+4. **CI budget alarms** (`ci-budget` issues). Read the suspect range, find the task's cause, revert
+   or fix. A budget raise is its own pull request with its measurement, for the owner to review.
+5. **Promotion waiting on the owner.** When a green full run has changed screenshots, one
+   `ACTION NEEDED` line naming the review page, once.
+6. **Held release or failed publish.** As today's section 2.
+7. **Agent pull requests that are red, conflicted or have unanswered review findings.** Merge
+   master into the branch (never rebase), fix, push. A pull request waiting on the owner's
+   code-owner review is listed in the round's report, not chased.
+8. **Finished worktrees.** `tools/worktree-cleanup.mjs`, as today.
+
+Bounds: the round never mixes a test, budget, quarantine or workflow change with a product fix,
+never re-runs a failure hoping for green, never asks for the bypass, never touches the screenshot
+gate's trusted files.
+
+Deleted from the skill: "Keep golden moving", "Land what subagents finished" (subagents open their
+own pull requests), "Nightly branch sync", and landing stranded branches through golden.
+
+---
+
+## 6. Failure modes
+
+| Failure                                     | Handling                                                                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The store is down or slow during `report`   | `curl --max-time 10`, a warning, the job passes; that run has no rows and no alarm. Unknown never fails a run                                         |
+| The Actions jobs API is rate limited        | One call per run (about 70 an hour at peak against 5,000); on a 403 the summary says "durations unavailable" and the job passes                       |
+| A runner image changes                      | `runner` is recorded; an alarm whose range holds no code change says so, and the fix is a budget pull request with the new measurement                |
+| A job is renamed                            | Its old key stops getting rows and its new key has no budget, which `report` warns about; `lint` fails when the file names a job that no workflow has |
+| An alarm flaps around the line              | One issue per key, comments instead of new issues; closes only when `recent` is under both lines                                                      |
+| The agent token leaks                       | It can only push branches and open pull requests; master, owned paths, publishing and deploying are all gated. The owner revokes it                   |
+| A branch's workflow reads a secret          | Anything that publishes, deploys or costs money is in a master-only environment                                                                       |
+| The integrity check misfires on moved tests | Declarations are counted across the pull request; a real false positive costs one owner review                                                        |
+
+---
+
+Every choice in this section is a two-way door and is decided here; none needs the owner.

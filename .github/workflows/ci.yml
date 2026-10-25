@@ -1242,12 +1242,13 @@ jobs:
 
             # The shard's recent test durations, which the slow-test report compares each test with (its
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
+            # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
               uses: actions/cache@v4
               with:
                   path: test-durations
-                  key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
-                  restore-keys: test-durations-${{ matrix.shard }}-
+                  key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: test-durations-${{ matrix.shard }}--
 
             # VITEST_BUDGET_CHECK reports every passing test over 10 s, or over 3 times its median in
             # VITEST_DURATION_HISTORY (tools/vitest-time-budget.mjs), as a warning; it never fails the shard.

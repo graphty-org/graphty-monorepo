@@ -144,6 +144,15 @@ describe("the On shards", () => {
         );
     });
 
+    it("never share a test-durations cache with their Off shard (a restore key is a prefix)", () => {
+        const test = parseYaml(readFileSync(".github/workflows/ci.yml", "utf8")).jobs.test.steps.find(
+            (s) => s.name === "Restore the shard's test durations",
+        );
+        assert.equal(test.with["restore-keys"], "test-durations-${{ matrix.shard }}--");
+        assert.ok(test.with.key.startsWith("test-durations-${{ matrix.shard }}--"));
+        assert.ok(!shards.some((s) => s.shard.includes("--")), "no shard name holds the separator");
+    });
+
     it("are excused by their Off family's quarantine entries", () => {
         const t = { file: "test/a.test.ts", name: "a > b" };
         const list = [{ ...t, family: "graphty-element-browser" }];

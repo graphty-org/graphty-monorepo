@@ -2013,13 +2013,14 @@ export function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
-        const configs = new Set(
-            shards.filter((s) => s.package === dir).flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)),
-        );
+        const mine = shards.filter((s) => s.package === dir);
+        const configs = new Set(mine.flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)));
+        // the -features-on projects exist only under GRAPHTY_FEATURES_ON=1 (tools/features-on.mjs)
+        const on = mine.some((s) => s["full-run-only"]);
         graphs.set(
             dir,
             [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config)),
+                cache(dir, config, () => graphChild(root, dir, config, on), on),
             ),
         );
     }
@@ -2030,7 +2031,7 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build) => graph`
+ * @returns `(dir, config, build, on) => graph`, `on` when it was built with the On projects
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2046,13 +2047,13 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build) => {
+    return (dir, config, build, on = false) => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
+                    .update([GRAPH_VERSION, rulesHash, tree, config, on ? "features-on" : ""].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
@@ -2404,7 +2405,7 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config) {
+function graphChild(root, dir, config, on = false) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
@@ -2412,7 +2413,13 @@ function graphChild(root, dir, config) {
         const out = execFileSync(
             process.execPath,
             [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
-            { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] },
+            {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 1 << 30,
+                stdio: ["ignore", "pipe", "pipe"],
+                env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
+            },
         );
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {

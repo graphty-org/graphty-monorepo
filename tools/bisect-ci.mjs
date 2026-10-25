@@ -211,15 +211,14 @@ async function runPoint(s, sha, runs, spawn = spawnSync) {
  * @returns one line
  */
 export function summary(s) {
+    const range = `bisect ${short(s.good)}..${short(s.bad)} (${s.lane})`;
     const a = s.answer;
-    if (!a)
-        return `bisect ${short(s.good)}..${short(s.bad)} (${s.lane}): next round tests ${s.next.points.map(short).join(", ")}`;
-    const head = a.culprit
-        ? `culprit merge ${a.culprit}`
-        : a.noLanding
-          ? `no merge named: ${a.noLanding}`
-          : `no bisect: ${a.status}`;
-    return `bisect ${short(s.good)}..${short(s.bad)} (${s.lane}): ${head}${a.flaky.length ? `; flaky: ${a.flaky.join("; ")}` : ""}`;
+    if (!a) return `${range}: next round tests ${s.next.points.map(short).join(", ")}`;
+    let head = `no bisect: ${a.status}`;
+    if (a.culprit) head = `culprit merge ${a.culprit}`;
+    else if (a.noLanding) head = `no merge named: ${a.noLanding}`;
+    const flaky = a.flaky.length ? "; flaky: " + a.flaky.join("; ") : "";
+    return `${range}: ${head}${flaky}`;
 }
 
 function output(s, out) {

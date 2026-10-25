@@ -1565,7 +1565,8 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.deepEqual(jobs["stories-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "stories-parity"), /project: \[graphty, graphty-element\]/);
+        assert.match(job(ci, "stories-parity"), /project: \[graphty, graphty-element, cytoscape-extensions\]/);
+        assert.match(job(ci, "story-tests"), /- project: cytoscape-extensions\n\s+shard: cytoscape-extensions\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
     });
 

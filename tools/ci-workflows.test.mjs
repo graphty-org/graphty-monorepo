@@ -3122,9 +3122,14 @@ describe("release.yml", () => {
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
         assert.deepEqual(release.match(/git push[^\n]*/g), [
+            // a nightly with nothing versioned moves only the site tag and channel/nightly
+            'git push --atomic --no-verify origin "${refs[@]}"',
             'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
+            // the site job's deployed.json, in its checkout of graphty-nightly
+            "git push --quiet origin HEAD",
         ]);
         assert.match(land, /git push --atomic/);
+        assert.match(job(release, "site"), /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/);
         // the key reaches only the land job, which installs nothing and runs no nx
         assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 1);
         assert.match(land, /ssh-key: \$\{\{ secrets.RELEASE_DEPLOY_KEY \}\}/);
@@ -3158,7 +3163,9 @@ describe("release.yml", () => {
         assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
         // the full run's verdict announces a red run or an owner item
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 7);
+        // the nightly site's deploy key and its announcements
+        assert.match(job(release, "site"), /\n {8}environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover\n/);
+        assert.equal(release.match(/\n {8}environment: /g).length, 8);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -3289,10 +3296,11 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run\]/);
+        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict\]/);
+        // shadow and legacy: every lane passed; a nightly promotion: the verdict job decided to promote
         assert.match(
             version,
-            /if: \$\{\{ \(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' \}\}/,
+            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.verdict.outputs.promote == 'true'\)\) \}\}/,
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
@@ -3308,14 +3316,15 @@ describe("release.yml", () => {
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
         assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // land and publish follow only a version commit made after every lane passed, and the owner's approval
+        // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)
         assert.match(
             approve,
             /needs: \[pick, version\]\n\s+if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
         );
-        assert.match(land, /needs: \[pick, version, approve\]\n\s+if: \$\{\{ needs.approve.result == 'success' \}\}/);
+        assert.match(land, /needs: \[pick, version, approve\]\n/);
         assert.match(
             publish,
-            /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/,
+            /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true'/,
         );
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
         assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
@@ -3444,7 +3453,15 @@ describe("release.yml", () => {
     // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
     // good, its result "abandoned", and held's `if` listed only failure and cancelled.
     describe("never ends a train attempt without a landed release or a held issue", () => {
-        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version", "land"];
+        // the version job's needs but the verdict, which runs only in full and restart runs (the nightly promotion)
+        const trainNeeds = [
+            .../\n {8}needs: \[([^\]]*)\]/
+                .exec(version)[1]
+                .split(", ")
+                .filter((j) => j !== "verdict"),
+            "version",
+            "land",
+        ];
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
         // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
@@ -3924,8 +3941,18 @@ describe("release.yml", () => {
         assert.match(publish, /gh release create "\$tag" --verify-tag "\$\{flags\[@\]\}" /);
         // no dependency's install script runs beside npm's OIDC
         assert.deepEqual(publish.match(/pnpm install[^\n]*/g), ["pnpm install --frozen-lockfile --ignore-scripts"]);
-        // legacy still lands and publishes only behind the owner's production approval
-        assert.match(land, /needs: \[pick, version, approve\]\n\s+if: \$\{\{ needs.approve.result == 'success' \}\}/);
+        // legacy still lands and publishes only behind the owner's production approval; a nightly promotion lands
+        // once its version job passed (the verdict decided to promote)
+        assert.match(
+            land,
+            /needs: \[pick, version, approve\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(needs.approve.result == 'success' \|\| inputs.mode == 'full' \|\| inputs.mode == 'restart'\) \}\}/,
+        );
+        assert.match(approve, /if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/);
+        // npm next moves only when something was versioned; the site and channel/nightly move either way
+        assert.match(
+            publish,
+            /if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' && needs.version.outputs.commit != '' \}\}/,
+        );
     });
 
     describe("the land job's push, against a real repository", () => {
@@ -3988,8 +4015,8 @@ describe("release.yml", () => {
                         RUNNER_TEMP: dir,
                         GITHUB_OUTPUT: output,
                         SHA: T,
-                        COMMIT: V,
-                        TAGS: "a@1.1.0",
+                        COMMIT: opts.noVersion ? "" : V,
+                        TAGS: opts.noVersion ? "" : "a@1.1.0",
                         DIST_TAG: opts.distTag ?? "latest",
                         HUSKY: "0",
                     },
@@ -4035,6 +4062,23 @@ describe("release.yml", () => {
             assert.equal(r.nightly, r.V, "channel/nightly is the version commit");
         });
 
+        it("a nightly with nothing versioned moves only the site tag and channel/nightly, to the tested commit", () => {
+            const r = land_({ distTag: "next", noVersion: true });
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.equal(r.output, "pushed=true\n");
+            assert.equal(r.master, r.T, "master does not move");
+            assert.equal(r.tag, "", "no version tag");
+            assert.equal(r.site, r.T);
+            assert.equal(r.nightly, r.T);
+        });
+
+        it("refuses a legacy release with no version commit, pushing nothing", () => {
+            const r = land_({ noVersion: true });
+            assert.equal(r.run.status, 1);
+            assert.match(r.run.stdout, /::error::no version commit to land/);
+            assert.deepEqual([r.output, r.site, r.nightly], ["", "", ""]);
+        });
+
         it("lands on top of a master that moved since the candidate", () => {
             const r = land_({ moved: true });
             assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
@@ -4072,8 +4116,9 @@ describe("release.yml", () => {
         assert.doesNotMatch(release, /release-status.mjs (opened|dequeued)/);
         assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
         // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
+        // the site job's comment follows the publish job
         assert.match(
-            publish,
+            publish.replace(/(\n {4}#[^\n]*)+$/, ""),
             /- name: Announce the publish outcome\n\s+if: \$\{\{ always\(\) \}\}[\s\S]*OUTCOME: \$\{\{ job.status == 'success' && 'published' \|\| 'publish-failed' \}\}[\s\S]*node tools\/release-status.mjs "\$OUTCOME"[^\n]*\n[^\n]*\n$/,
         );
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
@@ -5640,5 +5685,137 @@ describe("release.yml's version dry run with nothing releasable", () => {
             assert.equal(r.status, 1, mode);
             assert.match(r.stdout, /nx versioned nothing on abc/);
         }
+    });
+});
+
+describe("release.yml's nightly promotion (#1020)", () => {
+    const release = workflow("release.yml");
+    const verdict = job(release, "verdict");
+    const site = job(release, "site");
+    const timings = job(release, "timings");
+    const steps = parseYaml(release).jobs;
+
+    it("decides the promotion in the verdict job: green-clean, the screenshot gate, no publish hold", () => {
+        assert.match(
+            verdict,
+            /\n {8}outputs:\n {12}state: \$\{\{ steps.verdict.outputs.state \}\}\n {12}promote: \$\{\{ steps.promote.outputs.promote \}\}\n/,
+        );
+        const gate = steps.verdict.steps.find((st) => st.id === "gate");
+        assert.equal(gate.if, "${{ steps.verdict.outputs.state == 'green-clean' }}");
+        assert.equal(gate["continue-on-error"], true, "a refusal is a decision, read by the next step");
+        // master's tip's gate, unchanged, against channel/nightly (or the last release before nightly exists)
+        assert.match(gate.run, /git archive HEAD visual-review\/trusted \| tar -x -C "\$gate"/);
+        assert.match(gate.run, /gate --captures "\$RUNNER_TEMP\/visual" --base "\$base" --head "\$SHA"/);
+        assert.match(gate.run, /refs\/heads\/channel\/nightly/);
+        const decide = steps.verdict.steps.find((st) => st.id === "promote");
+        assert.equal(decide.run, "node tools/channel/nightly.mjs decide");
+        assert.deepEqual(decide.env, {
+            STATE: "${{ steps.verdict.outputs.state }}",
+            GATE: "${{ steps.gate.outcome }}",
+        });
+        const order = steps.verdict.steps.map((st) => st.id ?? st.name);
+        assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));
+    });
+
+    it("waits while a publish hold is open", () => {
+        const dir = mkdtempSync(join(TMP, "nightly-decide-"));
+        mkdirSync(join(dir, "tools"));
+        const held = join(dir, "tools", "release-held.sh");
+        const decide = (hold, gate = "success") => {
+            writeFileSync(held, `#!/bin/sh\n[ "$2" = "Release held: publish failed" ] && echo "${hold}"\nexit 0\n`, {
+                mode: 0o755,
+            });
+            const out = join(dir, "out");
+            writeFileSync(out, "");
+            const r = spawnSync(
+                process.execPath,
+                [new URL("./channel/nightly.mjs", import.meta.url).pathname, "decide"],
+                {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { PATH: process.env.PATH, STATE: "green-clean", GATE: gate, GITHUB_OUTPUT: out },
+                },
+            );
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            return { out: readFileSync(out, "utf8"), stdout: r.stdout };
+        };
+        const waiting = decide("3500");
+        assert.match(waiting.out, /^promote=false$/m);
+        assert.match(waiting.stdout, /::notice::the nightly promotion waits: publish hold #3500 is open/);
+        assert.match(decide("").out, /^promote=true$/m);
+        assert.match(decide("", "failure").out, /^promote=false$/m);
+    });
+
+    it("deploys the site from environment nightly, after npm next, with the site repository's key only", () => {
+        assert.match(site, /\n {8}needs: \[pick, version, land, publish\]\n/);
+        assert.equal(
+            steps.site.if,
+            "${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}",
+        );
+        assert.equal(steps.site.environment, "nightly");
+        assert.deepEqual(steps.site.permissions, {
+            actions: "read",
+            contents: "write",
+            "id-token": "write",
+            issues: "write",
+        });
+        // the key reaches only this job: its presence check and the site repository's checkout
+        assert.deepEqual(release.match(/secrets\.NIGHTLY_SITE_DEPLOY_KEY/g).length, 2);
+        assert.match(
+            site,
+            /repository: \$\{\{ env.SITE_REPO \}\}\n\s+path: nightly-site\n\s+ssh-key: \$\{\{ secrets.NIGHTLY_SITE_DEPLOY_KEY \}\}/,
+        );
+        assert.equal(steps.site.env.SITE_REPO, "graphty-org/graphty-nightly");
+        // nothing third-party runs beside the key
+        assert.doesNotMatch(site.replace(/^\s*#.*$/gm, ""), /pnpm|nx |npm (?:install|ci)/);
+        // the order of section 3: asset and channel.json, prerelease, deployed.json, the deploy, the store
+        const names = steps.site.steps.map((st) => st.name ?? st.uses);
+        const at = (n) => names.findIndex((x) => x.startsWith(n));
+        for (const [a, b] of [
+            ["Check the site's deploy key", "Download the candidate's built site"],
+            ["Pack the site and write channel.json", "Hang the site on the site-<sha> prerelease"],
+            ["Hang the site on the site-<sha> prerelease", "Push deployed.json to the site repository"],
+            ["Push deployed.json to the site repository", "Wait for the site's deploy"],
+            ["Wait for the site's deploy", "Record the promotion in the results store"],
+            ["Record the promotion in the results store", "Announce the promoted nightly"],
+        ]) {
+            assert.ok(at(a) >= 0 && at(a) < at(b), `${a} before ${b}`);
+        }
+        assert.match(site, /gh release create "\$tag" --verify-tag --prerelease --latest=false/);
+        assert.match(site, /node tools\/release-status.mjs nightly --sha "\$SHA" --tags "\$TAGS"/);
+        const failed = steps.site.steps.find((st) => st.name === "Report a failed nightly deploy");
+        assert.equal(failed.if, "${{ failure() }}");
+        assert.match(
+            failed.run,
+            /node tools\/channel\/nightly.mjs failed\)\n\s*node tools\/release-status.mjs nightly-failed/,
+        );
+    });
+
+    it("fails by name when environment nightly lacks the deploy key", () => {
+        const check = steps.site.steps.find((st) => st.name === "Check the site's deploy key");
+        assert.equal(check.env.KEY, "${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}");
+        const run = (key) =>
+            spawnSync("bash", ["-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, KEY: key } });
+        const missing = run("");
+        assert.equal(missing.status, 1);
+        assert.match(missing.stdout, /::error::secret NIGHTLY_SITE_DEPLOY_KEY is missing from environment nightly/);
+        assert.equal(run("-----BEGIN OPENSSH PRIVATE KEY-----").status, 0);
+    });
+
+    it("refuses a site repository without its deploy workflow before it pushes", () => {
+        const push = steps.site.steps.find((st) => st.name === "Push deployed.json to the site repository");
+        assert.ok(push.run.indexOf("nightly-site/.github/workflows/deploy.yml") < push.run.indexOf("git push"));
+    });
+
+    it("checks age:nightly in every run's timings job, on master, without failing it", () => {
+        assert.match(timings, /\n\s+site,\n\s+\]\n/, "timings runs after the site job too");
+        assert.match(timings, /issues: write # the age:nightly stall alarm/);
+        const stallStep = steps.timings.steps.find(
+            (st) => st.name === "Check that nightly is not stalled (age:nightly)",
+        );
+        assert.equal(stallStep.run, "node tools/channel/nightly.mjs stall");
+        assert.equal(stallStep["continue-on-error"], true);
+        assert.equal(stallStep.if, "${{ github.ref == 'refs/heads/master' }}");
+        assert.equal(stallStep.env.RESULTS_URL, "${{ vars.RESULTS_URL }}");
     });
 });

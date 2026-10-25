@@ -1,8 +1,8 @@
 name: Release
 run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 'shadow' && 'Release (shadow)' || format('Release ({0})', inputs.mode || 'full') }}
 
-# Four modes. The two of the 6-hour full run (channels pipeline step 6, design/ci/channels-pipeline/channels.md
-# sections 5 and 6; issue #3454), which publish nothing:
+# Four modes. The two of the 6-hour full run (channels pipeline steps 6 and 7, design/ci/channels-pipeline/channels.md
+# sections 5 to 7; issues #3454 and #1020), which publish only to npm `next` and nightly.graphty.app:
 #
 # - full (the default, and every scheduled run): the pick job takes the newest master commit whose push build kept a
 #   site (the results store's GET /v1/candidate) and does nothing when the store says it is judged, or when every
@@ -12,6 +12,13 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   <sha>" issue (bug, priority:critical), dispatches bisect.yml once, and is announced on the Release status
 #   issue and through Pushover; a green one closes that issue. A store that does not answer makes the slot test
 #   master's head ("unknown means run").
+#   A green-clean verdict promotes the candidate to nightly in the same run (channels section 7), unless a publish
+#   hold is open or the screenshot gate refuses the candidate's baselines against channel/nightly's: the version
+#   job versions it, the land job pushes the version merge, its tags, the site-<sha> tag and channel/nightly, the
+#   publish job publishes npm `next`, and the site job (environment `nightly`) hangs the commit's built site on the
+#   site-<sha> prerelease, pushes deployed.json to graphty-org/graphty-nightly and ends on that deploy. A candidate
+#   with nothing to version still moves the site and channel/nightly; npm `next` stays. green-images waits for the
+#   owner (nightly-approval, #3463). Every run's timings job also raises the age:nightly stall alarm.
 # - restart: dispatched by ci.yml's release-due job when a green master build references the open red issue
 #   (tools/release-due.mjs); the same run on the commit it was dispatched on.
 #
@@ -141,6 +148,7 @@ jobs:
                 approve,
                 land,
                 publish,
+                site,
             ]
         if: ${{ always() }}
         runs-on: ubuntu-24.04
@@ -149,6 +157,7 @@ jobs:
             contents: read
             actions: read
             id-token: write
+            issues: write # the age:nightly stall alarm
         steps:
             - uses: actions/checkout@v4
               with:
@@ -160,6 +169,19 @@ jobs:
               with:
                   results-url: ${{ vars.RESULTS_URL }}
                   kind: full
+
+            # The stall alarm (design/ci/channels-pipeline.md section 7): age:nightly, the time since channel/nightly
+            # last moved while canary holds an unpromoted commit (the store's GET /v1/release-state). Over 24 hours it
+            # files or updates one priority:critical "Nightly stalled since <date>" issue naming what blocks it, over
+            # 48 hours with an ACTION NEEDED line; it closes the issue once nightly moves. Fails open.
+            - name: Check that nightly is not stalled (age:nightly)
+              if: ${{ github.ref == 'refs/heads/master' }}
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/channel/nightly.mjs stall
 
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
     # (owner rule: a state ends on the event that settles it, never on a count of hours).
@@ -578,6 +600,9 @@ jobs:
             contents: read
             issues: write # the red issue
             id-token: write # the results store
+        outputs:
+            state: ${{ steps.verdict.outputs.state }}
+            promote: ${{ steps.promote.outputs.promote }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha }}
@@ -585,9 +610,15 @@ jobs:
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
+            # Full history without blobs, for the screenshot gate below (it reads the baselines' LFS pointers and
+            # the approvals from git, and checks an approval's commit is an ancestor).
             - uses: actions/checkout@v4
               with:
-                  sparse-checkout: tools
+                  sparse-checkout: |
+                      tools
+                      visual-review
+                  fetch-depth: 0
+                  filter: blob:none
 
             - uses: actions/setup-node@v4
               with:
@@ -611,6 +642,37 @@ jobs:
                       "hosts": "${{ needs.hosts.result }}", "autosave_macos": "${{ needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}"}
               run: node tools/full-run.mjs verdict
+
+            # A green-clean candidate reaches nightly only when its visual-baselines/ tree equals nightly's or
+            # carries the owner's passkey-signed approval of exactly that tree (channels section 7), so a baseline
+            # committed without the owner never reaches nightly as "unchanged". The gate is master's tip's copy (this
+            # run's checkout), run unchanged on this run's captures; before channel/nightly exists the base is the
+            # last version commit, which the owner released.
+            - name: Check the candidate's screenshots against nightly's
+              id: gate
+              if: ${{ steps.verdict.outputs.state == 'green-clean' }}
+              continue-on-error: true
+              run: |
+                  set -euo pipefail
+                  if git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly; then
+                      base=origin/channel/nightly
+                  else
+                      base=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H "$SHA")
+                  fi
+                  gate="$RUNNER_TEMP/gate"
+                  mkdir -p "$gate"
+                  git archive HEAD visual-review/trusted | tar -x -C "$gate"
+                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" --base "$base" --head "$SHA"
+
+            # Whether the candidate promotes now: green-clean, the gate passed, and no publish hold open (a nightly
+            # promotion of a new version set waits for the hold to clear; channels section 11). The why goes into
+            # the run's summary; the age:nightly alarm reports a wait that lasts.
+            - name: Decide the nightly promotion
+              id: promote
+              env:
+                  STATE: ${{ steps.verdict.outputs.state }}
+                  GATE: ${{ steps.gate.outcome }}
+              run: node tools/channel/nightly.mjs decide
 
             - name: Announce a red run or an owner item
               if: ${{ steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' }}
@@ -785,10 +847,11 @@ jobs:
     # Versions the tested commit, only after the full suite, the T4, Hosts, work protection on macOS, the audit and the LLM regression tests
     # all passed on it. Nothing leaves this job but artifacts: the land job pushes, the publish job publishes. It
     # holds no deploy key, because it runs the repository's install scripts and nx.
+    # A nightly promotion (full or restart) runs it only when the verdict job decided to promote.
     version:
         name: Version the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
-        if: ${{ (inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict]
+        if: ${{ !cancelled() && needs.pick.outputs.release == 'true' && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success') || ((inputs.mode == 'full' || inputs.mode == 'restart') && needs.verdict.outputs.promote == 'true')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         permissions:
@@ -851,8 +914,17 @@ jobs:
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
                   commit=$(tools/release-version.sh "$PACKAGES")
-                  # the pick job versioned this same commit and found something to release
-                  [ -n "$commit" ] || { echo "::error::nx versioned nothing on ${SHA}, although the pick job did"; exit 1; }
+                  if [ -z "$commit" ]; then
+                      # a nightly promotion skips the pick job's releasability check: a candidate with nothing to
+                      # version (only ci, docs or chore commits) still moves nightly's site, and npm next stays
+                      if [ "$MODE" = full ] || [ "$MODE" = restart ]; then
+                          echo "::notice::nothing to version on ${SHA}: nightly moves its site only"
+                          exit 0
+                      fi
+                      # the pick job versioned this same commit and found something to release
+                      echo "::error::nx versioned nothing on ${SHA}, although the pick job did"
+                      exit 1
+                  fi
                   node tools/release-diff.mjs "$SHA" "$commit"
                   tags=$(git log -1 --format=%b "$commit" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
                   [ -n "$tags" ] || { echo "::error::${commit} lists no released project"; exit 1; }
@@ -863,6 +935,7 @@ jobs:
             # The version commit itself, so the land job pushes exactly this commit (the tags name it, and the
             # publish job checks it out) without running nx again.
             - name: Keep the version commit for the land job
+              if: ${{ steps.version.outputs.commit != '' }}
               uses: actions/upload-artifact@v7
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
@@ -906,7 +979,8 @@ jobs:
     land:
         name: Land the release on master
         needs: [pick, version, approve]
-        if: ${{ needs.approve.result == 'success' }}
+        # legacy: after the owner's production approval; a nightly promotion: once the version job passed
+        if: ${{ !cancelled() && needs.version.result == 'success' && (needs.approve.result == 'success' || inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # the deploy key
@@ -929,6 +1003,7 @@ jobs:
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
             - name: Download the version commit
+              if: ${{ needs.version.outputs.commit != '' }}
               uses: actions/download-artifact@v8
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
@@ -956,17 +1031,12 @@ jobs:
                   set -euo pipefail
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git fetch --quiet "$RUNNER_TEMP/release/release.bundle" release
-                  [ "$(git rev-parse FETCH_HEAD)" = "$COMMIT" ] || { echo "::error::the kept version commit is not ${COMMIT}"; exit 1; }
-                  node tools/release-diff.mjs "$SHA" "$COMMIT"
                   refs=()
-                  for tag in ${TAGS//,/ }; do
-                      refs+=("refs/tags/${tag}:refs/tags/${tag}")
-                  done
                   # A nightly promotion (npm next) also pushes the site tag, on the tested commit, which the site
                   # job's prerelease hangs the commit's built site on, and fast-forwards channel/nightly to the
-                  # version commit (design/ci/channels-pipeline/channels.md section 2). Never forced: a
-                  # channel/nightly that is not an ancestor refuses the whole atomic push.
+                  # version commit, or to the tested commit when nothing was versioned
+                  # (design/ci/channels-pipeline/channels.md section 2). Never forced: a channel/nightly that is
+                  # not an ancestor refuses the whole atomic push.
                   if [ "$DIST_TAG" = next ]; then
                       site="site-${SHA}"
                       if git ls-remote --exit-code --tags origin "refs/tags/${site}" >/dev/null; then
@@ -976,8 +1046,22 @@ jobs:
                       else
                           git tag "$site" "$SHA"
                       fi
-                      refs+=("refs/tags/${site}:refs/tags/${site}" "${COMMIT}:refs/heads/channel/nightly")
+                      refs+=("refs/tags/${site}:refs/tags/${site}" "${COMMIT:-$SHA}:refs/heads/channel/nightly")
                   fi
+                  # Nothing versioned (a nightly only): master does not move, only the site tag and channel/nightly.
+                  if [ -z "$COMMIT" ]; then
+                      [ "$DIST_TAG" = next ] || { echo "::error::no version commit to land"; exit 1; }
+                      git push --atomic --no-verify origin "${refs[@]}"
+                      echo "nightly moves to ${SHA}, with no version commit"
+                      echo "pushed=true" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  git fetch --quiet "$RUNNER_TEMP/release/release.bundle" release
+                  [ "$(git rev-parse FETCH_HEAD)" = "$COMMIT" ] || { echo "::error::the kept version commit is not ${COMMIT}"; exit 1; }
+                  node tools/release-diff.mjs "$SHA" "$COMMIT"
+                  for tag in ${TAGS//,/ }; do
+                      refs+=("refs/tags/${tag}:refs/tags/${tag}")
+                  done
                   for try in 1 2 3 4 5; do
                       git fetch --quiet origin +refs/heads/master:refs/remotes/origin/master
                       if git merge-base --is-ancestor "$COMMIT" origin/master; then
@@ -1034,7 +1118,7 @@ jobs:
     publish:
         name: Publish the release
         needs: [pick, version, land]
-        if: ${{ always() && needs.land.outputs.pushed == 'true' }}
+        if: ${{ always() && needs.land.outputs.pushed == 'true' && needs.version.outputs.commit != '' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 16
         environment: release # npm trusted publishing (OIDC), Pushover
@@ -1262,3 +1346,152 @@ jobs:
               run: |
                   node tools/release-status.mjs "$OUTCOME" --sha "$SHA" --tags "$TAGS" --issue "$ISSUE" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+    # The nightly site (design/ci/channels-pipeline/channels.md, sections 3 and 7, step 4): hangs the candidate's
+    # built site (the site-<sha> artifact its master build's deploy-pages.yml run kept, byte for byte, compressed
+    # as site.tar.zst) and channel.json on a public prerelease on the site-<sha> tag the land job pushed, pushes
+    # deployed.json (tag, sha256, the master commit whose graphty/sites/nightly.json becomes site.json) to
+    # graphty-org/graphty-nightly with that repository's deploy key, and ends on graphty-nightly's deploy
+    # (tools/channel/site-deploy.yml, which refuses an asset whose sha256 is not deployed.json's) or on
+    # nightly.graphty.app's build stamp naming the candidate. Then it records the promotion and both sha256s in
+    # the results store and announces it. A failure files one priority:critical issue and is announced; a re-run
+    # of the run's failed jobs re-runs this job alone. No dependency is installed: it holds a deploy key.
+    site:
+        name: Deploy the nightly site
+        needs: [pick, version, land, publish]
+        if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover
+        permissions:
+            actions: read # the deploy-pages.yml run's site artifact; graphty-nightly's deploy run
+            contents: write # the prerelease on site-<sha>
+            id-token: write # the results store
+            issues: write # a failed deploy's issue; the Release status announcement
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ needs.pick.outputs.sha }}
+            COMMIT: ${{ needs.version.outputs.commit }}
+            TAGS: ${{ needs.version.outputs.tags }}
+            SITE_REPO: graphty-org/graphty-nightly
+            SITE_URL: https://nightly.graphty.app
+            RUN_ID: ${{ github.run_id }}
+            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        steps:
+            # Environment `nightly` is filled by the owner; a missing key fails here, by name, never later.
+            - name: Check the site's deploy key
+              env:
+                  KEY: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
+              run: |
+                  [ -n "$KEY" ] || {
+                      echo "::error::secret NIGHTLY_SITE_DEPLOY_KEY is missing from environment nightly: add graphty-nightly's write deploy key (private half) there, then re-run this run's failed jobs"
+                      exit 1
+                  }
+
+            # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
+            - uses: actions/checkout@v4
+              with:
+                  ref: master
+                  fetch-depth: 0
+                  filter: blob:none
+                  sparse-checkout: |
+                      tools
+                      graphty/sites
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download the candidate's built site
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$RUNNER_TEMP/site" "$RUNNER_TEMP/out"
+                  for run in $(gh run list --workflow deploy-pages.yml --commit "$SHA" --limit 10 --json databaseId --jq '.[].databaseId'); do
+                      if gh run download "$run" --name "site-${SHA}" --dir "$RUNNER_TEMP/site"; then
+                          echo "site-${SHA} from deploy-pages.yml run ${run}"
+                          exit 0
+                      fi
+                  done
+                  echo "::error::no deploy-pages.yml run of ${SHA} still keeps the artifact site-${SHA} (kept 14 days)"
+                  exit 1
+
+            - name: Pack the site and write channel.json
+              id: pack
+              run: |
+                  set -euo pipefail
+                  zstd -q -T0 "$RUNNER_TEMP/site/site-${SHA}.tar" -o "$RUNNER_TEMP/out/site.tar.zst"
+                  site_sha=$(sha256sum "$RUNNER_TEMP/out/site.tar.zst" | cut -d' ' -f1)
+                  config_ref=$(git rev-parse HEAD)
+                  SITE_SHA256="$site_sha" CONFIG_REF="$config_ref" node tools/channel/nightly.mjs channel-json > "$RUNNER_TEMP/out/channel.json"
+                  channel_sha=$(sha256sum "$RUNNER_TEMP/out/channel.json" | cut -d' ' -f1)
+                  { echo "site_sha256=${site_sha}"; echo "channel_sha256=${channel_sha}"; echo "config_ref=${config_ref}"; } >> "$GITHUB_OUTPUT"
+
+            # A public prerelease on the tag the land job pushed: never "Latest", which stays production's.
+            - name: Hang the site on the site-<sha> prerelease
+              run: |
+                  set -euo pipefail
+                  tag="site-${SHA}"
+                  gh release view "$tag" >/dev/null 2>&1 ||
+                      gh release create "$tag" --verify-tag --prerelease --latest=false --title "Nightly site ${SHA:0:7}" \
+                          --notes "The built site of ${SHA}, promoted to nightly.graphty.app by ${RUN_URL}."
+                  gh release upload "$tag" "$RUNNER_TEMP/out/site.tar.zst" "$RUNNER_TEMP/out/channel.json" --clobber
+
+            - uses: actions/checkout@v4
+              with:
+                  repository: ${{ env.SITE_REPO }}
+                  path: nightly-site
+                  ssh-key: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
+
+            # deployed.json's history in graphty-nightly is the audit log of every nightly deploy.
+            - name: Push deployed.json to the site repository
+              id: deployed
+              env:
+                  SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
+                  CONFIG_REF: ${{ steps.pack.outputs.config_ref }}
+              run: |
+                  set -euo pipefail
+                  [ -f nightly-site/.github/workflows/deploy.yml ] || {
+                      echo "::error::${SITE_REPO} has no .github/workflows/deploy.yml: commit tools/channel/site-deploy.yml there as deploy.yml"
+                      exit 1
+                  }
+                  node tools/channel/nightly.mjs deployed-json > nightly-site/deployed.json
+                  cd nightly-site
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add deployed.json
+                  git commit --quiet -m "deploy: nightly site-${SHA}" -m "${RUN_URL}"
+                  git push --quiet origin HEAD
+                  echo "pushed=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+            - name: Wait for the site's deploy
+              env:
+                  PUSHED: ${{ steps.deployed.outputs.pushed }}
+              run: node tools/channel/nightly.mjs wait
+
+            - name: Record the promotion in the results store
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
+                  CHANNEL_SHA256: ${{ steps.pack.outputs.channel_sha256 }}
+              run: node tools/channel/nightly.mjs record
+
+            - name: Announce the promoted nightly
+              continue-on-error: true
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: |
+                  node tools/release-status.mjs nightly --sha "$SHA" --tags "$TAGS" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
+            - name: Report a failed nightly deploy
+              if: ${{ failure() }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: |
+                  issue=$(node tools/channel/nightly.mjs failed)
+                  node tools/release-status.mjs nightly-failed --sha "$SHA" --issue "$issue" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"

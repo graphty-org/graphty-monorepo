@@ -410,7 +410,7 @@ function seed(env) {
                 extra.issue ?? null,
                 at,
             ),
-        nightly: (sha, at) => run("INSERT INTO channel_move VALUES ('nightly', ?, ?)", sha, at),
+        nightly: (sha, at) => run("INSERT INTO channel_move (channel, sha, at) VALUES ('nightly', ?, ?)", sha, at),
         duration: (runId, ms, at, kind = "full", job = "Build") =>
             run(
                 "INSERT INTO duration (run_id, attempt, workflow, job, sha, kind, started_at, ms, conclusion) VALUES (?, 1, 'ci.yml', ?, ?, ?, ?, ?, 'success')",
@@ -614,6 +614,63 @@ describe("POST /v1/verdicts", () => {
         assert.deepEqual({ ...v }, { run_id: 4010, attempt: 1, sha: "c9", state: "red", lane: "ci", issue: 12 });
         const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
         assert.equal(judged, null, "a verdict without a site is no candidate");
+    });
+});
+
+describe("POST /v1/channel-moves", () => {
+    const C = "c".repeat(40);
+    const V = "d".repeat(40);
+    const body = {
+        channel: "nightly",
+        sha: C,
+        versionCommit: V,
+        siteSha256: "1".repeat(64),
+        channelSha256: "2".repeat(64),
+    };
+    it("records master's release.yml nightly promotion once a run, and nightly's age restarts from it", async () => {
+        const { call, env, rows } = service();
+        const s = seed(env);
+        s.site(C, NOW - 30 * HOUR);
+        const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: true });
+        assert.deepEqual(
+            (await post(master("release.yml"))).body,
+            { stored: false },
+            "a re-run of the job stores nothing",
+        );
+        assert.deepEqual(
+            rows("SELECT channel, sha, at, version_commit, site_sha256, channel_sha256, run_id FROM channel_move"),
+            [
+                {
+                    channel: "nightly",
+                    sha: C,
+                    at: NOW,
+                    version_commit: V,
+                    site_sha256: "1".repeat(64),
+                    channel_sha256: "2".repeat(64),
+                    run_id: 4010,
+                },
+            ],
+        );
+        const st = (await call("GET", "/v1/release-state", { token: LOCAL_TOKEN })).body;
+        assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], [C, 0, null]);
+    });
+    it("refuses every other writer and a malformed record", async () => {
+        const { call, rows } = service();
+        const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
+        for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
+            assert.equal((await post(token)).status, 403);
+        }
+        for (const bad of [
+            { channel: "production" },
+            { sha: "abc" },
+            { versionCommit: "v" },
+            { siteSha256: "x" },
+            { channelSha256: undefined },
+        ]) {
+            assert.equal((await post(master("release.yml"), { ...body, ...bad })).status, 400, JSON.stringify(bad));
+        }
+        assert.deepEqual(rows("SELECT * FROM channel_move"), []);
     });
 });
 

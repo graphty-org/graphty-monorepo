@@ -90,7 +90,8 @@ export class HealthStack extends Stack {
             );
             return f;
         };
-        const ingest = fn("Ingest", 20, 10);
+        // 1024 MB for the CPU share (at 256 MB a 200-row local post took 4-10 s); 28 s stays under the HTTP API 30 s.
+        const ingest = fn("Ingest", 20, 28, 1024);
         const read = fn("Read", 5, 10);
         // The collector also recomputes rollups, runs the SLA engine and writes about 40 gzipped page items.
         const collector = fn("Collector", 1, 60, 512);

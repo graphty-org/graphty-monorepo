@@ -53,6 +53,7 @@
 /tools/check-owned-closure.mjs @apowers313
 /tools/pr-integrity.mjs @apowers313
 /tools/check-features.mjs @apowers313
+/tools/features-on.mjs @apowers313
 /tools/pr-open.sh @apowers313
 /tools/pr-review.sh @apowers313
 /tools/check-quick.sh @apowers313

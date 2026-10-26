@@ -64,7 +64,7 @@ jobs:
             files: ${{ steps.plan.outputs.files }}
             started: ${{ steps.plan.outputs.started }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { fetch-depth: 0 } # the range's first-parent merges and their parents
             - id: plan
               env:
@@ -96,9 +96,9 @@ jobs:
             matrix:
                 sha: ${{ fromJSON(needs.plan.outputs.points) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ matrix.sha }}" }
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { path: .bisect-tools, sparse-checkout: tools }
             - name: Move the tool out of the tree under test
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
@@ -191,7 +191,7 @@ jobs:
         timeout-minutes: 10
         permissions: { contents: read, actions: write } # dispatches the next round
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { sparse-checkout: tools }
             - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: state }

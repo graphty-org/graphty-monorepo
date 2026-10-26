@@ -35,34 +35,39 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
     for (const r of items) {
-        if (!TIME_FIELDS[r.kind]) throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
-        if (typeof r.id !== "string" || !r.id || !Number.isInteger(r.attempt))
-            throw new Error("id and attempt required");
-        const keep = KEEP_DAYS[r.kind];
-        const times = timesOf(r);
-        const first = times.length ? Math.min(...times.map(([, t]) => t)) : nowMs;
-        const ttl = keep === undefined ? undefined : ttlAt(first + keep * DAY);
-        const body = { ...r, ...(ttl === undefined ? {} : { ttl }) };
-        const home = homeKey(r);
-        // A time that changed leaves a copy behind in its old bucket: remove it and recompute that bucket.
-        const old = (await store.get(home)) as (Item & RawItem) | undefined;
-        if (old) {
-            const now = new Map(times);
-            for (const [f, t] of timesOf(old)) {
-                if (floorTo(now.get(f) ?? NaN, "5m") === floorTo(t, "5m")) continue;
-                ops.push({ delete: copyKey(r, f, t) });
-                dirty.add(floorTo(t, "5m"));
-            }
-        }
-        ops.push({ put: { ...body, ...home } });
-        for (const [f, t] of times) {
-            ops.push({ put: { ...body, ...copyKey(r, f, t), field: f } });
-            dirty.add(floorTo(t, "5m"));
-        }
+        check(r);
+        const old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
+        ops.push(...writesFor(r, old, nowMs, dirty));
     }
     for (const start of dirty) ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     await store.batch(ops);
     return items.length;
+}
+
+function check(r: RawItem): void {
+    if (!TIME_FIELDS[r.kind]) throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
+    if (typeof r.id !== "string" || !r.id || !Number.isInteger(r.attempt)) throw new Error("id and attempt required");
+}
+
+/** The home item, a copy per time field, and the removal of copies a changed time left behind. */
+function writesFor(r: RawItem, old: RawItem | undefined, nowMs: number, dirty: Set<number>): BatchOp[] {
+    const keep = KEEP_DAYS[r.kind];
+    const times = timesOf(r);
+    const first = times.length ? Math.min(...times.map(([, t]) => t)) : nowMs;
+    const body = { ...r, ...(keep === undefined ? {} : { ttl: ttlAt(first + keep * DAY) }) };
+    const ops: BatchOp[] = [{ put: { ...body, ...homeKey(r) } }];
+    const now = new Map(times);
+    for (const [f, t] of old ? timesOf(old) : []) {
+        const moved = now.get(f);
+        if (moved !== undefined && floorTo(moved, "5m") === floorTo(t, "5m")) continue;
+        ops.push({ delete: copyKey(r, f, t) });
+        dirty.add(floorTo(t, "5m"));
+    }
+    for (const [f, t] of times) {
+        ops.push({ put: { ...body, ...copyKey(r, f, t), field: f } });
+        dirty.add(floorTo(t, "5m"));
+    }
+    return ops;
 }
 
 /**

@@ -13,7 +13,7 @@ export type Histogram = number[];
 export const emptyHistogram = (): Histogram => new Array<number>(BINS).fill(0);
 
 export function binOf(value: number): number {
-    if (!(value > LO)) return 0;
+    if (Number.isNaN(value) || value <= LO) return 0;
     return Math.min(BINS - 1, Math.floor(Math.log(value / LO) / Math.log(FACTOR)));
 }
 

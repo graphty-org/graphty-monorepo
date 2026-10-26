@@ -88,7 +88,7 @@ export class MemoryStore implements Store {
                     (range.from === undefined || i.sk >= range.from) &&
                     (range.to === undefined || i.sk <= range.to),
             )
-            .sort((a, b) => (a.sk < b.sk ? -1 : a.sk > b.sk ? 1 : 0))
+            .sort((a, b) => Number(a.sk > b.sk) - Number(a.sk < b.sk))
             .map(copy);
     }
 

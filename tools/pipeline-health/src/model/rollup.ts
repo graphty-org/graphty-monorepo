@@ -45,7 +45,10 @@ function addTo(agg: Agg, c: Contribution, at: number): void {
 export function mergeAgg(into: Agg, from: Agg): void {
     into.n += from.n;
     into.sum += from.sum;
-    if (from.hist) mergeInto((into.hist ??= emptyHistogram()), from.hist);
+    if (from.hist) {
+        into.hist ??= emptyHistogram();
+        mergeInto(into.hist, from.hist);
+    }
     if (from.max !== undefined) into.max = Math.max(into.max ?? -Infinity, from.max);
     if (from.lastAt !== undefined && (into.lastAt === undefined || from.lastAt >= into.lastAt)) {
         into.last = from.last;
@@ -53,9 +56,15 @@ export function mergeAgg(into: Agg, from: Agg): void {
     }
 }
 
+function dimOf(b: Bucket, d: string): Agg {
+    b.dims ??= {};
+    b.dims[d] ??= emptyAgg();
+    return b.dims[d];
+}
+
 export function mergeBucket(into: Bucket, from: Bucket): void {
     mergeAgg(into, from);
-    for (const [d, a] of Object.entries(from.dims ?? {})) mergeAgg(((into.dims ??= {})[d] ??= emptyAgg()), a);
+    for (const [d, a] of Object.entries(from.dims ?? {})) mergeAgg(dimOf(into, d), a);
 }
 
 const pick = ({ n, sum, hist, max, last, lastAt, dims }: Bucket): Bucket => ({
@@ -79,7 +88,7 @@ function contribute(out: Buckets, metric: string, c: Contribution | null, at: nu
     const b: Bucket = out.get(metric) ?? emptyAgg();
     out.set(metric, b);
     addTo(b, c, at);
-    if (c.dim !== undefined) addTo(((b.dims ??= {})[c.dim] ??= emptyAgg()), c, at);
+    if (c.dim !== undefined) addTo(dimOf(b, c.dim), c, at);
 }
 
 /** One 5-minute bucket of every metric, from the raw items copied into it. */

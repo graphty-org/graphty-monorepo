@@ -10,7 +10,7 @@ import { DAY, floorTo, sourceKey, STEP_MS, type Bucket, type SourceItem } from "
 import { quotaUsed } from "../model/raw.js";
 import { emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
-import { SLAS, type MemberConfig, type Measure, type SlaConfig, type Threshold } from "./config.js";
+import { SLAS, type MemberConfig, type Measure, type SlaConfig, type SourceConfig, type Threshold } from "./config.js";
 
 export type MemberState =
     "OK" | "WARNING" | "FAILING" | "NO DATA" | "NOT SET UP" | "TOO FEW SAMPLES" | "PARTIAL WINDOW" | "IDLE";
@@ -116,8 +116,20 @@ interface Point {
     end: number;
 }
 
-const hit = (v: number, [op, x]: Threshold) =>
-    op === "<" ? v < x : op === "<=" ? v <= x : op === ">" ? v > x : op === ">=" ? v >= x : v === x;
+function hit(v: number, [op, x]: Threshold): boolean {
+    switch (op) {
+        case "<":
+            return v < x;
+        case "<=":
+            return v <= x;
+        case ">":
+            return v > x;
+        case ">=":
+            return v >= x;
+        default:
+            return v === x;
+    }
+}
 
 function merged(series: Series | undefined, from: number, to: number): Bucket {
     const out: Bucket = emptyAgg();
@@ -200,32 +212,37 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     return { value: measureValue(m, b, days * DAY), n: b.n };
 }
 
+/** Sources past their age limit or failing, and whether one is past twice it. */
+function sourcesNotOk(ctx: Ctx): Computed {
+    const bad = [...ctx.sources.values()].filter((s) => s.state === "stale" || s.state === "error");
+    if (!bad.length) return { value: 0 };
+    return {
+        value: bad.length,
+        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
+        since: Math.min(...bad.map((s) => s.since ?? ctx.now)),
+    };
+}
+
+/** The thinnest source with enough activity in the hour; too few when none has. */
+function sourcesThin(ctx: Ctx): Computed {
+    let best: Computed = { n: 0 };
+    for (const s of Object.values(ctx.cfg.sources)) {
+        if (!s.thin) continue;
+        const r = thinRatios(ctx, s.thin.metric, { t: floorTo(ctx.now, "5m"), end: ctx.now });
+        const enough = r.n1 >= s.thin.minActivity;
+        if (!enough) best.n = Math.max(best.n ?? 0, r.n1);
+        else if (r.r1 !== undefined && (best.value === undefined || r.r1 < best.value))
+            best = { value: r.r1, n: r.n1, n6h: r.n6, ...(r.r6 === undefined ? {} : { value6h: r.r6 }) };
+    }
+    return best;
+}
+
 function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"]): Computed {
-    const live = [...ctx.sources.values()].filter((s) => s.state !== "not set up" && s.state !== "idle");
     switch (name) {
-        case "sources_not_ok": {
-            const bad = live.filter((s) => s.state === "stale" || s.state === "error");
-            const since = Math.min(...bad.map((s) => s.since ?? ctx.now));
-            return {
-                value: bad.length,
-                failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
-                ...(bad.length ? { since } : {}),
-            };
-        }
-        case "sources_thin": {
-            let best: Computed = { n: 0 };
-            for (const s of Object.values(ctx.cfg.sources)) {
-                if (!s.thin) continue;
-                const r = thinRatios(ctx, s.thin.metric, { t: floorTo(ctx.now, "5m"), end: ctx.now });
-                if (r.n1 < s.thin.minActivity) {
-                    best.n = Math.max(best.n ?? 0, r.n1);
-                    continue;
-                }
-                if (r.r1 !== undefined && (best.value === undefined || r.r1 < best.value))
-                    best = { value: r.r1, n: r.n1, n6h: r.n6, ...(r.r6 === undefined ? {} : { value6h: r.r6 }) };
-            }
-            return best;
-        }
+        case "sources_not_ok":
+            return sourcesNotOk(ctx);
+        case "sources_thin":
+            return sourcesThin(ctx);
         case "collector_age": {
             const ok = ctx.metas.get("collector")?.lastOkAt;
             return ok === undefined ? {} : { value: ctx.now - ok, since: ok };
@@ -282,24 +299,24 @@ function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: n
         return { state: "TOO FEW SAMPLES", reason: { code: "too_few", params: { n: v.n ?? 0, min: c.minN } } };
     if (v.value === undefined)
         return { state: v.failExtra ? "FAILING" : "NO DATA", reason: { code: "no_value", params: {} } };
-    const value = v.value;
+    const out = thresholds(c, v.value, v.value6h);
+    return v.failExtra && out.state !== "FAILING" ? { state: "FAILING", excess: out.excess ?? 0 } : out;
+}
+
+/** Green at or better than the target, red past the red threshold, yellow between. */
+function thresholds(
+    c: MemberConfig,
+    value: number,
+    value6h: number | undefined,
+): { state: MemberState; excess?: number } {
     const ex = (thr: Threshold) => Math.abs(value - thr[1]) / (Math.abs(thr[1]) || 1);
-    let state: MemberState = "OK";
-    let excess: number | undefined;
     if (c.fail && hit(value, c.fail)) {
-        state = "FAILING";
-        excess = ex(c.fail);
         // A noisy rate turns red only when its 6 h value is past red too (section 4, "1 h, 6 h agrees").
-        if (c.window === "1h+6h" && !(v.value6h !== undefined && hit(v.value6h, c.fail))) state = "WARNING";
-    } else if (c.ok && !hit(value, c.ok)) {
-        state = "WARNING";
-        excess = ex(c.ok);
+        const agrees = c.window !== "1h+6h" || (value6h !== undefined && hit(value6h, c.fail));
+        return { state: agrees ? "FAILING" : "WARNING", excess: ex(c.fail) };
     }
-    if (v.failExtra && state !== "FAILING") {
-        state = "FAILING";
-        excess ??= 0;
-    }
-    return { state, ...(excess === undefined ? {} : { excess }) };
+    if (c.ok && !hit(value, c.ok)) return { state: "WARNING", excess: ex(c.ok) };
+    return { state: "OK" };
 }
 
 function sourceStatus(ctx: Ctx, id: string): SourceStatus {
@@ -312,25 +329,36 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
         ...(meta ? { firstAt: meta.firstAt } : {}),
         ...(meta?.lastOkAt === undefined ? {} : { lastOkAt: meta.lastOkAt }),
     };
-    if (!cfg) return { ...base, state: "stale", reason: { code: "stale", params: { source: id } } };
-    if (!meta && cfg.notSetUp)
+    if (!cfg || !meta || (cfg.idle && ctx.now - meta.lastAt > (cfg.yellowAfterMs ?? HOUR_SPAN)))
+        return absentSource(id, cfg, base);
+    if (meta.error) {
+        const since = meta.errorSince ?? meta.lastAt;
+        return {
+            ...base,
+            state: "error",
+            since,
+            reason: { code: "error", params: { source: id, error: meta.error, since } },
+        };
+    }
+    return freshness(ctx, id, cfg, meta, base);
+}
+
+/** A source with no config, no write yet, or idle by design. */
+function absentSource(id: string, cfg: SourceConfig | undefined, base: SourceStatus): SourceStatus {
+    // An idle source is judged again once it writes within its age limit (an hour when it has none).
+    if (cfg?.idle) return { ...base, state: "idle", reason: { code: "idle", params: { source: id, why: cfg.idle } } };
+    if (cfg?.notSetUp)
         return {
             ...base,
             state: "not set up",
             reason: { code: "not_set_up", params: { source: id, why: cfg.notSetUp } },
         };
+    return { ...base, state: "stale", reason: { code: "stale", params: { source: id } } };
+}
+
+/** Past its age limit while it had activity, or thin for its activity (section 9). */
+function freshness(ctx: Ctx, id: string, cfg: SourceConfig, meta: SourceItem, base: SourceStatus): SourceStatus {
     const limit = cfg.yellowAfterMs;
-    // An idle source is judged again once it writes within its age limit (an hour when it has none).
-    if (cfg.idle && (!meta || ctx.now - meta.lastAt > (limit ?? HOUR_SPAN)))
-        return { ...base, state: "idle", reason: { code: "idle", params: { source: id, why: cfg.idle } } };
-    if (!meta) return { ...base, state: "stale", reason: { code: "stale", params: { source: id } } };
-    if (meta.error)
-        return {
-            ...base,
-            state: "error",
-            since: meta.errorSince ?? meta.lastAt,
-            reason: { code: "error", params: { source: id, error: meta.error, since: meta.errorSince ?? meta.lastAt } },
-        };
     const age = ctx.now - (meta.lastOkAt ?? meta.firstAt);
     if (limit !== undefined && age > limit) {
         const quiet =
@@ -359,6 +387,30 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
     return base;
 }
 
+/** The gray state a member's sources impose, in order: not set up, informational, idle, NO DATA. */
+function sourceGray(
+    c: MemberConfig,
+    srcs: SourceStatus[],
+): { state: MemberState; reason: Reason; judged: boolean } | undefined {
+    const first = (...states: SourceStatus["state"][]) => srcs.find((s) => states.includes(s.state))?.reason;
+    const notSetUp = first("not set up");
+    if (notSetUp) return { state: "NOT SET UP", reason: notSetUp, judged: false };
+    if (c.window === "info")
+        return { state: "NOT SET UP", reason: { code: "informational", params: {} }, judged: false };
+    const idle = first("idle");
+    if (idle) return { state: "IDLE", reason: idle, judged: false };
+    const broken = first("stale", "error", "thin");
+    if (broken) return { state: "NO DATA", reason: broken, judged: c.window !== "slow" };
+    return undefined;
+}
+
+/** A windowed member whose sources began writing less than an hour ago. */
+function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason | undefined {
+    if (c.window !== "1h" && c.window !== "1h+6h") return undefined;
+    const covered = (ctx.now - Math.max(...srcs.map((s) => s.firstAt ?? -Infinity))) / HOUR_SPAN;
+    return covered < 1 ? { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } } : undefined;
+}
+
 function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     const status: MemberStatus = {
         id: c.id,
@@ -374,14 +426,8 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         ...(c.fail ? { fail: c.fail } : {}),
     };
     const srcs = c.sources.map((s) => ctx.sources.get(s) ?? sourceStatus(ctx, s));
-    const gray = (state: MemberState, reason: Reason): MemberStatus => ({ ...status, state, reason });
-    const notSetUp = srcs.find((s) => s.state === "not set up");
-    if (notSetUp?.reason) return gray("NOT SET UP", notSetUp.reason);
-    if (c.window === "info") return gray("NOT SET UP", { code: "informational", params: {} });
-    const idle = srcs.find((s) => s.state === "idle");
-    if (idle?.reason) return gray("IDLE", idle.reason);
-    const broken = srcs.find((s) => s.state === "stale" || s.state === "error" || s.state === "thin");
-    if (broken?.reason) return { ...gray("NO DATA", broken.reason), judged: c.window !== "slow" };
+    const gray = sourceGray(c, srcs);
+    if (gray) return { ...status, ...gray };
     const v = compute(ctx, c, { t: floorTo(ctx.now, "5m"), end: ctx.now }) ?? {};
     Object.assign(status, {
         ...(v.value === undefined ? {} : { value: v.value }),
@@ -389,12 +435,8 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         ...(v.n === undefined ? {} : { n: v.n }),
         ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
     });
-    if (c.window === "1h" || c.window === "1h+6h") {
-        const firstAt = Math.max(...srcs.map((s) => s.firstAt ?? -Infinity));
-        const covered = (ctx.now - firstAt) / HOUR_SPAN;
-        if (covered < 1)
-            return gray("PARTIAL WINDOW", { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } });
-    }
+    const partial = partialWindow(ctx, c, srcs);
+    if (partial) return { ...status, state: "PARTIAL WINDOW", reason: partial };
     const out = verdict(c, v);
     const judged = c.window !== "slow" && ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
     return {
@@ -436,45 +478,54 @@ function recovered(ctx: Ctx, c: MemberConfig, t: number): boolean {
     return v === undefined || !c.ok || hit(v, c.ok);
 }
 
+type StepState = { state: MemberState | null; value?: number; excess?: number };
+type OpenEpisode = Episode & { score: number };
+
+/** A bad step: opens the episode or extends it, keeping its worst state and peak, and its clearing. */
+function extend(open: OpenEpisode | undefined, c: MemberConfig, h: StepState, start: number): OpenEpisode {
+    const state = h.state as Episode["worst"];
+    const e: OpenEpisode = open ?? { member: c.id, category: c.category, worst: state, start, score: -1 };
+    if (state === "FAILING") e.worst = "FAILING";
+    const score = (state === "FAILING" ? 1e6 : 0) + (h.excess ?? 0);
+    if (score > e.score && h.value !== undefined) {
+        e.score = score;
+        e.peak = h.value;
+    }
+    return e;
+}
+
+const closed = ({ score: _score, ...e }: OpenEpisode): Episode => e;
+
 function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[] {
     const out: Episode[] = [];
     const now5 = floorTo(ctx.now, "5m");
-    let open: (Episode & { score: number }) | undefined;
+    let open: OpenEpisode | undefined;
     for (let i = HISTORY_STEPS - 1; i >= 0; i--) {
         const t = now5 - i * STEP;
-        const h =
+        const h: StepState =
             i === 0
-                ? { state: current.state as MemberState | null, value: current.value, excess: current.excess }
+                ? { state: BAD(current.state) || current.state === "OK" ? current.state : null, ...valueOf(current) }
                 : historicState(ctx, c, { t, end: t + STEP });
-        if (i === 0 && !BAD(h.state) && h.state !== "OK") h.state = null;
-        if (h.state === null) continue; // gray or unknown: neither opens nor clears
         if (BAD(h.state)) {
-            if (!open) {
-                const start = i === 0 && current.since !== undefined ? current.since : t;
-                open = { member: c.id, category: c.category, worst: h.state, start, score: -1 };
-            }
-            if (h.state === "FAILING") open.worst = "FAILING";
-            const score = (h.state === "FAILING" ? 1e6 : 0) + (h.excess ?? 0);
-            if (score > open.score && h.value !== undefined) {
-                open.score = score;
-                open.peak = h.value;
-            }
-            if (recovered(ctx, c, t)) open.clearedAt ??= t;
-            else delete open.clearedAt;
-        } else if (open) {
+            open = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
+            if (!recovered(ctx, c, t)) delete open.clearedAt;
+            else open.clearedAt ??= t;
+        } else if (h.state === "OK" && open) {
+            // Gray or unknown steps (null) neither open nor clear an episode.
             open.clearedAt ??= t;
             open.endedAt = t;
-            const { score: _score, ...e } = open;
-            out.push(e);
+            out.push(closed(open));
             open = undefined;
         }
     }
-    if (open) {
-        const { score: _score, ...e } = open;
-        out.push(e);
-    }
+    if (open) out.push(closed(open));
     return out;
 }
+
+const valueOf = (m: MemberStatus) => ({
+    ...(m.value === undefined ? {} : { value: m.value }),
+    ...(m.excess === undefined ? {} : { excess: m.excess }),
+});
 
 const RANK: Record<string, number> = { OK: 0, "NO DATA": 1, WARNING: 2, FAILING: 3 };
 
@@ -498,22 +549,49 @@ function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[])
 
 /** Every member's state now, the categories, the last 24 h of episodes and the sources. */
 export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLAS): Promise<Evaluation> {
-    const now5 = floorTo(nowMs, "5m");
-    const today = floorTo(nowMs, "1d");
-    const fiveMetrics = new Set<string>();
-    const dailyMetrics = new Set<string>();
+    const ctx = await load(store, nowMs, cfg);
+    const members: MemberStatus[] = [];
+    const episodes: Episode[] = [];
     for (const c of cfg.members) {
-        const ms = metricsOf(c.measure);
-        for (const m of ms) (c.window === "slow" || c.measure.type === "month" ? dailyMetrics : fiveMetrics).add(m);
-        for (const a of c.also ?? []) fiveMetrics.add(a.metric);
+        const status = currentStatus(ctx, c);
+        const eps = episodesOf(ctx, c, status);
+        const ongoing = eps.find((e) => e.endedAt === undefined);
+        if (ongoing?.clearedAt !== undefined && BAD(status.state)) status.clearedAt = ongoing.clearedAt;
+        members.push(status);
+        episodes.push(...eps);
+    }
+    episodes.sort((a, b) => Number(a.endedAt !== undefined) - Number(b.endedAt !== undefined) || b.start - a.start);
+    return {
+        at: nowMs,
+        categories: cfg.categories.map((k) => categoryOf(k, members)),
+        members,
+        episodes,
+        sources: [...ctx.sources.values()],
+    };
+}
+
+/** The metrics the members and sources read, at 5 minutes (windows, history) and by day (slow, costs, baselines). */
+function metricsToLoad(cfg: SlaConfig): { five: Set<string>; daily: Set<string> } {
+    const five = new Set<string>();
+    const daily = new Set<string>();
+    for (const c of cfg.members) {
+        const byDay = c.window === "slow" || c.measure.type === "month";
+        for (const m of metricsOf(c.measure)) (byDay ? daily : five).add(m);
+        for (const a of c.also ?? []) five.add(a.metric);
     }
     for (const s of Object.values(cfg.sources)) {
-        if (s.activity) fiveMetrics.add(s.activity);
-        if (s.thin) {
-            fiveMetrics.add(s.thin.metric);
-            dailyMetrics.add(s.thin.metric);
-        }
+        if (s.activity) five.add(s.activity);
+        if (s.thin) five.add(s.thin.metric);
+        if (s.thin) daily.add(s.thin.metric);
     }
+    return { five, daily };
+}
+
+/** Everything evaluate reads: two single-partition queries per metric, one get per source, the quota. */
+async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
+    const now5 = floorTo(nowMs, "5m");
+    const today = floorTo(nowMs, "1d");
+    const { five: fiveMetrics, daily: dailyMetrics } = metricsToLoad(cfg);
     const ctx: Ctx = {
         now: nowMs,
         cfg,
@@ -533,23 +611,5 @@ export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLA
     }
     ctx.quota = await quotaUsed(store, nowMs);
     for (const id of Object.keys(cfg.sources)) ctx.sources.set(id, sourceStatus(ctx, id));
-
-    const members: MemberStatus[] = [];
-    const episodes: Episode[] = [];
-    for (const c of cfg.members) {
-        const status = currentStatus(ctx, c);
-        const eps = episodesOf(ctx, c, status);
-        const ongoing = eps.find((e) => e.endedAt === undefined);
-        if (ongoing?.clearedAt !== undefined && BAD(status.state)) status.clearedAt = ongoing.clearedAt;
-        members.push(status);
-        episodes.push(...eps);
-    }
-    episodes.sort((a, b) => Number(a.endedAt !== undefined) - Number(b.endedAt !== undefined) || b.start - a.start);
-    return {
-        at: nowMs,
-        categories: cfg.categories.map((k) => categoryOf(k, members)),
-        members,
-        episodes,
-        sources: [...ctx.sources.values()],
-    };
+    return ctx;
 }

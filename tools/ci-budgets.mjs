@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// CI time budgets: the only reader of ci-budgets.json (design/ci/channels-pipeline.md section 7).
+// CI time budgets: the reader of ci-budgets.json (design/ci/channels-pipeline.md section 7). The one other
+// reader is tools/pipeline-health/src/model/metrics.ts, which judges full-run shards by `job:ci.yml:Test (*)`.
 //
 //   node tools/ci-budgets.mjs lint
 //       every job of a budgeted workflow has timeout-minutes = max(hangRatio x budget, minHangMinutes),

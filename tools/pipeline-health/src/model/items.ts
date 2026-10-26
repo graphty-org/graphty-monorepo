@@ -125,7 +125,6 @@ export interface ShardRunItem extends RawBase {
     startedAt: number;
     endedAt: number;
     secs: number;
-    budgetMs?: number;
     files: FileRow[];
 }
 

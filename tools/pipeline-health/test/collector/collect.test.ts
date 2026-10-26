@@ -5,6 +5,7 @@ import { GitHub } from "../../src/collector/github.js";
 import type { Rates } from "../../src/collector/parse.js";
 import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
+import { readSnapshot } from "../../src/model/snapshots.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
@@ -72,6 +73,19 @@ describe("collector with the GitHub App", () => {
         // The 18:00 shadow attempt skipped every lane on 1fa254bf, a commit no attempt tested (design 4.5).
         expect(observed(store, "release.train_skipped")).toBe(1);
         expect(observed(store, "github.rate_remaining_share")).toBe(0.8);
+        // The "now" lists: quarantine and CODEOWNERS from master, release lanes per attempt, release workflows.
+        expect(await readSnapshot(store, "quarantine")).toEqual([
+            { file: "a/x.test.ts", name: "t1", family: "a", issue: 9, since: undefined, expires: undefined },
+        ]);
+        expect(await readSnapshot(store, "codeowners")).toEqual(["/.github/", "/visual-review/"]);
+        const rel = Object.values((await readSnapshot(store, "release")) ?? {});
+        expect(rel.some((a) => a.tested && a.lanes?.t4 === "failed" && a.jobs?.t4?.redAt)).toBe(true);
+        expect((await readSnapshot(store, "release-workflows"))?.map((w) => w.workflow)).toEqual([
+            "release.yml",
+            "promote.yml",
+            "release-watch.yml",
+        ]);
+        expect(Array.isArray(await readSnapshot(store, "owner-wait"))).toBe(true);
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);

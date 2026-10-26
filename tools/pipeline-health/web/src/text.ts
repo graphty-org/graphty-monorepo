@@ -634,6 +634,8 @@ const S: Record<string, (p: P) => string> = {
     // pull requests
     "owner.why": (p) =>
         `touches ${and(arr(p, "paths").map((x) => esc(x) + (x === ".github/" ? " (code owners)" : "")))}`,
+    "owner.breaking": () => "breaking change",
+    "owner.label": (p) => `label ${str(p, "label")}`,
     "owner.fixes": (p) => `fixes Releases: ${str(p, "workflow")} failing`,
 
     // CI and runners
@@ -665,6 +667,7 @@ const S: Record<string, (p: P) => string> = {
     "lane.jobs": (p) => `${str(p, "workflow")}, ${fmtN(num(p, "jobs"))} test jobs`,
     "lane.job_cost": (p) => `${str(p, "job")} (${fmtDur(num(p, "s"))}, ${fmtN(num(p, "usd"))} USD)`,
     "train.untested": () => "untested: skipped every lane on a new master commit",
+    "train.tested_passed": () => "tested: every lane passed",
     "train.nothing_new": () => "skipped: nothing new to test",
     "train.tested_failed": (p) => `tested: ${and(arr(p, "lanes").map((l) => lane(String(l))))} failed`,
     "train.failed_before": (p) => `failed before the lanes, in ${str(p, "job")}`,

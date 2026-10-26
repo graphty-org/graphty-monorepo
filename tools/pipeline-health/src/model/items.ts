@@ -159,6 +159,15 @@ export interface PullRequestItem extends RawBase {
     ownerWait?: boolean;
     /** This merge was later reverted (4.1 Reverts). */
     reverted?: boolean;
+    /** Where its time went before the merge, ms (4.2 Where the time goes); absent with no ci.yml run seen. */
+    stages?: PrStages;
+}
+
+export interface PrStages {
+    runners: number;
+    checks: number;
+    red: number;
+    merging: number;
 }
 
 export interface IssueItem extends RawBase {

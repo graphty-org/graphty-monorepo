@@ -1,8 +1,9 @@
 // Pure mapping from GitHub's responses to the model's raw items and the values the collector observes
 // (design/ci/health-dashboard.md section 4). No I/O here, so every rule is tested on recorded responses.
 
-import type { CostItem, IssueItem, JobItem, PullRequestItem, RunItem, StepItem } from "../model/items.js";
-import { DAY, MIN } from "../model/items.js";
+import type { CostItem, IssueItem, JobItem, PrStages, PullRequestItem, RunItem, StepItem } from "../model/items.js";
+import { DAY, HOUR, MIN } from "../model/items.js";
+import type { LaneJob, OwnerWait, WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -53,6 +54,7 @@ export interface GhJob {
 }
 
 const ms = (iso: string | null | undefined): number | undefined => (iso ? Date.parse(iso) : undefined);
+const msOr = (iso: string | null) => (iso ? Date.parse(iso) : NaN);
 const opt = <K extends string, V>(k: K, v: V | undefined | null) =>
     (v === undefined || v === null ? {} : { [k]: v }) as Partial<Record<K, V>>;
 
@@ -351,6 +353,80 @@ export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
     };
 }
 
+/** The hold labels and breaking title that keep a pull request waiting on the owner, with the CODEOWNERS paths. */
+export function ownerWaitOf(p: GqlPr, files: string[], codeowners: string[]): OwnerWait {
+    return {
+        number: p.number,
+        title: p.title,
+        since: readyAt(p) ?? Date.parse(p.createdAt),
+        paths: ownedPaths(files, codeowners),
+        breaking: /^\w+(\([^)]*\))?!:/.test(p.title),
+        labels: p.labels.nodes.map((l) => l.name).filter((l) => OWNER_LABELS.has(l)),
+    };
+}
+
+/** A CODEOWNERS pattern as a path test: "/x/" a directory at the root, "x" anywhere, "*" within a name. */
+function ownerPattern(pat: string): RegExp {
+    const body = (pat.startsWith("/") ? pat.slice(1) : `**/${pat}`).replace(/\/$/, "");
+    const re = body
+        .split("**/")
+        .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", "[^/]*"))
+        .join("(?:.*/)?");
+    return new RegExp(`^${re}(?:/.*)?$`);
+}
+
+/** The CODEOWNERS patterns (as written, leading "/" dropped) that some of `files` match, in CODEOWNERS order. */
+export function ownedPaths(files: string[], codeowners: string[]): string[] {
+    return codeowners
+        .filter((pat) => {
+            const re = ownerPattern(pat);
+            return files.some((f) => re.test(f));
+        })
+        .map((pat) => pat.replace(/^\//, ""));
+}
+
+/** The patterns of a CODEOWNERS file, one per rule line. */
+export const codeownerPatterns = (text: string): string[] =>
+    text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"))
+        .map((l) => l.split(/\s+/)[0]);
+
+/** One ci.yml pull request run attempt for "Where the time goes": [start, first job start, end, passed 1/0]. */
+export type PrRun = [number, number, number, 0 | 1];
+
+export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {
+    if (workflowFile(run.path) !== "ci.yml" || run.event !== "pull_request" || run.status !== "completed")
+        return undefined;
+    if (run.conclusion !== "success" && run.conclusion !== "failure") return undefined;
+    const start = Date.parse(run.run_attempt > 1 && run.run_started_at ? run.run_started_at : run.created_at);
+    const starts = jobs.map((j) => msOr(j.started_at)).filter(Number.isFinite);
+    const first = starts.length ? Math.max(start, Math.min(...starts)) : start;
+    return [start, first, Math.max(first, Date.parse(run.updated_at)), run.conclusion === "success" ? 1 : 0];
+}
+
+/**
+ * Where a merged pull request's time went (4.2 Where the time goes), from its ci.yml runs before the merge: waiting
+ * for a runner until the first job started, checks running from then to the run's end, red from a failed run's end
+ * to the next run, and green to merged after the last run passed.
+ * ponytail: only the first job's runner wait counts as waiting; later jobs' waits count as checks running, and
+ * overlapping runs add up. Per-job waits if the bars ever need to be exact.
+ */
+export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined {
+    const rs = runs.filter((r) => r[0] <= mergedAt).sort((a, b) => a[0] - b[0]);
+    if (!rs.length) return undefined;
+    const s: PrStages = { runners: 0, checks: 0, red: 0, merging: 0 };
+    rs.forEach(([start, first, end, ok], i) => {
+        s.runners += first - start;
+        s.checks += end - first;
+        if (!ok) s.red += Math.max(0, Math.min(rs[i + 1]?.[0] ?? mergedAt, mergedAt) - end);
+    });
+    const last = rs[rs.length - 1];
+    if (last[3]) s.merging = Math.max(0, mergedAt - last[2]);
+    return s;
+}
+
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
@@ -441,8 +517,10 @@ const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "ac
 /** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
 export const releaseMode = (title: string | undefined): string => /\((\w+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
+const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
+
 function laneOf(jobs: GhJob[], name: string): LaneResult {
-    const mine = jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
+    const mine = jobsOf(jobs, name);
     if (!mine.length) return "absent";
     if (mine.some((j) => j.status !== "completed")) return "running";
     if (mine.some((j) => BAD.has(j.conclusion ?? ""))) return "failed";
@@ -456,35 +534,88 @@ export interface ReleaseAttempt {
     /** It tested its candidate: some testing lane did not skip. */
     tested: boolean;
     red: Lane[];
+    /** Each lane's jobs that ran (not skipped): name, count, wall time, newest failure. */
+    jobs: Partial<Record<Lane, LaneJob>>;
+    /** The first job that failed, wherever it is (for an attempt that failed before its lanes). */
+    failedJob?: string;
+}
+
+function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
+    const ran = mine.filter((j) => j.conclusion !== "skipped");
+    if (!ran.length) return undefined;
+    const starts = ran.map((j) => msOr(j.started_at)).filter(Number.isFinite);
+    const ends = ran.map((j) => msOr(j.completed_at)).filter(Number.isFinite);
+    const bad = ran
+        .filter((j) => BAD.has(j.conclusion ?? ""))
+        .map((j) => msOr(j.completed_at))
+        .filter(Number.isFinite);
+    return {
+        job: ran.length === 1 ? ran[0].name : name,
+        n: ran.length,
+        s: starts.length && ends.length ? Math.round((Math.max(...ends) - Math.min(...starts)) / 1000) : 0,
+        ...(bad.length ? { redAt: Math.max(...bad) } : {}),
+    };
 }
 
 export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     const mode = releaseMode(run.display_title);
-    const lanes = {} as Record<Lane, LaneResult>;
-    for (const [lane, name] of Object.entries(LANES) as [Lane, string][]) lanes[lane] = laneOf(jobs, name);
+    const names: Record<Lane, string> = { ...LANES };
     // In full and restart mode version/land/publish are skipped by design: judge the dry run instead.
-    if (mode === "full" || mode === "restart") {
-        lanes.version = laneOf(jobs, "Version dry run");
+    const full = mode === "full" || mode === "restart";
+    if (full) names.version = "Version dry run";
+    const lanes = {} as Record<Lane, LaneResult>;
+    const laneJobs: Partial<Record<Lane, LaneJob>> = {};
+    for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
+        lanes[lane] = laneOf(jobs, name);
+        const j = laneJob(jobsOf(jobs, name), name);
+        if (j) laneJobs[lane] = j;
+    }
+    if (full) {
         lanes.land = "not in this mode";
         lanes.publish = "not in this mode";
     }
     const tested = TESTING.some((l) => lanes[l] !== "skipped" && lanes[l] !== "absent");
     const red = (Object.keys(lanes) as Lane[]).filter((l) => lanes[l] === "failed");
-    return { mode, lanes, tested, red };
+    const failed = jobs
+        .filter((j) => BAD.has(j.conclusion ?? ""))
+        .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
+    return { mode, lanes, tested, red, jobs: laneJobs, ...(failed ? { failedJob: failed.name } : {}) };
 }
 
 /** The scheduler's App dispatches the train; anything else is ad hoc. */
 export const isScheduled = (run: GhRun): boolean => run.triggering_actor?.login === "graphty-release-scheduler[bot]";
 
-/** Consecutive failed runs, newest first, of one workflow's completed runs. */
-export function failedInRow(runs: GhRun[]): number {
-    let n = 0;
+/** The newest runs that failed in a row, newest first, of one workflow's completed runs. */
+export function failedStreak(runs: GhRun[]): GhRun[] {
+    const out: GhRun[] = [];
     for (const r of [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
         if (r.status !== "completed" || r.conclusion === "skipped" || r.conclusion === "cancelled") continue;
         if (!BAD.has(r.conclusion ?? "")) break;
-        n++;
+        out.push(r);
     }
-    return n;
+    return out;
+}
+
+/** Consecutive failed runs, newest first, of one workflow's completed runs. */
+export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
+
+/**
+ * One release workflow's row (4.5, Release workflows): completed runs in the last hour, how many failed, the
+ * failing streak and its start. ponytail: counts only the runs the collector reads (10 or 12), so "in a row"
+ * stops there.
+ */
+export function workflowState(workflow: string, runs: GhRun[], nowMs: number): WorkflowState {
+    const hour = runs.filter(
+        (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= HOUR,
+    );
+    const streak = failedStreak(runs);
+    return {
+        workflow,
+        runs: hour.length,
+        failed: hour.filter((r) => BAD.has(r.conclusion ?? "")).length,
+        inRow: streak.length,
+        ...(streak.length ? { since: Date.parse(streak[streak.length - 1].created_at) } : {}),
+    };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

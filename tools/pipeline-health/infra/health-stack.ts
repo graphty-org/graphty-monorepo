@@ -25,7 +25,7 @@ export const CI_AUDIENCE = "graphty-health";
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 10;
-export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts"];
+export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts", "/v1/sites"];
 /** The page's Vite dev server, allowed beside the live origin. */
 export const DEV_ORIGIN = "http://localhost:5173";
 

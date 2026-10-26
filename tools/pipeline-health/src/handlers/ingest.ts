@@ -34,6 +34,11 @@ export const MAX_ROWS = 5000;
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
 export const REPOSITORY_ID = "1122477634";
+/** The site repositories (tools/channel/site-deploy.yml), by id: each writes only its own deploy durations. */
+export const DEPLOY_REPOSITORIES: Record<string, string> = {
+    "1429353022": "graphty-org/graphty-site",
+    "1433424324": "graphty-org/graphty-nightly",
+};
 const MASTER = "refs/heads/master";
 /** The workflows that may write from master, and the kind each writes (as tools/results-service). */
 const MASTER_KINDS: Record<string, Kind> = {
@@ -45,13 +50,14 @@ const MASTER_KINDS: Record<string, Kind> = {
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
+    "deploy-pages.yml": "site",
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts"]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites"]);
 const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits"]);
 
-type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local";
+type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local" | "deploy" | "site";
 type Claims = Record<string, string | number | boolean | string[] | undefined>;
 interface Who {
     kind: Kind;
@@ -129,6 +135,8 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
 /** The kind a token's claims may write (tools/results-service kindOf), or a refusal. */
 export function whoOf(claims: Claims): Who {
     if (claims.repository_owner !== "graphty-org") refuse(403, "wrong_owner");
+    const site = DEPLOY_REPOSITORIES[String(claims.repository_id)];
+    if (site && claims.repository === site) return { kind: "deploy", claims };
     if (claims.repository !== REPOSITORY || String(claims.repository_id) !== REPOSITORY_ID)
         refuse(403, "wrong_repository");
     if (claims.event_name === "pull_request") return { kind: "pr", claims };
@@ -182,7 +190,17 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         }
         return { items, extra: [], source: "local" };
     }
+    // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
+    if (
+        (who.kind === "deploy" || who.kind === "site") &&
+        route !== "durations" &&
+        !(who.kind === "site" && route === "sites")
+    )
+        refuse(403, "wrong_route", { kind: who.kind });
+    if (route === "sites" && who.kind !== "site") refuse(403, "sites_from_deploy_pages_only");
     switch (route) {
+        case "sites":
+            return { items: [], extra: [siteItem(body, who, now)], source: "site" };
         case "invocations":
             return { items: await invocationItems(body, who, db), extra: [], source: "ci-results" };
         case "failures":
@@ -261,7 +279,7 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.
     const items: RawItem[] = [run];
     for (const f of list(b.failures ?? [], "failures")) items.push(testItem(id, f, family, source, passed, endedAt));
-    if (passed && !b.failures && source === "ci") {
+    if (passed && !(b.failures as unknown[] | undefined)?.length && source === "ci") {
         for (const t of await db.query(INV_TESTS(id))) {
             const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
             items.push({ ...(test as unknown as TestItem), outcome: "flaky" });
@@ -297,7 +315,7 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
             kind: "step",
             id: `${r.runId as string | number}.${r.job as string}.${part}`,
             attempt: Number(r.attempt),
-            repo: REPOSITORY,
+            repo: who.kind === "deploy" ? String(who.claims.repository) : REPOSITORY,
             runId: Number(r.runId),
             jobId: 0,
             workflow: r.workflow as string,
@@ -308,6 +326,12 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
             completedAt: startedAt + (r.ms as number),
         };
     });
+}
+
+/** A site deploy-pages.yml built and kept as artifact site-<sha> (as the results service's `site` table). */
+function siteItem(b: Record<string, unknown>, who: Who, now: number): Extra {
+    if (!/^[0-9a-f]{40}$/.test(String(b.sha ?? ""))) refuse(400, "bad_field", { field: "sha", type: "commit" });
+    return { pk: "SITE", sk: b.sha as string, sha: b.sha, builtAt: now, runId: Number(who.claims.run_id) };
 }
 
 function verdictItem(b: Record<string, unknown>, who: Who, now: number): ObservationItem {

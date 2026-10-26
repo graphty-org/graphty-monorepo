@@ -180,6 +180,44 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("takes durations from the site repositories and only durations", async () => {
+        const h = await ingest();
+        const site = {
+            repository_owner: "graphty-org",
+            repository: "graphty-org/graphty-nightly",
+            repository_id: "1433424324",
+            event_name: "push",
+            run_id: "700",
+            run_attempt: "1",
+            ref: "refs/heads/main",
+            job_workflow_ref: "graphty-org/graphty-nightly/.github/workflows/deploy.yml@refs/heads/main",
+        };
+        const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
+        const res = await h(event("/v1/durations", { rows }, { claims: site }));
+        expect(res.statusCode).toBe(200);
+        expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        expect((await h(event("/v1/invocations", invocation(), { claims: site }))).statusCode).toBe(403);
+        // A repository claiming a site repository's id under another name is refused.
+        const fake = { ...site, repository: "graphty-org/evil" };
+        expect((await h(event("/v1/durations", { rows }, { claims: fake }))).statusCode).toBe(403);
+    });
+
+    it("records the site deploy-pages.yml built, from that workflow on master only", async () => {
+        const h = await ingest();
+        const pages = {
+            ...CI_CLAIMS,
+            event_name: "workflow_run",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/deploy-pages.yml@refs/heads/master",
+        };
+        const sha = "a".repeat(40);
+        expect((await h(event("/v1/sites", { sha }, { claims: pages }))).statusCode).toBe(200);
+        expect(mem.items.get(`SITE\u0000${sha}`)).toMatchObject({ sha, builtAt: NOW, runId: 500 });
+        expect((await h(event("/v1/sites", { sha: "nope" }, { claims: pages }))).statusCode).toBe(400);
+        expect((await h(event("/v1/sites", { sha }))).statusCode).toBe(403);
+        expect((await h(event("/v1/invocations", invocation(), { claims: pages }))).statusCode).toBe(403);
+    });
+
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
         const fail = { invocation: "500.1.compact-mantine", failures: [{ file: "b.ts", name: "t", message: "x" }] };
@@ -187,7 +225,8 @@ describe("ingest: what it stores", () => {
         const id = "R#test#500.1.compact-mantine#b.ts#t\u0000A#1";
         expect(mem.items.get(id)?.outcome).toBe("failed");
         const passed = invocation({ id: "500.1.compact-mantine", variant: "compact-mantine", outcome: "passed" });
-        delete (passed as Record<string, unknown>).failures;
+        // As tools/results/run-group.mjs sends a passing run: an empty failures list.
+        (passed as Record<string, unknown>).failures = [];
         await h(event("/v1/invocations", passed));
         expect(mem.items.get(id)?.outcome).toBe("flaky");
     });

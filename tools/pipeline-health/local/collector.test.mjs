@@ -72,12 +72,12 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
     const push = calls.find((c) => c.kind === "push-runs").body.rows;
     assert.deepEqual(push[1], {
         id: "local.push.291c6a4ffae5f0a8384096d5bb1968b37bfeaba0.2026-10-25T15:15:41Z",
-        at: "2026-10-25T15:15:41Z",
+        at: Date.parse("2026-10-25T15:15:41Z"),
         branch: "golden",
         sha: "291c6a4ffae5f0a8384096d5bb1968b37bfeaba0",
         exit: 0,
-        queuedAt: "2026-10-25T15:15:36Z",
-        startedAt: "2026-10-25T15:15:37Z",
+        queuedAt: Date.parse("2026-10-25T15:15:36Z"),
+        startedAt: Date.parse("2026-10-25T15:15:37Z"),
     });
     const waits = calls.find((c) => c.kind === "waits").body.rows;
     assert.deepEqual(
@@ -85,6 +85,7 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
         ["test-slot", "gpu-slot"],
     ); // browser-slot left out
     assert.equal(waits[0].id, "local.wait.test-slot.2026-10-22T14:28:16.738Z.3236649");
+    assert.equal(typeof waits[0].end, "number"); // the API takes epoch ms
 });
 
 test("posts each record once, and only new ones on the next pass", async () => {

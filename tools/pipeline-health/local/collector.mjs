@@ -93,9 +93,10 @@ export function mapLedger(r) {
  * @returns the push-run row
  */
 export function mapPush(p) {
-    const row = { id: `local.push.${p.sha}.${p.at}`, at: p.at, branch: p.branch, sha: p.sha, exit: p.exit };
-    if (p.queuedAt) row.queuedAt = p.queuedAt;
-    if (p.startedAt) row.startedAt = p.startedAt;
+    // Times go out as epoch ms, the API's unit; the id keeps the log's own text so it never changes.
+    const row = { id: `local.push.${p.sha}.${p.at}`, at: Date.parse(p.at), branch: p.branch, sha: p.sha, exit: p.exit };
+    if (p.queuedAt) row.queuedAt = Date.parse(p.queuedAt);
+    if (p.startedAt) row.startedAt = Date.parse(p.startedAt);
     return row;
 }
 
@@ -106,7 +107,13 @@ export function mapPush(p) {
  */
 export function mapWait(w) {
     if (!WAIT_KINDS.has(w.kind)) return null;
-    return { id: `local.wait.${w.kind}.${w.start}.${w.pid}`, kind: w.kind, start: w.start, end: w.end, ms: w.ms };
+    return {
+        id: `local.wait.${w.kind}.${w.start}.${w.pid}`,
+        kind: w.kind,
+        start: Date.parse(w.start),
+        end: Date.parse(w.end),
+        ms: w.ms,
+    };
 }
 
 const bytes = (row) => Buffer.byteLength(JSON.stringify(row)) + 1;

@@ -639,6 +639,13 @@ jobs:
                   path: layout/dist/
                   retention-days: 1
 
+            - name: Upload cytoscape-extensions build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-cytoscape-extensions
+                  path: cytoscape-extensions/dist/
+                  retention-days: 1
+
             - name: Upload graphty build
               uses: actions/upload-artifact@v7
               with:

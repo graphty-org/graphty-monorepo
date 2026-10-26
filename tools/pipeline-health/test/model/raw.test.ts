@@ -64,7 +64,7 @@ describe("raw writes", () => {
 describe("daily write budget", () => {
     it("adds rows until the budget, then refuses without counting", async () => {
         const store = new MemoryStore();
-        expect(await takeQuota(store, 200_000, T0)).toBe(true);
+        expect(await takeQuota(store, DAILY_ROW_LIMIT - 100_000, T0)).toBe(true);
         expect(await takeQuota(store, 100_000, T0)).toBe(true);
         expect(await quotaUsed(store, T0)).toBe(DAILY_ROW_LIMIT);
         expect(await takeQuota(store, 1, T0)).toBe(false);

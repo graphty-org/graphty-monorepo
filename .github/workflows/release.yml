@@ -799,7 +799,7 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
         if: ${{ (inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 40
         permissions:
             actions: read
             contents: read

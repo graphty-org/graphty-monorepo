@@ -1594,8 +1594,9 @@ jobs:
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        # Report-only while it runs beside the visual job, so a pull request skips it: its 17 shards took the
-        # runners every pull request run queues for. The full run (release.yml) still runs it for parity.
+        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
+        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
+        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
         if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:

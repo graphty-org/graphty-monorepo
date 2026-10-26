@@ -1192,6 +1192,28 @@ export class Autosaver {
     }
 
     /**
+     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * the restore waited) left the work intact, so its attempt is taken back and the entry stays
+     * offered, not marked as failing.
+     * @param current - The entry, with the attempt recorded.
+     * @param error - Why the open failed.
+     */
+    async #restoreFailed(current: AutosaveEntryMeta, error: unknown): Promise<void> {
+        if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
+            this.#available(current, true, "restore-failed", {
+                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
+                params: { name: errorName(error) },
+            });
+            return;
+        }
+        const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
+        await this.#store
+            .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
+            .catch(() => undefined);
+        this.#available(untried, true, "manual", null);
+    }
+
+    /**
      * Copy an entry another tab holds into a new entry of this tab's, claimed.
      * @param meta - The entry.
      * @param parts - Its parts.
@@ -1302,20 +1324,7 @@ export class Autosaver {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
             release?.();
-            if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
-                // A clear asked for while the restore read cancelled it: the work is intact, so the
-                // attempt is taken back and the entry stays offered, not marked as failing.
-                const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
-                await this.#store
-                    .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
-                    .catch(() => undefined);
-                this.#available(untried, true, "manual", null);
-                return null;
-            }
-            this.#available(current, true, "restore-failed", {
-                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
-                params: { name: errorName(error) },
-            });
+            await this.#restoreFailed(current, error);
             return null;
         } finally {
             this.#restoring = false;

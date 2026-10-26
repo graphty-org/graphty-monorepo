@@ -48,9 +48,28 @@ jobs:
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
+                  # Only master's newest green build deploys. The deploy job's concurrency group keeps one pending
+                  # job, so an older build that queues later replaces a newer build's pending deploy; the older one
+                  # must then not deploy, and the deploy job hands the newer build's cancelled run back (newer=).
+                  # An API error or a failed compare is a failed read: nothing is deployed.
+                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
+                  if [ -z "$newest" ]; then
+                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
+                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  if [ "$newest" != "$SHA" ]; then
+                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
+                      case "$order" in
+                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
+                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                          behind | diverged) ;;
+                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
+                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                      esac
+                  fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
-                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet: no stamp, so a deploy heals it)
-                  # are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
+                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
+                  # deployments list can confirm: a 404 after a deploy is the CDN between deploys) are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
                   # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
                   # read or a failed compare deploys nothing, so it never moves canary back.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
@@ -58,6 +77,13 @@ jobs:
                   if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
                       echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  if [ "$code" = 404 ]; then
+                      deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length || true)
+                      if [ "$deployed" != 0 ]; then
+                          echo "::warning::canary.graphty.app answered 404 after a deploy (or the deployments list could not be read): a failed read, nothing is deployed"
+                          echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                      fi
                   fi
                   live=$(grep -o 'name="graphty-build" content="[^"]*"' "$page" || true)
                   [ "$code" = 200 ] || live=""
@@ -307,6 +333,11 @@ jobs:
         # so every build still assembles and keeps its own site-<sha>.
         concurrency:
             group: deploy-pages
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
+            actions: write # to re-run a newer build's deploy that this job's queueing cancelled
         runs-on: ubuntu-24.04
         environment:
             name: github-pages
@@ -324,9 +355,28 @@ jobs:
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
+                  # Only master's newest green build deploys. The deploy job's concurrency group keeps one pending
+                  # job, so an older build that queues later replaces a newer build's pending deploy; the older one
+                  # must then not deploy, and the deploy job hands the newer build's cancelled run back (newer=).
+                  # An API error or a failed compare is a failed read: nothing is deployed.
+                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
+                  if [ -z "$newest" ]; then
+                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
+                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  if [ "$newest" != "$SHA" ]; then
+                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
+                      case "$order" in
+                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
+                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                          behind | diverged) ;;
+                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
+                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                      esac
+                  fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
-                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet: no stamp, so a deploy heals it)
-                  # are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
+                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
+                  # deployments list can confirm: a 404 after a deploy is the CDN between deploys) are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
                   # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
                   # read or a failed compare deploys nothing, so it never moves canary back.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
@@ -334,6 +384,13 @@ jobs:
                   if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
                       echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  if [ "$code" = 404 ]; then
+                      deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length || true)
+                      if [ "$deployed" != 0 ]; then
+                          echo "::warning::canary.graphty.app answered 404 after a deploy (or the deployments list could not be read): a failed read, nothing is deployed"
+                          echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                      fi
                   fi
                   live=$(grep -o 'name="graphty-build" content="[^"]*"' "$page" || true)
                   [ "$code" = 200 ] || live=""
@@ -349,6 +406,24 @@ jobs:
                       fi
                   fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
+
+            # A newer green build exists. When this job's queueing replaced that build's pending deploy, its run
+            # ended cancelled and nothing else would deploy it: re-run it. A run still going deploys itself.
+            - name: Hand off to the newer build
+              if: ${{ steps.live.outputs.newer != '' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  NEWER: ${{ steps.live.outputs.newer }}
+              run: |
+                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?head_sha=${NEWER}&per_page=1" --jq '.workflow_runs[0] | "\(.id) \(.status) \(.conclusion)"' || true)
+                  read -r id status conclusion <<< "$run"
+                  case "${status:-} ${conclusion:-}" in
+                      "completed cancelled")
+                          gh run rerun "$id" --repo "$GITHUB_REPOSITORY" || { echo "::error::${NEWER}'s cancelled deploy run ${id} could not be re-run: canary stays behind master until the next build"; exit 1; }
+                          echo "::notice::re-ran ${NEWER}'s cancelled deploy run ${id}" ;;
+                      completed\ * | queued\ * | in_progress\ * | waiting\ * | pending\ * | requested\ *) echo "::notice::${NEWER}'s deploy run ${id} is ${status} ${conclusion}: it deploys itself, nothing to hand off" ;;
+                      *) echo "::error::${NEWER}'s deploy run could not be found: canary stays behind master until the next build"; exit 1 ;;
+                  esac
 
             - name: Deploy to GitHub Pages
               if: ${{ steps.live.outputs.deploy == 'true' }}

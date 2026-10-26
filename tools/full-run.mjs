@@ -43,6 +43,9 @@ export const LANES = {
     autosave_macos: { name: "work protection (macOS)", bisect: "macos" },
     audit: { name: "security audit", bisect: null },
     version_dry_run: { name: "version dry run", bisect: null },
+    // not a job: the verdict sets it from the downloaded captures (captureLane), so a capture that is missing is a
+    // pipeline failure, never "the screenshots changed"
+    captures: { name: "screenshot capture", bisect: null },
 };
 
 /**
@@ -144,48 +147,74 @@ export function pick({
  * The verdict on a full run (channels 5).
  * @param lanes `{ lane: result }` for every lane in LANES; an LLM lane that was not due is `skipped`; `pick`
  *   may be left out
- * @param images the screenshots that differ from their baselines, or null when no capture was found
+ * @param images how many screenshots differ from their baselines (a missing capture is lanes.captures, not this)
  * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
  * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
 export function verdictOf(lanes, images, ownerItem = "", held = "") {
     if ((lanes.pick ?? "success") !== "success") return { state: "red", red: ["pick"] };
-    // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass
+    // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass. The
+    // captures come from the CI lane, so they are judged only when CI passed: a red CI explains a missing one
     const passed = (l) =>
-        l === "pick" || lanes[l] === "success" || (l === "llm" && (lanes[l] ?? "skipped") === "skipped");
+        l === "pick" ||
+        lanes[l] === "success" ||
+        (l === "llm" && (lanes[l] ?? "skipped") === "skipped") ||
+        (l === "captures" && lanes.ci !== "success");
     const red = Object.keys(LANES).filter((l) => !passed(l));
     if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
     // a planned major or first publish waits for the owner's release-approvals.json entry: his item, not a bug
     if (red.length === 1 && red[0] === "version_dry_run" && held) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
-    // no capture at all is not "nothing differs": the owner looks
     return { state: images === 0 ? "green-clean" : "green-images", red };
 }
 
 /**
- * The screenshots that differ in a directory of downloaded visual captures, or null when it holds none or
- * lacks a project's capture (one that crashed before writing results.json is not "nothing differs").
+ * The screenshots that differ in a directory of downloaded visual captures, and the expected projects with no
+ * capture there (one that crashed before writing results.json is not "nothing differs").
  * @param dir the directory
  * @param [expected] the projects a full run captures (visual-review.config.json)
- * @returns a count, or null
+ * @returns `{ changed, missing }`: changed lists `<project>/<file>`; missing lists projects, or ["every project"]
+ *   when the directory holds no capture at all
  */
 export function differingImages(dir, expected = []) {
-    if (!dir || !existsSync(dir)) return null;
     // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
     const newest = new Map();
-    for (const f of readdirSync(dir, { recursive: true }).map(String)) {
+    const all = dir && existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String) : [];
+    for (const f of all) {
         const m = /^visual-(.+)-(\d+)[/\\](?:.*[/\\])?results\.json$/.exec(f);
         if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
     }
-    const files = [...newest.values()].map((v) => v.f);
-    if (!files.length || expected.some((p) => !newest.has(p))) return null;
-    let n = 0;
-    for (const f of files) {
+    if (!newest.size) return { changed: [], missing: expected.length ? expected : ["every project"] };
+    const changed = [];
+    for (const [project, { f }] of newest) {
         const items = JSON.parse(readFileSync(join(dir, f), "utf8")).items ?? [];
-        n += items.filter((i) => !PASSING_IMAGES.has(i.status)).length;
+        for (const i of items) if (!PASSING_IMAGES.has(i.status)) changed.push(`${project}/${i.file ?? i.id}`);
     }
-    return n;
+    return { changed: changed.sort(), missing: expected.filter((p) => !newest.has(p)) };
+}
+
+/**
+ * The captures lane's result: success, or which projects have no capture.
+ * @param missing differingImages' missing
+ * @returns a LANES result
+ */
+export const captureLane = (missing) => (missing.length ? `missing for ${missing.join(", ")}` : "success");
+
+/**
+ * The owner's item for a green-images verdict: how many screenshots differ, by project.
+ * @param changed differingImages' changed
+ * @returns one line, e.g. "10 screenshots differ from master's baselines: graphty 10"
+ */
+export function changedSummary(changed) {
+    const by = new Map();
+    for (const c of changed) {
+        const p = c.split("/")[0];
+        by.set(p, (by.get(p) ?? 0) + 1);
+    }
+    const parts = [...by].map(([p, n]) => `${p} ${n}`).join(", ");
+    const noun = changed.length === 1 ? "screenshot differs" : "screenshots differ";
+    return `${changed.length} ${noun} from master's baselines: ${parts}`;
 }
 
 /**
@@ -515,8 +544,9 @@ async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
-    const images = differingImages(env.CAPTURES, projects);
-    const { state, red } = verdictOf(lanes, images, env.LLM_OWNER_ITEM, env.VERSION_HELD);
+    const { changed, missing } = differingImages(env.CAPTURES, projects);
+    lanes.captures = captureLane(missing);
+    const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     let issue = null;
     let bisect = "";
     let what = state;
@@ -535,7 +565,7 @@ async function verdictMain(env) {
             "filing the red issue",
             () => null,
         );
-        what = red.map((l) => LANES[l].name).join(", ");
+        what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
     } else if (state !== "owner-item") {
         bestEffort(
             () => closeRedOnGreen(state, env),
@@ -544,6 +574,11 @@ async function verdictMain(env) {
         );
     }
     // a failed pick judged no commit: recording red on one would make the next slot skip it
+    // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
+    if (state === "green-images") {
+        what = changedSummary(changed);
+        console.log(`::notice::${what}\n${changed.join("\n")}`);
+    }
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
     output({ state, issue: issue ? String(issue) : "", what, bisect });
 }

@@ -621,6 +621,42 @@ describe("fileIssues", () => {
         );
     });
 
+    it("files a new issue from a base run rather than track its quarantine on a closed earlier one", async () => {
+        const s = await serve();
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const { gh: base, calls } = ghFake();
+        const gh = (args) =>
+            args[0] === "api" ? JSON.stringify({ data: { repository: { i12: { state: "CLOSED" } } } }) : base(args);
+        const answers = [{ ok: true, data: { kind: "base", flaky: [{ ...flaky, had: 12 }] } }];
+        const out = await fileIssues(cfg, [rec("passed", [])], answers, [], gh);
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [88],
+        );
+        assert.equal(calls.filter((c) => c[1] === "reopen" || c[1] === "comment").length, 0);
+        assert.equal(calls.find((c) => c[1] === "list")[3], "open");
+        assert.deepEqual(
+            s.seen.filter((r) => r.url === "/v1/issues").map((r) => r.body.number),
+            [88],
+        );
+    });
+
+    it("knows a base run whose last answer was spooled, from its environment or any earlier answer", async () => {
+        const failures = [{ file: "a.test.ts", name: "one", message: "Error: broken 1" }];
+        const failing = [{ file: "a.test.ts", name: "one" }];
+        const recs = [rec("failed", failures), rec("failed", failures)];
+        for (const [answers, o] of [
+            [[{ ok: true, data: { kind: "base", flaky: [{ ...flaky, had: 12 }] } }, { ok: false }], {}],
+            [[{ ok: false }, { ok: false }], { base: true }],
+        ]) {
+            const { gh, calls } = ghFake();
+            const all = [{ ok: true, data: { flaky: [{ ...flaky, had: 12 }] } }, ...answers];
+            const out = await fileIssues(null, recs, o.base ? all : answers, failing, gh, 0, o);
+            assert.equal(calls.filter((c) => c[1] === "reopen").length, 0);
+            assert.ok(out.some((i) => i.kind === "failing-on-master"));
+        }
+    });
+
     it("files one Failing on master issue per signature a base run failed every time", async () => {
         const { gh, calls } = ghFake();
         const failures = [

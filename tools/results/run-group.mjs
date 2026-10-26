@@ -243,10 +243,21 @@ function fileFailingOnMaster(gh, f, sha) {
  * @param [o] options
  * @param [o.onMaster] whether a base run that failed files `Failing on master` (false for one repeat of several,
  *   which alone proves nothing: the repeats together decide, through the store's flaky verdict)
+ * @param [o.base] whether this is a base run (`cli.mjs base-check` sets RESULTS_REPEAT); also true when any answer
+ *   the store gave says kind `base`, so a spooled last answer cannot turn a base run into a master one
  * @returns the issues filed or commented on: `{ signature, number }`
  */
-export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now(), { onMaster = true } = {}) {
+export async function fileIssues(
+    cfg,
+    recs,
+    answers,
+    failing,
+    gh,
+    now = Date.now(),
+    { onMaster = true, base = false } = {},
+) {
     const out = [];
+    const isBase = base || answers.some((a) => a.ok && a.data?.kind === "base");
     const day = (ms) => new Date(ms).toISOString().slice(0, 10);
     // both tries' answers can name one test: one issue for it
     const named = new Map(answers.flatMap((a) => (a.ok ? (a.data?.flaky ?? []) : [])).map((t) => [idOf(t), t]));
@@ -264,14 +275,17 @@ export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now
             ],
             extra: ["", marker(t.signature, "flaky")],
         };
-        const earlier = t.had ?? findIssue(gh, t.signature, "flaky");
-        const current = answers.at(-1)?.data?.kind !== "base";
-        const number = fileIssue(entry, earlier && current ? reopen(gh, earlier) : earlier, gh);
+        let earlier = t.had ?? findIssue(gh, t.signature, "flaky");
+        // a base run never reopens, so it never tracks a quarantine on a closed issue (the next master run would end
+        // it): an open issue of the signature, or a new one
+        if (earlier && isBase && closedIssues([earlier], gh)?.has(earlier))
+            earlier = findIssue(gh, t.signature, "flaky", "open");
+        const number = fileIssue(entry, earlier && !isBase ? reopen(gh, earlier) : earlier, gh);
         if (number)
             out.push({ signature: t.signature, number, kind: "flaky", family: t.family, file: t.file, name: t.name });
     }
     const last = recs.at(-1);
-    if (onMaster && answers.at(-1)?.data?.kind === "base" && last?.outcome === "failed") {
+    if (onMaster && isBase && last?.outcome === "failed") {
         const broken = last.failures.filter((f) => failing.some((x) => x.file === f.file && x.name === f.name));
         const bySignature = new Map(broken.map((f) => [failureHashes(f.message, f.file).signature, f]));
         for (const f of bySignature.values()) {
@@ -503,6 +517,7 @@ async function record(shard, o) {
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
+        base: Boolean(env.RESULTS_REPEAT),
     });
 }
 

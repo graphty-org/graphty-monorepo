@@ -197,6 +197,12 @@ describe("ingest: what it stores", () => {
         });
         vi.spyOn(mem, "get").mockRejectedValue(schema);
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+        // An expression over its size limit is our own update's fault too: 500.
+        const expr = Object.assign(new Error("Expression size has exceeded the maximum allowed size"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(expr);
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
     });
 
     it("refuses an oversized row before charging the quota or writing anything", async () => {
@@ -205,6 +211,9 @@ describe("ingest: what it stores", () => {
         const res = await h(event("/v1/invocations", invocation(longName)));
         expect(res.statusCode).toBe(400);
         expect(JSON.parse(String(res.body)).code).toBe("row_refused");
+        // An id under the size check but over the 1024-byte sort key of its copies is refused too.
+        const midName = { failures: [{ file: "a.test.ts", name: "y".repeat(1000), message: "m" }] };
+        expect((await h(event("/v1/invocations", invocation(midName)))).statusCode).toBe(400);
         const files = Array.from({ length: 4000 }, (_, i) => [`${"f".repeat(80)}${i}.test.ts`, 1, 1, 0, 1]);
         expect((await h(event("/v1/invocations", invocation({ files })))).statusCode).toBe(400);
         expect(mem.items.size).toBe(0);
@@ -272,11 +281,17 @@ describe("ingest: what it stores", () => {
 
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
-        const fail = { invocation: "500.1.compact-mantine", failures: [{ file: "b.ts", name: "t", message: "x" }] };
+        // As the CI writers send them: each try under its own id, `<base>.<try>`; try 1 failed, try 2 passed.
+        const fail = { invocation: "500.1.compact-mantine.1", failures: [{ file: "b.ts", name: "t", message: "x" }] };
         await h(event("/v1/failures", fail));
-        const id = "R#test#500.1.compact-mantine#b.ts#t\u0000A#1";
+        const id = "R#test#500.1.compact-mantine.1#b.ts#t\u0000A#1";
         expect(mem.items.get(id)?.outcome).toBe("failed");
-        const passed = invocation({ id: "500.1.compact-mantine", variant: "compact-mantine", outcome: "passed" });
+        const passed = invocation({
+            id: "500.1.compact-mantine.2",
+            try: 2,
+            variant: "compact-mantine",
+            outcome: "passed",
+        });
         // As tools/results/run-group.mjs sends a passing run: an empty failures list.
         (passed as Record<string, unknown>).failures = [];
         await h(event("/v1/invocations", passed));

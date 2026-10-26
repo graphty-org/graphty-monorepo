@@ -36,7 +36,7 @@ export const MAX_ROWS = 5000;
  * is charged or anything is written, so the request is all or nothing. Below the hard limits for the copies' keys.
  */
 const MAX_ITEM_BYTES = 300_000;
-const MAX_ID_BYTES = 1500;
+const MAX_ID_BYTES = 900; // under the 1024-byte sort key with the copies' prefix and suffix
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
 export const REPOSITORY_ID = "1122477634";
@@ -105,7 +105,12 @@ export async function handler(
         // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
         // Only DynamoDB's size limits: any other ValidationException is our own bug and must stay a 500.
         const e = error as { name?: unknown; message?: unknown } | null;
-        if (e?.name === "ValidationException" && /size/i.test(String(e.message))) {
+        if (
+            e?.name === "ValidationException" &&
+            /item size (to update )?has exceeded|size of (hashkey|range ?key)|size of all range keys/i.test(
+                String(e.message),
+            )
+        ) {
             console.error(JSON.stringify({ route: event.rawPath, refused: String(error) }));
             return json(400, { code: "row_refused" });
         }
@@ -317,10 +322,16 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
     const items: RawItem[] = [run];
     for (const f of list(b.failures ?? [], "failures")) items.push(testItem(id, f, family, source, passed, endedAt));
     if (passed && !(b.failures as unknown[] | undefined)?.length && source === "ci") {
-        for (const t of await db.query(INV_TESTS(id))) {
-            const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
-            items.push({ ...(test as unknown as TestItem), outcome: "flaky" });
-        }
+        // The CI writers give each try its own id, `<base>.<try>` (tools/results/run-group.mjs): the failures
+        // of the earlier tries are under their ids.
+        const tryOf = /^(.*)\.(\d+)$/.exec(id);
+        const invs = [id];
+        if (tryOf && Number(tryOf[2]) === b.try) for (let k = 1; k < b.try; k++) invs.push(`${tryOf[1]}.${k}`);
+        for (const inv of invs)
+            for (const t of await db.query(INV_TESTS(inv))) {
+                const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
+                items.push({ ...(test as unknown as TestItem), outcome: "flaky" });
+            }
     }
     return items;
 }

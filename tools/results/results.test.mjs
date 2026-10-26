@@ -466,7 +466,7 @@ describe("health API fan-out", () => {
     it("delivers before process.exit() with flushHealth(), and gives up after its own 2 s", async () => {
         const s = await serve();
         const client = new URL("./client.mjs", import.meta.url).href;
-        // Counts the aborts of every timeout signal: the store's call answers, so only the health deadline can fire.
+        // Counts the aborts of every timeout signal: the store's call answers, so only the health deadlines can fire.
         const child = (env, tail) =>
             new Promise((resolve, reject) => {
                 const code = `let aborted = 0; const t = AbortSignal.timeout;
@@ -492,7 +492,8 @@ describe("health API fan-out", () => {
             [["/v1/failures", { n: 1 }]],
         );
         const silent = await serveHealth(null);
-        assert.deepEqual(await child(healthEnv(s.url, silent.url), ""), { ok: true, aborted: 1 });
+        // the copy's own deadline and the shared token request's both fired: the process ended on them
+        assert.deepEqual(await child(healthEnv(s.url, silent.url), ""), { ok: true, aborted: 2 });
         assert.equal((await silent.posted).url, "/v1/failures");
     });
     it("still sends a group's records to the health API when the store stops answering", async () => {

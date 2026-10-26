@@ -51,7 +51,7 @@ export function config(env = process.env, root = ROOT) {
 }
 
 // One entry per request URL and audience: the token's promise and, once it has arrived, its expiry. The health
-// copies (one fixed 2 s deadline each) also share a request still in flight, so a burst of failure events asks
+// copies also share a request still in flight (under its own 2 s, each copy waiting until its own deadline), so a burst of failure events asks
 // for one token; the store's callers, whose deadlines differ, only reuse a token that has arrived. A request that
 // fails leaves the cache, so the next call asks again.
 const oidcCache = new Map();
@@ -61,12 +61,13 @@ function bearer(cfg, signal, audience = AUDIENCE, shareInFlight = false) {
     const key = `${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}|${audience}`;
     const hit = oidcCache.get(key);
     if (hit?.exp !== undefined && hit.exp - 60 > Date.now() / 1000) return hit.value;
-    if (hit && hit.exp === undefined && shareInFlight) return hit.value;
+    if (hit && hit.exp === undefined && shareInFlight) return until(hit.value, signal);
     const entry = {};
     entry.value = (async () => {
         const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}`, {
             headers: { authorization: `Bearer ${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
-            signal,
+            // a shared request has its own deadline; each caller waits for it only until its own
+            signal: shareInFlight ? AbortSignal.timeout(HEALTH_MS) : signal,
         });
         if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
         const { value } = await res.json();
@@ -74,11 +75,24 @@ function bearer(cfg, signal, audience = AUDIENCE, shareInFlight = false) {
         oidcCache.set(key, entry);
         return value;
     })();
-    if (shareInFlight) {
-        oidcCache.set(key, entry);
-        entry.value.catch(() => oidcCache.get(key) === entry && oidcCache.delete(key));
-    }
-    return entry.value;
+    if (!shareInFlight) return entry.value;
+    oidcCache.set(key, entry);
+    entry.value.catch(() => oidcCache.get(key) === entry && oidcCache.delete(key));
+    return until(entry.value, signal);
+}
+
+/**
+ * A promise that settles as `p` does, or rejects with the signal's reason once it aborts.
+ * @param p the promise
+ * @param signal the caller's deadline
+ * @returns the race
+ */
+function until(p, signal) {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(signal.reason);
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        p.then(resolve, reject);
+    });
 }
 
 const healthPending = new Set();

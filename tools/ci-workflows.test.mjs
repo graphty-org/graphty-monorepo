@@ -4631,7 +4631,7 @@ describe("release.yml", () => {
     });
 });
 
-// Every writer of the results store also writes the pipeline health API (issue #3602), which
+// Every POST to the results store also goes to the pipeline health API (issue #3602), which
 // takes the same bodies: tools/results/client.mjs sends there when HEALTH_API_URL is set.
 describe("the pipeline health API", () => {
     const files = [

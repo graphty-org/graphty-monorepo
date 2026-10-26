@@ -9,6 +9,10 @@
         "run:release.yml:promote": { "minutes": 20, "why": "promotion only: version, publish, site" },
         "run:gpu.yml": { "minutes": 60, "why": "T4 lane measured about 50 min" },
         "run:hosts.yml": { "minutes": 60 },
+        "job:ci.yml:Run cap": {
+            "minutes": 15,
+            "why": "a pull request waits here for a turn; tools/ci-run-cap.mjs gives up at 25 min"
+        },
         "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
         "step:ci.yml:Build:Plan": { "minutes": 2 },
         "job:ci.yml:Selector import graphs": {

@@ -33,7 +33,7 @@ describe("health stack", () => {
             .map((p) => [p.ReservedConcurrentExecutions, p.Timeout, p.Runtime, p.Architectures[0]])
             .sort((a, b) => b[0] - a[0]);
         expect(shapes).toEqual([
-            [20, 10, "nodejs22.x", "arm64"],
+            [20, 28, "nodejs22.x", "arm64"],
             [5, 10, "nodejs22.x", "arm64"],
             [1, 60, "nodejs22.x", "arm64"],
         ]);

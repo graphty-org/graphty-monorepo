@@ -268,8 +268,14 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
  * @param store
  * @param nowMs
  */
+export const MAX_MARKS = 200;
+
 export async function recompute(store: Store, nowMs: number): Promise<{ buckets: number; items: number }> {
-    const marks = await store.query(DIRTY_PK);
+    // ponytail: newest MAX_MARKS buckets per cycle, so the live hour is right first and a backlog (a backfill, a
+    // local collector's first pass) drains over later cycles instead of outliving the 60 s collector.
+    const marks = (await store.query(DIRTY_PK))
+        .sort((a, b) => (b.start as number) - (a.start as number))
+        .slice(0, MAX_MARKS);
     const cache = new Map<string, Buckets>();
     let level = new Set(marks.map((m) => m.start as number));
     let step: Step | undefined = "5m";

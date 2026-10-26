@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type Bucket, DAY, floorTo, HOUR, rollKey, type Step, STEP_MS } from "../../src/model/items.js";
+import { type Bucket, DAY, DIRTY_PK, floorTo, HOUR, rollKey, type Step, STEP_MS } from "../../src/model/items.js";
 import { putRaw } from "../../src/model/raw.js";
 import { loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -21,7 +21,14 @@ async function aDay(store: MemoryStore, now: number) {
         });
     });
     await putRaw(store, items, now);
-    await recompute(store, now);
+    // A day of marks is more than one cycle takes (MAX_MARKS): later cycles drain the rest, newest first.
+    const first = await recompute(store, now);
+    expect((await store.query(DIRTY_PK)).length).toBeGreaterThan(0);
+    expect(first.buckets).toBeGreaterThan(0);
+    for (let cycles = 0; (await store.query(DIRTY_PK)).length; cycles++) {
+        expect(cycles).toBeLessThan(5);
+        await recompute(store, now);
+    }
 }
 
 async function sums(store: MemoryStore, metric: string, step: Step, from: number, to: number, now: number) {

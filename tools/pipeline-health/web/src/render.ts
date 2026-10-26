@@ -663,7 +663,11 @@ function block(c: CategoryStatus): string {
 function headlineValue(m: Member): string {
     // A 1 h member's "few" is judged on the last 1 h; at 6 h and 24 h its value and n cover the picked range,
     // so that value shows when the server sent one. Slow-window members and a missing value keep "too few".
-    const rangeValue = here.range !== "1h" && (m.window === "1h" || m.window === "1h6h") && m.value !== null;
+    const rangeValue =
+        here.range !== "1h" &&
+        (m.window === "1h" || m.window === "1h6h") &&
+        m.value !== null &&
+        (m.n ?? 0) >= (m.minN ?? 0);
     if (m.state === "few" && !rangeValue)
         return `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
     if (m.state === "partial")

@@ -347,7 +347,7 @@ describe("pull request of a run", () => {
 
     it("maps a merged pull request's run (empty pull_requests) by head branch, preferring the head commit", () => {
         expect(prOfRun(run({}), prs)).toBe(11);
-        expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBe(10);
+        expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBeUndefined();
         expect(prOfRun(run({ head_branch: "other" }), prs)).toBeUndefined();
         const merged = [
             { number: 20, headRefName: "fix/1-a", mergedAt: null },

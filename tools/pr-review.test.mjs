@@ -181,7 +181,7 @@ describe("pr-review.sh", () => {
         assert.match(prompt, /^ src\.ts +\| 30000 \+/m);
         assert.match(prompt, /^ a\.txt +\| +2 /m);
         for (const f of ["design/mockups/page.html", "graphty/public/samples/data.json", "pnpm-lock.yaml"]) {
-            assert.match(prompt, new RegExp(`^${f.replace(/[.]/g, "\\.")}$`, "m"), `${f} named`);
+            assert.ok(prompt.split("\n").includes(f), `${f} named`);
         }
         assert.ok(!prompt.includes("x".repeat(100)), "no data file content inlined");
     });

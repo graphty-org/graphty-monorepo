@@ -113,7 +113,7 @@
         "secretlint": "^13.0.6",
         "semantic-release": "^25.0.2",
         "semver": "^7.7.3",
-        "storybook": "^9.1.20",
+        "storybook": "^9.1.21",
         "tsx": "^4.20.3",
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",

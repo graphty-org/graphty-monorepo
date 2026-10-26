@@ -109,22 +109,16 @@ export function pick({
         };
     }
     const held = store.hold?.head ?? "";
+    // a held candidate's head no run judged yet is tested first (catch-up order, channels-pipeline.md section 3);
+    // a judged one leaves the slot to master, whose verdict never promotes or replaces it
+    if (held && !(store.recent ?? []).some((v) => v.sha === held)) {
+        return { run: true, sha: held, good: "", held, why: `the held candidate ${short(held)} is not judged yet` };
+    }
     const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
     return { ...p, held };
 }
 
 function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
-    // a held candidate's head no run judged yet is tested first (catch-up order, channels-pipeline.md section 3);
-    // a judged one leaves the slot to master, whose verdict never promotes or replaces it
-    const judgedHead = store.hold && (store.recent ?? []).some((v) => v.sha === store.hold.head);
-    if (store.hold && !judgedHead) {
-        return {
-            run: true,
-            sha: store.hold.head,
-            good: "",
-            why: `the held candidate ${short(store.hold.head)} is not judged yet`,
-        };
-    }
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
     // older commit's build records its site late)

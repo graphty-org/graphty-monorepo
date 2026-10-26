@@ -369,17 +369,21 @@ export async function getReleaseState(q, who, db, now) {
     // a held candidate is the only one offered, and only once its tested head is green-images
     const heldHead = hold && states.find((s) => s.sha === hold.head);
     const oldestWaiting = states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0];
+    let offered = oldestWaiting ?? null;
+    if (hold) offered = heldHead?.state === "green-images" ? heldHead : null;
+    let blocking = unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null;
+    if (hold) blocking = "held";
     return {
         nightly,
         red: last?.state === "red" ? last : null,
         // a Finish promotes only a candidate newer than nightly; each of these is a resume that is due
         approved: states.filter((s) => s.state === "approved" && s.builtAt > nightlyBuilt),
         // with no hold, the frozen candidate: the oldest still waiting for the owner
-        offered: (hold ? (heldHead?.state === "green-images" ? heldHead : null) : oldestWaiting) ?? null,
+        offered,
         canary,
         // null while nightly has never moved: not started, so the stall alarm has nothing to count from
         ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
-        blocking: hold ? "held" : unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
+        blocking,
         hold,
     };
 }

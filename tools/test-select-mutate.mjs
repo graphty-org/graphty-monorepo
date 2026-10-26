@@ -403,9 +403,10 @@ export function storyFiles(index, root) {
  * @returns repo-relative paths
  */
 export function storyCandidates(wt, pkg, drawnBy = []) {
-    const directDeps = (p) => {
+    // devDependencies only of the project's own packages: a dependency's dev-only packages draw no story
+    const directDeps = (p, dev) => {
         const m = JSON.parse(readFileSync(join(wt, p, "package.json"), "utf8"));
-        return Object.keys({ ...m.dependencies, ...m.devDependencies, ...m.peerDependencies })
+        return Object.keys({ ...m.dependencies, ...(dev ? m.devDependencies : {}), ...m.peerDependencies })
             .filter((d) => d.startsWith("@graphty/"))
             .map((d) => d.slice("@graphty/".length))
             .filter((d) => existsSync(join(wt, d, "package.json")));
@@ -413,9 +414,10 @@ export function storyCandidates(wt, pkg, drawnBy = []) {
     const seen = new Set([pkg]);
     const queue = [pkg, ...drawnBy.filter((d) => existsSync(join(wt, d, "package.json")))];
     queue.forEach((d) => seen.add(d));
+    const own = new Set(queue);
     // for-of visits what the loop pushes, so this walks the whole closure
     for (const p of queue) {
-        for (const d of directDeps(p)) {
+        for (const d of directDeps(p, own.has(p))) {
             if (!seen.has(d)) {
                 seen.add(d);
                 queue.push(d);
@@ -463,7 +465,11 @@ async function storyMutant(c, n, f) {
     writeFileSync(join(c.wt, f), mutant(f, original.toString("utf8")));
     let broken;
     try {
-        broken = c.build().status === 0 ? await c.capture(`mutant-${n}`, null) : "unbuilt";
+        // a second try, so a browser that failed to start is not taken for an unloadable Storybook
+        broken =
+            c.build().status === 0
+                ? ((await c.capture(`mutant-${n}`, null)) ?? (await c.capture(`mutant-${n}-retry`, null)))
+                : "unbuilt";
     } finally {
         writeFileSync(join(c.wt, f), original);
     }
@@ -497,6 +503,11 @@ async function storyMutant(c, n, f) {
         const flaky = new Set(c.changedIds(only(c.ref), only(again)));
         flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
         found = missed.filter((id) => !flaky.has(id));
+    }
+    if (changed.length === 0) {
+        // a break no picture shows (tree-shaken, or drawn by no story) tests nothing
+        log("  SKIPPED: the break changed no story's capture");
+        return { misses: 0, inconclusive: 0, checked: 0 };
     }
     const list = found.map((id) => id + " (" + c.fileOf.get(id) + ")").join(", ");
     log(

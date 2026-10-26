@@ -413,8 +413,9 @@ export function storyCandidates(wt, pkg, drawnBy = []) {
     const seen = new Set([pkg]);
     const queue = [pkg, ...drawnBy.filter((d) => existsSync(join(wt, d, "package.json")))];
     queue.forEach((d) => seen.add(d));
-    for (let i = 0; i < queue.length; i++) {
-        for (const d of directDeps(queue[i])) {
+    // for-of visits what the loop pushes, so this walks the whole closure
+    for (const p of queue) {
+        for (const d of directDeps(p)) {
             if (!seen.has(d)) {
                 seen.add(d);
                 queue.push(d);

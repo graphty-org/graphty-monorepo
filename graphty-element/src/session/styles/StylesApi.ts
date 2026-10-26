@@ -765,7 +765,7 @@ export interface StylesApi {
      * asked for after the call is not waited for, so steady pointer input cannot keep it from
      * resolving. A live set's new membership after the graph changed arrives on a later rendered
      * frame and is not waited for.
-     * @returns A promise that resolves when nothing the element started is still in flight.
+     * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
     /**
@@ -1385,9 +1385,9 @@ export interface StylesSources {
     readonly repaint?: LayerRepaint;
     /**
      * Resolves once every repaint pass asked for so far has ended, which `settled()` waits on: a
-     * selection, hover or set change starts a pass without awaiting it. Absent, nothing is waited.
+     * selection or pointer change starts a pass without awaiting it. Absent, nothing is waited.
      */
-    readonly painted?: () => Promise<void>;
+    readonly idle?: () => Promise<void>;
     /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
@@ -4602,10 +4602,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         async settled(): Promise<void> {
             // What the element starts for itself (a run's suggested layers) waits on the queue;
             // the repaint of every edit written so far waits on the derivation lane.
+            // The passes nobody awaits (a selection or pointer change asks for one), read NOW, so a
+            // pass asked for while this waits does not extend the wait.
+            const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
-            // And the passes a selection, hover or set change started without awaiting them.
-            await sources.painted?.();
+            await passes;
         },
 
         explain(target: ExplainTarget): StyleExplanation {

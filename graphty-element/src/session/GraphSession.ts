@@ -3183,9 +3183,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
-        // The passes a selection, hover or set change starts without awaiting: `settled()` waits
-        // for them too.
-        painted: painter.idle,
+        // The passes a selection or pointer change starts without awaiting: `settled()` waits for
+        // those already asked for when it is called.
+        idle: painter.idle,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.

@@ -305,7 +305,7 @@ export interface RepaintEngine extends ElementPaint {
     readonly repaint: LayerRepaint;
     /**
      * Resolve once every pass asked for so far has finished, painted or failed. What
-     * `styles.settled()` waits on for the passes nobody awaits: a selection, hover or set change
+     * `styles.settled()` waits on for the passes nobody awaits: a selection or pointer change
      * asks for one and returns, and the pass yields to the event loop when a slice runs out.
      * @returns A promise that never rejects.
      */

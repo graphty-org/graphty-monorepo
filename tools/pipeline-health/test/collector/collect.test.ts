@@ -9,7 +9,7 @@ import { readSnapshot } from "../../src/model/snapshots.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
-import { fakeGitHub, NOW } from "./fake-github.js";
+import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
 const deps = (store: MemoryStore, fake: ReturnType<typeof fakeGitHub>, now = NOW, withApp = true): Deps => ({
     store,
@@ -313,5 +313,41 @@ describe("collector deploy trigger", () => {
         );
         expect(b.started).toEqual([]);
         expect(r.errors.deploy).toContain("STOPPED");
+    });
+});
+
+describe("a merged pull request's last run", () => {
+    it("is recorded for its pull request by a later cycle when the pull requests part failed (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        let prsDown = true;
+        // Run 40238975833 finished on a merged pull request: GitHub lists no pull request for it.
+        const gql = fixture<{ data: { repository: { recent: { nodes: Record<string, unknown>[] } } } }>("gql-pr.json");
+        const merged = gql.data.repository.recent.nodes.find((n) => n.mergedAt)!;
+        gql.data.repository.recent.nodes.unshift({
+            ...merged,
+            number: 3600,
+            headRefName: "ci/3418-design-studio-master-wait",
+            headRefOid: "5a2ebfac75cc6510846149d8cc07b65d83f0ba0b",
+            mergedAt: "2026-10-26T00:36:00Z",
+            updatedAt: "2026-10-26T00:36:00Z",
+        });
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname === "/graphql" && String(init?.body).includes("pullRequests")) {
+                if (prsDown) return new Response("{}", { status: 502 });
+                return new Response(JSON.stringify(gql), { status: 200 });
+            }
+            return base(url, init);
+        };
+        const first = await collect(deps(store, fake));
+        expect(first.errors["pull requests"]).toBeDefined();
+        prsDown = false;
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3600", sk: "-" });
+        expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
     });
 });

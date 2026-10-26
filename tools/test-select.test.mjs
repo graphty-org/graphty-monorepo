@@ -376,6 +376,7 @@ describe("the rules file", () => {
             "algorithms",
             "compact-mantine",
             "cytoscape-extensions",
+            "githerd",
             "graph-format",
             "graph-io",
             "graph-samples",
@@ -383,6 +384,7 @@ describe("the rules file", () => {
             "graphty-element",
             "layout",
             "remote-logger",
+            "visual-review",
         ]);
         assert.deepEqual([...real.fileLevelBrowser].sort(), [
             "algorithms",

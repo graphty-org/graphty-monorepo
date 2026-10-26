@@ -404,7 +404,10 @@ export type PrRun = [number, number, number, 0 | 1];
  * then a merged one when it is the only pull request with that branch name (fork branches named "main" collide);
  * otherwise none.
  */
-export function prOfRun(run: GhRun, prs: GqlPr[]): number | undefined {
+export function prOfRun(
+    run: Pick<GhRun, "pull_requests" | "head_branch" | "head_sha">,
+    prs: GqlPr[],
+): number | undefined {
     const listed = run.pull_requests?.[0]?.number;
     if (listed !== undefined || !run.head_branch) return listed;
     const same = prs.filter((p) => p.headRefName === run.head_branch);

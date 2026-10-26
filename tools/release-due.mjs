@@ -42,7 +42,7 @@ const CLOSED_WITHIN_MS = 60 * 60 * 1000;
  */
 export function due(redIssues, messages, now = Date.now()) {
     const keywords = new Map();
-    for (const m of messages.matchAll(/\b(refs|fixes|closes|resolves|part of)\s+#(\d+)/gi)) {
+    for (const m of messages.matchAll(/\b(refs|fix(?:es|ed)?|close[sd]?|resolve[sd]?|part of)\s+#(\d+)/gi)) {
         const n = Number(m[2]);
         keywords.set(n, [...(keywords.get(n) ?? []), m[1].toLowerCase()]);
     }
@@ -50,7 +50,7 @@ export function due(redIssues, messages, now = Date.now()) {
         (i.state ?? "OPEN") === "OPEN" || (i.closedAt && now - Date.parse(i.closedAt) <= CLOSED_WITHIN_MS);
     const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && keywords.has(i.number) && live(i));
     if (!red) return null;
-    const cancel = keywords.get(red.number).some((k) => ["fixes", "closes", "resolves"].includes(k));
+    const cancel = keywords.get(red.number).some((k) => !["refs", "part of"].includes(k));
     return { mode: "restart", issue: red.number, cancel };
 }
 
@@ -110,13 +110,7 @@ function cancelRedRun(issue, dryRun) {
         const r = inProgress.find((x) => x.databaseId === id);
         console.log(`release-due: cancelling release.yml run ${id}, the red run #${issue} names`);
         if (dryRun) continue;
-        try {
-            run("gh", ["run", "cancel", String(id)]);
-        } catch (error) {
-            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
-            continue;
-        }
+        // the note first, so release-watch finds it when the cancelled run completes; its failure never skips the cancel
         try {
             const status = run("gh", [
                 "issue",
@@ -135,6 +129,12 @@ function cancelRedRun(issue, dryRun) {
             console.log(
                 `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
             );
+        }
+        try {
+            run("gh", ["run", "cancel", String(id)]);
+        } catch (error) {
+            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
         }
     }
 }

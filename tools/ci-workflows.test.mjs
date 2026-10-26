@@ -1380,6 +1380,10 @@ describe("ci.yml", () => {
         });
         assert.deepEqual(releaseDue(red, "fix: y\n\nfixes #9001"), { mode: "restart", issue: 9001, cancel: true });
         assert.deepEqual(releaseDue(red, "Refs #9001\nCloses #9001"), { mode: "restart", issue: 9001, cancel: true });
+        for (const k of ["Fix", "Fixed", "Close", "Closed", "Resolve", "Resolved"]) {
+            assert.deepEqual(releaseDue(red, `${k} #9001`), { mode: "restart", issue: 9001, cancel: true }, k);
+        }
+        assert.deepEqual(releaseDue(red, "Part of #9001"), { mode: "restart", issue: 9001, cancel: false });
         assert.equal(releaseDue(red, "fix: z\n\nRefs #9002"), null, "only a Full run red issue restarts");
         assert.equal(releaseDue(red, "fix: z\n\nRefs #90011"), null);
         assert.equal(releaseDue(red, "feat: unrelated"), null);

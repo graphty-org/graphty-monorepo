@@ -1,6 +1,7 @@
 {
     "app": "node infra/bin/app.ts",
     "context": {
-        "devOrigin": ""
+        "devOrigin": "",
+        "connectionApproved": "false"
     }
 }

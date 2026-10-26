@@ -659,11 +659,13 @@ function block(c: CategoryStatus): string {
     );
 }
 
-function headline(m: Member): string {
+export function headline(m: Member): string {
     const t = MEMBER[m.id];
     const win = m.window === "now" ? "now" : here.range === "1h" ? "last 1 h" : `last ${rangeLabel(here.range)}`;
     let kv = bigValue(m.value);
-    if (m.state === "few") kv = `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
+    // "few" is judged on the last 1 h, while n counts the picked range: at 6 h and 24 h show the value.
+    if (m.state === "few" && here.range === "1h")
+        kv = `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
     else if (m.state === "partial")
         kv = `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
     else if (m.state === "nodata") kv = `<span class="kvl">NO DATA</span>`;

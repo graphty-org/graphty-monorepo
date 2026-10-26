@@ -19,6 +19,7 @@ import {
     npmName,
     ownerWait,
     ownerWaitOf,
+    prOfRun,
     prRunOf,
     prStages,
     prStocks,
@@ -119,6 +120,8 @@ class Cycle {
     readonly errors: Record<string, string> = {};
     /** Unfinished runs of this cycle, for the superseded list (pull requests part). */
     openRuns?: GhRun[];
+    /** This cycle's collected runs, recorded per pull request once the pull requests are known (prRuns). */
+    runs?: Collected[];
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -352,9 +355,9 @@ async function flaky(c: Cycle, run: GhRun, repo: string) {
 const prRunsKey = (repo: string, pr: number) => ({ pk: `PRRUNS#${repo}#${pr}`, sk: "-" });
 
 /** Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). */
-async function prRuns(c: Cycle, xs: Collected[]) {
+async function prRuns(c: Cycle, xs: Collected[], prs: GqlPr[]) {
     for (const { run, repo, jobs } of xs) {
-        const pr = run.pull_requests?.[0]?.number;
+        const pr = prOfRun(run, repo === c.d.repo ? prs : []);
         const r = pr === undefined ? undefined : prRunOf(run, jobs ?? []);
         if (pr === undefined || !r) continue;
         const key = prRunsKey(repo, pr);
@@ -436,11 +439,12 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         if (page === 0) open = data.repository.open.nodes;
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
-        for (const p of newer) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
         recentSeen.push(...newer);
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
+    await prRuns(c, c.runs ?? [], [...open, ...recentSeen]);
+    for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     await ownerWaits(c, gh, open);
     const s = prStocks(open, c.now);
@@ -810,7 +814,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
             const xs = await collectRuns(c, gh, repos, []);
             const cancels = await classify(gh, [...xs, ...masterList]);
             await writeRuns(c, xs, cancels);
-            await prRuns(c, xs);
+            c.runs = xs;
             await runners(c, xs, elapsed);
             await master(c, masterList, cancels, elapsed);
         });

@@ -581,8 +581,7 @@ const S: Record<string, (p: P) => string> = {
     // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>
         `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} out of target` +
-        (p.peak === undefined ? "" : `, peak ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`) +
-        (typeof p.cleared === "string" ? `, cleared ${at(p, "cleared")}` : ""),
+        (p.peak === undefined ? "" : `, peak ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`),
 
     // page notes
     "master.note.queued": (p) =>

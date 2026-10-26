@@ -9,6 +9,7 @@ import {
     llmCost,
     masterState,
     pool,
+    prOfRun,
     prStocks,
     releaseAttempt,
     releaseTags,
@@ -328,5 +329,25 @@ describe("npm", () => {
         expect(missing).not.toContain("graph-format@1.4.7");
         expect(missing).toContain("layout@2.5.10");
         expect(missing.some((m) => m.startsWith("graphty@") || m.startsWith("githerd@"))).toBe(false);
+    });
+});
+
+describe("pull request of a run", () => {
+    const run = (o: Partial<GhRun>) =>
+        ({ id: 1, head_branch: "fix/1-a", head_sha: "bbb", pull_requests: [], ...o }) as GhRun;
+    const prs = [
+        { number: 10, headRefName: "fix/1-a", headRefOid: "aaa" },
+        { number: 11, headRefName: "fix/1-a", headRefOid: "bbb" },
+        { number: 12, headRefName: "fix/2-b", headRefOid: "ccc" },
+    ] as GqlPr[];
+
+    it("uses the run's own pull request when GitHub lists one", () => {
+        expect(prOfRun(run({ pull_requests: [{ number: 7 }] }), prs)).toBe(7);
+    });
+
+    it("maps a merged pull request's run (empty pull_requests) by head branch, preferring the head commit", () => {
+        expect(prOfRun(run({}), prs)).toBe(11);
+        expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBe(10);
+        expect(prOfRun(run({ head_branch: "other" }), prs)).toBeUndefined();
     });
 });

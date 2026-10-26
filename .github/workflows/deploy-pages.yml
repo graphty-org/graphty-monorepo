@@ -166,7 +166,7 @@ jobs:
               run: mkdir -p graph-io/node_modules/@graphty && ln -s ../../../graph-format graph-io/node_modules/@graphty/graph-format
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

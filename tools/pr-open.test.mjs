@@ -254,31 +254,17 @@ describe("pr-open.sh", () => {
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
     });
 
-    it("leaves auto-merge off, and turns it off, for a change to what judges a pull request", () => {
-        branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n" }, "ci(ci): change the gate");
-        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });
-        assert.equal(r.code, 0, r.out);
-        assert.match(r.out, /changes what judges a pull request or guards the owner: \.github\/workflows\/ci\.yml/);
-        assert.equal(armed().length, 0);
-        assert.deepEqual(calls().find((x) => x.a[1] === "merge").a, [
-            "pr",
-            "merge",
-            "https://github.com/o/r/pull/8",
-            "--disable-auto",
-        ]);
-    });
-
-    it("leaves auto-merge off for a path master's CODEOWNERS owns", () => {
+    it("arms auto-merge for a change to CI or to a path CODEOWNERS owns", () => {
         mkdirSync(join(work, ".github"), { recursive: true });
-        writeFileSync(join(work, ".github/CODEOWNERS"), "# owned\n/nx.json @o\n**/.storybook/vitest.setup.* @o\n");
+        writeFileSync(join(work, ".github/CODEOWNERS"), "# owned\n/nx.json @o\n");
         git(work, "add", ".");
         git(work, "commit", "-q", "-m", "owners");
         git(work, "push", "-q", "origin", "master");
-        branch("ci/1246-nx", { "nx.json": "{}\n", "graphty/.storybook/vitest.setup.ts": "x\n" }, "ci(ci): change nx");
-        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 graphty-agent" });
+        branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n", "nx.json": "{}\n" }, "ci(ci): change the gate");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });
         assert.equal(r.code, 0, r.out);
-        assert.match(r.out, /guards the owner: graphty\/\.storybook\/vitest\.setup\.ts nx\.json/);
-        assert.equal(armed().length, 0);
+        assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+        assert.equal(armed().length, 1);
     });
 
     it("never arms auto-merge on a pull request someone else opened", () => {

@@ -1231,11 +1231,10 @@ rollout: issue #3418.
    pull request this way and stops.
 4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch; each
    push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
-5. `pr-open.sh` leaves auto-merge off, and the owner merges, for a breaking (`!` or `BREAKING CHANGE`)
-   commit, for a change to what judges a pull request or guards the owner (`.github/`, `.claude/`,
-   `tools/ci-*`, `tools/test-select*`, `tools/test-quarantine.json`, visual-review, the release files,
-   the credential guard, `pr-open.sh` itself; the same list as `.github/CODEOWNERS`), and for a pull
-   request someone else opened. `Lint PR Title` also fails any pull request holding a breaking commit
+5. `pr-open.sh` leaves auto-merge off, and the owner merges, only for a breaking (`!` or `BREAKING CHANGE`)
+   commit and for a pull request someone else opened. A change to CI or to what guards the owner
+   (`.github/`, `.claude/`, `tools/ci-*`, visual-review, the release files, the credential guard) merges
+   like any other once green (owner, 2026-10-25). `Lint PR Title` also fails any pull request holding a breaking commit
    until the owner adds the label `breaking-go`, so a breaking commit pushed later cannot merge on its own.
 
 Rules:

@@ -13,7 +13,7 @@ const CANCEL: Record<string, RunResponse["cancel"]> = { superseded: "superseded"
 export async function runDrill(store: Store, runId: number, nowMs: number): Promise<RunResponse | undefined> {
     const rows = (await store.query(`RUN#${runId}`)).filter((i) => isLive(i, nowMs));
     const runs = rows.filter((i) => i.sk.startsWith("run#")) as unknown as RunItem[];
-    const run = runs.sort((a, b) => b.attempt - a.attempt)[0];
+    const run = runs.toSorted((a, b) => b.attempt - a.attempt)[0];
     if (!run) return undefined;
     const jobs = (rows.filter((i) => i.sk.startsWith("job#")) as unknown as JobItem[])
         .filter((j) => j.attempt === run.attempt)
@@ -38,6 +38,11 @@ export async function runDrill(store: Store, runId: number, nowMs: number): Prom
             completed: isoOrNull(j.completedAt),
         })),
     };
+}
+
+function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["events"][number]["kind"] {
+    if (t.source === "local") return "local";
+    return s?.full ? "full" : "pr";
 }
 
 /**
@@ -74,7 +79,7 @@ export async function testHistory(
             const [run, attempt] = t.invocation.split(".").map(Number);
             return {
                 at: iso(t.seenAt),
-                kind: t.source === "local" ? ("local" as const) : s?.full ? ("full" as const) : ("pr" as const),
+                kind: kindOf(t, s),
                 ...(s?.pr === undefined ? {} : { pr: s.pr }),
                 run: Number.isFinite(run) ? run : 0,
                 attempt: Number.isFinite(attempt) ? attempt : t.attempt,

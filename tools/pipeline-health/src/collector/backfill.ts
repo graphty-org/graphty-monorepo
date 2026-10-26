@@ -119,7 +119,8 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const first = Math.floor((o.now - o.days * DAY) / DAY) * DAY;
 
     try {
-        for (const repo of o.repos) await repoRuns(o, repo, first, perPage, get, write, r, log);
+        const ctx: Ctx = { o, perPage, get, write, r, log };
+        for (const repo of o.repos) await repoRuns(ctx, repo, first);
         if ((await getCursor(o.store, PRS_CURSOR)) !== "done") {
             await pullRequestsAndIssues(o, gate, write, first);
             await setCursor(o.store, PRS_CURSOR, "done", o.now);
@@ -133,39 +134,40 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     return r;
 }
 
-/** One repository's runs, day by day from its cursor, one page at a time. */
-async function repoRuns(
-    o: BackfillOptions,
-    repo: string,
-    first: number,
-    perPage: number,
-    get: <T>(path: string) => Promise<T | undefined>,
-    write: (out: RawItem[]) => Promise<void>,
-    r: BackfillReport,
-    log: (line: string) => void,
-): Promise<void> {
-    let { day, page } = await position(o.store, repo, first);
-    for (; day < o.now; day += DAY, page = 1) {
-        // A day not yet over gains runs, which shifts its pages: it is never recorded as done.
-        const closed = day + DAY <= o.now - 30 * MIN;
-        for (; page <= Math.ceil(1000 / perPage); page++) {
-            const res = await get<{ total_count: number; workflow_runs: GhRun[] }>(
-                `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=${perPage}&page=${page}`,
-            );
-            const list = res?.workflow_runs ?? [];
-            const out: RawItem[] = [];
-            for (const run of list) out.push(...(await runItems(get, repo, run)));
-            await write(out);
-            r.runs += list.length;
-            log(`${repo} ${isoDay(day)} page ${page}: ${out.length} items, ${o.gh.calls} calls`);
-            // ponytail: GitHub answers at most 1,000 runs per query; a day past that loses its tail.
-            const last = list.length < perPage;
-            if (closed) {
-                const next = last ? { day: isoDay(day + DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
-                await setCursor(o.store, `backfill#${repo}`, JSON.stringify(next), o.now);
-            }
-            if (last) break;
-        }
+interface Ctx {
+    o: BackfillOptions;
+    perPage: number;
+    get: <T>(path: string) => Promise<T | undefined>;
+    write: (out: RawItem[]) => Promise<void>;
+    r: BackfillReport;
+    log: (line: string) => void;
+}
+
+/** One repository's runs, day by day from its cursor. */
+async function repoRuns(c: Ctx, repo: string, first: number): Promise<void> {
+    const at = await position(c.o.store, repo, first);
+    for (let day = at.day; day < c.o.now; day += DAY) await dayRuns(c, repo, day, day === at.day ? at.page : 1);
+}
+
+/** One day's runs, a page at a time from `fromPage`; the cursor moves after each page of a day that is over. */
+async function dayRuns(c: Ctx, repo: string, day: number, fromPage: number): Promise<void> {
+    // A day not yet over gains runs, which shifts its pages: it is never recorded as done.
+    const closed = day + DAY <= c.o.now - 30 * MIN;
+    // ponytail: GitHub answers at most 1,000 runs per query; a day past that loses its tail.
+    for (let page = fromPage; page <= Math.ceil(1000 / c.perPage); page++) {
+        const res = await c.get<{ total_count: number; workflow_runs: GhRun[] }>(
+            `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=${c.perPage}&page=${page}`,
+        );
+        const list = res?.workflow_runs ?? [];
+        const out: RawItem[] = [];
+        for (const run of list) out.push(...(await runItems(c.get, repo, run)));
+        await c.write(out);
+        c.r.runs += list.length;
+        c.log(`${repo} ${isoDay(day)} page ${page}: ${out.length} items, ${c.o.gh.calls} calls`);
+        const last = list.length < c.perPage;
+        const next = last ? { day: isoDay(day + DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
+        if (closed) await setCursor(c.o.store, `backfill#${repo}`, JSON.stringify(next), c.o.now);
+        if (last) return;
     }
 }
 

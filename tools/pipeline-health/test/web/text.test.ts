@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { refText, sentence } from "../../web/src/text.js";
+import { refText, sentence, stateChip } from "../../web/src/text.js";
 
 describe("refText", () => {
     it("names a member with no value without a placeholder", () => {
@@ -42,6 +42,10 @@ describe("headline", () => {
         expect(headline({ ...m, value: null })).toContain("too few");
         expect(headline({ ...m, n: 2 })).toContain("too few, n=2 of 5");
         expect(headline({ ...m, window: "7d" })).toContain("too few");
+        // The row chip follows the same rule as the headline, so the two never disagree.
+        expect(stateChip(m, "24h")).toBe("");
+        expect(stateChip(m, "1h")).toContain("too few, n=71 of 5");
+        expect(stateChip({ ...m, n: 2 }, "24h")).toContain("too few, n=2 of 5");
     });
 });
 

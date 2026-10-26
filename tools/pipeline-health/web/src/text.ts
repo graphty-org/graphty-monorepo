@@ -145,8 +145,29 @@ export function stateClass(s: MemberState | "idle"): string {
 export const isMuted = (s: MemberState) =>
     s === "few" || s === "partial" || s === "idle" || s === "slow" || s === "notsetup" || s === "info";
 
+/**
+ * True when a "few" member shows its value at the picked range: a 1 h member's "few" is judged on the last 1 h,
+ * while at 6 h and 24 h its value and n cover the picked range, so that value stands once n reaches minN.
+ */
+export function showsRangeValue(
+    m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "window" | "value">>,
+    range: Range | SlowRange | undefined,
+): boolean {
+    return (
+        range !== undefined &&
+        range !== "1h" &&
+        (m.window === "1h" || m.window === "1h6h") &&
+        m.value !== null &&
+        m.value !== undefined &&
+        (m.n ?? 0) >= (m.minN ?? 0)
+    );
+}
+
 /** The state cell of a member row: a chip for a judged state not OK, muted words for the gray ones. */
-export function stateChip(m: Pick<Member, "state" | "n" | "minN" | "covered">): string {
+export function stateChip(
+    m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "window" | "value">>,
+    range?: Range | SlowRange,
+): string {
     switch (m.state) {
         case "ok":
         case "info":
@@ -156,6 +177,7 @@ export function stateChip(m: Pick<Member, "state" | "n" | "minN" | "covered">): 
         case "nodata":
             return `<span class="sw ${stateClass(m.state)}">${STATE_WORD[m.state]}</span>`;
         case "few":
+            if (showsRangeValue(m, range)) return "";
             return `<span class="sw low">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
         case "partial":
             return `<span class="sw low">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;

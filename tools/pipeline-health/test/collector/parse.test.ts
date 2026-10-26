@@ -349,10 +349,10 @@ describe("pull request of a run", () => {
         expect(prOfRun(run({}), prs)).toBe(11);
         expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBeUndefined();
         expect(prOfRun(run({ head_branch: "other" }), prs)).toBeUndefined();
-        const merged = [
-            { number: 20, headRefName: "fix/1-a", mergedAt: null },
-            { number: 21, headRefName: "fix/1-a", mergedAt: "2026-10-25T00:00:00Z" },
-        ] as GqlPr[];
+        const merged = [{ number: 21, headRefName: "fix/1-a", mergedAt: "2026-10-25T00:00:00Z" }] as GqlPr[];
         expect(prOfRun(run({ head_sha: "zzz" }), merged)).toBe(21);
+        // Two pull requests share the branch name (fork branches named "main", a reused name): no guess.
+        const shared = [{ number: 20, headRefName: "fix/1-a", mergedAt: null }, ...merged] as GqlPr[];
+        expect(prOfRun(run({ head_sha: "zzz" }), shared)).toBeUndefined();
     });
 });

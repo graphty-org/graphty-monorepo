@@ -30,6 +30,7 @@ import {
     STATE_WORD,
     bigValue,
     capital,
+    showsRangeValue,
     clock,
     esc,
     fmtAgo,
@@ -247,7 +248,7 @@ function memberRow(m: Member): string {
     return (
         `<a class="row${dim}" href="${href(m.link)}"><span class="nm">${esc(MEMBER[m.id].name)}<small>${unlinked(memberLine(m))}</small></span>` +
         `<span class="val">${val}<small class="v6">${windowLabel(m, here.range)}</small></span>` +
-        `<span class="tg">${unlinked(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m)}</span>${chev()}</a>`
+        `<span class="tg">${unlinked(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m, here.range)}</span>${chev()}</a>`
     );
 }
 
@@ -661,14 +662,7 @@ function block(c: CategoryStatus): string {
 
 /** The headline's big value, or the gray word that stands in for it. */
 function headlineValue(m: Member): string {
-    // A 1 h member's "few" is judged on the last 1 h; at 6 h and 24 h its value and n cover the picked range,
-    // so that value shows when the server sent one. Slow-window members and a missing value keep "too few".
-    const rangeValue =
-        here.range !== "1h" &&
-        (m.window === "1h" || m.window === "1h6h") &&
-        m.value !== null &&
-        (m.n ?? 0) >= (m.minN ?? 0);
-    if (m.state === "few" && !rangeValue)
+    if (m.state === "few" && !showsRangeValue(m, here.range))
         return `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
     if (m.state === "partial")
         return `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;

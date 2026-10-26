@@ -300,6 +300,8 @@ export interface GqlPr {
     isDraft: boolean;
     reviewDecision: string | null;
     baseRefName: string;
+    headRefName?: string;
+    headRefOid?: string;
     createdAt: string;
     updatedAt: string;
     mergedAt: string | null;
@@ -395,6 +397,22 @@ export const codeownerPatterns = (text: string): string[] =>
 
 /** One ci.yml pull request run attempt for "Where the time goes": [start, first job start, end, passed 1/0]. */
 export type PrRun = [number, number, number, 0 | 1];
+
+/**
+ * The pull request a run belongs to. GitHub empties a run's pull_requests once its pull request merged, so
+ * fall back to the head branch among the cycle's pull requests, preferring one whose head is the run's commit,
+ * then a merged one when it is the only pull request with that branch name (fork branches named "main" collide);
+ * otherwise none.
+ */
+export function prOfRun(run: GhRun, prs: GqlPr[]): number | undefined {
+    const listed = run.pull_requests?.[0]?.number;
+    if (listed !== undefined || !run.head_branch) return listed;
+    const same = prs.filter((p) => p.headRefName === run.head_branch);
+    return (
+        same.find((p) => p.headRefOid === run.head_sha) ??
+        (same.length === 1 ? same.find((p) => p.mergedAt) : undefined)
+    )?.number;
+}
 
 export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {
     if (workflowFile(run.path) !== "ci.yml" || run.event !== "pull_request" || run.status !== "completed")

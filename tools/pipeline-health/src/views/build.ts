@@ -189,7 +189,6 @@ class Builder {
                     fact: f("ep.past_threshold", {
                         member: spec.id,
                         ...(peak === undefined ? {} : { peak, ...(spec.unit ? { unit: spec.unit } : {}) }),
-                        ...(e.clearedAt === undefined ? {} : { cleared: iso(e.clearedAt) }),
                     }),
                     link: spec.link,
                 };

@@ -16,6 +16,13 @@ looks at the repository, takes the few actions that are due, and ends.
 **First read `.claude/skills/pipeline-round/shared.md`**: the hard rules, how to read the state (run its commands at
 the start of every round), the markers, the subagent rules, escalation and the failure classes. Both skills follow it.
 
+**Then ask the health dashboard** (`design/ci/health-dashboard.md` section 12): call the `pipeline-health` MCP tools
+`health_status` and `owner_queue`, and use them to choose which steps below to look at first; the drill-down tools
+(`master`, `release_lanes`, `pull_requests`, `flaky_hotspots`, `runners`) narrow a step. The dashboard is a guide, up
+to 5 minutes old: before acting on it (revert, rerun, comment, close, merge), confirm the fact on GitHub, in the pull
+request status broker or in the local file it came from, never from the dashboard alone. A result with `stale: true`
+in its `freshness`, or an error, means fall back to this round's own checks.
+
 **Bounds, every step:** never mix a test, budget, quarantine or workflow change with a product fix in one pull
 request; never re-run a failure hoping for green (a re-run is only for a classified outside cause); never ask for the
 admin bypass; never touch the screenshot gate's trusted files.

@@ -84,11 +84,11 @@ export function describePlan(plan) {
  * `featuresOn`, the features-on twins too, which are "never" only so the gate skips them): which packages
  * and files the change reaches is the selector's question, and the "when-paths-change" policy would drop
  * shards it runs whole (a graphty-element source change runs its browser shards).
- * @param featuresOn also include the features-on twins (full-run-only shards)
+ * @param featuresOn also include the features-on twins (`flags: "on"` shards)
  * @returns SHARDS entries
  */
 export const candidateShards = (featuresOn = false) =>
-    SHARDS.filter((s) => s.local !== "never" || (featuresOn && s["full-run-only"]));
+    SHARDS.filter((s) => s.local !== "never" || (featuresOn && s.flags === "on"));
 
 // A file-level run with only the files a budget kept; with none kept it runs nothing.
 function keepOnly(p, keep) {

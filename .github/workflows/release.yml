@@ -23,8 +23,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   Nothing announces it.
 # - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
 #   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
-#   (npm `latest`) run in environment `release`, as described below. graphty.app follows the version merge
-#   (deploy-pages.yml). Deleted once promote.yml exists.
+#   (npm `latest`) run in environment `release`, as described below. graphty.app does not follow it: graphty.app is
+#   graphty-site's and moves only by promote.yml, so a legacy run moves npm `latest` alone. Its removal is still open on issue #3467.
 #
 # No workflow_run trigger: a master push never starts or restarts a release.
 #
@@ -155,6 +155,7 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}
                   kind: full
 
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
@@ -262,6 +263,7 @@ jobs:
               env:
                   HEAD_SHA: ${{ github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   set -euo pipefail
                   node tools/full-run.mjs pick
@@ -325,7 +327,8 @@ jobs:
             # its release-due job (master pushes only) dispatches release.yml and reads the red issues; a
             # called workflow cannot ask for more than its caller grants, even for a job it skips
             actions: write
-            issues: read
+            # issues: write for its test job, which files the issue of a test the run proves flaky
+            issues: write
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write
@@ -496,7 +499,9 @@ jobs:
         needs: pick
         if: ${{ needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 15
+        # A runaway guard, not a budget: on 2026-10-26 nx release version spent 13 of its 15 minutes before
+        # printing its first project, and the lane was cancelled (#3630). Why it is that slow is #3631.
+        timeout-minutes: 40
         permissions:
             contents: read
         outputs:
@@ -606,6 +611,7 @@ jobs:
               id: verdict
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
                   VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}
@@ -794,7 +800,7 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
         if: ${{ (inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 40
         permissions:
             actions: read
             contents: read

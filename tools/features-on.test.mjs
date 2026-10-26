@@ -67,22 +67,22 @@ describe("the On shards", () => {
 
     it("exist only while graphty-element declares an experiment", () => {
         assert.equal(
-            SHARDS.some((s) => s["full-run-only"]),
+            SHARDS.some((s) => s.flags === "on"),
             FEATURES_DECLARED,
         );
     });
 
     it("are planned in a full run and never on a pull request", () => {
-        assert.deepEqual(names(plan(PACKAGES, undefined, undefined, false, shards)), []);
+        assert.deepEqual(names(plan(PACKAGES, undefined, undefined, true, shards)), []);
         assert.deepEqual(
-            names(plan(PACKAGES, undefined, undefined, true, shards)),
+            names(plan(PACKAGES, undefined, undefined, false, shards)),
             FEATURES_ON_SHARDS.map((s) => s.shard),
         );
     });
 
     it("run when --only names one (a bisect point)", () => {
         const only = ["graphty-element-browser-features-on-2"];
-        assert.deepEqual(names(plan(PACKAGES, only, undefined, false, shards)), only);
+        assert.deepEqual(names(plan(PACKAGES, only, undefined, true, shards)), only);
     });
 
     it("run the Off shard's projects as their -features-on twins, without coverage or a blob report", () => {
@@ -95,14 +95,14 @@ describe("the On shards", () => {
             }
             assert.equal(on.local, "never", on.shard);
         }
-        const entry = plan(PACKAGES, undefined, undefined, true, shards).find(
+        const entry = plan(PACKAGES, undefined, undefined, false, shards).find(
             (e) => e.shard === "graphty-features-on-1",
         );
         assert.equal(entry.coverage, undefined, "no coverage upload for an On shard");
     });
 
     it("come after every Off shard and group, and the test job runs at most 40 jobs at once", () => {
-        const include = plan([...PACKAGES, "graph-format", "layout"], undefined, undefined, true, shards);
+        const include = plan([...PACKAGES, "graph-format", "layout"], undefined, undefined, false, shards);
         const first = include.findIndex((e) => e["full-run-only"]);
         assert.ok(first > 0);
         assert.ok(
@@ -129,10 +129,10 @@ describe("the On shards", () => {
     it("stay out of a pull request's light plan: a bin of an On shard is dropped unless it is a full run", () => {
         const on = shards.find((s) => s["full-run-only"]);
         const light = { bins: [{ name: `${on.shard}-1`, shard: on.shard, files: [], command: "true" }] };
-        const include = plan(PACKAGES, undefined, light, false, shards);
+        const include = plan(PACKAGES, undefined, light, true, shards);
         assert.ok(include.length > 0);
         assert.ok(!include.some((e) => e["full-run-only"] || e.shard === `${on.shard}-1`));
-        const full = plan(PACKAGES, undefined, light, true, shards).find((e) => e.shard === `${on.shard}-1`);
+        const full = plan(PACKAGES, undefined, light, false, shards).find((e) => e.shard === `${on.shard}-1`);
         assert.ok(full?.["full-run-only"], "a full run keeps it");
     });
 
@@ -187,12 +187,10 @@ describe("the On shards", () => {
 // change nothing -- no On shard in any plan, no extra test:changed candidate, the same story URLs.
 describe("with an empty FEATURES table", { skip: FEATURES_DECLARED && "an experiment is declared" }, () => {
     it("no plan has an On shard, a full run included", () => {
-        assert.ok(!SHARDS.some((s) => s["full-run-only"]));
+        assert.ok(!SHARDS.some((s) => s.flags === "on"));
         const all = [...new Set(SHARDS.map((s) => s.package))];
-        for (const full of [false, true]) {
-            assert.ok(
-                !plan(all, undefined, undefined, full).some((e) => e["full-run-only"] || /features-on/.test(e.shard)),
-            );
+        for (const pullRequest of [false, true]) {
+            assert.ok(!plan(all, undefined, undefined, pullRequest).some((e) => /features-on/.test(e.shard)));
         }
     });
 

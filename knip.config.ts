@@ -216,6 +216,8 @@ const config: KnipConfig = {
         // Layout package
         layout: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -391,6 +393,9 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
+
+    // A standalone package with its own dependencies and lockfile, outside the pnpm workspace
+    ignore: ["tools/pipeline-health/**"],
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types

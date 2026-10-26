@@ -2481,11 +2481,13 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 5
         # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
-        # note on the Release status issue that keeps release-watch quiet about that cancel.
+        # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
+        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N.
         permissions:
             contents: read
             actions: write
             issues: write
+            pull-requests: read
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
             - uses: actions/checkout@v4

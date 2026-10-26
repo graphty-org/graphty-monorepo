@@ -145,18 +145,23 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
     // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
     if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
-    for (const item of items)
-        if (
-            Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
-            Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
-        )
-            refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
+    checkSizes(items);
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
     await putRaw(db, items, now);
     if (extra.length) await db.batch(extra.map((put) => ({ put })));
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
     log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
     return { stored: items.length, kind: who.kind };
+}
+
+/** Refuses a row over DynamoDB's key or item size before anything is charged or written. */
+function checkSizes(items: RawItem[]): void {
+    for (const item of items)
+        if (
+            Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
+            Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
+        )
+            refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
 }
 
 /** The kind a token's claims may write (tools/results-service kindOf), or a refusal. */

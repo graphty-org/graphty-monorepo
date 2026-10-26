@@ -236,7 +236,7 @@ export function cellHtml(c: Cell): string {
 // ---------------------------------------------------------------- members
 
 function memberRow(m: Member): string {
-    const dim = isMuted(m.state) ? " dim" : "";
+    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
     const sp = m.spark
         ? sparkline(
               m.spark,

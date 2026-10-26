@@ -5913,6 +5913,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
         const names = steps.site.steps.map((st) => st.name ?? st.uses);
         const at = (n) => names.findIndex((x) => x.startsWith(n));
         for (const [a, b] of [
+            // the checkout first, so a missing key still reaches the failure report (node tools/channel/...)
+            ["actions/checkout@v4", "Check the site's deploy key"],
             ["Check the site's deploy key", "Download the candidate's built site"],
             ["Pack the site and write channel.json", "Hang the site on the site-<sha> prerelease"],
             ["Hang the site on the site-<sha> prerelease", "Push deployed.json to the site repository"],

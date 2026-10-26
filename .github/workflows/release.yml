@@ -1401,16 +1401,6 @@ jobs:
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
-            # Environment `nightly` is filled by the owner; a missing key fails here, by name, never later.
-            - name: Check the site's deploy key
-              env:
-                  KEY: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
-              run: |
-                  [ -n "$KEY" ] || {
-                      echo "::error::secret NIGHTLY_SITE_DEPLOY_KEY is missing from environment nightly: add graphty-nightly's write deploy key (private half) there, then re-run this run's failed jobs"
-                      exit 1
-                  }
-
             # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
             - uses: actions/checkout@v4
               with:
@@ -1424,6 +1414,17 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: 22.x
+
+            # Environment `nightly` is filled by the owner; a missing key fails here, by name, after the checkout,
+            # so the failure report at the end can run.
+            - name: Check the site's deploy key
+              env:
+                  KEY: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
+              run: |
+                  [ -n "$KEY" ] || {
+                      echo "::error::secret NIGHTLY_SITE_DEPLOY_KEY is missing from environment nightly: add graphty-nightly's write deploy key (private half) there, then re-run this run's failed jobs"
+                      exit 1
+                  }
 
             - name: Download the candidate's built site
               run: |

@@ -46,12 +46,14 @@ describe("the records", () => {
             'packages:\n    - "graph-format"\n    - "graphty-element"\n    - "githerd"\n\nminimumReleaseAge: 1440\n',
         "graph-format/package.json": JSON.stringify({ name: "@graphty/graph-format", version: "1.4.8" }),
         "graphty-element/package.json": JSON.stringify({ name: "@graphty/graphty-element", version: "3.31.0" }),
+        "graphty-element/project.json": JSON.stringify({ name: "graphty-element" }),
         "githerd/package.json": JSON.stringify({ name: "@graphty/githerd", version: "0.1.0", private: true }),
     };
-    it("lists every published package's version at the commit, by npm name", () => {
+    it("lists every published package's version at the commit, by nx project name (the release tag's)", () => {
         assert.deepEqual(
             versionsAt((p) => files[p] ?? null),
-            { "@graphty/graph-format": "1.4.8", "@graphty/graphty-element": "3.31.0" },
+            { "@graphty/graph-format": "1.4.8", "graphty-element": "3.31.0" },
+            "project.json's name, else the npm name (remote-logger's case)",
         );
     });
 

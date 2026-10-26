@@ -371,8 +371,9 @@ const SHA = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
 // A channel moved (channels 3): release.yml's site job records the nightly promotion it deployed, with the sha256
-// of the site asset and channel.json, once per run attempt. Only master's own release.yml writes it; age:nightly
-// (GET /v1/release-state) counts from the newest row.
+// of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
+// its sha256 changes) replaces that run's hashes and time, so promote.yml compares against what is hung now.
+// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
 async function postChannelMove(body, who, db, nowMs) {
     if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
         refuse(403, "only master's own release.yml records a channel move");
@@ -389,7 +390,15 @@ async function postChannelMove(body, who, db, nowMs) {
         .prepare("SELECT 1 FROM channel_move WHERE channel = ? AND sha = ? AND run_id = ?")
         .bind(body.channel, body.sha, runId)
         .first();
-    if (seen) return { stored: false };
+    if (seen) {
+        await db
+            .prepare(
+                "UPDATE channel_move SET at = ?, version_commit = ?, site_sha256 = ?, channel_sha256 = ? WHERE channel = ? AND sha = ? AND run_id = ?",
+            )
+            .bind(nowMs, body.versionCommit ?? null, body.siteSha256, body.channelSha256, body.channel, body.sha, runId)
+            .run();
+        return { stored: true, replaced: true };
+    }
     await db
         .prepare(
             "INSERT INTO channel_move (channel, sha, at, version_commit, site_sha256, channel_sha256, run_id) VALUES (?, ?, ?, ?, ?, ?, ?)",

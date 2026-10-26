@@ -215,14 +215,19 @@ async function pickMain(env) {
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
     const firstParents = (sha) => sh("git", ["rev-list", "--first-parent", "-n", "200", sha]).split("\n");
     const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
+    // On nightly: in channel/nightly's history, or differing from it only in versions and screenshot approvals
+    // (the version merge a promotion pushes to master, whose second parent is nightly's version commit).
+    const NIGHTLY = "refs/remotes/origin/channel/nightly";
     const onNightly = (sha) => {
         try {
-            execFileSync("git", ["merge-base", "--is-ancestor", sha, "refs/remotes/origin/channel/nightly"], {
-                stdio: "ignore",
-            });
+            execFileSync("git", ["merge-base", "--is-ancestor", sha, NIGHTLY], { stdio: "ignore" });
             return true;
         } catch {
-            return false; // not in nightly's history, or no channel/nightly yet
+            try {
+                return stray(NIGHTLY, sha).length === 0;
+            } catch {
+                return false; // no channel/nightly yet
+            }
         }
     };
     const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray, onNightly });

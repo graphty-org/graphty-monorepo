@@ -61,10 +61,12 @@ export function promotion({ state, publishHold, gate }) {
 }
 
 /**
- * Every published package's version at a commit, by npm name (channel.json's `versions`), so promote.yml can
- * compare it with npm's `latest` whatever was skipped in between.
+ * Every published package's version at a commit, by nx project name (channel.json's `versions`, the keys
+ * promote.mjs builds `<project>@<version>` release tags from), so promote.yml can compare it with npm's `latest`
+ * whatever was skipped in between. The project name is project.json's, else the package's npm name
+ * (remote-logger has no project.json, and its project is "@graphty/remote-logger").
  * @param show (path) => the file's text at that commit, or null when it is not there
- * @returns `{ "<npm name>": "<version>" }`
+ * @returns `{ "<project>": "<version>" }`
  */
 export function versionsAt(show) {
     const workspace = show("pnpm-workspace.yaml") ?? "";
@@ -81,7 +83,9 @@ export function versionsAt(show) {
         const text = show(`${dir}/package.json`);
         if (!text) continue;
         const pkg = JSON.parse(text);
-        if (pkg.private !== true && pkg.name && pkg.version) out[pkg.name] = pkg.version;
+        if (pkg.private === true || !pkg.name || !pkg.version) continue;
+        const project = JSON.parse(show(`${dir}/project.json`) ?? "{}").name ?? pkg.name;
+        out[project] = pkg.version;
     }
     return out;
 }
@@ -345,13 +349,25 @@ async function lookAtDeploy(env) {
     return { ...deployState({ runs, stamp, sha: env.SHA }), stamp };
 }
 
-async function waitMain(env) {
+// The deploy sends no event the job can wait on when it never starts (a disabled workflow, a refused runs read),
+// so the wait has its own limit, under the job's 20-minute hang guard: it fails by name and the job's failure
+// report runs, which a job timeout (cancelled) would skip.
+const WAIT_LIMIT_MS = 15 * 60_000;
+
+async function waitMain(env, now = Date.now) {
     need(env, ["SITE_REPO", "PUSHED", "SITE_URL", "SHA"]);
+    const limit = now() + Number(env.WAIT_LIMIT_MS ?? WAIT_LIMIT_MS);
     for (;;) {
         const s = await lookAtDeploy(env);
         if (s.done) {
             console.log(s.ok ? s.why : `::error::${s.why}`);
             return s.ok ? 0 : 1;
+        }
+        if (now() >= limit) {
+            console.log(
+                `::error::${env.SITE_REPO}'s deploy of ${env.PUSHED.slice(0, 7)} did not finish, and ${env.SITE_URL} does not name ${env.SHA} (stamp: ${s.stamp ?? "none"}): check that repository's deploy workflow ran`,
+            );
+            return 1;
         }
         console.log(`waiting for ${env.SITE_REPO}'s deploy of ${env.PUSHED.slice(0, 7)} (stamp: ${s.stamp ?? "none"})`);
         await new Promise((r) => setTimeout(r, 20_000));

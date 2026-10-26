@@ -640,10 +640,11 @@ describe("POST /v1/channel-moves", () => {
         s.site(C, NOW - 30 * HOUR);
         const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
         assert.deepEqual((await post(master("release.yml"))).body, { stored: true });
+        // a re-run of the site job re-packs channel.json: its new hash replaces the run's row
         assert.deepEqual(
-            (await post(master("release.yml"))).body,
-            { stored: false },
-            "a re-run of the job stores nothing",
+            (await post(master("release.yml"), { ...body, channelSha256: "3".repeat(64) })).body,
+            { stored: true, replaced: true },
+            "a re-run of the job replaces that run's row",
         );
         assert.deepEqual(
             rows("SELECT channel, sha, at, version_commit, site_sha256, channel_sha256, run_id FROM channel_move"),
@@ -654,7 +655,7 @@ describe("POST /v1/channel-moves", () => {
                     at: NOW,
                     version_commit: V,
                     site_sha256: "1".repeat(64),
-                    channel_sha256: "2".repeat(64),
+                    channel_sha256: "3".repeat(64),
                     run_id: 4010,
                 },
             ],

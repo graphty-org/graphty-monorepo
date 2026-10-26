@@ -128,15 +128,16 @@ interface SafariLog {
 }
 
 /**
- * Follow Safari's log in the Simulator for the two facts a page cannot report: that Safari's scene
- * went to the background, and that WebKit terminated a page's web process (after the GPU process
- * crashed too many times, Safari shows its own error page in place of the page).
+ * Follow Safari's log in the Simulator for the facts a page cannot report: that Safari became active
+ * (UIKit's "deactivation reasons: N -> 0"), that Safari's scene went to the background, and that
+ * WebKit terminated a page's web process (after the GPU process crashed too many times, Safari shows
+ * its own error page in place of the page).
  * @param udid - The Simulator.
  * @returns The log.
  */
 function followSafari(udid: string): SafariLog {
     const predicate =
-        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate")';
+        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons")';
     const child: ChildProcess = ownChild(
         spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
             stdio: ["ignore", "pipe", "ignore"],
@@ -202,13 +203,19 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     });
 
     /**
-     * Open a URL in Safari. Safari is launched first: `simctl openurl` gives up after about 20
-     * seconds, and right after Safari was terminated its cold launch in a busy Simulator took longer
-     * (33 s), while `simctl launch` returns once Safari is running.
+     * Open a URL in Safari, once Safari is active. `simctl openurl` gives up after about 20 seconds,
+     * and SpringBoard holds an open-URL request for an app until the app's launch activation
+     * completes. `simctl launch` returns as soon as Safari's process exists, not when it is active: on
+     * Safari's first launch after the Simulator booted, its code first ran 16 s after the process was
+     * spawned and it became active 24 s after (issue #3654), so an openurl sent when launch returned
+     * timed out. So wait until this Safari process logs that it became active; a process that was
+     * already running logged that earlier, and the wait ends at once.
      * @param url - The page.
      */
-    function openInSafari(url: string): void {
-        simctl("launch", udid, SAFARI);
+    async function openInSafari(url: string): Promise<void> {
+        const pid = /:\s*(\d+)/.exec(simctl("launch", udid, SAFARI))?.[1];
+        assert.isDefined(pid, "simctl launch printed Safari's pid");
+        await safariLog.waitFor(new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`), 0);
         simctl("openurl", udid, url);
     }
 
@@ -226,7 +233,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             diagnose(udid, tab);
         });
         const from = safariLog.lines.length;
-        openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
+        await openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
         const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
@@ -236,7 +243,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const mark = fx.log.length;
 
         // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
-        openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
+        await openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
         const ready = await fx.waitFor(
             (e) =>
                 e.seq >= mark &&

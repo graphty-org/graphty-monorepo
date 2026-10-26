@@ -1,61 +1,96 @@
 # Pipeline health
 
-A dashboard of how the graphty-monorepo pipeline is doing: master's build, pull requests, CI and its
-runners, flaky tests, releases, costs, this machine's local test runs, and whether every data source
-is reporting. Every color is judged against an SLA on the last hour; 6 hours is the trend, and 24 hours
-the backdrop and the incident list.
+The pipeline health dashboard shows how the graphty-monorepo build and release pipeline is doing right
+now: whether master builds, how long pull requests take, how CI and its runners behave, which tests are
+flaky, whether releases go out, what it all costs, what the maintainers' own machine is running, and
+whether every data source is still reporting.
 
-- **The page:** https://health.graphty.app (a static site on GitHub Pages).
-- **The data:** a public, read-only HTTP API on AWS (this directory's CDK stack).
-- **For agents:** a read-only MCP server over the same API.
+- **The page:** https://health.graphty.app
+- **The data:** a public, read-only HTTP API (see "The read API").
+- **For agents:** a read-only MCP server over the same API (see "The MCP server").
 
-This directory is a standalone package with its own lockfile. It is not part of the repository's
-pnpm workspace, so it is neither an nx project nor released to npm.
+Everything here is read-only and public: the page and the API need no login, and nothing they show is
+secret (runs, pull requests, test names and truncated failure messages are already public on GitHub).
 
-| Path      | What it is                                                                     |
-| --------- | ------------------------------------------------------------------------------ |
-| `infra/`  | The CDK stack (TypeScript)                                                     |
-| `src/`    | The Lambda handlers, the data model, the SLA engine and the collector          |
-| `config/` | `slas.json`: every member's target and red threshold                           |
-| `web/`    | The static dashboard; `web/src/contract.ts` is the shape of every API response |
-| `mcp/`    | The stdio MCP server for agents                                                |
-| `local/`  | The local collector, which posts this machine's test runs                      |
-| `test/`   | The stack, handler, model and SLA tests                                        |
+## Reading the page
 
-## The dashboard
+### Pages
 
-The page has a left navigation with ten views: an overview, then Master, Pull requests, CI (with
-Runners and Local runs under it, and shard times), Flaky tests (with hotspots), Releases, Costs and
-Data sources. The range picker is 1 h, 6 h or 24 h (default 1 h); Costs, shard times and flake
-hotspots use their own 7 d or 28 d window. A member the backend cannot judge says why instead of
-showing a calm zero: NO DATA, not set up, too few samples, or idle. Every row drills down to the
-run, pull request or test behind it.
+A left navigation lists the overview and seven categories. Each category link carries a colored bar
+with that category's state, so every page repeats the status line.
 
-Add `?fixtures` to the page's URL to draw the bundled sample data (`web/fixtures/`) instead of the
-API.
+| Page          | What it shows                                                                                                                                       |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                       |
+| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.  |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                    |
+| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; and **Shard times**: median and p90 per shard against budget. |
+| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.          |
+| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.             |
+| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.      |
+| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                          |
+| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                     |
+| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.           |
+
+Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
+(its flaky and failed results, newest first). The page, section and range are in the URL
+(`#/ci/runners?range=6h`), so a link reproduces the view. The page reloads its data every 60 seconds
+and says so in red when the data is over 15 minutes old. Times are UTC.
+
+### Time picker
+
+The picker on the overview and every category page is **1 h, 6 h or 24 h, default 1 h**. It sets the
+window of the values, tables and counts on the page. It never changes a color: states are always judged
+on the **last hour** (5-minute buckets), with the 6 h value (15-minute buckets) beside each one as the
+trend. For noisy rates, red also needs the 6 h value past the threshold. 24 h is only the backdrop: the
+faint part of each sparkline and the incident list.
+
+Costs, Shard times and Hotspots are slow measures with their own **7 d / 28 d** choice; they never set a
+category's color.
+
+### Colors and gray states
+
+Green is on target, yellow between target and threshold, red past the threshold. Gray always means "the
+dashboard cannot judge this", never "all is well":
+
+| Label             | Meaning                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| NO DATA           | The source stopped writing or failed; drawn hatched, never as 0.                       |
+| not set up        | The member has no writer or token yet; Data sources says what unblocks it.             |
+| too few, n=X of Y | Fewer samples in the hour than the member's minimum; its 6 h value is shown beside it. |
+| partial window    | The source's history covers only part of the window.                                   |
+| IDLE              | Nothing happened that the member measures (for example, no local runs).                |
+| slow measure      | A 7 d or 28 d value, shown but never judged.                                           |
+
+Add `?fixtures` to the page URL (before the `#`) to draw the bundled sample data in `web/fixtures/`
+instead of the live API; `?fixtures=gray` and `?fixtures=stale` show the gray and stale scenarios. A
+FIXTURE DATA banner says when sample data is on screen.
 
 ## The read API
 
-Base URL: the stack's `ApiUrl` output (today https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com).
-Every route is a public `GET` that needs no credentials, answered from precomputed items with
-`Cache-Control: max-age=60`, and throttled to 20 requests/s (burst 40). CORS allows
-https://health.graphty.app.
+Base URL: the `ApiUrl` output of the `graphty-health` stack, today
+https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
+seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
 
-| Route                                                | Returns                                                              |
-| ---------------------------------------------------- | -------------------------------------------------------------------- |
-| `/v1/health`                                         | Whether the API is up                                                |
-| `/v1/status`                                         | Each category's state and the last 24 h of episodes                  |
-| `/v1/page/overview?range=1h\|6h\|24h`                | The status, with each headline's value and sparkline                 |
-| `/v1/page/<page>?range=1h\|6h\|24h`                  | One page: its members (value, SLA, state) and sections               |
-| `/v1/page/costs?range=7d\|28d`                       | The Costs page                                                       |
-| `/v1/page/<page>/<section>?range=7d\|28d[&kind=...]` | A slow section: `ci/shards` (`kind=full\|pr-bins`), `flaky/hotspots` |
-| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d` | One test file's (or test's) flaky and failed results                 |
-| `/v1/run/<run id>`                                   | One workflow run with its jobs                                       |
+| Route                                                 | Returns                                                |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| `/v1/health`                                          | Whether the API is up                                  |
+| `/v1/status`                                          | Each category's state and the last 24 h of episodes    |
+| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline   |
+| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections |
+| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                         |
+| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs        |
+| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                         |
+| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results   |
+| `/v1/run/<run id>`                                    | One workflow run with its jobs                         |
 
-`<page>` is one of `master`, `pull-requests`, `ci`, `flaky`, `releases`, `costs`, `data-sources`,
-`runners`, `local-runs`. Values are neutral facts (numbers with units, ids, ISO times in UTC, and
-`{ code, params }` statements); a missing number is `null`, never 0. The TypeScript types for every
-response are in `web/src/contract.ts`, and `apiPath()` there builds every path.
+`<page>` is `master`, `pull-requests`, `ci`, `runners`, `flaky`, `releases`, `data-sources` or
+`local-runs`. The range defaults to `1h` (`7d` for Costs and the slow sections). A view with nothing
+computed yet answers 503 `{"code": "no_data"}`.
+
+Values are neutral facts: numbers with units, ids, ISO times in UTC, and `{ code, params }` statements
+that the page turns into words. A missing number is `null`, never 0. The TypeScript types of every
+response are in [`web/src/contract.ts`](web/src/contract.ts), whose `apiPath()` builds every path.
 
 ```bash
 curl -s https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status
@@ -63,71 +98,71 @@ curl -s https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status
 
 ## The MCP server
 
-`mcp/server.mjs` is a stdio MCP server that reads only the public routes above, so it needs no
-credentials. It is registered in the repository's `.mcp.json` as `pipeline-health`:
+[`mcp/server.mjs`](mcp/server.mjs) is a stdio MCP server that reads only the public routes above, so it
+needs no credentials. The repository's root [`.mcp.json`](../../.mcp.json) registers it as
+`pipeline-health`:
 
 ```json
 { "mcpServers": { "pipeline-health": { "command": "node", "args": ["tools/pipeline-health/mcp/server.mjs"] } } }
 ```
 
-It needs Node 22.18 or later (it imports `web/src/contract.ts` directly) and the package's
-dependencies (`pnpm install --frozen-lockfile` in this directory). `HEALTH_API_URL` points it at
-another API; only its origin is used, and the default is the deployed API.
+It needs Node 22.18 or later and this package's dependencies (`pnpm install --frozen-lockfile` in this
+directory). `HEALTH_API_URL` points it at another API (only its origin is used).
 
-| Tool                                   | Returns                                                                      |
-| -------------------------------------- | ---------------------------------------------------------------------------- |
-| `health_status()`                      | Each category's state, the member that set it, the others not OK, last 24 h  |
-| `category(name, range?)`               | One page: its state, members and sections                                    |
-| `master()`                             | Red spans, the full-run verdict, untested age, shared failures with suspects |
-| `runners()`                            | Running and queued jobs against the limit, and whether runners are saturated |
-| `release_lanes()`                      | The lanes of the newest tested candidate, train attempts, release workflows  |
-| `pull_requests(number?, state?)`       | Pull request members and rows, filtered by number or member state            |
-| `owner_queue()`                        | Pull requests waiting on the owner (screenshots, owner merges, breaking-go)  |
-| `flaky_hotspots(range, level, under?)` | Where flaky failures cluster: group, family, shard, file or test             |
-| `test_history(file, test?, range)`     | One test's (or file's) flaky and failed results, newest first                |
-| `shard_times(range, kind, shard?)`     | Shard and test-file durations for full runs or pull request bins             |
-| `ci_runs(range?)`                      | The CI page: runner wait, first-attempt failures, hangs, reruns, slow shards |
-| `run(runId)`                           | One workflow run with its jobs                                               |
-| `costs(month?)`                        | The Costs page (the current month)                                           |
-| `sources()`                            | Each data source's age and state, and what is not set up                     |
+| Tool                                     | Returns                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| `health_status()`                        | Each category's state, the member that set it, the others not OK, and the last 24 h    |
+| `category(name, range?)`                 | One page: its state, members and sections                                              |
+| `master(range?)`                         | Red spans, the full-run verdict, untested age, shared failures with suspects           |
+| `runners(range?)`                        | Running and queued jobs against the limit, who holds the runners, saturation           |
+| `release_lanes()`                        | The lanes of the newest tested candidate, train attempts and release workflows         |
+| `pull_requests(number?, state?, range?)` | Pull request members and rows, filtered to one pull request or one member state        |
+| `owner_queue()`                          | Pull requests waiting on the owner (screenshots, owner merges, `breaking-go`), and why |
+| `flaky_hotspots(range?, level?, under?)` | Flake hotspots at one level (group, family, shard, file, test), worst first            |
+| `test_history(file, test?, range?)`      | One test's (or file's) flaky and failed results, newest first                          |
+| `shard_times(range?, kind?, shard?)`     | Shard median and p90 against budget, with top files, for `full` runs or `pr-bins`      |
+| `ci_runs(range?)`                        | The CI page: runner wait, first-attempt failures and causes, hangs, reruns             |
+| `run(runId)`                             | One workflow run with its jobs                                                         |
+| `costs(month?)`                          | The Costs page; only the current month is served                                       |
+| `sources()`                              | Each data source's last write, limit and state, and what is not set up                 |
 
 Every result is small JSON: arrays are cut at 50 rows with `truncated: true`, sparklines are dropped,
-and each result carries `freshness`, the age of the payload and of every source, with `stale: true`
-past its limit. A route that does not answer becomes an error result naming the route. The data is
-up to 5 minutes old: treat it as a guide, and confirm a fact on GitHub before acting on it.
+and each result carries `freshness` (the age of the payload and of every source, with `stale: true` past
+its limit). A route that does not answer becomes an error result naming the route. The data is up to 5
+minutes old: confirm a fact on GitHub before acting on it.
 
-## Writing data
+## Where the data comes from
 
-Reads are public; writes come from three places.
-
-### CI
-
-A GitHub Actions job posts to `POST /v1/ingest/<kind>` with a GitHub OIDC token as its bearer token.
-The job needs `permissions: id-token: write`, and the token's audience must be `graphty-health`:
-
-```bash
-TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-health" | jq -r .value)
-curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" \
-  --data @rows.json "$HEALTH_API_URL/v1/ingest/<kind>"
-```
-
-The API Gateway JWT authorizer checks the token's signature, issuer
-(`https://token.actions.githubusercontent.com`), audience and expiry before any code runs. The ingest
-Lambda then checks the `repository_id`, `job_workflow_ref` and `ref` claims against the record kinds
-that workflow may write. A body is at most 1 MB (413 past it). Writes are throttled to 50 requests/s
-(burst 100). A failed post must never fail the job.
+Three writers fill the backend; the page and the MCP server only read.
 
 ### The collector on AWS
 
-A Lambda runs every 5 minutes from EventBridge Scheduler. It signs in to GitHub as a GitHub App and
-reads workflow runs, jobs and steps, pull requests, issues and the release lanes; npm hourly and
-billing daily. Then it recomputes the rollups (5 min, 15 min, 1 h and 1 d buckets) and the page items
-the read API serves.
+A Lambda runs every 5 minutes. It signs in to GitHub as the read-only GitHub App
+`graphty-pipeline-health` and reads workflow runs, jobs and steps, the jobs of every unfinished run,
+pull requests, issues, master's state and the release lanes (from `release.yml`'s job results). Hourly
+it reads the weekly stress run, the host matrix, npm and Coveralls; daily the money lines (AWS Cost
+Explorer plus the rates in `config/rates.json`). Then it recomputes the 5-minute, 15-minute, hourly and
+daily rollups and the page items the API serves, and sends the Pushover alerts.
+
+Until the App's parameters are in SSM (below), the GitHub sources show "not set up" on Data sources.
+
+### CI
+
+CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
+variable `HEALTH_API_URL` is set, every record it sends to the results service is also sent to the
+health API, fire and forget (2 seconds at most; a failed post never fails a job). The routes are
+`POST /v1/invocations`, `/v1/failures`, `/v1/durations` and `/v1/verdicts`, with the results service's
+own bodies.
+
+Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
+`permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer
+(`https://token.actions.githubusercontent.com`), audience and expiry; the ingest Lambda then checks
+the `repository`, `repository_id`, `job_workflow_ref` and `ref` claims against what that workflow may
+write (pull request runs, or the listed workflows on master). A body is at most 1 MB.
 
 ### The local collector
 
-`local/collector.mjs` posts this machine's test runs, each record once:
+[`local/collector.mjs`](local/collector.mjs) posts this machine's test runs, each record once:
 
 | Source in the main checkout                | Route                        |
 | ------------------------------------------ | ---------------------------- |
@@ -135,119 +170,91 @@ the read API serves.
 | `tmp/push-log.jsonl` (push gate runs)      | `POST /v1/local/push-runs`   |
 | `tmp/waits.jsonl` (test and GPU slots)     | `POST /v1/local/waits`       |
 
-Every body is `{ "rows": [...] }`, at most 500 rows and 1 MB; each row's id comes from its content, so
-a retried post is harmless. Host paths, gate logs, working directories and session ids are never
-posted. It needs two settings, from the environment or the main checkout's `.env`:
+Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
+its content, so a retried post is harmless.
 
-- `HEALTH_API_URL`: the API's base URL (the stack's `ApiUrl`).
-- `HEALTH_LOCAL_TOKEN`: the local bearer token. The API keeps only its SHA-256, in the SSM parameter
-  `/graphty-health/local-token-sha256`; the `/v1/local/*` routes answer 401 to any other token.
-
-```bash
-node tools/pipeline-health/local/collector.mjs --dry-run   # counts and one example per kind
-node tools/pipeline-health/local/collector.mjs --once      # post what is new, then exit
-node tools/pipeline-health/local/collector.mjs --watch     # post what is new every 60 s
-```
-
-Run it under servherd from the main checkout, so it keeps running when worktrees go:
-
-```jsonc
-servherd_start({ name: "pipeline-health-local", cwd: "<repo>",
-  command: "node tools/pipeline-health/local/collector.mjs --watch" })
-```
-
-Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one
-line and leaves the cursor where it was, so the next pass sends the same rows again; delete the
-cursor to post everything again.
-
-## Deploying the stack
-
-The stack is `graphty-health` in AWS account 494945606241, Region us-east-2, deployed with the AWS
-CLI profile `graphty`:
-
-```bash
-cd tools/pipeline-health
-pnpm install --frozen-lockfile
-pnpm exec cdk bootstrap aws://494945606241/us-east-2 --profile graphty   # once per account
-pnpm run deploy                                                          # cdk deploy --profile graphty
-aws cloudformation describe-stacks --stack-name graphty-health --profile graphty --region us-east-2 \
-  --query "Stacks[0].Outputs" --output table
-```
-
-`pnpm run synth` builds the CloudFormation template with no AWS credentials. A local dev server of the
-page needs its origin allowed by CORS: `pnpm run deploy -c devOrigin=https://<host>:<port>`.
-
-What it creates:
-
-- DynamoDB table `graphty-health` (on demand, keys `pk`/`sk`, TTL attribute `ttl`, deletion
-  protection, retained when the stack is deleted).
-- An HTTP API with the read routes, `POST /v1/ingest/{kind}` behind the GitHub OIDC JWT authorizer,
-  and `POST /v1/local/{kind}` checked by the local token.
-- Lambdas `Ingest`, `Read` and `Collector` (Node 22, arm64), the collector on a 5-minute schedule.
-- SNS topic `graphty-health-alarms`, the CloudWatch alarm `graphty-health-collector-dead-man` (no
-  successful collector run in 20 minutes), and the AWS Budget `graphty-health`.
-- Outputs `ApiUrl`, `TableName` and `TopicArn`.
-
-Subscribe an email address to the topic to receive the alarms:
-`aws sns subscribe --topic-arn <TopicArn> --protocol email --notification-endpoint <address> --profile graphty --region us-east-2`.
-
-### SSM parameters
-
-Every secret is an SSM SecureString under `/graphty-health/`; the Lambdas may read only that path.
-
-| Parameter                                    | Used for                                         |
-| -------------------------------------------- | ------------------------------------------------ |
-| `/graphty-health/local-token-sha256`         | The SHA-256 (hex) of the local collector's token |
-| `/graphty-health/github-app/app-id`          | The collector's GitHub App                       |
-| `/graphty-health/github-app/installation-id` | The App's installation in graphty-org            |
-| `/graphty-health/github-app/private-key`     | The App's private key (PEM)                      |
-| `/graphty-health/pushover/app-token`         | Alerts                                           |
-| `/graphty-health/pushover/user-key`          | Alerts                                           |
-| `/graphty-health/cloudflare/token`           | The Cloudflare line on Costs (optional)          |
-| `/graphty-health/cloudflare/account-id`      | The Cloudflare line on Costs (optional)          |
-| `/graphty-health/sentry/token`               | The Sentry line on Costs (optional)              |
-
-A member whose parameter is missing shows "not set up" instead of a state.
-
-To set the local token, generate one, keep it in `.env` as `HEALTH_LOCAL_TOKEN`, and store only its
-hash:
+**The local token.** The `/v1/local/*` routes take a bearer token that the API knows only by its
+SHA-256, kept in SSM as `/graphty-health/local-token-sha256`; any other token gets 401. Generate a
+token, keep it in the main checkout's `.env` as `HEALTH_LOCAL_TOKEN` (or in the environment), and store
+only its hash:
 
 ```bash
 aws ssm put-parameter --profile graphty --region us-east-2 --type SecureString --overwrite \
   --name /graphty-health/local-token-sha256 --value "$(printf %s "$HEALTH_LOCAL_TOKEN" | sha256sum | cut -d' ' -f1)"
 ```
 
-### Spend guards
+It also needs `HEALTH_API_URL` (the API's base URL), from the environment or `.env`.
 
-1. **In code.** Reserved concurrency: `Ingest` 20, `Read` 5, `Collector` 1. API throttles: reads 20
-   requests/s (burst 40), writes 50 (burst 100). Bodies up to 1 MB. A daily write budget of 300,000
-   rows: each ingest adds its rows to that day's quota item under a condition, and past it writes get
-   429 and Data sources turns red.
-2. **The AWS Budget `graphty-health`.** 10 USD a month. It notifies the alarm topic at 50% of actual
-   and 100% of forecast spend, and at 100% of actual spend its action attaches a deny-all policy to the three Lambda roles, which stops the
-   backend until the policy is detached.
-3. **The project spend limit,** set by the account owner in the AWS console (20 USD, "stop new
-   resource creation" on). Reaching it pauses every resource in the project.
+```bash
+node tools/pipeline-health/local/collector.mjs --dry-run   # counts and one example per kind, posts nothing
+node tools/pipeline-health/local/collector.mjs --once      # post what is new, then exit
+node tools/pipeline-health/local/collector.mjs --watch     # post what is new every 60 s
+```
 
-The last two can silence the collector, and with it the dashboard; the dead-man alarm, which runs
-outside the collector, emails the topic when that happens.
+Run it under servherd from the main checkout, so it keeps running when worktrees are removed:
 
-## Running the tests
+```jsonc
+servherd_start({ name: "pipeline-health-local", cwd: "<repo>",
+  command: "node tools/pipeline-health/local/collector.mjs --watch" })
+```
+
+Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one line
+and keeps the cursor, so the next pass sends the same rows; delete the cursor to post everything again.
+
+## Configuration
+
+- [`config/slas.json`](config/slas.json): every member's target (`ok`) and red threshold (`fail`), its
+  window, its minimum samples (`minN`), each data source's age limit, the runner limits, the pull
+  request budgets and the daily write budget. Change a threshold here, not in code.
+- [`config/rates.json`](config/rates.json): the money rates for Costs (T4 minutes, paid LLM runs, fixed
+  monthly plans, Actions list prices), each with the date it was checked. A `null` rate shows NO DATA.
+- SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
+  shows "not set up":
+
+| Parameter                                                             | Used for                                       |
+| --------------------------------------------------------------------- | ---------------------------------------------- |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key` | The collector's GitHub App                     |
+| `/graphty-health/local-token-sha256`                                  | The local collector's token (its SHA-256, hex) |
+| `/graphty-health/pushover/app-token`, `user-key`                      | Alerts                                         |
+| `/graphty-health/cloudflare/token`, `account-id`                      | The Cloudflare line on Costs (optional)        |
+| `/graphty-health/sentry/token`                                        | The Sentry line on Costs (optional)            |
+
+**When everything goes dark.** The backend stops itself before it costs money: a daily write budget
+(past it, writes get 429 and Data sources turns red), a 10 USD monthly AWS Budget whose action denies
+the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences the collector; the
+CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
+the SNS topic `graphty-health-alarms` when that happens.
+
+## Backfill
+
+To load the last 28 days of runs, jobs, pull requests and issues (it needs the GitHub App's parameters):
+
+```bash
+aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
+    --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
+```
+
+Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;
+invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
+backfill -- --days 28` runs the same from a workstation.
+
+## Running the tests and the page
 
 ```bash
 cd tools/pipeline-health
 pnpm install --frozen-lockfile
-pnpm run typecheck                          # tsc over infra/, src/ and test/
-pnpm test                                   # vitest: stack, handlers, model, SLA engine
-pnpm run synth                              # the template builds
-node --test mcp/server.test.mjs             # the MCP server against a local fake of the API
-node --test local/collector.test.mjs        # the local collector
+npx tsc --noEmit                         # infra/, src/ and test/
+npx tsc --noEmit -p web                  # the page
+npx vitest run                           # stack, handlers, model, SLA engine, views
+node --test mcp/server.test.mjs          # the MCP server against a local fake of the API
+node --test local/collector.test.mjs     # the local collector
+pnpm run synth                           # the CloudFormation template builds, no credentials needed
 ```
 
-The repository's `Pipeline health` workflow (`.github/workflows/pipeline-health.yml`) runs the
-type-check, the vitest suite and the synth on every change to this directory.
+The repository's `Pipeline health` workflow runs the type-check, the vitest suite and the synth on every
+change to this directory.
 
-To run the page locally, start a Vite dev server through servherd (it reads its port from `PORT`):
+To run the page locally, start a Vite dev server through servherd:
 
 ```jsonc
 servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
@@ -255,55 +262,12 @@ servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
 ```
 
-`VITE_HEALTH_API_URL` at build or dev time sets the API base (empty or unset means the live API above); add `?fixtures` to the URL to draw the sample data instead.
-The first deploy into an account needs `pnpm exec cdk bootstrap aws://494945606241/us-east-2 --profile graphty`.
+`VITE_HEALTH_API_URL` sets the API it reads (unset: the live API). The live API allows CORS only from
+health.graphty.app and `http://localhost:5173`, so on any other origin use `?fixtures`.
 
-## The collector
+## Deployment
 
-Every 5 minutes the `Collector` Lambda reads GitHub as the collector's GitHub App: workflow runs, jobs
-and steps since its cursor across the organization's repositories with Actions activity, the jobs of every
-unfinished run (runner use against the limits in `config/slas.json`), pull requests and issues in one
-GraphQL query each, master's state (a cancelled build is classified from its check-run annotations as
-superseded, by hand or red), and the release lanes from `release.yml`'s job conclusions. Hourly it reads
-the weekly stress run, the host matrix, npm (tagged versions npm does not list) and Coveralls' newest
-master build; daily the money lines (AWS Cost Explorer, plus the rates in `config/rates.json`, which also
-price T4 jobs and paid LLM runs). Everything is written through the model's raw writers, so a cycle that
-runs twice writes the same items.
-
-The App is read from the SSM SecureStrings `/graphty-health/github-app/app-id`, `installation-id` and
-`private-key`. Until they exist the collector collects nothing from GitHub, and the GitHub sources show
-"not set up" on the Data sources page; coverage and billing are collected either way.
-
-The App needs read-only access, installed on the graphty-org organization (all repositories):
-
-| Permission          | Level | For                                                    |
-| ------------------- | ----- | ------------------------------------------------------ |
-| Actions             | Read  | runs, jobs, steps, attempts                            |
-| Checks              | Read  | check-run annotations (cancel class, hangs)            |
-| Contents            | Read  | tags and the master compare (untested master age)      |
-| Issues              | Read  | issues, "Release held" issues                          |
-| Pull requests       | Read  | pull requests, their checks and ready events           |
-| Metadata            | Read  | (always on) the organization's repositories            |
-| Self-hosted runners | Read  | (organization) the runner groups, for the Runners page |
-
-No webhooks and no write permission.
-
-### Backfill
-
-The backfill loads the last 28 days of runs and jobs (every attempt), pull requests and issues into the
-table through the collector's own writers, and marks the range's buckets for recompute. It needs the
-GitHub App's parameters in SSM. Run it as the `graphty-health-backfill` Lambda, which works in 15-minute
-slices:
-
-```bash
-aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
-    --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
-```
-
-Each slice answers `{"done": false, "stopped": "deadline"}` until the range is loaded; invoke it again and it
-continues from its cursor (the next day and page, kept in the table), so a timeout loses nothing. It makes at
-most 2,000 GitHub requests an hour (`"perHour"` in the payload changes that), stops while the App has less
-than a quarter of its hour left (`"stopped": "rate"`), and writes at most half of the daily write budget
-(`"stopped": "write_budget"`: invoke it again the next UTC day). After loading it recomputes dirty buckets
-until the slice ends; the 5-minute collector drains whatever is left (`"dirtyLeft": true`). The same runs
-from this machine with `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill -- --days 28`.
+Two CDK stacks in AWS account 494945606241, Region us-east-2: `graphty-health` (the table, API, Lambdas,
+schedule, alarms and Budget) and `graphty-health-deploy` (a CodeBuild project that deploys
+`graphty-health` on every master push touching this directory). The page is published to
+https://health.graphty.app by `.github/workflows/pipeline-health-pages.yml`.

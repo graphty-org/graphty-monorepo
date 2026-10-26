@@ -413,8 +413,12 @@ function decideMain(env) {
         try {
             hold = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
         } catch (error) {
-            // an unknown hold is not "no hold": a promotion that cannot check waits for the next run
-            hold = "(unknown: " + error.message.split("\n")[0] + ")";
+            // an unknown hold is not "no hold", and a refusal here would never be retried (full-run.mjs pick skips a
+            // judged green-clean commit): fail the job, so re-running its failed jobs decides again
+            console.log(
+                `::error::cannot read the publish hold, so the promotion is undecided: ${error.message.split("\n")[0]}`,
+            );
+            process.exit(1);
         }
     }
     const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE });

@@ -201,6 +201,17 @@ describe("nightly.mjs as a command", () => {
         assert.match(r.stdout, /::error::missing SHA, SITE_SHA256, CONFIG_REF/);
     });
 
+    it("fails, promoting nothing, when it cannot read the publish hold of a green-clean candidate", () => {
+        const r = spawnSync(process.execPath, [script, "decide"], {
+            encoding: "utf8",
+            cwd: "/",
+            env: { PATH: process.env.PATH, STATE: "green-clean", GATE: "success" },
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::cannot read the publish hold/);
+        assert.doesNotMatch(r.stdout, /^promote=/m);
+    });
+
     it("decides without asking GitHub when the verdict is not green-clean", () => {
         const r = spawnSync(process.execPath, [script, "decide"], {
             encoding: "utf8",

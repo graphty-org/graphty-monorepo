@@ -858,6 +858,7 @@ describe("mutation testing of the selection", () => {
             "graphty-element's dependencies",
         );
         const fidelity = storyCandidates(ROOT, "graph-io", ["graph-io", "graphty-element"]);
+        assert.ok(!app.some((f) => /\.(test|spec)\./u.test(f)), "never a test file under stories/");
         assert.ok(
             fidelity.some((f) => f.startsWith("graphty-element/src/")),
             "a drawnBy package's source",

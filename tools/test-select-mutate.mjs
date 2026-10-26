@@ -423,7 +423,7 @@ export function storyCandidates(wt, pkg, drawnBy = []) {
         }
     }
     const deps = [...seen].filter((d) => d !== pkg);
-    const story = (f) => STORY_SIDE.test(f) && !/\/\.storybook\//u.test(f);
+    const story = (f) => STORY_SIDE.test(f) && !/\/\.storybook\//u.test(f) && !/\.(test|spec)\./u.test(f);
     return execFileSync("git", ["ls-files", "--", pkg, ...deps], { cwd: wt, encoding: "utf8" })
         .split("\n")
         .filter((f) => f && (CODE.test(f) || DATA.test(f)) && !f.endsWith(".d.ts"))
@@ -471,17 +471,23 @@ async function storyMutant(c, n, f) {
         log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
         return { misses: 0, inconclusive: 0, checked: 0 };
     }
+    // a failed rebuild would leave the broken Storybook in place and call every miss flaky
+    const recapture = async (ids) => (c.build().status === 0 ? await c.capture(`mutant-${n}-unbroken`, ids) : null);
+    let again = null;
     if (!broken) {
-        // a capture can fail for reasons that are not the mutant's (the browser, the slot), so it proves nothing
-        log("  INCONCLUSIVE: the broken Storybook could not be captured");
-        return { misses: 0, inconclusive: 1, checked: 1 };
+        // a broken story file makes the whole capture fail (Storybook loads every CSF file); that is the
+        // mutant's doing only when the unbroken Storybook captures again, and then every story changed
+        again = await recapture(null);
+        if (!again) {
+            log("  INCONCLUSIVE: neither the broken nor the unbroken Storybook could be captured");
+            return { misses: 0, inconclusive: 1, checked: 1 };
+        }
     }
-    const changed = c.changedIds(c.ref, broken);
+    const changed = broken ? c.changedIds(c.ref, broken) : [...c.fileOf.keys()].sort();
     const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
     let found = [];
     if (missed.length > 0) {
-        // a failed rebuild would leave the broken Storybook in place and call every miss flaky
-        const again = c.build().status === 0 ? await c.capture(`mutant-${n}-unbroken`, missed) : null;
+        again ??= await recapture(missed);
         if (!again) {
             log("  INCONCLUSIVE: the unbroken Storybook could not be built or captured again");
             return { misses: 0, inconclusive: 1, checked: 1 };

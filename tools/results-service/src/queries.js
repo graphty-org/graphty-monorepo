@@ -1,6 +1,7 @@
 // The results Worker's read side (design/ci/channels-pipeline/results-service.md 5.3 and 6; channels.md 5 and
 // 7; budgets-and-trust.md 1.6). Every answer is computed when it is read: no cron, no stored conclusion.
 import { refuse } from "./service.js";
+import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
@@ -416,7 +417,7 @@ export async function trendFor(db, kind, posted, budgets, now) {
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
 // ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
 // or was cut short is no pass of the test. Only pairs that include `id` are asked.
-const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, a.id AS failedIn, b.id AS passedIn
+const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn
      FROM invocation a JOIN failure f ON f.invocation = a.id
      JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
      JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
@@ -467,12 +468,14 @@ export async function concludeFlaky(db, id, now) {
                     now + 14 * DAY,
                 )
                 .run();
-        // only an earlier flaky issue: a `Failing on master` one for the signature is not where a quarantine goes
+        // only an earlier flaky issue: a `Failing on master` one for the signature is not where a quarantine goes.
+        // A timeout's issue is keyed by its test too, so closing one never ends another timeout's quarantine.
+        const signature = issueKey(t.signature, t.status, t.name);
         const had = await db
             .prepare("SELECT number FROM tracked_issue WHERE signature = ? AND kind = 'flaky'")
-            .bind(t.signature)
+            .bind(signature)
             .first();
-        out.push({ family, file: t.file, name: t.name, signature: t.signature, proof, had: had?.number ?? null });
+        out.push({ family, file: t.file, name: t.name, signature, proof, had: had?.number ?? null });
     }
     return out;
 }

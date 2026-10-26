@@ -656,6 +656,37 @@ describe("flaky tests from master's records", () => {
         assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
     });
 
+    it("files two timeouts in one file as two issues, so closing one leaves the other quarantined", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        const timeout = (name) => ({ file: X, name, message: "Error: Test timed out in 5000ms." });
+        const failures = [timeout("camera > zooms"), timeout("camera > pans")];
+        await call("POST", "/v1/invocations", {
+            token,
+            body: record({ id: "4010.1.base.t1.1", sha: "base1", failures }),
+        });
+        const proved = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.t2.1") });
+        const flaky = proved.body.flaky;
+        assert.equal(flaky.length, 2);
+        assert.notEqual(flaky[0].signature, flaky[1].signature);
+        for (const [i, t] of flaky.entries()) {
+            const back = {
+                signature: t.signature,
+                kind: "flaky",
+                number: 81 + i,
+                family: t.family,
+                file: t.file,
+                name: t.name,
+            };
+            assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
+        }
+        assert.equal(rows("SELECT * FROM tracked_issue").length, 2);
+        await call("POST", "/v1/issues", { token, body: { number: 81, state: "closed" } });
+        assert.deepEqual(rows("SELECT name, issue FROM quarantine WHERE left_at IS NULL"), [
+            { name: flaky[1].name, issue: 82 },
+        ]);
+    });
+
     it("never quarantines from a pull request's records, other inputs, another skip count or a GPU family", async () => {
         const { call, rows } = service();
         const token = master("ci.yml");

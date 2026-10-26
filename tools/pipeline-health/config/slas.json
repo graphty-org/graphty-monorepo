@@ -106,7 +106,7 @@
         "pr": 20,
         "pr-wide": 35
     },
-    "dailyRowLimit": 300000,
+    "dailyRowLimit": 1000000,
     "members": [
         {
             "id": "master.red_now",

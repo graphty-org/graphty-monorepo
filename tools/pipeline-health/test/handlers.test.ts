@@ -353,6 +353,53 @@ describe("ingest: what it stores", () => {
         expect(mem.items.get("R#test#500.1.test.layout.1#a.ts#flaky\u0000A#1")?.outcome).toBe("flaky");
     });
 
+    it("finds a failing try's failures from its invocation post alone, when the failures post was lost", async () => {
+        const h = await ingest();
+        const try1 = invocation({
+            id: "500.1.test.layout.1",
+            variant: "layout",
+            failures: [{ file: "a.ts", name: "t", message: "x" }],
+        });
+        await h(event("/v1/invocations", try1));
+        const passed = invocation({ id: "500.1.test.layout.2", try: 2, variant: "layout", outcome: "passed" });
+        (passed as Record<string, unknown>).failures = [];
+        await h(event("/v1/invocations", passed));
+        expect(mem.items.get("R#test#500.1.test.layout.1#a.ts#t\u0000A#1")?.outcome).toBe("flaky");
+    });
+
+    it("reads each failure of a failing try once, not once more to check for a flaky verdict", async () => {
+        const h = await ingest();
+        const failures = Array.from({ length: 40 }, (_, i) => ({ file: "a.ts", name: `t${i}`, message: "x" }));
+        const get = vi.spyOn(mem, "get");
+        await h(event("/v1/invocations", invocation({ id: "500.1.test.layout.1", variant: "layout", failures })));
+        const testReads = get.mock.calls.filter(([k]) => k.pk.startsWith("R#test#")).length;
+        get.mockRestore();
+        expect(testReads).toBe(40);
+    });
+
+    it("keeps flaky when try 1 and try 2 arrive at the same moment, in every row of the test", async () => {
+        for (const order of [0, 1]) {
+            mem = new MemoryStore();
+            vi.resetModules();
+            const h = await ingest();
+            const fail = { invocation: "500.1.test.layout.1", failures: [{ file: "a.ts", name: "t", message: "x" }] };
+            await h(event("/v1/failures", fail));
+            const try1 = invocation({ id: "500.1.test.layout.1", variant: "layout", failures: fail.failures });
+            const try2 = invocation({ id: "500.1.test.layout.2", try: 2, variant: "layout", outcome: "passed" });
+            (try2 as Record<string, unknown>).failures = [];
+            const posts = [event("/v1/invocations", try1), event("/v1/invocations", try2)];
+            if (order) posts.reverse();
+            await Promise.all(posts.map((e) => h(e)));
+            // A late failures post for try 1 does not turn it back either.
+            await h(event("/v1/failures", fail));
+            const rows = [...mem.items.values()].filter(
+                (i) => i.id === "500.1.test.layout.1#a.ts#t" && !i.pk.startsWith("INVTESTS#"),
+            );
+            expect(rows.length).toBeGreaterThan(1);
+            expect(rows.map((r) => r.outcome)).toEqual(rows.map(() => "flaky"));
+        }
+    });
+
     it("answers 429 past the daily write budget and writes nothing", async () => {
         const { quotaKey } = await import("../src/model/items.ts");
         mem.items.set(`${quotaKey(NOW).pk}\u0000-`, { ...quotaKey(NOW), rows: 300_000 });

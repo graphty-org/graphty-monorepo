@@ -1,6 +1,8 @@
 // Writing raw items, the daily write budget, cursors and source health. Ingest and the collector call these; the
 // rollups are recomputed from what they stored (rollup.ts), so nothing here counts anything.
 
+import { randomUUID } from "node:crypto";
+
 import {
     copyKey,
     type CursorItem,
@@ -19,7 +21,27 @@ import {
     TIME_FIELDS,
     ttlAt,
 } from "./items.js";
-import type { BatchOp, Item, Key, Store } from "./store.js";
+import type { BatchOp, Condition, Item, Key, Store } from "./store.js";
+
+/**
+ * A test's rows, written in one transaction on the condition that its home row is still what `old` was (its write id
+ * `wid`), re-read and retried when another post changed it in between. Two tries of one shard posting at once
+ * therefore never mix their rows, and a failed result never replaces a flaky one (failed, then passed on its retry).
+ */
+async function putTest(store: Store, r: RawItem, old: (Item & RawItem) | undefined, nowMs: number, dirty: Set<number>) {
+    for (let tries = 0; tries < 8; tries++) {
+        if (tries) old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
+        if (r.kind === "test" && r.outcome === "failed" && old?.kind === "test" && old.outcome === "flaky") return;
+        const [home, ...rest] = writesFor(r, old, nowMs, dirty) as [{ put: Item }, ...BatchOp[]];
+        const condition: Condition = !old
+            ? { notExists: true }
+            : old.wid === undefined
+              ? { field: "outcome", op: "=", value: String((old as Item).outcome) }
+              : { field: "wid", op: "=", value: String(old.wid) };
+        if (await store.transact([{ put: { ...home.put, wid: randomUUID() }, condition }, ...rest])) return;
+    }
+    throw new Error(`test ${r.id}: its row kept changing under 8 tries`);
+}
 
 const timesOf = (r: RawItem): [string, number][] =>
     TIME_FIELDS[r.kind].flatMap((f) => {
@@ -50,7 +72,15 @@ export async function putRaw(
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    items.forEach((r, i) => ops.push(...writesFor(opts.merge ? mergeOld(r, olds[i]) : r, olds[i], nowMs, dirty)));
+    const tests: Promise<void>[] = [];
+    items.forEach((r, i) => {
+        const merged = opts.merge ? mergeOld(r, olds[i]) : r;
+        if (r.kind === "test") tests.push(putTest(store, merged, olds[i], nowMs, dirty));
+        else ops.push(...writesFor(merged, olds[i], nowMs, dirty));
+    });
+    // Before the batch, which holds the dirty marks: a recompute never runs on a bucket before its rows are in.
+    // ponytail: all of a post's tests at once; failing tries carry tens, chunk these if one ever carries thousands.
+    await Promise.all(tests);
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }

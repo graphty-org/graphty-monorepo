@@ -8,10 +8,11 @@ import {
     GetCommand,
     PutCommand,
     QueryCommand,
+    TransactWriteCommand,
     UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-import type { BatchOp, Change, Condition, Item, Key, Store } from "./model/store.js";
+import type { BatchOp, Change, Condition, Item, Key, Store, TransactOp } from "./model/store.js";
 
 const failed = (error: unknown) => (error as { name?: string }).name === "ConditionalCheckFailedException";
 
@@ -165,6 +166,47 @@ export function dynamoStore(
                 const group: Promise<void>[] = [];
                 for (let j = i; j < Math.min(i + 200, all.length); j += 25) group.push(write(all.slice(j, j + 25)));
                 await Promise.all(group);
+            }
+        },
+
+        async transact(ops: TransactOp[]) {
+            // A transaction refuses two ops on one key: the last one wins, as in batch().
+            const last = new Map<string, TransactOp>();
+            for (const op of ops) {
+                const id = idOf("put" in op ? op.put : op.delete);
+                last.delete(id);
+                last.set(id, op);
+            }
+            const items = [...last.values()].map((op) => {
+                if (!("put" in op)) return { Delete: { TableName: tableName, Key: keyOf(op.delete) } };
+                const names: Record<string, string> = {};
+                const values: Record<string, unknown> = {};
+                const expr = conditionOf(op.condition, names, values);
+                return {
+                    Put: {
+                        TableName: tableName,
+                        Item: op.put,
+                        ...(expr
+                            ? {
+                                  ConditionExpression: expr,
+                                  ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
+                                  ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {}),
+                              }
+                            : {}),
+                    },
+                };
+            });
+            // A concurrent write to one of the keys cancels the transaction (TransactionConflict): try again.
+            for (let tries = 0; ; tries++) {
+                try {
+                    await client.send(new TransactWriteCommand({ TransactItems: items }));
+                    return true;
+                } catch (error) {
+                    const reasons = (error as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
+                    if (reasons.some((r) => r.Code === "ConditionalCheckFailed")) return false;
+                    if (tries === 4 || !reasons.some((r) => r.Code === "TransactionConflict")) throw error;
+                    await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
+                }
             }
         },
     };

@@ -159,10 +159,12 @@ let last: Loaded | null = null;
 
 function banners(error: string | null): string {
     const out: string[] = [];
-    if (FIXTURE)
+    if (FIXTURE) {
+        const scenario = SCENARIO ? " (scenario " + esc(SCENARIO) + ")" : "";
         out.push(
-            `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${SCENARIO ? ` (scenario ${esc(SCENARIO)})` : ""}, not the live pipeline. Remove ?fixtures from the URL for live data.</div>`,
+            `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${scenario}, not the live pipeline. Remove ?fixtures from the URL for live data.</div>`,
         );
+    }
     if (error)
         out.push(
             `<div class="banner stale" role="alert"><b>The health API did not answer</b> (${esc(error)}).${last ? ` Showing the data from ${fmtTime(last.generated)} UTC.` : ""}</div>`,

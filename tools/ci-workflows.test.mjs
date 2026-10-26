@@ -2610,16 +2610,35 @@ describe("pr-title.yml", () => {
         assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.equal(pr.split(QUEUE).length, 2);
     });
-    // The breaking-change step's script, against a stub gh: the commits, the labels and who added them.
-    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [] } = {}) => {
+    // The breaking-change step's script, against a stub gh: one GraphQL page with the commits, the labels and
+    // who added them; `fail` is gh's error output for a failed call.
+    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [], fail = "" } = {}) => {
         const pr = workflow("pr-title.yml");
         const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
         const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
         const dir = mkdtempSync(join(tmpdir(), "pr-breaking-"));
+        const page = {
+            data: {
+                repository: {
+                    pullRequest: {
+                        labels: { nodes: labels.map((name) => ({ name })) },
+                        timelineItems: {
+                            nodes: by.map((login) => ({ label: { name: "breaking-go" }, actor: { login } })),
+                        },
+                        commits: {
+                            pageInfo: { hasNextPage: false, endCursor: null },
+                            nodes: commits.map((message) => ({ commit: { message } })),
+                        },
+                    },
+                },
+            },
+        };
+        writeFileSync(join(dir, "page.json"), JSON.stringify(page));
+        writeFileSync(join(dir, "fail.txt"), fail);
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\ncase "$2" in\n*/commits) printf '%s\\n' ${commits.map((c) => `$'${c.replaceAll("\n", "\\n")}'`).join(" ")};;\n` +
-                `*/labels) printf '%s\\n' ${labels.join(" ")};;\n*/events) printf '%s\\n' ${by.join(" ")};;\nesac\n`,
+            `#!/bin/bash\n[ "$1 $2" = "api graphql" ] || exit 9\n` +
+                `if [ -s "${dir}/fail.txt" ]; then cat "${dir}/fail.txt" >&2; exit 1; fi\ncat "${dir}/page.json"\n`,
             { mode: 0o755 },
         );
         const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
@@ -2630,10 +2649,12 @@ describe("pr-title.yml", () => {
                 PR_TITLE: title,
                 OWNER: "apowers313",
                 GITHUB_REPOSITORY: "o/r",
+                RUNNER_TEMP: dir,
                 PATH: `${dir}:${process.env.PATH}`,
             },
         });
         rmSync(dir, { recursive: true, force: true });
+        breaking.stdout = r.stdout;
         return r.status;
     };
     it("fails a breaking change until the owner adds breaking-go, and re-checks on a label", () => {
@@ -2645,6 +2666,12 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
         assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
+    it("fails closed, naming the cause, when the GitHub API cannot be asked", () => {
+        assert.equal(breaking({ fail: "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" }), 1);
+        assert.match(breaking.stdout, /::error::GitHub API rate limit for this repository ran out; re-run this check/);
+        assert.equal(breaking({ fail: "HTTP 502: Bad Gateway" }), 1);
+        assert.match(breaking.stdout, /::error::could not read this pull request's commits and labels/);
     });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.

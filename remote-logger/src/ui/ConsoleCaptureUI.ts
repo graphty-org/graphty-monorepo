@@ -127,6 +127,7 @@ export class ConsoleCaptureUI {
                 justify-content: center;
                 transition: all 0.2s;
                 opacity: 0.6;
+                will-change: opacity;
             ">📋</button>
             <div id="console-capture-menu" style="
                 position: fixed;

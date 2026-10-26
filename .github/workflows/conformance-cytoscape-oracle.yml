@@ -36,7 +36,7 @@ jobs:
             CYTOSCAPE_VERSION: "3.10.5"
             CYREST_PORT: "1234"
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - name: Set up Java 17 (Cytoscape's Linux tarball bundles none)
               uses: actions/setup-java@v6

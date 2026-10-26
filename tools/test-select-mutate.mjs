@@ -38,7 +38,16 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    realpathSync,
+    writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -479,33 +488,30 @@ async function storyMutant(c, n, f) {
     }
     // a failed rebuild would leave the broken Storybook in place and call every miss flaky
     const recapture = async (ids) => (c.build().status === 0 ? await c.capture(`mutant-${n}-unbroken`, ids) : null);
-    let again = null;
     if (!broken) {
-        // a broken story file makes the whole capture fail (Storybook loads every CSF file); that is the
-        // mutant's doing only when the unbroken Storybook captures again, and then every story changed
-        again = await recapture(null);
-        if (!again) {
-            log("  INCONCLUSIVE: neither the broken nor the unbroken Storybook could be captured");
-            return { misses: 0, inconclusive: 1, checked: 1 };
-        }
+        // the mutant throws on import, and the capture loads every story file, so a break any story reaches fails
+        // the whole capture (CI's too, whatever was selected) and says nothing about which stories it changed
+        log("  SKIPPED: the broken Storybook cannot be captured (an import-time break fails every capture)");
+        return { misses: 0, inconclusive: 0, checked: 0 };
     }
-    const changed = broken ? c.changedIds(c.ref, broken) : [...c.fileOf.keys()].sort();
+    const changed = c.changedIds(c.ref, broken);
     const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
     let found = [];
+    let flaky = new Set();
     if (missed.length > 0) {
-        again ??= await recapture(missed);
+        const again = await recapture(missed);
         if (!again) {
             log("  INCONCLUSIVE: the unbroken Storybook could not be built or captured again");
             return { misses: 0, inconclusive: 1, checked: 1 };
         }
         // --stories matches by prefix, so the capture can hold stories that were not missed
         const only = (r) => ({ ...r, items: r.items.filter((i) => missed.includes(i.id)) });
-        const flaky = new Set(c.changedIds(only(c.ref), only(again)));
+        flaky = new Set(c.changedIds(only(c.ref), only(again)));
         flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
         found = missed.filter((id) => !flaky.has(id));
     }
-    if (changed.length === 0) {
-        // a break no picture shows (tree-shaken, or drawn by no story) tests nothing
+    if (changed.every((id) => flaky.has(id))) {
+        // a break no picture shows (tree-shaken, drawn by no story, or only noise) tests nothing
         log("  SKIPPED: the break changed no story's capture");
         return { misses: 0, inconclusive: 0, checked: 0 };
     }
@@ -549,8 +555,15 @@ async function storiesMain(project, opt) {
     const rules = { ...loadRules(wt).stories, selectProjects: [project] };
     const work = dirname(paths.report);
     // no baselines: only the captures' bytes are compared, unbroken against broken
+    // with the stories' settings files (modes, delay), so each story is captured as CI captures it
     const empty = join(work, "no-baselines");
     mkdirSync(empty, { recursive: true });
+    const settings = join(wt, "visual-baselines", project);
+    if (existsSync(settings)) {
+        readdirSync(settings)
+            .filter((f) => f.endsWith(".json"))
+            .forEach((f) => copyFileSync(join(settings, f), join(empty, f)));
+    }
     const build = () =>
         spawnSync("bash", ["-c", cfg[project].build], { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 });
     const { parity, readResults } = await import(pathToFileURL(join(wt, "visual-review/trusted/lib/parity.mjs")).href);

@@ -568,7 +568,7 @@ describe("the pull request rules", () => {
 
     it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", () => {
         const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
-        const out = join(dir, "checks", `${o.shard}.jsonl`);
+        const out = join(dir, "checks");
         const plan = { quarantine: [], failingOnBase: [], affected: [] };
         const d = decide({
             family: FAMILY,

@@ -67,8 +67,8 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
  * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
  * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else fails as
- * `[KNOWN?]`. Each untouched case names its base-check.yml dispatch, and with `out` also writes it there as one
- * JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
+ * `[KNOWN?]`. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
+ * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
  * @param plan the plan file (no `affected`: every test touched)
  * @param o the group
@@ -76,7 +76,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * @param o.family its family
  * @param o.variant its variant
  * @param o.base the pull request's base commit
- * @param [o.out] the file the base checks to dispatch are appended to
+ * @param [o.out] the directory the base checks to dispatch are written to
  * @returns the judge
  */
 export function prJudge(plan, { shard, family, variant, base, out }) {
@@ -92,8 +92,8 @@ export function prJudge(plan, { shard, family, variant, base, out }) {
     const list = storeList(plan);
     const check = (f, repeat) => {
         if (out) {
-            mkdirSync(dirname(out), { recursive: true });
-            appendFileSync(out, `${JSON.stringify({ base, file: f.file, variant, repeat })}\n`);
+            mkdirSync(out, { recursive: true });
+            appendFileSync(join(out, `${shard}.jsonl`), `${JSON.stringify({ base, file: f.file, variant, repeat })}\n`);
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     };
@@ -504,7 +504,7 @@ export async function runGroup(
                       family,
                       variant,
                       base: plan.base ?? head.base,
-                      out: env.RESULTS_BASE_CHECKS_OUT && join(env.RESULTS_BASE_CHECKS_OUT, `${shardName}.jsonl`),
+                      out: env.RESULTS_BASE_CHECKS_OUT,
                   }),
               }
             : {};

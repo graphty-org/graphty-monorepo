@@ -69,6 +69,10 @@ export function statusComment(outcome, f, notify = "") {
         case "owner-item":
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
+        case "green-images":
+            // a green-images candidate waits for the owner's review, and the run ends green: he must hear of it
+            text = `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app does not move. Review them on the review page (\`visual-review serve --candidate next\`), whose Finish opens the pull request that approves them, or fix forward.\n\nACTION NEEDED: review the changed screenshots of the full run on ${sha}`;
+            break;
         case "nightly":
             text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
             break;
@@ -83,7 +87,7 @@ export function statusComment(outcome, f, notify = "") {
             break;
         default:
             throw new Error(
-                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, nightly, nightly-failed, nightly-held, run-ended)`,
+                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, green-images, nightly, nightly-failed, nightly-held, run-ended)`,
             );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
@@ -223,6 +227,12 @@ export function pushMessage(outcome, f) {
             priority: 0,
             sound: "pushover",
         },
+        "green-images": {
+            title: "Full run SCREENSHOTS CHANGED",
+            lines: [`${f.what || "Screenshots differ"} (${sha})`, "Nightly waits for your review"],
+            priority: 0,
+            sound: "pushover",
+        },
         nightly: {
             title: "Nightly PROMOTED",
             lines: [`${sha} on nightly.graphty.app`, tags ? `npm next: ${tags}` : "No package changed", retry],
@@ -339,6 +349,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         unlessReported = {
             since: values.since,
             reported: (b) => reportsFailure(b, values.run, values.attempt),
+        };
+    }
+    if (positionals[0] === "green-images") {
+        // the same changed screenshots stay changed on every full run until master's baselines move: say it once a week
+        unlessReported = {
+            since: new Date(Date.now() - 7 * 24 * 3_600_000).toISOString(),
+            reported: (b) => b.includes("**Screenshots changed**") && b.includes(values.what ?? ""),
         };
     }
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");

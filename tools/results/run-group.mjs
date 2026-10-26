@@ -192,6 +192,16 @@ function reopen(gh, number) {
     return number;
 }
 
+// The issue a flaky test's quarantine goes on: its earlier one, reopened by a full or bisect run. A base run never
+// reopens, so it never tracks a quarantine on a closed issue (the next master run would end it): it takes an open
+// issue of the signature, or none (a new one).
+function earlierIssue(gh, t, isBase) {
+    const earlier = t.had ?? findIssue(gh, t.signature, "flaky");
+    if (!earlier) return earlier;
+    if (!isBase) return reopen(gh, earlier);
+    return closedIssues([earlier], gh)?.has(earlier) ? findIssue(gh, t.signature, "flaky", "open") : earlier;
+}
+
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
 function fileFailingOnMaster(gh, f, sha) {
     const { signature, line } = failureHashes(f.message, f.file);
@@ -275,12 +285,7 @@ export async function fileIssues(
             ],
             extra: ["", marker(t.signature, "flaky")],
         };
-        let earlier = t.had ?? findIssue(gh, t.signature, "flaky");
-        // a base run never reopens, so it never tracks a quarantine on a closed issue (the next master run would end
-        // it): an open issue of the signature, or a new one
-        if (earlier && isBase && closedIssues([earlier], gh)?.has(earlier))
-            earlier = findIssue(gh, t.signature, "flaky", "open");
-        const number = fileIssue(entry, earlier && !isBase ? reopen(gh, earlier) : earlier, gh);
+        const number = fileIssue(entry, earlierIssue(gh, t, isBase), gh);
         if (number)
             out.push({ signature: t.signature, number, kind: "flaky", family: t.family, file: t.file, name: t.name });
     }

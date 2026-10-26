@@ -147,6 +147,17 @@ describe("pr-open.sh", () => {
         assert.match(body, /^## Proof\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
     });
 
+    it("keeps a Proof file's own headings inside the Proof section", () => {
+        branch("fix/1241-headings");
+        const titled = join(dir, "titled.md");
+        writeFileSync(titled, "## Proof\n\n# Run\n\nnode tools/x.test.mjs: 3 pass\n");
+        const r = run(["--proof", titled]);
+        assert.equal(r.code, 0, r.out);
+        const body = readFileSync(join(dir, "body.md"), "utf8");
+        assert.match(body, /^## Proof\n\n### Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+        assert.equal(body.match(/^##[ \t]/gm).length, 1, "only pr-open's own Proof heading is level 2");
+    });
+
     it("writes Refs with --refs, and merges master in when the branch is behind", () => {
         branch("ci/3418-thing");
         git(work, "checkout", "-q", "master");

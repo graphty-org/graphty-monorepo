@@ -90,6 +90,8 @@ export class HealthStack extends Stack {
         const ingest = fn("Ingest", 20, 10);
         const read = fn("Read", 5, 10);
         const collector = fn("Collector", 1, 60);
+        // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
+        collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
         table.grantReadWriteData(ingest);
         table.grantReadData(read);
         table.grantReadWriteData(collector);

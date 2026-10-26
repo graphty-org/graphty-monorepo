@@ -48,18 +48,7 @@ describe("read", () => {
     });
 });
 
-describe("collector", () => {
-    it("writes the heartbeat item", async () => {
-        process.env.TABLE_NAME = "graphty-health";
-        const { handler } = await import("../src/handlers/collector.ts");
-        docSend.mockResolvedValue({});
-        const { lastRun } = await handler();
-        expect(docSend.mock.calls[0][0].input).toEqual({
-            TableName: "graphty-health",
-            Item: { pk: "META", sk: "collector", lastRun },
-        });
-    });
-});
+// The collector handler's tests are in test/collector/handler.test.ts.
 
 describe("ingest", () => {
     beforeEach(() => {

@@ -7,7 +7,7 @@ import { SLAS, type MemberConfig, type SlaConfig } from "../../src/sla/config.js
 import { evaluate } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
-const LIVE = ["collector", "ci-results", "release", "npm", "billing"];
+const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
 
 /** A store whose sources have written for hours and just now, holding `items`, recomputed. */
 async function world(items: RawItem[], now = T0, fresh = LIVE) {
@@ -162,8 +162,10 @@ describe("data states", () => {
         const e = await evaluate(await world([]), T0, cfg);
         expect(e.members[0]).toMatchObject({ state: "IDLE", judged: false, reason: { code: "idle" } });
         expect(e.categories.find((c) => c.id === "ci")?.state).toBe("IDLE");
-        // The same member on a source that stopped writing is NO DATA.
-        const stale = await evaluate(await world([], T0, []), T0, only("ci.hangs"));
+        // The same member on a source that stopped writing is NO DATA (one that never wrote is not set up).
+        const quiet = await world([], T0, []);
+        await recordSource(quiet, "collector", T0 - 3 * HOUR, { ok: true });
+        const stale = await evaluate(quiet, T0, only("ci.hangs"));
         expect(stale.members[0]).toMatchObject({ state: "NO DATA", reason: { code: "stale" } });
     });
 

@@ -716,7 +716,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
         await recordSource(c.d.store, "deploy", c.now, { ok: true });
         return;
     }
-    const failed = status !== undefined && status !== "SUCCEEDED";
+    // STOPPED is someone stopping the build on purpose: never started again for the same tree.
+    const failed = status !== undefined && status !== "SUCCEEDED" && status !== "STOPPED";
     const attempt = last.tree === tree ? (last.attempt ?? 1) : 0;
     // A new tree starts a build; a failed build of the same tree is retried up to DEPLOY_ATTEMPTS times in all.
     if (last.tree !== tree || (failed && attempt < DEPLOY_ATTEMPTS)) {

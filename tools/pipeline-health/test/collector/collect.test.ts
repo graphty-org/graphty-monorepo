@@ -276,4 +276,22 @@ describe("collector deploy trigger", () => {
         expect(errors[2]).toContain("after 3 attempts");
         expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("FAILED");
     });
+
+    it("never starts again a build someone stopped", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ status: "STOPPED" });
+        const r = await run(
+            store,
+            gh(() => TREE),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([]);
+        expect(r.errors.deploy).toBeUndefined();
+    });
 });

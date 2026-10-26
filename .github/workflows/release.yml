@@ -23,8 +23,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   Nothing announces it.
 # - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
 #   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
-#   (npm `latest`) run in environment `release`, as described below. graphty.app follows the version merge
-#   (deploy-pages.yml). Deleted once promote.yml exists.
+#   (npm `latest`) run in environment `release`, as described below. graphty.app does not follow it: graphty.app is
+#   graphty-site's and moves only by promote.yml, so a legacy run moves npm `latest` alone. Its removal is still open on issue #3467.
 #
 # No workflow_run trigger: a master push never starts or restarts a release.
 #
@@ -327,7 +327,8 @@ jobs:
             # its release-due job (master pushes only) dispatches release.yml and reads the red issues; a
             # called workflow cannot ask for more than its caller grants, even for a job it skips
             actions: write
-            issues: read
+            # issues: write for its test job, which files the issue of a test the run proves flaky
+            issues: write
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write

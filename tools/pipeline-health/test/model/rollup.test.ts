@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { type Bucket, DAY, DIRTY_PK, floorTo, HOUR, rollKey, type Step, STEP_MS } from "../../src/model/items.js";
+import {
+    type Bucket,
+    DAY,
+    DIRTY_PK,
+    dirtyKey,
+    floorTo,
+    HOUR,
+    rollKey,
+    type Step,
+    STEP_MS,
+} from "../../src/model/items.js";
+import { FULL_SHARD_BUDGET_MS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
-import { loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
+import { LEASE_KEY, LEASE_MS, loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
+import { refold } from "../../src/recompute.js";
 import { job, MIN, obs, T0 } from "./helpers.js";
 
 const rand = (seed: number) => () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
@@ -118,5 +130,56 @@ describe("rollups", () => {
         // startedAt and completedAt (28 and 20 min back) dirty two 5m buckets, sharing one 15m, 1h and 1d parent.
         expect(r.buckets).toBe(5);
         expect((await recompute(store, T0)).buckets).toBe(0);
+    });
+
+    it("never runs two recomputes at once: the second waits for the lease and keeps the marks", async () => {
+        const store = new MemoryStore();
+        await putRaw(store, [job(1)], T0);
+        // The backfill holds the lease mid-recompute; the collector's cycle must not build parents or clear marks.
+        await store.put({ ...LEASE_KEY, token: "backfill", until: T0 + LEASE_MS });
+        expect(await recompute(store, T0)).toEqual({ buckets: 0, items: 0, busy: true });
+        expect((await store.query(DIRTY_PK)).length).toBe(2);
+        // A holder that died: the lease expires and the next cycle takes it, then releases it.
+        const r = await recompute(store, T0 + LEASE_MS + 1);
+        expect(r.buckets).toBe(5);
+        expect((await store.get(LEASE_KEY))?.until).toBe(0);
+        expect((await recompute(store, T0 + LEASE_MS + 2)).busy).toBeUndefined();
+    });
+});
+
+describe("refold", () => {
+    it("folds a full-run shard stored before the fold changed, once per fold version", async () => {
+        const store = new MemoryStore();
+        const at = T0 - HOUR;
+        await putRaw(
+            store,
+            [
+                {
+                    kind: "shard_run",
+                    id: "old",
+                    attempt: 1,
+                    source: "ci",
+                    variant: "layout",
+                    family: "layout",
+                    bin: false,
+                    full: true,
+                    sha: "abc",
+                    outcome: "passed",
+                    startedAt: at - 300_000,
+                    endedAt: at,
+                    secs: 300,
+                    files: [],
+                },
+            ],
+            T0,
+        );
+        // Stored and folded by an older fold: its bucket carries no mark and no contribution.
+        await store.batch([{ delete: dirtyKey(floorTo(at, "5m")) }]);
+        await recompute(store, T0);
+        expect((await sums(store, "ci.full_shard_time", "5m", at - HOUR, T0, T0)).sum).toBe(0);
+        expect(await refold(store, T0)).toBeGreaterThan(0);
+        expect(await refold(store, T0)).toBe(0);
+        await recompute(store, T0);
+        expect((await sums(store, "ci.full_shard_time", "5m", at - HOUR, T0, T0)).sum).toBe(FULL_SHARD_BUDGET_MS);
     });
 });

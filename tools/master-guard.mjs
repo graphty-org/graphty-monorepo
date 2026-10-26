@@ -1,5 +1,5 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI or the canary deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
@@ -17,7 +17,7 @@
 // - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
 //   "Release held" issue, so neither is this script's business.
 // - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
-//   reached graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
+//   reached canary.graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
 //
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 
 export const FREEZE_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
-export const DEPLOY_PREFIX = "graphty.app deploy failed on ";
+export const DEPLOY_PREFIX = "canary deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // A run that ended without a verdict: master has no green build, but nothing failed to point at.
 const STOPPED = new Set(["cancelled", "startup_failure"]);
@@ -637,7 +637,7 @@ async function main() {
                 prefix: DEPLOY_PREFIX,
                 title: `${DEPLOY_PREFIX}${short}`,
                 labels: labels("low"),
-                body: `${report}\n\ngraphty.app still serves an older build. No freeze and no revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
+                body: `${report}\n\ncanary.graphty.app still serves an older build. No freeze and no revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
                 comment: report,
             });
         });

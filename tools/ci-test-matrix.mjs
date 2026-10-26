@@ -317,7 +317,8 @@ const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).j
  * vitest projects (tools/features-on.mjs), which exist only under GRAPHTY_FEATURES_ON=1. The same commands as their Off twins without coverage (judged on
  * the Off run) or a blob report (the Off run's reports are the ones merged). "full-run-only": planned only
  * in a full run, never on a pull request (plan()). They exist only while graphty-element declares an
- * experiment: with none, On would equal Off, and SHARDS holds no On shard at all.
+ * experiment: with none, On would equal Off, and SHARDS holds no On shard at all. `flags: "on"` makes
+ * tools/results/run-group.mjs file their results under the store's flags=on variant.
  */
 export const FEATURES_ON_SHARDS = [
     {
@@ -350,7 +351,7 @@ export const FEATURES_ON_SHARDS = [
         "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")}`,
         "needs-browser": true,
     },
-].map((s) => ({ ...s, "full-run-only": true, local: "never" }));
+].map((s) => ({ ...s, "full-run-only": true, local: "never", flags: "on" }));
 
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 

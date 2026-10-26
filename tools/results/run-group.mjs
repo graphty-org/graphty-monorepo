@@ -11,7 +11,8 @@
 // verdict: a record it does not take within 5 s is written to test-results/results-spool/<id>.json.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
-// switches it off. GRAPHTY_FLAGS=on names the feature-flag variant.
+// switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
+// variant flags=on.
 
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
@@ -204,6 +205,22 @@ export async function runGroup(shardName, command = undefined, { root = process.
 }
 
 /**
+ * A group's variant and inputs key. The flags are "on" for an On shard (its SHARDS entry says `flags: "on"`,
+ * tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off".
+ * @param o `shardName`, `shard` (its SHARDS entry, or undefined), `command` (the narrower command, if any),
+ *   `cmd` (the command run), `env`, `shardKey`
+ * @returns `{ variant, inputs }`
+ */
+export function groupKeys({ shardName, shard, command, cmd, env, shardKey }) {
+    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const selected = command !== undefined && command !== shard?.["test-command"];
+    return {
+        variant: `${familyOf(shardName)}|flags=${flags}|${selected ? "selected" : "whole"}`,
+        inputs: inputsKey({ shardKey, env: envString(env), flags, extra: selected ? cmd : "" }),
+    };
+}
+
+/**
  * Builds a finished group's records and posts them (spooling what the store does not take).
  * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
@@ -212,14 +229,11 @@ export async function runGroup(shardName, command = undefined, { root = process.
  */
 async function record(shardName, shard, o) {
     const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt } = o;
-    const flags = env.GRAPHTY_FLAGS === "on" ? "on" : "off";
-    const selected = command !== undefined && command !== shard?.["test-command"];
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const facts = { id, head: headFacts(root, env), code, result: readResult(resultFile), startedAt, endedAt, runId };
     const recs = recordsOf({
         ...facts,
-        variant: `${familyOf(shardName)}|flags=${flags}|${selected ? "selected" : "whole"}`,
-        inputs: inputsKey({ shardKey, env: envString(env), flags, extra: selected ? cmd : "" }),
+        ...groupKeys({ shardName, shard, command, cmd, env, shardKey }),
         env: envString(env),
         dir: join(root, "test-results"),
     });

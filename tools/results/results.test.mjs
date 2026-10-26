@@ -16,7 +16,7 @@ import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
-import { junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
+import { groupKeys, junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
 
 isolateGit();
 const TMP = mkdtempSync(join(tmpdir(), "results-"));
@@ -315,6 +315,36 @@ describe("runGroup", () => {
         assert.equal(rec.sha.length, 40);
     });
 
+    it("files an On shard's record and inputs key under flags=on, a plain shard's under flags=off", async () => {
+        const s = await serve(false);
+        const root = join(TMP, "checkout-on");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            "export const SHARDS = [" +
+                '{ shard: "plain", package: "pkg", "test-command": "exit 3" },' +
+                '{ shard: "pkg-features-on-1", package: "pkg", "test-command": "exit 3", flags: "on" }];\n',
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
+        const spool = join(root, "test-results/results-spool");
+        await runGroup("plain", undefined, { root, env });
+        await runGroup("pkg-features-on-1", undefined, { root, env });
+        const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
+        assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
+        assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
+
+        const e = { PATH: "x" };
+        const on = { flags: "on", "test-command": "c" };
+        const keys = (shard, env = e) => groupKeys({ shardName: "f-1", shard, cmd: "c", env, shardKey: "k" });
+        const key = (flags) => inputsKey({ shardKey: "k", env: envString(e), flags });
+        assert.deepEqual(keys(on), { variant: "f|flags=on|whole", inputs: key("on") });
+        assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
+        assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
+        assert.notEqual(key("on"), key("off"));
+    });
+
     it("keeps a passing verdict when the record cannot even be spooled", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout-nospool");
@@ -344,6 +374,14 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|whole",
             "graphty-element-browser|flags=off|selected",
         ]);
+    });
+    it("never asks about a full-run-only family, such as the On shards", () => {
+        const on = {
+            shard: "graphty-element-browser-features-on-1",
+            package: "graphty-element",
+            "full-run-only": true,
+        };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
     });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {

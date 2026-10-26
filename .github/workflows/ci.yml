@@ -382,6 +382,8 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
+                  # a matrix command that fails must stop the step before the summary describes bins that never run
+                  set -o pipefail
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \

@@ -1326,7 +1326,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
  * @returns Markdown
  */
 export function planSummary(plan) {
-    const esc = (t) => String(t).replace(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const esc = (t) => String(t).replaceAll(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
     const lines = [
         `### Light check: ${plan.bins.length} test bins, ${plan.whole.length} shards whole, ${plan.none.length} shards with nothing selected`,
         "",
@@ -2610,7 +2610,10 @@ async function main(argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const root = resolve(arg("--root") ?? join(HERE, ".."));
-    if (arg("--summary")) {
+    if (argv.includes("--summary")) {
+        if (!arg("--summary")) {
+            throw new Error("--summary needs the plan JSON file");
+        }
         process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8"))));
         return;
     }

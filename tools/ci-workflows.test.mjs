@@ -4631,7 +4631,7 @@ describe("release.yml", () => {
     });
 });
 
-// Every writer of the results store also writes the pipeline health API (design/ci/health-dashboard.md), which
+// Every writer of the results store also writes the pipeline health API (issue #3602), which
 // takes the same bodies: tools/results/client.mjs sends there when HEALTH_API_URL is set.
 describe("the pipeline health API", () => {
     const files = [

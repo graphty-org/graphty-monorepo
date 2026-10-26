@@ -150,7 +150,7 @@ jobs:
                   CHECK: ${{ needs.check.result }}
                   DEPLOY: ${{ needs.deploy.result }}
               run: |
-                  if [ -z "$RESULTS_URL$HEALTH_API_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
+                  if [ -z "$RESULTS_URL$HEALTH_API_URL" ]; then echo "::warning::neither RESULTS_URL nor HEALTH_API_URL is set; no deploy report"; exit 0; fi
                   body=$(jq -nc --arg site "$SITE" --arg tag "$TAG" --arg started "$STARTED" \
                       --arg check "$CHECK" --arg deploy "$DEPLOY" \
                       --argjson run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
@@ -167,7 +167,7 @@ jobs:
                               -H "X-Results-Schema: 1" --data "$body" "${HEALTH_API_URL%/}/v1/durations" || true
                       fi
                   fi
-                  if [ -z "$RESULTS_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
+                  if [ -z "$RESULTS_URL" ]; then echo "::notice::RESULTS_URL is not set; no deploy report to the results store"; exit 0; fi
                   token=$(curl -fsS --max-time 5 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
                       "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r '.value // empty') || true
                   if [ -z "$token" ]; then echo "::warning::no OIDC token; no deploy report"; exit 0; fi

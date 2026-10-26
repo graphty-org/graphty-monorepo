@@ -9,9 +9,10 @@
 //   GRAPHTY_RESULTS=0       turns it off
 //   GRAPHTY_RESULTS_TOKEN   a local token (kind `local`); in GitHub Actions the job's OIDC token is used instead
 //                           (audience `graphty-results`, ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN)
-//   HEALTH_API_URL          the pipeline health API (design/ci/health-dashboard.md); in GitHub Actions every POST is
-//                           also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
+//   HEALTH_API_URL          the pipeline health API (issue #3602); with the store configured, in GitHub Actions every
+//                           POST is also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
 //                           2 s at most, never awaited by the caller, never spooled; flushHealth() settles them
+//                           (so it may hold a body the store refused, and miss one the store spooled)
 //
 // Bodies carry `X-Results-Schema: 1`. A batch of failure events is `{ invocation, failures: [...] }`; a single
 // event is `{ invocation, file, name, status, message }`.
@@ -49,22 +50,29 @@ export function config(env = process.env, root = ROOT) {
     return cfg;
 }
 
+// One entry per request URL and audience: the token's promise, shared by requests made while it is in flight, and
+// its expiry once it has arrived. A request that fails leaves the cache, so the next call asks again.
 const oidcCache = new Map();
 
-async function bearer(cfg, signal, audience = AUDIENCE) {
-    if (cfg.token) return cfg.token;
+function bearer(cfg, signal, audience = AUDIENCE) {
+    if (cfg.token) return Promise.resolve(cfg.token);
     const key = `${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}|${audience}`;
     const hit = oidcCache.get(key);
-    if (hit && hit.exp - 60 > Date.now() / 1000) return hit.value;
-    const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}`, {
-        headers: { authorization: `Bearer ${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
-        signal,
-    });
-    if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
-    const { value } = await res.json();
-    const exp = JSON.parse(Buffer.from(value.split(".")[1], "base64url").toString()).exp ?? 0;
-    oidcCache.set(key, { value, exp });
-    return value;
+    if (hit && (hit.exp === undefined || hit.exp - 60 > Date.now() / 1000)) return hit.value;
+    const entry = {};
+    entry.value = (async () => {
+        const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}`, {
+            headers: { authorization: `Bearer ${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+            signal,
+        });
+        if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
+        const { value } = await res.json();
+        entry.exp = JSON.parse(Buffer.from(value.split(".")[1], "base64url").toString()).exp ?? 0;
+        return value;
+    })();
+    entry.value.catch(() => oidcCache.get(key) === entry && oidcCache.delete(key));
+    oidcCache.set(key, entry);
+    return entry.value;
 }
 
 const healthPending = new Set();

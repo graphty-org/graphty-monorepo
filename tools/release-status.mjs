@@ -70,8 +70,8 @@ export function statusComment(outcome, f, notify = "") {
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
         case "green-images":
-            // nothing promotes a green-images candidate yet (#3463), so the owner must hear of it: it ends green
-            text = `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app does not move. Look at the run's visual captures, then accept the intended images on a pull request's review page or fix forward.\n\nACTION NEEDED: review the changed screenshots of the full run on ${sha}`;
+            // a green-images candidate waits for the owner's review, and the run ends green: he must hear of it
+            text = `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app does not move. Review them on the review page (\`visual-review serve --candidate next\`), whose Finish opens the pull request that approves them, or fix forward.\n\nACTION NEEDED: review the changed screenshots of the full run on ${sha}`;
             break;
         case "nightly":
             text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;

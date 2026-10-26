@@ -951,8 +951,8 @@ jobs:
                   FIRST: ${{ steps.gate.outputs.first }}
               run: node tools/channel/nightly.mjs decide
 
-            # green-images too: nothing promotes it yet (#3463), so without this the run ends green and nightly
-            # silently stays put (#3698)
+            # green-images too: it waits for the owner's screenshot review, and without this the run ends green
+            # while nightly silently stays put (#3698)
             - name: Announce a red run, an owner item or changed screenshots
               if: ${{ steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' || steps.verdict.outputs.state == 'green-images' }}
               env:

@@ -53,7 +53,7 @@ export async function masterStrip(reads: Reads, range: Range): Promise<StripSect
         const state = b.sum >= STEP5 / 2 ? "red" : "green";
         const end = iso(Math.min(s + STEP5, reads.now));
         const last = spans.at(-1);
-        if (last && last.state === state && last.end === iso(s)) {
+        if (last?.state === state && last.end === iso(s)) {
             last.end = end;
         } else {
             spans.push({ start: iso(s), end, state });
@@ -148,6 +148,29 @@ const daysOf = (r: SlowRange) => (r === "28d" ? 28 : 7);
 const SHOWN = 12;
 
 /**
+ * One shard's or family's row; undefined while it has no time or (full runs) no recorded budget.
+ * @param shard
+ * @param a
+ * @param full
+ * @param minRuns
+ */
+function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardRow | undefined {
+    const q50 = a.hist && quantile(a.hist, 0.5);
+    const q90 = a.hist && quantile(a.hist, 0.9);
+    // A full-run value is normalized to a one-hour budget; the bucket's sum holds the budgets themselves.
+    let budgetMs: number | undefined = 480_000;
+    if (full) {
+        budgetMs = a.n > 0 && a.sum > 0 ? a.sum / a.n : undefined;
+    }
+    if (q50 === undefined || q90 === undefined || budgetMs === undefined) {
+        return undefined;
+    }
+    const ms = budgetMs;
+    const toS = (q: number) => Math.round((full ? (q * ms) / SHARD_BASE_MS : q) / 1000);
+    return { shard, runs: a.n, minRuns, medianS: toS(q50), p90S: toS(q90), budgetS: Math.round(ms / 1000) };
+}
+
+/**
  * Shard times (section 6): full-run shards against their budgets, or pull request bins against 8 minutes.
  * @param reads
  * @param range
@@ -158,28 +181,9 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
     const dims = await dimsOver(reads, full ? "ci.full_shard_time" : "ci.bin_time", daysOf(range));
     const over = reads.cfg.members.find((m) => m.id === "ci.full_shards_over_budget")?.measure;
     const minRuns = over && "minPerDim" in over ? over.minPerDim : 5;
-    const rows: ShardRow[] = [];
-    for (const [shard, a] of dims) {
-        const q50 = a.hist && quantile(a.hist, 0.5);
-        const q90 = a.hist && quantile(a.hist, 0.9);
-        // A full-run value is normalized to a one-hour budget; the bucket's sum holds the budgets themselves.
-        let budgetMs: number | undefined = 480_000;
-        if (full) {
-            budgetMs = a.n > 0 && a.sum > 0 ? a.sum / a.n : undefined;
-        }
-        if (q50 === undefined || q90 === undefined || budgetMs === undefined) {
-            continue;
-        }
-        const toS = (q: number) => Math.round((full ? (q * budgetMs) / SHARD_BASE_MS : q) / 1000);
-        rows.push({
-            shard,
-            runs: a.n,
-            minRuns,
-            medianS: toS(q50),
-            p90S: toS(q90),
-            budgetS: Math.round(budgetMs / 1000),
-        });
-    }
+    const rows = [...dims]
+        .map(([shard, a]) => shardRow(shard, a, full, minRuns))
+        .filter((r): r is ShardRow => r !== undefined);
     if (!rows.length) {
         return notCollected("shards");
     }

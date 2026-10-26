@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { DEFAULT_NAME_KEY } from "../../style/cards";
@@ -203,8 +204,8 @@ describe("summaries and cards that say true, complete things", () => {
         await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));
-        // A hang guard past the theme's one-second hover delay, not a timing under test.
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 5000 });
+        // It opens after the theme's one-second hover delay, so the wait has no deadline to race it.
+        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(5000));
         assert.include(tip.textContent ?? "", "Select this node and its neighbors");
     });
 

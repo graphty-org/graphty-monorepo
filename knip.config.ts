@@ -182,6 +182,8 @@ const config: KnipConfig = {
         // Algorithms package
         algorithms: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "algorithms.ts!",
                 "src/index.ts!",
                 "test/**/*.test.ts",
@@ -235,6 +237,8 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // Loaded by its storybook vitest project only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. A default run derives them from the exports map (and hints a repeat as
@@ -326,6 +330,9 @@ const config: KnipConfig = {
                 ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
+            // ci.yml's Sentry upload runs it as `timeout 60 pnpm exec sentry-cli ...` (bounded so a hang
+            // cannot cancel the build), and knip does not read a command behind `timeout`.
+            ignoreDependencies: ["@sentry/cli"],
         },
 
         // remote-logger package

@@ -1339,7 +1339,7 @@ describe("ci.yml", () => {
         const dir = mkdtempSync(join(TMP, "reuse-build-"));
         const g = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" }).stdout.trim();
         g("init", "-q");
-        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "c");
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "c");
         const head = g("rev-parse", "HEAD");
         const bin = join(dir, "bin");
         mkdirSync(bin);
@@ -1412,17 +1412,34 @@ describe("ci.yml", () => {
         assert.ok(!releaseReportsFailure(releaseCancelNote(9001, url, 1), url, 2));
         const due = job(ci, "release-due");
         assert.match(due, /\n {8}needs: all-checks\n/);
-        // the implicit success() is false on a master push, whose test jobs under All Checks Pass are skipped (#3634)
-        const cond = /\n {8}if: >-\n((?: {12}.*\n)+)/.exec(due)?.[1].replace(/\s+/g, " ").trim();
-        assert.equal(
-            cond,
-            "always() && needs.all-checks.result == 'success' && github.event_name == 'push' && " +
-                "github.ref == 'refs/heads/master' && !inputs.ref",
+        assert.match(
+            due,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && !inputs\.ref \}\}\n/,
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
         // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
         assert.match(due, /\n {8}continue-on-error: true\n/);
+    });
+
+    it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
+        const hygiene = job(ci, "cache-hygiene");
+        assert.match(
+            hygiene,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' \}\}\n/,
+        );
+        const doc = parseYaml(ci).jobs["cache-hygiene"];
+        assert.deepEqual(doc.permissions, { contents: "read", actions: "write", "pull-requests": "read" });
+        // a failed cleanup must not turn master red
+        assert.equal(doc["continue-on-error"], true);
+        // the script deletes, so its summary is written after the deletes and counts the failed ones
+        assert.match(
+            hygiene,
+            /node tools\/cache-hygiene\.mjs "\$RUNNER_TEMP\/caches\.ndjson" "\$RUNNER_TEMP\/open-prs\.txt" --apply/,
+        );
+        assert.match(hygiene, /gh pr list --repo "\$GITHUB_REPOSITORY" --state open/);
+        // no pull-request run reaches it: All Checks Pass does not wait on it
+        assert.ok(!(parseYaml(ci).jobs["all-checks"].needs ?? []).includes("cache-hygiene"));
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
@@ -1455,7 +1472,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1473,7 +1490,7 @@ describe("ci.yml", () => {
         for (const name of ["build", "lint", "checks", "docs"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''\n)? {8}runs-on:/,
+                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''(?: && needs.packages.outputs.docs == 'true')?\n)? {8}runs-on:/,
                 `${name} runs on master too`,
             );
         }
@@ -1703,7 +1720,8 @@ describe("verification runs of ci.yml", () => {
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
+        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms, layout\]/);
+        assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
@@ -1721,6 +1739,22 @@ describe("verification runs of ci.yml", () => {
             }
             // The job's own condition names every leg's shard, or a leg alone in a run is never started.
             assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
+        }
+    });
+
+    it("finds every story-tests leg's shard in the planned matrix, alone or folded into a group", () => {
+        // The job's `if` and its skip step look for `"<shard>"` in the test-matrix JSON. A shard folded into a
+        // group (layout in small-node, algorithms-browser in small-browser) is there only as a group member.
+        const legs = [...job(ci, "story-tests").matchAll(/- project: (\S+)\n\s+shard: (\S+)\n/g)].map((m) => m[2]);
+        assert.ok(legs.length >= 4, "the legs were read");
+        const each = (affected) => JSON.stringify({ include: plan(affected) });
+        const runs = [PACKAGES, ["graph-format", "layout", "algorithms"], ["layout"], ["algorithms"]];
+        for (const affected of runs) {
+            const matrix = each(affected);
+            for (const shard of legs) {
+                const pkg = SHARDS.find((s) => s.shard === shard).package;
+                assert.equal(matrix.includes(`"${shard}"`), affected.includes(pkg), `${shard} with ${affected}`);
+            }
         }
     });
 
@@ -3538,7 +3572,7 @@ describe("release.yml", () => {
 
     it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
         const due = llm.indexOf("run: node tools/llm-due.mjs");
-        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@v6"), "decides before installing anything");
+        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@"), "decides before installing anything");
         assert.match(llm, /id: due\n/);
         assert.match(llm, /actions: read/);
         // every step after the decision is skipped when the lane is not due, so the job passes without paying
@@ -6238,5 +6272,153 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
             ids: [],
         });
         assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
+    });
+});
+
+describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const jobs = parseYaml(ci).jobs;
+    const step = (jobId, name) => {
+        const s = jobs[jobId].steps.find((x) => x.name === name);
+        assert.ok(s, `${jobId} has the step ${name}`);
+        return s;
+    };
+
+    // Runs the Build job's "Plan the optional jobs" script in a throwaway repository whose origin/master holds
+    // this checkout's package.json and tools/copy-docs-content.js, on a pull request changing `files`.
+    const optional = (files, { event = "pull_request", affected = [] } = {}) => {
+        const dir = mkdtempSync(join(TMP, "optional-"));
+        const git = (...a) => {
+            const r = spawnSync("git", a, { cwd: dir, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+        };
+        mkdirSync(join(dir, "tools"));
+        copyFileSync("package.json", join(dir, "package.json"));
+        copyFileSync("tools/copy-docs-content.js", join(dir, "tools/copy-docs-content.js"));
+        mkdirSync(join(dir, "visual-review/docs"), { recursive: true });
+        copyFileSync("visual-review/docs/index.md", join(dir, "visual-review/docs/index.md"));
+        git("init", "-q", "-b", "master");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        git("update-ref", "refs/remotes/origin/master", "HEAD");
+        for (const f of files) {
+            mkdirSync(join(dir, f, ".."), { recursive: true });
+            writeFileSync(join(dir, f), "x\n");
+        }
+        git("add", ".");
+        git("commit", "-qm", "change", "--allow-empty");
+        const out = join(dir, "out");
+        writeFileSync(out, "");
+        const r = spawnSync("bash", ["-e", "-c", step("packages", "Plan the optional jobs").run], {
+            cwd: dir,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                EVENT: event,
+                BASE_REF: "master",
+                AFFECTED: JSON.stringify(affected),
+                GITHUB_OUTPUT: out,
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        return Object.fromEntries(
+            readFileSync(out, "utf8")
+                .trim()
+                .split("\n")
+                .map((l) => l.split("=")),
+        );
+    };
+
+    it("plans them in Build and hands them to the other jobs", () => {
+        const build = job(ci, "packages");
+        for (const o of ["docs", "cost-accuracy"]) {
+            assert.match(build, new RegExp(`\\n {12}${o}: \\$\\{\\{ steps\\.optional\\.outputs\\.${o} \\}\\}\\n`));
+        }
+    });
+
+    it("runs every optional job on any run but a pull request", () => {
+        for (const event of ["push", "workflow_dispatch", "workflow_call"]) {
+            assert.deepEqual(optional([], { event }), { docs: "true", "cost-accuracy": "true" });
+        }
+    });
+
+    it("a pull request touching no docs or cost files runs neither", () => {
+        assert.deepEqual(optional(["graph-samples/src/a.ts"], { affected: ["graph-samples"] }), {
+            docs: "false",
+            "cost-accuracy": "false",
+        });
+    });
+
+    it("runs Docs on a docs input: docs/, a package's docs/, the copy script, or an affected package with API docs", () => {
+        for (const f of ["docs/index.md", "graph-io/docs/guide.md", "tools/copy-docs-content.js"]) {
+            assert.equal(optional([f]).docs, "true", f);
+        }
+        assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
+        assert.equal(optional(["graph-format/README.md"], { affected: ["graph-format"] }).docs, "false");
+    });
+
+    it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {
+        assert.equal(optional(["visual-review/README.md"]).docs, "true");
+    });
+
+    it("runs Docs when what builds the docs changed: root package.json, the lockfile, ci.yml", () => {
+        for (const f of ["package.json", "pnpm-lock.yaml", ".github/workflows/ci.yml"]) {
+            assert.equal(optional([f]).docs, "true", f);
+        }
+    });
+
+    it("runs Cost Estimate Accuracy on a pull request only when its files changed", () => {
+        assert.equal(optional(["graphty-element/src/session/cost/estimate.ts"])["cost-accuracy"], "true");
+        for (const f of [
+            "graphty-element/src/catalog/algorithms.ts",
+            "algorithms/src/shortest-path/dijkstra.ts",
+            "graph-format/src/a.ts",
+            "graphty-element/package.json",
+            ".github/workflows/ci.yml",
+        ]) {
+            assert.equal(optional([f])["cost-accuracy"], "true", f);
+        }
+        assert.equal(optional(["graphty-element/src/Graph.ts"])["cost-accuracy"], "false");
+        assert.match(jobs["cost-accuracy"].if, /&& needs\.packages\.outputs\.cost-accuracy == 'true'$/);
+    });
+
+    it("gates Docs on the plan and runs the tool tests on every pull request, and All Checks Pass accepts a skipped Docs", () => {
+        assert.match(jobs.docs.if, /&& needs\.packages\.outputs\.docs == 'true'$/);
+        assert.equal(step("checks", "CI workflow tests").if, "needs.packages.outputs.light != 'true'");
+        const summary = step("all-checks", "Check all jobs passed");
+        assert.equal(summary.env.DOCS, "${{ needs.packages.outputs.docs }}");
+        assert.match(summary.run, /\[\[ "\$DOCS" == "false" \]\] && strict='\["packages","build","lint","checks"\]'/);
+    });
+
+    it("adds the budgets lint, the offline links and the signing-bypass check to Checks", () => {
+        assert.equal(step("checks", "CI budgets").run, "node tools/ci-budgets.mjs lint");
+        assert.equal(step("checks", "Links (offline)").run, "./tools/check-links.sh --offline");
+        assert.match(
+            step("checks", "No signing bypass in tools/ and .husky/").run,
+            /^! git grep -niE .*-- tools\/ \.husky\/$/,
+        );
+    });
+
+    it("moves the network links, the coverage uploads and the lifecycle shard to the full run", () => {
+        assert.match(jobs.links.if, /^needs\.packages\.outputs\.full == 'true' && /);
+        const uploads = jobs.test.steps.filter((s) => /coverage/i.test(s.name ?? ""));
+        assert.equal(uploads.length, 5);
+        for (const s of uploads) assert.match(s.if, /needs\.packages\.outputs\.full == 'true'/, s.name);
+        const lifecycle = "graphty-element-lifecycle";
+        assert.ok(
+            plan(PACKAGES).some((e) => e.shard === lifecycle),
+            "a full run has it",
+        );
+        assert.ok(
+            !plan(PACKAGES, undefined, undefined, true).some((e) => e.shard === lifecycle),
+            "a pull request does not",
+        );
+        const bin = { name: `${lifecycle}-1`, shard: lifecycle, family: lifecycle, files: ["a"], command: "x" };
+        assert.ok(!plan(PACKAGES, undefined, { bins: [bin] }, true).some((e) => e.shard === bin.name), "nor its bin");
+        assert.match(step("packages", "Plan affected projects and test shards").run, /pr=\(--pull-request\)/);
+        assert.match(
+            step("packages", "Plan the light check's test bins").run,
+            /--plan "\$plan\/light-plan\.json" --pull-request/,
+        );
     });
 });

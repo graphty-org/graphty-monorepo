@@ -575,10 +575,11 @@ test shards run as two grouped jobs. ci.yml still holds the handling for the ret
 (`Queue Checks Pass`), which no longer happen. A push to master runs no tests: ci.yml builds every package,
 Storybook and docs site and skips every test, link, cost and screenshot job; every green master build deploys its
 site to canary.graphty.app (this repository's GitHub Pages) and keeps it as artifact `site-<sha>`. nightly.graphty.app
-(graphty-nightly) and graphty.app (graphty-site) move only by promotion. A red master build opens a revert (`master-guard.yml`). **Superseded master builds may be cancelled** (owner, 2026-10-26; runners are saturated at about 76 merges a
-day, `design/ci/channels-pipeline.md` section 7.1): an unfinished master push build with a newer one already started
-does no useful work, because only the newest site matters for canary and the full run picks the newest commit with a kept
-site. ci.yml is to cancel them itself; until it does, cancelling them by hand is allowed. No other master run is cancelled. The release train runs the full suite, the T4 GPU
+(graphty-nightly) and graphty.app (graphty-site) move only by promotion. A red master build opens a revert (`master-guard.yml`). **Superseded master builds are to be cancelled** (owner, 2026-10-26; runners are saturated at about 76 merges
+a day, `design/ci/channels-pipeline.md` section 7.1): once ci.yml does it itself, a newer master push build cancels an
+unfinished older one, because only the newest site matters for canary and the full run picks the newest commit with a kept
+site. Until then, never cancel a master push build by hand: `master-guard.mjs` would file a false red-master issue, and a
+cancelled build's `release-due` job never starts the full-run restart its merge asked for. The release train runs the full suite, the T4 GPU
 lane, Hosts and the security audit on the exact commit it tests. The paid T4 GPU lane runs only there, never on a
 pull request or a master push.
 

@@ -474,7 +474,8 @@ run stays first in line for runners, as today:
 1. **Stop work nobody uses.** (a) A newer master push build cancels an unfinished older one: only
    the newest build's site matters for canary, and the full run picks the newest commit with a kept
    site, so a cancelled build only means it picks a newer commit. This replaces "a push to master
-   never cancels" for superseded master builds only; nothing else on master is cancelled. (b) A pull
+   never cancels" for superseded master builds only; nothing else on master is cancelled, and
+   master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
    in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
    parity holds (section 5, step 9): the largest single saving.

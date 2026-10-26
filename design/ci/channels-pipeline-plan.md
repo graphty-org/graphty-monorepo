@@ -464,9 +464,12 @@ the full run stays first in line for runners. Each item's Proof gives its runner
 
 **cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` cancels an unfinished
 master push build when a newer one starts (push to master only; pull request, dispatch and
-release.yml calls unchanged); the ci.yml comment and its tool test say so. Needs: nothing. Done: two
-quick master merges leave the older build cancelled, the newer deployed to canary, and the next
-full run picks the newer commit. Undo: revert.
+release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
+`master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
+`release-due.mjs` reads every merge since the last master build that finished, so a cancelled
+build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: two quick master
+merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
+restart asked for by the cancelled merge started. Undo: revert.
 
 **stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
 Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).

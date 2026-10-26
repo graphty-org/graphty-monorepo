@@ -452,50 +452,10 @@ describe("the pre-push gate matches CI", () => {
         assert.equal(same.status, 1, same.stdout + same.stderr);
     });
 
-    // A land check whose shard "broken" fails with test a.test.ts > t: HEAD is `land: b`, HEAD^1 golden's tip
-    // (origin/golden), on which the same fake run-tests.sh fails the same test the same way. A fake gh files #7.
-    const landedRepo = (dir, git) => {
-        writeFileSync(join(dir, ".gitignore"), "tmp/\ntest-results/\n.worktrees/\nbin/\n");
-        mkdirSync(join(dir, "bin"));
-        writeFileSync(join(dir, "bin/gh"), "#!/bin/sh\necho https://github.com/o/r/issues/7\n", { mode: 0o755 });
-        git("add", ".");
-        git("commit", "-q", "-m", "golden's tip");
-        git("update-ref", "refs/remotes/origin/golden", "HEAD");
-        git("checkout", "-q", "-b", "b");
-        writeFileSync(join(dir, "other.txt"), "x");
-        git("add", ".");
-        git("commit", "-q", "-m", "a change");
-        git("checkout", "-q", "golden");
-        git("merge", "-q", "--no-ff", "-m", "land: b", "b");
-    };
-    const failsWith = (message) =>
-        [
-            'if [ "$1" = --command ]; then shift; fi',
-            `if [ "$1" = broken ]; then mkdir -p test-results; printf '<testsuites><testcase classname="a.test.ts" name="t"><failure>${message}</failure></testcase></testsuites>' > "test-results/junit-broken-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1; fi`,
-            SUMMARY,
-        ].join("\n");
-
     it("records an excused gate as gate-known, which only a land check's push accepts", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
         assert.match(prepush, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
-    });
-
-    it("blocks a land check's failure that golden's tip does not have, with no database at all", () => {
-        // golden's tip passes: its run-tests.sh is the one committed; the land commit's own fails
-        const run = runStage(
-            SUMMARY,
-            { TEST_LEDGER_KIND: "land-check" },
-            {
-                setup: (dir, git) => {
-                    landedRepo(dir, git);
-                    writeFileSync(join(dir, "tools/run-tests.sh"), failsWith("Error: new"));
-                },
-            },
-        );
-        assert.match(run.stdout, /\[BASE\] broken/);
-        assert.match(run.stdout, /\[FAIL\] broken/);
-        assert.equal(run.status, 1, run.stdout + run.stderr);
     });
 
     it("fails a shard that exits 0 with no vitest run summary in its log", () => {
@@ -878,28 +838,6 @@ exec ${realGit} "$@"
                 assert.equal(run({}, "--discard", head).status, 0);
                 assert.ok(!existsSync(join(local, `.pending-${head}`)));
                 assert.ok(existsSync(join(local, "branch-feat/p/results.json")), "the promoted preview is kept");
-            });
-        });
-
-        it("captures for the pull request of VISUAL_PREVIEW_BRANCH and leaves it staged on --promote, for land.mjs", () => {
-            sandbox(({ run, head, main, local }) => {
-                // The detached check worktree has no branch: land.mjs names the one it pushes to.
-                mkdirSync(join(main, "tmp/pr-status"), { recursive: true });
-                writeFileSync(
-                    join(main, "tmp/pr-status/status.json"),
-                    JSON.stringify({ pullRequests: [{ head: "golden", number: 7 }] }),
-                );
-                const named = { VISUAL_PREVIEW_BRANCH: "golden" };
-                const r = run({ ...named, STUB_STATUS: "changed" }, "--head", head);
-                assert.equal(r.status, 0, r.stdout + r.stderr);
-                const staged = join(local, `.pending-${head}`);
-                const status = JSON.parse(readFileSync(join(staged, "status.json"), "utf8"));
-                assert.deepEqual([status.state, status.pr, status.head], ["done", 7, head]);
-                assert.equal(run(named, "--promote", head).status, 0);
-                assert.ok(existsSync(join(staged, "p/results.json")), "still staged: pending push");
-                assert.ok(!existsSync(join(local, "7")), "never the pull request's preview before the push");
-                assert.equal(run(named, "--discard", head).status, 0);
-                assert.ok(!existsSync(staged));
             });
         });
 

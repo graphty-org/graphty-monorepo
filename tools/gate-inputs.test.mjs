@@ -334,7 +334,6 @@ describe("prepush.sh with a gate that already passed", () => {
         writeFileSync(join(bin, "npm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
         const env = { ...OUR_ENV, PATH: `${bin}:${process.env.PATH}`, PUSH_BASE_REF: "origin/master" };
         delete env.PREPUSH_RERUN_ALL;
-        delete env.PREPUSH_EXPECTED_KEY;
         const gate = (extra = {}) =>
             spawnSync("bash", [join(r.dir, "tools/prepush.sh")], {
                 cwd: r.dir,
@@ -390,14 +389,6 @@ describe("prepush.sh with a gate that already passed", () => {
         // the screenshots and the GPU tests run in the background, beside the shards, in any order
         assert.deepEqual(r.steps().slice(5).sort(), ["build", "gpu", "links", "lint", "screenshots", "sonar", "tests"]);
         assert.doesNotMatch(full.stdout, /\[LIGHT\]/);
-    });
-
-    it("stops, running nothing, when its inputs are not the ones its caller found a pass for", () => {
-        const r = gateRepo();
-        const p = r.gate({ PREPUSH_EXPECTED_KEY: "0".repeat(64) });
-        assert.equal(p.status, 1);
-        assert.match(p.stderr, /inputs changed after the caller found a pass/);
-        assert.deepEqual(r.steps(), []);
     });
 });
 

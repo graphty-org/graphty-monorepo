@@ -14,11 +14,7 @@
 # local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
 # request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
 # review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
-# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (for a caller
-# in a detached worktree) names the branch being pushed, whose pull request it captures for;
-# then --promote leaves a capture made for a pull request staged, the review page offers it as "pending
-# push" (decisions allowed, no Finish) while the gate runs, and the caller makes it the pull request's
-# preview once the push landed. Without a pull request it goes under
+# push from replacing the preview of the head already on GitHub. Without a pull request it goes under
 # local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
 # skips the capture (CI cannot build that pull request either).
 #
@@ -80,13 +76,9 @@ case "${1:-}" in
     --head | --promote | --discard) MODE="${1#--}" ;;
 esac
 if [[ "$MODE" != "pr" ]]; then
-    # Under a caller that promotes itself (PUSH_QUEUE_PROMOTES=1) the gate's --promote does nothing: the
-    # caller promotes after GitHub accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
-    # a push of golden-cut that was then rejected, a capture replaced the cut's owner-reviewed preview.
-    [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
-    BRANCH="${VISUAL_PREVIEW_BRANCH:-$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)}"
+    BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
@@ -99,8 +91,6 @@ if [[ "$MODE" != "pr" ]]; then
     case "$MODE" in
         promote)
             [[ -d "$STAGED" ]] || exit 0
-            # The caller moves it after its push; until then it is pending push.
-            [[ -z "${VISUAL_PREVIEW_BRANCH:-}" || -z "$PR" ]] || exit 0
             rm -rf "${ROOT:?}/$KEY.old"
             [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
             mv "$STAGED" "$ROOT/$KEY"
@@ -291,8 +281,7 @@ WRITING=1
 STEP="waiting for the lock"
 status running
 
-# The queue: one preview works at a time, in order of arrival, the cut's first (VISUAL_PREVIEW_PRIORITY,
-# or a push of golden-cut). Each waiter holds a
+# The queue: one preview works at a time, in order of arrival, VISUAL_PREVIEW_PRIORITY's first. Each waiter holds a
 # ticket <rank>-<arrival>-<pid> in $ROOT/.queue and works once its ticket is the first one whose process
 # is alive; a dead waiter's ticket is removed, so it never blocks the queue. While it waits, a run of the
 # same capture that finishes ahead of it is reused. The flock on .lock stays, for previews started by a
@@ -300,7 +289,7 @@ status running
 QUEUE="$ROOT/.queue"
 mkdir -p "$QUEUE"
 RANK=1
-[[ -n "${VISUAL_PREVIEW_PRIORITY:-}" || "${BRANCH:-}" == "golden-cut" ]] && RANK=0
+[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" ]] || RANK=0
 ARRIVED="$(date +%s%N)"
 TICKET="$QUEUE/$RANK-$ARRIVED-$$"
 echo "$KEY at ${HEAD:0:10}" > "$TICKET"
@@ -382,9 +371,8 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# The cut's preview (VISUAL_PREVIEW_PRIORITY, or the gate's capture of a push to
-# golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
-[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
+# A preview with VISUAL_PREVIEW_PRIORITY takes the next browser slot ahead of other waiters (tools/with-browser.sh).
+[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()
 [[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.

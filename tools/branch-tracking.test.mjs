@@ -342,14 +342,6 @@ describe("tools/worktree-new.sh", () => {
         assert.equal(git(repo, "config", "--default", "", "branch.feat/513-on-master.prBase"), "");
     });
 
-    it("starts from golden-verified when asked, measured as a branch of golden", () => {
-        const verified = git(repo, "rev-parse", "origin/golden-verified");
-        const r = make("feat/516-on-verified", "origin/golden-verified");
-        assert.equal(r.status, 0, r.stderr);
-        assert.equal(git(join(repo, ".worktrees/feat-516-on-verified"), "rev-parse", "HEAD"), verified);
-        assert.equal(git(repo, "config", "branch.feat/516-on-verified.prBase"), "golden");
-    });
-
     it("hands itself to the live copy with the same arguments and directory, passing its exit code", () => {
         const live = join(dir, "wt-live");
         const record = join(dir, "wt-live-record");
@@ -397,13 +389,6 @@ describe("tools/worktree-new.sh", () => {
         });
         assert.equal(handed.status, 1, handed.stderr);
         assert.equal(handed.stderr.match(/every branch belongs/g).length, 1, handed.stderr);
-    });
-
-    it("makes golden's worktree with no issue and no push", () => {
-        const r = make("golden", "origin/master", "golden-local");
-        assert.equal(r.status, 0, r.stderr);
-        assert.equal(run(repo, "git", "rev-parse", "-q", "--verify", "origin/golden").status, 1);
-        assert.equal(gh().calls.length, 0);
     });
 });
 

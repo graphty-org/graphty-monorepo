@@ -12,9 +12,9 @@
 //   node tools/test-ledger.mjs sql "<select>"          a read-only query
 //   node tools/test-ledger.mjs rebuild | prune
 //
-// TEST_LEDGER_DIR replaces the directory (the tests set it). Off switch for excusing: PREPUSH_EXONERATE=0.
+// TEST_LEDGER_DIR replaces the directory (the tests set it).
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -578,99 +578,6 @@ const chainOf = (cwd, tip, n = 200) =>
     git(cwd, ["rev-list", "--first-parent", "-n", String(n), tip])
         .split("\n")
         .filter(Boolean);
-
-/**
- * Golden's tip under a land check: the first commit below HEAD, on the first-parent line, that GitHub's golden
- * already has or that is not a landing (a group lands as several `land: <branch>` commits in a row).
- * @param root the land check's checkout
- * @returns the commit, or null
- */
-export function goldenTip(root) {
-    const golden = git(root, ["rev-parse", "-q", "--verify", "origin/golden"]);
-    const has = (sha) => spawnSync("git", ["merge-base", "--is-ancestor", sha, golden], { cwd: root }).status === 0;
-    for (const line of git(root, ["log", "--first-parent", "-n", "100", "--format=%H %s", "HEAD^1"]).split("\n")) {
-        const [sha, subject] = [line.slice(0, 40), line.slice(41)];
-        if (sha && (!LAND_SUBJECT.test(subject) || (golden && has(sha)))) return sha;
-    }
-    return null;
-}
-
-// Whether failure `x` (on golden) is failure `f` (in the land check): the same test failing the same way, or
-// `f` an expired wait, which carries no cause, and golden failing that test at all.
-const sameFailure = (x, f) => x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout");
-
-/**
- * The failures a land check may excuse (design 5.1): every failing test fails on golden's tip too, and the landing
- * changes none of their files. Golden's tip is asked directly: first the ledger's runs of exactly that commit,
- * then `rerun(base, files)`, which runs the failing files there (up to twice, so a wait that expires under load
- * gets a second chance) and returns its record. Each excused failure gets its `Failing on golden` issue now.
- * @param rec the land check's record (outcome `failed`)
- * @param root its checkout (HEAD is the land commit)
- * @param [opts] `env`, `rerun` (async, returns a record or null), `gh` (`(args) => stdout`)
- * @returns exonerations `{ file, name, reason, evidence, commit, issue, line }`; empty unless every failure is excused
- */
-export async function exonerate(rec, root, opts = {}) {
-    const { env = process.env, rerun = null, gh = defaultGh } = opts;
-    const base = goldenTip(root);
-    if (!base || rec.outcome !== "failed" || !rec.failures.length) return [];
-    const changed = new Set(git(root, ["diff", "--name-only", base, "HEAD"]).split("\n"));
-    const dups = new Map(rec.files.map(([f, , , , , d]) => [f, d]));
-    if (rec.failures.some((f) => changed.has(f.file) || dups.get(f.file) > 0)) return [];
-    const found = new Map();
-    const take = (r, x) =>
-        rec.failures.forEach((f, i) => !found.has(i) && sameFailure(x, f) && found.set(i, { ...x, inv: r }));
-    const l = openLedger(env, root);
-    if (l.db) {
-        const sql = `SELECT f.*, t.file, t.name FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv
-            WHERE i.commit_sha = ? AND i.dirty = 0 AND i.outcome = 'failed' AND i.kind IN ${inList(EVIDENCE.length)}`;
-        l.db
-            .prepare(sql)
-            .all(base, ...EVIDENCE)
-            .forEach((x) => take(x.inv, x));
-        l.db.close();
-    }
-    for (let tries = 0; rerun && found.size < rec.failures.length && tries < 2; tries++) {
-        const files = [...new Set(rec.failures.filter((_f, i) => !found.has(i)).map((f) => f.file))];
-        const r = await rerun(base, files);
-        if (r?.outcome !== "failed" && r?.outcome !== "passed") break; // the machine's failure: no answer
-        r.failures.forEach((x) => take(r.id, x));
-    }
-    if (found.size < rec.failures.length) return [];
-    const dir = ledgerDir(env, root);
-    const issues = fileIssues(dir, [...found.values()], { commit: base, log: rec.log }, gh);
-    return rec.failures.map((f, i) => {
-        const ev = found.get(i);
-        const issue = issues[ev.signature] ?? null;
-        return {
-            file: f.file,
-            name: f.name,
-            reason: "fails-on-golden",
-            evidence: ev.inv,
-            commit: base,
-            issue,
-            line: f.line,
-        };
-    });
-}
-
-function defaultGh(args) {
-    const r = spawnSync("gh", args, { encoding: "utf8" });
-    if (r.status !== 0) throw new Error(r.stderr || `gh exited ${r.status}`);
-    return r.stdout.trim();
-}
-
-/**
- * The [KNOWN] lines for an excused shard, one per test.
- * @param rec the record with its exonerations
- * @returns lines
- */
-export function knownLines(rec) {
-    return rec.exonerations.map((e) => {
-        const issue = e.issue ? `issue #${e.issue}` : "issue not filed yet (verification files it)";
-        const at = `${e.commit?.slice(0, 10)} (${e.evidence})`;
-        return `  [KNOWN] ${rec.shard}: ${e.file} > ${e.name} fails the same way on golden's tip ${at}, ${issue}; coverage not checked`;
-    });
-}
 
 /**
  * A test's history in its family (design 5.2): the last 100 verdicts of tool-owned kinds that really ran (a reused

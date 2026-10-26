@@ -7,18 +7,17 @@
 //   node tools/worktree-cleanup.mjs --apply --every M  the same every M minutes, forever (the servherd watcher)
 //   --recent H   keep a worktree with git activity in the last H hours (default 3)
 //
-// A worktree is finished when its branch's commits are all on origin/master or origin/golden and its
-// tip is off their first-parent lines (a fresh branch sits on the line and is not finished), when its
+// A worktree is finished when its branch's commits are all on origin/master and its
+// tip is off its first-parent line (a fresh branch sits on the line and is not finished), when its
 // branch is gone from origin (`[gone]` after `fetch --prune`), or when it is detached at a commit
-// already in origin/master or origin/golden. Never by age. A finished worktree is removed only when
+// already in origin/master. Never by age. A finished worktree is removed only when
 // every check passes; otherwise it is kept and counted by the first reason, in this order:
 //
 // - not the main checkout, a live tool's worktree (tools/live-tools.json), golden-local, golden-cut,
 //   this tool's own checkout, or the working directory of any servherd server;
 // - not locked;
-// - not named by a `taken` marker (tmp/pipeline-round and tmp/issue-round state) and its branch not
-//   reverted from golden (a fix is due on it);
-// - no push-queue ticket runs from it, no process has its cwd or an open file inside it, and no live
+// - not named by a `taken` marker (tmp/pipeline-round and tmp/issue-round state);
+// - no process has its cwd or an open file inside it, and no live
 //   Claude session (~/.claude/sessions) has its cwd there;
 // - no git activity (index, HEAD, HEAD reflog) in the last --recent hours;
 // - every commit on its HEAD is on a remote;
@@ -49,8 +48,7 @@ import { fileURLToPath } from "node:url";
 export const KEEP = {
     tool: "live tool or server worktree",
     locked: "locked",
-    held: "taken marker or reverted from golden",
-    ticket: "in the push queue",
+    held: "taken marker",
     process: "a live process or session inside",
     recent: "git activity in the last hours",
     unpushed: "commits not on a remote",
@@ -58,7 +56,7 @@ export const KEEP = {
     refused: "git refused to remove it",
 };
 
-const BASES = ["origin/master", "origin/golden"];
+const BASES = ["origin/master"];
 
 function git(cwd, args, env) {
     const r = spawnSync("git", ["-c", "core.fsmonitor=false", ...args], {
@@ -149,22 +147,20 @@ const alive = (pid) => {
 };
 
 /**
- * The candidate directories some process has its cwd or an open file in, or a live push-queue ticket
- * or Claude session names. ponytail: cwd, fds, tickets and session cwds; a process running a file
+ * The candidate directories some process has its cwd or an open file in, or a live Claude session
+ * names. ponytail: cwd, fds and session cwds; a process running a file
  * mapped from a worktree with its cwd elsewhere is missed. Read /proc/<pid>/maps if that ever bites.
  * @param dirs the candidate directories
- * @param root the main checkout (its push-queue tickets)
  * @param home the home directory (Claude's session files)
  * @param procDir the proc file system
  * @returns the busy directories, each with its reason
  */
-function busyDirs(dirs, root, home, procDir) {
+function busyDirs(dirs, home, procDir) {
     const busy = new Map();
     const mark = (p, why) => {
         const d = holderOf(p, dirs);
         if (d && !busy.has(d)) busy.set(d, why);
     };
-    markTickets(join(root, "tmp/push-queue"), mark);
     markSessions(join(home, ".claude/sessions"), mark);
     for (const pid of readdirSync(procDir)) {
         if (/^\d+$/.test(pid)) markProcess(join(procDir, pid), mark);
@@ -173,22 +169,6 @@ function busyDirs(dirs, root, home, procDir) {
 }
 
 const listDir = (dir) => (existsSync(dir) ? readdirSync(dir) : []);
-
-/**
- * Marks the directory each live push-queue ticket names.
- * @param tickets the ticket directory
- * @param mark marks a path busy for a reason
- */
-function markTickets(tickets, mark) {
-    for (const name of listDir(tickets)) {
-        if (!alive(Number(name.split("-").at(-1)))) continue;
-        try {
-            mark(readFileSync(join(tickets, name), "utf8").split(" :: ")[0].trim(), "ticket");
-        } catch {
-            // The push ended while read.
-        }
-    }
-}
 
 /**
  * Marks the working directory of each live Claude session.
@@ -263,12 +243,11 @@ const freeBytes = (dir) => {
 };
 
 /**
- * Branches named by a `taken` marker in the round skills' state, and branches reverted from golden.
+ * Branches named by a `taken` marker in the round skills' state.
  * @param root the main checkout
- * @param env git's environment
  * @returns whether a branch is held
  */
-function heldBranches(root, env) {
+function heldBranches(root) {
     const text = ["tmp/pipeline-round/state.json", "tmp/issue-round/state.json"]
         .map((f) => {
             try {
@@ -278,18 +257,12 @@ function heldBranches(root, env) {
             }
         })
         .join("\n");
-    const reverted = new Set();
-    const log = git(root, ["log", "origin/golden", "--format=%s", '--grep=^Revert "land: '], env);
-    for (const s of log.out.split("\n")) {
-        const m = /^Revert "land: (.+)"$/.exec(s);
-        if (m) reverted.add(m[1]);
-    }
-    return (branch) => reverted.has(branch) || text.includes(`branch ${branch},`);
+    return (branch) => text.includes(`branch ${branch},`);
 }
 
 /**
- * The finished worktrees: a branch gone upstream, or a head reachable from master or golden that is not
- * on their first-parent line; a detached head when reachable.
+ * The finished worktrees: a branch gone upstream, or a head reachable from master that is not
+ * on its first-parent line; a detached head when reachable.
  * @param trees the worktrees
  * @param root the main checkout
  * @param env git's environment
@@ -426,8 +399,8 @@ export function cleanup(o) {
 
     const dirs = new Set(finished.map((t) => t.dir));
     const prot = [...new Set(protectedDirs(root, home))];
-    const busy = busyDirs(dirs, root, home, o.procDir ?? "/proc");
-    const held = heldBranches(root, env);
+    const busy = busyDirs(dirs, home, o.procDir ?? "/proc");
+    const held = heldBranches(root);
     const recentMs = recentHours * 3600e3;
     const kept = {};
     const bump = (k) => {

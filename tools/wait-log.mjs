@@ -2,7 +2,7 @@
 // prepends code to line 1, which turns a #! into a syntax error. Run it as `node tools/wait-log.mjs`.
 /**
  * wait-log.mjs -- one machine-readable log of every wait in the pipeline, so the time a change spends
- * queued (for the landing lock, a gate slot, a browser slot, a test or GPU slot, a screenshot preview)
+ * queued (for a browser slot, a test or GPU slot, a screenshot preview)
  * can be measured instead of guessed (design/ci/fast-pipeline.md, build order step 1).
  *
  * Each wait that ended is one JSON line in <main checkout>/tmp/waits.jsonl:
@@ -12,7 +12,7 @@
  * - start, end: ISO times; ms: end - start.
  * - waiter: who waited (its checkout and command); pid: its process.
  * - heldBy: who held what it waited for when the wait began, as each tool describes its holders.
- * Slots log only waits that happened; the landing locks log every taking and every hold, waited or not.
+ * Slots log only waits that happened.
  *
  * PIPELINE_WAIT_LOG names another file (tests), and "off" turns the log off. A log that cannot be
  * written never fails or delays the waiter.

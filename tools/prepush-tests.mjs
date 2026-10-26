@@ -57,14 +57,13 @@ import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { basename, dirname, join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
-import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { liveTickets, slotDir } from "./test-slots.mjs";
+import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -76,21 +75,6 @@ const ledger = await import("./test-ledger.mjs").catch((e) => {
     console.log(`ledger: unavailable (${e.message.split("\n")[0]}); deciding as before`);
     return null;
 });
-
-/**
- * Whether a failing shard may be excused as failing on golden: only when TEST_LEDGER_KIND
- * names a land check, never under PREPUSH_ALL=1 (verification), PREPUSH_EXONERATE=0, or a push to the cut or master.
- * @param env the environment
- * @returns boolean
- */
-export function mayExcuse(env) {
-    const strict = env.PREPUSH_ALL === "1" || env.PREPUSH_EXONERATE === "0";
-    return (
-        env.TEST_LEDGER_KIND === "land-check" &&
-        !strict &&
-        !/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")
-    );
-}
 
 // What every record of this checkout shares (commit, tree, branch, dirty), asked of git once per gate.
 let head;
@@ -492,135 +476,6 @@ const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
 
 /**
- * How one shard runs, from its checkout: through tools/run-tests.sh (with `command` instead of the shard's own when
- * given), in a machine-wide test slot (tools/test-slots.mjs), and after the browser slot: nothing holding a test
- * slot ever waits for a browser slot, so the two cannot wait on each other.
- * @param shard a SHARDS entry
- * @param [command] the command to run instead
- * @returns argv
- */
-function shardArgv(shard, command) {
-    const what = command ? ["--command", shard.shard, command] : [shard.shard];
-    const cmd = ["bash", "tools/run-tests.sh", ...what];
-    cmd.unshift(process.execPath, join(dirname(fileURLToPath(import.meta.url)), "test-slots.mjs"));
-    return shard["needs-browser"] && existsSync(GATE) ? [GATE, ...cmd] : cmd;
-}
-
-// Re-runs on golden's tip, one at a time (they share one worktree), and their processes, for stopAll.
-let baseQueue = Promise.resolve();
-const baseChildren = new Set();
-
-/**
- * A land check's failing test files run again on golden's tip (design/ci/test-ledger.md 5.1): in a scratch
- * worktree beside the check (`<check>-base`), built, with no pass reuse, recorded as kind `base`. A command that
- * cannot run only those files (not a plain vitest run) runs the whole shard.
- * @param shard the failing shard
- * @param base golden's tip
- * @param files the failing test files
- * @param main the main checkout
- * @returns the record, or null when it could not run
- */
-export function rerunOnBase(shard, base, files, main) {
-    const run = async () => {
-        const dir = join(main, ".worktrees", `${basename(ROOT)}-base`);
-        const orig = SHARDS.find((s) => s.shard === shard.shard) ?? shard;
-        try {
-            // A detached scratch worktree at the base's tip, installed.
-            const git = (cwd, args) => execFileSync("git", args, { cwd, stdio: "pipe" });
-            if (existsSync(dir)) {
-                git(dir, ["reset", "-q", "--hard", base]);
-                git(dir, ["clean", "-fdq"]);
-            } else {
-                git(main, ["worktree", "add", "-q", "--detach", dir, base]);
-            }
-            if (existsSync(join(dir, "pnpm-lock.yaml"))) {
-                execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: dir, stdio: "pipe" });
-            }
-        } catch (e) {
-            console.log(`  [BASE] ${shard.shard}: no worktree at golden's tip (${e.message.split("\n")[0]})`);
-            return null;
-        }
-        if (
-            existsSync(join(dir, "nx.json")) &&
-            !buildPackages(dir, [orig.package], "the re-run on golden's tip needs")
-        ) {
-            return null;
-        }
-        const command = selectedCommand(dir, orig, files);
-        const what = command ? files.join(", ") : "the whole shard";
-        console.log(`  [BASE] ${shard.shard}: running ${what} on golden's tip ${base.slice(0, 10)}`);
-        const log = join(ROOT, "tmp/prepush-tests", `${shard.shard}-base.log`);
-        mkdirSync(dirname(log), { recursive: true });
-        const runId = ledger.newRunId(shard.shard);
-        const t0 = Date.now();
-        const argv = shardArgv(orig, command);
-        const env = { ...process.env, ...shardEnv(orig), TEST_LEDGER_RUN: runId };
-        const child = spawn(argv[0], argv.slice(1), {
-            cwd: dir,
-            env,
-            detached: true,
-            stdio: ["ignore", "pipe", "pipe"],
-        });
-        baseChildren.add(child);
-        const out = createWriteStream(log);
-        child.stdout.pipe(out);
-        child.stderr.pipe(out);
-        const code = await new Promise((resolve) => child.on("close", resolve));
-        baseChildren.delete(child);
-        await new Promise((resolve) => (out.destroyed ? resolve() : out.end(resolve)));
-        return ledger.record({
-            shard: shard.shard,
-            code,
-            log: readFileSync(log, "utf8"),
-            root: dir,
-            main,
-            runId,
-            startedAt: t0,
-            logFile: log,
-            runs: expectedRuns(command ?? orig["test-command"]),
-            selected: command ? files : null,
-            env: { ...process.env, TEST_LEDGER_KIND: "base", TEST_LEDGER_BRANCH: "golden" },
-        });
-    };
-    const p = baseQueue.then(run, run);
-    baseQueue = p.catch(() => null);
-    return p;
-}
-
-/**
- * Writes a land check's failed record with what was excused (written only now, so the index never holds it without).
- * @param rec the record
- * @param excused its exonerations
- */
-function writeExcused(rec, excused) {
-    try {
-        rec.exonerations = excused;
-        ledger.writeRecord(ledger.ledgerDir(process.env, ROOT), rec);
-    } catch (e) {
-        console.log(`ledger: ${rec.shard} not recorded (${e.message.split("\n")[0]})`);
-    }
-}
-
-/**
- * The exonerations for a land check's failed shard: every failing test fails on golden's tip too (tools/test-ledger.mjs
- * exonerate). Never throws.
- * @param shard the shard
- * @param rec its record
- * @param main the main checkout
- * @returns exonerations, empty when it is not excused
- */
-async function excuse(shard, rec, main) {
-    if (!ledger) return [];
-    try {
-        const rerun = (base, files) => rerunOnBase(shard, base, files, main);
-        return await ledger.exonerate(rec, ROOT, { rerun });
-    } catch (e) {
-        console.log(`ledger: ${shard.shard} not excused (${e.message.split("\n")[0]}); deciding as before`);
-        return [];
-    }
-}
-
-/**
  * The note on a selected run's PASS line.
  * @param shard a shard entry, selected or not
  * @returns text, empty for a whole shard
@@ -714,34 +569,6 @@ function passed(shards, main) {
     return { run, record, keyOf: (shard) => before.get(shard.shard) };
 }
 
-// Why a gate runs no shard.
-// A caller names this file in PREPUSH_SUPERSEDED_FILE and writes it once the run is no longer
-// wanted: at the next shard boundary the gate starts no more shards and stops with [SUPERSEDED].
-const SUPERSEDED = process.env.PREPUSH_SUPERSEDED_FILE;
-
-/**
- * The process groups (each shard's, as started below) that hold a machine-wide test slot: the shards that have
- * begun their tests rather than wait for a slot.
- * @returns the group ids
- */
-function slotHolderGroups() {
-    try {
-        const pgid = (pid) =>
-            Number(
-                readFileSync(`/proc/${pid}/stat`, "utf8")
-                    .replace(/^.*\) /s, "")
-                    .split(" ")[2],
-            );
-        return new Set(
-            liveTickets(slotDir())
-                .filter((t) => t.granted)
-                .map((t) => pgid(t.pid)),
-        );
-    } catch {
-        return new Set(); // no slots (GRAPHTY_TEST_SLOTS=0): no shard counts as begun
-    }
-}
-
 function nothingToRun(gated, planned) {
     if (gated.length === 0) return "No affected package has a test shard to run here.";
     if (planned.length === 0) return "The test selection runs no shard: no test reaches this change.";
@@ -813,8 +640,6 @@ async function main() {
     const known = [];
     const quarantineLines = [];
     let stopping = false;
-    let superseded = false;
-    const dropped = new Set(); // shards stopped by a supersession before their tests began
     const started = Date.now();
     // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
     const advisory = startAdvisory(ROOT, base, main);
@@ -859,7 +684,7 @@ async function main() {
             const secs = Math.round((Date.now() - t0) / 1000);
             // The verdict reads the whole log, so only once the log stream has finished (end() never calls
             // back on a log stream destroyed before it finished). The shard counts as running until then,
-            // so no other shard's close ends the stage before this one's verdict, a re-run on golden's tip included.
+            // so no other shard's close ends the stage before this one's verdict.
             const settle = async () => {
                 const text = existsSync(log) ? readFileSync(log, "utf8") : "";
                 const q = readJson(resultFile);
@@ -875,7 +700,7 @@ async function main() {
                         logFile: log,
                     });
                 }
-                if (stopping || dropped.has(shard.shard)) {
+                if (stopping) {
                     running.delete(shard.shard);
                     ledgerRecord(shard, main, { ...facts, cancelled: true });
                     // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
@@ -887,10 +712,7 @@ async function main() {
                 // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
                 // (tools/shard-verdict.mjs).
                 const verdict = checkShard(shard, code, text, ROOT, t0);
-                const mayAsk = !verdict.pass && mayExcuse(process.env);
-                const rec = ledgerRecord(shard, main, { ...facts, write: !mayAsk });
-                const excused = mayAsk && rec?.outcome === "failed" ? await excuse(shard, rec, main) : [];
-                if (mayAsk && rec) writeExcused(rec, excused);
+                const rec = ledgerRecord(shard, main, facts);
                 running.delete(shard.shard);
                 results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 const letThrough = noteQuarantine(shard, q);
@@ -913,18 +735,11 @@ async function main() {
                     next();
                     return;
                 }
-                if (excused.length) {
-                    // Every failing test fails on golden's tip too: no shard pass is recorded, and the stage exits 3
-                    // so prepush.sh records the gate's pass only for this landing's own push (gate-known).
-                    known.push(shard.shard);
-                    console.log(ledger.knownLines(rec).join("\n"));
-                } else {
-                    failed.push(shard.shard);
-                    process.exitCode = 1;
-                    console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
-                    console.log(text.split("\n").slice(-80).join("\n"));
-                }
-                goOn(shard, excused.length > 0);
+                failed.push(shard.shard);
+                process.exitCode = 1;
+                console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
+                console.log(text.split("\n").slice(-80).join("\n"));
+                goOn(shard);
             };
             if (out.destroyed) {
                 settle();
@@ -934,13 +749,13 @@ async function main() {
         });
     };
 
-    // After a shard that did not pass: the stage goes on when it was excused, and in verification (PREPUSH_ALL=1),
+    // After a shard that did not pass: the stage goes on in verification (PREPUSH_ALL=1),
     // which runs every shard to the end so one failure cannot hide another; the shard's family counts as warmed,
     // so the rest of its package still starts. Otherwise everything stops.
-    const goOn = (shard, excused) => {
+    const goOn = (shard) => {
         if (stopping) {
             if (running.size === 0) finish();
-        } else if (excused || process.env.PREPUSH_ALL === "1") {
+        } else if (process.env.PREPUSH_ALL === "1") {
             warmed.add(family(shard));
             next();
         } else {
@@ -950,7 +765,7 @@ async function main() {
 
     const stopAll = () => {
         stopping = true;
-        for (const child of [...running.values(), ...baseChildren]) {
+        for (const child of running.values()) {
             try {
                 process.kill(-child.pid, "SIGTERM");
             } catch {
@@ -961,7 +776,7 @@ async function main() {
             finish();
         } else {
             setTimeout(() => {
-                for (const child of [...running.values(), ...baseChildren]) {
+                for (const child of running.values()) {
                     try {
                         process.kill(-child.pid, "SIGKILL");
                     } catch {
@@ -1010,13 +825,6 @@ async function main() {
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         advisory.report(results);
-        if (superseded) {
-            failed.forEach(keepLog);
-            console.log(
-                `[SUPERSEDED] Stopped for a newer commit (${secs}s): the shards that passed are kept by input key.`,
-            );
-            process.exit(1);
-        }
         if (quarantineLines.length) {
             console.log("Quarantine (tools/test-quarantine.mjs; `node tools/test-quarantine.mjs status`):");
             quarantineLines.forEach((l) => console.log(l));
@@ -1032,7 +840,7 @@ async function main() {
         }
         if (known.length) {
             console.log(
-                `Every shard passed but ${known.join(", ")}, which passed only with failures excused: failing as on golden, flaky or quarantined (${secs}s).`,
+                `Every shard passed but ${known.join(", ")}, which passed only with failures let through: flaky or quarantined (${secs}s).`,
             );
             process.exit(3);
         }
@@ -1042,34 +850,7 @@ async function main() {
 
     // Every waiting shard starts (browser ones then queue on the shared gate), except one startRule
     // holds back until its package's caches are warm, and a third shard without a browser.
-    // At a shard boundary, once verification wrote the marker: nothing more starts, and every shard still waiting
-    // for its test slot stops; a shard whose tests began runs to the end, so its pass is recorded by input key.
-    const supersede = () => {
-        if (superseded || !SUPERSEDED || !existsSync(SUPERSEDED)) return superseded;
-        superseded = true;
-        const notStarted = waiting.splice(0).length;
-        const begun = slotHolderGroups();
-        for (const [name, child] of running) {
-            if (begun.has(child.pid)) continue;
-            dropped.add(name);
-            try {
-                process.kill(-child.pid, "SIGTERM");
-            } catch {
-                // already gone
-            }
-        }
-        console.log(
-            `  [SUPERSEDED] a newer commit is wanted (${SUPERSEDED}): ${notStarted} shard(s) not started, ` +
-                `${dropped.size} stopped before their tests began, ${running.size - dropped.size} running to the end`,
-        );
-        return true;
-    };
-
     const next = () => {
-        if (supersede()) {
-            if (running.size === 0) finish();
-            return;
-        }
         // An index loop: a started shard is spliced out of `waiting` as it goes.
         for (let i = 0; i < waiting.length;) {
             const shard = waiting[i];

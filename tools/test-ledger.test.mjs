@@ -7,10 +7,9 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { mayExcuse } from "./prepush-tests.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "test-ledger-"));
 const ledgerHome = join(dir, "ledger");
@@ -74,19 +73,6 @@ const rec = (over) => {
     L.writeRecord(ledgerHome, r);
     return r;
 };
-// A land check of a branch changing `file`: HEAD is the land commit, HEAD^1 golden's tip.
-const landCheck = (file = "graphty/src/other.ts") => {
-    const tip = git("rev-parse", "HEAD");
-    const b = `b${seq++}`;
-    git("update-ref", "refs/remotes/origin/golden", tip);
-    git("checkout", "-q", "-b", b);
-    commit(file, b);
-    git("checkout", "-q", "golden");
-    git("merge", "-q", "--no-ff", "-m", `land: ${b}`, b);
-    const landed = git("rev-parse", "HEAD");
-    return { landed, base: tip };
-};
-
 describe("parsing, outcomes and hashes", () => {
     const junit = `<?xml version="1.0" encoding="UTF-8" ?><testsuites name="vitest tests" tests="3">
     <testsuite name="test/a.test.ts"><testcase classname="test/a.test.ts" name="A &gt; works" time="0.5"></testcase>
@@ -175,108 +161,6 @@ describe("parsing, outcomes and hashes", () => {
     });
 });
 
-describe("exoneration of a failure golden's tip has too", () => {
-    const text = "AssertionError: expected 3 to be 4\n ❯ graphty/src/a.test.ts:9:1";
-    let n = 100;
-    // each case its own test file, so no case's evidence is another's
-    const fresh = () => {
-        const file = `graphty/src/t${n++}.test.ts`;
-        return { file, fl: failure(text, file) };
-    };
-    const gh = () => "https://github.com/o/r/issues/42";
-    // A re-run on golden's tip that answers with `answers` in turn (a list of failures, or null for a pass).
-    const reruns = (...answers) => {
-        const calls = [];
-        const rerun = async (base, files) => {
-            calls.push({ base, files });
-            const fails = answers[calls.length - 1] ?? null;
-            return rec({ kind: "base", commit: base, outcome: fails ? "failed" : "passed", failures: fails ?? [] });
-        };
-        return { rerun, calls };
-    };
-    const excused = async (r, rerun) => (await L.exonerate(r, repo, { env, rerun, gh })).map((e) => e.reason);
-    const landed = (fl, file, changes) => {
-        const { landed: c, base } = landCheck(changes);
-        return {
-            base,
-            r: rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] }),
-        };
-    };
-
-    it("excuses a test that fails the same way when re-run on golden's tip, and files its issue", async () => {
-        const { file, fl } = fresh();
-        const { base, r } = landed(fl, file);
-        const { rerun, calls } = reruns([fl]);
-        const out = await L.exonerate(r, repo, { env, rerun, gh });
-        assert.deepEqual(calls, [{ base, files: [file] }]);
-        assert.deepEqual(
-            out.map((e) => [e.reason, e.commit, e.issue]),
-            [["fails-on-golden", base, 42]],
-        );
-        assert.match(
-            L.knownLines({ ...r, exonerations: out })[0],
-            /\[KNOWN\] graphty-2: graphty\/src\/t\d+\.test\.ts > panel > opens fails the same way on golden's tip .* issue #42/,
-        );
-    });
-
-    it("takes golden's own failing run of exactly that commit as the answer, with no re-run", async () => {
-        const { file, fl } = fresh();
-        const { landed: c, base } = landCheck();
-        rec({ kind: "verify", commit: base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
-        L.rebuild(env, repo);
-        const r = rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
-        const { rerun, calls } = reruns();
-        assert.deepEqual(await excused(r, rerun), ["fails-on-golden"]);
-        assert.equal(calls.length, 0);
-    });
-
-    it("never excuses another key, a test golden's tip passes twice, a changed file, a duplicated name, or no answer", async () => {
-        const other = (fl) => ({ ...fl, ...L.failureHashes("AssertionError: expected 0 to be 4", fl.file) });
-        for (const [what, answers, changes, dup = 0] of [
-            ["another key", (fl) => [[other(fl)], [other(fl)]]],
-            ["passes twice", () => [null, null]],
-            ["a changed file", (fl) => [[fl]], true],
-            ["a duplicated name", (fl) => [[fl]], false, 1],
-        ]) {
-            const { file, fl } = fresh();
-            const { landed: c, base } = landCheck(changes ? file : undefined);
-            const r = rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, dup]], failures: [fl] });
-            const { rerun, calls } = reruns(...answers(fl));
-            assert.deepEqual(await excused(r, rerun), [], what);
-            assert.equal(calls.length, changes || dup ? 0 : 2, what);
-        }
-        const { file, fl } = fresh();
-        const { r } = landed(fl, file);
-        assert.deepEqual(await excused(r, async () => null), [], "the re-run could not run");
-    });
-
-    it("excuses an expired wait that golden's tip fails in either of two tries, but not the other way round", async () => {
-        const wait = (fl) => ({ ...fl, ...L.failureHashes("Error: Test timed out in 5000ms.", fl.file) });
-        let { file, fl } = fresh();
-        let { r } = landed(wait(fl), file);
-        assert.deepEqual(await excused(r, reruns(null, [fl]).rerun), ["fails-on-golden"]);
-        ({ file, fl } = fresh());
-        ({ r } = landed(fl, file));
-        assert.deepEqual(await excused(r, reruns([wait(fl)], [wait(fl)]).rerun), []);
-    });
-
-    it("asks golden's tip below every landing of a group, so an earlier branch of the group is not excused", () => {
-        const tip = git("rev-parse", "HEAD");
-        landCheck();
-        landCheck();
-        git("update-ref", "refs/remotes/origin/golden", tip);
-        assert.equal(L.goldenTip(repo), tip);
-    });
-
-    it("is allowed only in a land check, never in verification, strict mode, the cut or master", () => {
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_SELECT_BASE: "origin/golden" }), true);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "push" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_ALL: "1" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_EXONERATE: "0" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_SELECT_BASE: "origin/golden-cut" }), false);
-    });
-});
-
 describe("the 2026-10-22 replay", () => {
     it("reads that day's waits as timeouts, and excuses at least the runs whose tests golden failed the same way", () => {
         // Each failing run of the day as a land check, with golden's tip assumed to fail each test as it last failed
@@ -302,6 +186,8 @@ describe("the 2026-10-22 replay", () => {
 });
 
 describe("flaky, broken and the flaky bisect", () => {
+    // the index the classifier reads, built once from the records written so far
+    before(() => L.rebuild(env, repo));
     const t = (n) => ({ file: `graphty/src/f${n}.test.ts`, name: "x" });
     const verdicts = (test, list, variant = "graphty") => {
         for (const [tree, failed, c = g0] of list) {

@@ -34,7 +34,6 @@
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
 #
-# golden and golden-cut (the retired integration branches) need no issue and are not pushed from here.
 # The worktree lands in .worktrees/<name>. Remove finished ones with tools/worktree-prune.sh.
 
 set -euo pipefail
@@ -79,19 +78,16 @@ BASE="${POS[1]:-}"
 NAME="${POS[2]:-${BRANCH//\//-}}"
 [ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name] [--issue N | --new-issue \"<title>\"] [--owner O] [--full-images]"
 
-case "$BRANCH" in golden | golden-cut) TRACKED="" ;; *) TRACKED=1 ;; esac
-if [ -n "$TRACKED" ]; then
-    [ -n "$ISSUE" ] || ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
-    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
-    [[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
-fi
+[ -n "$ISSUE" ] || ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
+[ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
+[[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
 
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 DIR="$MAIN/.worktrees/$NAME"
 [ -e "$DIR" ] && die "$DIR already exists"
 
-if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
+if [ -z "$ISSUE" ]; then
     ISSUE=$(cd "$MAIN" && node "$HERE/branch-note.mjs" new-issue --title "$NEW_ISSUE" --branch "$BRANCH" \
         ${TYPE:+--type "$TYPE"} ${PRIORITY:+--priority "$PRIORITY"} ${EFFORT:+--effort "$EFFORT"}) ||
         die "could not open the issue"
@@ -114,10 +110,8 @@ else
     git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
     # A branch started from another branch is stacked on it: record that, so the pre-push gate
     # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
-    # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
     case "$BASE" in
         origin/master) ;;
-        origin/golden-verified) git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
         origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
     esac
 fi
@@ -128,16 +122,14 @@ else
     echo "note: $MAIN/.env does not exist, so there is no .env to link (see .env.example)" >&2
 fi
 
-if [ -n "$TRACKED" ]; then
-    git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
-    if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
-        retry git -C "$DIR" push --no-verify -q -u origin "$BRANCH" ||
-            echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
-    fi
-    (cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
-        ${OWNER:+--owner "$OWNER"}) ||
-        echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
+git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
+if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
+    retry git -C "$DIR" push --no-verify -q -u origin "$BRANCH" ||
+        echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
 fi
+(cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
+    ${OWNER:+--owner "$OWNER"}) ||
+    echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
 
 (cd "$DIR" && pnpm install --frozen-lockfile)
 

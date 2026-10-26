@@ -149,13 +149,6 @@ mkdir -p "$(dirname "$SONAR_LOG")"
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_TOOLS/push-base.mjs")} && export PUSH_BASE_REF
 
 GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
-# A caller that found a pass under the key PREPUSH_EXPECTED_KEY names expects these exact inputs. If they
-# changed since (an edit, or the gate's own scripts), stop instead of running the whole gate unasked.
-if [ -n "${PREPUSH_EXPECTED_KEY:-}" ] && [ "$PREPUSH_EXPECTED_KEY" != "$GATE_KEY" ]; then
-    echo -e "${RED}The gate's inputs changed after the caller found a pass for them (the checkout, the installed lockfile or the gate's own scripts), so this push would run the whole gate without a gate slot. Push again through tools/push-queue.sh.${NC}" >&2
-    exit 1
-fi
-unset PREPUSH_EXPECTED_KEY
 if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] && SOURCE_PASS="$(node "$GATE_TOOLS/prepush-inputs.mjs" passed source "$GATE_KEY" 2>/dev/null)"; then
     echo -e "${GREEN}[SKIP] Source-only checks: they already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$SOURCE_PASS" 2>/dev/null); key ${GATE_KEY:0:12})${NC}"
     echo ""

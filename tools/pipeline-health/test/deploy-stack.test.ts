@@ -5,54 +5,35 @@ import { describe, expect, it } from "vitest";
 import { bootstrapRoleArns, DeployStack } from "../infra/deploy-stack.ts";
 
 const env = { account: "494945606241", region: "us-east-2" };
-const synth = (connectionApproved: boolean) =>
-    Template.fromStack(new DeployStack(new App(), "deploy", { env, connectionApproved }));
+const t = Template.fromStack(new DeployStack(new App(), "deploy", { env }));
 
 describe("deploy stack", () => {
-    const t = synth(true);
-
-    it("creates the GitHub CodeConnections connection", () => {
-        t.hasResourceProperties("AWS::CodeConnections::Connection", {
-            ConnectionName: "graphty-health-github",
-            ProviderType: "GitHub",
-        });
+    it("has no GitHub connection and no webhook", () => {
+        t.resourceCountIs("AWS::CodeConnections::Connection", 0);
+        const [project] = Object.values(t.findResources("AWS::CodeBuild::Project"));
+        expect(project.Properties.Triggers).toBeUndefined();
     });
 
-    it("builds graphty-monorepo through the connection, one build at a time, 30 minutes", () => {
+    it("builds with no source, cloning the public repository at COMMIT, one build at a time, 30 minutes", () => {
         t.hasResourceProperties("AWS::CodeBuild::Project", {
             Name: "graphty-health-deploy",
             ConcurrentBuildLimit: 1,
             TimeoutInMinutes: 30,
+            Environment: Match.objectLike({ Type: "ARM_CONTAINER", ComputeType: "BUILD_GENERAL1_SMALL" }),
             Source: Match.objectLike({
-                Type: "GITHUB",
-                Location: "https://github.com/graphty-org/graphty-monorepo.git",
-                Auth: { Type: "CODECONNECTIONS", Resource: { "Fn::GetAtt": [Match.anyValue(), "ConnectionArn"] } },
-                BuildSpec: Match.stringLikeRegexp("cdk deploy graphty-health --require-approval never"),
+                Type: "NO_SOURCE",
+                BuildSpec: Match.stringLikeRegexp(
+                    'git fetch --depth 1 origin \\\\"\\$COMMIT\\\\"[\\s\\S]*cdk deploy graphty-health --require-approval never',
+                ),
             }),
         });
+        const [project] = Object.values(t.findResources("AWS::CodeBuild::Project"));
+        const spec = JSON.parse(project.Properties.Source.BuildSpec as string);
+        expect(spec.env.variables.GIT_LFS_SKIP_SMUDGE).toBe("1");
+        expect(spec.phases.install.commands.join("\n")).toContain(
+            "https://github.com/graphty-org/graphty-monorepo.git",
+        );
         t.hasResourceProperties("AWS::Logs::LogGroup", { RetentionInDays: 14 });
-    });
-
-    it("triggers only on master pushes under tools/pipeline-health/", () => {
-        t.hasResourceProperties("AWS::CodeBuild::Project", {
-            Triggers: {
-                Webhook: true,
-                FilterGroups: [
-                    Match.arrayWith([
-                        { Type: "EVENT", Pattern: "PUSH" },
-                        { Type: "HEAD_REF", Pattern: "refs/heads/master" },
-                        { Type: "FILE_PATH", Pattern: "^tools/pipeline-health/" },
-                    ]),
-                ],
-            },
-        });
-    });
-
-    it("holds only the connection, role and logs until the connection is approved", () => {
-        const pending = synth(false);
-        pending.resourceCountIs("AWS::CodeBuild::Project", 0);
-        pending.resourceCountIs("AWS::CodeConnections::Connection", 1);
-        pending.resourceCountIs("AWS::IAM::Role", 1);
     });
 
     it("lets the build role assume only the CDK bootstrap roles", () => {
@@ -63,8 +44,6 @@ describe("deploy stack", () => {
         expect(assume).toHaveLength(1);
         expect(assume[0].Resource).toEqual(bootstrapRoleArns(env.account, env.region));
         const actions = statements.flatMap((s) => [s.Action].flat());
-        expect(actions.filter((a) => !/^(logs|codebuild|codeconnections|codestar-connections|sts):/.test(a))).toEqual(
-            [],
-        );
+        expect(actions.filter((a) => !/^(logs|codebuild|sts):/.test(a))).toEqual([]);
     });
 });

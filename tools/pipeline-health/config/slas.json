@@ -65,6 +65,10 @@
             "yellowAfterMs": 108000000,
             "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
+        "deploy": {
+            "label": "Health stack redeploy (CodeBuild, started by the collector)",
+            "notSetUp": "the collector needs the GitHub App to read master's tools/pipeline-health"
+        },
         "coverage": {
             "label": "Coverage published (Coveralls, master)",
             "yellowAfterMs": 86400000

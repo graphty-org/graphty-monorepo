@@ -1,5 +1,6 @@
-// The AWS side of the collector: SSM parameters and Cost Explorer (the table is src/dynamo.ts).
+// The AWS side of the collector: SSM parameters, Cost Explorer and the deploy build (the table is src/dynamo.ts).
 
+import { BatchGetBuildsCommand, CodeBuildClient, StartBuildCommand } from "@aws-sdk/client-codebuild";
 import { CostExplorerClient, GetCostAndUsageCommand } from "@aws-sdk/client-cost-explorer";
 import { GetParametersCommand, SSMClient } from "@aws-sdk/client-ssm";
 
@@ -31,5 +32,40 @@ export function costExplorerDaily(client = new CostExplorerClient({ region: "us-
             token = r.NextPageToken;
         } while (token);
         return out;
+    };
+}
+
+/** The deploy build the collector starts (see `deploy` in collect.ts). */
+export interface DeployBuilds {
+    /** Starts a build of `commit`; returns the build id. */
+    start(commit: string): Promise<string>;
+    /** True while the build is still running. */
+    running(buildId: string): Promise<boolean>;
+}
+
+/**
+ * The deploy build through CodeBuild.
+ * @param projectName - the CodeBuild project (deploy-stack.ts)
+ * @param client - the CodeBuild client
+ * @returns start and status of its builds
+ */
+export function codeBuildDeploy(projectName: string, client = new CodeBuildClient({})): DeployBuilds {
+    return {
+        async start(commit) {
+            const r = await client.send(
+                new StartBuildCommand({
+                    projectName,
+                    environmentVariablesOverride: [{ name: "COMMIT", value: commit, type: "PLAINTEXT" }],
+                }),
+            );
+            if (!r.build?.id) {
+                throw new Error("StartBuild returned no build id");
+            }
+            return r.build.id;
+        },
+        async running(buildId) {
+            const r = await client.send(new BatchGetBuildsCommand({ ids: [buildId] }));
+            return r.builds?.[0]?.buildStatus === "IN_PROGRESS";
+        },
     };
 }

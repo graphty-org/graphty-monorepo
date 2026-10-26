@@ -148,3 +148,92 @@ describe("runner job counts", () => {
         expect(observed(store, "ci.jobs_queued")).toBe(2);
     });
 });
+
+describe("collector deploy trigger", () => {
+    const TREE = "a".repeat(40);
+    const HEAD = "b".repeat(40);
+    /** GitHub that answers only the deploy query, with master's tools/pipeline-health tree `tree()`. */
+    const gh = (tree: () => string) =>
+        new GitHub(
+            async () => "ghs_test",
+            async (url, init) => {
+                const body = String(init?.body ?? "");
+                if (url.endsWith("/graphql") && body.includes("master:tools/pipeline-health"))
+                    return Response.json({ data: { repository: { tree: { oid: tree() }, head: { oid: HEAD } } } });
+                return new Response("{}", { status: 500 });
+            },
+        );
+    const builds = (opts: { running?: boolean; fail?: boolean } = {}) => {
+        const started: string[] = [];
+        return {
+            started,
+            start: async (commit: string) => {
+                if (opts.fail) throw new Error("AccessDenied");
+                started.push(commit);
+                return `graphty-health-deploy:${started.length}`;
+            },
+            running: async () => opts.running ?? false,
+        };
+    };
+    const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
+        collect({ ...deps(store, fakeGitHub(), now, false), gh: g, deploy: b });
+
+    it("starts a build at master's head when the tree changed, and not again while it is unchanged", async () => {
+        const store = new MemoryStore();
+        let tree = TREE;
+        const b = builds();
+        const first = await run(
+            store,
+            gh(() => tree),
+            b,
+        );
+        expect(first.errors.deploy).toBeUndefined();
+        expect(b.started).toEqual([HEAD]);
+        expect(JSON.parse((await getCursor(store, "deploy")) ?? "{}")).toMatchObject({ tree: TREE });
+        await run(
+            store,
+            gh(() => tree),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([HEAD]);
+        tree = "c".repeat(40);
+        await run(
+            store,
+            gh(() => tree),
+            b,
+            NOW + 10 * MIN,
+        );
+        expect(b.started).toEqual([HEAD, HEAD]);
+        expect(await store.get(sourceKey("deploy"))).toMatchObject({ lastOkAt: NOW + 10 * MIN });
+    });
+
+    it("does not start while the last build is still in progress", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ running: true });
+        await run(
+            store,
+            gh(() => "d".repeat(40)),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([]);
+    });
+
+    it("records a StartBuild failure against the deploy source without failing the cycle", async () => {
+        const store = new MemoryStore();
+        const report = await run(
+            store,
+            gh(() => TREE),
+            builds({ fail: true }),
+        );
+        expect(report.errors.deploy).toContain("AccessDenied");
+        expect(await getCursor(store, "deploy")).toBeUndefined();
+        expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("AccessDenied");
+    });
+});

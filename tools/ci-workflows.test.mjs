@@ -5753,6 +5753,22 @@ describe("release.yml's version dry run with nothing releasable", () => {
     });
 });
 
+describe("every workflow's job env", () => {
+    // GitHub refuses a whole workflow file, with a failed run and no jobs on every push, when a job's
+    // env reads a context it does not offer there (runner is only available inside steps).
+    it("reads no runner context", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        for (const name of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))) {
+            const jobs = parseYaml(workflow(name))?.jobs ?? {};
+            for (const [id, body] of Object.entries(jobs)) {
+                for (const [key, value] of Object.entries(body?.env ?? {})) {
+                    assert.doesNotMatch(String(value), /\$\{\{[^}]*\brunner\./, `${name} job ${id} env ${key}`);
+                }
+            }
+        }
+    });
+});
+
 describe("promote.yml", () => {
     const promote = workflow("promote.yml");
     const main = job(promote, "promote");

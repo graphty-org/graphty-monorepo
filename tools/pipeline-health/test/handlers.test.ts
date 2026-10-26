@@ -367,6 +367,15 @@ describe("ingest: what it stores", () => {
         expect(mem.items.get("R#test#500.1.test.layout.1#a.ts#t\u0000A#1")?.outcome).toBe("flaky");
     });
 
+    it("stores a test listed twice in one post with one write", async () => {
+        const h = await ingest();
+        const twice = [1, 2].map(() => ({ file: "a.ts", name: "same", message: "x" }));
+        const transact = vi.spyOn(mem, "transact");
+        const post = invocation({ id: "500.1.test.layout.1", variant: "layout", failures: twice });
+        expect((await h(event("/v1/invocations", post))).statusCode).toBe(200);
+        expect(transact).toHaveBeenCalledTimes(1);
+    });
+
     it("reads each failure of a failing try once, not once more to check for a flaky verdict", async () => {
         const h = await ingest();
         const failures = Array.from({ length: 40 }, (_, i) => ({ file: "a.ts", name: `t${i}`, message: "x" }));

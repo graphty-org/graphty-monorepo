@@ -75,17 +75,21 @@ export async function putRaw(
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    const tests: (() => Promise<void>)[] = [];
+    // One write per test: a post can hold one id twice (identical test.each titles), and as in batch() the last wins.
+    const tests = new Map<string, () => Promise<void>>();
     items.forEach((r, i) => {
         const merged = opts.merge ? mergeOld(r, olds[i]) : r;
-        if (r.kind === "test") tests.push(() => putTest(store, merged, olds[i], nowMs, dirty));
+        const home = homeKey(r);
+        if (r.kind === "test")
+            tests.set(`${home.pk}\u0000${home.sk}`, () => putTest(store, merged, olds[i], nowMs, dirty));
         else ops.push(...writesFor(merged, olds[i], nowMs, dirty));
     });
     // Before the batch, which holds the dirty marks: a recompute never runs on a bucket before its rows are in.
     // Twenty-five transactions at a time; a failed one still lets the rest, the other rows and the marks be written.
     let failure: unknown;
-    for (let i = 0; i < tests.length; i += 25) {
-        for (const r of await Promise.allSettled(tests.slice(i, i + 25).map((t) => t())))
+    const writes = [...tests.values()];
+    for (let i = 0; i < writes.length; i += 25) {
+        for (const r of await Promise.allSettled(writes.slice(i, i + 25).map((t) => t())))
             if (r.status === "rejected") failure ??= r.reason;
     }
     for (const start of dirty) {

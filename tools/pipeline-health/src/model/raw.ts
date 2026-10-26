@@ -140,24 +140,36 @@ export async function setCursor(store: Store, name: string, value: string, nowMs
 }
 
 /**
- * Records one write (or failed attempt) of a source, for its age and error (section 9).
+ * The oldest time any of these items is bucketed by, or undefined when none has one.
+ * @param items
+ */
+export function oldestAt(items: RawItem[]): number | undefined {
+    const ts = items.flatMap((r) => timesOf(r).map(([, v]) => v));
+    return ts.length ? Math.min(...ts) : undefined;
+}
+
+/**
+ * Records one write (or failed attempt) of a source, for its age and error (section 9). firstAt is where the source's
+ * history starts: the first write, or earlier when a write carries older events (a writer posting its backlog).
  * @param store
  * @param source
  * @param nowMs
  * @param result
+ * @param since - the oldest event time in this write, if older than nowMs
  */
 export async function recordSource(
     store: Store,
     source: string,
     nowMs: number,
     result: { ok: true } | { ok: false; error: string },
+    since?: number,
 ): Promise<void> {
     const key: Key = sourceKey(source);
     const old = (await store.get(key)) as SourceItem | undefined;
     const item: SourceItem = {
         ...key,
         source,
-        firstAt: old?.firstAt ?? nowMs,
+        firstAt: Math.min(old?.firstAt ?? nowMs, since ?? nowMs),
         lastAt: nowMs,
         ...(old?.lastOkAt === undefined ? {} : { lastOkAt: old.lastOkAt }),
     };

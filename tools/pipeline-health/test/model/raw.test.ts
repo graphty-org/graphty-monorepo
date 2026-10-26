@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DAILY_ROW_LIMIT, rollKey, skTime } from "../../src/model/items.js";
-import { getCursor, putRaw, quotaUsed, recordSource, setCursor, takeQuota } from "../../src/model/raw.js";
+import { DAILY_ROW_LIMIT, HOUR, type RawItem, rollKey, skTime } from "../../src/model/items.js";
+import { getCursor, oldestAt, putRaw, quotaUsed, recordSource, setCursor, takeQuota } from "../../src/model/raw.js";
 import { recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { MIN, run, T0 } from "./helpers.js";
@@ -78,5 +78,20 @@ describe("cursors and sources", () => {
         item = await store.get({ pk: "META#source#npm", sk: "-" });
         expect(item?.error).toBeUndefined();
         expect(item).toMatchObject({ firstAt: T0, lastOkAt: T0 + 3 * MIN });
+    });
+
+    it("starts a source's history at the oldest event a write carries, so a posted backlog is not hidden", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "local", T0, { ok: true }, T0 - 20 * HOUR);
+        await recordSource(store, "local", T0 + MIN, { ok: true }, T0);
+        const item = await store.get({ pk: "META#source#local", sk: "-" });
+        expect(item).toMatchObject({ firstAt: T0 - 20 * HOUR, lastOkAt: T0 + MIN });
+    });
+
+    it("finds the oldest bucketed time of a write", () => {
+        expect(oldestAt([])).toBeUndefined();
+        const early = { kind: "local_run", id: "a", attempt: 1, endedAt: T0 - HOUR } as unknown as RawItem;
+        const later = { kind: "local_run", id: "b", attempt: 1, endedAt: T0 } as unknown as RawItem;
+        expect(oldestAt([later, early])).toBe(T0 - HOUR);
     });
 });

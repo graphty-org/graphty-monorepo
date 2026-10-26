@@ -25,14 +25,19 @@ import { clock, esc, fmtDur, fmtTime } from "./text";
 const DEFAULT_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
 const API = ((import.meta.env.VITE_HEALTH_API_URL as string | undefined) || DEFAULT_API).replace(/\/$/, "");
 const search = new URLSearchParams(location.search);
-const FIXTURE = search.has("fixtures");
+/**
+ * The bundled fixtures exist only in the dev server and in a build made with VITE_HEALTH_FIXTURES=1, so the
+ * published page emits no fixture chunks and ignores `?fixtures`.
+ */
+const FIXTURES_BUILT = import.meta.env.DEV || import.meta.env.VITE_HEALTH_FIXTURES === "1";
+const FIXTURE = FIXTURES_BUILT && search.has("fixtures");
 const SCENARIO = search.get("fixtures") ?? "";
 /** In fixture mode the clock is the data's time plus this, so the page reads as the mockup does. */
 const FIXTURE_OFFSET_MS = (SCENARIO === "stale" ? 20 : 2) * 60_000;
 const STALE_MS = 15 * 60_000;
 const REFRESH_MS = 60_000;
 
-const FIXTURES = import.meta.glob("../fixtures/**/*.json", { import: "default" }) as Record<
+const FIXTURES = (FIXTURES_BUILT ? import.meta.glob("../fixtures/**/*.json", { import: "default" }) : {}) as Record<
     string,
     () => Promise<unknown>
 >;

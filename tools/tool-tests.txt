@@ -1,6 +1,7 @@
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/channel/candidates.test.mjs
 tools/channel/nightly.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs

@@ -34,7 +34,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { shardKeys } from "../prepush-inputs.mjs";
 import { failureHashes, familyOf, headFacts, newRunId, parseJunit } from "../test-ledger.mjs";
 import { closedIssues, emptyState, fileIssue, PASSES_TO_LEAVE, quarantined, runShard } from "../test-quarantine.mjs";
-import { call, config, postInvocation, readPlan } from "./client.mjs";
+import { call, config, flushHealth, postInvocation, readPlan, sendHealth } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 
 /**
@@ -414,9 +414,12 @@ export function recordsOf(o) {
  */
 export async function postRecords(cfg, recs, spool, ms = undefined) {
     const out = [];
+    let store = cfg;
     for (const rec of recs) {
-        const r = await postInvocation(cfg, rec, spool, ms);
-        if (!r.ok) cfg = null;
+        // the health API still gets the records the store is no longer asked for
+        if (!store && cfg?.health) sendHealth(cfg, "/v1/invocations", rec);
+        const r = await postInvocation(store, rec, spool, ms);
+        if (!r.ok) store = null;
         console.log(
             r.ok
                 ? `run-group: recorded ${rec.id}`
@@ -532,5 +535,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         console.error("usage: node tools/results/run-group.mjs <shard> [<command>]");
         process.exit(2);
     }
-    process.exit(await runGroup(shard, command));
+    const code = await runGroup(shard, command);
+    await flushHealth();
+    process.exit(code);
 }

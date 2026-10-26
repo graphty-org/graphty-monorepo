@@ -27,6 +27,9 @@
  *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
+ *   node tools/test-select.mjs --summary <plan.json> [--affected <JSON list of affected packages>]
+ *       the light check's plan as Markdown for a CI job summary (planSummary()): each bin's files and why, the
+ *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
  *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
@@ -1275,15 +1278,17 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard], touched }`;
- *   `touched` is every test file the import graphs selected, also in a shard that runs whole (the pull request rules
- *   read it: a test outside it was not changed by the pull request, nor anything it imports) and `unknown` every
- *   family with a shard that has no file-level answer the selector relies on, all of whose files count as touched; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why,
+ *   touched }`; `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of
+ *   its files to its reason; `touched` is every test file the import graphs selected, also in a shard that runs
+ *   whole (the pull request rules read it: a test outside it was not changed by the pull request, nor anything it
+ *   imports) and `unknown` every family with a shard that has no file-level answer the selector relies on, all of
+ *   whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
-    const out = { bins: [], whole: [], none: [] };
+    const out = { bins: [], whole: [], none: [], why: {} };
     const runsPlanned = planRuns(root, shards, selection);
     const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
     out.touched = [...touched].sort();
@@ -1297,6 +1302,12 @@ export function lightPlan(root, shards, selection, durations = {}) {
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
+            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+            out.why[family] = {
+                package: runs[0].shard.package,
+                shards: runs.flatMap((r) => r.covers),
+                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+            };
             continue;
         }
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
@@ -1306,6 +1317,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 out.none.push(...run.covers);
                 continue;
             }
+            const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
@@ -1319,11 +1331,47 @@ export function lightPlan(root, shards, selection, durations = {}) {
                     covers: run.covers,
                     ...bin,
                     command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, fileWhy.get(f) ?? "selected"])),
                 });
             }
         }
     }
     return out;
+}
+
+/**
+ * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
+ * whole and why, and which run nothing.
+ * @param plan lightPlan() output (or the `--plan` JSON)
+ * @param [affected] the package directories nx calls affected: a whole family of another package is not in the
+ *   run's matrix (tools/ci-test-matrix.mjs plan()), so it is left out of the summary
+ * @returns Markdown
+ */
+export function planSummary(plan, affected) {
+    const esc = (t) => String(t).replaceAll(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const whole = Object.entries(plan.why ?? {}).filter(([, w]) => !affected || affected.includes(w.package));
+    const shardCount = whole.reduce((n, [, w]) => n + w.shards.length, 0);
+    const lines = [
+        `### Light check: ${plan.bins.length} test bins, ${shardCount} shards whole, ${plan.none.length} shards with nothing selected`,
+        "",
+    ];
+    if (plan.everything && whole.length > 0) {
+        lines.push(`Every affected shard runs whole: ${esc(plan.everything)}`, "");
+    }
+    for (const [family, w] of whole) {
+        lines.push(`- **${family}** runs whole: ${esc(w.reasons.join("; "))}`);
+    }
+    if (plan.none.length > 0) {
+        lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
+    }
+    for (const bin of plan.bins) {
+        lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
+        for (const f of bin.files) {
+            lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);
+        }
+        lines.push("", "</details>");
+    }
+    return `${lines.join("\n")}\n`;
 }
 
 // --- which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5) ------------
@@ -2586,6 +2634,14 @@ async function main(argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const root = resolve(arg("--root") ?? join(HERE, ".."));
+    if (argv.includes("--summary")) {
+        if (!arg("--summary")) {
+            throw new Error("--summary needs the plan JSON file");
+        }
+        const affected = arg("--affected") && JSON.parse(arg("--affected")).map((p) => p.replace(/^@graphty\//u, ""));
+        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8")), affected || undefined));
+        return;
+    }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
         const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));

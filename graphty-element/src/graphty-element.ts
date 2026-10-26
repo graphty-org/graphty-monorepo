@@ -1750,9 +1750,7 @@ export class Graphty extends LitElement {
                 this.#pairWaiting = undefined;
                 const next = this.#pairNext;
                 this.#pairNext = undefined;
-                return next === undefined || next.clears !== line.clears
-                    ? undefined
-                    : this.#runImport(next.source, next.setup);
+                return next?.clears === line.clears ? this.#runImport(next.source, next.setup) : undefined;
             });
             this.#pairWaiting = run;
         }

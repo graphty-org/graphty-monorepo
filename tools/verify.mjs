@@ -78,6 +78,16 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+    badTargets,
+    bisectStep,
+    classify,
+    CONFIRM_RUNS,
+    decided,
+    parentFails,
+    short,
+    targetsOf,
+} from "./bisect-core.mjs";
 import { acquireLock, CUT, CUT_CI_VERIFIES, git, GOLDEN, handOff, mainCheckout, prepareScratch } from "./land.mjs";
 import { expectedRuns } from "./shard-verdict.mjs";
 import { selectedCommand } from "./test-select.mjs";
@@ -88,8 +98,8 @@ const ledger = await import("./test-ledger.mjs").catch(() => null);
 const quarantine = await import("./test-quarantine.mjs").catch(() => null);
 const history = await import("./test-history.mjs").catch(() => null);
 
-/** How many times a confirming run or a bisect point runs a failure's test files: failing every time is consistent. */
-export const CONFIRM_RUNS = 5;
+// The bisect's rules live in tools/bisect-core.mjs; these stay exported from here for existing callers.
+export { badTargets, bounds, CONFIRM_RUNS, decided, failedEvery, nextPoints, targetsOf } from "./bisect-core.mjs";
 
 export const VERIFIED_REF = "golden-verified";
 /** How many times in a row a run leaves its commit for a newer one before it finishes the one it is on. */
@@ -215,7 +225,6 @@ export function procGroup(pid) {
 const alive = (p) => Boolean(p?.pid) && procStart(p.pid) === p.pidStart;
 const me = () => ({ pid: process.pid, pidStart: procStart(process.pid), pgid: procGroup(process.pid) });
 const now = () => new Date().toISOString();
-const short = (sha) => (sha ? sha.slice(0, 10) : "-");
 const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancestor", a, b], { ok: true }).status === 0;
 const sha = (ctx, ref) => git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${ref}^{commit}`], { ok: true }).stdout;
 
@@ -619,40 +628,6 @@ function reopen(ctx, issues) {
 
 // ---------------------------------------------------------------- bisect
 
-/**
- * The bisect's bounds from the points tested: `bad`, the first candidate that failed (null until one
- * did), and `good`, the last candidate before it that passed (-1: the last verified commit).
- * @param b the bisect record (`candidates`, `points`: sha -> "good" | "bad")
- * @returns `{ good, bad }`, indices into the candidates
- */
-export function bounds(b) {
-    const bad = b.candidates.findIndex((c) => b.points[c] === "bad");
-    const upTo = bad === -1 ? b.candidates.length : bad;
-    let good = -1;
-    for (let i = 0; i < upTo; i++) if (b.points[b.candidates[i]] === "good") good = i;
-    return { good, bad: bad === -1 ? null : bad };
-}
-
-/**
- * The next points to test, at most `width`: the target first, until it has been re-run, then points
- * spread evenly between the bounds.
- * @param b the bisect record
- * @param width how many at once
- * @returns candidate indices
- */
-export function nextPoints(b, width) {
-    const last = b.candidates.length - 1;
-    const { good, bad } = bounds(b);
-    const hi = bad ?? last;
-    const picks = b.points[b.candidates[last]] ? [] : [last];
-    const room = width - picks.length;
-    for (let k = 1; k <= room; k++) {
-        const i = good + Math.round((k * (hi - good)) / (room + 1));
-        if (i > good && i < hi && !b.points[b.candidates[i]] && !picks.includes(i)) picks.push(i);
-    }
-    return picks;
-}
-
 // The bisect's points: golden's first-parent `land:` merges after `from` up to `target`, oldest first. A sync merge
 // of master, a revert or an owner's accept commit is never a point, so it is never named.
 function landMerges(ctx, from, target) {
@@ -662,50 +637,6 @@ function landMerges(ctx, from, target) {
         .filter((l) => LAND_SUBJECT.test(l.slice(41)))
         .map((l) => l.slice(0, 40));
 }
-
-/**
- * A failure's targets, as each check names them: one per failing test (the ledger's), else one per failing shard
- * (run whole), else the whole gate (another step failed).
- * @param last the failure
- * @returns `[{ id, shard, file, name, ... }]`
- */
-export function targetsOf(last) {
-    if (last.tests?.length) return last.tests.map((t) => ({ ...t, id: `${t.shard}: ${t.file} > ${t.name}` }));
-    if (last.failing) return last.failing.map((shard) => ({ id: `${shard}: the whole shard`, shard, file: null }));
-    return [{ id: "the whole gate", shard: null, file: null }];
-}
-
-/**
- * The targets that failed in every run of a check.
- * @param r a check's result `{ runs, failed: { id: count } }`
- * @returns their ids
- */
-export const failedEvery = (r) => Object.keys(r.failed).filter((id) => r.runs > 0 && r.failed[id] >= r.runs);
-
-/**
- * The targets a check found bad: a consistent one that failed every run, a newly intermittent one (`rate`) that
- * failed at least once.
- * @param r a check's result
- * @param targets the targets checked
- * @returns their ids
- */
-export const badTargets = (r, targets) =>
-    targets.filter((t) => r.runs > 0 && (r.failed[t.id] ?? 0) >= (t.rate ? 1 : r.runs)).map((t) => t.id);
-
-/**
- * Whether a check can stop before CONFIRM_RUNS: a newly intermittent target failed (the point is bad), or there is
- * none and no target still fails every run (none can be bad any more).
- * @param r the result so far
- * @param targets the targets
- * @returns boolean
- */
-export const decided = (r, targets) =>
-    targets.some((t) => t.rate)
-        ? badTargets(
-              r,
-              targets.filter((t) => t.rate),
-          ).length > 0
-        : !failedEvery(r).length;
 
 // The targets the bisect follows: those that failed every confirming run, the newly intermittent (`rate`), and in a
 // CI bisect those that failed in CI twice and never here.
@@ -727,14 +658,10 @@ async function bisect(ctx) {
     for (;;) {
         const last = readState(ctx).last;
         const b = last.bisect;
-        const { good, bad } = bounds(b);
-        if (!b.candidates.length) return finishBisect(ctx, null, "no landing since the last verified commit");
-        if (b.points[b.candidates.at(-1)] === "good") {
-            const why = `the newest landing ${short(b.candidates.at(-1))} passes: a later commit that is not a landing brought it`;
-            return finishBisect(ctx, null, why);
-        }
-        if (bad !== null && bad - good === 1) return blame(ctx, b.candidates[bad]);
-        const picks = nextPoints(b, b.ci ? 1 : ctx.width);
+        const step = bisectStep(b, b.ci ? 1 : ctx.width);
+        if (step.noLanding) return finishBisect(ctx, null, step.noLanding);
+        if (step.blame) return blame(ctx, step.blame);
+        const picks = step.points;
         const job = { failing: last.failing, targets: bisectTargets(last) };
         const check = checkOf(ctx, b);
         const results = await Promise.all(
@@ -761,13 +688,12 @@ async function confirm(ctx) {
     const targets = targetsOf(last);
     // A CI failure runs all CONFIRM_RUNS here: only a test that passes every one is a CI-only failure.
     const r = await ctx.check(ctx, last.commit, { failing: last.failing, targets, slot: 1, full: Boolean(last.ci) });
-    const every = failedEvery(r);
     // Failed in CI and in no run here: one CI re-run of the failed jobs tells a CI-only failure from a flake.
     const ciOnly = last.ci ? targets.filter((t) => !r.failed[t.id]) : [];
     const ci = ciOnly.length ? await ciConfirm(ctx, last, ciOnly) : { confirmed: [], flaky: [] };
-    const intermittent = targets.filter((t) => !every.includes(t.id) && !ciOnly.includes(t));
-    const regressed = newlyIntermittent(ctx, last, intermittent).map((t) => t.id);
-    const flaky = [...intermittent.filter((t) => !regressed.includes(t.id)), ...ci.flaky];
+    const newOf = (tests) => newlyIntermittent(ctx, last, tests);
+    const { consistent: every, intermittent, regressed, flaky: before } = classify(targets, r, newOf, ciOnly);
+    const flaky = [...before, ...ci.flaky];
     const quarantined = flaky.length ? routeFlaky(ctx, flaky, last, r) : [];
     // A failure that reproduces here is bisected here. One that fails in CI alone is bisected in CI, and when both
     // kinds failed, the CI bisect follows both (followed()): a point here could not see the CI-only one.
@@ -933,11 +859,8 @@ async function blame(ctx, sha) {
         return finishBisect(ctx, sha, null, { sha: parent, ...b.evidence[parent] });
     const job = { failing: last.failing, targets: bisectTargets(last), slot: 1, full: true };
     const r = { sha: parent, ...(await checkOf(ctx, last.bisect)(ctx, parent, job)) };
-    if (Object.values(r.failed).some((n) => n > 0)) {
-        const why = `its parent ${short(parent)}, not a landing, fails it too (in ${Math.max(...Object.values(r.failed))} of ${r.runs} runs)`;
-        return finishBisect(ctx, null, `the first bad landing is ${short(sha)}, but ${why}`, r);
-    }
-    return finishBisect(ctx, sha, null, r);
+    const why = parentFails(sha, parent, r);
+    return why ? finishBisect(ctx, null, why, r) : finishBisect(ctx, sha, null, r);
 }
 
 async function finishBisect(ctx, sha, why, parent) {

@@ -1,0 +1,2354 @@
+{
+    "data": {
+        "repository": {
+            "open": {
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0xMVQwNTo1OToxM1rPAAAAAR7vFXk="
+                },
+                "nodes": [
+                    {
+                        "number": 3596,
+                        "title": "feat(ci): pull request rules and quarantine issues from the results store",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:40:48Z",
+                        "updatedAt": "2026-10-26T00:37:14Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3500,
+                        "title": "chore(deps): bump @sentry/react from 10.76.0 to 11.8.0",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T17:08:02Z",
+                        "updatedAt": "2026-10-26T00:35:25Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:08:25Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Dependency Review",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (metal on macos-26)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (d3d12 on windows-2025)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3594,
+                        "title": "ci: delete superseded Actions cache keys on master builds",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:32:05Z",
+                        "updatedAt": "2026-10-26T00:32:34Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "FAILURE",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Storybooks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Checks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Docs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Selector import graphs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (${{ matrix.shard }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Performance Benchmarks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cost Estimate Accuracy",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (${{ matrix.project }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-3)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-4)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-5)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-6)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-7)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-3)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-4)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (layout-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (layout-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (algorithms-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (algorithms-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-2)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (cytoscape-extensions-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graph-io-fidelity-1)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graph-io-fidelity-2)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (compact-mantine)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty-element)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (layout)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (algorithms)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (cytoscape-extensions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graph-io-fidelity)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Links",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty-element)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (algorithms)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Visual report",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Flaky screenshots",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "All Checks Pass",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Queue Checks Pass",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Release due",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cache hygiene",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3605,
+                        "title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-26T00:13:03Z",
+                        "updatedAt": "2026-10-26T00:30:31Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3592,
+                        "title": "test(graphty-element): run every test configuration with all features on",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:31:08Z",
+                        "updatedAt": "2026-10-26T00:30:05Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Dependency Review",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3498,
+                        "title": "chore(deps): bump the npm-minor-and-patch group across 1 directory with 26 updates",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T17:05:40Z",
+                        "updatedAt": "2026-10-26T00:29:12Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:22:37Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Dependency Review",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3583,
+                        "title": "test(visual-review): scratch ruleset trial, accept-only",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "scratch/ruleset-trial",
+                        "createdAt": "2026-10-25T22:56:03Z",
+                        "updatedAt": "2026-10-26T00:23:51Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "SUCCESS",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Storybooks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Checks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Docs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Selector import graphs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (${{ matrix.shard }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Performance Benchmarks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cost Estimate Accuracy",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (${{ matrix.project }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (${{ matrix.name }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (compact-mantine)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty-element)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (layout)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (algorithms)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (cytoscape-extensions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graph-io-fidelity)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Links",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty-element)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (algorithms)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Visual report",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Flaky screenshots",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "All Checks Pass",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Queue Checks Pass",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Release due",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Timings",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3579,
+                        "title": "test(tools): scratch ruleset trial, owned path",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "scratch/ruleset-trial",
+                        "createdAt": "2026-10-25T22:55:52Z",
+                        "updatedAt": "2026-10-26T00:20:47Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:55:55Z"
+                        },
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "SUCCESS",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Storybooks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Checks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Docs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Selector import graphs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (${{ matrix.shard }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Performance Benchmarks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cost Estimate Accuracy",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (${{ matrix.project }})",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-3)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-4)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-5)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-6)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (compact-mantine-7)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-3)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-element-4)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (layout-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (layout-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (algorithms-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (algorithms-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graphty-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (cytoscape-extensions-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graph-io-fidelity-1)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Stories (graph-io-fidelity-2)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (compact-mantine)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty-element)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (layout)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (algorithms)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graphty)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (cytoscape-extensions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "visual (graph-io-fidelity)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Links",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (graphty-element)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests parity (algorithms)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Visual report",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Flaky screenshots",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "All Checks Pass",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Queue Checks Pass",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Release due",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Timings",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3240,
+                        "title": "build(deps): bump vite from 7.3.6 to 7.3.7",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-21T03:43:19Z",
+                        "updatedAt": "2026-10-26T00:18:27Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-26T00:04:30Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                },
+                                {
+                                    "name": "javascript"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "FAILURE",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (metal on macos-26)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Dependency Review",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (d3d12 on windows-2025)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Storybooks",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Checks",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Docs",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Selector import graphs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graph-io)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (webgpu-graph-algorithms-node)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (webgpu-graph-algorithms-node-device-errors)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (webgpu-graph-algorithms-node-no-subgroups)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (webgpu-graph-algorithms-node-no-subgroups-device-errors)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-3)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-4)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-5)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-storybook)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-default)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-3)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-4)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-5)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-lifecycle)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-3)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-4)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-5)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (small-node)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (small-browser)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Performance Benchmarks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cost Estimate Accuracy",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (graphty)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (graphty-element)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (algorithms)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3567,
+                        "title": "fix(graphty): draw the Football conference and Find no-match stories the same every render",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T22:06:53Z",
+                        "updatedAt": "2026-10-26T00:18:26Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:06:55Z"
+                        },
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "FAILURE",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Arm auto-merge",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Build",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (actions)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "PR Integrity",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Link PR Issue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint PR Title",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (javascript-typescript)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Analyze (python)",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Storybooks",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Lint",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Checks",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Docs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Selector import graphs",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-3)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-4)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-5)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-storybook)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-default-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-default-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-browser-2)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-lifecycle-1)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Test (graphty-element-storybook-1)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Performance Benchmarks",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SKIPPED"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Cost Estimate Accuracy",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (graphty)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (graphty-element)",
+                                                        "status": "IN_PROGRESS",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Story tests (algorithms)",
+                                                        "status": "QUEUED",
+                                                        "conclusion": null
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Protections",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "Mergify Merge Queue",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "NEUTRAL"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "name": "CodeQL",
+                                                        "status": "COMPLETED",
+                                                        "conclusion": "SUCCESS"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "recent": {
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yNVQxOTo0ODozMlrPAAAAASp-cEA="
+                },
+                "nodes": [
+                    {
+                        "number": 3596,
+                        "title": "feat(ci): pull request rules and quarantine issues from the results store",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:40:48Z",
+                        "updatedAt": "2026-10-26T00:37:14Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3500,
+                        "title": "chore(deps): bump @sentry/react from 10.76.0 to 11.8.0",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T17:08:02Z",
+                        "updatedAt": "2026-10-26T00:35:25Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:08:25Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3594,
+                        "title": "ci: delete superseded Actions cache keys on master builds",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:32:05Z",
+                        "updatedAt": "2026-10-26T00:32:34Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3605,
+                        "title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-26T00:13:03Z",
+                        "updatedAt": "2026-10-26T00:30:31Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3592,
+                        "title": "test(graphty-element): run every test configuration with all features on",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:31:08Z",
+                        "updatedAt": "2026-10-26T00:30:05Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3498,
+                        "title": "chore(deps): bump the npm-minor-and-patch group across 1 directory with 26 updates",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T17:05:40Z",
+                        "updatedAt": "2026-10-26T00:29:12Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:22:37Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3583,
+                        "title": "test(visual-review): scratch ruleset trial, accept-only",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "scratch/ruleset-trial",
+                        "createdAt": "2026-10-25T22:56:03Z",
+                        "updatedAt": "2026-10-26T00:23:51Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": null,
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3579,
+                        "title": "test(tools): scratch ruleset trial, owned path",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "scratch/ruleset-trial",
+                        "createdAt": "2026-10-25T22:55:52Z",
+                        "updatedAt": "2026-10-26T00:20:47Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T22:55:55Z"
+                        },
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3588,
+                        "title": "fix(tools): skip locked Figma files a push leaves exactly as its base has them",
+                        "state": "MERGED",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-25T23:05:06Z",
+                        "updatedAt": "2026-10-26T00:20:27Z",
+                        "mergedAt": "2026-10-26T00:20:27Z",
+                        "closedAt": "2026-10-26T00:20:27Z",
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-25T23:54:00Z"
+                        },
+                        "labels": {
+                            "nodes": []
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    },
+                    {
+                        "number": 3240,
+                        "title": "build(deps): bump vite from 7.3.6 to 7.3.7",
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": null,
+                        "baseRefName": "master",
+                        "createdAt": "2026-10-21T03:43:19Z",
+                        "updatedAt": "2026-10-26T00:18:27Z",
+                        "mergedAt": null,
+                        "closedAt": null,
+                        "autoMergeRequest": {
+                            "enabledAt": "2026-10-26T00:04:30Z"
+                        },
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "dependencies"
+                                },
+                                {
+                                    "name": "javascript"
+                                }
+                            ]
+                        },
+                        "readyEvents": {
+                            "nodes": []
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

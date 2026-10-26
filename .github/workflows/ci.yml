@@ -926,7 +926,8 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/prepush.sh.
+    # tools/prepush.sh. On a pull request, a step that reads one package's files runs only when that package
+    # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks
         needs: packages
@@ -998,14 +999,31 @@ jobs:
               run: pnpm run lint:eslint-root
 
             - name: Formatting
+              if: needs.packages.outputs.full == 'true'
               run: pnpm run format:check
 
+            # A pull request checks only the files it changed (about 2.5 minutes saved): a file it did not
+            # touch keeps its formatting unless prettier itself changed, and then the whole tree is checked.
+            - name: Formatting (changed files)
+              if: needs.packages.outputs.full != 'true'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: |
+                  base=$(git merge-base "origin/$BASE_REF" HEAD)
+                  if ! git diff --quiet "$base" HEAD -- .prettierrc .prettierignore package.json pnpm-lock.yaml; then
+                      pnpm run format:check
+                  else
+                      git diff --name-only --diff-filter=d -z "$base" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
+                  fi
+
             - name: Bundle size (graphty-element)
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
               run: pnpm run check:bundle-size
 
             # What a browser application downloads for each part of cytoscape-extensions (the main entry and each
             # part it loads on first use), against cytoscape-extensions/size-budgets.json. Needs the build above.
             - name: Bundle size (cytoscape-extensions)
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'cytoscape-extensions')
               run: pnpm --filter @graphty/cytoscape-extensions run size
 
             # graphty-element's public API, as built, must match the committed report
@@ -1014,6 +1032,7 @@ jobs:
             # so every API change shows up in the pull request as a diff of that report.
             # The same check runs in tools/prepush.sh.
             - name: Public API report (graphty-element)
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
               run: pnpm run check:api-report
 
             # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
@@ -1033,6 +1052,7 @@ jobs:
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io
+              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
               run: pnpm run check:data-source-migration
 
             # The import reader of the script that prints the counts in design/graph-format/STATUS.md.

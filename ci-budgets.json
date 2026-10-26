@@ -2,7 +2,7 @@
     "version": 1,
     "defaults": { "warnRatio": 1.0, "hangRatio": 2.0, "minHangMinutes": 10, "owner": "pipeline" },
     "budgets": {
-        "run:ci.yml:pr": { "minutes": 20, "why": "light checks; the pull request waits on this" },
+        "run:ci.yml:pr": { "minutes": 10, "why": "light checks; the pull request waits on this (5-10 minute target)" },
         "run:ci.yml:pr-wide": { "minutes": 35, "why": "graphty-element src/ or global inputs changed" },
         "run:ci.yml:full": { "minutes": 60, "why": "green full runs measured 31-48 min" },
         "run:release.yml:full": { "minutes": 75, "why": "full run plus the release lanes" },

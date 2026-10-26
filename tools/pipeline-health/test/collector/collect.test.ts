@@ -350,4 +350,28 @@ describe("a merged pull request's last run", () => {
         const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3600", sk: "-" });
         expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
     });
+
+    it("is found by its commit when its pull request merged before the pull requests window (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        const lookups: string[] = [];
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname.endsWith("/commits/5a2ebfac75cc6510846149d8cc07b65d83f0ba0b/pulls")) {
+                lookups.push(url);
+                return new Response(JSON.stringify([{ number: 3601, merged_at: "2026-10-26T00:20:00Z" }]), {
+                    status: 200,
+                });
+            }
+            return base(url, init);
+        };
+        await collect(deps(store, fake));
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3601", sk: "-" });
+        expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
+        expect(lookups).toHaveLength(1);
+    });
 });

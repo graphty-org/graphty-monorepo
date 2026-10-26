@@ -357,6 +357,8 @@ interface PendingPrRun {
     id: string;
     run: Pick<GhRun, "head_branch" | "head_sha">;
     r: PrRun;
+    /** Its commit was looked up once and named no merged pull request. */
+    looked?: true;
 }
 const PENDING_PR_RUNS = "prruns-pending";
 
@@ -368,9 +370,9 @@ async function putPrRun(c: Cycle, repo: string, pr: number, id: string, r: PrRun
 
 /**
  * Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). A run GitHub
- * names its pull request for is recorded now; a home-repository run it names none for is kept pending in a cursor
- * until a pull requests part succeeds in mapping it (pendingPrRuns), because the run is stored complete and never
- * collected again.
+ * names its pull request for is recorded now; a home-repository run it names none for (its pull request merged)
+ * is kept pending in a cursor until a pull requests part maps it (pendingPrRuns), because putRaw stores the run
+ * complete at the end of this cycle and it is never collected again.
  */
 async function prRuns(c: Cycle, xs: Collected[]) {
     const pending = await c.json<PendingPrRun[]>(PENDING_PR_RUNS, []);
@@ -379,23 +381,51 @@ async function prRuns(c: Cycle, xs: Collected[]) {
         const r = prRunOf(run, jobs ?? []);
         if (!r) continue;
         const id = `${run.id}.${run.run_attempt}`;
-        const pr = prOfRun(run, []);
+        const pr = run.pull_requests?.[0]?.number;
         if (pr !== undefined) await putPrRun(c, repo, pr, id, r);
-        else if (repo === c.d.repo && run.head_branch && !ids.has(id))
+        else if (repo === c.d.repo && run.head_branch && !ids.has(id)) {
+            ids.add(id);
             pending.push({ id, run: { head_branch: run.head_branch, head_sha: run.head_sha }, r });
+        }
     }
-    await c.setJson(PENDING_PR_RUNS, pending);
+    if (pending.length) await c.setJson(PENDING_PR_RUNS, pending);
 }
 
-/** Records the pending runs `prs` maps; an unmapped one stays pending for a day after it ended. */
-async function pendingPrRuns(c: Cycle, prs: GqlPr[]) {
+/**
+ * Records the pending runs this pass's pull requests map. One that none of them maps (the pull request merged
+ * before the `prs` cursor's window) is looked up once by its commit, and its pull request item is written again
+ * with its stages; a run still unmapped is dropped a day after it ended.
+ */
+async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]) {
+    const pending = await c.json<PendingPrRun[]>(PENDING_PR_RUNS, []);
+    if (!pending.length) return;
     const left: PendingPrRun[] = [];
-    for (const p of await c.json<PendingPrRun[]>(PENDING_PR_RUNS, [])) {
-        const pr = prOfRun(p.run, prs);
-        if (pr !== undefined) await putPrRun(c, c.d.repo, pr, p.id, p.r);
-        else if (c.now - p.r[2] < DAY) left.push(p);
+    for (const p of pending) {
+        let pr = prOfRun(p.run, prs);
+        const late = pr === undefined && !p.looked;
+        if (late) {
+            const found = await gh.rest<{ number: number; merged_at: string | null }[]>(
+                `repos/${c.d.repo}/commits/${p.run.head_sha}/pulls`,
+            );
+            pr = found?.find((x) => x.merged_at)?.number;
+        }
+        if (pr === undefined) {
+            if (c.now - p.r[2] < DAY) left.push({ ...p, looked: true });
+            continue;
+        }
+        await putPrRun(c, c.d.repo, pr, p.id, p.r);
+        if (late) await restage(c, pr);
     }
     await c.setJson(PENDING_PR_RUNS, left);
+}
+
+/** Writes a stored merged pull request item again with the stages of its now complete runs. */
+async function restage(c: Cycle, pr: number) {
+    const stored = (await c.d.store.get(homeKey({ kind: "pr", id: `${c.d.repo}#${pr}`, attempt: 1 }))) as
+        (PullRequestItem & { pk: string; sk: string; ttl?: number }) | undefined;
+    if (!stored) return;
+    const { pk: _pk, sk: _sk, ttl: _ttl, ...item } = stored;
+    c.items.push(await withStages(c, item));
 }
 
 /** A merged pull request's stage times from its recorded runs. */
@@ -471,7 +501,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
-    await pendingPrRuns(c, [...open, ...recentSeen]);
+    await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     await ownerWaits(c, gh, open);
@@ -831,7 +861,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
             )?.workflow_runs ?? []
         ).map((run) => ({ run, repo: d.repo }));
         const xs = await collectRuns(c, gh, repos, []);
-        // Before writeRuns stores the runs complete, so a run is pending before it is never collected again.
+        // Pending is persisted now, before putRaw stores the runs complete at the end of the cycle.
         await prRuns(c, xs);
         const cancels = await classify(gh, [...xs, ...masterList]);
         await writeRuns(c, xs, cancels);

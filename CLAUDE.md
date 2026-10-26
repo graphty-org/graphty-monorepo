@@ -639,8 +639,9 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 **The full run (channels pipeline step 6, #3454).** release.yml now only tests: every scheduled run is
 `mode: full` (`tools/full-run.mjs`), which publishes nothing and ends in one verdict in the results store; a red
 one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
-whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
-in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
+whose merge references that issue starts `mode: restart` (`tools/release-due.mjs`): `Fixes #N` closes it and cancels
+the red run if it is still going, so the restart starts at once; `Refs #N` keeps the red run to its verdict and bisect,
+the restart waits for it, and a green verdict closes the issue. `-f mode=shadow` is the step-3 test-and-version run, which
 lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
 trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval

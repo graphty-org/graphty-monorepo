@@ -147,7 +147,7 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
         "",
         bisect,
         "",
-        "Nothing was published. Name this issue in the fix or the revert (`Refs #<this issue>`): its green master build restarts the full run on it, and a green verdict closes this issue.",
+        "Nothing was published. Name this issue in the fix or the revert. `Fixes #<this issue>` closes it, cancels this run if it is still going and restarts the full run on the fix once its master build is green. `Refs #<this issue>` restarts the full run after this run ends, keeping this run's verdict and bisect; a green verdict then closes this issue.",
     ].join("\n");
     return { title: `${RED_TITLE} ${names} on ${short(sha)}`, body };
 }
@@ -406,9 +406,29 @@ async function verdictMain(env) {
     output({ state, issue: issue ? String(issue) : "", what, bisect });
 }
 
+/**
+ * A red issue on this commit that a fixing merge closed in the last hour: release-due is about to cancel this run, so
+ * a lane ending red now files nothing (the verdict still files, if the run is not cancelled after all).
+ * @param closed the closed red issues, as listRedIssues returns them
+ * @param sha the run's commit
+ * @param [now] milliseconds
+ * @returns its number, or null
+ */
+export function fixedRecently(closed, sha, now = Date.now()) {
+    const hit = closed.find(
+        (i) => i.title.endsWith(` on ${short(sha)}`) && i.closedAt && now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+    );
+    return hit ? hit.number : null;
+}
+
 function laneRedMain(env) {
     if (env.OWNER_ITEM) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
+        return;
+    }
+    const fixed = fixedRecently(listRedIssues("closed"), env.SHA);
+    if (fixed) {
+        console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
         return;
     }
     const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));

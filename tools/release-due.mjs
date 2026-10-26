@@ -84,6 +84,61 @@ export function cancelNote(issue, url, attempt) {
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
 
+function cancelRedRun(issue, dryRun) {
+    const inProgress = JSON.parse(
+        run("gh", [
+            "run",
+            "list",
+            "--workflow",
+            "release.yml",
+            "--status",
+            "in_progress",
+            "--json",
+            "databaseId,displayTitle,url,attempt",
+        ]),
+    );
+    const issueText = run("gh", [
+        "issue",
+        "view",
+        String(issue),
+        "--json",
+        "body,comments",
+        "-q",
+        '[.body, .comments[].body] | join("\\n")',
+    ]);
+    for (const id of toCancel(inProgress, issueText)) {
+        const r = inProgress.find((x) => x.databaseId === id);
+        console.log(`release-due: cancelling release.yml run ${id}, the red run #${issue} names`);
+        if (dryRun) continue;
+        try {
+            run("gh", ["run", "cancel", String(id)]);
+        } catch (error) {
+            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
+            continue;
+        }
+        try {
+            const status = run("gh", [
+                "issue",
+                "list",
+                "--label",
+                LABEL,
+                "--state",
+                "open",
+                "--json",
+                "number",
+                "-q",
+                ".[0].number",
+            ]);
+            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, r.attempt)]);
+        } catch (error) {
+            console.log(
+                `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
+            );
+        }
+    }
+}
+
 function main() {
     const dryRun = process.argv.includes("--dry-run");
     const issues = listRedIssues("all");
@@ -101,45 +156,11 @@ function main() {
         return;
     }
     console.log(`release-due: this merge references red issue #${plan.issue}: release.yml mode=${plan.mode}`);
-    const inProgress = plan.cancel
-        ? JSON.parse(
-              run("gh", [
-                  "run",
-                  "list",
-                  "--workflow",
-                  "release.yml",
-                  "--status",
-                  "in_progress",
-                  "--json",
-                  "databaseId,displayTitle,url,attempt",
-              ]),
-          )
-        : [];
-    const issueText = plan.cancel
-        ? run("gh", [
-              "issue",
-              "view",
-              String(plan.issue),
-              "--json",
-              "body,comments",
-              "-q",
-              '[.body, .comments[].body] | join("\\n")',
-          ])
-        : "";
-    const status = plan.cancel
-        ? run("gh", ["issue", "list", "--label", LABEL, "--state", "open", "--json", "number", "-q", ".[0].number"])
-        : "";
-    for (const id of toCancel(inProgress, issueText)) {
-        const r = inProgress.find((x) => x.databaseId === id);
-        console.log(`release-due: cancelling release.yml run ${id}, the red run #${plan.issue} names`);
-        if (dryRun) continue;
-        try {
-            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(plan.issue, r.url, r.attempt)]);
-            run("gh", ["run", "cancel", String(id)]);
-        } catch (error) {
-            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
-        }
+    // Best effort: a failure here (a 5xx, a rate limit) must never stop the restart dispatch below.
+    try {
+        if (plan.cancel) cancelRedRun(plan.issue, dryRun);
+    } catch (error) {
+        console.log(`::warning::cancelling the red run failed: ${String(error.message).split("\n")[0]}`);
     }
     if (!dryRun) {
         run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", `mode=${plan.mode}`]);

@@ -11,6 +11,7 @@ import {
     bisectPlan,
     differingImages,
     duplicateOf,
+    fixedRecently,
     greenCloses,
     LANES,
     laneRedIssue,
@@ -173,7 +174,8 @@ describe("the red issue and its bisect", () => {
         });
         assert.equal(title, "Full run red: CI, T4 GPU on abcdef1");
         assert.match(body, /CI failure, LLM regression success, T4 GPU failure/);
-        assert.match(body, /Refs #<this issue>/);
+        assert.match(body, /`Fixes #<this issue>` closes it, cancels this run/);
+        assert.match(body, /`Refs #<this issue>` restarts the full run after this run ends/);
     });
 
     it("dispatches one bisect, for the first lane that has one, with the run's failing tests", () => {
@@ -238,6 +240,14 @@ describe("bestEffort", () => {
 });
 
 describe("lane-red: the red issue the moment one lane ends red", () => {
+    it("files nothing for a run whose red issue a fixing merge just closed, since release-due cancels it", () => {
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [{ number: 9001, title: "Full run red: CI on abcdef1", closedAt: "2026-10-25T11:50:00Z" }];
+        assert.equal(fixedRecently(closed, "abcdef1234", now), 9001);
+        assert.equal(fixedRecently(closed, "1234567890", now), null, "another commit's issue");
+        assert.equal(fixedRecently(closed, "abcdef1234", now + 2 * 60 * 60 * 1000), null, "closed long ago");
+    });
+
     it("keeps the oldest of two red issues lanes ending red together created, so both filers agree", () => {
         assert.equal(duplicateOf(78, [78, 77]), 77, "the newer closes as a duplicate of the older");
         assert.equal(duplicateOf(77, [78, 77]), null, "the older stays");
@@ -249,7 +259,8 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         assert.equal(title, "Full run red: T4 GPU on abcdef1");
         assert.match(body, /candidate pick success, CI not finished, LLM regression not finished, T4 GPU failure/);
         assert.match(body, /the verdict updates this issue and starts any bisect/);
-        assert.match(body, /Refs #<this issue>/);
+        assert.match(body, /`Fixes #<this issue>` closes it, cancels this run/);
+        assert.match(body, /`Refs #<this issue>` restarts the full run after this run ends/);
     });
 
     // a fake gh on PATH: `api` lists the open issues it is given, every call is logged

@@ -1924,7 +1924,7 @@ describe("the Sentry source map upload", () => {
         );
     });
 
-    it("runs right after the build, only on a push to master, the build graphty.app deploys", () => {
+    it("runs right after the build, only on a push to master, the build canary.graphty.app deploys", () => {
         assert.ok(upload);
         assert.equal(
             upload.if,
@@ -3072,7 +3072,7 @@ describe("master-guard", () => {
         assert.equal(fake.calls.length, 1);
     });
 
-    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+    it("reports a failed canary deploy, which runs on CI's workflow_run event", () => {
         assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
@@ -4598,85 +4598,198 @@ describe("release.yml", () => {
 
         it("keeps the site of every green CI run of a push to master as site-<sha>", () => {
             assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
-            assert.match(
-                job(deploy, "check"),
-                /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
-            );
             const build = job(deploy, "build");
-            assert.doesNotMatch(build, /\n {8}if:/, "the site is assembled on every green master build");
+            assert.match(
+                build,
+                /if: \$\{\{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' \}\}/,
+            );
             assert.match(
                 build,
                 /name: site-\$\{\{ env.SHA \}\}\n\s+path: site-\$\{\{ env.SHA \}\}.tar\n\s+retention-days: 14/,
             );
-            assert.match(
-                build,
-                /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n\s+uses: actions\/upload-pages-artifact/,
-            );
-            assert.match(job(deploy, "deploy"), /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}/);
+            // the build job never deploys: the deploy job publishes master's newest site, whichever run it is in
+            assert.doesNotMatch(build, /upload-pages-artifact|site\.json/);
+            assert.match(job(deploy, "deploy"), /needs: build\n/);
             assert.doesNotMatch(
                 deploy,
                 /^concurrency:/m,
-                "an ordinary build must not replace a pending release deploy",
+                "every build keeps its own site-<sha>; only the deploy job is serialized",
             );
         });
 
-        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's second
-        // parent, the first tag's annotated tag object and the commit that tag points at)
-        const decide = (message, { parents = 2, live = "0ld", tagged = "v1" } = {}) => {
+        // The deploy job's decision, against a stub curl (canary's page, or nothing when canary does not answer)
+        // and a stub gh (the Pages domain, master's newest green build, the compare and the
+        // newest build's site-<sha> artifact; null makes that call fail). Run as GitHub runs a step: bash -e -o pipefail.
+        const decide = ({
+            sha = "abc1111",
+            newest = "abc9999",
+            live = "0ddba11",
+            compare = "ahead",
+            order = "behind",
+            cname = "canary.graphty.app",
+            code = 200,
+            cut = false,
+            artifact = "42",
+        } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
+            const page =
+                live === ""
+                    ? "<html></html>"
+                    : `<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">`;
             writeFileSync(
                 join(bin, "curl"),
-                `#!/bin/bash\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n` +
+                    (live === null
+                        ? `printf 000\nexit 6\n`
+                        : cut
+                          ? `echo '<html><head>' > "$out"\nprintf ${code}\nexit 28\n`
+                          : `echo '${page}' > "$out"\nprintf ${code}\n`),
                 { mode: 0o755 },
             );
+            const answer = (v) => (v === null ? "exit 1" : `echo "${v}"`);
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents === 2 ? "v1" : ""};;\n*/git/ref/tags/graphty%401.2.0) echo "tag t1";;\n*/git/ref/tags/*) exit 1;;\n*/git/tags/t1) echo ${tagged};;\n*/compare/*) echo ahead;;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${answer(cname)};;\n` +
+                    `*/workflows/ci.yml/runs*) ${answer(newest)};;\n` +
+                    `*/compare/abc9999...abc1111) ${answer(order)};;\n*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
                 { mode: 0o755 },
             );
-            const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
+            const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, "deploy")}\n\n`)[1];
+            const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
-            const r = spawnSync("bash", ["-e", "-c", script], {
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
                 encoding: "utf8",
                 env: {
                     ...process.env,
-                    MESSAGE: message,
-                    SHA: "abc1",
+                    SHA: sha,
+                    CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
+                    RUNNER_TEMP: dir,
+                    GITHUB_RUN_ID: "7",
+                    GITHUB_RUN_ATTEMPT: "2",
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
             });
-            assert.equal(r.status, 0, r.stderr);
-            const result = { deploy: readFileSync(out, "utf8").trim(), gh: existsSync(join(dir, "gh.log")) };
+            const output = readFileSync(out, "utf8");
+            const result = {
+                status: r.status,
+                deploy: /deploy=(\w+)/.exec(output)?.[1] ?? "",
+                sha: /sha=(\w+)/.exec(output)?.[1] ?? "",
+                run: /run=(\w+)/.exec(output)?.[1] ?? "",
+                curl: existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "",
+                gh: existsSync(join(dir, "gh.log")) ? readFileSync(join(dir, "gh.log"), "utf8") : "",
+            };
             rmSync(dir, { recursive: true, force: true });
             return result;
         };
-        const RELEASE = "chore(release): publish graphty@1.2.0, layout@1.10.6 onto master";
+        const deploys = (o) => {
+            const r = decide(o);
+            return [r.status, r.deploy, r.sha, r.run];
+        };
 
-        it("deploys graphty.app only for the version merge release.yml's land job pushes", () => {
-            assert.deepEqual(decide(`${RELEASE}\n\nbody`), { deploy: "deploy=true", gh: true });
-            assert.equal(decide("Merge pull request #3500 from graphty-org/golden-cut\n\nship").deploy, "deploy=false");
-            assert.equal(decide("Merge pull request #3500").gh, false, "an ordinary merge asks GitHub nothing");
-            assert.equal(
-                decide("chore(release): publish graphty@1.2.0").deploy,
-                "deploy=false",
-                "the version commit itself",
+        it("deploys master's newest green build's site from that build's own run, whichever run gets here (#3618 review)", () => {
+            // no commit-message rule: an ordinary merge deploys
+            assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
+            // this run is for abc1111, master's newest green build is abc9999: abc9999's site is deployed, from its run 42
+            assert.deepEqual(deploys(), [0, "true", "abc9999", "42"]);
+            const r = decide();
+            assert.match(r.gh, /workflows\/ci\.yml\/runs\?branch=master&event=push&status=success&per_page=1/);
+            assert.match(r.gh, /compare\/0ddba11\.\.\.abc9999/);
+            assert.match(r.gh, /actions\/artifacts\?name=site-abc9999/);
+            assert.match(
+                r.curl,
+                /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2\n$/,
             );
-            assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+            // the runs list lags and still names an older build than the one that started this run: this run's
+            // build is the newest, and it deploys its own site (#3618 review)
+            assert.deepEqual(deploys({ order: "ahead", artifact: "" }), [0, "true", "abc1111", "7"]);
+            // this run's own build is the newest: it deploys its own site, from this run, without asking the
+            // artifacts list, which may not show an upload made moments ago yet (#3618 review)
+            assert.deepEqual(deploys({ sha: "abc9999", artifact: "" }), [0, "true", "abc9999", "7"]);
+            assert.doesNotMatch(decide({ sha: "abc9999" }).gh, /actions\/artifacts/);
+            // canary's site.json comes from master's tip, like promote.yml's: an older deployed commit may not have it
+            assert.match(
+                job(deploy, "deploy"),
+                /- name: Check out canary's site.json\n(?:.*\n){3}\s+sparse-checkout: graphty\/sites\n/,
+            );
+            assert.doesNotMatch(job(deploy, "deploy"), /ref: \$\{\{ steps.live/);
+            // the download, the site.json and the Pages upload all take the chosen build's site
+            const job_ = job(deploy, "deploy");
+            assert.match(
+                job_,
+                /name: site-\$\{\{ steps.live.outputs.sha \}\}\n\s+path: \.\/site\/\n\s+run-id: \$\{\{ steps.live.outputs.run \}\}/,
+            );
+            assert.ok(job_.indexOf("tar -xf") < job_.indexOf("canary.json > public/site.json"));
+            assert.ok(job_.indexOf("canary.json > public/site.json") < job_.indexOf("upload-pages-artifact"));
+            assert.match(
+                job_,
+                /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
+            );
+            // no hand-off to another run: nothing re-runs a run, finds one by name, or needs actions: write
+            assert.doesNotMatch(deploy, /Hand off|gh run rerun|display_title|actions: write/);
+            assert.equal(
+                JSON.parse(readFileSync(new URL("../graphty/sites/canary.json", import.meta.url), "utf8")).site,
+                "canary",
+            );
+            // the custom domain is this repository's Pages setting; the site carries no CNAME file
+            assert.doesNotMatch(
+                deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),
+                /CNAME/,
+            );
         });
 
-        it("does not deploy a merge that only borrows the release subject", () => {
-            // a pull request merged with the release's subject: its second parent is not the tagged commit
-            assert.equal(decide(RELEASE, { tagged: "old" }).deploy, "deploy=false");
-            // a subject naming a tag that does not exist
-            assert.equal(decide("chore(release): publish nope@9.9.9 onto master").deploy, "deploy=false");
+        it("deploys nothing when canary already serves the newest build, or something newer", () => {
+            assert.deepEqual(deploys({ live: "abc9999" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "behind" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "identical" }), [0, "false", "", ""]);
+            // a canary on a commit off master's line is replaced
+            assert.deepEqual(deploys({ compare: "diverged" }), [0, "true", "abc9999", "42"]);
+            // the newest build's site is not assembled yet: that build's own run deploys it
+            assert.deepEqual(deploys({ artifact: "" }), [0, "false", "", ""]);
+            // before the domain swap the domain is graphty.app, which only promotion may move: canary is not read
+            assert.deepEqual(
+                [decide({ cname: "graphty.app" }).deploy, decide({ cname: "graphty.app" }).curl],
+                ["false", ""],
+            );
         });
 
-        it("does not deploy a release that is live already", () => {
-            assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        it("fails the job, deploying nothing, on every read that fails, so master-guard reports it (#3618 review)", () => {
+            for (const o of [
+                { cname: null }, // the Pages settings
+                { cname: "" }, // a Pages domain that is neither graphty.app (before the swap) nor canary
+                { cname: "canary.graphty.ap" },
+                { order: null }, // this run's build cannot be compared with the runs list's newest
+                { newest: null }, // the CI runs list
+                { newest: "" },
+                { live: null }, // canary does not answer
+                { code: 503 },
+                { code: 429 },
+                { cut: true }, // a body that breaks off after a 200
+                { live: "" }, // a 200 with no build stamp
+                { code: 404 }, // this repository's Pages always serves a site (the deploy job's environment alone
+                // records a github-pages deployment), so a 404 is never "no site yet" (#3618 review)
+                { compare: null }, // a stamp commit the compare API cannot resolve
+                { compare: "" },
+                { artifact: null }, // the artifacts list
+                { artifact: "expired" },
+            ]) {
+                const r = decide(o);
+                assert.notEqual(r.status, 0, JSON.stringify(o));
+                assert.notEqual(r.deploy, "true", JSON.stringify(o));
+            }
+        });
+
+        it("reuses the hosted datasets canary publishes, not graphty.app's, which moves only by promotion (#3618 review)", () => {
+            const hosted = readFileSync(new URL("../graph-samples/scripts/build-hosted.mjs", import.meta.url), "utf8");
+            assert.match(hosted, /^const REUSE_URL = "https:\/\/canary\.graphty\.app\/data\/graph-samples\/v1\/";$/m);
+            assert.match(hosted, /publishedCopy\(`\$\{REUSE_URL\}/);
+            // graphty.app only after canary, while canary does not serve the data yet or cannot be read
+            assert.ok(hosted.indexOf("publishedCopy(`${REUSE_URL}") < hosted.indexOf("publishedCopy(`${BASE_URL}"));
+            assert.match(job(deploy, "build"), /node graph-samples\/scripts\/build-hosted\.mjs --reuse-published/);
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told

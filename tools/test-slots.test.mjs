@@ -12,17 +12,7 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import {
-    acquire,
-    HELD,
-    laneOf,
-    liveGates,
-    liveTickets,
-    markGate,
-    shardCacheDir,
-    slotCount,
-    workerShare,
-} from "./test-slots.mjs";
+import { acquire, HELD, laneOf, liveTickets, shardCacheDir, slotCount, workerShare } from "./test-slots.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
@@ -112,62 +102,10 @@ describe("test-slots", () => {
         assert.equal(await settled(lowAgain), true);
     });
 
-    it("puts a gate's shard (TEST_SLOT_GATE) ahead of every waiting run, but never past a run that holds a slot", async () => {
-        const dir = fresh();
-        const [h, w, g] = [sleeper(), sleeper(), sleeper()];
-        const gate = { ...quiet, env: { TEST_SLOT_GATE: "1" } };
-        const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const ordinary = acquire({ ...quiet, dir, slots: 1, pid: w.pid, label: "ordinary" });
-        await tick();
-        const shard = acquire({ ...gate, dir, slots: 1, pid: g.pid, label: "gate shard" });
-        assert.equal(await settled(shard), false, "the gate's shard waits for the holder like everyone");
-        releaseH();
-        assert.equal(await settled(shard), true, "then it goes first");
-        assert.equal(await settled(ordinary), false, "the ordinary run that came earlier still waits");
-        (await shard)();
-        assert.equal(await settled(ordinary), true);
-    });
-
-    it("sends every run outside a gate to the low lane while a gate runs its test shards", async () => {
-        const dir = fresh();
-        const [h, x, y, gatePid] = [sleeper(), sleeper(), sleeper(), sleeper()];
-        const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        const unmark = markGate(dir, gatePid.pid);
-        assert.deepEqual(
-            liveGates(dir).map((m) => m.pid),
-            [gatePid.pid],
-        );
-        const early = acquire({ ...quiet, dir, slots: 1, pid: x.pid, label: "agent run during the gate" });
-        await tick();
-        unmark();
-        const late = acquire({ ...quiet, dir, slots: 1, pid: y.pid, label: "agent run after the gate" });
-        await tick(50);
-        assert.match(
-            liveTickets(dir).find((t) => t.label === "agent run during the gate").name,
-            /^~/,
-            "a run that queued while the gate ran is in the low lane",
-        );
-        releaseH();
-        assert.equal(await settled(late), true, "the later ordinary run goes first");
-        assert.equal(await settled(early), false);
-        (await late)();
-        assert.equal(await settled(early), true);
-    });
-
-    it("ignores and removes the mark of a gate that is gone", async () => {
-        const dir = fresh();
-        const gone = spawnSync(process.execPath, ["-e", "0"]).pid;
-        markGate(dir, gone);
-        assert.deepEqual(liveGates(dir), []);
-        assert.deepEqual(
-            readdirSync(dir).filter((f) => f.startsWith(".gate-")),
-            [],
-        );
-        assert.equal(laneOf({}, []), "");
-        assert.equal(laneOf({ GRAPHTY_SLOT_PRIORITY: "low" }, []), "~");
-        assert.equal(laneOf({}, [{ pid: 1 }]), "~");
-        assert.equal(laneOf({ TEST_SLOT_GATE: "1" }, [{ pid: 1 }]), "!");
+    it("names a ticket's lane by GRAPHTY_SLOT_PRIORITY alone", () => {
+        assert.equal(laneOf({}), "");
+        assert.equal(laneOf({ GRAPHTY_SLOT_PRIORITY: "low" }), "~");
+        assert.equal(laneOf({ TEST_SLOT_GATE: "1" }), "", "there is no gate lane");
     });
 
     it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {

@@ -866,6 +866,18 @@ describe("mutation testing of the selection", () => {
             fidelity.some((f) => f.startsWith("graphty-element/src/")),
             "a drawnBy package's source",
         );
+        // the fidelity stories draw with test-side helpers and corpus files: breaking them must count too
+        assert.ok(fidelity.includes("graph-io/fidelity-stories/stories/fidelity.ts"), "the shared story helper");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/test/fidelity/")),
+            "a test-side helper a story imports",
+        );
+        assert.ok(
+            fidelity.some((f) => /^graph-io\/test\/corpus\/.+\.cx2$/u.test(f)),
+            "a corpus file a story imports with ?url",
+        );
+        assert.ok(!fidelity.some((f) => f.includes("/.storybook/")), "never the Storybook setup");
+        assert.equal(new Set(fidelity).size, fidelity.length, "each file once");
     });
 
     it("gives runs with different names their own worktree and report", () => {

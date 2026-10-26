@@ -1675,7 +1675,8 @@ describe("verification runs of ci.yml", () => {
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
+        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms, layout\]/);
+        assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
@@ -1693,6 +1694,22 @@ describe("verification runs of ci.yml", () => {
             }
             // The job's own condition names every leg's shard, or a leg alone in a run is never started.
             assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
+        }
+    });
+
+    it("finds every story-tests leg's shard in the planned matrix, alone or folded into a group", () => {
+        // The job's `if` and its skip step look for `"<shard>"` in the test-matrix JSON. A shard folded into a
+        // group (layout in small-node, algorithms-browser in small-browser) is there only as a group member.
+        const legs = [...job(ci, "story-tests").matchAll(/- project: (\S+)\n\s+shard: (\S+)\n/g)].map((m) => m[2]);
+        assert.ok(legs.length >= 4, "the legs were read");
+        const each = (affected) => JSON.stringify({ include: plan(affected) });
+        const runs = [PACKAGES, ["graph-format", "layout", "algorithms"], ["layout"], ["algorithms"]];
+        for (const affected of runs) {
+            const matrix = each(affected);
+            for (const shard of legs) {
+                const pkg = SHARDS.find((s) => s.shard === shard).package;
+                assert.equal(matrix.includes(`"${shard}"`), affected.includes(pkg), `${shard} with ${affected}`);
+            }
         }
     });
 

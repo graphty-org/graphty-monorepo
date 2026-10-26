@@ -140,7 +140,7 @@ function followSafari(udid: string): SafariLog {
         'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons")';
     const child: ChildProcess = ownChild(
         spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
-            stdio: ["ignore", "pipe", "ignore"],
+            stdio: ["ignore", "pipe", "pipe"],
         }),
     );
     const lines: string[] = [];
@@ -149,6 +149,10 @@ function followSafari(udid: string): SafariLog {
     let ended: Error | undefined;
     let stopped = false;
     let rest = "";
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+        stderr = (stderr + chunk.toString("utf8")).slice(-1000);
+    });
     child.stdout?.on("data", (chunk: Buffer) => {
         const text = rest + chunk.toString("utf8");
         const parts = text.split("\n");
@@ -156,14 +160,22 @@ function followSafari(udid: string): SafariLog {
         lines.push(...parts);
         waiters.forEach((wake) => wake());
     });
-    // A wait on a stream that ended would never end: fail it, naming why. Not after stop(): a wait
-    // that lost a race (appSwitch) is still pending then, and must not turn into an unhandled rejection.
-    child.on("exit", (code, signal) => {
+    // A wait on a stream that ended would never end: fail it, naming why. On "close", so every line the
+    // stream wrote was read first. Not after stop(): ending the run must not fail the waits still pending.
+    child.on("close", (code, signal) => {
         if (stopped) {
             return;
         }
 
-        ended = new Error(`Safari's log stream ended (code ${String(code)}, signal ${String(signal)})`);
+        if (rest !== "") {
+            lines.push(rest);
+            rest = "";
+            waiters.forEach((wake) => wake());
+        }
+
+        ended = new Error(
+            `Safari's log stream ended (code ${String(code)}, signal ${String(signal)}): ${stderr.trim()}`,
+        );
         failures.forEach((fail) => fail(ended as Error));
     });
     return {
@@ -213,8 +225,10 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
 
         simctl("bootstatus", udid, "-b");
         safariLog = followSafari(udid);
-        // A Safari already running (a Simulator booted before this run) logged its activation before
-        // the stream started; terminated, every open below launches a process the stream sees whole.
+        // The stream is attached once it printed anything (`log stream` starts with "Filtering the log
+        // data using ..."). A Safari already running (a Simulator booted before this run) logged its
+        // activation before that; terminated, every open below launches a process the stream sees whole.
+        await safariLog.waitFor(/./, 0);
         terminateSafari(udid);
     });
 
@@ -235,14 +249,24 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      * completes. `simctl launch` returns as soon as Safari's process exists, not when it is active: on
      * Safari's first launch after the Simulator booted, its code first ran 16 s after the process was
      * spawned and it became active 24 s after (issue #3654), so an openurl sent when launch returned
-     * timed out. So wait until this Safari process logs that it became active; a process that was
-     * already running since an earlier open logged that then, and the wait ends at once.
+     * timed out. So wait until this Safari process logs that it became active, unless the last
+     * activation change it logged before the launch already said so (Safari was in front).
      * @param url - The page.
      */
     async function openInSafari(url: string): Promise<void> {
-        const pid = new RegExp(`${SAFARI}:\\s*(\\d+)`).exec(simctl("launch", udid, SAFARI))?.[1];
-        assert.isDefined(pid, "simctl launch printed Safari's pid");
-        await safariLog.waitFor(new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`), 0);
+        const from = safariLog.lines.length;
+        // `simctl launch` prints "com.apple.mobilesafari: <pid>".
+        const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
+        assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
+        const own = `MobileSafari[${pid}:`;
+        const active = (line: string): boolean => /deactivation reasons: \d+ -> 0;/.test(line);
+        const last = safariLog.lines
+            .filter((line) => line.includes(own) && line.includes("deactivation reasons"))
+            .at(-1);
+        if (last === undefined || !active(last)) {
+            await safariLog.waitFor(new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`), from);
+        }
+
         simctl("openurl", udid, url);
     }
 

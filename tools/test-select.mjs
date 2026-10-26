@@ -90,6 +90,7 @@ export function loadRules(root) {
             lockfile: toRe(raw.stories.lockfile),
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
+            selectProjects: raw.stories.selectProjects ?? [],
         },
     };
 }
@@ -1471,7 +1472,8 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
- * whole whenever a package that draws it is selected.
+ * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1497,9 +1499,16 @@ export function selectStories({ projects, changed, everything, shards, selection
         const global = everything
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
-        const sel = global
-            ? { mode: "all", files: [], reasons: [global] }
-            : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
+        let sel = { mode: "all", files: [], reasons: [global] };
+        if (!global) {
+            sel = rules.selectProjects.includes(project)
+                ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
+                : {
+                      mode: "all",
+                      files: [],
+                      reasons: [`${project} runs whole until test-select-mutate --stories proves its selection`],
+                  };
+        }
         return { project, ...sel, baselines };
     });
 }

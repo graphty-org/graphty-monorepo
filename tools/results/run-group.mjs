@@ -204,6 +204,20 @@ export async function runGroup(shardName, command = undefined, { root = process.
 }
 
 /**
+ * A run's shape, the last part of its variant: `shots` for a story-tests run that also takes and compares every
+ * story's screenshot (VISUAL_REVIEW_STORY_OUT set, ci.yml's story-tests job), which runs a storybook shard's
+ * stories under the same shard name as the plain test job and so must not share its history; else `selected` for
+ * a narrower command than the shard's own, `whole` for the shard's own.
+ * @param env the environment
+ * @param selected whether the command is not the shard's own
+ * @returns "shots", "selected" or "whole"
+ */
+export function runShape(env, selected) {
+    if (env.VISUAL_REVIEW_STORY_OUT) return "shots";
+    return selected ? "selected" : "whole";
+}
+
+/**
  * Builds a finished group's records and posts them (spooling what the store does not take).
  * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
@@ -214,12 +228,19 @@ async function record(shardName, shard, o) {
     const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt } = o;
     const flags = env.GRAPHTY_FLAGS === "on" ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
+    const shape = runShape(env, selected);
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const facts = { id, head: headFacts(root, env), code, result: readResult(resultFile), startedAt, endedAt, runId };
     const recs = recordsOf({
         ...facts,
-        variant: `${familyOf(shardName)}|flags=${flags}|${selected ? "selected" : "whole"}`,
-        inputs: inputsKey({ shardKey, env: envString(env), flags, extra: selected ? cmd : "" }),
+        variant: `${familyOf(shardName)}|flags=${flags}|${shape}`,
+        inputs: inputsKey({
+            shardKey,
+            env: envString(env),
+            flags,
+            // unchanged for the other shapes, so their history keeps its keys
+            extra: (selected ? cmd : "") + (shape === "shots" ? "\nshots" : ""),
+        }),
         env: envString(env),
         dir: join(root, "test-results"),
     });

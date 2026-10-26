@@ -16,7 +16,7 @@ import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
-import { junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
+import { junitOf, postRecords, recordsOf, runGroup, runShape } from "./run-group.mjs";
 
 isolateGit();
 const TMP = mkdtempSync(join(tmpdir(), "results-"));
@@ -292,6 +292,16 @@ describe("records", () => {
             flood.map((r) => r.outcome),
             ["error"],
         );
+    });
+});
+
+describe("runShape", () => {
+    it("files a story-tests run that takes screenshots apart from the plain test job of the same shard", () => {
+        // ci.yml's graphty leg runs graphty-storybook's own command with VISUAL_REVIEW_STORY_OUT set
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, false), "shots");
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, true), "shots");
+        assert.equal(runShape({}, false), "whole");
+        assert.equal(runShape({}, true), "selected");
     });
 });
 

@@ -494,6 +494,10 @@ export async function runGroup(
             : {};
     rules.family = family;
     rules.list ??= activeList(committedList(root), emptyState());
+    // a screenshot run's own family (`<family>-shots`) is never written by the gate or the store, so the shard's
+    // quarantine counts for it too
+    const base = familyOf(shardName);
+    if (family !== base) rules.list = rules.list.map((q) => (q.family === base ? { ...q, family } : q));
     // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
     if (env.RESULTS_QUARANTINE_OUT) {
         const quarantine = rules.list.filter((q) => q.family === family);

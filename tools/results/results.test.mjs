@@ -398,7 +398,7 @@ describe("groupFamily", () => {
         }
     });
 
-    it("judges a screenshot run by its own family's quarantine and hands that very list to the combine step", async () => {
+    it("judges a screenshot run by its shard's quarantine and its own and hands that very list to the combine step", async () => {
         const root = join(TMP, "checkout-shots");
         mkdirSync(join(root, "tools"), { recursive: true });
         writeFileSync(
@@ -431,8 +431,11 @@ describe("groupFamily", () => {
         assert.equal(await runGroup("graphty-storybook", undefined, { root, env }), 0);
         const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
         assert.deepEqual(
-            quarantine.map((q) => q.name),
-            ["Shots"],
+            quarantine.map((q) => [q.name, q.family]),
+            [
+                ["Plain", "graphty-storybook-shots"],
+                ["Shots", "graphty-storybook-shots"],
+            ],
         );
     });
 });

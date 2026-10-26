@@ -2023,7 +2023,7 @@ jobs:
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture

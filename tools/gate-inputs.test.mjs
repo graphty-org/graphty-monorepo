@@ -295,7 +295,6 @@ describe("prepush.sh with a gate that already passed", () => {
         for (const f of ["prepush.sh", "prepush-source-checks.sh"])
             copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
         const ran = join(TMP, `steps-${made}.log`);
-        writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-figma-lock.mjs"), "");
         writeFileSync(join(r.dir, "tools/release-dry-run.mjs"), "");

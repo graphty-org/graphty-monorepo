@@ -32,7 +32,6 @@ tools/pr-integrity.test.mjs
 tools/pr-open.test.mjs
 tools/pr-review.test.mjs
 tools/publish-hold.test.mjs
-tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
 tools/release-dry-run.test.mjs
 tools/release-scheduler/test/index.test.mjs

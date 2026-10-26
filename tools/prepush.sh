@@ -39,14 +39,6 @@ LIGHT="${PREPUSH_LIGHT:-0}"
 # landed on the branch being pushed. No step needs them; each runs from this directory.
 unset $(git rev-parse --local-env-vars)
 
-# A push to a pull request in Mergify's merge queue dequeues it and throws away its batch run, so it
-# is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
-# checked-out branch, the one this gate tests.
-PUSH_BRANCH="$(git symbolic-ref --short -q HEAD)"
-if [ -n "$PUSH_BRANCH" ] && ! node "$SCRIPT_DIR/queued-push-guard.mjs" "$PUSH_BRANCH"; then
-    exit 1
-fi
-
 # A build or test that crashes must not leave a core dump (often gigabytes) in the checkout: every
 # step below runs in this shell's children, so this one limit covers them all.
 ulimit -c 0

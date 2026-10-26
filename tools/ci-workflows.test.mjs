@@ -5771,12 +5771,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
         assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
         const prepush = code(repoFile("tools/prepush.sh"));
-        for (const s of [
-            "queued-push-guard.mjs",
-            "visual-preview.sh",
-            "prepush-tests.mjs",
-            "prepush-source-checks.sh",
-        ]) {
+        for (const s of ["visual-preview.sh", "prepush-tests.mjs", "prepush-source-checks.sh"]) {
             assert.doesNotMatch(
                 prepush,
                 new RegExp(`(\\./|[ "'])tools/${s.replace(".", "\\.")}`),

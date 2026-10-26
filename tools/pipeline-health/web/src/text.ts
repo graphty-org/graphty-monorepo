@@ -445,7 +445,7 @@ const SOURCE: Record<string, string> = {
     billing: "billing",
     collector: "the collector",
     npm: "npm",
-    release: "the release records",
+    release: "the release collector",
     "ci-results": "CI test results",
     coverage: "coverage",
     local: "the local writer",

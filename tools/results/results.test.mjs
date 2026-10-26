@@ -803,6 +803,19 @@ describe("cli", () => {
         assert.equal(await baseCheck({ root, variant: "nope|flags=off|whole", file: "x", env: {}, run }), 2);
     });
 
+    it("builds the shard's package by the name nx lists it under", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const built = [];
+        const exec = (cmd, args) => built.push(args.at(-1));
+        const run = async () => 0;
+        for (const [variant, file] of [
+            ["remote-logger|flags=off|whole", "remote-logger/test/x.test.ts"],
+            ["layout|flags=off|whole", "layout/test/x.test.ts"],
+        ])
+            await baseCheck({ root, variant, file, env: {}, build: true, run, exec });
+        assert.deepEqual(built, ["@graphty/remote-logger:build", "layout:build"]);
+    });
+
     it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {
         const root = join(import.meta.dirname, "../..");
         const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));

@@ -100,6 +100,19 @@ export async function importLedger(cfg, files, post = (c, rec) => call(c, "POST"
     return out;
 }
 
+// nx's name for a package directory: its project.json name, else its package.json name (remote-logger has no
+// project.json, so nx calls it @graphty/remote-logger)
+function nxProject(root, dir) {
+    for (const f of ["project.json", "package.json"]) {
+        try {
+            return JSON.parse(readFileSync(join(root, dir, f), "utf8")).name;
+        } catch {
+            // no such file: the next one names it
+        }
+    }
+    return dir;
+}
+
 /**
  * Runs one test file of a variant's family `repeat` times, each as its own record.
  * @param o the check
@@ -112,7 +125,16 @@ export async function importLedger(cfg, files, post = (c, rec) => call(c, "POST"
  * @param [o.run] runGroup (tests replace it)
  * @returns the worst exit code
  */
-export async function baseCheck({ root, variant, file, repeat = 1, env = process.env, build = false, run = runGroup }) {
+export async function baseCheck({
+    root,
+    variant,
+    file,
+    repeat = 1,
+    env = process.env,
+    build = false,
+    run = runGroup,
+    exec = execFileSync,
+}) {
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const family = variant.split("|")[0];
     const slices = SHARDS.filter((s) => familyOf(s.shard) === family);
@@ -123,7 +145,8 @@ export async function baseCheck({ root, variant, file, repeat = 1, env = process
         console.error(`base-check: no shard of family ${family} runs ${file}`);
         return 2;
     }
-    if (build) execFileSync("pnpm", ["exec", "nx", "run", `${shard.package}:build`], { cwd: root, stdio: "inherit" });
+    if (build)
+        exec("pnpm", ["exec", "nx", "run", `${nxProject(root, shard.package)}:build`], { cwd: root, stdio: "inherit" });
     const flags = variant.includes("|flags=on|") ? "on" : "off";
     let worst = 0;
     let best = Infinity;

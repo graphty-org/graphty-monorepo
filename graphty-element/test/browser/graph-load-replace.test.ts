@@ -244,16 +244,15 @@ describe("the load CALLED last wins", () => {
         sessionLoad.catch(() => undefined);
         await started;
         const edit = graph.getSession().data.addNodes([{ id: "edited" }]);
-        edit.catch(() => undefined);
         graph.clearData();
         // Synchronous, as it has always been: a caller adding right after the clear keeps its node.
         assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
         await graph.addNodes([{ id: "after" }]);
         openHeldRead();
 
-        const error = await rejection(edit);
+        // The cancelled edit resolves and adds nothing.
+        await edit;
 
-        assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
         assert.deepStrictEqual(ids(graph).nodes, ["after"]);
     });
 });

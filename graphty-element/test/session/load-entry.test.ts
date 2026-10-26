@@ -559,17 +559,19 @@ describe("the entry's edges", () => {
         assert.strictEqual(session.data.snapshot().nodeCount, 0, "the opened graph came back after the clear");
     });
 
-    it("a clear cancels an edit still waiting behind a load, and lands without waiting", async () => {
+    it("a clear cancels an edit still waiting behind a load: it resolves, and lands without waiting", async () => {
         const session = fresh();
         await session.data.import({ type: "json", config: { data: TRIANGLE } });
         const older = await heldLoad(session, 5);
         const edit = session.data.addNodes([{ id: "waiting" }]);
-        edit.catch(() => undefined);
+        const collapsed = session.data.collapse("a");
         // Settles with the load still held: the clear waits for nothing.
         await session.data.clear();
 
         assert.strictEqual(session.data.snapshot().nodeCount, 0);
-        await assertSuperseded(edit, "the waiting edit");
+        await edit;
+        assert.deepEqual(await collapsed, { removedNodes: [], removedEdges: 0, kept: [] });
+        assert.strictEqual(session.data.snapshot().nodeCount, 0, "a cancelled edit added its node");
         older.read.open();
         await assertSuperseded(older.load, "the load still reading");
         assert.strictEqual(session.data.snapshot().nodeCount, 0);

@@ -3723,6 +3723,10 @@ export class Graph implements GraphContext {
      * The verb the data guide has always taught -- as `graph.clear()`, which has never existed.
      * `<graphty-element>` has had `clearData()` throughout; a consumer holding a `Graph` had to
      * reach through `graph.getDataManager().clear()`, which is the element's own internals.
+     *
+     * The graph is empty when this returns, except while a project open is writing: then the
+     * clear lands once the open has written, and a read right after this call still sees the
+     * graph as it was. A load still reading is abandoned: it rejects with `E_SUPERSEDED`.
      * @since 2.0.0
      * @example
      * ```typescript

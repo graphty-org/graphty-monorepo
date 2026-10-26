@@ -573,7 +573,8 @@ export class SessionData implements SessionDataApi {
     async clear(): Promise<void> {
         this.requireLive("clear");
         // A load still reading when the clear is asked for is cancelled: it rejects with
-        // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524).
+        // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
+        // edit still waiting resolves and adds nothing either.
         const send = this.writes.applier();
         await this.loadLine.clear(() => send({ kind: "clear" }));
         // Nothing a source load brought is left, so `loads()` lists none of them and a saved
@@ -584,12 +585,13 @@ export class SessionData implements SessionDataApi {
     /**
      * Dispatch an edit in the session's load line, behind every load asked for before it, so it
      * lands on what they load instead of under them (issue #3526).
+     * A clear asked for while it waits cancels it: it resolves without applying.
      * @param mutation - The edit.
-     * @returns Settles once it is applied.
+     * @returns Settles once it is applied, or cancelled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
         const send = this.writes.applier();
-        return this.loadLine.edit(() => send(mutation));
+        return this.loadLine.edit(() => send(mutation), undefined);
     }
 
     /**
@@ -837,7 +839,17 @@ export class SessionData implements SessionDataApi {
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
-        return this.inLine(undefined, (host) => sourceExpand.collapseNode(host, id), true, "edit");
+        // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
+        return this.inLine(
+            undefined,
+            (host) => sourceExpand.collapseNode(host, id),
+            true,
+            () => ({
+                removedNodes: [],
+                removedEdges: 0,
+                kept: [],
+            }),
+        );
     }
 
     /**
@@ -966,18 +978,24 @@ export class SessionData implements SessionDataApi {
      * @param run - The verb, given a host whose dispatch waits for the turn.
      * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
      *   once; otherwise it is given up at the first dispatch.
-     * @param kind - `edit` for a verb a clear asked for after it does not cancel.
+     * @param skipped - Given for an edit: it takes an edit's place in line, and a clear asked for
+     *   while it waits cancels it, so it resolves with this instead of rejecting.
      * @returns What the verb returned.
      */
     private async inLine<T>(
         signal: AbortSignal | undefined,
         run: (host: SourceHost) => Promise<T>,
         hold = false,
-        kind: "load" | "edit" = "load",
+        skipped?: () => T,
     ): Promise<T> {
-        const turn = this.loadLine.join(signal, kind);
+        const turn = this.loadLine.join(signal, skipped === undefined ? "load" : "edit");
         try {
             return await run(this.hostInTurn(turn, hold));
+        } catch (error) {
+            if (skipped !== undefined && turn.superseded) {
+                return skipped();
+            }
+            throw error;
         } finally {
             turn.leave();
         }

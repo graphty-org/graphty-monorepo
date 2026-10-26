@@ -241,6 +241,32 @@ describe("a restore that does not finish", () => {
         );
     });
 
+    it("a clear that cancels the restore of a copied entry removes the copy", async () => {
+        const store = memoryAutosaveStore();
+        const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+        const before = await raw(store, own.id);
+        const locks = new FakeLocks();
+        locks.holdElsewhere(lockName(KEY, own.id));
+        const page = load(store, locks);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const recovering = page.saver.recover({ own: own.id });
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(
+            (await store.list(KEY)).map((each) => each.id),
+            [own.id],
+            "the cancelled copy was left beside the entry it copied",
+        );
+        assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
+    });
+
     it("two restores that never confirm make the third load skip the entry and report restore-failed", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Heavy" }));

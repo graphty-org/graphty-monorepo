@@ -1202,8 +1202,14 @@ export class Autosaver {
      * @param current - The entry, with the attempt recorded.
      * @param untried - The entry as it was before the attempt.
      * @param error - Why the open failed.
+     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
      */
-    async #restoreFailed(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, error: unknown): Promise<void> {
+    async #restoreFailed(
+        current: AutosaveEntryMeta,
+        untried: AutosaveEntryMeta,
+        error: unknown,
+        copied: boolean,
+    ): Promise<void> {
         if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
             this.#available(current, true, "restore-failed", {
                 code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
@@ -1212,7 +1218,12 @@ export class Autosaver {
             return;
         }
         // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
-        // entry is written back as it was before the attempt, to be offered on the next load.
+        // entry is written back as it was before the attempt, to be offered on the next load. A
+        // copy this restore made is removed instead: the entry it copied is still there.
+        if (copied) {
+            await this.#store.remove(current.id).catch(() => undefined);
+            return;
+        }
         // ponytail: a commit that loses to another tab leaves the attempt counted; it only costs one.
         await this.#store
             .commit([{ id: untried.id, expectedGen: current.gen, meta: { ...untried, gen: current.gen }, parts: {} }])
@@ -1333,7 +1344,7 @@ export class Autosaver {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
             // Before the lock goes, so no other tab commits over the entry meanwhile.
-            await this.#restoreFailed(current, untried, error);
+            await this.#restoreFailed(current, untried, error, copy);
             release?.();
             return null;
         } finally {

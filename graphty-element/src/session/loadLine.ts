@@ -11,9 +11,10 @@
  *
  * - a load ({@link LoadLine.join}) and `project.open` ({@link LoadLine.opening}) wait for it;
  * - an edit ({@link LoadLine.edit}) waits for it, then lands on what it loaded;
- * - a clear ({@link LoadLine.clear}) cancels it, and every edit waiting behind it: each rejects
- *   with `E_SUPERSEDED` and adds nothing, so the graph is what calling them in order would leave,
- *   and the clear itself happens at once (behind a project open that is already writing).
+ * - a clear ({@link LoadLine.clear}) cancels it, and every edit waiting behind it: a load rejects
+ *   with `E_SUPERSEDED`, an edit resolves, and neither adds anything, so the graph is what calling
+ *   them in order would leave, and the clear itself happens at once (behind a project open that is
+ *   already writing).
  *
  * A door called inside a transaction or a running command is part of it: an edit or a clear
  * dispatches into it at once, and a clear there cancels nothing, since the transaction may roll
@@ -49,6 +50,8 @@ export interface LoadTurn {
     take<T>(send: () => Promise<T>): Promise<T>;
     /** Give up the place without dispatching (the load failed). Safe to call more than once. */
     leave(): void;
+    /** Whether a clear cancelled the place before it dispatched. */
+    readonly superseded: boolean;
 }
 
 /** What a session's load line reads of its dispatcher. */
@@ -84,6 +87,7 @@ const AT_ONCE: LoadTurn = {
     issue: (send) => send(),
     take: (send) => send(),
     leave: () => undefined,
+    superseded: false,
 };
 
 /**
@@ -153,8 +157,6 @@ export class LoadLine {
     private handoff: LoadTurn | undefined;
     /** The places taken and not left, each with what cancels it: what a clear cancels. */
     private readonly loads = new Map<LoadTurn, () => void>();
-    /** The places a clear cancelled, so a door that already waited can tell. */
-    private readonly cancelled = new WeakSet<LoadTurn>();
     /** How many project opens hold the head of the line while they write. */
     private holding = 0;
 
@@ -284,11 +286,13 @@ export class LoadLine {
             issue,
             take: (send) => wait()?.then(() => issue(send)) ?? issue(send),
             leave,
+            get superseded() {
+                return superseded;
+            },
         };
         if (kind !== "clear") {
             this.loads.set(turn, () => {
                 superseded = true;
-                this.cancelled.add(turn);
                 leave();
                 for (const cancel of cancelWaits) {
                     cancel();
@@ -301,17 +305,26 @@ export class LoadLine {
     /**
      * Dispatch an edit (an add, an update, a removal): in line behind every load asked for before
      * it, so it lands on what they loaded instead of under them, and at once when none is waiting.
-     * A clear asked for after it while it waits cancels it.
+     * A clear asked for after it while it waits cancels it: it resolves with `skipped` and
+     * dispatches nothing, since the clear empties the graph anyway.
      * @param send - The dispatch, taken when the edit was asked for.
+     * @param skipped - What a cancelled edit resolves with.
      * @returns What it returned.
      */
-    edit<T>(send: () => Promise<T>): Promise<T> {
-        return this.join(undefined, "edit").take(send);
+    edit<T>(send: () => Promise<T>, skipped: T): Promise<T> {
+        const turn = this.join(undefined, "edit");
+        return turn.take(send).catch((error: unknown) => {
+            if (turn.superseded) {
+                return skipped;
+            }
+            throw error;
+        });
     }
 
     /**
      * Dispatch a clear: every load and edit asked for before it that has not dispatched is
-     * cancelled (it rejects with `E_SUPERSEDED` and adds nothing), and the clear dispatches at
+     * cancelled (a load rejects with `E_SUPERSEDED`, an edit resolves, and neither adds anything),
+     * and the clear dispatches at
      * once, before this call returns, unless a project open is writing: then it lands after the
      * open. Inside a transaction or a running command it dispatches into it and cancels nothing.
      * @param send - The dispatch, taken when the clear was asked for.
@@ -344,8 +357,8 @@ export class LoadLine {
         try {
             await turn.wait();
             // A clear asked for in the moment between the wait and now cancelled it after all.
-            if (this.cancelled.has(turn)) {
-                throw supersededError("project");
+            if (turn.superseded) {
+                throw supersededError();
             }
             // It writes now: a clear asked for from here on lands after the open, not under it.
             this.loads.delete(turn);

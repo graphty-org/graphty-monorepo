@@ -29,7 +29,7 @@ describe("isOnNightly", () => {
     it("counts a versions-only difference as on nightly, but not a screenshot baselines change", () => {
         const dir = mkdtempSync(join(tmpdir(), "on-nightly-"));
         const git = (...a) =>
-            execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...a], {
+            execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], {
                 cwd: dir,
                 encoding: "utf8",
                 env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
@@ -42,6 +42,7 @@ describe("isOnNightly", () => {
             return git("rev-parse", "HEAD");
         };
         git("init", "-q", "-b", "main");
+        git("config", "commit.gpgsign", "false");
         commit("p/package.json", JSON.stringify({ name: "p", version: "1.0.0" }));
         const nightly = commit("p/src.js", "1");
         git("checkout", "-q", "-b", "side", "HEAD~1");

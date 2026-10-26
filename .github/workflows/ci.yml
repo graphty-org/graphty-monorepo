@@ -1433,8 +1433,20 @@ jobs:
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
+                  # the base checks its [FLAKY-UNRELATED] and [KNOWN?] tests need; the base-checks job dispatches them
+                  RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
+
+            - name: Upload the base checks to dispatch
+              if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v7
+              with:
+                  name: base-checks-${{ matrix.shard }}
+                  path: ${{ runner.temp }}/base-checks/
+                  retention-days: 1
+                  if-no-files-found: ignore
 
             # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
             # failing test files and run only those on this machine. continue-on-error: a report that did
@@ -2145,8 +2157,19 @@ jobs:
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
+                  RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
+
+            - name: Upload the base checks to dispatch
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && github.event_name == 'pull_request' }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v7
+              with:
+                  name: base-checks-stories-${{ matrix.project }}
+                  path: ${{ runner.temp }}/base-checks/
+                  retention-days: 1
+                  if-no-files-found: ignore
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
@@ -2750,6 +2773,40 @@ jobs:
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
     # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
     # not need it.
+    # A pull request's [FLAKY-UNRELATED] and [KNOWN?] tests name a base check (tools/results/run-group.mjs prJudge);
+    # this dispatches them, so base-check.yml's master records quarantine a flaky test and file its one issue, or
+    # file `Failing on master`, with nobody reading the warnings. The script checks each line against a strict
+    # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
+    base-checks:
+        name: Dispatch base checks
+        needs: [test, story-tests]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 5
+        permissions:
+            contents: read
+            actions: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools/results
+
+            - name: Download the base checks
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: base-checks-*
+                  path: ${{ runner.temp }}/base-checks
+                  merge-multiple: true
+
+            - name: Dispatch them
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: node tools/results/dispatch-base-checks.mjs "$RUNNER_TEMP/base-checks"
+
     visual-flaky:
         name: Flaky screenshots
         needs: visual

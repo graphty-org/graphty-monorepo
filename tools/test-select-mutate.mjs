@@ -498,14 +498,16 @@ async function storyMutant(c, n, f) {
     const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
     let found = [];
     let flaky = new Set();
-    if (missed.length > 0) {
-        const again = await recapture(missed);
+    if (changed.length > 0) {
+        // every changed story, selected or not, is captured unbroken again: one that differs there too is noise
+        // (a nondeterministic story, or one that never captures), not the mutant's doing
+        const again = await recapture(changed);
         if (!again) {
             log("  INCONCLUSIVE: the unbroken Storybook could not be built or captured again");
             return { misses: 0, inconclusive: 1, checked: 1 };
         }
-        // --stories matches by prefix, so the capture can hold stories that were not missed
-        const only = (r) => ({ ...r, items: r.items.filter((i) => missed.includes(i.id)) });
+        // --stories matches by prefix, so the capture can hold stories that did not change
+        const only = (r) => ({ ...r, items: r.items.filter((i) => changed.includes(i.id)) });
         flaky = new Set(c.changedIds(only(c.ref), only(again)));
         flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
         found = missed.filter((id) => !flaky.has(id));

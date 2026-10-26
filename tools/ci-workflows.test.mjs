@@ -2484,14 +2484,14 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
             ".github/actions/playwright-system-deps/install.sh",
             "visual-baselines/layout/a.png",
             "visual-fonts/fonts.conf",
-            "design/x.md",
+            "docs/x.md",
         ]) {
             assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
         }
     });
 
-    it("judges a change to workflows and tools no Storybook reads by its packages alone", () => {
-        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs"];
+    it("judges a change to workflows, tools and design documents no Storybook reads by its packages alone", () => {
+        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs", "design/x.md"];
         assert.deepEqual(
             skippedProjects({ ...base, changed }),
             skippedProjects({ ...base, changed: changed.slice(0, 1) }),

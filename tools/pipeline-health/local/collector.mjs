@@ -46,7 +46,7 @@ const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
  * @returns the string with no host path in it
  */
 export function scrub(text) {
-    return String(text).replace(/(?:\/home|\/Users|\/tmp|\/var|\/root)\/[^\s'"`),;\]]*/g, (p) => {
+    return String(text).replaceAll(/(?:\/home|\/Users|\/tmp|\/var|\/root)\/[^\s'"`),;\]]*/g, (p) => {
         const m = /\/graphty-monorepo\/(?:\.worktrees\/[^/]+\/)?(.*)$/.exec(p);
         return m ? m[1] : "<path>";
     });
@@ -109,33 +109,41 @@ export function mapWait(w) {
     return { id: `local.wait.${w.kind}.${w.start}.${w.pid}`, kind: w.kind, start: w.start, end: w.end, ms: w.ms };
 }
 
+const bytes = (row) => Buffer.byteLength(JSON.stringify(row)) + 1;
+
 /**
- * Splits rows into bodies of at most MAX_ROWS rows and MAX_BYTES bytes. A row too big alone loses
- * its per-file results; one still too big is dropped with a log line.
+ * A row that fits in one post: one too big alone loses its per-file results, and one still too big
+ * is dropped with a log line.
+ * @param row the row to post
+ * @returns the row, the row without its files, or null
+ */
+export function fit(row) {
+    if (bytes(row) + 12 <= MAX_BYTES) return row;
+    const lean = { ...row, files: undefined };
+    if (bytes(lean) + 12 <= MAX_BYTES) return lean;
+    log(`skipped ${row.id}: ${bytes(lean)} bytes alone`);
+    return null;
+}
+
+/**
+ * Splits rows that each fit into bodies of at most MAX_ROWS rows and MAX_BYTES bytes.
  * @param rows the rows to post
+ * @param size the posted size of one row
  * @returns the row lists, one per post
  */
-export function batches(rows) {
+export function batches(rows, size = bytes) {
     const out = [];
     let cur = [];
-    let size = 12; // {"rows":[]}
-    for (let row of rows) {
-        let n = Buffer.byteLength(JSON.stringify(row)) + 1;
-        if (n + 12 > MAX_BYTES && row.files) {
-            row = { ...row, files: undefined };
-            n = Buffer.byteLength(JSON.stringify(row)) + 1;
-        }
-        if (n + 12 > MAX_BYTES) {
-            log(`skipped ${row.id}: ${n} bytes alone`);
-            continue;
-        }
-        if (cur.length && (cur.length >= MAX_ROWS || size + n > MAX_BYTES)) {
+    let total = 12; // {"rows":[]}
+    for (const row of rows) {
+        const n = size(row);
+        if (cur.length && (cur.length >= MAX_ROWS || total + n > MAX_BYTES)) {
             out.push(cur);
             cur = [];
-            size = 12;
+            total = 12;
         }
         cur.push(row);
-        size += n;
+        total += n;
     }
     if (cur.length) out.push(cur);
     return out;
@@ -159,41 +167,41 @@ function writeCursor(file, cursor) {
     renameSync(`${file}.tmp`, file);
 }
 
-// New ledger records: mtime past the cursor, or at it and not yet posted. Each item carries the
-// cursor to save once it is posted.
-function ledgerItems(root, cursor) {
-    const dir = join(root, "tmp/test-ledger/records");
-    if (!existsSync(dir)) return [];
-    const m = cursor.ledgerMtime ?? 0;
-    const seen = new Set(cursor.ledgerSeen ?? []);
+// Ledger files with an mtime past the cursor, or at it and not yet posted, oldest first.
+function newLedgerFiles(dir, m, seen) {
     const day = new Date(m - 86_400_000).toISOString().slice(0, 10);
     const files = [];
-    for (const date of readdirSync(dir).sort()) {
-        if (m && date < day) continue;
-        for (const name of readdirSync(join(dir, date))) {
-            if (!name.endsWith(".json.gz")) continue;
+    for (const date of readdirSync(dir).filter((d) => !m || d >= day)) {
+        for (const name of readdirSync(join(dir, date)).filter((n) => n.endsWith(".json.gz"))) {
             const path = join(dir, date, name);
             const mtime = statSync(path).mtimeMs;
             const key = `${date}/${name}`;
             if (mtime > m || (mtime === m && !seen.has(key))) files.push({ path, key, mtime });
         }
     }
-    files.sort((a, b) => a.mtime - b.mtime || a.key.localeCompare(b.key));
-    const items = [];
-    let at = m;
-    let atSeen = [...seen];
-    for (const f of files) {
+    return files.sort((a, b) => a.mtime - b.mtime || a.key.localeCompare(b.key));
+}
+
+function readLedgerRow(f) {
+    try {
+        return mapLedger(JSON.parse(gunzipSync(readFileSync(f.path)).toString("utf8")));
+    } catch (error) {
+        log(`unreadable ledger record ${f.key}: ${error.message}`);
+        return null;
+    }
+}
+
+// New ledger records. Each item carries the cursor to save once it is posted.
+function ledgerItems(root, cursor) {
+    const dir = join(root, "tmp/test-ledger/records");
+    if (!existsSync(dir)) return [];
+    let at = cursor.ledgerMtime ?? 0;
+    let atSeen = cursor.ledgerSeen ?? [];
+    return newLedgerFiles(dir, at, new Set(atSeen)).map((f) => {
         atSeen = f.mtime === at ? [...atSeen, f.key] : [f.key];
         at = f.mtime;
-        let row = null;
-        try {
-            row = mapLedger(JSON.parse(gunzipSync(readFileSync(f.path)).toString("utf8")));
-        } catch (error) {
-            log(`unreadable ledger record ${f.key}: ${error.message}`);
-        }
-        items.push({ row, cursor: { ledgerMtime: at, ledgerSeen: atSeen } });
-    }
-    return items;
+        return { row: readLedgerRow(f), cursor: { ledgerMtime: at, ledgerSeen: atSeen } };
+    });
 }
 
 // New complete lines of an append-only JSONL file, from the byte offset in the cursor.
@@ -256,30 +264,25 @@ export async function collect({
     const counts = {};
     for (const { kind, items: list } of sources(root)) {
         const items = list(cursor);
-        const rows = items.map((i) => i.row).filter(Boolean);
-        const bodies = batches(rows);
-        counts[kind] = { rows: rows.length, posts: bodies.length, example: rows[0] };
+        const ready = items.flatMap((i) => {
+            const row = i.row && fit(i.row);
+            return row ? [{ ...i, row }] : [];
+        });
+        const bodies = batches(ready, (i) => bytes(i.row));
+        counts[kind] = { rows: ready.length, posts: bodies.length, example: ready[0]?.row, posted: 0 };
         if (dryRun) continue;
-        let done = 0;
+        const save = (item) => {
+            cursor = { ...cursor, ...item.cursor };
+            writeCursor(cursorFile, cursor);
+        };
         let ok = true;
         for (const body of bodies) {
-            if (!(await post(kind, { rows: body }))) {
-                ok = false;
-                break;
-            }
-            done += body.length;
-            // Move the cursor past the item that held the last posted row.
-            let seen = 0;
-            let i = 0;
-            for (; i < items.length; i++) if (items[i].row && ++seen === done) break;
-            cursor = { ...cursor, ...items[i].cursor };
-            writeCursor(cursorFile, cursor);
+            ok = await post(kind, { rows: body.map((i) => i.row) });
+            if (!ok) break;
+            counts[kind].posted += body.length;
+            save(body.at(-1));
         }
-        if (ok && items.length) {
-            cursor = { ...cursor, ...items[items.length - 1].cursor }; // trailing skipped lines
-            writeCursor(cursorFile, cursor);
-        }
-        counts[kind].posted = done;
+        if (ok && items.length) save(items.at(-1)); // trailing lines with nothing to post
     }
     return counts;
 }
@@ -293,8 +296,14 @@ export async function collect({
 export function readToken(root, env = process.env) {
     if (env.HEALTH_LOCAL_TOKEN) return env.HEALTH_LOCAL_TOKEN.trim();
     try {
-        const m = /^\s*(?:export\s+)?HEALTH_LOCAL_TOKEN\s*=\s*(.*)$/m.exec(readFileSync(join(root, ".env"), "utf8"));
-        return m ? m[1].trim().replace(/^(["'])(.*)\1$/, "$2") : undefined;
+        for (const raw of readFileSync(join(root, ".env"), "utf8").split("\n")) {
+            const line = raw.trim().replace(/^export /, "");
+            if (!line.startsWith("HEALTH_LOCAL_TOKEN=")) continue;
+            const value = line.slice("HEALTH_LOCAL_TOKEN=".length).trim();
+            const quoted = value.length > 1 && (value[0] === '"' || value[0] === "'") && value.at(-1) === value[0];
+            return quoted ? value.slice(1, -1) : value;
+        }
+        return undefined;
     } catch {
         return undefined;
     }
@@ -303,7 +312,7 @@ export function readToken(root, env = process.env) {
 function httpPost(url, token) {
     return async (kind, body) => {
         try {
-            const res = await fetch(`${url.replace(/\/+$/, "")}/v1/local/${kind}`, {
+            const res = await fetch(`${url.endsWith("/") ? url.slice(0, -1) : url}/v1/local/${kind}`, {
                 method: "POST",
                 headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
                 body: JSON.stringify(body),
@@ -339,11 +348,7 @@ async function main() {
     });
     const root = resolve(values.root ?? mainCheckout());
     if (values["dry-run"]) {
-        const counts = await collect({ root, dryRun: true });
-        for (const [kind, c] of Object.entries(counts)) {
-            console.log(`${kind}: ${c.rows} rows in ${c.posts} posts`);
-            if (c.example) console.log(`  example: ${JSON.stringify(c.example).slice(0, 1500)}`);
-        }
+        printDryRun(await collect({ root, dryRun: true }));
         return;
     }
     const url = process.env.HEALTH_API_URL;
@@ -353,7 +358,17 @@ async function main() {
         process.exitCode = 1;
         return;
     }
-    const post = httpPost(url, token);
+    await run(root, httpPost(url, token), values.watch);
+}
+
+function printDryRun(counts) {
+    for (const [kind, c] of Object.entries(counts)) {
+        console.log(`${kind}: ${c.rows} rows in ${c.posts} posts`);
+        if (c.example) console.log(`  example: ${JSON.stringify(c.example).slice(0, 1500)}`);
+    }
+}
+
+async function run(root, post, watch) {
     for (;;) {
         try {
             const counts = await collect({ root, post });
@@ -364,7 +379,7 @@ async function main() {
         } catch (error) {
             log(`pass failed: ${error.message}`);
         }
-        if (!values.watch) return;
+        if (!watch) return;
         await new Promise((r) => setTimeout(r, 60_000));
     }
 }

@@ -15,7 +15,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-import { batches, collect, MAX_BYTES, MAX_ROWS, mapLedger, readToken, scrub } from "./collector.mjs";
+import { batches, collect, fit, MAX_BYTES, MAX_ROWS, mapLedger, readToken, scrub } from "./collector.mjs";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 let root;
@@ -144,7 +144,7 @@ test("batches hold at most 500 rows and 1 MB", () => {
     const big = Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, pad: "x".repeat(300_000) }));
     for (const b of batches(big)) assert.ok(Buffer.byteLength(JSON.stringify({ rows: b })) <= MAX_BYTES);
     const huge = { id: "h", files: [["f".repeat(MAX_BYTES), 1, 0, 0, 1]] };
-    assert.deepEqual(batches([huge]), [[{ id: "h", files: undefined }]]);
+    assert.deepEqual(fit(huge), { id: "h", files: undefined });
 });
 
 test("scrub keeps the repository part of a path and hides the rest", () => {

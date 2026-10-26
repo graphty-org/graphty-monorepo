@@ -6270,6 +6270,87 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.equal(unreachable.out, "");
     });
 
+    it("trusts the passkeys.json master already has, and still judges visual-baselines/ against nightly's", () => {
+        const run = steps.verdict.steps.find((st) => st.id === "gate").run;
+        const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+        const scenario = (changeBaselines) => {
+            const dir = mkdtempSync(join(TMP, "nightly-passkey-"));
+            const bin = join(dir, "bin");
+            const repo = join(dir, "repo");
+            mkdirSync(bin);
+            mkdirSync(join(repo, "visual-review", "trusted"), { recursive: true });
+            mkdirSync(join(repo, "visual-baselines"));
+            mkdirSync(join(dir, "tmp"));
+            // only the network is faked: channel/nightly exists, and the fetch is already done
+            writeFileSync(
+                join(bin, "git"),
+                `#!/bin/sh\ncase "$1" in ls-remote|fetch) exit 0 ;; esac\nexec ${realGit} "$@"\n`,
+                {
+                    mode: 0o755,
+                },
+            );
+            // a stand-in gate with the real one's two rules: a passkeys.json change refuses, and so does a
+            // changed visual-baselines/ (with no approval to check here)
+            writeFileSync(
+                join(repo, "visual-review", "trusted", "cli.mjs"),
+                [
+                    'import { execFileSync } from "node:child_process";',
+                    "const a = process.argv;",
+                    'const base = a[a.indexOf("--base") + 1], head = a[a.indexOf("--head") + 1];',
+                    'const diff = (p) => execFileSync("git", ["diff", "--name-only", base, head, "--", p], { encoding: "utf8" }).trim();',
+                    'if (diff("visual-review/passkeys.json") || diff("visual-baselines")) {',
+                    '    console.log("Review them with `visual-review serve` (the README).");',
+                    "    process.exit(1);",
+                    "}",
+                    "",
+                ].join("\n"),
+            );
+            const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+            git("init", "-q");
+            git("config", "user.name", "t");
+            git("config", "user.email", "t@t");
+            git("config", "commit.gpgsign", "false");
+            writeFileSync(join(repo, "visual-review", "passkeys.json"), '{"keys":["old"]}\n');
+            writeFileSync(join(repo, "visual-baselines", "a.txt"), "a\n");
+            git("add", "-A");
+            git("commit", "-qm", "nightly");
+            git("update-ref", "refs/remotes/origin/channel/nightly", "HEAD");
+            // master after nightly: an administrator-merged key change
+            writeFileSync(join(repo, "visual-review", "passkeys.json"), '{"keys":["new"]}\n');
+            if (changeBaselines) writeFileSync(join(repo, "visual-baselines", "a.txt"), "b\n");
+            git("commit", "-qam", "candidate");
+            const out = join(dir, "out");
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-c", run], {
+                cwd: repo,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${bin}:${process.env.PATH}`,
+                    SHA: git("rev-parse", "HEAD"),
+                    RUNNER_TEMP: join(dir, "tmp"),
+                    GITHUB_OUTPUT: out,
+                },
+            });
+            return { status: r.status, stderr: r.stderr, out: readFileSync(out, "utf8"), git };
+        };
+        const keyOnly = scenario(false);
+        assert.equal(keyOnly.status, 0, keyOnly.stderr);
+        assert.equal(
+            keyOnly.out,
+            "outcome=success\nscreenshots=unchanged\n",
+            "a key change on master never stalls nightly",
+        );
+        assert.equal(
+            keyOnly.git("rev-parse", "refs/remotes/origin/channel/nightly"),
+            keyOnly.git("rev-parse", "HEAD~1"),
+            "channel/nightly is not moved",
+        );
+        const withBaselines = scenario(true);
+        assert.equal(withBaselines.status, 0, withBaselines.stderr);
+        assert.equal(withBaselines.out, "outcome=failure\n", "changed baselines are still judged against nightly's");
+    });
+
     it("waits while a publish hold is open", () => {
         const dir = mkdtempSync(join(TMP, "nightly-decide-"));
         mkdirSync(join(dir, "tools"));

@@ -161,7 +161,9 @@ type Story = StoryObj<ARFArgs>;
  * The play function animates from random positions to the optimized arrangement.
  */
 export const ARF: Story = {
-    render: (args) => createARFStory(args),
+    render: () => {
+        throw new Error("story gate proof");
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 

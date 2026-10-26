@@ -789,6 +789,43 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
     return items.filter((_, i) => keep[i]);
 }
 
+/** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
+async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
+    const d = c.d;
+    let ok = true;
+    ok &&= await c.part("github", "collector", async () => {
+        const repos = await activeRepos(c, gh);
+        const masterList = (
+            (
+                await gh.rest<RunsPage>(
+                    `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
+                )
+            )?.workflow_runs ?? []
+        ).map((run) => ({ run, repo: d.repo }));
+        const xs = await collectRuns(c, gh, repos, []);
+        const cancels = await classify(gh, [...xs, ...masterList]);
+        await writeRuns(c, xs, cancels);
+        c.runs = xs;
+        await runners(c, xs, elapsed);
+        await master(c, masterList, cancels, elapsed);
+    });
+    if (hourly || (await c.cursor("quarantine")) === undefined)
+        await c.part("repo files", "collector", () => repoFiles(c, gh));
+    ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+    let heldSince = 0;
+    ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
+    await c.part("releases", "release", () => releases(c, gh, heldSince));
+    if (hourly) {
+        await c.part("stress", "stress", () => stress(c, gh));
+        await c.part("hosts", "hosts", () => hosts(c, gh));
+        await c.part("npm", "npm", () => npm(c, gh));
+    }
+    const builds = d.deploy;
+    if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
+    if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
+    if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
+}
+
 export async function collect(d: Deps): Promise<CycleReport> {
     const c = new Cycle(d);
     const prev = Number((await c.cursor("cycle")) ?? 0);
@@ -800,40 +837,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
     if (daily) await c.part("costs", "billing", () => costs(c));
 
     const gh = d.gh;
-    if (gh) {
-        let ok = true;
-        ok &&= await c.part("github", "collector", async () => {
-            const repos = await activeRepos(c, gh);
-            const masterList = (
-                (
-                    await gh.rest<RunsPage>(
-                        `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
-                    )
-                )?.workflow_runs ?? []
-            ).map((run) => ({ run, repo: d.repo }));
-            const xs = await collectRuns(c, gh, repos, []);
-            const cancels = await classify(gh, [...xs, ...masterList]);
-            await writeRuns(c, xs, cancels);
-            c.runs = xs;
-            await runners(c, xs, elapsed);
-            await master(c, masterList, cancels, elapsed);
-        });
-        if (hourly || (await c.cursor("quarantine")) === undefined)
-            await c.part("repo files", "collector", () => repoFiles(c, gh));
-        ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
-        let heldSince = 0;
-        ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
-        await c.part("releases", "release", () => releases(c, gh, heldSince));
-        if (hourly) {
-            await c.part("stress", "stress", () => stress(c, gh));
-            await c.part("hosts", "hosts", () => hosts(c, gh));
-            await c.part("npm", "npm", () => npm(c, gh));
-        }
-        const builds = d.deploy;
-        if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
-        if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
-        if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
-    }
+    if (gh) await collectGitHub(c, gh, elapsed, hourly);
 
     const items = await changed(d.store, c.items);
     await putRaw(d.store, items, d.now);

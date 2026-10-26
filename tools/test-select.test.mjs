@@ -38,6 +38,8 @@ import {
     selectShards,
     selectStories,
     storyBins,
+    STORY_BIN_LIMIT_MS,
+    STORY_FILE_MS,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -1893,7 +1895,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
         })[dir] ?? [];
 
-    it("packs selected story files into bins of at most 8 minutes by their storybook family's times", () => {
+    it("packs selected story files into bins of at most 4 minutes by their storybook family's times", () => {
         const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
         const durations = {
             "graphty-element-storybook": {
@@ -1905,11 +1907,27 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.deepEqual(
             bins.map((b) => [b.name, b.files, b.ms]),
             [
-                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
-                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("counts a file with no longer recorded time at its project's capture rate", () => {
+        const files = Array.from({ length: 7 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
+        const bins = storyBins([entry("graph-io-fidelity", "files", files)], projects, list, {
+            "graph-io-storybook": { [files[0]]: 1_000 },
+        });
+        // 40 s a file: six fit in 4 minutes, the seventh starts a second bin
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files.length, b.ms]),
+            [
+                ["graph-io-fidelity-1", 6, 6 * STORY_FILE_MS["graph-io-fidelity"]],
+                ["graph-io-fidelity-2", 1, STORY_FILE_MS["graph-io-fidelity"]],
+            ],
+        );
+        assert.ok(6 * STORY_FILE_MS["graph-io-fidelity"] <= STORY_BIN_LIMIT_MS);
     });
 
     it("bins every story file of a project selected whole, and nothing for one selected none", () => {

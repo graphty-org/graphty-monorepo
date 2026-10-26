@@ -457,8 +457,8 @@ describe("ingest: what it stores", () => {
     });
 
     it("answers 429 past the daily write budget and writes nothing", async () => {
-        const { quotaKey } = await import("../src/model/items.ts");
-        mem.items.set(`${quotaKey(NOW).pk}\u0000-`, { ...quotaKey(NOW), rows: 300_000 });
+        const { DAILY_ROW_LIMIT, quotaKey } = await import("../src/model/items.ts");
+        mem.items.set(`${quotaKey(NOW).pk}\u0000-`, { ...quotaKey(NOW), rows: DAILY_ROW_LIMIT });
         const res = await (await ingest())(event("/v1/invocations", invocation()));
         expect(res.statusCode).toBe(429);
         expect([...mem.items.keys()].filter((k) => k.startsWith("R#"))).toEqual([]);

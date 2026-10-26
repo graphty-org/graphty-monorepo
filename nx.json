@@ -117,8 +117,8 @@
             "!{projectRoot}/benchmarks/**/*",
             "!{workspaceRoot}/eslint.config.js",
             "!{workspaceRoot}/vitest.shared.config.ts",
-            "!{workspaceRoot}/vitest.ci-junit.mjs",
-            "!{workspaceRoot}/vitest.browser-coverage-setup.ts"
+            "!{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.ci-junit.d.mts"
         ],
         "sharedGlobals": [
             "{workspaceRoot}/tsconfig.base.json",

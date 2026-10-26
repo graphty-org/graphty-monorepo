@@ -42,6 +42,15 @@ import {
     type Tag,
 } from "./parse.js";
 import { ISSUE_QUERY, PR_QUERY, SUITE_QUERY, TAG_QUERY } from "./queries.js";
+import {
+    failureCause,
+    nextHolders,
+    nextShared,
+    SNAPSHOT,
+    supersededRuns,
+    type HoldersSnapshot,
+    type SharedSnapshot,
+} from "./snapshots.js";
 
 export interface Deps {
     store: Store;
@@ -99,6 +108,8 @@ const STEP_WORKFLOWS = new Set(["release.yml", "restricted-cpu-stress.yml"]);
 class Cycle {
     readonly items: RawItem[] = [];
     readonly errors: Record<string, string> = {};
+    /** Unfinished runs of this cycle, for the superseded list (pull requests part). */
+    openRuns?: GhRun[];
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -283,15 +294,28 @@ async function classify(
     return out;
 }
 
-function writeRuns(
+async function writeRuns(
     c: Cycle,
     xs: Collected[],
     cancels: Map<number, { cls: RunItem["cancelClass"]; hung: Set<string> }>,
 ) {
+    // The shared set of the last cycle (the pull requests part runs after this one).
+    const shared = new Set(
+        (await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined))?.rows
+            .filter((r) => r.end === undefined)
+            .map((r) => r.check),
+    );
     for (const { run, repo, jobs } of xs) {
         const cancel = cancels.get(run.id);
-        c.items.push(toRunItem(run, repo, cancel?.cls ? { cancelClass: cancel.cls } : {}));
         const workflow = workflowFile(run.path);
+        const cause =
+            workflow === "ci.yml" && run.status === "completed"
+                ? failureCause(run, jobs ?? [], cancel?.hung ?? new Set(), shared)
+                : undefined;
+        c.items.push(
+            toRunItem(run, repo, { ...(cancel?.cls ? { cancelClass: cancel.cls } : {}), ...(cause ? { cause } : {}) }),
+        );
+        if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
             c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false));
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
@@ -303,6 +327,16 @@ function writeRuns(
                 if (llm) c.items.push(llm);
             }
         }
+    }
+}
+
+/** A rerun that passed makes its first attempt's "the change" failure flaky (reclassified as evidence arrives). */
+async function flaky(c: Cycle, run: GhRun, repo: string) {
+    const first = (await c.d.store.get(homeKey({ kind: "run", id: `${repo}/${run.id}`, attempt: 1 }))) as
+        RunItem | undefined;
+    if (first?.cause === "change") {
+        const { pk: _pk, sk: _sk, ttl: _ttl, ...item } = first as RunItem & { pk: string; sk: string; ttl?: number };
+        c.items.push({ ...item, cause: "flaky" });
     }
 }
 
@@ -323,6 +357,9 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
+    const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
+    await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
+    c.openRuns = open.map((x) => x.run);
 }
 
 /** Master's state (4.1) from the newest ci.yml push runs on master. */
@@ -352,6 +389,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     const since = Date.parse((await c.cursor("prs")) ?? iso(c.now - DAY));
     let cursor: string | null = null;
     let open: GqlPr[] = [];
+    const recentSeen: GqlPr[] = [];
     for (let page = 0; page < 20; page++) {
         type Page = { nodes: GqlPr[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
         const data: { repository: { open: Page; recent: Page } } = await gh.graphql(PR_QUERY, {
@@ -364,6 +402,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
         for (const p of newer) c.items.push(toPrItem(p, c.d.repo));
+        recentSeen.push(...newer);
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
@@ -374,6 +413,13 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     c.o("pr.automerge_stuck", s.autoMergeStuck);
     c.o("pr.screenshot_backlog_ms", s.screenshotBacklogMs);
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
+    const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);
+    await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now));
+    if (c.openRuns) {
+        const sup = supersededRuns(c.openRuns, open, c.now);
+        await c.setJson(SNAPSHOT.superseded, sup);
+        c.o("ci.superseded_running", sup.rows.length);
+    }
     await setCursor(c.d.store, "prs", iso(c.now), c.now);
 }
 
@@ -630,7 +676,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
             ).map((run) => ({ run, repo: d.repo }));
             const xs = await collectRuns(c, gh, repos, []);
             const cancels = await classify(gh, [...xs, ...masterList]);
-            writeRuns(c, xs, cancels);
+            await writeRuns(c, xs, cancels);
             await runners(c, xs, elapsed);
             await master(c, masterList, cancels, elapsed);
         });

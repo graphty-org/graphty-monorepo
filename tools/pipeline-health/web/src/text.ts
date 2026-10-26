@@ -574,6 +574,9 @@ const S: Record<string, (p: P) => string> = {
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
     "section.no_events": () => "Nothing recorded in this range.",
     "master.no_red_span": () => "No red span in the range.",
+    "master.no_shared": () => "No check failing in 3 or more pull requests in the last 24 h.",
+    "runners.no_holders": () => "No job running or queued now.",
+    "runners.no_superseded": () => "No superseded run still running.",
     "data.all_set_up": () => "Every member has a writer.",
     // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>

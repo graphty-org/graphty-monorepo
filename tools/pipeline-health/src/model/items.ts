@@ -62,6 +62,8 @@ export interface RunItem extends RawBase {
     conclusion?: string; // success | failure | cancelled | timed_out | skipped | startup_failure | ...
     /** For a cancelled run (4, "Master state"): never from timing. */
     cancelClass?: "superseded" | "by-hand" | "red";
+    /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
+    cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
     /** The run's kind for its duration budget (`pr`, `pr-wide`), and that budget. */
     runKind?: string;
     budgetMs?: number;

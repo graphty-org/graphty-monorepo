@@ -3,6 +3,7 @@
 
 import type { CostItem, IssueItem, JobItem, PullRequestItem, RunItem, StepItem } from "../model/items.js";
 import { DAY, MIN } from "../model/items.js";
+import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // The REST shapes the collector reads (only the fields it uses).
@@ -287,6 +288,7 @@ export interface GqlCheck {
     context?: string;
     state?: string;
     createdAt?: string;
+    startedAt?: string;
 }
 
 export interface GqlPr {
@@ -304,7 +306,15 @@ export interface GqlPr {
     labels: { nodes: { name: string }[] };
     readyEvents: { nodes: { __typename: string; createdAt?: string }[] };
     /** Only on the open page (the recent page leaves checks out). */
-    commits?: { nodes: { commit: { statusCheckRollup: { state: string; contexts: { nodes: GqlCheck[] } } | null } }[] };
+    commits?: {
+        nodes: {
+            commit: {
+                oid?: string;
+                committedDate?: string;
+                statusCheckRollup: { state: string; contexts: { nodes: GqlCheck[] } } | null;
+            };
+        }[];
+    };
 }
 
 /** Labels that keep auto-merge off by rule, so the pull request waits on the owner. */
@@ -341,17 +351,6 @@ export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
     };
 }
 
-/** Checks that restate other checks or judge metadata (4, "Excluded checks"). */
-const EXCLUDED = new Set([
-    "All Checks Pass",
-    "Queue Checks Pass",
-    "Lint PR Title",
-    "Link PR Issue",
-    "Visual report",
-    "Draft state",
-]);
-const FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
-
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
@@ -374,7 +373,6 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
         if (armed >= 6 * 60 * MIN || (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS")) s.autoMergeStuck++;
-        const checks = new Set<string>();
         for (const c of rollup?.contexts.nodes ?? []) {
             if (
                 c.__typename === "StatusContext" &&
@@ -383,9 +381,9 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
                 c.createdAt
             )
                 s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, nowMs - Date.parse(c.createdAt));
-            if (c.__typename === "CheckRun" && c.name && !EXCLUDED.has(c.name) && FAILED.has(c.conclusion ?? ""))
-                checks.add(family(c.name) ?? c.name);
         }
+        // An aggregator failing alone counts too (4, "Excluded checks").
+        const checks = new Set(failingChecks(p).map((c) => c.check));
         for (const c of checks) failing.set(c, (failing.get(c) ?? 0) + 1);
     }
     s.maxFailingSameCheck = Math.max(0, ...failing.values());

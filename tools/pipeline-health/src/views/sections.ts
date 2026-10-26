@@ -25,6 +25,12 @@ import { SHARD_BASE_MS } from "../model/metrics.js";
 import { getCursor } from "../model/raw.js";
 import { emptyAgg, mergeAgg } from "../model/rollup.js";
 import { type MemberStatus } from "../sla/engine.js";
+import {
+    type HoldersSnapshot,
+    type SharedSnapshot,
+    SNAPSHOT,
+    type SupersededSnapshot,
+} from "../collector/snapshots.js";
 import { iso, type Reads, reasonFact, sourceState, SPEC } from "./members.js";
 
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
@@ -447,11 +453,152 @@ export async function dimBars(
     return { kind: "bars", id, groups: [{ items }] };
 }
 
+/** A snapshot the collector keeps in a cursor (collector/snapshots.ts); absent, unreadable or over 1 h old: none. */
+async function snapshot<T extends { at: number }>(reads: Reads, name: string): Promise<T | undefined> {
+    const raw = await getCursor(reads.store, name);
+    try {
+        const v = raw ? (JSON.parse(raw) as T) : undefined;
+        return v && reads.now - v.at <= 60 * MIN ? v : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+const prList = (ns: number[]): Cell => ({ t: "list", sep: "space", items: ns.map((n) => ({ t: "pr", n })) });
+
+/**
+ * Master's shared failures (4.1): the checks failing in 3 or more open pull requests, or failing alone, now and
+ * in the last 24 h.
+ * @param reads
+ */
+export async function shared(reads: Reads): Promise<Section> {
+    const snap = await snapshot<SharedSnapshot>(reads, SNAPSHOT.shared);
+    if (!snap) {
+        return notCollected("shared");
+    }
+    if (!snap.rows.length) {
+        return { kind: "empty", id: "shared", fact: f("master.no_shared") };
+    }
+    const rows: TableRow[] = snap.rows
+        .toSorted((a, b) => Number(a.end !== undefined) - Number(b.end !== undefined) || b.since - a.since)
+        .map((r) => {
+            const name: Cell = { t: "name", v: r.check, bold: true };
+            const sub = r.alone
+                ? f("check.failed_alone")
+                : r.bins > 1
+                  ? f("check.family", { bins: r.bins })
+                  : undefined;
+            const main: Cell = r.end === undefined ? { t: "mark", state: "bad", cell: name } : name;
+            return {
+                ...(r.end === undefined ? {} : { past: true }),
+                cells: {
+                    check: sub ? { t: "sub", main, sub: { t: "fact", fact: sub } } : main,
+                    prs: prList(r.prs),
+                    since:
+                        r.end === undefined
+                            ? { t: "time", at: iso(r.since) }
+                            : { t: "span", start: iso(r.since), end: iso(r.end) },
+                    suspects: r.suspects.length
+                        ? {
+                              t: "list",
+                              sep: "line",
+                              items: r.suspects.map((m) => ({
+                                  t: "fact",
+                                  fact: f("suspect", { pr: m.pr, title: m.title }),
+                              })),
+                          }
+                        : { t: "fact", fact: f("cause.unknown") },
+                    issue: none,
+                },
+            };
+        });
+    return { kind: "table", id: "shared", rows };
+}
+
+const CAUSES = ["shared_check", "shared_aggregator", "change", "flaky", "infrastructure"] as const;
+
+/**
+ * Why first attempts of pull request runs failed (4, "Failure cause"), counted over the range.
+ * @param reads
+ * @param range
+ */
+export async function causes(reads: Reads, range: Range): Promise<Section> {
+    const dims = (await reads.window("ci.first_attempt_cause", range)).total.dims ?? {};
+    const suites = Object.values(dims).reduce((n, a) => n + a.n, 0);
+    if (!suites) {
+        return { kind: "empty", id: "causes", fact: f("section.no_events") };
+    }
+    const items = CAUSES.map((c) => ({
+        label: { t: "label", code: `cause.${c}` } as Cell,
+        n: dims[c]?.n ?? 0,
+        unit: "count" as const,
+        ...(c.startsWith("shared") ? { tone: "bad" as const } : {}),
+    }));
+    return { kind: "bars", id: "causes", sub: f("ci.causes.sub", { suites }), groups: [{ items }] };
+}
+
+/**
+ * Who holds the runners now (4.3): running and queued jobs by workflow and event, and runs with no job yet.
+ * @param reads
+ */
+export async function holders(reads: Reads): Promise<Section> {
+    const snap = await snapshot<HoldersSnapshot>(reads, SNAPSHOT.holders);
+    if (!snap) {
+        return notCollected("holders");
+    }
+    const all = Object.entries(snap.holders);
+    const group = (k: "running" | "queued", head: string) => {
+        const items = all
+            .filter(([, h]) => h[k] > 0)
+            .map(([label, h]) => ({
+                label: { t: "name", v: label } as Cell,
+                ...(k === "running" && h.macos
+                    ? { detail: { t: "fact", fact: f("runners.macos", { jobs: h.macos }) } as Cell }
+                    : {}),
+                n: h[k],
+                unit: "jobs" as const,
+            }))
+            .sort((a, b) => b.n - a.n);
+        return { head: f(head, { jobs: items.reduce((n, i) => n + i.n, 0) }), items };
+    };
+    const groups = [group("running", "runners.running_now"), group("queued", "runners.queued_now")].filter(
+        (g) => g.items.length,
+    );
+    const notes = Object.entries(snap.noJobs).map(([key, q]) => {
+        const at = key.lastIndexOf(", ");
+        return f("runners.queued_runs", {
+            runs: q.runs,
+            workflow: key.slice(0, at),
+            event: key.slice(at + 2),
+            since: iso(q.since),
+        });
+    });
+    if (!groups.length && !notes.length) {
+        return { kind: "empty", id: "holders", fact: f("runners.no_holders") };
+    }
+    return { kind: "bars", id: "holders", groups, ...(notes.length ? { notes } : {}) };
+}
+
+/**
+ * Pull request runs still running after a newer commit was pushed (4.3).
+ * @param reads
+ */
+export async function superseded(reads: Reads): Promise<Section> {
+    const snap = await snapshot<SupersededSnapshot>(reads, SNAPSHOT.superseded);
+    if (!snap) {
+        return notCollected("superseded");
+    }
+    if (!snap.rows.length) {
+        return { kind: "empty", id: "superseded", fact: f("runners.no_superseded") };
+    }
+    const rows: TableRow[] = snap.rows.map((r) => ({
+        cells: { run: { t: "name", v: r.workflow }, pr: { t: "pr", n: r.pr }, newer: { t: "ago", at: iso(r.newerAt) } },
+    }));
+    return { kind: "table", id: "superseded", rows };
+}
+
 export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {
-    master: ["shared"],
     "pull-requests": ["time", "owner"],
-    ci: ["causes"],
-    runners: ["holders", "superseded"],
     flaky: ["quarantine"],
     releases: ["lanes", "trains", "workflows"],
 };

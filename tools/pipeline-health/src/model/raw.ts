@@ -1,0 +1,116 @@
+// Writing raw items, the daily write budget, cursors and source health. Ingest and the collector call these; the
+// rollups are recomputed from what they stored (rollup.ts), so nothing here counts anything.
+
+import {
+    copyKey,
+    cursorKey,
+    DAILY_ROW_LIMIT,
+    DAY,
+    dirtyKey,
+    floorTo,
+    homeKey,
+    KEEP_DAYS,
+    quotaKey,
+    sourceKey,
+    TIME_FIELDS,
+    ttlAt,
+    type CursorItem,
+    type RawItem,
+    type SourceItem,
+} from "./items.js";
+import type { BatchOp, Item, Key, Store } from "./store.js";
+
+const timesOf = (r: RawItem): [string, number][] =>
+    TIME_FIELDS[r.kind].flatMap((f) => {
+        const v = (r as unknown as Record<string, unknown>)[f];
+        return typeof v === "number" ? [[f, v] as [string, number]] : [];
+    });
+
+/**
+ * Stores raw items idempotently: the same id and attempt replaces what was there. Each item is written to its home
+ * and copied into the 5-minute bucket of each of its times; every bucket touched (and any a changed time left) is
+ * marked dirty. Returns the number of items written.
+ */
+export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
+    const ops: BatchOp[] = [];
+    const dirty = new Set<number>();
+    for (const r of items) {
+        if (!TIME_FIELDS[r.kind]) throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
+        if (typeof r.id !== "string" || !r.id || !Number.isInteger(r.attempt))
+            throw new Error("id and attempt required");
+        const keep = KEEP_DAYS[r.kind];
+        const times = timesOf(r);
+        const first = times.length ? Math.min(...times.map(([, t]) => t)) : nowMs;
+        const ttl = keep === undefined ? undefined : ttlAt(first + keep * DAY);
+        const body = { ...r, ...(ttl === undefined ? {} : { ttl }) };
+        const home = homeKey(r);
+        // A time that changed leaves a copy behind in its old bucket: remove it and recompute that bucket.
+        const old = (await store.get(home)) as (Item & RawItem) | undefined;
+        if (old) {
+            const now = new Map(times);
+            for (const [f, t] of timesOf(old)) {
+                if (floorTo(now.get(f) ?? NaN, "5m") === floorTo(t, "5m")) continue;
+                ops.push({ delete: copyKey(r, f, t) });
+                dirty.add(floorTo(t, "5m"));
+            }
+        }
+        ops.push({ put: { ...body, ...home } });
+        for (const [f, t] of times) {
+            ops.push({ put: { ...body, ...copyKey(r, f, t), field: f } });
+            dirty.add(floorTo(t, "5m"));
+        }
+    }
+    for (const start of dirty) ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
+    await store.batch(ops);
+    return items.length;
+}
+
+/**
+ * Adds `rows` to today's count under a condition, so the day never passes `limit` (10.5). False when it would: the
+ * caller answers 429 and writes nothing.
+ */
+export async function takeQuota(store: Store, rows: number, nowMs: number, limit = DAILY_ROW_LIMIT): Promise<boolean> {
+    if (rows > limit) return false;
+    const done = await store.update(
+        quotaKey(nowMs),
+        { add: { rows }, set: { ttl: ttlAt(nowMs + 8 * DAY) } },
+        { field: "rows", op: "<=", value: limit - rows, orNotExists: true },
+    );
+    return done !== undefined;
+}
+
+export async function quotaUsed(store: Store, nowMs: number): Promise<number> {
+    return ((await store.get(quotaKey(nowMs)))?.rows as number | undefined) ?? 0;
+}
+
+export async function getCursor(store: Store, name: string): Promise<string | undefined> {
+    return ((await store.get(cursorKey(name))) as CursorItem | undefined)?.value;
+}
+
+export async function setCursor(store: Store, name: string, value: string, nowMs: number): Promise<void> {
+    await store.put({ ...cursorKey(name), value, at: nowMs });
+}
+
+/** Records one write (or failed attempt) of a source, for its age and error (section 9). */
+export async function recordSource(
+    store: Store,
+    source: string,
+    nowMs: number,
+    result: { ok: true } | { ok: false; error: string },
+): Promise<void> {
+    const key: Key = sourceKey(source);
+    const old = (await store.get(key)) as SourceItem | undefined;
+    const item: SourceItem = {
+        ...key,
+        source,
+        firstAt: old?.firstAt ?? nowMs,
+        lastAt: nowMs,
+        ...(old?.lastOkAt === undefined ? {} : { lastOkAt: old.lastOkAt }),
+    };
+    if (result.ok) item.lastOkAt = nowMs;
+    else {
+        item.error = result.error;
+        item.errorSince = old?.error ? (old.errorSince ?? nowMs) : nowMs;
+    }
+    await store.put(item);
+}

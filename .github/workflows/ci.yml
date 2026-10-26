@@ -1891,6 +1891,10 @@ jobs:
                       echo "::error::[BROKEN] $PROJECT: the capture wrote no results.json"
                       exit 1
                   fi
+                  # the base branch's verdict (the swap above); a base older than story-outcomes.mjs has none, so
+                  # the pull request's own copy judges until the base has it
+                  m=visual-review/capture/story-outcomes.mjs
+                  [[ -f "$m" ]] || git show "HEAD:$m" > "$m"
                   F="$f" node --input-type=module -e '
                       import { readFileSync } from "node:fs";
                       import { blockingOn, storyVerdict } from "./visual-review/capture/story-outcomes.mjs";

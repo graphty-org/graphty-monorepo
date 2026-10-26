@@ -215,35 +215,46 @@ interface FlakySuite {
  * or an earlier invocation's) is left as it is. The cursor holds the next older day; a stop mid-day redoes that day.
  */
 async function flakyTests(c: Ctx, first: number): Promise<void> {
-    const repo = c.o.repo;
     const at = await getCursor(c.o.store, FLAKY_CURSOR);
     for (let day = at ? Date.parse(at) : Math.floor(c.o.now / DAY) * DAY; day >= first; day -= DAY) {
-        const runs: GhRun[] = [];
-        for (let page = 1; page <= 10; page++) {
-            const res = await c.get<{ workflow_runs: GhRun[] }>(
-                `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=100&page=${page}`,
-            );
-            const list = res?.workflow_runs ?? [];
-            runs.push(...list.filter((x) => SHARD_WORKFLOWS.has(workflowFile(x.path)) && x.check_suite_node_id));
-            if (list.length < 100) break;
-        }
-        const found = new Map<string, TestItem>();
-        for (let i = 0; i < runs.length; i += 10) {
-            const batch = runs.slice(i, i + 10);
-            await c.gate();
-            const data = await c.o.gh.graphql<{ nodes: (FlakySuite | null)[] }>(FLAKY_SUITE_QUERY, {
-                ids: batch.map((x) => x.check_suite_node_id),
-            });
-            for (const [k, suite] of data.nodes.entries())
-                for (const t of await suiteFlaky(c, repo, batch[k], suite)) found.set(t.id, t);
-        }
+        const runs = await shardRuns(c, day);
+        const found = await runsFlaky(c, runs);
         const fresh: TestItem[] = [];
-        for (const t of found.values()) if (!(await c.o.store.get(homeKey(t)))) fresh.push(t);
+        for (const t of found) if (!(await c.o.store.get(homeKey(t)))) fresh.push(t);
         await c.write(fresh);
         c.r.flaky += fresh.length;
-        c.log(`flaky ${isoDay(day)}: ${runs.length} runs, ${found.size} detections, ${fresh.length} new`);
+        c.log(`flaky ${isoDay(day)}: ${runs.length} runs, ${found.length} detections, ${fresh.length} new`);
         await setCursor(c.o.store, FLAKY_CURSOR, isoDay(day - DAY), c.o.now);
     }
+}
+
+/** One day's runs of the workflows that run test shards. */
+async function shardRuns(c: Ctx, day: number): Promise<GhRun[]> {
+    const runs: GhRun[] = [];
+    for (let page = 1; page <= 10; page++) {
+        const res = await c.get<{ workflow_runs: GhRun[] }>(
+            `repos/${c.o.repo}/actions/runs?created=${isoDay(day)}&per_page=100&page=${page}`,
+        );
+        const list = res?.workflow_runs ?? [];
+        runs.push(...list.filter((x) => SHARD_WORKFLOWS.has(workflowFile(x.path)) && x.check_suite_node_id));
+        if (list.length < 100) break;
+    }
+    return runs;
+}
+
+/** The runs' flaky detections, ten check suites a query, one per test id. */
+async function runsFlaky(c: Ctx, runs: GhRun[]): Promise<TestItem[]> {
+    const found = new Map<string, TestItem>();
+    for (let i = 0; i < runs.length; i += 10) {
+        const batch = runs.slice(i, i + 10);
+        await c.gate();
+        const data = await c.o.gh.graphql<{ nodes: (FlakySuite | null)[] }>(FLAKY_SUITE_QUERY, {
+            ids: batch.map((x) => x.check_suite_node_id),
+        });
+        for (const [k, suite] of data.nodes.entries())
+            for (const t of await suiteFlaky(c, c.o.repo, batch[k], suite)) found.set(t.id, t);
+    }
+    return [...found.values()];
 }
 
 /** One check suite's flaky detections; a re-run's check runs get their attempt from the run's jobs (job id = check run id). */

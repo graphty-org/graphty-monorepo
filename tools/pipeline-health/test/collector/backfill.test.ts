@@ -3,7 +3,14 @@
 import { describe, expect, it } from "vitest";
 import { backfill, FLAKY_CURSOR, PRS_CURSOR, runsCursor, type BackfillOptions } from "../../src/collector/backfill.js";
 import { GitHub } from "../../src/collector/github.js";
-import { toJobItem, toRunItem, workflowFile, type GhJob, type GhRun } from "../../src/collector/parse.js";
+import {
+    flakyTestItem,
+    toJobItem,
+    toRunItem,
+    workflowFile,
+    type GhJob,
+    type GhRun,
+} from "../../src/collector/parse.js";
 import { runDrill, testHistory } from "../../src/model/drill.js";
 import {
     DAY,
@@ -66,8 +73,10 @@ function fake(
                 const page = Number(u.searchParams.get("page"));
                 return reply({ total_count: day.length, workflow_runs: day.slice((page - 1) * per, page * per) });
             }
-            if (u.pathname === "/graphql" && opts.suites) {
-                const ids = (JSON.parse(String(init?.body)) as { variables: { ids: string[] } }).variables.ids;
+            const ids =
+                opts.suites &&
+                (JSON.parse(String(init?.body ?? "{}")) as { variables?: { ids?: string[] } }).variables?.ids;
+            if (u.pathname === "/graphql" && ids) {
                 return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
             }
             const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
@@ -324,5 +333,126 @@ describe("drill-down indexes", () => {
         await putRaw(store, [{ ...test("draws", NOW - 4 * MIN), outcome: "flaky" }], NOW);
         const again = await testHistory(store, { file: "a.test.ts", test: "draws", range: "7d" }, NOW);
         expect(again!.events.map((e) => e.outcome)).toEqual(["flaky"]);
+    });
+});
+
+describe("the flaky-history phase", () => {
+    type Rec = { runs: GhRun[]; suites: Record<string, Suite> };
+    const rec = fixture<Rec>("flaky-annotations.json");
+    // The recorded runs: two ci.yml runs of 2026-10-25 with real [FLAKY] lines, and one of 2026-10-24 whose only
+    // [FLAKY] lines come from the tool tests in its Checks job (fixtures of test-quarantine.mjs, not CI shards).
+    const flakyRows = (s: MemoryStore) =>
+        [...s.items.values()].filter((i) => i.pk.startsWith("R#test#")) as unknown as (TestItem & {
+            pk: string;
+            sk: string;
+        })[];
+    const opts = (store: MemoryStore, f: ReturnType<typeof fake>) => ({ ...options(store, f), days: 3 });
+
+    it("writes each flaky test of a test shard's check run as the live feed's row, and nothing else", async () => {
+        const store = new MemoryStore();
+        const r = await backfill(opts(store, fake({ runs: rec.runs, suites: rec.suites })));
+        expect(r.flaky).toBe(3);
+        const rows = flakyRows(store).map(({ pk: _pk, sk: _sk, ...t }) => t as unknown as TestItem);
+        const byId = new Map(rows.map((t) => [t.id, t]));
+        // tools/results/client.mjs postFlaky(): invocation `<run>.<attempt>.<GITHUB_JOB>.<shard>.1`, family the shard's
+        expect(
+            byId.get(
+                "40233504823.1.test.graphty-2.1#graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx#src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+            ),
+        ).toMatchObject({
+            kind: "test",
+            id: "40233504823.1.test.graphty-2.1#graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx#src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+            attempt: 1,
+            source: "ci",
+            invocation: "40233504823.1.test.graphty-2.1",
+            family: "graphty",
+            file: "graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+            name: "src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+            outcome: "flaky",
+            status: "fail",
+            signature: "",
+            seenAt: expect.any(Number),
+        });
+        // The story-tests job takes screenshots: its family is `<family>-shots` (run-group.mjs groupFamily()).
+        expect(rows.filter((t) => t.invocation.includes(".story-tests.graphty-storybook."))).toHaveLength(2);
+        expect(rows.every((t) => t.family !== "graphty-storybook")).toBe(true);
+        // The Checks jobs' tool-test lines are not CI shards.
+        expect(rows.some((t) => t.file === "graphty/src/a.test.tsx")).toBe(false);
+        expect(await getCursor(store, FLAKY_CURSOR)).toBe("2026-10-22");
+    });
+
+    it("leaves a row the live feed already wrote as it is, and counts only new ones", async () => {
+        const first = new MemoryStore();
+        await backfill(opts(first, fake({ runs: rec.runs, suites: rec.suites })));
+        const { pk: _pk, sk: _sk, wid: _w, ...one } = flakyRows(first)[0] as unknown as Record<string, unknown>;
+        const item = { ...one, signature: "expected 1 to be 2" } as unknown as TestItem;
+
+        const store = new MemoryStore();
+        await putRaw(store, [item], NOW);
+        const r = await backfill(opts(store, fake({ runs: rec.runs, suites: rec.suites })));
+        expect(r.flaky).toBe(2);
+        expect(flakyRows(store)).toHaveLength(3);
+        expect(await store.get(homeKey(item))).toMatchObject({ signature: "expected 1 to be 2" });
+    });
+
+    it("gives a re-run's check run the attempt of its job", async () => {
+        const run = { ...rec.runs[0], run_attempt: 2 };
+        const jobs = [{ ...masterJobs[0], id: 121291879466, run_id: run.id, run_attempt: 2 }];
+        const store = new MemoryStore();
+        await backfill(opts(store, fake({ runs: [run], suites: rec.suites, jobs: { [run.id]: jobs } })));
+        expect(flakyRows(store).map((t) => t.invocation)).toContain("40233504823.2.test.graphty-2.1");
+    });
+
+    it("a write budget stop after one day has loaded the most recent day's flaky tests", async () => {
+        const [a, b] = rec.runs;
+        // b moved to 2026-10-26 (today), a stays on 2026-10-25: today holds one detection, yesterday two.
+        const runs = [{ ...b, created_at: "2026-10-26T00:10:00Z" }, a];
+        const store = new MemoryStore();
+        const r = await backfill({ ...opts(store, fake({ runs, suites: rec.suites })), rowLimit: 2 });
+        // Today's one detection is written; yesterday's two do not fit the budget of 2 rows.
+        expect(r).toMatchObject({ stopped: "write_budget", flaky: 1 });
+        expect(flakyRows(store).every((t) => t.invocation.startsWith(String(b.id)))).toBe(true);
+        expect(await getCursor(store, FLAKY_CURSOR)).toBe("2026-10-25");
+    });
+});
+
+describe("flakyTestItem", () => {
+    const run = 1;
+    it("reads every line that means failed on try 1 and passed on the retry", () => {
+        // tools/results/run-group.mjs prJudge()'s rewordings of test-quarantine.mjs's [FLAKY] line
+        for (const m of [
+            "[FLAKY-UNRELATED] layout: layout/test/a.test.ts > d > t failed and passed; this pull request did not touch it. Base check: gh workflow run base-check.yml",
+            "[QUARANTINED] layout: layout/test/a.test.ts > d > t failed and passed; issue #12",
+        ])
+            expect(flakyTestItem(m, "Test (small-node)", run, 1, 0)).toMatchObject({
+                file: "layout/test/a.test.ts",
+                name: "d > t",
+                family: "layout",
+                invocation: "1.1.test.layout.1",
+            });
+    });
+
+    it("skips a test that failed both times, other annotations and jobs that are no test shard", () => {
+        const flaky = "[FLAKY] x-1: a.test.ts > t failed and passed on the same inputs, so it does not fail the shard";
+        expect(
+            flakyTestItem("[QUARANTINED] x-1: a.test.ts > t failed again; issue #3", "Test (x-1)", run, 1, 0),
+        ).toBeUndefined();
+        expect(
+            flakyTestItem(
+                "[KNOWN] x-1: a.test.ts > t fails the same way on master abc, issue #3",
+                "Test (x-1)",
+                run,
+                1,
+                0,
+            ),
+        ).toBeUndefined();
+        expect(flakyTestItem(flaky, "Checks", run, 1, 0)).toBeUndefined();
+        expect(flakyTestItem(flaky, "Verify / Test (x-1)", run, 1, 0)).toMatchObject({
+            family: "x",
+            invocation: "1.1.test.x-1.1",
+        });
+        expect(flakyTestItem(flaky, "Restricted CPU (x-1)", run, 1, 0)).toMatchObject({
+            invocation: "1.1.stress.x-1.1",
+        });
     });
 });

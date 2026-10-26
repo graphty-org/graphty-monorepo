@@ -10,6 +10,7 @@ new HealthStack(app, "graphty-health", {
     devOrigin: (app.node.tryGetContext("devOrigin") as string | undefined) || undefined,
 });
 new DeployStack(app, "graphty-health-deploy", {
+    // NOSONAR(S1848): a CDK construct registers itself with its app
     env,
     webhook: String(app.node.tryGetContext("deployWebhook")) === "true",
 });

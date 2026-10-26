@@ -7,12 +7,15 @@
 //
 //   node tools/check-figma-lock.mjs   (pnpm run check:figma-lock; tools/prepush-source-checks.sh, ci.yml's Checks job)
 //
-// Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own, so an approval
-// survives a landing's merge commit and an unapproved commit cannot hide behind an approved one. A merge
+// Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own for each locked file
+// the push changes, so an approval survives a landing's merge commit and an unapproved commit cannot hide
+// behind an approved one. A merge
 // is judged on what it changes beyond its parents, so a conflict resolution that edits a locked file needs
 // the trailer too; a locked file the merge leaves exactly as one parent has it, or exactly as git's own
 // conflict-free merge of the parents makes it, brings nothing new and is not judged (those changes are
-// judged on the commits that made them). An approved commit may also carry `Figma-Approves: <sha>[,
+// judged on the commits that made them). A locked file the push leaves exactly as the base has it is not
+// judged at all, since the push changes nothing in it (a commit's edit that a later commit, such as an
+// owner-approved one already on master, replaced). An approved commit may also carry `Figma-Approves: <sha>[,
 // <sha>...]`, which approves each named commit of the same push (an empty commit the owner adds to approve
 // a commit already made); without its own Figma-Approved line it approves nothing. Commits that are ancestors of APPROVED_BASE -- the design the
 // owner approved, before the lock existed -- are not judged.
@@ -69,11 +72,19 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
     } catch {
         // not in this repository: judge every commit of the push
     }
+    // A locked file the push leaves exactly as the base has it is not judged: the push changes nothing in it.
+    const changed = new Set(
+        git(["-c", "core.quotePath=false", "diff", "--no-relative", "--name-only", "--no-renames", base, "HEAD"])
+            .split("\n")
+            .filter(isLocked),
+    );
+    if (changed.size === 0) return [];
     const log = git([
         "-c",
         "core.quotePath=false",
         "log",
         "--cc",
+        "--no-relative",
         "--name-only",
         "--no-renames",
         `--format=%x01%H %h %s%x02%P%x02%(trailers:key=${TRAILER},valueonly,separator=%x20)%x02%(trailers:key=${APPROVES},valueonly,separator=%x2C)`,
@@ -100,6 +111,7 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
             };
         });
     for (const c of commits) {
+        c.files = c.files.filter((f) => changed.has(f));
         if (c.parents.length > 1 && c.files.length && !c.approved) c.files = newInMerge(git, c, c.files);
     }
     const named = commits.flatMap((c) => c.named);

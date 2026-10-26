@@ -150,5 +150,20 @@
             "n": 0
         }
     ],
-    "sections": []
+    "sections": [
+        {
+            "kind": "empty",
+            "id": "runs",
+            "fact": {
+                "code": "section.no_events"
+            }
+        },
+        {
+            "kind": "empty",
+            "id": "shard-time",
+            "fact": {
+                "code": "section.no_events"
+            }
+        }
+    ]
 }

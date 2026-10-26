@@ -4,14 +4,17 @@
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
+import { gunzipSync } from "node:zlib";
+
+import type { PageId, Range, SlowRange } from "../../web/src/contract.js";
 import { dynamoStore } from "../dynamo.js";
 import { runDrill, testHistory } from "../model/drill.js";
 import type { Store } from "../model/store.js";
-import { readPage, unzip } from "../recompute.js";
+import { type ViewItem, viewKey, type ViewRoute } from "../views/index.js";
 
 const RANGES = new Set(["1h", "6h", "24h"]);
 const SLOW = new Set(["7d", "28d"]);
-const PAGES = new Set([
+const PAGES = new Set<string>([
     "overview",
     "master",
     "pull-requests",
@@ -23,31 +26,36 @@ const PAGES = new Set([
     "data-sources",
     "local-runs",
 ]);
+const KINDS = new Set(["full", "pr-bins"]);
 const ALIAS: Record<string, string> = { local: "local-runs" };
 
 let store: Store | undefined;
 
-/** The read item a request names, or a 4xx reason. */
-export function itemName(
+/** The view a request names, or a 4xx reason. */
+export function routeOf(
     path: string,
     query: Record<string, string | undefined>,
-): string | { status: number; code: string } {
-    if (path === "/v1/status") return "status";
+): ViewRoute | { status: number; code: string } {
+    if (path === "/v1/status") return { kind: "status" };
     const parts = path.split("/").filter(Boolean); // v1 page <page> [<section>]
     if (parts[0] !== "v1" || parts[1] !== "page" || parts.length < 3 || parts.length > 4)
         return { status: 404, code: "unknown_route" };
-    const page = ALIAS[parts[2]] ?? parts[2];
+    const page = (ALIAS[parts[2]] ?? parts[2]) as Exclude<PageId, "overview">;
     if (!PAGES.has(page)) return { status: 404, code: "unknown_page" };
     if (parts.length === 3) {
         const range = query.range ?? (page === "costs" ? "7d" : "1h");
         if (!(page === "costs" ? SLOW : RANGES).has(range)) return { status: 400, code: "bad_range" };
-        return `page/${page}/${range}`;
+        return { kind: "page", page, range: range as Range | SlowRange };
     }
-    const range = query.range ?? "7d";
+    const range = (query.range ?? "7d") as SlowRange;
     if (!SLOW.has(range)) return { status: 400, code: "bad_range" };
     const section = parts[3];
-    if (page === "ci" && section === "shards") return `section/ci/shards/${range}/${query.kind ?? "full"}`;
-    if (page === "flaky" && section === "hotspots") return `section/flaky/hotspots/${range}`;
+    if (page === "ci" && section === "shards") {
+        const runKind = query.kind ?? "full";
+        if (!KINDS.has(runKind)) return { status: 400, code: "bad_kind" };
+        return { kind: "section", page, section, range, runKind };
+    }
+    if (page === "flaky" && section === "hotspots") return { kind: "section", page, section, range };
     return { status: 404, code: "unknown_section" };
 }
 
@@ -60,22 +68,24 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     if (event.rawPath === "/v1/health") return json(200, { ok: true, time: new Date().toISOString() }, "no-store");
     const drill = await drillDown(event);
     if (drill) return drill;
-    const name = itemName(event.rawPath, event.queryStringParameters ?? {});
-    if (typeof name !== "string") return json(name.status, { code: name.code }, "max-age=300");
+    const route = routeOf(event.rawPath, event.queryStringParameters ?? {});
+    if ("status" in route) return json(route.status, { code: route.code }, "max-age=300");
     try {
-        const page = await readPage((store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health")), name);
-        if (!page) return json(503, { code: "no_data" }, "max-age=60");
+        store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
+        const item = (await store.get(viewKey(route))) as ViewItem | undefined;
+        if (!(item?.gz instanceof Uint8Array)) return json(503, { code: "no_data" }, "max-age=60");
+        const gz = Buffer.from(item.gz);
         const gzip = /\bgzip\b/.test(event.headers?.["accept-encoding"] ?? "");
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
                 "cache-control": "public, max-age=60",
-                "last-modified": new Date(page.at).toUTCString(),
+                "last-modified": new Date(item.generated).toUTCString(),
                 vary: "accept-encoding",
                 ...(gzip ? { "content-encoding": "gzip" } : {}),
             },
-            body: gzip ? page.gz.toString("base64") : unzip(page.gz),
+            body: gzip ? gz.toString("base64") : gunzipSync(gz).toString("utf8"),
             isBase64Encoded: gzip,
         };
     } catch (error) {

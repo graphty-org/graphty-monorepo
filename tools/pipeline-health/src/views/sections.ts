@@ -17,7 +17,7 @@ import type {
     TreeNode,
 } from "../../web/src/contract.js";
 import { quantile } from "../model/histogram.js";
-import { type Agg, type Bucket, DAY, floorTo, STEP_MS } from "../model/items.js";
+import { type Agg, type Bucket, DAY, floorTo, MIN, STEP_MS } from "../model/items.js";
 import { SHARD_BASE_MS } from "../model/metrics.js";
 import { emptyAgg, mergeAgg } from "../model/rollup.js";
 import { type MemberStatus } from "../sla/engine.js";
@@ -411,6 +411,38 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
 }
 
 /** The page each section list belongs to, with the ids the page draws (web/src/render.ts). */
+const median = (a: Agg) => (a.hist && quantile(a.hist, 0.5)) ?? 0;
+
+/**
+ * Sorted bars of one metric's dimensions over the range: the median (ms -> min) or the count of events.
+ * @param reads
+ * @param id - the section id
+ * @param metric
+ * @param range
+ * @param as
+ */
+export async function dimBars(
+    reads: Reads,
+    id: string,
+    metric: string,
+    range: Range,
+    as: "median" | "n",
+): Promise<Section> {
+    const { total } = await reads.window(metric, range);
+    const items = Object.entries(total.dims ?? {})
+        .map(([dim, a]) => ({
+            label: { t: "name", v: dim } as Cell,
+            n: round(as === "n" ? a.n : median(a) / MIN),
+            unit: as === "n" ? ("count" as const) : ("min" as const),
+        }))
+        .filter((i) => i.n > 0)
+        .sort((a, b) => b.n - a.n);
+    if (!items.length) {
+        return { kind: "empty", id, fact: f("section.no_events", { metric }) };
+    }
+    return { kind: "bars", id, groups: [{ items }] };
+}
+
 export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {
     master: ["shared"],
     "pull-requests": ["time", "owner"],

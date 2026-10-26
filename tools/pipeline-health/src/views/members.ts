@@ -21,7 +21,7 @@ import type {
 import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, windowValue, type WindowName } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
-import type { MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
+import type { Measure, MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
 import {
     type Evaluation,
     measureValue,
@@ -138,6 +138,25 @@ export const SPEC: Record<string, Spec> = {
     "data.collector": { id: "data-sources.collector", unit: "min", k: toMin, ago: true, link: "/data-sources/sources" },
     "data.rate_limit": { id: "data-sources.app_rate", unit: "pct", k: PCT, link: "/data-sources/sources" },
     "data.write_budget": { id: "data-sources.write_budget", unit: "pct", k: PCT, link: "/data-sources/sources" },
+};
+
+/**
+ * The Local runs members (section 9): informational, never judged, so they have no SLA member; their values are
+ * read from the local writer's rollups here.
+ */
+export const LOCAL: Record<string, { measure: Measure; spec: Spec }> = {
+    "local-runs.local_vs_ci": {
+        measure: { type: "rate", metric: "local.runs" },
+        spec: { id: "local-runs.local_vs_ci", unit: "pct", k: PCT, link: "/ci/local-runs" },
+    },
+    "local-runs.shard_time": {
+        measure: { type: "median", metric: "local.shard_time" },
+        spec: { id: "local-runs.shard_time", unit: "min", k: toMin, link: "/ci/local-runs" },
+    },
+    "local-runs.slot_waits": {
+        measure: { type: "p90", metric: "local.slot_wait" },
+        spec: { id: "local-runs.slot_waits", unit: "min", k: toMin, link: "/ci/local-runs" },
+    },
 };
 
 /** The engine's category ids, which the config spells with underscores. */
@@ -471,6 +490,45 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
             out.covered6h = cov6;
         }
     }
+    const spark = await sparkOf(reads, c, spec, range);
+    if (spark) {
+        out.spark = spark;
+    }
+    return out;
+}
+
+/**
+ * One Local runs member at a range: its value, n and sparkline from the local writer's rollups, in the given state.
+ * @param reads
+ * @param id - a key of LOCAL
+ * @param range
+ * @param state - the local source's state as a member state; a value is read only when it is "info"
+ * @param reason
+ */
+export async function localMember(
+    reads: Reads,
+    id: string,
+    range: Range,
+    state: MemberState,
+    reason?: Fact,
+): Promise<Member> {
+    const { measure, spec } = LOCAL[id];
+    const out: Member = {
+        id: spec.id,
+        window: "1h",
+        state,
+        value: null,
+        sla: null,
+        link: spec.link,
+        ...(reason ? { reason } : {}),
+    };
+    if (state !== "info" || !("metric" in measure)) {
+        return out;
+    }
+    const w = await reads.window(measure.metric, range);
+    out.value = valueOf(measureValue(measure, w.total, reads.now - w.from), spec);
+    out.n = w.total.n;
+    const c: MemberConfig = { id, category: "local", label: id, window: "1h", measure, sources: ["local"] };
     const spark = await sparkOf(reads, c, spec, range);
     if (spark) {
         out.spark = spark;

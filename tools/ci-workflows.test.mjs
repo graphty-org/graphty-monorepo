@@ -2308,13 +2308,25 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.deepEqual(skippedProjects({ ...base, changed: [] }), []);
         for (const root of [
             "pnpm-lock.yaml",
+            "tools/storybook-brand-theme.mjs",
+            "tools/visual-capture-plan.mjs",
             ".github/workflows/ci.yml",
+            ".github/actions/playwright-system-deps/install.sh",
             "visual-baselines/layout/a.png",
             "visual-fonts/fonts.conf",
             "design/x.md",
         ]) {
             assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
         }
+    });
+
+    it("judges a change to workflows and tools no Storybook reads by its packages alone", () => {
+        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs"];
+        assert.deepEqual(
+            skippedProjects({ ...base, changed }),
+            skippedProjects({ ...base, changed: changed.slice(0, 1) }),
+        );
+        assert.notDeepEqual(skippedProjects({ ...base, changed }), []);
     });
 
     it("still sees a root file a pull request moves into a package", () => {
@@ -2341,9 +2353,9 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         }
     });
 
-    it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
+    it("is switched on in ci.yml (master's gate accepts the not-affected marker)", () => {
         const build = job(ci, "packages");
-        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
+        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "true"\n/);
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);

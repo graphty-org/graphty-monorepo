@@ -228,7 +228,7 @@ jobs:
                   CALLED_REF: ${{ inputs.ref }}
                   SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
-                  SKIP_UNAFFECTED_CAPTURES: "false"
+                  SKIP_UNAFFECTED_CAPTURES: "true"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)

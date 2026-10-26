@@ -105,6 +105,7 @@
 /tools/test-select-mutate.mjs @graphty-org/code-owners
 /tools/test-slots.mjs @graphty-org/code-owners
 /tools/visual-capture-plan.mjs @graphty-org/code-owners
+/tools/storybook-brand-theme.mjs @graphty-org/code-owners
 /tools/visual-flaky-report.mjs @graphty-org/code-owners
 /tools/visual-preview.sh @graphty-org/code-owners
 /tools/vitest-time-budget.mjs @graphty-org/code-owners

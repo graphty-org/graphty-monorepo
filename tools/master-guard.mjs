@@ -129,8 +129,9 @@ export function decide(run) {
 
 /**
  * Whether a stopped master CI run was superseded: a push run for another commit was queued while it was unfinished.
- * Every master push run shares one concurrency group with cancel-in-progress (ci.yml), so such a run cancels it on
- * the spot; the cancel's cleanup (post steps, `always()` jobs) can end it minutes later.
+ * Every first attempt of a master push run shares one concurrency group with cancel-in-progress (ci.yml), so such a
+ * run cancels it on the spot; the cancel's cleanup (post steps, `always()` jobs) can end it minutes later. A re-run
+ * has its commit's own group, so it is never superseded.
  * ponytail: run times, not GitHub's cancel reason (the API has none); a run that also hit a timeout before the newer
  * push reads as superseded, and the newer build, which runs the same jobs, alarms if the timeout is real.
  * @param gh - Calls the repository's REST API: gh(path, init).
@@ -138,6 +139,10 @@ export function decide(run) {
  * @returns True when superseded.
  */
 export async function superseded(gh, run) {
+    // a re-run runs in its commit's own concurrency group (ci.yml): nothing newer cancels it
+    if ((run.run_attempt ?? 1) > 1) {
+        return false;
+    }
     const { workflow_runs: runs } = await gh("/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20");
     const start = Date.parse(run.created_at);
     const end = Date.parse(run.updated_at);

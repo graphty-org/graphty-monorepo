@@ -392,6 +392,9 @@ const config: KnipConfig = {
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
 
+    // A standalone package with its own dependencies and lockfile, outside the pnpm workspace
+    ignore: ["tools/pipeline-health/**"],
+
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types
     // of `createPluginRegistry`, say. It is the opposite of `@public`: a symbol nobody outside its

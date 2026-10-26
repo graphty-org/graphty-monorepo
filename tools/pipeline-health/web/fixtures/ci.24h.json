@@ -1,0 +1,720 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "24h",
+    "page": "ci",
+    "state": "bad",
+    "setBy": {
+        "member": "ci.runner_wait",
+        "state": "bad",
+        "value": {
+            "n": 31,
+            "unit": "min"
+        }
+    },
+    "others": [
+        {
+            "member": "ci.longest_queued",
+            "state": "bad",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.saturated",
+            "state": "bad",
+            "value": {
+                "n": 60,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.first_attempt",
+            "state": "bad",
+            "value": {
+                "n": 55,
+                "unit": "pct"
+            }
+        }
+    ],
+    "notes": [
+        {
+            "code": "ci.note.hangs_cleared",
+            "params": {
+                "h6": 6
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.runner_wait",
+            "value": {
+                "n": 24,
+                "unit": "min"
+            },
+            "value6h": {
+                "n": 24,
+                "unit": "min"
+            },
+            "n": 1008,
+            "minN": 20,
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 2.4, 4.5, 7.55,
+                    13.3, 17.92, 21.8, 25.67, 29.55
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            },
+            "note": {
+                "code": "ci.runner_wait.def"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.longest_queued",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 4.5, 8, 13.5,
+                    24.13, 37.13, 50.13, 63.13
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            },
+            "note": {
+                "code": "ci.longest_queued.note"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 85,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 70,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci/causes",
+            "id": "ci.first_attempt",
+            "value": {
+                "n": 63,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 63,
+                "unit": "pct"
+            },
+            "n": 66,
+            "minN": 8,
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    100,
+                    84,
+                    78.5,
+                    61.75,
+                    47.25,
+                    48,
+                    53.5,
+                    57.5
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 85
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.saturated",
+            "value": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "value6h": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.25, 15, 15, 15, 15],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "https://www.githubstatus.com/",
+            "id": "ci.not_assigned",
+            "value": {
+                "n": 0,
+                "unit": "min"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 2
+                }
+            },
+            "link": "/master/red",
+            "id": "ci.hangs",
+            "value": {
+                "n": 6
+            },
+            "value6h": {
+                "n": 6
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4, 2.4, 2, 0, 0],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    null,
+                    null
+                ],
+                "target": 0
+            },
+            "cleared": "2026-10-25T20:42:00Z"
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 1,
+                    "unit": "x"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 2,
+                    "unit": "x"
+                },
+                "needs6h": true
+            },
+            "link": "/ci",
+            "id": "ci.pr_duration",
+            "value": {
+                "n": 1,
+                "unit": "x"
+            },
+            "value6h": {
+                "n": 1,
+                "unit": "x"
+            },
+            "n": 36,
+            "minN": 5,
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    0.85,
+                    0.85,
+                    0.89,
+                    0.93,
+                    0.97,
+                    0.97,
+                    0.93,
+                    0.93
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 1
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/ci/shards",
+            "id": "ci.shards_over",
+            "value": {
+                "n": 1
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 10,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 25,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci/shards",
+            "id": "ci.bins_over",
+            "value": {
+                "n": 7,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 7,
+                "unit": "pct"
+            },
+            "n": 204,
+            "minN": 10
+        },
+        {
+            "state": "info",
+            "window": "now",
+            "sla": null,
+            "link": "/ci/runners/superseded",
+            "id": "ci.superseded",
+            "value": {
+                "n": 2
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci",
+            "id": "ci.reruns",
+            "value": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "n": 294,
+            "minN": 10
+        }
+    ],
+    "sections": [
+        {
+            "kind": "bars",
+            "id": "causes",
+            "sub": {
+                "code": "ci.causes.sub",
+                "params": {
+                    "suites": 5
+                }
+            },
+            "groups": [
+                {
+                    "items": [
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.shared_check"
+                            },
+                            "n": 3,
+                            "unit": "count",
+                            "tone": "bad"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.shared_aggregator"
+                            },
+                            "n": 0,
+                            "unit": "count",
+                            "tone": "bad"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.change"
+                            },
+                            "n": 1,
+                            "unit": "count"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.flaky"
+                            },
+                            "n": 1,
+                            "unit": "count"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.infrastructure"
+                            },
+                            "n": 0,
+                            "unit": "count"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "kind": "shards",
+            "id": "shards",
+            "range": "7d",
+            "runKind": "full",
+            "rows": [
+                {
+                    "shard": "graphty-element-browser-3",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 936,
+                    "p90S": 1092,
+                    "budgetS": 900,
+                    "files": [
+                        {
+                            "file": "test/browser/edges/EdgeMesh.test.ts",
+                            "medianS": 186,
+                            "p90S": 216,
+                            "share": 20
+                        },
+                        {
+                            "file": "test/browser/layout/ForceLayout.test.ts",
+                            "medianS": 144,
+                            "p90S": 174,
+                            "share": 15
+                        },
+                        {
+                            "file": "test/browser/xr/XRSession.test.ts",
+                            "medianS": 132,
+                            "p90S": 204,
+                            "share": 14
+                        }
+                    ],
+                    "moreFiles": 31
+                },
+                {
+                    "shard": "graphty-element-storybook-2",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 828,
+                    "p90S": 1014,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-element-browser-1",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 774,
+                    "p90S": 846,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-1",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 672,
+                    "p90S": 750,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-storybook",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 606,
+                    "p90S": 702,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "compact-mantine",
+                    "group": "small-browser",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 372,
+                    "p90S": 420,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-element-lifecycle",
+                    "runs": 4,
+                    "minRuns": 5,
+                    "medianS": 546,
+                    "p90S": 612,
+                    "budgetS": 900
+                }
+            ],
+            "more": {
+                "count": 29,
+                "allWithin": true
+            }
+        }
+    ]
+}

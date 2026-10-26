@@ -17,7 +17,7 @@ describe("holdIssue", () => {
         assert.match(body, /ended red \(T4 GPU\) after its one same-commit re-run: https:\/\/run/);
         assert.match(
             body,
-            /start the fix from the candidate's head, never from newer master: `.\/tools\/worktree-new.sh fix\/<issue>-<topic> origin\/channel\/candidate/,
+            /start the fix from the candidate's head, never from newer master: `worktree-new.sh fix\/<issue>-<topic> origin\/channel\/candidate/,
         );
         assert.match(body, /-f mode=abandon/);
     });

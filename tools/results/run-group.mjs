@@ -508,20 +508,6 @@ export async function runGroup(
 }
 
 /**
- * Sends the shard's flaky tests (failed on try 1, passed on its retry) to the health API as try 1's failures with
- * `flaky: true`, so they count as flaky even when the retry failed for another test. Fire and forget, like every
- * health POST (flushHealth() settles it); nothing without the health API.
- * @param cfg config()
- * @param id the group's invocation id without its try
- * @param [flaky] runShard()'s flaky tests `{ file, name, excerpt }`
- */
-export function postFlaky(cfg, id, flaky = []) {
-    if (!cfg?.health || flaky.length === 0) return;
-    const failures = flaky.map((f) => ({ file: f.file, name: f.name, message: f.excerpt ?? "" }));
-    sendHealth(cfg, "/v1/failures", { invocation: `${id}.1`, flaky: true, failures });
-}
-
-/**
  * Builds a finished group's records, posts them (spooling what the store does not take) and files the
  * quarantine issues the store asks for.
  * @param shard its SHARDS entry, or undefined
@@ -542,7 +528,6 @@ async function record(shard, o) {
     });
     const cfg = config(env, root);
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
-    postFlaky(cfg, id, result.flaky);
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),

@@ -51,6 +51,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
+import { flushHealth, postFlaky } from "./results/client.mjs";
 import { expectedRuns, LOG_BUDGET_BYTES, overBudget } from "./shard-verdict.mjs";
 import {
     checkQuarantine,
@@ -294,6 +295,14 @@ export async function runShard(
                 : null;
         if (retry) result = { ...result, ...retry.facts };
         const raw = decide({ family, first, firstOutcome, second: retry?.second, list });
+        // every detection, before a judge moves the change's own into failing: the tests that failed on try 1
+        const fails = first?.failures ?? [];
+        postFlaky(
+            env,
+            shardName,
+            raw.flaky.filter((f) => fails.some((g) => g.file === f.file && g.name === f.name)),
+        );
+        await flushHealth();
         const d = judge ? judge(raw, { firstOutcome }) : blameChange(raw, root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;

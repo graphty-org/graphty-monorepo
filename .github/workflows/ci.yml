@@ -1903,6 +1903,11 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
         runs-on: ubuntu-24.04
+        # id-token: write signs the flaky tests' post to the pipeline health API (tools/test-quarantine.mjs)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
         continue-on-error: true
         timeout-minutes: 45
         strategy:
@@ -2010,6 +2015,7 @@ jobs:
                   SHARD: ${{ matrix.shard }}
                   COMMAND: ${{ matrix.command }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
 
             - name: Combine the capture

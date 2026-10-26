@@ -251,7 +251,11 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "invocations":
             return { ...(await invocationItems(body, who, db, now)), source: "ci-results" };
         case "failures":
-            return { ...(await failureItems(body, who, db, now)), source: "ci-results" };
+            // CI's flaky detections (tools/test-quarantine.mjs) are the flaky feed's own source on the Data sources page
+            return {
+                ...(await failureItems(body, who, db, now)),
+                source: body.flaky === true ? "flaky-feed" : "ci-results",
+            };
         case "durations":
             // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
             return {

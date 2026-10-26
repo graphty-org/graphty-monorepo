@@ -163,6 +163,41 @@ describe("pr-review.sh", () => {
         assert.ok(!existsSync(argsLog), "the branch's own copy did not run the review");
     });
 
+    it("names data files and summarizes a large diff, keeping the prompt small", () => {
+        mkdirSync(join(work, "design/mockups"), { recursive: true });
+        mkdirSync(join(work, "graphty/public/samples"), { recursive: true });
+        const big = "x".repeat(100).concat("\n").repeat(120000); // 12 MB each, over claude -p's 10 MB stdin limit
+        writeFileSync(join(work, "design/mockups/page.html"), big);
+        writeFileSync(join(work, "graphty/public/samples/data.json"), big);
+        writeFileSync(join(work, "pnpm-lock.yaml"), "lock: 1\n");
+        writeFileSync(join(work, "src.ts"), "const line = 1;\n".repeat(30000)); // ~480 KB of code
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "feat(tools): a large change");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.ok(prompt.length < 100000, `prompt is ${prompt.length} bytes`);
+        assert.match(prompt, /too large to include/);
+        assert.match(prompt, /^ src\.ts +\| 30000 \+/m);
+        assert.match(prompt, /^ a\.txt +\| +2 /m);
+        for (const f of ["design/mockups/page.html", "graphty/public/samples/data.json", "pnpm-lock.yaml"]) {
+            assert.match(prompt, new RegExp(`^${f.replace(/[.]/g, "\\.")}$`, "m"), `${f} named`);
+        }
+        assert.ok(!prompt.includes("x".repeat(100)), "no data file content inlined");
+    });
+
+    it("inlines a small diff but only names its data files", () => {
+        mkdirSync(join(work, "design"), { recursive: true });
+        writeFileSync(join(work, "design/note.html"), "<p>SECRET-MOCKUP</p>\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "docs: a mockup");
+        assert.equal(run().code, 0);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /^\+TWO$/m);
+        assert.match(prompt, /^design\/note\.html$/m);
+        assert.ok(!prompt.includes("SECRET-MOCKUP"));
+    });
+
     it("refuses without a Proof file, calling nothing", () => {
         for (const args of [[], ["--proof", join(dir, "missing.md")]]) {
             const r = run(args);

@@ -4435,11 +4435,15 @@ export class Graphty extends LitElement {
      * With `autosave` on, it also waits for the restore to be decided and for the data the page
      * declared, which waits behind it, so it never resolves on the empty canvas before either.
      *
-     * It rejects, naming what was still moving, rather than handing back a moving picture.
+     * It rejects, naming what was still moving, rather than handing back a moving picture. When
+     * the element is removed from the page during the wait, or already had been when the wait
+     * started, it rejects at once with `E_DISPOSED`: a removed element never draws again.
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * @throws Error when the picture is still changing when the timeout expires.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the element leaves the page before or during
+     *   the wait.
      * @since 2.0.0
      * @example
      * ```typescript

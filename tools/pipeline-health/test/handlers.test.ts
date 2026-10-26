@@ -306,16 +306,24 @@ describe("ingest: what it stores", () => {
         const h = await ingest();
         // tools/results/run-group.mjs posts test-quarantine.mjs's flaky verdict for try 1, before or after its record.
         const body = {
-            invocation: "500.1.test.compact-mantine.1",
+            invocation: "500.1.test.compact-mantine-2.1",
             flaky: true,
+            family: "compact-mantine",
+            sha: "abc",
             failures: [{ file: "c.ts", name: "u", message: "boom" }],
         };
         expect((await h(event("/v1/failures", body))).statusCode).toBe(200);
-        const id = "R#test#500.1.test.compact-mantine.1#c.ts#u\u0000A#1";
-        expect(mem.items.get(id)).toMatchObject({ outcome: "flaky", source: "ci", file: "c.ts", name: "u" });
+        const id = "R#test#500.1.test.compact-mantine-2.1#c.ts#u\u0000A#1";
+        expect(mem.items.get(id)).toMatchObject({
+            outcome: "flaky",
+            source: "ci",
+            family: "compact-mantine",
+            file: "c.ts",
+            name: "u",
+        });
         // try 1's own record, a failed run with the same failure, never turns it back to failed
         const try1 = invocation({
-            id: "500.1.test.compact-mantine.1",
+            id: "500.1.test.compact-mantine-2.1",
             variant: "compact-mantine",
             failures: body.failures,
         });

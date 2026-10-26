@@ -132,11 +132,13 @@ export function sendHealth(cfg, path, body) {
  * an OIDC token in GitHub Actions (the job's `id-token: write`); anything else sends nothing. Never throws.
  * @param env the environment
  * @param shard the shard
+ * @param family the shard's family (the dashboard's grouping; the id alone does not give it)
  * @param flaky the tests `{ file, name, text?, message? }`
  */
-export function postFlaky(env, shard, flaky) {
+export function postFlaky(env, shard, family, flaky) {
     if (
         !flaky.length ||
+        env.GRAPHTY_RESULTS === "0" ||
         !env.HEALTH_API_URL ||
         !env.ACTIONS_ID_TOKEN_REQUEST_URL ||
         !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
@@ -154,6 +156,8 @@ export function postFlaky(env, shard, flaky) {
     sendHealth({ oidc: env, health: env.HEALTH_API_URL.replace(/\/$/, "") }, "/v1/failures", {
         invocation: `${id}.1`,
         flaky: true,
+        family,
+        ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
         failures,
     });
 }

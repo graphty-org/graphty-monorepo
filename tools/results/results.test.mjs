@@ -916,10 +916,11 @@ describe("health API fan-out", () => {
     });
     it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
         const h = await serveHealth();
-        const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test" };
-        postFlaky(env, "x", []);
-        postFlaky({ ...env, HEALTH_API_URL: "" }, "x", [{ file: "a.ts", name: "t" }]);
-        postFlaky(env, "x", [
+        const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test", GITHUB_SHA: "abc" };
+        postFlaky(env, "x-2", "x", []);
+        postFlaky({ ...env, HEALTH_API_URL: "" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky({ ...env, GRAPHTY_RESULTS: "0" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky(env, "x-2", "x", [
             { file: "a.ts", name: "t", text: "boom" },
             { file: "b.ts", name: "u" },
         ]);
@@ -927,8 +928,10 @@ describe("health API fan-out", () => {
         const post = await h.posted;
         assert.equal(post.url, "/v1/failures");
         assert.deepEqual(post.body, {
-            invocation: "9.1.test.x.1",
+            invocation: "9.1.test.x-2.1",
             flaky: true,
+            family: "x",
+            sha: "abc",
             failures: [
                 { file: "a.ts", name: "t", message: "boom" },
                 { file: "b.ts", name: "u", message: "" },

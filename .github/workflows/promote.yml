@@ -63,9 +63,10 @@ jobs:
             rollback: ${{ steps.check.outputs.rollback }}
         env:
             GH_TOKEN: ${{ github.token }}
-            WORK: ${{ runner.temp }}/promote
             HAS_DIST_TAG_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN != '' }}
         steps:
+            # The runner context is not available in a job's env, so WORK is set here.
+            - run: echo "WORK=$RUNNER_TEMP/promote" >> "$GITHUB_ENV"
             # Master's tip: the scripts and graphty/sites/<site>.json a promotion uses.
             - uses: actions/checkout@v4
               with:
@@ -91,6 +92,7 @@ jobs:
             - name: Gather the nightly, the store's record, npm and what the channel serves
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   NIGHTLY: ${{ inputs.nightly }}
               run: |
                   node tools/channel/promote.mjs gather --nightly "$NIGHTLY" --channel "$CHANNEL" \

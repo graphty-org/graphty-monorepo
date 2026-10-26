@@ -35,6 +35,7 @@ const fs = require("node:fs");
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
+if (a[0] === "pr" && a[1] === "view") process.stdout.write(process.env.FAKE_REVIEWS ?? "");
 if (a[0] === "pr" && a[1] === "create") {
     fs.copyFileSync(a[a.indexOf("--body-file") + 1], ${JSON.stringify(join(dir, "body.md"))});
     process.stdout.write("https://github.com/o/r/pull/42\\n");
@@ -42,6 +43,18 @@ if (a[0] === "pr" && a[1] === "create") {
 `,
 );
 chmodSync(join(bin, "gh"), 0o755);
+// The fake review (tools/pr-review.sh): writes a report with a fixed marker, prints its path, exits FAKE_REVIEW_RC.
+const review = join(dir, "review.sh");
+const report = join(dir, "report.md");
+writeFileSync(
+    review,
+    `#!/bin/bash
+printf '<!-- fresh-review abc123 -->\\n\\nBlocking findings: 0\\n' > ${JSON.stringify(report)}
+echo ${JSON.stringify(report)}
+exit "\${FAKE_REVIEW_RC:-0}"
+`,
+);
+chmodSync(review, 0o755);
 
 // Setup git runs isolated and unsigned; the script under test gets the fake HOME and PATH, plus a
 // session override it must drop.
@@ -84,6 +97,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         PATH: `${bin}:${process.env.PATH}`,
         PR_OPEN_SCAN: "true",
         PR_OPEN_TITLE_LINT: "true",
+        PR_OPEN_REVIEW: review,
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: "user.name",
         GIT_CONFIG_VALUE_0: "the-owner",
@@ -240,18 +254,34 @@ describe("pr-open.sh", () => {
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
     });
 
-    it("leaves auto-merge off, and turns it off, for a change to what judges a pull request", () => {
+    it("arms auto-merge for a change to CI", () => {
         branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n" }, "ci(ci): change the gate");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });
         assert.equal(r.code, 0, r.out);
-        assert.match(r.out, /changes what judges a pull request or guards the owner: \.github\/workflows\/ci\.yml/);
+        assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+        assert.equal(armed().length, 1);
+    });
+
+    it("turns auto-merge off on a re-run when the pull request now holds a breaking change", () => {
+        branch("feat/1247-break", { "x.txt": "x\n" }, "feat(layout)!: drop the old layout");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/10 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
         assert.equal(armed().length, 0);
         assert.deepEqual(calls().find((x) => x.a[1] === "merge").a, [
             "pr",
             "merge",
-            "https://github.com/o/r/pull/8",
+            "https://github.com/o/r/pull/10",
             "--disable-auto",
         ]);
+    });
+
+    it("leaves auto-merge off for a file that guards the owner", () => {
+        branch("ci/1248-keys", { "visual-review/passkeys.json": "{}\n" }, "ci(visual-review): add a key");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/11 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /guards the owner: visual-review\/passkeys\.json/);
+        assert.equal(armed().length, 0);
     });
 
     it("never arms auto-merge on a pull request someone else opened", () => {
@@ -311,6 +341,43 @@ describe("pr-open.sh", () => {
         const body = readFileSync(join(dir, "body.md"), "utf8");
         assert.equal(body.match(/^- fix/gm).length, 50);
         assert.match(body, /^- and 5 more$/m);
+    });
+
+    it("posts the fresh review's report as a COMMENT review, once per patch id", () => {
+        branch("fix/1249-review");
+        let r = run();
+        assert.equal(r.code, 0, r.out);
+        const posted = calls().filter((x) => x.a[1] === "review");
+        assert.equal(posted.length, 1);
+        assert.deepEqual(posted[0].a, [
+            "pr",
+            "review",
+            "https://github.com/o/r/pull/42",
+            "--comment",
+            "--body-file",
+            report,
+        ]);
+        rmSync(ghLog, { force: true });
+        r = run(undefined, {
+            FAKE_EXISTING: "https://github.com/o/r/pull/42 graphty-agent",
+            FAKE_REVIEWS: "old\n<!-- fresh-review abc123 -->\n",
+        });
+        assert.equal(r.code, 0, r.out);
+        assert.equal(calls().filter((x) => x.a[1] === "review").length, 0, "the same patch id is not posted twice");
+    });
+
+    it("stops with exit 3 on a blocking review, pushing nothing, unless the findings are answered", () => {
+        branch("fix/1250-blocked");
+        let r = run(undefined, { FAKE_REVIEW_RC: "3" });
+        assert.equal(r.code, 3, r.out);
+        assert.match(r.out, /blocking findings/);
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+        r = run(["--proof", proof, "--review-answered"], { FAKE_REVIEW_RC: "3" });
+        assert.equal(r.code, 0, r.out);
+        assert.equal(armed().length, 1);
+        r = run(undefined, { FAKE_REVIEW_RC: "1" });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /the review failed/);
     });
 
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {

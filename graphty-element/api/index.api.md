@@ -5304,6 +5304,7 @@ export class OperationQueueManager implements Manager {
     };
     // (undocumented)
     hasLayoutEngine?: () => boolean;
+    get hasWork(): boolean;
     init(): Promise<void>;
     isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
@@ -6362,6 +6363,10 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    nothingIsOwed(): boolean;
+    onceNothingIsOwed(callback: () => void): () => void;
+    operationsPending: (() => boolean) | null;
+    picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;

@@ -55,10 +55,65 @@ describe("statusComment", () => {
         );
     });
 
+    it("announces a red full run and an owner item, and counts both as a reported failure", () => {
+        const red = statusComment("red", { run: RUN, sha: "abcdef123", what: "CI, Hosts", issue: "41" });
+        assert.match(red, /\*\*Full run red\*\*: CI, Hosts failed on abcdef1\. Nothing was published.*Details: #41\./);
+        assert.doesNotMatch(red, /a bisect looks/, "it claims no bisect it was not told of");
+        const noBisect = statusComment("red", {
+            run: RUN,
+            sha: "abcdef123",
+            what: "security audit",
+            issue: "41",
+            bisect: "No bisect: security audit: no bisect; the pipeline round looks.",
+        });
+        assert.match(noBisect, /Nothing was published\. No bisect: security audit/);
+        const owner = statusComment("owner-item", { run: RUN, sha: "abcdef123", what: "LLM regression" });
+        assert.match(owner, /\*\*Owner item\*\*: the full run on abcdef1 failed for a reason no code change fixes/);
+        assert.equal(reportsFailure(red, RUN, "1"), true);
+        assert.equal(reportsFailure(owner, RUN, "1"), true);
+        assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
+        assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
+    });
+
     it("says a run ended badly without announcing, with its conclusion and attempt", () => {
         const c = statusComment("run-ended", { run: RUN, sha: "abcdef123", what: "timed_out", attempt: "2" });
         assert.match(c, /\*\*Release run ended timed_out\*\* \(re-run, attempt 2\) on abcdef1, and no comment here/);
         assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
+    });
+
+    it("announces a promoted nightly, and a nightly whose site deploy failed as a failure", () => {
+        const promoted = statusComment("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0,b@2.0.0" });
+        assert.match(
+            promoted,
+            /\*\*Nightly promoted\*\*: abcdef1 is on nightly.graphty.app and npm `next` holds a@1.0.0, b@2.0.0\./,
+        );
+        assert.match(
+            statusComment("nightly", { run: RUN, sha: "abcdef123" }),
+            /no package changed, so npm `next` did not move/,
+        );
+        const failed = statusComment("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" });
+        assert.match(
+            failed,
+            /\*\*Nightly site deploy failed\*\* on abcdef1: npm `next` and nightly.graphty.app now differ\. Details: #77\./,
+        );
+        assert.equal(reportsFailure(promoted, RUN, "1"), false);
+        assert.equal(reportsFailure(failed, RUN, "1"), true, "the release-watch backstop does not report it twice");
+        assert.equal(pushMessage("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0" }).title, "Nightly PROMOTED");
+        assert.equal(pushMessage("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" }).priority, "1");
+        const held = statusComment("nightly-held", {
+            run: RUN,
+            sha: "abcdef123",
+            issue: "78",
+            what: "landing on master",
+        });
+        assert.match(
+            held,
+            /\*\*Nightly promotion failed\*\* on abcdef1: landing on master did not finish[^\n]*Details: #78\./,
+        );
+        assert.doesNotMatch(held, /Release held/);
+        assert.equal(reportsFailure(held, RUN, "1"), true, "the backstop does not report it twice");
+        const push = pushMessage("nightly-held", { run: RUN, sha: "abcdef123", issue: "78" });
+        assert.deepEqual([push.title, push.priority], ["Nightly PROMOTION FAILED", "1"]);
     });
 
     it("refuses an unknown outcome", () => {

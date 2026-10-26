@@ -1,10 +1,13 @@
 name: Deploy to GitHub Pages
 
-# Every green CI run of a push to master assembles graphty.app (the app, the docs, the Storybooks and the hosted
-# data: one Pages site) from exactly that run's artifacts and keeps it as artifact site-<sha> (14 days). Only the
-# version merge release.yml's land job pushes ("chore(release): publish <tags> onto master") deploys it, so
-# graphty.app moves with npm's latest and nothing else moves it (design/ci/channels-pipeline.md, section 12,
-# step 0). To redeploy, re-run this workflow's run for that version merge.
+# Every green CI run of a push to master assembles the site (the app, the docs, the Storybooks and the hosted data:
+# one Pages site) from exactly that run's artifacts, keeps it as artifact site-<sha> (14 days) and deploys it to this
+# repository's GitHub Pages, served at canary.graphty.app (the custom domain is a Pages setting of this repository,
+# not a file in the site). Canary is the first channel (design/ci/channels-pipeline.md, section 3):
+# nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
+# (promote.yml, and the full run's nightly promotion). The deploy job always deploys master's newest green build's
+# site, so re-running any run redeploys canary's newest site when canary is behind it.
+run-name: Deploy ${{ github.event.workflow_run.head_sha }}
 on:
     workflow_run:
         workflows: ["CI"]
@@ -24,56 +27,10 @@ permissions:
     actions: read # Required to download artifacts from other workflow runs
 
 jobs:
-    # Only a green CI run of a push to master builds the site, and only a release's version merge deploys it: a
-    # merge commit whose subject is the one release.yml's land job writes. The live page's build stamp says which
-    # commit it serves; when it is this one (a re-run), or a newer one (CI runs finish out of order), there is
-    # nothing to deploy.
-    check:
-        name: Is this a release to deploy
-        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
-        runs-on: ubuntu-24.04
-        outputs:
-            deploy: ${{ steps.live.outputs.deploy }}
-        steps:
-            - id: live
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
-              run: |
-                  # The subject alone proves nothing: any pull request can be merged with this subject. A real
-                  # version merge's second parent is the version commit, which the release's tags point at, and
-                  # only the release deploy key pushes those tags. So the first tag the subject names must
-                  # point at this merge's second parent.
-                  subject=${MESSAGE%%$'\n'*}
-                  second="" target=""
-                  case "$subject" in
-                      "chore(release): publish "*" onto master")
-                          tag=${subject#chore(release): publish }; tag=${tag% onto master}; tag=${tag%%,*}
-                          second=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq 'if (.parents | length) == 2 then .parents[1].sha else "" end')
-                          ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$(jq -rn --arg t "$tag" '$t | @uri')" --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null || true)
-                          case "$ref" in
-                              "tag "*) target=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${ref#tag }" --jq .object.sha) ;;
-                              "commit "*) target=${ref#commit } ;;
-                          esac ;;
-                  esac
-                  if [ -z "$second" ] || [ "$target" != "$second" ]; then
-                      echo "::notice::${SHA} is not a release's version merge: its site is kept as artifact site-${SHA}, graphty.app stays"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  live=$(curl -fsSL --max-time 30 https://graphty.app/ | grep -o 'name="graphty-build" content="[^"]*"' || true)
-                  echo "live stamp: ${live:-none}"
-                  live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
-                  case "$live" in
-                      *"commit=${SHA} "*) echo "::notice::${SHA} is live already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                  esac
-                  if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
-                      echo "::notice::the live ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  echo "deploy=true" >> "$GITHUB_OUTPUT"
-
     build:
         name: Assemble Site
-        needs: check
+        # Only a green CI run of a push to master assembles a site
+        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
         runs-on: ubuntu-24.04
         steps:
             # The deployed commit, with history and tags, so the stamp below can name the app's release.
@@ -175,7 +132,7 @@ jobs:
             # needs only Node and the builds of graph-format, graph-io (the Cytoscape and ontology datasets are
             # read by graph-io's own importers) and graph-samples (whose dist/data/v1/ holds the small datasets,
             # packed from the repository's data/, which the script copies beside the large ones it builds). With
-            # --reuse-published it takes each large dataset already on graphty.app whose SHA-256 is the one
+            # --reuse-published it takes each large dataset already on canary.graphty.app (or else graphty.app) whose SHA-256 is the one
             # src/datasets/hosted.ts records, so a deploy never depends on the third-party source hosts (#3302);
             # only a dataset whose recorded checksum changed is built from its sources. The script records every
             # source's URL and SHA-256, so its hash keys the download cache for those builds.
@@ -254,29 +211,145 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            - name: Setup Pages
-              if: ${{ needs.check.outputs.deploy == 'true' }}
-              uses: actions/configure-pages@v4
+            # The full run picks its candidate from the sites the results store lists (GET /v1/candidate). The token
+            # is this run's OIDC token (audience graphty-results): only master's own deploy-pages.yml may record a
+            # site. Fails open, like every call to the store: a missed record only delays that commit's full run. The
+            # pipeline health API (HEALTH_API_URL) then gets the same record with its own token (audience graphty-health).
+            - name: Record the site in the results store
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  if [ -z "$RESULTS_URL" ]; then
+                      echo "::notice::RESULTS_URL is not set; site-${SHA} is not recorded in the results store"
+                  else
+                      token=$(curl -fsS --max-time 5 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=graphty-results" | jq -r .value) &&
+                      curl -fsS --max-time 5 -X POST "${RESULTS_URL%/}/v1/sites" -H "Authorization: Bearer $token" \
+                          -H "content-type: application/json" -H "X-Results-Schema: 1" -d "{\"sha\":\"${SHA}\"}" ||
+                          echo "::warning::the results store did not record site-${SHA}"
+                  fi
+                  if [ -n "$HEALTH_API_URL" ]; then
+                      htoken=$(curl -fsS --max-time 2 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=graphty-health" | jq -r '.value // empty') || true
+                      if [ -n "$htoken" ]; then
+                          curl -fsS --max-time 2 -X POST "${HEALTH_API_URL%/}/v1/sites" -H "Authorization: Bearer $htoken" \
+                              -H "content-type: application/json" -H "X-Results-Schema: 1" -d "{\"sha\":\"${SHA}\"}" || true
+                      fi
+                  fi
 
-            - name: Upload Pages artifact
-              if: ${{ needs.check.outputs.deploy == 'true' }}
-              uses: actions/upload-pages-artifact@v3
-              with:
-                  path: ./public
-
+    # Canary always gets master's NEWEST green build, whichever build's run gets here: an older build's run deploys
+    # the newest site too, so the order in which runs finish or queue does not matter, and a newest build whose own
+    # deploy was replaced in the queue is still deployed by the next one. It deploys only when that build is ahead of
+    # the commit canary's build stamp names, so nothing older ever replaces canary. Every read that fails (the Pages
+    # settings, the runs list, canary itself, the compare, the artifact) fails the job, and master-guard reports it.
     deploy:
         name: Deploy
-        needs: [check, build]
-        if: ${{ needs.check.outputs.deploy == 'true' }}
-        # One deploy at a time; a newer pending deploy replaces an older pending one. On this job, not the workflow,
-        # so an ordinary master build, which only keeps its site, never replaces a release's pending deploy.
+        needs: build
+        # One deploy at a time; a later queued deploy replaces a pending one, which is harmless, since each deploys
+        # the newest site. On this job, not the workflow, so every build still assembles and keeps its own site-<sha>.
         concurrency:
             group: deploy-pages
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
+            actions: read # the CI runs list, and the newest build's site-<sha> from that build's own run
         runs-on: ubuntu-24.04
         environment:
             name: github-pages
             url: ${{ steps.deployment.outputs.page_url }}
         steps:
+            - id: live
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  CANARY_URL: https://canary.graphty.app/
+              run: |
+                  fail() { echo "::error::$*: nothing is deployed"; exit 1; }
+                  skip() { echo "::notice::$*"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0; }
+                  # Before the domain swap this repository's Pages domain was graphty.app, which only promotion may move
+                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""') || fail "this repository's Pages settings could not be read"
+                  [ "$cname" != graphty.app ] || skip "this repository's Pages domain is still graphty.app, which moves only by promotion"
+                  [ "$cname" = canary.graphty.app ] || fail "this repository's Pages domain is '${cname}', not canary.graphty.app"
+                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""') || newest=""
+                  [ -n "$newest" ] || fail "master's newest green build could not be read"
+                  # the runs list can lag a run that just completed: the build that started this run counts too
+                  if [ "$newest" != "$SHA" ]; then
+                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${newest}...${SHA}" --jq .status) || order=""
+                      case "$order" in
+                          ahead) newest="$SHA" ;;
+                          behind | identical | diverged) ;;
+                          *) fail "${SHA} could not be compared with ${newest}" ;;
+                      esac
+                  fi
+                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
+                  # Only a 200 with a build stamp is an answer. Anything else (a 404: this repository's Pages always
+                  # serves a site, a 5xx, a 429, no answer, a body that breaks off after the headers) is a failed read.
+                  page="${RUNNER_TEMP:-/tmp}/canary.html"
+                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}") || code=000
+                  live=""
+                  case "$code" in
+                      200) live=$(sed -n 's/.*name="graphty-build" content="commit=\([0-9a-f]\{7,40\}\)[ "].*/\1/p' "$page" | head -1)
+                          [ -n "$live" ] || fail "canary.graphty.app answered without a build stamp" ;;
+                      *) fail "canary.graphty.app could not be read (HTTP ${code})" ;;
+                  esac
+                  echo "canary serves: ${live:-nothing yet}; master's newest green build: ${newest}"
+                  [ "$live" != "$newest" ] || skip "${newest} is live on canary already"
+                  if [ -n "$live" ]; then
+                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live}...${newest}" --jq .status) || status=""
+                      case "$status" in
+                          ahead | diverged) ;;
+                          behind | identical) skip "${newest} is not ahead of canary's ${live}" ;;
+                          *) fail "canary's ${live} could not be compared with ${newest}" ;;
+                      esac
+                  fi
+                  # this run's own site was uploaded by its build job moments ago: no list, which may not show it yet
+                  if [ "$newest" = "$SHA" ]; then
+                      { echo "sha=${newest}"; echo "run=${GITHUB_RUN_ID}"; echo "deploy=true"; } >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=site-${newest}&per_page=1" --jq '.artifacts[0] // {} | if .expired then "expired" else (.workflow_run.id // "" | tostring) end') || fail "the artifacts of ${newest} could not be listed"
+                  [ "$run" != expired ] || fail "site-${newest} has expired"
+                  [ -n "$run" ] || skip "site-${newest} is not assembled yet: that build's own run deploys it"
+                  { echo "sha=${newest}"; echo "run=${run}"; echo "deploy=true"; } >> "$GITHUB_OUTPUT"
+
+            - name: Download the newest site
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/download-artifact@v8
+              with:
+                  name: site-${{ steps.live.outputs.sha }}
+                  path: ./site/
+                  run-id: ${{ steps.live.outputs.run }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # master's tip, like promote.yml: graphty/sites/canary.json may not exist at an older deployed commit
+            - name: Check out canary's site.json
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: graphty/sites
+                  path: ./repo/
+
+            # The kept site-<sha> has no site.json (a promotion writes its own); the canary deploy adds canary's.
+            - name: Unpack the site and add canary's site.json
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              env:
+                  NEWEST: ${{ steps.live.outputs.sha }}
+              run: |
+                  mkdir public
+                  tar -xf "site/site-${NEWEST}.tar" -C public
+                  jq . repo/graphty/sites/canary.json > public/site.json
+
+            - name: Setup Pages
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/configure-pages@v4
+
+            - name: Upload Pages artifact
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
+
             - name: Deploy to GitHub Pages
+              if: ${{ steps.live.outputs.deploy == 'true' }}
               id: deployment
               uses: actions/deploy-pages@v5

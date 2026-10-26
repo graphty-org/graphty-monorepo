@@ -132,6 +132,8 @@ describe("the On shards", () => {
         const include = plan(PACKAGES, undefined, light, false, shards);
         assert.ok(include.length > 0);
         assert.ok(!include.some((e) => e["full-run-only"] || e.shard === `${on.shard}-1`));
+        const full = plan(PACKAGES, undefined, light, true, shards).find((e) => e.shard === `${on.shard}-1`);
+        assert.ok(full?.["full-run-only"], "a full run keeps it");
     });
 
     it("set GRAPHTY_FEATURES_ON=1, which a selected run of their files keeps", () => {
@@ -162,23 +164,11 @@ describe("the On shards", () => {
         assert.ok(quarantined([{ ...t, family: "graphty" }], "graphty-features-on", t));
     });
 
-    it("never join an Off shard: no Off command's --project filters match an On twin's name", () => {
-        // vitest includes a project when ANY filter matches it (wildcards, "!" negates one filter)
-        const matches = (filter, name) => {
-            const neg = filter.startsWith("!");
-            const body = (neg ? filter.slice(1) : filter)
-                .split("*")
-                .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-                .join(".*");
-            return new RegExp(neg ? `^(?!${body}$)` : `^${body}$`, "i").test(name);
-        };
-        for (const s of SHARDS.filter((x) => !x["full-run-only"] && /^graphty(-element)?$/.test(x.package))) {
-            const filters = [...s["test-command"].matchAll(/--project=(?:'([^']+)'|(\S+))/g)].map((m) => m[1] ?? m[2]);
-            assert.ok(filters.length > 0, `${s.shard} names its projects`);
-            for (const twin of ["browser", "real-element", "storybook", "default", "mesh", "xr", "interactions"]) {
-                const name = `${twin}-features-on`;
-                assert.ok(!filters.some((f) => matches(f, name)), `${s.shard} would run ${name}`);
-            }
+    it("never join an Off shard: the twins exist only under GRAPHTY_FEATURES_ON=1, which no Off command sets", () => {
+        // vitest includes a project any one --project filter matches, so graphty-N's "!storybook" would run
+        // the twins if they existed in its run
+        for (const s of SHARDS.filter((x) => !x["full-run-only"])) {
+            assert.doesNotMatch(s["test-command"], /GRAPHTY_FEATURES_ON/, s.shard);
         }
     });
 });

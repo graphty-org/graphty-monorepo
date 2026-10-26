@@ -198,12 +198,12 @@ const OFF_SHARDS = [
     // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
     // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
     // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
-    // where for the upload. The projects are named, not "!storybook": vitest includes a project that any
-    // one filter matches, so no negated filter could also leave out the On twins (tools/features-on.mjs).
+    // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
+    // these commands never set, so "!storybook" never runs them.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project=browser --project=real-element --project=eslint-rules --project=node --shard=${n}/5 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/5 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
@@ -488,7 +488,7 @@ export function plan(affected, only, light, full = false, shards = SHARDS) {
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
     const bins = (light?.bins ?? []).filter((b) => runs(shards.find((s) => s.shard === b.shard)));
-    const all = [...include, ...bins.map(binEntry)];
+    const all = [...include, ...bins.map((b) => binEntry(b, shards))];
     return [...all.filter((e) => !e["full-run-only"]), ...all.filter((e) => e["full-run-only"])];
 }
 
@@ -496,10 +496,11 @@ export function plan(affected, only, light, full = false, shards = SHARDS) {
  * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
  * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
  * @param bin a lightPlan() bin
+ * @param [shards] the shards to look its shard up in (plan()'s)
  * @returns a matrix entry with a `files` field
  */
-export function binEntry(bin) {
-    const shard = SHARDS.find((s) => s.shard === bin.shard);
+export function binEntry(bin, shards = SHARDS) {
+    const shard = shards.find((s) => s.shard === bin.shard);
     if (!shard || !bin.command) {
         throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
     }

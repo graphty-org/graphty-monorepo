@@ -64,7 +64,7 @@
         "coverage:preview:cytoscape-extensions": "npx serve cytoscape-extensions/coverage -p ${PORT:?start it through servherd, which sets PORT}"
     },
     "engines": {
-        "node": ">=22.0.0"
+        "node": ">=22.18.0"
     },
     "packageManager": "pnpm@10.34.5",
     "config": {

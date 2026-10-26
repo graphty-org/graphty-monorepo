@@ -616,7 +616,7 @@ describe("running a selection", () => {
     it("runs a plain vitest shard's files with its config and projects, no coverage, no slice", () => {
         assert.equal(
             selectedCommand(ROOT, byName("graphty-1"), ["graphty/src/a.test.tsx", "graphty/src/it's.test.ts"]),
-            "cd graphty && pnpm exec vitest run --project=browser --project=real-element --project=eslint-rules --project=node 'src/a.test.tsx' 'src/it'\\''s.test.ts'",
+            "cd graphty && pnpm exec vitest run --project='!storybook' 'src/a.test.tsx' 'src/it'\\''s.test.ts'",
         );
         assert.equal(
             selectedCommand(ROOT, byName("graph-io-browser"), ["graph-io/test/x.test.ts"]),

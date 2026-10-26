@@ -2871,8 +2871,7 @@ describe("the webgpu-graph-algorithms node suite on every lane", () => {
             readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
         );
         const lines = [
-            // graphty's shards name graphty's own "node" project
-            ...SHARDS.filter((s) => s.package === "webgpu-graph-algorithms").map((s) => s["test-command"]),
+            ...SHARDS.map((s) => s["test-command"]),
             ...Object.values(pkg.scripts),
             ...workflow("hosts.yml").split("\n"),
             ...workflow("gpu.yml").split("\n"),

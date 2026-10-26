@@ -17,8 +17,9 @@ import { Graphty } from "../src/graphty-element";
 // @ts-expect-error MDX files are handled by Storybook's build system
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
-// `?features=<ids>` on the story URL switches experiments on for the whole Storybook, as a consumer
-// would (the visual capture's VISUAL_REVIEW_STORY_QUERY=features=all captures the "On" configuration).
+// `?features=<ids>` on the preview iframe's URL (iframe.html, which the visual capture opens) switches
+// experiments on for its stories, as a consumer would (the visual capture's
+// VISUAL_REVIEW_STORY_QUERY=features=all captures the "On" configuration).
 const urlFeatures = featuresFromUrl(location.href);
 if (urlFeatures.length > 0) {
     setDefaultFeatures(urlFeatures);

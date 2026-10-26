@@ -813,7 +813,10 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         await c.part("repo files", "collector", () => repoFiles(c, gh));
     ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
     let heldSince = 0;
-    ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
+    const readIssues = async () => {
+        heldSince = await issues(c, gh);
+    };
+    ok = (await c.part("issues", "collector", readIssues)) && ok;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
     if (hourly) {
         await c.part("stress", "stress", () => stress(c, gh));

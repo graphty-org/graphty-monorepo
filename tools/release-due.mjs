@@ -228,13 +228,33 @@ export function fixForwardDue(merge, store) {
     return issue && referencesHold(merge, issue) ? issue : null;
 }
 
+/**
+ * The dispatch of a fix forward's candidate run, naming the fix's pull request (`fix_pr`): release.yml's candidate_fix
+ * job takes that merge as a fix even when only the pull request's description references the hold issue.
+ * @param subject the merge commit's subject
+ * @returns the `gh` arguments
+ */
+export function fixForwardDispatch(subject) {
+    const pr = /^Merge pull request #(\d+) /.exec(subject ?? "")?.[1];
+    return [
+        "workflow",
+        "run",
+        "release.yml",
+        "--ref",
+        "master",
+        "-f",
+        "mode=candidate",
+        ...(pr ? ["-f", `fix_pr=${pr}`] : []),
+    ];
+}
+
 async function dispatchFixForward(subject, messages, dryRun) {
     const cfg = config(process.env);
     const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
     const issue = fixForwardDue({ subject, messages }, r.ok ? r.data : null);
     if (!issue) return;
     console.log(`release-due: this merge fixes the held candidate forward (#${issue}): release.yml mode=candidate`);
-    if (!dryRun) run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=candidate"]);
+    if (!dryRun) run("gh", fixForwardDispatch(subject));
 }
 
 async function main() {

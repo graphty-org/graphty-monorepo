@@ -64,6 +64,7 @@ import {
 import {
     cancelNote as releaseCancelNote,
     due as releaseDue,
+    fixForwardDispatch as releaseFixForwardDispatch,
     fixForwardDue as releaseFixForwardDue,
     resumesDue as releaseResumesDue,
     toCancel as releaseToCancel,
@@ -1483,6 +1484,16 @@ describe("ci.yml", () => {
         );
         assert.equal(releaseFixForwardDue(named, { hold: null }), null);
         assert.equal(releaseFixForwardDue(named, null), null, "a store that does not answer: the next slot merges it");
+    });
+
+    it("names the fix's pull request in the candidate run it dispatches (fix_pr)", () => {
+        assert.deepEqual(releaseFixForwardDispatch("Merge pull request #5 from graphty-org/fix/900-topic").slice(-4), [
+            "-f",
+            "mode=candidate",
+            "-f",
+            "fix_pr=5",
+        ]);
+        assert.equal(releaseFixForwardDispatch("fix(x): a squash").at(-1), "mode=candidate");
     });
 
     it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
@@ -7617,9 +7628,32 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
         assert.ok(parseYaml(release).on.workflow_dispatch.inputs.mode.options.includes("candidate"));
     });
 
-    it("re-tests a moved head only where the fixes reach: the plan's shards, lanes and Storybooks", () => {
+    it("re-tests a moved head whole unless CANDIDATE_RETEST is affected: the plan's outputs are empty then", () => {
         const plan = jobs.pick.steps.find((st) => st.id === "forward");
-        assert.equal(plan.if, "${{ steps.candidate.outputs.run == 'true' && steps.candidate.outputs.forward != '' }}");
+        assert.equal(
+            plan.if,
+            "${{ steps.candidate.outputs.run == 'true' && steps.candidate.outputs.forward != '' && vars.CANDIDATE_RETEST == 'affected' }}",
+        );
+        // a skipped plan step: shards "" is ci.yml's whole suite with its screenshots, Hosts and macOS run, and the
+        // re-capture reads the CI lane's own capture
+        for (const out of ["shards", "hosts", "macos", "capture"]) {
+            assert.equal(jobs.pick.outputs[out], `\${{ steps.forward.outputs.${out} }}`, out);
+        }
+        assert.equal(
+            jobs.pick.outputs.source_run,
+            "${{ steps.resume.outputs.source_run || steps.forward.outputs.source_run }}",
+        );
+        assert.equal(jobs.ci.if, "${{ needs.pick.outputs.release == 'true' }}");
+        assert.equal(jobs.t4.if, "${{ needs.pick.outputs.release == 'true' }}");
+    });
+
+    it("hands the fix's pull request (fix_pr) to the candidate_fix job", () => {
+        assert.equal(parseYaml(release).on.workflow_dispatch.inputs.fix_pr.type, "string");
+        assert.equal(jobs.candidate_fix.steps.at(-1).env.FIX_PR, "${{ inputs.fix_pr }}");
+    });
+
+    it("with CANDIDATE_RETEST=affected, re-tests a moved head only where the fixes reach", () => {
+        const plan = jobs.pick.steps.find((st) => st.id === "forward");
         assert.match(plan.run, /node tools\/channel\/candidate-fix.mjs plan/);
         assert.equal(jobs.ci.with.shards, "${{ needs.pick.outputs.shards }}");
         assert.match(jobs.hosts.if, /needs.pick.outputs.hosts != 'false'/);

@@ -37,12 +37,14 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   - fix forward (tools/channel/candidate-fix.mjs): a held candidate is fixed on branches made from its head, named
 #     for the hold issue. Before every full, restart and candidate pick, the candidate_fix job merges each such fix
 #     that reached master (its last commit before tools/pr-open.sh merged master in; never master itself) into branch
-#     channel/candidate and moves the hold's head. The pick then tests that head first, and re-tests only what the
-#     fixes reach: the test shards nx calls affected (ci.yml `shards`, no screenshots there), T4, the audit, Hosts
-#     and macOS work protection when their packages or the lockfile changed, and in the recapture job every story of
-#     an affected Storybook, the other projects' captures carried over from the run before. The candidate_site job
+#     channel/candidate and moves the hold's head. The pick then tests that head first, as a whole full run: every
+#     lane and the whole screenshot capture (the first version, owner 2026-10-26). The repository variable
+#     CANDIDATE_RETEST=affected switches on the narrower re-test of only what the fixes reach: the test shards nx
+#     calls affected (ci.yml `shards`, no screenshots there), T4, the audit, Hosts and macOS work protection when
+#     their packages or the lockfile changed, and in the recapture job every story of an affected Storybook, the
+#     other projects' captures carried over from the run before. The candidate_site job
 #     assembles the head's site (deploy-pages.yml), which master never built. A red re-test goes to the hold issue
-#     only. `candidate`: dispatched by ci.yml's release-due job when such a fix merges; a run like a full one that
+#     only. `candidate` (with `fix_pr`): dispatched by ci.yml's release-due job when such a fix merges; a run like a full one that
 #     tests only a moved held head, never master.
 #
 # Promote after approval (design/ci/channels-pipeline.md section 5, "Approval gates nightly"): a held head H whose
@@ -152,6 +154,11 @@ on:
                 type: string
             accept:
                 description: "promote-nightly: the owner's approval, the head of his accept-only pull request on the candidate"
+                required: false
+                default: ""
+                type: string
+            fix_pr:
+                description: "candidate: the fix pull request whose merge started this run (ci.yml's release-due job); its merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
                 required: false
                 default: ""
                 type: string
@@ -270,6 +277,7 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  FIX_PR: ${{ inputs.fix_pr }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -428,10 +436,12 @@ jobs:
                       --json databaseId --jq '.[0].databaseId // empty') || build=""
                   echo "build_run=${build}" >> "$GITHUB_OUTPUT"
 
-            # what a fix forward's re-test runs: nx's affected projects over the held commit..the head
+            # what a fix forward's re-test runs: nx's affected projects over the held commit..the head. Only when the
+            # repository variable CANDIDATE_RETEST is `affected`; unset (the first version, owner 2026-10-26) this step
+            # is skipped, its outputs are empty and the moved head is re-tested whole: every shard, lane and screenshot
             - name: Plan the fix forward's re-test
               id: forward
-              if: ${{ steps.candidate.outputs.run == 'true' && steps.candidate.outputs.forward != '' }}
+              if: ${{ steps.candidate.outputs.run == 'true' && steps.candidate.outputs.forward != '' && vars.CANDIDATE_RETEST == 'affected' }}
               env:
                   BASE: ${{ steps.candidate.outputs.forward }}
                   SHA: ${{ steps.candidate.outputs.sha }}

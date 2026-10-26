@@ -114,6 +114,8 @@ export class SetsNotifier {
     #cancelFrame: (() => void) | null = null;
     readonly #budget: number;
     #disposed = false;
+    /** Who waits for the queue to empty: see {@link SetsNotifier.idle}. */
+    #idle: (() => void)[] = [];
 
     /**
      * Start with nothing watched and nothing queued.
@@ -144,6 +146,7 @@ export class SetsNotifier {
         return () => {
             this.#entries.delete(entry);
             this.#queue.delete(entry);
+            this.#wake();
         };
     }
 
@@ -192,6 +195,20 @@ export class SetsNotifier {
         return this.#queue.size;
     }
 
+    /**
+     * Resolve once no watch is waiting for a frame.
+     * @returns a promise that never rejects
+     */
+    idle(): Promise<void> {
+        if (this.#queue.size === 0) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            this.#idle.push(resolve);
+        });
+    }
+
     /** Cancel the queued work and drop every watch. */
     dispose(): void {
         this.#disposed = true;
@@ -199,6 +216,20 @@ export class SetsNotifier {
         this.#cancelFrame = null;
         this.#queue.clear();
         this.#entries.clear();
+        this.#wake();
+    }
+
+    /** Release the {@link SetsNotifier.idle} waiters once the queue is empty. */
+    #wake(): void {
+        if (this.#queue.size > 0) {
+            return;
+        }
+
+        const waiting = this.#idle;
+        this.#idle = [];
+        for (const resolve of waiting) {
+            resolve();
+        }
     }
 
     /**
@@ -262,5 +293,7 @@ export class SetsNotifier {
         if (this.#queue.size > 0) {
             this.#request();
         }
+
+        this.#wake();
     }
 }

@@ -3183,9 +3183,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
-        // The passes a selection, hover or set change starts without awaiting: `settled()` waits
-        // for them too.
-        painted: painter.idle,
+        // The paint nobody awaits: the pass a selection or hover change asks for, and a live set's
+        // resolution after a freeze, which arrives on a later frame and then asks for its pass.
+        // Each can start the next (a resolution asks for a pass, a finishing whole-graph pass for
+        // the one folded in after it), so wait until all three are quiet at once.
+        painted: async () => {
+            do {
+                await notifier.idle();
+                await layerScopes.idle();
+                await painter.idle();
+            } while (notifier.pending > 0 || layerScopes.repainting || painter.paint.painting());
+        },
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.

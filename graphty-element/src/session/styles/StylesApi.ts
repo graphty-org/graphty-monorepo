@@ -759,9 +759,11 @@ export interface StylesApi {
      * what a consumer should never have to write against this element. So the element answers the
      * question instead.
      *
-     * Every style edit is queued on the session's own queue, so this is the queue being empty
-     * rather than a per-run promise: after it resolves there is no element-initiated painting
-     * outstanding, whoever started it.
+     * It waits for everything that paints without being awaited: the runs on the session's
+     * queue, the repaint of every style edit written so far, the repaint a selection or pointer
+     * change asks for (`selection.apply`, `hover`, `previewHover`), and a live set's new
+     * membership after the graph changed, which arrives a frame later. After it resolves there
+     * is no element-initiated painting outstanding, whoever started it.
      * @returns A promise that resolves when nothing the element started is still in flight.
      */
     settled(): Promise<void>;

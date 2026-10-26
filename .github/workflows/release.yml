@@ -212,7 +212,7 @@ jobs:
             id-token: write
             issues: write # the age:nightly stall alarm
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools
@@ -257,7 +257,7 @@ jobs:
             id-token: write # the results store's hold
         steps:
             # master's history: the fixes' merges since the held commit
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
@@ -315,7 +315,7 @@ jobs:
         steps:
             # The commit this run was started on (master's head when it was dispatched), so the run's commit,
             # Coveralls' commit and the tested commit are one and the same.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
@@ -572,7 +572,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
@@ -612,7 +612,7 @@ jobs:
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
@@ -682,7 +682,7 @@ jobs:
         outputs:
             held: ${{ steps.approvals.outputs.held }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
@@ -752,7 +752,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -779,7 +779,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -806,7 +806,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -833,7 +833,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -860,7 +860,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -887,7 +887,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -915,7 +915,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -977,7 +977,7 @@ jobs:
             WHOLE: ${{ needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
             CARRY: ${{ needs.pick.outputs.source_run != '' && !contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
@@ -1159,7 +1159,7 @@ jobs:
             # Full history without file contents: a green verdict closes the red issue only from a later commit,
             # and the screenshot gate below reads the baselines' LFS pointers and the approvals from git and checks
             # an approval's commit is an ancestor.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools
@@ -1357,7 +1357,7 @@ jobs:
             ACCEPT: ${{ needs.pick.outputs.sha }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools
@@ -1437,7 +1437,7 @@ jobs:
         outputs:
             base: ${{ steps.end.outputs.base }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -1473,7 +1473,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
             ABANDON: ${{ needs.abandon.result == 'success' }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
@@ -1536,7 +1536,7 @@ jobs:
             # a nightly promotion's failure, a full run's or one after the owner's approval: its own issue
             NIGHTLY: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' || inputs.mode == 'promote-nightly' }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools/release-held.sh
@@ -1680,7 +1680,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
         steps:
             # The version commit must sit on the tree the lanes tested.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
@@ -1828,7 +1828,7 @@ jobs:
             # the candidate the approval (SHA) is made on
             TESTED: ${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: master
                   fetch-depth: 0
@@ -1993,7 +1993,7 @@ jobs:
             issues: write # close the hold issue
             id-token: write # the results store
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -2043,7 +2043,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
             COMMIT: ${{ needs.version.outputs.commit }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.version.outputs.commit }}
                   fetch-depth: 0
@@ -2300,7 +2300,7 @@ jobs:
               run: echo "JOB_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
             # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: master
                   fetch-depth: 0
@@ -2380,7 +2380,7 @@ jobs:
                           --notes "The built site of ${SHA}, promoted to nightly.graphty.app by ${RUN_URL}."
                   gh release upload "$tag" "$RUNNER_TEMP/out/site.tar.zst" "$RUNNER_TEMP/out/channel.json" --clobber
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: ${{ steps.current.outputs.ours == 'true' }}
               with:
                   repository: ${{ env.SITE_REPO }}

@@ -53,12 +53,12 @@ describe("check-features", () => {
         ]);
     });
 
-    it("fails an experimental export in the API report, naming it", () => {
+    it("allows an experimental export in the API report (@experimental promises no compatibility)", () => {
         const found = problems({
             "graphty-element/api/index.api.md": "// @beta\nexport function scrubTimeline(at: number): void;\n",
+            "graphty-element/api/extend.api.md": "// @experimental\nexport interface TimelineCommand {}\n",
         });
-        assert.equal(found.length, 1);
-        assert.match(found[0], /index\.api\.md:1: experimental public API "export function scrubTimeline/);
+        assert.deepEqual(found, []);
     });
 
     it("fails an @experimental tag naming no row, or an unknown one", () => {

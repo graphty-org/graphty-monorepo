@@ -48,7 +48,7 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             # The deployed commit, with history and tags, so the stamp below can name the app's release.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ env.SHA }}
                   fetch-depth: 0
@@ -341,7 +341,7 @@ jobs:
             # master's tip, like promote.yml: graphty/sites/canary.json may not exist at an older deployed commit
             - name: Check out canary's site.json
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   sparse-checkout: graphty/sites
                   path: ./repo/
@@ -358,11 +358,11 @@ jobs:
 
             - name: Setup Pages
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/configure-pages@v4
+              uses: actions/configure-pages@v6
 
             - name: Upload Pages artifact
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/upload-pages-artifact@v3
+              uses: actions/upload-pages-artifact@v5
               with:
                   path: ./public
 

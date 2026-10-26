@@ -44,6 +44,8 @@ const AT_ONCE = /^codeql/i;
 
 const slot = (c) => `${c.ref}\u0000${family(c.key)}`;
 const readAt = (c) => Date.parse(c.last_accessed_at ?? c.created_at);
+// the newest key of a delete-at-once family is its keeper; elsewhere the most recently read one
+const keepBy = (c) => (AT_ONCE.test(family(c.key)) ? Date.parse(c.created_at) : readAt(c));
 const prOf = (ref) => /^refs\/pull\/(\d+)\//.exec(ref)?.[1];
 
 /**
@@ -58,7 +60,7 @@ export function toDelete(caches, openPrs, now = Date.now()) {
     const keeper = new Map();
     for (const c of caches) {
         const k = keeper.get(slot(c));
-        if (!k || readAt(c) > readAt(k)) keeper.set(slot(c), c);
+        if (!k || keepBy(c) > keepBy(k)) keeper.set(slot(c), c);
     }
     const out = [];
     for (const c of caches) {

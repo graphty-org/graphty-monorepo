@@ -60,6 +60,9 @@ describe("cache hygiene", () => {
             cache(3, k("c".repeat(40), "40220025311"), M, 0.1, 0.1),
         ];
         assert.deepEqual(ids(caches), [1, 2]);
+        // the newest created is kept even when an older one was read more recently
+        caches[0].last_accessed_at = hoursAgo(0.01);
+        assert.deepEqual(ids(caches), [1, 2]);
     });
 
     it("keeps the most recently read key after a revert, not the newest created", () => {

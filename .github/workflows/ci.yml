@@ -380,6 +380,7 @@ jobs:
                   HEAD_SHA: ${{ github.sha }}
                   AFFECTED: ${{ steps.plan.outputs.affected }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
@@ -1251,6 +1252,7 @@ jobs:
               run: ${{ matrix.test-command }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -2464,3 +2466,4 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}

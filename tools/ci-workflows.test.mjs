@@ -4571,11 +4571,12 @@ describe("release.yml", () => {
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told
-        const record = ({ url = "https://results.test/", store = 0 } = {}) => {
+        const record = ({ url = "https://results.test/", store = 0, health = "", healthStatus = 0 } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-record-"));
             writeFileSync(
                 join(dir, "curl"),
-                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*/v1/sites*) exit ${store};;\n*) echo '{"value":"jwt"}';;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*health.test/v1/sites*) exit ${healthStatus};;\n` +
+                    `*/v1/sites*) exit ${store};;\n*graphty-health*) echo '{"value":"hjwt"}';;\n*) echo '{"value":"jwt"}';;\nesac\n`,
                 { mode: 0o755 },
             );
             const step = /- name: Record the site in the results store\n[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
@@ -4586,6 +4587,7 @@ describe("release.yml", () => {
                 env: {
                     ...process.env,
                     RESULTS_URL: url,
+                    HEALTH_API_URL: health,
                     SHA: "a".repeat(40),
                     ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.test/?x=1",
                     ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req",
@@ -4610,12 +4612,62 @@ describe("release.yml", () => {
             const unset = record({ url: "" });
             assert.equal(unset.status, 0);
             assert.equal(unset.calls, "", "no store configured: no call");
+            assert.doesNotMatch(ok.calls, /graphty-health/, "no health API configured: no call there");
             // after the site is uploaded, so a recorded site always exists as an artifact
             const build = job(deploy, "build");
             assert.ok(
                 build.indexOf("name: Upload the site") < build.indexOf("name: Record the site in the results store"),
             );
         });
+
+        it("records each kept site in the pipeline health API too, with its own token, failing open", () => {
+            const both = record({ health: "https://health.test/" });
+            assert.equal(both.status, 0);
+            assert.match(both.calls, /audience=graphty-health/);
+            assert.match(both.calls, /-X POST https:\/\/health.test\/v1\/sites -H Authorization: Bearer hjwt /);
+            assert.match(both.calls, /-X POST https:\/\/results.test\/v1\/sites -H Authorization: Bearer jwt /);
+            const down = record({ health: "https://health.test/", healthStatus: 22 });
+            assert.equal(down.status, 0, "a health API that does not answer never fails the deploy");
+            assert.match(down.calls, /results.test\/v1\/sites/, "and never stops the store's record");
+            const alone = record({ url: "", health: "https://health.test/" });
+            assert.equal(alone.status, 0);
+            assert.match(alone.calls, /health.test\/v1\/sites/);
+        });
+    });
+});
+
+// Every POST to the results store also goes to the pipeline health API (issue #3602), which
+// takes the same bodies: tools/results/client.mjs sends there when HEALTH_API_URL is set.
+describe("the pipeline health API", () => {
+    const files = [
+        ...readdirSync(new URL("../.github/workflows/", import.meta.url))
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => [f, workflow(f)]),
+        ["tools/channel/site-deploy.yml", readFileSync(new URL("channel/site-deploy.yml", import.meta.url), "utf8")],
+    ];
+    it("gets HEALTH_API_URL beside every RESULTS_URL and health-api-url beside every results-url", () => {
+        for (const [name, text] of files) {
+            const lines = text.split("\n");
+            lines.forEach((line, i) => {
+                const m = /^( *)RESULTS_URL: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (m)
+                    assert.equal(
+                        lines[i + 1],
+                        `${m[1]}HEALTH_API_URL: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+                const r = /^( *)results-url: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (r)
+                    assert.equal(
+                        lines[i + 1],
+                        `${r[1]}health-api-url: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+            });
+        }
+        const action = readFileSync(new URL("../.github/actions/timings/action.yml", import.meta.url), "utf8");
+        assert.match(action, /^ {4}health-api-url:\n/m);
+        assert.match(action, /HEALTH_API_URL: \$\{\{ inputs\.health-api-url \}\}/);
     });
 });
 

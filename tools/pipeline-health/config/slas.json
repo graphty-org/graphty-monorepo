@@ -1,0 +1,809 @@
+{
+    "$comment": "SLA members of design/ci/health-dashboard.md section 4. Times in ms, shares as fractions. ok is the target (green), fail the red threshold; yellow lies between. Window: 1h, 1h+6h (red needs the 6 h value past fail too), now, slow (never sets state), info (not judged yet).",
+    "categories": [
+        {
+            "id": "master",
+            "label": "Master"
+        },
+        {
+            "id": "pull_requests",
+            "label": "Pull requests"
+        },
+        {
+            "id": "ci",
+            "label": "CI"
+        },
+        {
+            "id": "flaky",
+            "label": "Flaky tests"
+        },
+        {
+            "id": "releases",
+            "label": "Releases"
+        },
+        {
+            "id": "costs",
+            "label": "Costs"
+        },
+        {
+            "id": "data_sources",
+            "label": "Data sources"
+        }
+    ],
+    "sources": {
+        "collector": {
+            "label": "Collector: GitHub runs, jobs, pull requests, issues",
+            "yellowAfterMs": 900000
+        },
+        "ci-results": {
+            "label": "CI test results and timings",
+            "yellowAfterMs": 7200000,
+            "activity": "source.ci_results_per_run",
+            "thin": {
+                "metric": "source.ci_results_per_run",
+                "minActivity": 3
+            }
+        },
+        "release": {
+            "label": "Release records (from release.yml jobs)",
+            "yellowAfterMs": 25200000
+        },
+        "npm": {
+            "label": "npm publishes",
+            "yellowAfterMs": 10800000
+        },
+        "stress": {
+            "label": "Weekly stress run (from GitHub)",
+            "yellowAfterMs": 691200000
+        },
+        "hosts": {
+            "label": "Host matrix",
+            "yellowAfterMs": 108000000
+        },
+        "billing": {
+            "label": "Billing (Cost Explorer, Cloudflare, Sentry)",
+            "yellowAfterMs": 129600000
+        },
+        "flaky-feed": {
+            "label": "Feed of CI's flaky detections",
+            "notSetUp": "no writer yet; tracked in its own issue (design section 14)"
+        },
+        "local": {
+            "label": "Local writer (test ledger, push log)",
+            "idle": "the local gate retired on 2026-10-25"
+        },
+        "channels": {
+            "label": "Release channels",
+            "notSetUp": "channel not built yet, #3418"
+        },
+        "cloudflare-token": {
+            "label": "Cloudflare read-only token",
+            "notSetUp": "read-only Cloudflare token not created (owner decision, design section 16)"
+        },
+        "sentry-token": {
+            "label": "Sentry read-only token",
+            "notSetUp": "read-only Sentry token not created (owner decision, design section 16)"
+        }
+    },
+    "runnerLimits": {
+        "linux_windows": 60,
+        "macos": 5
+    },
+    "prBudgetsMin": {
+        "pr": 20,
+        "pr-wide": 35
+    },
+    "dailyRowLimit": 300000,
+    "members": [
+        {
+            "id": "master.red_now",
+            "category": "master",
+            "label": "Red now",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "master.red_span_ms"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 900000],
+            "also": [
+                {
+                    "metric": "master.red_builds",
+                    "fail": [">=", 2]
+                }
+            ],
+            "sources": ["collector"]
+        },
+        {
+            "id": "master.green_time",
+            "category": "master",
+            "label": "Green time",
+            "window": "1h",
+            "measure": {
+                "type": "share",
+                "metric": "master.red_ms",
+                "complement": true
+            },
+            "ok": [">=", 0.9166],
+            "fail": ["<", 0.75],
+            "sources": ["collector"],
+            "headline": true
+        },
+        {
+            "id": "master.red_same_check",
+            "category": "master",
+            "label": "Red on the same check",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.max_failing_same_check"
+            },
+            "ok": ["<=", 1],
+            "fail": [">=", 3],
+            "sources": ["collector"]
+        },
+        {
+            "id": "master.last_full_run",
+            "category": "master",
+            "label": "Last full-run verdict",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "master.full_run_failed"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 1],
+            "sources": ["collector", "release"]
+        },
+        {
+            "id": "master.untested_age",
+            "category": "master",
+            "label": "Untested master age",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "master.untested_age_ms"
+            },
+            "ok": ["<=", 25200000],
+            "fail": [">", 46800000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "master.reverts",
+            "category": "master",
+            "label": "Reverts",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "master.reverts"
+            },
+            "ok": ["<", 0.05],
+            "fail": [">", 0.1],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.time_to_merge",
+            "category": "pull_requests",
+            "label": "Time to merge",
+            "window": "1h+6h",
+            "measure": {
+                "type": "median",
+                "metric": "pr.time_to_merge"
+            },
+            "ok": ["<=", 3600000],
+            "fail": [">", 10800000],
+            "minN": 5,
+            "sources": ["collector"],
+            "headline": true
+        },
+        {
+            "id": "pr.open",
+            "category": "pull_requests",
+            "label": "Open pull requests",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.open"
+            },
+            "ok": ["<=", 15],
+            "fail": [">", 25],
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.oldest_open",
+            "category": "pull_requests",
+            "label": "Oldest open",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.oldest_open_ms"
+            },
+            "ok": ["<", 86400000],
+            "fail": [">", 259200000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.merge_ratio",
+            "category": "pull_requests",
+            "label": "Merge ratio",
+            "window": "1h+6h",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.merge_ratio"
+            },
+            "ok": [">=", 0.9],
+            "fail": ["<", 0.7],
+            "minN": 5,
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.automerge_stuck",
+            "category": "pull_requests",
+            "label": "Auto-merge stuck",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.automerge_stuck"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 3],
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.screenshot_backlog",
+            "category": "pull_requests",
+            "label": "Screenshot backlog",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.screenshot_backlog_ms"
+            },
+            "ok": ["<", 86400000],
+            "fail": [">", 259200000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.runner_wait",
+            "category": "ci",
+            "label": "Runner wait",
+            "window": "1h",
+            "measure": {
+                "type": "p90",
+                "metric": "ci.runner_wait"
+            },
+            "ok": ["<=", 300000],
+            "fail": [">", 900000],
+            "minN": 20,
+            "sources": ["collector"],
+            "headline": true
+        },
+        {
+            "id": "ci.longest_queued",
+            "category": "ci",
+            "label": "Longest queued now",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "ci.longest_queued_ms"
+            },
+            "ok": ["<=", 300000],
+            "fail": [">", 900000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.saturated_time",
+            "category": "ci",
+            "label": "Saturated time",
+            "window": "1h",
+            "measure": {
+                "type": "sum",
+                "metric": "ci.saturated_ms"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 900000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.runners_not_assigned",
+            "category": "ci",
+            "label": "Runners not being assigned",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "ci.unassigned_ms"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 900000],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.first_attempt",
+            "category": "ci",
+            "label": "First-attempt pass rate",
+            "window": "1h+6h",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.first_attempt"
+            },
+            "ok": [">=", 0.85],
+            "fail": ["<", 0.7],
+            "minN": 8,
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.hangs",
+            "category": "ci",
+            "label": "Hangs",
+            "window": "1h",
+            "measure": {
+                "type": "sum",
+                "metric": "ci.hangs"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 2],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.pr_check_duration",
+            "category": "ci",
+            "label": "PR check duration",
+            "window": "1h+6h",
+            "measure": {
+                "type": "median",
+                "metric": "ci.pr_check_duration",
+                "scale": 8.333333333333333e-7
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 2],
+            "minN": 5,
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.bins_over_8",
+            "category": "ci",
+            "label": "Pull request bins over 8 min",
+            "window": "1h+6h",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.bins_over_8"
+            },
+            "ok": ["<=", 0.1],
+            "fail": [">", 0.25],
+            "minN": 10,
+            "sources": ["ci-results"]
+        },
+        {
+            "id": "ci.reruns",
+            "category": "ci",
+            "label": "Reruns",
+            "window": "1h+6h",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.reruns"
+            },
+            "ok": ["<", 0.05],
+            "fail": [">", 0.15],
+            "minN": 10,
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.full_shards_over_budget",
+            "category": "ci",
+            "label": "Full-run shards over budget",
+            "window": "slow",
+            "measure": {
+                "type": "dims_median_over",
+                "metric": "ci.full_shard_time",
+                "over": 3600000,
+                "minPerDim": 5
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 3],
+            "slowWindow": "7d",
+            "sources": ["ci-results"]
+        },
+        {
+            "id": "ci.superseded_running",
+            "category": "ci",
+            "label": "Superseded runs running",
+            "window": "info",
+            "measure": {
+                "type": "last",
+                "metric": "ci.superseded_running"
+            },
+            "sources": ["collector"]
+        },
+        {
+            "id": "flaky.rate",
+            "category": "flaky",
+            "label": "Flake rate",
+            "window": "1h+6h",
+            "measure": {
+                "type": "rate",
+                "metric": "flaky.rate",
+                "scale": 1000
+            },
+            "ok": ["<", 2],
+            "fail": [">", 10],
+            "minN": 125,
+            "sources": ["ci-results"],
+            "headline": true
+        },
+        {
+            "id": "flaky.blocked",
+            "category": "flaky",
+            "label": "Blocked by a flake",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "flaky.blocked_prs"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 3],
+            "also": [
+                {
+                    "metric": "flaky.blocked_oldest_ms",
+                    "fail": [">=", 86400000]
+                }
+            ],
+            "sources": ["collector", "ci-results"]
+        },
+        {
+            "id": "flaky.no_issue",
+            "category": "flaky",
+            "label": "Flaky in CI with no open issue",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "flaky.no_issue"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 3],
+            "sources": ["collector", "ci-results"]
+        },
+        {
+            "id": "flaky.net_new",
+            "category": "flaky",
+            "label": "Net new flaky",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "flaky.net_change"
+            },
+            "ok": ["<=", 0],
+            "fail": [">", 3],
+            "slowWindow": "7d",
+            "sources": ["ci-results"]
+        },
+        {
+            "id": "flaky.detected_to_fixed",
+            "category": "flaky",
+            "label": "Detected to fixed",
+            "window": "slow",
+            "measure": {
+                "type": "median",
+                "metric": "flaky.detected_to_fixed"
+            },
+            "ok": ["<=", 259200000],
+            "fail": [">", 604800000],
+            "minN": 5,
+            "slowWindow": "28d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "release.lanes_red",
+            "category": "releases",
+            "label": "Lanes red on the candidate",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.lanes_red"
+            },
+            "ok": ["<=", 0],
+            "also": [
+                {
+                    "metric": "release.hold_open_ms",
+                    "fail": [">=", 21600000]
+                }
+            ],
+            "sources": ["release"],
+            "headline": true
+        },
+        {
+            "id": "release.workflows_failing",
+            "category": "releases",
+            "label": "Release workflows failing",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.workflows_failing"
+            },
+            "ok": ["<=", 0],
+            "also": [
+                {
+                    "metric": "release.max_failed_in_row",
+                    "fail": [">=", 3]
+                }
+            ],
+            "sources": ["collector"]
+        },
+        {
+            "id": "release.train_skipped",
+            "category": "releases",
+            "label": "Train skipped a new commit",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.train_skipped"
+            },
+            "ok": ["<=", 0],
+            "sources": ["release"]
+        },
+        {
+            "id": "release.tagged_not_on_npm",
+            "category": "releases",
+            "label": "Tagged, not on npm",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "npm.tagged_missing"
+            },
+            "ok": ["<=", 0],
+            "also": [
+                {
+                    "metric": "npm.tagged_missing_oldest_ms",
+                    "fail": [">", 1800000]
+                }
+            ],
+            "sources": ["npm"]
+        },
+        {
+            "id": "release.train_first_attempt",
+            "category": "releases",
+            "label": "Train first-attempt pass",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "release.train_first_attempt"
+            },
+            "ok": [">=", 0.9],
+            "fail": ["<", 0.75],
+            "minN": 5,
+            "slowWindow": "7d",
+            "sources": ["release"]
+        },
+        {
+            "id": "release.canary_age",
+            "category": "releases",
+            "label": "Canary age",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.canary_age"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "release.nightly_age",
+            "category": "releases",
+            "label": "Nightly age",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.nightly_age"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "release.production_age",
+            "category": "releases",
+            "label": "Production age",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.production_age"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "release.merge_to_canary",
+            "category": "releases",
+            "label": "Merge to canary",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.merge_to_canary"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "release.merge_to_nightly",
+            "category": "releases",
+            "label": "Merge to nightly",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.merge_to_nightly"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "release.change_failure_rate",
+            "category": "releases",
+            "label": "Change failure rate",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.change_failure_rate"
+            },
+            "sources": ["channels"]
+        },
+        {
+            "id": "cost.spend",
+            "category": "costs",
+            "label": "Spend this month",
+            "window": "now",
+            "measure": {
+                "type": "month",
+                "metric": "cost.usd",
+                "projected": true
+            },
+            "ok": ["<=", 300],
+            "fail": [">", 360],
+            "sources": ["collector", "billing"],
+            "headline": true
+        },
+        {
+            "id": "cost.t4",
+            "category": "costs",
+            "label": "T4 GPU",
+            "window": "now",
+            "measure": {
+                "type": "month",
+                "metric": "cost.usd",
+                "dim": "t4",
+                "projected": true
+            },
+            "ok": ["<=", 200],
+            "fail": [">", 240],
+            "sources": ["collector"]
+        },
+        {
+            "id": "cost.llm",
+            "category": "costs",
+            "label": "LLM regression",
+            "window": "now",
+            "measure": {
+                "type": "month",
+                "metric": "cost.usd",
+                "dim": "llm",
+                "projected": true
+            },
+            "ok": ["<=", 60],
+            "fail": [">", 75],
+            "sources": ["collector"]
+        },
+        {
+            "id": "cost.aws",
+            "category": "costs",
+            "label": "AWS",
+            "window": "now",
+            "measure": {
+                "type": "month",
+                "metric": "cost.usd",
+                "dim": "aws",
+                "projected": false
+            },
+            "ok": ["<=", 8],
+            "fail": [">", 10],
+            "sources": ["billing"]
+        },
+        {
+            "id": "cost.cloudflare_usage",
+            "category": "costs",
+            "label": "Cloudflare usage",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "cost.cloudflare_usage_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.9],
+            "sources": ["cloudflare-token", "billing"]
+        },
+        {
+            "id": "cost.sentry_usage",
+            "category": "costs",
+            "label": "Sentry usage",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "cost.sentry_usage_share"
+            },
+            "ok": ["<", 0.8],
+            "fail": [">", 1.0],
+            "sources": ["sentry-token", "billing"]
+        },
+        {
+            "id": "data.stress_run",
+            "category": "data_sources",
+            "label": "Stress run",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "stress.state"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 2],
+            "sources": ["collector"]
+        },
+        {
+            "id": "data.sources_age",
+            "category": "data_sources",
+            "label": "Sources past their age limit",
+            "window": "now",
+            "measure": {
+                "type": "engine",
+                "name": "sources_not_ok"
+            },
+            "ok": ["<=", 0],
+            "sources": [],
+            "headline": true
+        },
+        {
+            "id": "data.sources_thin",
+            "category": "data_sources",
+            "label": "Sources thin for their activity",
+            "window": "1h+6h",
+            "measure": {
+                "type": "engine",
+                "name": "sources_thin"
+            },
+            "ok": [">=", 0.5],
+            "fail": ["<", 0.2],
+            "minN": 3,
+            "sources": []
+        },
+        {
+            "id": "data.collector",
+            "category": "data_sources",
+            "label": "Collector",
+            "window": "now",
+            "measure": {
+                "type": "engine",
+                "name": "collector_age"
+            },
+            "ok": ["<=", 600000],
+            "fail": [">", 1200000],
+            "sources": []
+        },
+        {
+            "id": "data.rate_limit",
+            "category": "data_sources",
+            "label": "GitHub App rate limit",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "github.rate_remaining_share"
+            },
+            "ok": [">", 0.5],
+            "fail": ["<", 0.2],
+            "sources": ["collector"]
+        },
+        {
+            "id": "data.write_budget",
+            "category": "data_sources",
+            "label": "Daily write budget",
+            "window": "now",
+            "measure": {
+                "type": "engine",
+                "name": "write_budget"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.9],
+            "sources": []
+        }
+    ]
+}

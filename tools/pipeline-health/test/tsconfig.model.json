@@ -1,0 +1,21 @@
+{
+    "$comment": "Temporary strict type-check of src/model, src/sla and their tests, until the package tsconfig lands.",
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": ["ES2022"],
+        "types": ["node"],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "exactOptionalPropertyTypes": false,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "skipLibCheck": true,
+        "noEmit": true
+    },
+    "include": ["../src/model/**/*.ts", "../src/sla/**/*.ts", "model/**/*.ts", "sla/**/*.ts"]
+}

@@ -13,7 +13,17 @@ import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { call, config, EVENT_MS, flushHealth, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
+import {
+    call,
+    config,
+    EVENT_MS,
+    flushHealth,
+    postFailures,
+    postFlaky,
+    postInvocation,
+    readPlan,
+    RECORD_MS,
+} from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
@@ -23,12 +33,14 @@ import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
+    groupFamily,
     junitOf,
     postRecords,
     prJudge,
     recordsOf,
     refreshPlan,
     runGroup,
+    runShape,
     storeList,
 } from "./run-group.mjs";
 
@@ -218,6 +230,27 @@ describe("reporter", () => {
             mock.timers.reset();
         }
     });
+    it("sends a story whose two renders disagreed as unstable", () => {
+        const events = [];
+        const r = new ResultsReporter({
+            env: { GRAPHTY_RESULTS_INVOCATION: "b" },
+            cfg: {},
+            root: process.cwd(),
+            send: (_cfg, inv, failures) => events.push({ inv, failures }),
+        });
+        const message = "visual-review: app--default is unstable (two renders drew different pictures): dark";
+        r.onTestCaseResult({
+            module: { moduleId: join(process.cwd(), "graphty/src/App.stories.tsx") },
+            fullName: "Default",
+            result: () => ({ state: "failed", errors: [{ message, stack: "at x" }] }),
+        });
+        assert.deepEqual(events[0].failures[0], {
+            file: "graphty/src/App.stories.tsx",
+            name: "Default",
+            status: "unstable",
+            message: `${message}\nat x`,
+        });
+    });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
@@ -269,6 +302,28 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+        // a retry that ran none of the failed files (an empty report under the wrong command) is no pass
+        const empty = recordsOf({
+            id: "9.1.job.pkg",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "pkg|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 1,
+            result: {
+                firstCode: 1,
+                firstOutcome: "failed",
+                retried: true,
+                retryCode: 0,
+                retryRan: false,
+                retryAt: 7000,
+            },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir,
+            runId: "run1",
+        });
+        assert.equal(empty[1].outcome, "error");
         // a first try that exited 0 and still failed the shard (its output over the budget) is no pass
         const flood = recordsOf({
             id: "9.1.job.pkg",
@@ -287,6 +342,16 @@ describe("records", () => {
             flood.map((r) => r.outcome),
             ["error"],
         );
+    });
+});
+
+describe("runShape", () => {
+    it("files a story-tests run that takes screenshots apart from the plain test job of the same shard", () => {
+        // ci.yml's graphty leg runs graphty-storybook's own command with VISUAL_REVIEW_STORY_OUT set
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, false), "shots");
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, true), "shots");
+        assert.equal(runShape({}, false), "whole");
+        assert.equal(runShape({}, true), "selected");
     });
 });
 
@@ -349,6 +414,64 @@ describe("runGroup", () => {
     });
 });
 
+describe("groupFamily", () => {
+    it("keeps every story-tests leg that takes screenshots apart from the shard it is named after", () => {
+        const shots = { VISUAL_REVIEW_STORY_OUT: "/tmp/stories" };
+        // ci.yml's story-tests legs: the graphty and graphty-element storybook shards, and the algorithms and
+        // layout legs that borrow the algorithms-browser and layout unit-test shards' names
+        for (const [shard, plain] of [
+            ["graphty-storybook", "graphty-storybook"],
+            ["graphty-element-storybook-1", "graphty-element-storybook"],
+            ["algorithms-browser", "algorithms-browser"],
+            ["layout", "layout"],
+        ]) {
+            assert.equal(groupFamily(shard, {}), plain);
+            assert.equal(groupFamily(shard, shots), `${plain}-shots`);
+        }
+    });
+
+    it("judges a screenshot run by its shard's quarantine and its own and hands that very list to the combine step", async () => {
+        const root = join(TMP, "checkout-shots");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-storybook", package: "graphty", "test-command": "exit 0" }];\n`,
+        );
+        const day = new Date().toISOString().slice(0, 10);
+        const entry = (family, name) => ({
+            file: "g/A.stories.tsx",
+            name,
+            family,
+            issue: 7,
+            reason: "r",
+            since: day,
+            expires: day,
+        });
+        writeFileSync(
+            join(root, "tools/test-quarantine.json"),
+            JSON.stringify({
+                quarantine: [entry("graphty-storybook", "Plain"), entry("graphty-storybook-shots", "Shots")],
+            }),
+        );
+        const out = join(root, "not-made-yet/quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("graphty-storybook", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [
+                ["Plain", "graphty-storybook-shots"],
+                ["Shots", "graphty-storybook-shots"],
+            ],
+        );
+    });
+});
+
 describe("planRead", () => {
     const shards = [
         { shard: "graphty-element-browser-1", package: "graphty-element" },
@@ -359,6 +482,14 @@ describe("planRead", () => {
         assert.deepEqual(variantsOf(shards, ["graphty-element"]), [
             "graphty-element-browser|flags=off|whole",
             "graphty-element-browser|flags=off|selected",
+        ]);
+    });
+    it("also asks for a story shard's screenshot family", () => {
+        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
+        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+            "graphty-storybook|flags=off|whole",
+            "graphty-storybook|flags=off|selected",
+            "graphty-storybook-shots|flags=off|shots",
         ]);
     });
     it("takes a selected run's file time over a whole run's", () => {
@@ -903,6 +1034,31 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test", GITHUB_SHA: "abc" };
+        postFlaky(env, "x-2", "x", []);
+        postFlaky({ ...env, HEALTH_API_URL: "" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky({ ...env, GRAPHTY_RESULTS: "0" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky(env, "x-2", "x", [
+            { file: "a.ts", name: "t", text: "boom" },
+            { file: "b.ts", name: "u" },
+        ]);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/failures");
+        assert.deepEqual(post.body, {
+            invocation: "9.1.test.x-2.1",
+            flaky: true,
+            family: "x",
+            sha: "abc",
+            failures: [
+                { file: "a.ts", name: "t", message: "boom" },
+                { file: "b.ts", name: "u", message: "" },
+            ],
+        });
+        assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

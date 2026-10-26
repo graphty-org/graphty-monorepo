@@ -38,6 +38,8 @@ import {
     selectShards,
     selectStories,
     storyBins,
+    STORY_BIN_LIMIT_MS,
+    STORY_FILE_MS,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -1284,6 +1286,45 @@ describe("reads of another package's files, path by path", () => {
     });
 });
 
+describe("visual-review files only the story setups load", () => {
+    const pkgs = ["visual-review", "algorithms", "layout", "graphty", "graphty-element"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map(pkgs.map((d) => [d, new Set(d === "visual-review" ? [] : ["visual-review"])]));
+    const noGraphs = new Map(pkgs.map((d) => [d, []]));
+    const run = (changed) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        return selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke)
+            .filter((s) => s.mode !== "none")
+            .map((s) => s.shard);
+    };
+
+    it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
+        const picked = run(["visual-review/capture/story-test-setup.mjs"]);
+        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
+        // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
+        assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
+        assert.ok(story.length === 6, story.join(", "));
+    });
+
+    it("a change to visual-review's other code still runs every dependent's shards", () => {
+        for (const f of ["visual-review/trusted/cli.mjs", "visual-review/capture/story-test.mjs"]) {
+            const picked = run([f]);
+            for (const sh of ["algorithms-default", "layout", "graphty-1", "graphty-element-browser-1"]) {
+                assert.ok(picked.includes(sh), `${f}: ${sh} in ${picked.join(", ")}`);
+            }
+        }
+    });
+});
+
 describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md section 4.3)", () => {
     const real = new Map([
         ["graph-format", "graph-format"],
@@ -1854,7 +1895,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
         })[dir] ?? [];
 
-    it("packs selected story files into bins of at most 8 minutes by their storybook family's times", () => {
+    it("packs selected story files into bins of at most 4 minutes by their storybook family's times", () => {
         const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
         const durations = {
             "graphty-element-storybook": {
@@ -1866,11 +1907,27 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.deepEqual(
             bins.map((b) => [b.name, b.files, b.ms]),
             [
-                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
-                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("counts a file with no longer recorded time at its project's capture rate", () => {
+        const files = Array.from({ length: 7 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
+        const bins = storyBins([entry("graph-io-fidelity", "files", files)], projects, list, {
+            "graph-io-storybook": { [files[0]]: 1_000 },
+        });
+        // 40 s a file: six fit in 4 minutes, the seventh starts a second bin
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files.length, b.ms]),
+            [
+                ["graph-io-fidelity-1", 6, 6 * STORY_FILE_MS["graph-io-fidelity"]],
+                ["graph-io-fidelity-2", 1, STORY_FILE_MS["graph-io-fidelity"]],
+            ],
+        );
+        assert.ok(6 * STORY_FILE_MS["graph-io-fidelity"] <= STORY_BIN_LIMIT_MS);
     });
 
     it("bins every story file of a project selected whole, and nothing for one selected none", () => {

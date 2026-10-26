@@ -22,6 +22,18 @@
 #   --dry-run  print the prompt it would send and exit, calling nothing and writing nothing
 set -euo pipefail
 
+# Always master's review (owner, 2026-10-26): a branch that has not merged master since the review changed
+# would otherwise run its own older copy of this script (the costly one, before #3657). So fetch master and,
+# when its copy differs from this one, run that instead. PR_REVIEW_LOCAL=1 (the tests) keeps this copy.
+if [ -z "${PR_REVIEW_FROM_MASTER:-}${PR_REVIEW_LOCAL:-}" ]; then
+    git fetch -q origin master 2>/dev/null || true
+    latest=$(mktemp)
+    if git show origin/master:tools/pr-review.sh >"$latest" 2>/dev/null && [ -s "$latest" ] && ! cmp -s "$latest" "$0"; then
+        PR_REVIEW_FROM_MASTER=1 exec bash "$latest" "$@"
+    fi
+    rm -f "$latest"
+fi
+
 die() {
     echo "pr-review: $*" >&2
     exit 1

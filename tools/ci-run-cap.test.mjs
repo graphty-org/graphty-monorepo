@@ -15,11 +15,21 @@ const run = (id, started, status, event = "pull_request") => ({
 const ME = run(40268423520, "2026-10-26T04:18:51Z", "in_progress");
 
 // a fake API that answers each path from a table, and a fake clock that advances on sleep
-function fake({ ci, release = [], jobs = {} }) {
+function fake({ ci, release = [], jobs = {}, summary = {} }) {
     const calls = [];
     let t = 0;
-    const api = async (path) => {
+    const api = async (path, body) => {
         calls.push(path);
+        // summary: check suite id -> the statuses of its "All Checks Pass" check runs
+        if (path === "graphql")
+            return {
+                data: {
+                    nodes: body.variables.ids.map((id) => ({
+                        id,
+                        checkRuns: { nodes: (summary[id] ?? []).map((status) => ({ status })) },
+                    })),
+                },
+            };
         if (path === `actions/runs/${ME.id}`) return ME;
         if (path.startsWith("actions/workflows/ci.yml/runs")) {
             const status = /status=(\w+)/.exec(path)[1];
@@ -119,4 +129,53 @@ test("never fails: an API error proceeds, and no cap asks nothing", async () => 
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f, api: broken })).outcome, "API error");
     assert.equal((await waitTurn({ cap: null, runId: ME.id, ...f })).outcome, "no cap");
     assert.equal(f.calls.length, 0);
+});
+
+test("a run whose All Checks Pass has completed does not count, asked in one GraphQL query", async () => {
+    const suite = (r, id) => ({ ...r, check_suite_node_id: id });
+    const ci = [
+        ME,
+        suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1"), // only its screenshot tail is left
+        suite(run(2, "2026-10-26T04:01:00Z", "in_progress"), "CS_2"), // still testing
+        suite(run(3, "2026-10-26T04:02:00Z", "in_progress"), "CS_3"), // re-run: one done, one not
+    ];
+    const summary = { CS_1: ["COMPLETED"], CS_2: ["IN_PROGRESS"], CS_3: ["COMPLETED", "QUEUED"] };
+    const f = fake({ ci, summary });
+    assert.deepEqual(await waitTurn({ cap: 3, runId: ME.id, ...f }), {
+        waitedSeconds: 0,
+        outcome: "proceeded",
+        checks: 1,
+    });
+    assert.equal(f.calls.filter((c) => c === "graphql").length, 1);
+    // with cap 2 the two unfinished runs still fill it
+    const g = fake({ ci, summary });
+    const r = await waitTurn({
+        cap: 2,
+        runId: ME.id,
+        ...g,
+        sleep: async () => {
+            throw new Error("stop");
+        },
+    });
+    assert.equal(r.outcome, "API error");
+    assert.ok(g.calls.includes("graphql"));
+});
+
+test("a failed GraphQL query counts every run, so the cap never loosens by mistake", async () => {
+    const ci = [ME, { ...run(1, "2026-10-26T04:00:00Z", "in_progress"), check_suite_node_id: "CS_1" }];
+    const f = fake({ ci, summary: { CS_1: ["COMPLETED"] } });
+    const api = async (path, body) => {
+        if (path === "graphql") throw new Error("HTTP 403");
+        return f.api(path, body);
+    };
+    const r = await waitTurn({
+        cap: 1,
+        runId: ME.id,
+        ...f,
+        api,
+        sleep: async () => {
+            throw new Error("stop");
+        },
+    });
+    assert.equal(r.outcome, "API error"); // it waited (the fake sleep stops it), it did not proceed
 });

@@ -133,6 +133,8 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 // compiled by test/consumer-types.test.ts as a consumer would compile it
                 "test/consumer/consumer.ts",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
@@ -365,6 +367,8 @@ const config: KnipConfig = {
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
                 "stories/**/*.stories.tsx",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignoreDependencies: [

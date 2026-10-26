@@ -41,6 +41,7 @@ const MASTER_KINDS = {
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
+    master: "a push to master runs ci.yml as a build only, with no tests",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
@@ -133,7 +134,12 @@ function kindOf(claims, env) {
     const prefix = `${claims.repository}/.github/workflows/`;
     const [path, at] = String(claims.job_workflow_ref).split("@");
     const file = path.startsWith(prefix) ? path.slice(prefix.length) : "";
-    if (Object.hasOwn(MASTER_KINDS, file) && claims.ref === MASTER && at === MASTER) return MASTER_KINDS[file];
+    if (Object.hasOwn(MASTER_KINDS, file) && claims.ref === MASTER && at === MASTER) {
+        // ci.yml run by master's own push (workflow_ref is ci.yml itself) builds only; called by release.yml it is the full run
+        const caller = String(claims.workflow_ref).split("@")[0];
+        if (file === "ci.yml" && claims.event_name === "push" && caller === path) return "master";
+        return MASTER_KINDS[file];
+    }
     return refuse(
         403,
         `only pull requests and master's own ${Object.keys(MASTER_KINDS).join(", ")} on refs/heads/master write here; ` +

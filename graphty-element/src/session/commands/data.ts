@@ -27,10 +27,10 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
@@ -485,7 +485,7 @@ export function replaceNodesCommand(
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const named = new Map(records.map((record) => [searchRecord(record, idPath), record]));
     const gone = [...held.keys()].filter((id) => !named.has(id));
     const changed: RowUpdate<NodeId>[] = [];
     for (const [id, prior] of held) {

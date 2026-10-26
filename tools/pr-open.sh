@@ -135,7 +135,9 @@ if [ -z "$url" ]; then
         echo
         echo "## Proof"
         echo
-        cat "$proof"
+        # The file's own "#" and "##" headings become "###", so they stay inside the Proof section (PR Integrity
+        # reads the section up to the next "##"; a file starting "## Proof" left it empty).
+        sed -E 's/^#{1,2}[ \t]+/### /' "$proof"
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
 fi

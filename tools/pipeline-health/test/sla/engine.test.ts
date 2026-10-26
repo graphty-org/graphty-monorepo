@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type CostItem, DAY, floorTo, type RawItem } from "../../src/model/items.js";
+import { type CostItem, DAILY_ROW_LIMIT, DAY, floorTo, type RawItem } from "../../src/model/items.js";
 import { putRaw, recordSource, takeQuota } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -206,7 +206,7 @@ describe("data states", () => {
 
     it("judges the write budget and the sources past their limit", async () => {
         const store = await world([], T0, [...LIVE, "stress", "hosts"]);
-        await takeQuota(store, 285_000, T0);
+        await takeQuota(store, 0.95 * DAILY_ROW_LIMIT, T0);
         expect(await member(store, "data.write_budget")).toMatchObject({ state: "FAILING", value: 0.95 });
         await recordSource(store, "hosts", T0 - 50 * HOUR, { ok: true }); // 30 h limit: past it, not yet 2x
         expect(await member(store, "data.sources_age")).toMatchObject({ state: "WARNING", value: 1 });

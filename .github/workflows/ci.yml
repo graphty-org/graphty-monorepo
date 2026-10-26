@@ -1320,11 +1320,11 @@ jobs:
               run: ${{ matrix.test-command }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
-                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 

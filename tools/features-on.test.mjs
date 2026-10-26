@@ -53,6 +53,13 @@ describe("withFeaturesOn", () => {
         assert.deepEqual(twin.test.browser.instances, projects[1].test.browser.instances);
     });
 
+    it("gives a twin its own define, whose keys vitest deletes", () => {
+        const withDefine = [{ define: { __V__: '"1"' }, test: { name: "default" } }];
+        const twin = withFeaturesOn(withDefine, ["default"], SETUP, true)[1];
+        assert.notEqual(twin.define, withDefine[0].define);
+        assert.deepEqual(twin.define, withDefine[0].define);
+    });
+
     it("adds no twin to a run that did not ask for the On configuration", () => {
         // the default is FEATURES_DECLARED && GRAPHTY_FEATURES_ON=1; this process never sets it
         assert.equal(process.env[ON_ENV], undefined);

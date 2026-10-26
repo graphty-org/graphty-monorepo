@@ -28,8 +28,8 @@ export const ON_SUFFIX = "features-on";
 export const ON_ENV = "GRAPHTY_FEATURES_ON";
 
 /**
- * One project's On twin: renamed, with `setupFile` last in its setupFiles. The browser config and its
- * instances are copied, because vitest writes each instance's name into the object it is handed.
+ * One project's On twin: renamed, with `setupFile` last in its setupFiles. The browser config, its instances
+ * and the define object are copied, because vitest writes into (or deletes from) the objects it is handed.
  * @param project a vitest inline project config
  * @param setupFile the setup file that switches every experiment on
  * @returns the twin
@@ -44,7 +44,10 @@ export function featuresOnTwin(project, setupFile) {
     if (test.browser) {
         twin.browser = { ...test.browser, instances: test.browser.instances?.map((i) => ({ ...i })) };
     }
-    return { ...project, test: twin };
+    const copy = { ...project, test: twin };
+    // vitest deletes the keys of the define object it is handed, so a shared one empties the second project's
+    if (project.define) copy.define = { ...project.define };
+    return copy;
 }
 
 /**

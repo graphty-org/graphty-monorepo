@@ -507,7 +507,6 @@ export async function runGroup(
 }
 
 /**
-/**
  * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
  * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
  * RESULTS_VARIANT overrides the variant.

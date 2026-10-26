@@ -228,7 +228,8 @@ the SNS topic `graphty-health-alarms` when that happens.
 
 ## Backfill
 
-To load the last 28 days of runs, jobs, pull requests and issues (it needs the GitHub App's parameters):
+To load the last 28 days of flaky tests, runs, jobs, pull requests and issues (it needs the GitHub App's
+parameters):
 
 ```bash
 aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
@@ -238,6 +239,13 @@ aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-h
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;
 invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
 backfill -- --days 28` runs the same from a workstation.
+
+It loads newest first, so a call that stops early has loaded the most recent days. Flaky tests come first:
+each warning annotation `[FLAKY]`, `[FLAKY-UNRELATED]` or `[QUARANTINED] ... failed and passed` that the test
+shards leave on their check runs (the `Test`, `Story tests` and `Restricted CPU` jobs) becomes the same row the
+live feed writes for that test, and a row already there is left alone. CI prints those annotations since
+2026-10-22, when the quarantine began, so the flaky history starts then. Then runs and jobs from yesterday back,
+then pull requests and issues.
 
 ## Running the tests and the page
 

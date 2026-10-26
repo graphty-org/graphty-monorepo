@@ -245,4 +245,15 @@ describe("views", () => {
         const points = (m?.spark?.trend ?? []).flatMap((v, i) => (v === null ? [] : [i]));
         expect(points).toEqual([3, 13, 22]);
     });
+
+    it("a page's state names only members the page shows", async () => {
+        for (const store of [new MemoryStore(), await world([], T0, ["collector"])]) {
+            for (const p of pages(await views(store))) {
+                const ids = p.members.map((m) => m.id);
+                for (const r of [...(p.setBy ? [p.setBy] : []), ...p.others]) {
+                    expect(ids, `${p.page} ${p.range} names ${r.member}`).toContain(r.member);
+                }
+            }
+        }
+    });
 });

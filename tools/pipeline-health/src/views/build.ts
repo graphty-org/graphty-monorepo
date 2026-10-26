@@ -22,7 +22,7 @@ import type {
 } from "../../web/src/contract.js";
 import type { Store } from "../model/store.js";
 import { SLAS, type SlaConfig } from "../sla/config.js";
-import type { Evaluation, MemberStatus, SourceStatus } from "../sla/engine.js";
+import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
 import {
@@ -286,7 +286,17 @@ class Builder {
                 sections: await this.sections(page, range),
             };
         }
-        const cat = (await this.categories(range)).find((c) => c.id === (page === "runners" ? "ci" : page));
+        // Runners is a view of CI: its state is the rollup of its own members, never a CI member it does not show.
+        const cat =
+            page === "runners"
+                ? await this.category(
+                      categoryOf(
+                          { id: "ci", label: "Runners" },
+                          this.reads.ev.members.filter((m) => RUNNERS.has(m.id)),
+                      ),
+                      range,
+                  )
+                : (await this.categories(range)).find((c) => c.id === page);
         const members = await Promise.all(membersOf(this.reads.ev, page).map((m) => this.member(m.id, range)));
         return {
             ...base,

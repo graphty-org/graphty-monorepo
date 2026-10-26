@@ -470,7 +470,8 @@ Detail: [features.md](channels-pipeline/features.md).
   `featuresFromUrl(url)` in `./catalog`, `setDefaultFeatures(ids)` in `./extend`, descriptors
   `FEATURES` and `GRADUATED_FEATURES`, error `E_FEATURE_OFF { feature, key }`. Experimental catalog
   entries carry a `feature` field and are filtered per session. Unknown ids never throw.
-- **No experimental public types until the owner decides** what `@experimental` promises (section 14); `check-features.mjs` fails on any `@experimental` export.
+- **`@experimental` promises no compatibility** (owner, 2026-10-25; section 14): an experimental API may
+  change or disappear in a minor release, so experiments may add public types.
 - **The app** fetches `site.json` before loading the element (missing or invalid = every experiment
   off), adds `featuresFromUrl(location.href)` and sets the `features` attribute.
 - **Two configurations.** On = `setDefaultFeatures(["all"])` in a setup file: affected files on a pull
@@ -680,12 +681,12 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
 
 ## 14. Owner decisions remaining
 
-One, a one-way door because it is a published contract to graphty-element's consumers:
+None. The last one is decided:
 
-- **What `@experimental` promises.** Recommended: an API tagged `@experimental` may change or
-  disappear in a minor release. Until you decide, experiments ship no public types
-  (`check-features.mjs` fails on any `@experimental` export), which fits catalog entries and
-  attributes but not the timeline's commands and result types. Answer on #3418.
+- **What `@experimental` promises** (owner, 2026-10-25 on #3418, repeated 2026-10-26): no contract.
+  An API tagged `@experimental` may change or disappear in any minor release; consumers opt in
+  knowingly, and changing it is not a breaking change. `check-features.mjs` therefore allows
+  experimental items in the API report.
 
 Everything else is decided in this document and reversible by a pull request.
 

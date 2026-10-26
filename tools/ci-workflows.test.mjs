@@ -1694,7 +1694,12 @@ describe("verification runs of ci.yml", () => {
         // Through the results store like every test shard, and judged against the committed quarantine list.
         assert.match(job(ci, "story-tests"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
         assert.match(job(ci, "story-tests"), /id-token: write/);
-        assert.match(job(ci, "story-tests"), /merge-results .*--quarantine tools\/test-quarantine\.json/);
+        // the combine step judges by the very list the run step judged by, which the run step writes
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_QUARANTINE_OUT: \$\{\{ runner\.temp \}\}\/stories\/quarantine\.json/,
+        );
+        assert.match(job(ci, "story-tests"), /merge-results .*--quarantine "\$RUNNER_TEMP\/stories\/quarantine\.json"/);
         // The blocking switch stays off until the project switches.
         assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);

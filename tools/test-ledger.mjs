@@ -181,8 +181,10 @@ export function failureHashes(text, file, main = "/nonexistent") {
         .filter((l) => frame(l) && !l.includes("node_modules"))
         .slice(0, 2)
         .map((l) => mask(clean(l)));
-    const signature = timeout ? h16(`timeout\0${file}`) : h16([mask(first), ...frames].join("\n"));
-    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status: statusOf(timeout, first) };
+    const status = statusOf(timeout, first);
+    // a timeout's or an unstable story's text changes from run to run (the wait, the modes that differed): signed by its file
+    const signature = status === "fail" ? h16([mask(first), ...frames].join("\n")) : h16(`${status}\0${file}`);
+    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status };
 }
 
 /**
@@ -603,7 +605,8 @@ export function goldenTip(root) {
 
 // Whether failure `x` (on golden) is failure `f` (in the land check): the same test failing the same way, or
 // `f` an expired wait, which carries no cause, and golden failing that test at all.
-const sameFailure = (x, f) => x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout");
+const sameFailure = (x, f) =>
+    x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout" || f.status === "unstable");
 
 /**
  * The failures a land check may excuse (design 5.1): every failing test fails on golden's tip too, and the landing

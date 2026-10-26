@@ -2012,11 +2012,13 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+                  # the quarantine list this run judges by, which the combine step must judge by too
+                  RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
-              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine tools/test-quarantine.json --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}

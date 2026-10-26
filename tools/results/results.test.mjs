@@ -23,6 +23,7 @@ import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
+    groupFamily,
     junitOf,
     postRecords,
     prJudge,
@@ -378,6 +379,61 @@ describe("runGroup", () => {
         writeFileSync(join(root, "test-results/results-spool"), "");
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
         assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+    });
+});
+
+describe("groupFamily", () => {
+    it("keeps every story-tests leg that takes screenshots apart from the shard it is named after", () => {
+        const shots = { VISUAL_REVIEW_STORY_OUT: "/tmp/stories" };
+        // ci.yml's story-tests legs: the graphty and graphty-element storybook shards, and the algorithms and
+        // layout legs that borrow the algorithms-browser and layout unit-test shards' names
+        for (const [shard, plain] of [
+            ["graphty-storybook", "graphty-storybook"],
+            ["graphty-element-storybook-1", "graphty-element-storybook"],
+            ["algorithms-browser", "algorithms-browser"],
+            ["layout", "layout"],
+        ]) {
+            assert.equal(groupFamily(shard, {}), plain);
+            assert.equal(groupFamily(shard, shots), `${plain}-shots`);
+        }
+    });
+
+    it("judges a screenshot run by its own family's quarantine and hands that very list to the combine step", async () => {
+        const root = join(TMP, "checkout-shots");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-storybook", package: "graphty", "test-command": "exit 0" }];\n`,
+        );
+        const day = new Date().toISOString().slice(0, 10);
+        const entry = (family, name) => ({
+            file: "g/A.stories.tsx",
+            name,
+            family,
+            issue: 7,
+            reason: "r",
+            since: day,
+            expires: day,
+        });
+        writeFileSync(
+            join(root, "tools/test-quarantine.json"),
+            JSON.stringify({
+                quarantine: [entry("graphty-storybook", "Plain"), entry("graphty-storybook-shots", "Shots")],
+            }),
+        );
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("graphty-storybook", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => q.name),
+            ["Shots"],
+        );
     });
 });
 

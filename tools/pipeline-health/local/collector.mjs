@@ -26,13 +26,15 @@
 //
 // The cursor is <root>/tmp/pipeline-health-local/cursor.json. A failed post logs one line and leaves
 // the cursor where it was, so the next pass sends the same rows again; a post the API refuses for its
-// content (400, 413) is split, and a single refused row is logged and skipped. Delete the cursor to
+// content (400, 413; ingest answers 400 for a row DynamoDB refuses) is split, and a single refused row is
+// logged and skipped. Any other failure (500, 502, 503, 504, network) skips nothing. Delete the cursor to
 // post everything again.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 
@@ -286,7 +288,8 @@ export async function collect({
             writeCursor(cursorFile, cursor);
         };
         // A body the API refuses for its content (400, 413) is split until the refused row is alone; that
-        // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here.
+        // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here,
+        // so an outage (ingest answers 500 for DynamoDB throttling, SSM, a deny action) never skips rows.
         const send = async (body) => {
             const r = await post(kind, { rows: body.map((i) => i.row) });
             if (r === true) {

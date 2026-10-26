@@ -100,8 +100,13 @@ async function runBackfill(
     let recomputed = 0;
     let dirtyLeft = true;
     while (Date.now() < end - 30_000) {
-        const r = await recompute(store, Date.now());
+        const r = await recompute(store, Date.now(), Math.max(end - Date.now(), 60_000));
         recomputed += r.buckets;
+        // The scheduled collector holds the lease: let it finish, then take the rest.
+        if (r.busy) {
+            await new Promise((done) => setTimeout(done, 5_000));
+            continue;
+        }
         if (r.buckets === 0) {
             dirtyLeft = false;
             break;

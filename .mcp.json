@@ -2,7 +2,7 @@
     "mcpServers": {
         "pipeline-health": {
             "command": "node",
-            "args": ["tools/pipeline-health/mcp/server.mjs"]
+            "args": ["tools/pipeline-health/mcp/start.mjs"]
         }
     }
 }

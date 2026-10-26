@@ -2166,6 +2166,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
     let painted: GraphSnapshot | null = null;
@@ -2237,6 +2238,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
             painted = null;
@@ -3181,6 +3183,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
+        // The passes a selection, hover or set change starts without awaiting: `settled()` waits
+        // for them too.
+        painted: painter.idle,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.

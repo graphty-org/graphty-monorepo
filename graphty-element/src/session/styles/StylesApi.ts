@@ -1381,6 +1381,11 @@ export interface StylesSources {
      */
     readonly repaint?: LayerRepaint;
     /**
+     * Resolves once every repaint pass asked for so far has ended, which `settled()` waits on: a
+     * selection, hover or set change starts a pass without awaiting it. Absent, nothing is waited.
+     */
+    readonly painted?: () => Promise<void>;
+    /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
      * written when it is dispatched.
@@ -4596,6 +4601,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // the repaint of every edit written so far waits on the derivation lane.
             await sources.queue?.settled();
             await dispatcher.lane.settled();
+            // And the passes a selection, hover or set change started without awaiting them.
+            await sources.painted?.();
         },
 
         explain(target: ExplainTarget): StyleExplanation {

@@ -4526,7 +4526,7 @@ describe("release.yml", () => {
             );
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${pagesFails ? "exit 1" : `echo "${cname}"`};;\n*) echo ${compare};;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${pagesFails ? "exit 1" : `echo "${cname}"`};;\n*) ${compare === null ? "exit 1" : `echo ${compare}`};;\nesac\n`,
                 { mode: 0o755 },
             );
             const step = /- id: live\n([\s\S]*)$/.exec(job(deploy, "check"))[1];
@@ -4565,8 +4565,10 @@ describe("release.yml", () => {
             // the stamp is read from canary, never from graphty.app, which graphty-site serves
             assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);
             assert.match(job(deploy, "check"), /CANARY_URL: https:\/\/canary\.graphty\.app\/\n/);
-            // a canary that does not answer yet (before its first deploy) gets one
-            assert.equal(decide({ live: null }).deploy, "deploy=true");
+            // a canary that does not answer gets nothing (a failed read must never move canary back);
+            // one that answers with no stamp (before its first deploy of a stamped build) gets one
+            assert.equal(decide({ live: null }).deploy, "deploy=false");
+            assert.equal(decide({ live: "" }).deploy, "deploy=true");
             // the custom domain is this repository's Pages setting; the site carries no CNAME file
             assert.doesNotMatch(
                 deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),
@@ -4597,6 +4599,25 @@ describe("release.yml", () => {
         it("does not deploy a commit canary already serves, or one older than canary's", () => {
             assert.equal(decide({ live: "abc1" }).deploy, "deploy=false");
             assert.equal(decide({ compare: "behind" }).deploy, "deploy=false");
+            assert.equal(decide({ compare: "identical" }).deploy, "deploy=false");
+            // a compare that fails deploys nothing; a canary on a commit off master's line is replaced
+            assert.equal(decide({ compare: null }).deploy, "deploy=false");
+            assert.equal(decide({ compare: "diverged" }).deploy, "deploy=true");
+        });
+
+        it("adds canary's site.json to the deployed site only, never to the kept site-<sha>", () => {
+            const build = job(deploy, "build");
+            assert.ok(
+                build.indexOf("jq . graphty/sites/canary.json > public/site.json") > build.indexOf("Pack the site"),
+            );
+            assert.match(
+                build,
+                /- name: Add canary's site.json\n\s+if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n/,
+            );
+            assert.equal(
+                JSON.parse(readFileSync(new URL("../graphty/sites/canary.json", import.meta.url), "utf8")).site,
+                "canary",
+            );
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told

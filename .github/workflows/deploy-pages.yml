@@ -5,7 +5,7 @@ name: Deploy to GitHub Pages
 # repository's GitHub Pages, served at canary.graphty.app (the custom domain is a Pages setting of this repository,
 # not a file in the site). Canary is the first channel (design/ci/channels-pipeline.md, section 3):
 # nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
-# (release.yml's nightly promotion, promote.yml). To redeploy, re-run this workflow's run for that commit.
+# (promote.yml, and the full run's nightly promotion). To redeploy, re-run this workflow's run for that commit.
 on:
     workflow_run:
         workflows: ["CI"]
@@ -48,15 +48,23 @@ jobs:
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
-                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page
-                  live=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
+                  # Canary that does not answer, or a compare that fails, deploys nothing: canary never goes back.
+                  if ! page=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"); then
+                      echo "::warning::canary.graphty.app did not answer: nothing is deployed; the next master build tries again"
+                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  live=$(grep -o 'name="graphty-build" content="[^"]*"' <<< "$page" || true)
                   echo "live stamp: ${live:-none}"
                   live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
                   case "$live" in
                       *"commit=${SHA} "*) echo "::notice::${SHA} is live on canary already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
                   esac
-                  if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
-                      echo "::notice::canary's ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  if [ -n "$live_sha" ]; then
+                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status || true)
+                      if [ "$status" != ahead ] && [ "$status" != diverged ]; then
+                          echo "::notice::${SHA} is not ahead of canary's ${live_sha} (${status:-compare failed})"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                      fi
                   fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
 
@@ -257,6 +265,11 @@ jobs:
                       -H "content-type: application/json" -H "X-Results-Schema: 1" -d "{\"sha\":\"${SHA}\"}" ||
                       echo "::warning::the results store did not record site-${SHA}"
 
+            # The kept site-<sha> above has no site.json (a promotion writes its own); the canary deploy adds canary's.
+            - name: Add canary's site.json
+              if: ${{ needs.check.outputs.deploy == 'true' }}
+              run: jq . graphty/sites/canary.json > public/site.json
+
             - name: Setup Pages
               if: ${{ needs.check.outputs.deploy == 'true' }}
               uses: actions/configure-pages@v4
@@ -292,15 +305,23 @@ jobs:
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
-                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page
-                  live=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
+                  # Canary that does not answer, or a compare that fails, deploys nothing: canary never goes back.
+                  if ! page=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"); then
+                      echo "::warning::canary.graphty.app did not answer: nothing is deployed; the next master build tries again"
+                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  live=$(grep -o 'name="graphty-build" content="[^"]*"' <<< "$page" || true)
                   echo "live stamp: ${live:-none}"
                   live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
                   case "$live" in
                       *"commit=${SHA} "*) echo "::notice::${SHA} is live on canary already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
                   esac
-                  if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
-                      echo "::notice::canary's ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  if [ -n "$live_sha" ]; then
+                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status || true)
+                      if [ "$status" != ahead ] && [ "$status" != diverged ]; then
+                          echo "::notice::${SHA} is not ahead of canary's ${live_sha} (${status:-compare failed})"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                      fi
                   fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
 

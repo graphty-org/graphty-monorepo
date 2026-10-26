@@ -2443,6 +2443,8 @@ jobs:
         needs: all-checks
         if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         continue-on-error: true
+        # one at a time: two merges a minute apart would list and delete the same caches
+        concurrency: { group: cache-hygiene, cancel-in-progress: false }
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         # actions: write to list and delete caches; pull-requests: read for the open ones; contents: read

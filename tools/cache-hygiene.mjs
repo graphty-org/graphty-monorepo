@@ -36,6 +36,12 @@ export function family(key) {
     return key.replace(/(?:-(?:[0-9a-f]{16,}|\d{6,}-\d+))+$/i, "").replaceAll(/-\d+(?:\.\d+)+(?=-|$)/g, "");
 }
 
+/**
+ * Families whose every run writes a new key and none restores an older one (CodeQL's overlay databases, one
+ * key per commit and run): only the newest key per ref is kept, at once, never for the 24-hour window.
+ */
+const AT_ONCE = /^codeql/i;
+
 const slot = (c) => `${c.ref}\u0000${family(c.key)}`;
 const readAt = (c) => Date.parse(c.last_accessed_at ?? c.created_at);
 const prOf = (ref) => /^refs\/pull\/(\d+)\//.exec(ref)?.[1];
@@ -58,7 +64,13 @@ export function toDelete(caches, openPrs, now = Date.now()) {
     for (const c of caches) {
         const pr = prOf(c.ref);
         if (pr && !open.has(pr)) out.push({ cache: c, why: `pull request #${pr} is closed` });
-        else if (keeper.get(slot(c)) !== c && now - readAt(c) > KEEP_HOURS * 3600e3)
+        else if (keeper.get(slot(c)) === c) continue;
+        else if (AT_ONCE.test(family(c.key)))
+            out.push({
+                cache: c,
+                why: `superseded by ${keeper.get(slot(c)).key}, a family no run restores by an older key`,
+            });
+        else if (now - readAt(c) > KEEP_HOURS * 3600e3)
             out.push({ cache: c, why: `superseded by ${keeper.get(slot(c)).key}, unread for ${KEEP_HOURS} h` });
     }
     return out;

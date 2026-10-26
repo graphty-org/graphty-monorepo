@@ -51,6 +51,17 @@ describe("cache hygiene", () => {
         assert.deepEqual(ids(caches), [1]);
     });
 
+    it("keeps only the newest CodeQL key per ref, at once", () => {
+        // every master CodeQL run writes a new key (commit sha and run id); none restores an older one
+        const k = (sha, run) => `codeql-overlay-base-database-1-c801913f1ee29663-javascript-2.27.3-${sha}-${run}-1`;
+        const caches = [
+            cache(1, k("a".repeat(40), "40220025309"), M, 3, 3),
+            cache(2, k("b".repeat(40), "40220025310"), M, 1, 1),
+            cache(3, k("c".repeat(40), "40220025311"), M, 0.1, 0.1),
+        ];
+        assert.deepEqual(ids(caches), [1, 2]);
+    });
+
     it("keeps the most recently read key after a revert, not the newest created", () => {
         // master moved the baselines H1 -> H2 and reverted to H1: every run reads the older H1 again
         const caches = [cache(1, `lfs-graphty-${H1}`, M, 0.1, 72), cache(2, `lfs-graphty-${H2}`, M, 48, 48)];

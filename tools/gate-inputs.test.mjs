@@ -475,7 +475,6 @@ wait`,
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
-                    GRAPHTY_TEST_SLOTS_DIR: join(TMP, "no-gates"), // a gate running on this machine changes nothing here
                 },
             },
         );
@@ -488,23 +487,20 @@ wait`,
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
     });
 
-    it("while a gate runs its test shards, keeps every other browser command to slot 4; the gate's own take any", () => {
-        const dir = join(TMP, "gate-lane");
-        const slotsDir = join(dir, "test-slots");
-        mkdirSync(slotsDir, { recursive: true });
-        // A live gate mark: this test process stands in for the gate.
-        writeFileSync(join(slotsDir, `.gate-${process.pid}`), JSON.stringify({ pid: process.pid, since: Date.now() }));
-        // The holder is outside the gate, so it takes slot 4; the gate's command then takes slot 1 at once,
-        // and another command outside the gate waits for slot 4 although slots 2 and 3 are free.
+    it("keeps a low-priority command (BROWSER_SLOT_PRIORITY=low) to slot 4; an ordinary one takes any", () => {
+        const dir = join(TMP, "low-lane");
+        mkdirSync(dir, { recursive: true });
+        // The low holder takes slot 4; an ordinary command then takes slot 1 at once, and another low
+        // command waits for slot 4 although slots 2 and 3 are free.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
-"$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
 until [ -e held.4 ]; do sleep 0.05; done
-TEST_SLOT_GATE=1 "$GATE" sh -c "echo gate > gate"
-"$GATE" sh -c "echo other > other" 2> other.err &
+"$GATE" sh -c "echo gate > gate"
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "echo other > other" 2> other.err &
 until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
 [ ! -e other ] || exit 9
 touch go
@@ -520,20 +516,23 @@ wait`,
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: "off",
-                    GRAPHTY_TEST_SLOTS_DIR: slotsDir,
                 },
             },
         );
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
-        assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the ordinary command ran beside the holder");
+        assert.equal(
+            readFileSync(join(dir, "other"), "utf8"),
+            "other\n",
+            "the second low command ran once slot 4 was free",
+        );
     });
 
-    it("gives the next free slot to the high lane (the cut's preview), ahead of a gate's shard that waited first", () => {
+    it("gives the next free slot to the high lane (BROWSER_SLOT_PRIORITY=high), ahead of a command that waited first", () => {
         const dir = join(TMP, "high-lane");
         mkdirSync(dir, { recursive: true });
-        // Four holders fill the slots. A gate's shard starts waiting, looking every 0.02 s; then the cut's preview
-        // starts waiting, looking every second. One slot frees: the preview takes it, the shard keeps waiting.
+        // Four holders fill the slots. An ordinary command starts waiting, looking every 0.02 s; then a high one
+        // starts waiting, looking every second. One slot frees: the high one takes it, the other keeps waiting.
         const r = spawnSync(
             "bash",
             [
@@ -542,7 +541,7 @@ wait`,
 for i in 1 2 3 4; do "$GATE" sh -c "touch held.$i; while [ ! -e go.$i ]; do sleep 0.05; done" & done
 until [ -e held.1 ] && [ -e held.2 ] && [ -e held.3 ] && [ -e held.4 ]; do sleep 0.05; done
 hold='while [ ! -e done ]; do sleep 0.05; done'
-TEST_SLOT_GATE=1 BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo shard >> order; $hold" 2> shard.err &
+BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo shard >> order; $hold" 2> shard.err &
 until grep -q "waiting for one of 4" shard.err 2>/dev/null; do sleep 0.05; done
 BROWSER_SLOT_PRIORITY=high BROWSER_SLOT_POLL=1 "$GATE" sh -c "echo preview >> order; $hold" 2> preview.err &
 until grep -q "waiting for one of 4" preview.err 2>/dev/null; do sleep 0.05; done
@@ -568,7 +567,6 @@ exit 0`,
                     BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     PIPELINE_WAIT_LOG: "off",
-                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "no-gates"),
                 },
             },
         );

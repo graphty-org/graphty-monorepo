@@ -1,0 +1,222 @@
+# Production promotion: puts a nightly on graphty.app and npm's `latest` (design/ci/channels-pipeline/channels.md,
+# section 8). Also the rollback path: promote an earlier nightly, or with channel: nightly move `next` and
+# nightly.graphty.app back. config_only redeploys what production serves with master's current
+# graphty/sites/production.json, moving no tag.
+#
+# Every job that can change anything runs in environment `production`, whose required reviewer is the owner:
+# nothing runs until he approves the pending deployment in GitHub. dry_run (the default) still waits for him,
+# then checks everything and moves nothing. Every decision is in tools/channel/promote.mjs, with a test per
+# refusal (tools/channel/promote.test.mjs); each step is idempotent, so a re-run finishes a partial promotion.
+name: Promote
+
+on:
+    workflow_dispatch:
+        inputs:
+            nightly:
+                description: "newest, or the nightly's candidate commit (7 or more hex digits)"
+                required: true
+                default: newest
+            channel:
+                description: production moves latest and graphty.app; nightly moves next and nightly.graphty.app back
+                type: choice
+                default: production
+                options:
+                    - production
+                    - nightly
+            dry_run:
+                description: Check everything after the owner's approval, move nothing
+                type: boolean
+                default: true
+            config_only:
+                description: Redeploy what the channel serves with master's current site configuration; move no tag
+                type: boolean
+                default: false
+
+# One promotion at a time; a second waits, never cancels the running one.
+concurrency:
+    group: promote
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    CHANNEL: ${{ inputs.channel }}
+    DRY_RUN: ${{ inputs.dry_run }}
+    CONFIG_ONLY: ${{ inputs.config_only }}
+    SITE_CONFIG: graphty/sites/${{ inputs.channel }}.json
+
+jobs:
+    promote:
+        name: Promote (owner approval)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        environment: production
+        permissions:
+            actions: read # the run's approvals: who approved is promotedBy
+            contents: write # gh release edit
+            issues: read # the publish hold
+            id-token: write # the results store's record
+        outputs:
+            version_commit: ${{ steps.check.outputs.version_commit }}
+            rollback: ${{ steps.check.outputs.rollback }}
+        env:
+            GH_TOKEN: ${{ github.token }}
+            HAS_DIST_TAG_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN != '' }}
+        steps:
+            # The runner context is not available in a job's env, so WORK is set here.
+            - run: echo "WORK=$RUNNER_TEMP/promote" >> "$GITHUB_ENV"
+            # Master's tip: the scripts and graphty/sites/<site>.json a promotion uses.
+            - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            # npm reads the token from the environment of the two steps that need it, never from a file.
+            - run: echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+
+            - name: Check that production asks the owner
+              run: |
+                  set -euo pipefail
+                  reviewers=$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" \
+                      --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length')
+                  [ "$reviewers" -gt 0 ] || {
+                      echo "::error::environment production has no required reviewer, so nothing asked the owner"
+                      exit 1
+                  }
+
+            - name: Gather the nightly, the store's record, npm and what the channel serves
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  NIGHTLY: ${{ inputs.nightly }}
+              run: |
+                  node tools/channel/promote.mjs gather --nightly "$NIGHTLY" --channel "$CHANNEL" \
+                      $([ "$CONFIG_ONLY" = true ] && echo --config-only) --out "$WORK"
+
+            - name: Refuse what may not be promoted
+              id: check
+              run: |
+                  set -euo pipefail
+                  node tools/channel/promote.mjs check "$WORK/facts.json" > "$WORK/plan.json"
+                  jq -r '"Promote \(.tag) to \(.target): " + ((.moves | map("\(.package) \(.from // "none") -> \(.version)") | join(", ")) // "") + (if .rollback then " (rollback)" else "" end)' \
+                      "$WORK/plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                  echo "version_commit=$(jq -r .versionCommit "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
+                  echo "rollback=$(jq -r .rollback "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
+
+            # Before anything moves, so an expired or under-scoped token fails with nothing changed. A dry run
+            # checks the token too once it exists.
+            - name: Check the dist-tag token
+              if: ${{ inputs.config_only != true && (inputs.dry_run != true || env.HAS_DIST_TAG_TOKEN == 'true') }}
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN }}
+                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
+              run: node tools/channel/promote.mjs token "$WORK/plan.json"
+
+            - name: Move the dist-tags
+              if: ${{ inputs.dry_run != true && inputs.config_only != true }}
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN }}
+                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
+              run: node tools/channel/promote.mjs move "$WORK/plan.json"
+
+            - name: Write deployed.json and channel.json
+              run: |
+                  set -euo pipefail
+                  approver=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" \
+                      --jq '[.[] | select(.state == "approved")] | last | .user.login // empty')
+                  node tools/channel/promote.mjs record "$WORK/plan.json" --config "$SITE_CONFIG" \
+                      --config-ref "$GITHUB_SHA" --approver "${approver:-$GITHUB_ACTOR}" --out "$WORK/site"
+                  cat "$WORK/site/deployed.json"
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: promote-${{ github.run_id }}
+                  path: |
+                      ${{ runner.temp }}/promote/plan.json
+                      ${{ runner.temp }}/promote/site
+                      ${{ runner.temp }}/promote/facts.json
+
+            # graphty-site's deploy.yml checks the asset against deployed.json's sha256, overlays production's
+            # datasets, writes site.json and deploys. Nightly's key lives in environment nightly: the
+            # nightly-site job pushes there.
+            - name: Check out graphty-site
+              if: ${{ inputs.dry_run != true && inputs.channel == 'production' }}
+              uses: actions/checkout@v4
+              with:
+                  repository: graphty-org/graphty-site
+                  ssh-key: ${{ secrets.PRODUCTION_SITE_DEPLOY_KEY }}
+                  path: site-repo
+
+            - name: Push deployed.json to graphty-site
+              if: ${{ inputs.dry_run != true && inputs.channel == 'production' }}
+              run: tools/channel/promote-push.sh site-repo "$WORK/site"
+
+            - name: Wait for graphty.app to serve it
+              if: ${{ inputs.dry_run != true && inputs.channel == 'production' }}
+              timeout-minutes: 30 # a hang guard only: the step ends when the site serves the stamp
+              run: node tools/channel/promote.mjs wait "$WORK/plan.json" --config "$SITE_CONFIG"
+
+            - name: Mark the GitHub releases
+              if: ${{ inputs.dry_run != true && inputs.channel == 'production' && inputs.config_only != true }}
+              run: node tools/channel/promote.mjs releases "$WORK/plan.json"
+
+    # A nightly rollback: nightly.graphty.app's deploy key is in environment nightly only.
+    nightly-site:
+        name: Redeploy nightly.graphty.app
+        needs: promote
+        if: ${{ inputs.dry_run != true && inputs.channel == 'nightly' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 40
+        environment: nightly
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
+            - uses: actions/download-artifact@v4
+              with:
+                  name: promote-${{ github.run_id }}
+                  path: ${{ runner.temp }}/promote
+            - uses: actions/checkout@v4
+              with:
+                  repository: graphty-org/graphty-nightly
+                  ssh-key: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
+                  path: site-repo
+            - run: tools/channel/promote-push.sh site-repo "${{ runner.temp }}/promote/site"
+            - timeout-minutes: 30 # a hang guard only
+              run: node tools/channel/promote.mjs wait "${{ runner.temp }}/promote/plan.json" --config "$SITE_CONFIG"
+
+    # channel/<channel> follows what the channel serves. The deploy key never leaves environment release.
+    channel-ref:
+        name: Move channel/${{ inputs.channel }}
+        needs: [promote, nightly-site]
+        if: ${{ always() && inputs.dry_run != true && inputs.config_only != true && needs.promote.result == 'success' && needs.nightly-site.result != 'failure' && needs.nightly-site.result != 'cancelled' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        environment: release # the deploy key
+        permissions:
+            contents: read
+        env:
+            COMMIT: ${{ needs.promote.outputs.version_commit }}
+            ROLLBACK: ${{ needs.promote.outputs.rollback }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+            - run: |
+                  set -euo pipefail
+                  grep -Eqx '[0-9a-f]{40}' <<< "$COMMIT" || { echo "::error::no version commit in the plan"; exit 1; }
+                  ref="refs/heads/channel/${CHANNEL}"
+                  if [ "$ROLLBACK" = true ]; then
+                      old=$(git ls-remote origin "$ref" | cut -f1)
+                      git push --no-verify --force-with-lease="${ref}:${old}" origin "${COMMIT}:${ref}"
+                  else
+                      git push --no-verify origin "${COMMIT}:${ref}"
+                  fi

@@ -1,0 +1,593 @@
+#!/usr/bin/env node
+// full-run.mjs -- the 6-hour full run's two decisions in release.yml (design/ci/channels-pipeline/channels.md
+// sections 5 and 6): which commit a slot tests, and the verdict on it.
+//
+//   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
+//       env MODE (full | restart), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's OIDC token
+//       writes run, sha, why and good to GITHUB_OUTPUT
+//   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
+//                                     closed, one bisect dispatched, the outcome announced
+//       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
+//           (the version dry run's held projects), CAPTURES (a directory of results.json),
+//           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
+//   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
+//                                     references it restarts the run without waiting for the other lanes
+//       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
+//           GH_TOKEN, GITHUB_REPOSITORY
+//
+// The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
+// not answer makes the slot test master's head and makes the verdict skip only its own record.
+
+import { execFileSync } from "node:child_process";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { PUBLISH_HOLD } from "./channel/nightly.mjs";
+import { diffCommits } from "./release-diff.mjs";
+import { call, config } from "./results/client.mjs";
+
+export const RED_TITLE = "Full run red:";
+const GREEN = new Set(["green-clean", "green-images", "approved"]);
+const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
+
+/** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
+export const LANES = {
+    // the pick job itself: a pick that failed tested nothing, so it is red on its own and nothing is recorded
+    pick: { name: "candidate pick", bisect: null },
+    ci: { name: "CI", bisect: "ci" },
+    llm: { name: "LLM regression", bisect: "llm" },
+    t4: { name: "T4 GPU", bisect: "gpu" },
+    hosts: { name: "Hosts", bisect: "hosts" },
+    autosave_macos: { name: "work protection (macOS)", bisect: "macos" },
+    audit: { name: "security audit", bisect: null },
+    version_dry_run: { name: "version dry run", bisect: null },
+};
+
+/**
+ * The commit a slot tests, or why it does nothing.
+ * @param o the inputs
+ * @param o.mode full or restart
+ * @param o.head the commit the run started on (master's head when it was dispatched)
+ * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
+ * @param o.firstParents (sha) => that commit and its first parents, newest first
+ * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
+ * @param o.sameBaselines (from, to) => whether two commits have the same visual-baselines/ tree; a verdict is never
+ *     inherited across a baselines change, because those screenshots were never captured and gated against nightly
+ *     (an inherited green-clean commit is never promoted, so the owner's approved baselines would never reach it)
+ * @param o.onNightly (sha) => whether channel/nightly holds that commit; a green-clean commit it lacks was not
+ *     promoted (a publish hold, the screenshot gate, a refused push)
+ * @param o.hold `{ open, closedAt }`: the open publish hold's number (or empty) and when the newest closed one
+ *     closed (ms, 0 for none). An unpromoted green-clean commit is tested again only once a publish hold closed
+ *     after its verdict: the same commit meets the same screenshot gate, and a refused push ends when master moves,
+ *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
+ * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
+ *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
+ * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
+ */
+export function pick({
+    mode,
+    head,
+    store,
+    firstParents,
+    stray,
+    sameBaselines = () => true,
+    onNightly = () => true,
+    hasNightly = () => true,
+    hold = { open: "", closedAt: 0 },
+}) {
+    if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
+    // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
+    // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
+    // older commit's build records its site late)
+    const sites = new Set(store.sites ?? []);
+    const byOrder = sites.size ? firstParents(head).find((s) => sites.has(s)) : undefined;
+    const sha = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
+    if (!sha) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    // a promotion's version merge onto a newer master leaves that master's site the newest until the merge's own
+    // is recorded: testing it would spend a whole run on a commit nightly cannot move to
+    if (!hasNightly(sha)) {
+        return {
+            run: false,
+            sha,
+            why: `${short(sha)} lacks channel/nightly: it is older than nightly, nothing to promote`,
+        };
+    }
+    const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
+    const chain = firstParents(sha);
+    const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
+    // ponytail: a cleared hold re-runs the whole suite; a promote-only run from the stored verdict if slots get scarce
+    const unpromoted = (v) => v.state === "green-clean" && !onNightly(v.sha);
+    const own = judged.get(sha);
+    if (own && unpromoted(own)) {
+        const s = short(sha);
+        if (hold.open) {
+            return {
+                run: false,
+                sha,
+                good,
+                why: `${s} is judged green-clean; its promotion waits for publish hold #${hold.open}`,
+            };
+        }
+        if (hold.closedAt > (own.at ?? 0)) {
+            return {
+                run: true,
+                sha,
+                good,
+                why: `${s} is judged green-clean and the publish hold that kept it off nightly closed: testing again`,
+            };
+        }
+        return {
+            run: false,
+            sha,
+            good,
+            why: `${s} is judged green-clean but was not promoted (the screenshot gate or a refused push): testing it again changes nothing, a newer commit promotes`,
+        };
+    }
+    if (own) return { run: false, sha, good, why: `${short(sha)} is already judged ${own.state}` };
+    const at = chain.findIndex((s) => judged.has(s));
+    if (
+        at > 0 &&
+        !unpromoted(judged.get(chain[at])) &&
+        stray(chain[at], sha).length === 0 &&
+        sameBaselines(chain[at], sha)
+    ) {
+        const inherit = judged.get(chain[at]);
+        const why = `every merge since ${short(chain[at])} (judged ${inherit.state}) changes only versions or approval records`;
+        return { run: false, sha, good, why, inherit };
+    }
+    return { run: true, sha, good, why: `${short(sha)} is not judged yet` };
+}
+
+/**
+ * The verdict on a full run (channels 5).
+ * @param lanes `{ lane: result }` for every lane in LANES; an LLM lane that was not due is `skipped`; `pick`
+ *   may be left out
+ * @param images the screenshots that differ from their baselines, or null when no capture was found
+ * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
+ * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty
+ * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
+ */
+export function verdictOf(lanes, images, ownerItem = "", held = "") {
+    if ((lanes.pick ?? "success") !== "success") return { state: "red", red: ["pick"] };
+    // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass
+    const passed = (l) =>
+        l === "pick" || lanes[l] === "success" || (l === "llm" && (lanes[l] ?? "skipped") === "skipped");
+    const red = Object.keys(LANES).filter((l) => !passed(l));
+    if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
+    // a planned major or first publish waits for the owner's release-approvals.json entry: his item, not a bug
+    if (red.length === 1 && red[0] === "version_dry_run" && held) return { state: "owner-item", red };
+    if (red.length) return { state: "red", red };
+    // no capture at all is not "nothing differs": the owner looks
+    return { state: images === 0 ? "green-clean" : "green-images", red };
+}
+
+/**
+ * The screenshots that differ in a directory of downloaded visual captures, or null when it holds none or
+ * lacks a project's capture (one that crashed before writing results.json is not "nothing differs").
+ * @param dir the directory
+ * @param [expected] the projects a full run captures (visual-review.config.json)
+ * @returns a count, or null
+ */
+export function differingImages(dir, expected = []) {
+    if (!dir || !existsSync(dir)) return null;
+    // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
+    const newest = new Map();
+    for (const f of readdirSync(dir, { recursive: true }).map(String)) {
+        const m = /^visual-(.+)-(\d+)[/\\](?:.*[/\\])?results\.json$/.exec(f);
+        if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
+    }
+    const files = [...newest.values()].map((v) => v.f);
+    if (!files.length || expected.some((p) => !newest.has(p))) return null;
+    let n = 0;
+    for (const f of files) {
+        const items = JSON.parse(readFileSync(join(dir, f), "utf8")).items ?? [];
+        n += items.filter((i) => !PASSING_IMAGES.has(i.status)).length;
+    }
+    return n;
+}
+
+/**
+ * The red issue's title and body.
+ * @param o the facts
+ * @param o.sha the red commit
+ * @param o.red the lanes that did not pass (LANES keys)
+ * @param o.lanes every lane's result
+ * @param o.run the run's URL
+ * @param o.bisect one sentence on the bisect
+ * @returns `{ title, body }`
+ */
+export function redIssue({ sha, red, lanes, run, bisect }) {
+    const names = red.map((l) => LANES[l].name).join(", ");
+    const results = Object.keys(LANES)
+        .map((l) => `${LANES[l].name} ${lanes[l] ?? "skipped"}`)
+        .join(", ");
+    const body = [
+        `The full run failed on ${sha} (${names}): ${run}`,
+        "",
+        `Results: ${results}`,
+        "",
+        bisect,
+        "",
+        "Nothing was published. Name this issue in the fix or the revert. `Fixes #<this issue>` closes it, cancels this run if it is still going and restarts the full run on the fix once its master build is green. `Refs #<this issue>` restarts the full run after this run ends, keeping this run's verdict and bisect; a green verdict then closes this issue.",
+    ].join("\n");
+    return { title: `${RED_TITLE} ${names} on ${short(sha)}`, body };
+}
+
+/**
+ * The bisect.yml dispatch for a red run, or why there is none.
+ * @param o the facts
+ * @param o.red the lanes that did not pass (LANES keys)
+ * @param o.sha the red commit
+ * @param o.good the last green full-run commit, or empty
+ * @param o.run the run id
+ * @param o.failures `GET /v1/failures`'s answer, or null
+ * @returns `{ inputs }` for bisect.yml, or `{ why }`
+ */
+export function bisectPlan({ red, sha, good, run, failures }) {
+    const lane = red.find((l) => LANES[l].bisect);
+    if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
+    if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
+    // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
+    // broken setup fails a thousand tests that all bisect to the same merge
+    const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
+    return {
+        inputs: {
+            lane: LANES[lane].bisect,
+            good,
+            bad: sha,
+            run_id: String(run),
+            targets: JSON.stringify(tests),
+            // only the capped targets' ids: the rest are not bisected, and the input has the same limit
+            failed_before: JSON.stringify(
+                (failures?.failedBefore ?? []).filter((id) =>
+                    tests.some((t) => id === `${t.shard}: ${t.file} > ${t.name}`),
+                ),
+            ),
+        },
+    };
+}
+
+/**
+ * The red issue for one lane that ended red while the others still run; the verdict later updates the same issue.
+ * @param o the facts
+ * @param o.lane the red lane (a LANES key)
+ * @param o.result its result
+ * @param o.sha the red commit
+ * @param o.run the run's URL
+ * @returns `{ title, body }`, as redIssue makes them
+ */
+export function laneRedIssue({ lane, result, sha, run }) {
+    const lanes = Object.fromEntries(Object.keys(LANES).map((l) => [l, l === lane ? result : "not finished"]));
+    lanes.pick = "success";
+    const bisect = "The other lanes are still running: the verdict updates this issue and starts any bisect.";
+    return redIssue({ sha, red: [lane], lanes, run, bisect });
+}
+
+const MAX_TARGETS = 100;
+const short = (sha) => (sha ?? "").slice(0, 7);
+const sh = (cmd, args, input) =>
+    execFileSync(cmd, args, { encoding: "utf8", input, stdio: [input ? "pipe" : "ignore", "pipe", "inherit"] }).trim();
+const output = (fields) => {
+    const lines = Object.entries(fields).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
+    console.log(lines.join("\n"));
+};
+const read = async (cfg, path) => {
+    const r = await call(cfg, "GET", path);
+    if (!r.ok) console.log(`::warning::results store: GET ${path} did not answer (${r.why})`);
+    return r.ok ? r.data : null;
+};
+const record = async (cfg, verdict) => {
+    const r = await call(cfg, "POST", "/v1/verdicts", verdict);
+    console.log(
+        r.ok ? `recorded ${verdict.state} on ${short(verdict.sha)}` : `::warning::verdict not recorded (${r.why})`,
+    );
+};
+
+/**
+ * Whether channel/nightly holds a commit: in its history, or differing from it only in versions (the version merge
+ * a promotion pushes to master, whose second parent is nightly's version commit). Not acceptMerges: a commit whose
+ * visual-baselines/ differ from nightly's has screenshots nightly does not serve.
+ * @param sha the commit
+ * @param nightly channel/nightly's ref
+ * @param [cwd] the repository
+ * @returns a boolean; false when there is no channel/nightly yet
+ */
+export function isOnNightly(sha, nightly, cwd) {
+    try {
+        execFileSync("git", ["merge-base", "--is-ancestor", sha, nightly], { stdio: "ignore", cwd });
+        return true;
+    } catch {
+        try {
+            return diffCommits(nightly, sha, { cwd }).stray.length === 0;
+        } catch {
+            return false;
+        }
+    }
+}
+
+// The publish hold's state for the pick; an unreadable one counts as open, so the pick spends nothing on a guess
+function publishHold() {
+    try {
+        const open = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
+        const closed = sh("gh", [
+            "issue",
+            "list",
+            "-R",
+            process.env.GITHUB_REPOSITORY,
+            "--state",
+            "closed",
+            "--limit",
+            "20",
+            "--search",
+            `in:title "${PUBLISH_HOLD}"`,
+            "--json",
+            "closedAt",
+            "-q",
+            '[.[].closedAt] | max // ""',
+        ]);
+        return { open, closedAt: closed ? Date.parse(closed) : 0 };
+    } catch (error) {
+        return { open: `(unknown: ${error.message.split("\n")[0]})`, closedAt: 0 };
+    }
+}
+
+async function pickMain(env) {
+    const cfg = config(env);
+    const store = cfg ? await read(cfg, "/v1/candidate") : null;
+    const firstParents = (sha) => sh("git", ["rev-list", "--first-parent", "-n", "200", sha]).split("\n");
+    const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
+    const baselines = (sha) => sh("git", ["rev-parse", `${sha}:visual-baselines`]);
+    const sameBaselines = (from, to) => baselines(from) === baselines(to);
+    const NIGHTLY = "refs/remotes/origin/channel/nightly";
+    const onNightly = (sha) => isOnNightly(sha, NIGHTLY);
+    const hasNightly = (sha) => {
+        try {
+            execFileSync("git", ["rev-parse", "-q", "--verify", NIGHTLY], { stdio: "ignore" });
+        } catch {
+            return true; // no channel/nightly yet
+        }
+        try {
+            execFileSync("git", ["merge-base", "--is-ancestor", NIGHTLY, sha], { stdio: "ignore" });
+            return true;
+        } catch {
+            return false;
+        }
+    };
+    const p = pick({
+        mode: env.MODE,
+        head: env.HEAD_SHA,
+        store,
+        firstParents,
+        stray,
+        sameBaselines,
+        onNightly,
+        hasNightly,
+        hold: publishHold(),
+    });
+    console.log(`::notice::${p.why}`);
+    if (p.inherit) {
+        await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
+    }
+    output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
+}
+
+/**
+ * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
+ * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
+ * issue, and release-due on a quick fix that references it, must both find it.
+ * @param [state] open, closed or all
+ * @param [since] ISO time: only issues updated since then
+ * @returns the issues
+ */
+export const listRedIssues = (state = "open", since = "") =>
+    sh("gh", [
+        "api",
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
+        "--jq",
+        String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at, stateReason: .state_reason} | tojson`,
+        // every page: an issue left open for weeks must not drop out of the listing
+        "--paginate",
+    ])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+// The open red issue's number and title ("<number> <title>"), or empty. The oldest, the one duplicateOf keeps.
+const openRedIssue = () => {
+    const i = listRedIssues().at(-1);
+    return i ? `${i.number} ${i.title}` : "";
+};
+const openRed = () => openRedIssue().split(" ")[0];
+
+/**
+ * Whether a green verdict on `green` closes the open red issue: only when the red commit its title names
+ * (`... on <short sha>`) is in the green commit's history, so an older green commit never closes a newer red.
+ * @param title the red issue's title
+ * @param green the green commit
+ * @param isAncestor (a, b) => whether a is in b's history
+ * @returns boolean
+ */
+export function greenCloses(title, green, isAncestor) {
+    const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
+    return !!red && isAncestor(red, green);
+}
+const ancestor = (a, b) => {
+    try {
+        execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * The older red issue a just-created one duplicates: two lanes that end red together each find none open and each
+ * create one. The oldest stays, so both filers agree on it.
+ * @param created the issue just created
+ * @param open the open red issues' numbers
+ * @returns the number to keep, or null when `created` is the oldest
+ */
+export function duplicateOf(created, open) {
+    const first = Math.min(created, ...open);
+    return first < created ? first : null;
+}
+
+function fileRed(issue) {
+    const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
+    writeFileSync(file, issue.body);
+    const open = openRed();
+    if (open) {
+        sh("gh", ["issue", "edit", open, "--title", issue.title]);
+        sh("gh", ["issue", "comment", open, "--body-file", file]);
+        return Number(open);
+    }
+    const url = sh("gh", [
+        "issue",
+        "create",
+        "--title",
+        issue.title,
+        "--label",
+        "bug",
+        "--label",
+        "priority:critical",
+        "--label",
+        "effort:medium",
+        "--body-file",
+        file,
+    ]);
+    const created = Number(url.split("/").pop());
+    const first = duplicateOf(
+        created,
+        listRedIssues().map((i) => i.number),
+    );
+    if (!first) return created;
+    sh("gh", ["issue", "comment", String(first), "--body-file", file]);
+    sh("gh", ["issue", "close", String(created), "--reason", "not planned", "--comment", `Duplicate of #${first}.`]);
+    return first;
+}
+
+function dispatchBisect(plan) {
+    if (!plan.inputs) return `No bisect: ${plan.why}.`;
+    const args = Object.entries(plan.inputs).flatMap(([k, v]) => ["-f", `${k}=${v}`]);
+    sh("gh", ["workflow", "run", "bisect.yml", "--ref", "master", ...args]);
+    return `Bisect dispatched: bisect.yml, lane ${plan.inputs.lane}, ${short(plan.inputs.good)}..${short(plan.inputs.bad)}.`;
+}
+
+/**
+ * Runs one GitHub side effect of the verdict so that its failure (a rate limit, a 5xx) cannot lose
+ * the verdict: a lost record makes the next slot rerun every lane and bisect the same red again.
+ * @param fn the side effect
+ * @param what what it does, for the warning
+ * @param fallback (why) => the value to return instead
+ * @returns fn's value, or fallback's
+ */
+export function bestEffort(fn, what, fallback) {
+    try {
+        return fn();
+    } catch (error) {
+        const why = String(error?.message ?? error).split("\n")[0];
+        console.log(`::warning::${what} failed: ${why}`);
+        return fallback(why);
+    }
+}
+
+function tryBisect(plan) {
+    return bestEffort(
+        () => dispatchBisect(plan),
+        "dispatching bisect.yml",
+        (why) => `No bisect: dispatching bisect.yml failed (${why}); the pipeline round looks.`,
+    );
+}
+
+function closeRedOnGreen(state, env) {
+    const [open, ...title] = openRedIssue().split(" ");
+    if (!open) return;
+    if (greenCloses(title.join(" "), env.SHA, ancestor)) {
+        sh("gh", ["issue", "close", open, "--comment", `The full run is ${state} on ${env.SHA}: ${env.RUN_URL}`]);
+    } else {
+        console.log(`::notice::#${open} stays open: its red commit is not in ${short(env.SHA)}'s history`);
+    }
+}
+
+async function verdictMain(env) {
+    const cfg = config(env);
+    const lanes = JSON.parse(env.LANES);
+    const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
+    const images = differingImages(env.CAPTURES, projects);
+    const { state, red } = verdictOf(lanes, images, env.LLM_OWNER_ITEM, env.VERSION_HELD);
+    let issue = null;
+    let bisect = "";
+    let what = state;
+    if (state === "owner-item") {
+        what =
+            red[0] === "llm"
+                ? env.LLM_OWNER_ITEM
+                : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
+    }
+    if (state === "red") {
+        const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
+        bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
+        const body = redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect });
+        issue = bestEffort(
+            () => fileRed(body),
+            "filing the red issue",
+            () => null,
+        );
+        what = red.map((l) => LANES[l].name).join(", ");
+    } else if (state !== "owner-item") {
+        bestEffort(
+            () => closeRedOnGreen(state, env),
+            "closing the red issue",
+            () => null,
+        );
+    }
+    // a failed pick judged no commit: recording red on one would make the next slot skip it
+    if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
+    output({ state, issue: issue ? String(issue) : "", what, bisect });
+}
+
+/**
+ * A red issue on this commit that a fixing merge closed in the last hour: release-due is about to cancel this run, so
+ * a lane ending red now files nothing (the verdict still files, if the run is not cancelled after all).
+ * @param closed the closed red issues, as listRedIssues returns them
+ * @param sha the run's commit
+ * @param [now] milliseconds
+ * @returns its number, or null
+ */
+export function fixedRecently(closed, sha, now = Date.now()) {
+    const hit = closed.find(
+        (i) =>
+            i.title.endsWith(` on ${short(sha)}`) &&
+            i.stateReason === "completed" && // a duplicate fileRed closed is "not_planned"
+            i.closedAt &&
+            now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+    );
+    return hit ? hit.number : null;
+}
+
+function laneRedMain(env) {
+    if (env.OWNER_ITEM) {
+        console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
+        return;
+    }
+    const fixed = fixedRecently(listRedIssues("closed", new Date(Date.now() - 60 * 60 * 1000).toISOString()), env.SHA);
+    if (fixed) {
+        console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
+        return;
+    }
+    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));
+    output({ issue: String(issue) });
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+    const cmd = process.argv[2];
+    if (cmd === "pick") await pickMain(process.env);
+    else if (cmd === "verdict") await verdictMain(process.env);
+    else if (cmd === "lane-red") laneRedMain(process.env);
+    else {
+        console.error("usage: node tools/full-run.mjs pick | verdict | lane-red (see the head of the file)");
+        process.exit(2);
+    }
+}

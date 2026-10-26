@@ -22,10 +22,20 @@ on:
                 description: "the commit to test: the release candidate, already on master"
                 type: string
                 required: true
+            # A bisect point (bisect.yml): its failing graphty-element/test/lifecycle files, space separated; only the
+            # jobs that run one of them run. Empty runs every job.
+            files:
+                description: "a bisect point's failing test files; empty runs the whole lane"
+                type: string
+                default: ""
+            bisect_point:
+                description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
+                type: string
+                default: ""
     workflow_dispatch:
 permissions: { contents: read }
 concurrency:
-    group: work-protection-macos-${{ inputs.candidate && format('release-{0}', inputs.candidate) || github.ref }}
+    group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}
     cancel-in-progress: false
 
 jobs:
@@ -55,6 +65,7 @@ jobs:
     webkit:
         name: WebKit kill and relaunch (macOS)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/engines.test.ts') || contains(inputs.files, 'test/lifecycle/autosave-engines.bench.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 25
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
@@ -82,6 +93,7 @@ jobs:
     safari:
         name: Safari (macOS)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/safari.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 20
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
@@ -109,6 +121,7 @@ jobs:
     ios:
         name: Safari on iOS (Simulator)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/ios-simulator.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 40
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
@@ -167,3 +180,4 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}

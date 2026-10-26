@@ -136,11 +136,11 @@ test("dry run posts nothing and keeps no cursor", async () => {
     assert.equal(later.calls.length, 3);
 });
 
-test("batches hold at most 500 rows and 1 MB", () => {
+test("batches hold at most MAX_ROWS rows and 1 MB", () => {
     const small = Array.from({ length: 1201 }, (_, i) => ({ id: `r${i}` }));
     assert.deepEqual(
         batches(small).map((b) => b.length),
-        [MAX_ROWS, MAX_ROWS, 201],
+        [...Array(6).fill(MAX_ROWS), 1],
     );
     const big = Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, pad: "x".repeat(300_000) }));
     for (const b of batches(big)) assert.ok(Buffer.byteLength(JSON.stringify({ rows: b })) <= MAX_BYTES);

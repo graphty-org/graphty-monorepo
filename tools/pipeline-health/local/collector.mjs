@@ -5,7 +5,7 @@
 //   tmp/test-ledger/records/<date>/*.json.gz  -> POST <HEALTH_API_URL>/v1/local/invocations
 //   tmp/push-log.jsonl (push gate runs)       -> POST <HEALTH_API_URL>/v1/local/push-runs
 //   tmp/waits.jsonl (test-slot, gpu-slot)     -> POST <HEALTH_API_URL>/v1/local/waits
-// Every body is { rows: [...] }, at most 500 rows and 1 MB. Every row has an id derived from its
+// Every body is { rows: [...] }, at most 200 rows and 1 MB. Every row has an id derived from its
 // content, so a retried post is harmless. Host paths, gate logs, cwd and session ids are never
 // posted.
 //
@@ -35,7 +35,8 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 
-export const MAX_ROWS = 500;
+// 200: a 500-row ledger post (each row expands to its test items) outlived the 10 s ingest Lambda.
+export const MAX_ROWS = 200;
 export const MAX_BYTES = 1_000_000;
 const WAIT_KINDS = new Set(["test-slot", "gpu-slot"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);

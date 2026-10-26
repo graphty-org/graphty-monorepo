@@ -1596,7 +1596,10 @@ jobs:
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        if: ${{ !cancelled() && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
+        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
+        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read

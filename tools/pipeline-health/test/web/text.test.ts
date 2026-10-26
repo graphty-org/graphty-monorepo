@@ -39,6 +39,8 @@ describe("headline", () => {
         expect(headline(m)).toContain("too few, n=71 of 5");
         setHere({ page: "overview", range: "24h", q: new URLSearchParams() });
         expect(headline(m)).not.toContain("too few");
+        expect(headline({ ...m, value: null })).toContain("too few");
+        expect(headline({ ...m, window: "7d" })).toContain("too few");
     });
 });
 

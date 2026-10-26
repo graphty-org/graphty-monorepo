@@ -400,13 +400,14 @@ export type PrRun = [number, number, number, 0 | 1];
 
 /**
  * The pull request a run belongs to. GitHub empties a run's pull_requests once its pull request merged, so
- * fall back to the head branch among the cycle's pull requests, preferring one whose head is the run's commit.
+ * fall back to the head branch among the cycle's pull requests, preferring one whose head is the run's commit,
+ * then a merged one.
  */
 export function prOfRun(run: GhRun, prs: GqlPr[]): number | undefined {
     const listed = run.pull_requests?.[0]?.number;
     if (listed !== undefined || !run.head_branch) return listed;
     const same = prs.filter((p) => p.headRefName === run.head_branch);
-    return (same.find((p) => p.headRefOid === run.head_sha) ?? same[0])?.number;
+    return (same.find((p) => p.headRefOid === run.head_sha) ?? same.find((p) => p.mergedAt) ?? same[0])?.number;
 }
 
 export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {

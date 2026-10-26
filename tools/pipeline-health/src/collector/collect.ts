@@ -357,8 +357,8 @@ const prRunsKey = (repo: string, pr: number) => ({ pk: `PRRUNS#${repo}#${pr}`, s
 /** Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). */
 async function prRuns(c: Cycle, xs: Collected[], prs: GqlPr[]) {
     for (const { run, repo, jobs } of xs) {
-        const pr = prOfRun(run, repo === c.d.repo ? prs : []);
-        const r = pr === undefined ? undefined : prRunOf(run, jobs ?? []);
+        const r = prRunOf(run, jobs ?? []);
+        const pr = r && prOfRun(run, repo === c.d.repo ? prs : []);
         if (pr === undefined || !r) continue;
         const key = prRunsKey(repo, pr);
         const old = (await c.d.store.get(key))?.runs as Record<string, PrRun> | undefined;
@@ -805,7 +805,9 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         const xs = await collectRuns(c, gh, repos, []);
         const cancels = await classify(gh, [...xs, ...masterList]);
         await writeRuns(c, xs, cancels);
-        c.runs = xs;
+        // Runs GitHub names a pull request for are recorded now; the rest (merged) wait for the pull requests part.
+        await prRuns(c, xs, []);
+        c.runs = xs.filter((x) => !x.run.pull_requests?.length);
         await runners(c, xs, elapsed);
         await master(c, masterList, cancels, elapsed);
     });

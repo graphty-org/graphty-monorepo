@@ -349,5 +349,10 @@ describe("pull request of a run", () => {
         expect(prOfRun(run({}), prs)).toBe(11);
         expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBe(10);
         expect(prOfRun(run({ head_branch: "other" }), prs)).toBeUndefined();
+        const merged = [
+            { number: 20, headRefName: "fix/1-a", mergedAt: null },
+            { number: 21, headRefName: "fix/1-a", mergedAt: "2026-10-25T00:00:00Z" },
+        ] as GqlPr[];
+        expect(prOfRun(run({ head_sha: "zzz" }), merged)).toBe(21);
     });
 });

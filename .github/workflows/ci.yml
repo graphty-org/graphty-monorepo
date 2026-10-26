@@ -1645,9 +1645,11 @@ jobs:
             # cache key, all three browsers' system packages), before either benchmark runs.
             # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
             # came before them.
-            - name: Cache Playwright browsers
+            # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
+            # to every Chromium-only shard that restores it.
+            - name: Restore Playwright browsers
               if: ${{ !cancelled() }}
-              uses: actions/cache@v4
+              uses: actions/cache/restore@v4
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -1666,6 +1668,13 @@ jobs:
               if: ${{ !cancelled() }}
               run: pnpm exec playwright install chromium firefox webkit
 
+            # Before the bench project: its three-engine autosave run is the long one, and a job that
+            # runs out of time there must not cost the browser numbers.
+            - name: Run the graphty-element browser timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: pnpm exec vitest run --project=browser-bench
+
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
             # the mechanisms they time are pinned by counts in the test shards.
@@ -1673,12 +1682,6 @@ jobs:
               if: ${{ !cancelled() }}
               working-directory: graphty-element
               run: pnpm exec vitest run --project=bench
-
-            # A failed benchmark above must not cost the browser numbers.
-            - name: Run the graphty-element browser timing benchmarks
-              if: ${{ !cancelled() }}
-              working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the

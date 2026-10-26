@@ -1192,6 +1192,19 @@ export class Autosaver {
     }
 
     /**
+     * A clear asked for while the restore waited cancelled it: the work is intact, so the attempt
+     * is taken back and the entry stays offered, not marked as failing.
+     * @param current - The entry, with the attempt recorded.
+     */
+    async #restoreCancelled(current: AutosaveEntryMeta): Promise<void> {
+        const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
+        await this.#store
+            .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
+            .catch(() => undefined);
+        this.#available(untried, true, "manual", null);
+    }
+
+    /**
      * Copy an entry another tab holds into a new entry of this tab's, claimed.
      * @param meta - The entry.
      * @param parts - Its parts.
@@ -1303,13 +1316,7 @@ export class Autosaver {
         } catch (error) {
             release?.();
             if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
-                // A clear asked for while the restore read cancelled it: the work is intact, so the
-                // attempt is taken back and the entry stays offered, not marked as failing.
-                const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
-                await this.#store
-                    .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
-                    .catch(() => undefined);
-                this.#available(untried, true, "manual", null);
+                await this.#restoreCancelled(current);
                 return null;
             }
             this.#available(current, true, "restore-failed", {

@@ -2417,11 +2417,12 @@ jobs:
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5
-        # actions: write to dispatch release.yml; issues: read for the open red issues.
+        # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
+        # note on the Release status issue that keeps release-watch quiet about that cancel.
         permissions:
             contents: read
             actions: write
-            issues: read
+            issues: write
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
             - uses: actions/checkout@v4

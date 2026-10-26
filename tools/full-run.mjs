@@ -236,15 +236,27 @@ async function pickMain(env) {
     output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
 }
 
-// The open red issue's number and title ("<number> <title>"), or empty. A plain listing, not GitHub search, which
-// indexes a new issue a while later: the verdict that follows a lane's early red issue must find it.
-const openRedIssue = () =>
-    sh("gh", [
-        "api",
-        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
-        "--jq",
-        String.raw`[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\(.number) \(.title)"`,
-    ]);
+/**
+ * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
+ * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
+ * issue, and release-due on a quick fix that references it, must both find it.
+ * @param [state] open, closed or all
+ * @returns the issues
+ */
+export const listRedIssues = (state = "open") =>
+    JSON.parse(
+        sh("gh", [
+            "api",
+            `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100`,
+            "--jq",
+            String.raw`[.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at}]`,
+        ]) || "[]",
+    );
+// The open red issue's number and title ("<number> <title>"), or empty.
+const openRedIssue = () => {
+    const [i] = listRedIssues();
+    return i ? `${i.number} ${i.title}` : "";
+};
 const openRed = () => openRedIssue().split(" ")[0];
 
 /**
@@ -267,6 +279,18 @@ const ancestor = (a, b) => {
         return false;
     }
 };
+
+/**
+ * The older red issue a just-created one duplicates: two lanes that end red together each find none open and each
+ * create one. The oldest stays, so both filers agree on it.
+ * @param created the issue just created
+ * @param open the open red issues' numbers
+ * @returns the number to keep, or null when `created` is the oldest
+ */
+export function duplicateOf(created, open) {
+    const first = Math.min(created, ...open);
+    return first < created ? first : null;
+}
 
 function fileRed(issue) {
     const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
@@ -291,7 +315,15 @@ function fileRed(issue) {
         "--body-file",
         file,
     ]);
-    return Number(url.split("/").pop());
+    const created = Number(url.split("/").pop());
+    const first = duplicateOf(
+        created,
+        listRedIssues().map((i) => i.number),
+    );
+    if (!first) return created;
+    sh("gh", ["issue", "comment", String(first), "--body-file", file]);
+    sh("gh", ["issue", "close", String(created), "--reason", "not planned", "--comment", `Duplicate of #${first}.`]);
+    return first;
 }
 
 function dispatchBisect(plan) {

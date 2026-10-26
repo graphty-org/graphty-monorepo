@@ -10,6 +10,7 @@ import {
     bestEffort,
     bisectPlan,
     differingImages,
+    duplicateOf,
     greenCloses,
     LANES,
     laneRedIssue,
@@ -237,6 +238,12 @@ describe("bestEffort", () => {
 });
 
 describe("lane-red: the red issue the moment one lane ends red", () => {
+    it("keeps the oldest of two red issues lanes ending red together created, so both filers agree", () => {
+        assert.equal(duplicateOf(78, [78, 77]), 77, "the newer closes as a duplicate of the older");
+        assert.equal(duplicateOf(77, [78, 77]), null, "the older stays");
+        assert.equal(duplicateOf(77, []), null, "a listing that has not caught up yet keeps the new one");
+    });
+
     it("names only that lane, in the title release-due matches, and leaves the bisect to the verdict", () => {
         const { title, body } = laneRedIssue({ lane: "t4", result: "failure", sha: "abcdef1234", run: "https://run" });
         assert.equal(title, "Full run red: T4 GPU on abcdef1");

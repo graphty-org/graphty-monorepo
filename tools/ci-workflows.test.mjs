@@ -61,7 +61,8 @@ import {
     STORYBOOKS,
     treeWithout,
 } from "./ci-reuse-plan.mjs";
-import { due as releaseDue, toCancel as releaseToCancel } from "./release-due.mjs";
+import { cancelNote as releaseCancelNote, due as releaseDue, toCancel as releaseToCancel } from "./release-due.mjs";
+import { reportsFailure as releaseReportsFailure } from "./release-status.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -1371,8 +1372,14 @@ describe("ci.yml", () => {
             { number: 9001, title: "Full run red: ci on abc" },
             { number: 9002, title: "Release held: T4 GPU failed on abc" },
         ];
-        assert.deepEqual(releaseDue(red, "fix(ci): x\n\nRefs #9001\n"), { mode: "restart", issue: 9001 });
-        assert.deepEqual(releaseDue(red, "fix: y\n\nfixes #9001"), { mode: "restart", issue: 9001 });
+        // a Refs restarts without cancelling, so the red run still reaches its verdict, bisect and store record
+        assert.deepEqual(releaseDue(red, "fix(ci): x\n\nRefs #9001\n"), {
+            mode: "restart",
+            issue: 9001,
+            cancel: false,
+        });
+        assert.deepEqual(releaseDue(red, "fix: y\n\nfixes #9001"), { mode: "restart", issue: 9001, cancel: true });
+        assert.deepEqual(releaseDue(red, "Refs #9001\nCloses #9001"), { mode: "restart", issue: 9001, cancel: true });
         assert.equal(releaseDue(red, "fix: z\n\nRefs #9002"), null, "only a Full run red issue restarts");
         assert.equal(releaseDue(red, "fix: z\n\nRefs #90011"), null);
         assert.equal(releaseDue(red, "feat: unrelated"), null);
@@ -1383,6 +1390,7 @@ describe("ci.yml", () => {
         assert.deepEqual(releaseDue(closed("2026-10-25T11:55:00Z"), "Fixes #9001", now), {
             mode: "restart",
             issue: 9001,
+            cancel: true,
         });
         assert.equal(releaseDue(closed("2026-10-24T11:55:00Z"), "Refs #9001", now), null, "closed long ago");
         // the restart cancels the full runs in progress first, which hold it pending in release.yml's group
@@ -1392,7 +1400,16 @@ describe("ci.yml", () => {
             { databaseId: 3, displayTitle: "Release (shadow)" },
             { databaseId: 4, displayTitle: "Release (legacy)" },
         ];
-        assert.deepEqual(releaseToCancel(runs), [1, 2], "never a shadow or a legacy release");
+        const named = "https://github.com/o/r/actions/runs/1 https://github.com/o/r/actions/runs/3";
+        assert.deepEqual(releaseToCancel(runs, named), [1], "never a shadow or a legacy release");
+        // only the runs the red issue names: a restart testing the fix, or an unrelated full run, keeps running
+        assert.deepEqual(releaseToCancel(runs, "https://github.com/o/r/actions/runs/1"), [1]);
+        assert.deepEqual(releaseToCancel(runs, "no run linked"), []);
+        // the note on the Release status issue reads as that attempt's failure report, so release-watch is quiet
+        const url = "https://github.com/o/r/actions/runs/1";
+        assert.ok(releaseReportsFailure(releaseCancelNote(9001, url, 1), url, 1));
+        assert.ok(releaseReportsFailure(releaseCancelNote(9001, url, 2), url, 2));
+        assert.ok(!releaseReportsFailure(releaseCancelNote(9001, url, 1), url, 2));
         const due = job(ci, "release-due");
         assert.match(due, /\n {8}needs: all-checks\n/);
         // the implicit success() is false on a master push, whose test jobs under All Checks Pass are skipped (#3634)
@@ -3367,7 +3384,7 @@ describe("release.yml", () => {
         assert.match(job(release, "timings"), /needs:\s+\[[^\]]*\bverdict\b/);
     });
 
-    it("files the red issue the moment a lane ends red, one job per lane, one at a time per run", () => {
+    it("files the red issue the moment a lane ends red, one job per lane, in no concurrency group", () => {
         const jobs = parseYaml(release).jobs;
         const owner = {
             llm: "${{ needs.llm.outputs.owner_item }}",
@@ -3382,8 +3399,8 @@ describe("release.yml", () => {
                 red.if,
                 `\${{ !cancelled() && needs.${lane}.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}`,
             );
-            assert.equal(red.concurrency.group, "full-run-red-${{ github.run_id }}");
-            assert.equal(red.concurrency["cancel-in-progress"], false);
+            // a group keeps one pending job and cancels the rest: a third lane's filing would be dropped
+            assert.equal(red.concurrency, undefined);
             assert.deepEqual(red.permissions, { contents: "read", issues: "write" });
             const step = red.steps.at(-1);
             assert.equal(step.run, "node tools/full-run.mjs lane-red");

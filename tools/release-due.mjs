@@ -9,9 +9,12 @@
  * (`Refs #N`, `Fixes #N`, `Closes #N`, `Resolves #N`, `Part of #N`) dispatches release.yml with
  * `mode: restart`. A `Fixes` closes the issue as the merge lands, before this job runs, so an issue
  * closed in the last hour counts as open. Every other merge waits for the next 6-hour slot. Until the full run files such
- * issues, it never dispatches. Before the dispatch it cancels every full or restart run still in progress: the full
- * run files the red issue the moment a lane ends red, while its other lanes may run for hours, and release.yml's
- * concurrency group would keep the restart pending behind it. Each such run tests a commit without this fix.
+ * issues, it never dispatches. A merge that says it fixes the issue (`Fixes`, `Closes`, `Resolves`) also cancels
+ * the red run that issue names, if it is still in progress: the full run files the red issue the moment a lane ends
+ * red, while its other lanes may run for hours, and release.yml's concurrency group would keep the restart pending
+ * behind it. A `Refs` or `Part of` merge cancels nothing, so the red run still reaches its verdict, its bisect and
+ * its record in the results store. Only runs the issue names are cancelled, never one testing another commit, and a
+ * note on the Release status issue keeps release-watch from announcing the cancel as a release that ended badly.
  *
  * Not yet: resuming an approved awaiting candidate, which needs the results store.
  *
@@ -23,57 +26,67 @@ import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { RED_TITLE } from "./full-run.mjs";
+import { listRedIssues, RED_TITLE } from "./full-run.mjs";
+import { LABEL } from "./release-status.mjs";
 
 // how long after its close a red issue still restarts: the merge that closed it ran this job minutes later
 const CLOSED_WITHIN_MS = 60 * 60 * 1000;
 
 /**
  * The red issue a merge references, if any: open, or closed in the last hour (by this merge's `Fixes`).
- * @param redIssues the issues, as `gh issue list --json number,title,state,closedAt` prints them; one with no
- *   state is open
+ * @param redIssues the issues, as listRedIssues returns them; one with no state is open
  * @param messages the merge's commit messages, joined
  * @param [now] milliseconds
- * @returns the dispatch to make ({ mode, issue }), or null when nothing is due
+ * @returns the dispatch to make ({ mode, issue, cancel }), or null when nothing is due; `cancel` when the merge says
+ *   it fixes the issue, not only refers to it
  */
 export function due(redIssues, messages, now = Date.now()) {
-    const referenced = new Set(
-        [...messages.matchAll(/\b(?:refs|fixes|closes|resolves|part of)\s+#(\d+)/gi)].map((m) => Number(m[1])),
-    );
+    const keywords = new Map();
+    for (const m of messages.matchAll(/\b(refs|fixes|closes|resolves|part of)\s+#(\d+)/gi)) {
+        const n = Number(m[2]);
+        keywords.set(n, [...(keywords.get(n) ?? []), m[1].toLowerCase()]);
+    }
     const live = (i) =>
         (i.state ?? "OPEN") === "OPEN" || (i.closedAt && now - Date.parse(i.closedAt) <= CLOSED_WITHIN_MS);
-    const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && referenced.has(i.number) && live(i));
-    return red ? { mode: "restart", issue: red.number } : null;
+    const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && keywords.has(i.number) && live(i));
+    if (!red) return null;
+    const cancel = keywords.get(red.number).some((k) => ["fixes", "closes", "resolves"].includes(k));
+    return { mode: "restart", issue: red.number, cancel };
 }
 
 /**
- * The release.yml runs a restart cancels: full and restart runs (run-name `Release (full)`, `Release (restart)`),
- * never a shadow or legacy release.
+ * The release.yml runs a restart cancels: full and restart runs (run-name `Release (full)`, `Release (restart)`)
+ * that the red issue names (its body and comments link each run that filed or updated it), never a shadow or legacy
+ * release and never a run testing another commit.
  * @param runs `gh run list --json databaseId,displayTitle` of the in-progress runs
+ * @param issueText the red issue's body and comments, joined
  * @returns their ids
  */
-export function toCancel(runs) {
-    return runs.filter((r) => /^Release \((full|restart)\)$/.test(r.displayTitle)).map((r) => r.databaseId);
+export function toCancel(runs, issueText) {
+    const named = new Set([...issueText.matchAll(/\/actions\/runs\/(\d+)/g)].map((m) => Number(m[1])));
+    return runs
+        .filter((r) => /^Release \((full|restart)\)$/.test(r.displayTitle) && named.has(r.databaseId))
+        .map((r) => r.databaseId);
+}
+
+/**
+ * The note on the Release status issue that a cancelled red run was not a release ending badly: it is a failure
+ * report of that run attempt as release-status.mjs's reportsFailure reads one, so release-watch posts nothing.
+ * @param issue the red issue
+ * @param url the run's URL
+ * @param attempt the run attempt
+ * @returns the comment
+ */
+export function cancelNote(issue, url, attempt) {
+    const rerun = attempt > 1 ? ` (re-run, attempt ${attempt})` : "";
+    return `**Full run red**${rerun}: see #${issue}. This run was cancelled to restart on a merge that fixes it.\n\nRun: ${url}`;
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
 
 function main() {
     const dryRun = process.argv.includes("--dry-run");
-    const issues = JSON.parse(
-        run("gh", [
-            "issue",
-            "list",
-            "--state",
-            "all",
-            "--search",
-            `"${RED_TITLE}" in:title`,
-            "--json",
-            "number,title,state,closedAt",
-            "--limit",
-            "30",
-        ]),
-    );
+    const issues = listRedIssues("all");
     // A merge commit brings in HEAD^1..HEAD; a plain commit is only itself.
     let range = ["-1", "HEAD"];
     try {
@@ -88,22 +101,40 @@ function main() {
         return;
     }
     console.log(`release-due: this merge references red issue #${plan.issue}: release.yml mode=${plan.mode}`);
-    const inProgress = JSON.parse(
-        run("gh", [
-            "run",
-            "list",
-            "--workflow",
-            "release.yml",
-            "--status",
-            "in_progress",
-            "--json",
-            "databaseId,displayTitle",
-        ]),
-    );
-    for (const id of toCancel(inProgress)) {
-        console.log(`release-due: cancelling release.yml run ${id}, which tests a commit without this fix`);
+    const inProgress = plan.cancel
+        ? JSON.parse(
+              run("gh", [
+                  "run",
+                  "list",
+                  "--workflow",
+                  "release.yml",
+                  "--status",
+                  "in_progress",
+                  "--json",
+                  "databaseId,displayTitle,url,attempt",
+              ]),
+          )
+        : [];
+    const issueText = plan.cancel
+        ? run("gh", [
+              "issue",
+              "view",
+              String(plan.issue),
+              "--json",
+              "body,comments",
+              "-q",
+              '[.body, .comments[].body] | join("\\n")',
+          ])
+        : "";
+    const status = plan.cancel
+        ? run("gh", ["issue", "list", "--label", LABEL, "--state", "open", "--json", "number", "-q", ".[0].number"])
+        : "";
+    for (const id of toCancel(inProgress, issueText)) {
+        const r = inProgress.find((x) => x.databaseId === id);
+        console.log(`release-due: cancelling release.yml run ${id}, the red run #${plan.issue} names`);
         if (dryRun) continue;
         try {
+            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(plan.issue, r.url, r.attempt)]);
             run("gh", ["run", "cancel", String(id)]);
         } catch (error) {
             // a run that ended meanwhile cannot be cancelled; the restart still goes ahead

@@ -324,10 +324,10 @@ jobs:
         if: ${{ needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
-            # its release-due job (master pushes only) dispatches release.yml and reads the red issues; a
-            # called workflow cannot ask for more than its caller grants, even for a job it skips
+            # its release-due job (master pushes only) dispatches release.yml, cancels a red run and notes it on the
+            # Release status issue; a called workflow cannot ask for more than its caller grants, even for a job it skips
             actions: write
-            issues: read
+            issues: write
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write
@@ -562,17 +562,16 @@ jobs:
 
     # A lane that ends red files (or updates) the "Full run red" issue at once (tools/full-run.mjs lane-red), not at
     # the verdict hours later, so a fix that references it restarts the run at once (tools/release-due.mjs cancels
-    # this run first). One small job per lane, because a job starts only when all it needs have ended. One at a
-    # time per run, so two lanes ending red together find one issue; the verdict needs them all for the same reason.
+    # this run first). One small job per lane, because a job starts only when all it needs have ended. No concurrency
+    # group: GitHub keeps one pending job per group and cancels the rest, which would drop a third lane's filing.
+    # Two lanes ending red together may both create the issue; fileRed closes the newer as a duplicate. The verdict
+    # needs them all, so it finds the one issue they left.
     ci_red:
         name: Red early (CI)
         needs: [pick, ci]
         if: ${{ !cancelled() && needs.ci.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -600,9 +599,6 @@ jobs:
         if: ${{ !cancelled() && needs.t4.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -630,9 +626,6 @@ jobs:
         if: ${{ !cancelled() && needs.hosts.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -660,9 +653,6 @@ jobs:
         if: ${{ !cancelled() && needs.autosave_macos.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -690,9 +680,6 @@ jobs:
         if: ${{ !cancelled() && needs.audit.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -720,9 +707,6 @@ jobs:
         if: ${{ !cancelled() && needs.llm.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue
@@ -751,9 +735,6 @@ jobs:
         if: ${{ !cancelled() && needs.version_dry_run.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        concurrency:
-            group: full-run-red-${{ github.run_id }}
-            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # the red issue

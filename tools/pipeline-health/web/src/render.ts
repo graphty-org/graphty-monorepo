@@ -377,6 +377,16 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
             ["state", "state"],
         ],
     },
+    "runner-minutes": {
+        cls: "t-load",
+        cols: [
+            ["kind", "run kind"],
+            ["day", "per merge, 24 h"],
+            ["week", "per merge, 7 d"],
+            ["dayMin", "minutes, 24 h"],
+            ["weekMin", "minutes, 7 d"],
+        ],
+    },
     unit: {
         cls: "t-unit",
         cols: [
@@ -555,6 +565,11 @@ function sectionHead(s: Section): string {
                     ]),
             );
         }
+        case "runner-minutes":
+            return h(
+                "Runner-minutes per merge",
+                `${s.sub ? sentence(s.sub) : ""}; pull request runs include those that never merged`,
+            );
         case "jobs":
             return h(
                 "Running and queued jobs",

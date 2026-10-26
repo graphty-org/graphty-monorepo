@@ -687,6 +687,10 @@ h3 {
 .t-wf .tr {
     grid-template-columns: 150px 120px 150px minmax(0, 1fr);
 }
+.t-load .thead,
+.t-load .tr {
+    grid-template-columns: minmax(150px, 1.4fr) repeat(4, minmax(0, 1fr));
+}
 .t-cost .thead,
 .t-cost .tr {
     grid-template-columns: minmax(170px, 1.5fr) 110px 110px 130px 84px;

@@ -13,7 +13,6 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
-import { homeKey } from "../model/items.js";
 import {
     DAY,
     oldestAt,
@@ -144,19 +143,27 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!body || typeof body !== "object") refuse(400, "bad_body");
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
-    if (items.length + extra.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
+    if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    checkSizes(items);
+    if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
+    // The bookkeeping copies first: a failing try's INVTESTS rows exist before its test rows, so a passing retry
+    // finds them even when a test write below fails.
+    if (extra.length) await db.batch(extra.map((put) => ({ put })));
+    await putRaw(db, items, now);
+    await recordSource(db, source, now, { ok: true }, oldestAt(items));
+    log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
+    return { stored: items.length, kind: who.kind };
+}
+
+/** Refuses a row over DynamoDB's key or item size before anything is charged or written. */
+function checkSizes(items: RawItem[]): void {
     for (const item of items)
         if (
             Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
             Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
         )
             refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
-    if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
-    await putRaw(db, items, now);
-    if (extra.length) await db.batch(extra.map((put) => ({ put })));
-    await recordSource(db, source, now, { ok: true }, oldestAt(items));
-    log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
-    return { stored: items.length, kind: who.kind };
 }
 
 /** The kind a token's claims may write (tools/results-service kindOf), or a refusal. */
@@ -216,18 +223,20 @@ interface Built {
     source: string;
 }
 
-async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
-    if (who.kind === "local") {
-        const rows = list(body.rows, "rows");
-        if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
-        const items: RawItem[] = [];
-        for (const r of rows) {
-            if (route === "invocations") items.push(...(await invocationItems(r, who, db)));
-            else if (route === "push-runs") items.push(pushRun(r));
-            else items.push(slotWait(r));
-        }
-        return { items, extra: [], source: "local" };
+async function localItems(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number) {
+    const rows = list(body.rows, "rows");
+    if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    const items: RawItem[] = [];
+    for (const r of rows) {
+        if (route === "invocations") items.push(...(await invocationItems(r, who, db, now)).items);
+        else if (route === "push-runs") items.push(pushRun(r));
+        else items.push(slotWait(r));
     }
+    return items;
+}
+
+async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
+    if (who.kind === "local") return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
     // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
     if (
         (who.kind === "deploy" || who.kind === "site") &&
@@ -240,7 +249,7 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "sites":
             return { items: [], extra: [siteItem(body, who, now)], source: "site" };
         case "invocations":
-            return { items: await invocationItems(body, who, db), extra: [], source: "ci-results" };
+            return { ...(await invocationItems(body, who, db, now)), source: "ci-results" };
         case "failures":
             return { ...(await failureItems(body, who, db, now)), source: "ci-results" };
         case "durations":
@@ -288,7 +297,12 @@ function testItem(
     };
 }
 
-async function invocationItems(b: Record<string, unknown>, who: Who, db: Store): Promise<RawItem[]> {
+async function invocationItems(
+    b: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ items: RawItem[]; extra: Extra[] }> {
     const id = ownId(b.id, who);
     need(b, { sha: "string", variant: "string", try: "number", startedAt: "number", secs: "number" });
     if (!Number.isInteger(b.try)) refuse(400, "bad_field", { field: "try", type: "integer" });
@@ -341,15 +355,18 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
                 items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
             }
     }
-    // The two tries' posts are not ordered: an earlier try's failure never turns a flaky result back to failed.
-    if (!passed && source === "ci") {
-        const kept: RawItem[] = [];
-        for (const item of items)
-            if (item.kind !== "test" || (await db.get(homeKey(item)))?.outcome !== "flaky") kept.push(item);
-        return kept;
-    }
-    return items;
+    // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one. A failing CI try
+    // remembers its failures itself (written before its test rows), so a passing try can find them even when the
+    // separate /v1/failures post was lost; a passing try that finishes its lookback before then still misses them.
+    const extra = !passed && source === "ci" ? invTests(id, items, now) : [];
+    return { items, extra };
 }
+
+/** Each failure, remembered per invocation, so a shard run posted later as passed can turn it flaky. */
+const invTests = (inv: string, items: RawItem[], now: number): Extra[] =>
+    items.flatMap((t) =>
+        t.kind === "test" ? [{ ...t, pk: INV_TESTS(inv), sk: t.id, ttl: ttlAt(now + 90 * DAY) }] : [],
+    );
 
 async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now: number) {
     const inv = ownId(b.invocation, who);
@@ -359,9 +376,7 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     const run = runs.at(-1);
     const family = run?.family ?? familyOf(inv.split(".").slice(2).join("."));
     const items = failures.map((f) => testItem(inv, f, family, "ci", run?.outcome === "passed", run?.endedAt ?? now));
-    // Remembered per invocation, so a shard run posted later as passed can turn them flaky.
-    const extra = items.map((t) => ({ ...t, pk: INV_TESTS(inv), sk: t.id, ttl: ttlAt(now + 90 * DAY) }));
-    return { items, extra };
+    return { items, extra: invTests(inv, items, now) };
 }
 
 /** Job and step timings: kept for drill-downs; no metric counts them, so they never double the collector's jobs. */

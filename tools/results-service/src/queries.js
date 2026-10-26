@@ -4,6 +4,8 @@ import { refuse } from "./service.js";
 import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
+// a full run's slot: release.yml runs every 6 hours, so a promotion run started at most this long before its move
+const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
@@ -295,6 +297,30 @@ const BLOCKING = {
 };
 
 /**
+ * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or approval
+ * records: the full run's pick writes such a verdict as "inherited from <short sha>" (tools/full-run.mjs) and
+ * never promotes that commit, so it is nightly, not a candidate waiting for it. The chain is followed (a
+ * promotion's version merge, then a merge after it). pick never inherits across a visual-baselines/ change, so a
+ * merge of the owner's approved baselines is judged on its own and counts as waiting for nightly here too.
+ * @param sha the commit
+ * @param nightlySha nightly's commit
+ * @param states the newest verdict of each recent commit
+ * @returns true when it is nightly's
+ */
+function sameAsNightly(sha, nightlySha, states) {
+    if (!sha || !nightlySha) return false;
+    let at = sha;
+    for (let hop = 0; hop <= states.length; hop++) {
+        if (at === nightlySha || (at.length < 40 && nightlySha.startsWith(at))) return true;
+        const lane = states.find((v) => v.sha === at || (at.length < 40 && v.sha.startsWith(at)))?.lane;
+        const from = /^inherited from ([0-9a-f]{7,})$/.exec(lane ?? "")?.[1];
+        if (!from) return false;
+        at = from;
+    }
+    return false;
+}
+
+/**
  * GET /v1/release-state : what ci.yml's release-due job and every release.yml run's catch-up read
  * (channels 5 and 7), and `age:nightly` for the stall alarm (main section 7).
  * @param q the query string
@@ -315,14 +341,26 @@ export async function getReleaseState(q, who, db, now) {
          WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at`,
         now - 30 * DAY,
     );
+    // a nightly with no site row (a lost POST /v1/sites) counts from its promotion run's start, never from the
+    // oldest site: not from its move, which ends that run, or the commits merged while it ran would go uncounted.
+    // ponytail: the run's start is taken as one slot before the move; a run longer than its slot misses a few
     const nightlyBuilt = nightly
-        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ?? 0)
+        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
+          nightly.movedAt - FULL_RUN_SLOT)
         : 0;
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);
-    const unpromoted = !!canary && canary.sha !== nightly?.sha && canary.builtAt > nightlyBuilt;
-    const start = nightly?.movedAt ?? (await db.prepare("SELECT min(built_at) AS at FROM site").first())?.at;
-    const canaryState = states.find((s) => s.sha === canary?.sha)?.state;
+    const canaryVerdict = states.find((s) => s.sha === canary?.sha);
+    const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
+    // nightly is behind from the first site built after it that is not nightly's own (a promotion's version
+    // merge, an approvals-only merge), not from its own move: a quiet master is no stall
+    const after = await all(
+        db,
+        "SELECT sha, built_at AS at FROM site WHERE built_at > ? ORDER BY built_at",
+        nightlyBuilt,
+    );
+    const start = after.find((r) => !sameAsNightly(r.sha, nightly?.sha, states))?.at;
+    const canaryState = canaryVerdict?.state;
     return {
         nightly,
         red: last?.state === "red" ? last : null,
@@ -331,7 +369,8 @@ export async function getReleaseState(q, who, db, now) {
         // the frozen candidate: the oldest still waiting for the owner
         offered: states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0] ?? null,
         canary,
-        ageNightlyMs: unpromoted ? now - start : 0,
+        // null while nightly has never moved: not started, so the stall alarm has nothing to count from
+        ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
         blocking: unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
     };
 }

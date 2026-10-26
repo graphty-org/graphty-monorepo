@@ -26,6 +26,7 @@ export interface Change {
 }
 
 export type BatchOp = { put: Item } | { delete: Key };
+export type TransactOp = { put: Item; condition?: Condition } | { delete: Key };
 
 export interface Store {
     get(key: Key): Promise<Item | undefined>;
@@ -37,6 +38,8 @@ export interface Store {
     update(key: Key, change: Change, condition?: Condition): Promise<Item | undefined>;
     /** Unconditional puts and deletes; the adapter chunks them into BatchWriteItem calls of 25. */
     batch(ops: BatchOp[]): Promise<void>;
+    /** All the ops or none (TransactWriteItems, at most 100): false, writing nothing, when a put's condition failed. */
+    transact(ops: TransactOp[]): Promise<boolean>;
 }
 
 export const isLive = (item: Item, nowMs: number): boolean => item.ttl === undefined || item.ttl * 1000 > nowMs;
@@ -152,5 +155,13 @@ export class MemoryStore implements Store {
                 this.items.delete(id(op.delete));
             }
         }
+    }
+
+    async transact(ops: TransactOp[]) {
+        if (!ops.every((op) => !("put" in op) || holds(this.items.get(id(op.put)), op.condition))) {
+            return false;
+        }
+        await this.batch(ops.map((op) => ("put" in op ? { put: op.put } : op)));
+        return true;
     }
 }

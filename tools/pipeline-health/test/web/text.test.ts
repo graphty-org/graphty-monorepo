@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { refText } from "../../web/src/text.js";
+import { refText, sentence, stateChip } from "../../web/src/text.js";
 
 describe("refText", () => {
     it("names a member with no value without a placeholder", () => {
@@ -19,5 +19,43 @@ describe("labelText", () => {
         expect(labelText("page.pull-requests")).toBe("Pull requests");
         expect(labelText("source.coverage")).toBe("Coverage (Coveralls)");
         expect(labelText("cost.total")).toBe("<b>Total</b>");
+    });
+});
+
+describe("headline", () => {
+    it("says too few only at 1 h, where the state is judged; at 24 h it shows the value", async () => {
+        const { headline, setHere } = await import("../../web/src/render.js");
+        const m = {
+            id: "flaky.flake_rate",
+            window: "1h",
+            state: "few",
+            value: { n: 0.9, unit: "ratio" },
+            n: 71,
+            minN: 5,
+            sla: null,
+            link: "/ci",
+        } as unknown as Parameters<typeof headline>[0];
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        expect(headline(m)).toContain("too few, n=71 of 5");
+        setHere({ page: "overview", range: "24h", q: new URLSearchParams() });
+        expect(headline(m)).not.toContain("too few");
+        expect(headline({ ...m, value: null })).toContain("too few");
+        expect(headline({ ...m, n: 2 })).toContain("too few, n=2 of 5");
+        expect(headline({ ...m, window: "7d" })).toContain("too few");
+        // The row chip follows the same rule as the headline, so the two never disagree.
+        expect(stateChip(m, "24h")).toBe("");
+        expect(stateChip(m, "1h")).toContain("too few, n=71 of 5");
+        expect(stateChip({ ...m, n: 2 }, "24h")).toContain("too few, n=2 of 5");
+    });
+});
+
+describe("episode facts", () => {
+    it("never say cleared, so an ongoing episode does not read cleared and ongoing at once", () => {
+        const text = sentence({
+            code: "ep.past_threshold",
+            params: { member: "flaky.flake_rate", cleared: "2026-10-26T01:00:00Z" },
+        });
+        expect(text).toContain("out of target");
+        expect(text).not.toContain("cleared");
     });
 });

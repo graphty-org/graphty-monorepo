@@ -638,8 +638,8 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
 - **Collector Lambda**, every 5 minutes (EventBridge Scheduler, reserved concurrency 1): runs and
   jobs created or finished since its cursor, plus every queued and in-progress job, across every
   organization repository with Actions activity in 28 days that the App can see (runner demand is
-  organization-wide; the App is installed on graphty-monorepo only, so jobs of other repositories
-  are not counted until it is installed there too, section 16); one GraphQL
+  organization-wide; the App is installed org-wide on graphty-org, all repositories, read-only,
+  so every repository's jobs are counted, section 16); one GraphQL
   query each for pull requests and issues; one jobs call (`filter=latest`) per unfinished run, about
   40 calls a cycle at the 2026-10-25 peak; `release.yml` and `restricted-cpu-stress.yml` job and
   step conclusions; npm hourly; billing daily. Then rollups, status and alerts (section 13). The
@@ -846,9 +846,9 @@ own accounts. What was decided, and what is still the owner's to do:
 3. **GitHub access for the collector: the App is done; the deploy connection waits for the owner.**
    The owner created the read-only GitHub App `graphty-pipeline-health` on 2026-10-26 with actions,
    checks, contents, issues, metadata and pull requests, all read (contents was added beyond the
-   first list so the collector can read tags, commits and workflow files), no webhook, installed on
-   graphty-monorepo only. Its keys are in SSM (section 10.2). Installing it on another organization
-   repository is optional and makes that repository's jobs count in Runners. The CodeConnections
+   first list so the collector can read tags, commits and workflow files), no webhook, installed
+   org-wide on graphty-org (all repositories, read-only), so every repository's jobs count in
+   Runners. Its keys are in SSM (section 10.2). The CodeConnections
    connection `graphty-health-github` exists and is pending: the owner approves it once in the AWS
    console (Developer Tools, Settings, Connections, "Update pending connection"); then
    `connectionApproved` is set to `true` in `cdk.json` and `graphty-health-deploy` is deployed again

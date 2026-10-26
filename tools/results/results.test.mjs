@@ -421,7 +421,7 @@ describe("groupFamily", () => {
                 quarantine: [entry("graphty-storybook", "Plain"), entry("graphty-storybook-shots", "Shots")],
             }),
         );
-        const out = join(root, "quarantine.json");
+        const out = join(root, "not-made-yet/quarantine.json");
         const env = {
             PATH: process.env.PATH,
             GRAPHTY_RESULTS: "0",

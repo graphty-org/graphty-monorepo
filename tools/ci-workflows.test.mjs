@@ -1700,6 +1700,9 @@ describe("verification runs of ci.yml", () => {
             /RESULTS_QUARANTINE_OUT: \$\{\{ runner\.temp \}\}\/stories\/quarantine\.json/,
         );
         assert.match(job(ci, "story-tests"), /merge-results .*--quarantine "\$RUNNER_TEMP\/stories\/quarantine\.json"/);
+        // the store quarantines a flaky story with an issue, which the step files
+        assert.match(job(ci, "story-tests"), /issues: write/);
+        assert.match(job(ci, "story-tests"), /GH_TOKEN: \$\{\{ github\.token \}\}/);
         // The blocking switch stays off until the project switches.
         assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);

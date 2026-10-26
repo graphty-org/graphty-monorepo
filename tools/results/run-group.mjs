@@ -26,9 +26,9 @@
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { shardKeys } from "../prepush-inputs.mjs";
@@ -497,6 +497,7 @@ export async function runGroup(
     // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
     if (env.RESULTS_QUARANTINE_OUT) {
         const quarantine = rules.list.filter((q) => q.family === family);
+        mkdirSync(dirname(env.RESULTS_QUARANTINE_OUT), { recursive: true });
         writeFileSync(env.RESULTS_QUARANTINE_OUT, `${JSON.stringify({ quarantine }, null, 4)}\n`);
     }
     if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL)

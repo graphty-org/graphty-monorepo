@@ -1901,10 +1901,12 @@ jobs:
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
-        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record)
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record);
+        # issues: write files the issue of a story the store quarantines
         permissions:
             contents: read
             id-token: write
+            issues: write
         strategy:
             fail-fast: false
             matrix:
@@ -2014,6 +2016,7 @@ jobs:
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
+                  GH_TOKEN: ${{ github.token }}
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture

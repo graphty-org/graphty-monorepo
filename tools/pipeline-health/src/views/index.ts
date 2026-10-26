@@ -5,7 +5,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 
 import type { Item, Store } from "../model/store.js";
 import { SLAS, type SlaConfig } from "../sla/config.js";
-import { evaluate } from "../sla/engine.js";
+import { evaluate, type Evaluation } from "../sla/engine.js";
 import { buildViews, type View } from "./build.js";
 import { viewKey, type ViewRoute } from "./keys.js";
 
@@ -28,13 +28,15 @@ export interface ViewItem extends Item {
  * @param store
  * @param nowMs
  * @param cfg
+ * @param ev - this cycle's evaluate() result, when the caller already has it
  */
 export async function writeViews(
     store: Store,
     nowMs: number,
     cfg: SlaConfig = SLAS,
+    ev?: Evaluation,
 ): Promise<{ views: number; bytes: number; largest: { route: ViewRoute; bytes: number } }> {
-    const views: View[] = await buildViews(store, nowMs, await evaluate(store, nowMs, cfg), cfg);
+    const views: View[] = await buildViews(store, nowMs, ev ?? (await evaluate(store, nowMs, cfg)), cfg);
     const items: ViewItem[] = views.map((v) => ({
         ...viewKey(v.route),
         gz: gzipSync(JSON.stringify(v.body)),

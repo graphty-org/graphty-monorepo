@@ -1758,7 +1758,10 @@ const pages: PageResponse[] = [
         others: [],
         notes: [f("local.note.idle", { since: "2026-10-25" })],
         members: localMembers,
-        sections: [],
+        sections: [
+            { kind: "empty", id: "runs", fact: f("section.no_events") },
+            { kind: "empty", id: "shard-time", fact: f("section.no_events") },
+        ],
     }),
     page({
         page: "flaky",

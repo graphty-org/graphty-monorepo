@@ -230,8 +230,12 @@ describe("recompute and read", () => {
         );
 
         const { recomputeAll } = await import("../src/recompute.ts");
-        const done = await recomputeAll(mem, NOW);
+        const getSecret = vi.fn(async () => undefined);
+        const done = await recomputeAll(mem, NOW, { getSecret, fetch: vi.fn() });
         expect(done.pages).toBeGreaterThan(30);
+        // sendAlerts ran on the cycle's evaluation: it asked for the Pushover secrets and found none.
+        expect(getSecret).toHaveBeenCalledWith("/graphty-health/pushover/app-token");
+        expect(done.alerts.state).toBe("not set up");
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(false);
 
         const { handler: read } = await import("../src/handlers/read.ts");
@@ -248,6 +252,16 @@ describe("recompute and read", () => {
         const runs = page.sections.find((s: { id: string }) => s.id === "runs");
         expect(runs.kind).toBe("bars");
         expect(runs.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "gate" }, n: 1 });
+
+        // The canonical route and an explicit range serve the same views item.
+        const canon = await read({
+            ...event("/v1/page/local-runs", "", {}),
+            queryStringParameters: { range: "1h" },
+        } as never);
+        expect(canon.statusCode).toBe(200);
+        expect(JSON.parse(canon.body!)).toEqual(page);
+        const { readViewJson } = await import("../src/views/index.ts");
+        expect(await readViewJson(mem, { kind: "page", page: "local-runs", range: "1h" })).toEqual(page);
 
         const gz = await read({ ...event("/v1/status", "", {}), headers: { "accept-encoding": "gzip, br" } } as never);
         expect(gz.headers?.["content-encoding"]).toBe("gzip");

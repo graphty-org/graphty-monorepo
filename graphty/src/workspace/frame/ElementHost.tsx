@@ -99,11 +99,24 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     useEffect(() => {
         const element = ref.current;
         const session: GraphSession | undefined = element?.session;
-        if (defined && element !== null && session !== undefined) {
+        if (defined && element !== null && session?.status.ready === true) {
             // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
             session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
             setHosted(session);
             onReady(element, session);
+            // The element disposes its session when it leaves the page, which React does not always
+            // do (a story's page emptied under it): nothing may render from it after that.
+            const off = session.on("session:disposed", () => {
+                setHosted(null);
+                onReady(null, null);
+            });
+            return () => {
+                off();
+                // Already handed down when the element left the page first.
+                if (session.status.ready) {
+                    onReady(null, null);
+                }
+            };
         }
         return () => {
             onReady(null, null);

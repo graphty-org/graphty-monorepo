@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DAILY_ROW_LIMIT, HOUR, type RawItem, rollKey, skTime } from "../../src/model/items.js";
+import { DAILY_ROW_LIMIT, homeKey, HOUR, type RawItem, rollKey, skTime } from "../../src/model/items.js";
 import { getCursor, oldestAt, putRaw, quotaUsed, recordSource, setCursor, takeQuota } from "../../src/model/raw.js";
 import { recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -39,6 +39,21 @@ describe("raw writes", () => {
         expect(marks.map((m) => m.sk).sort()).toEqual([skTime(T0 - 30 * MIN), skTime(T0 - 10 * MIN)].sort());
         await recompute(store, T0);
         expect(await store.query("DIRTY")).toEqual([]);
+    });
+
+    it("a merging write keeps only the live collector's fields, never a field the new record unsets", async () => {
+        const store = new MemoryStore();
+        await putRaw(
+            store,
+            [{ ...run(1), conclusion: "failure", cause: "infrastructure", tested: true } as RawItem],
+            T0,
+        );
+        const fresh = { ...run(1), conclusion: undefined } as RawItem;
+        await putRaw(store, [fresh], T0 + MIN, { merge: true });
+        const stored = (await store.get(homeKey(fresh))) as Record<string, unknown>;
+        expect(stored.cause).toBe("infrastructure");
+        expect(stored.tested).toBe(true);
+        expect(stored.conclusion).toBeUndefined();
     });
 
     it("refuses an item without an id", async () => {

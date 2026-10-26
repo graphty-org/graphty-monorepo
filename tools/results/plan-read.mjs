@@ -28,7 +28,14 @@ const familyOf = (shard) => shard.replace(/-\d+$/, "");
  */
 export function variantsOf(shards, affected) {
     const families = new Set(shards.filter((s) => affected.includes(s.package)).map((s) => familyOf(s.shard)));
-    return [...families].sort().flatMap((f) => [`${f}|flags=off|whole`, `${f}|flags=off|selected`]);
+    // a story shard's screenshot run (ci.yml's story-tests job) is a family of its own, `<family>-shots`
+    return [...families]
+        .sort()
+        .flatMap((f) => [
+            `${f}|flags=off|whole`,
+            `${f}|flags=off|selected`,
+            ...(f.endsWith("storybook") ? [`${f}-shots|flags=off|shots`] : []),
+        ]);
 }
 
 /**
@@ -74,7 +81,9 @@ export async function planRead({ root, affected, out, sha, base, files = [], env
     }
     const durations = durationsOf(plan);
     mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ?? { unavailable: why }));
+    // `families`: what the store was asked about; a group of another family keeps the committed quarantine list
+    const families = [...new Set(variants.map((v) => v.split("|")[0]))];
+    writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ? { ...plan, families } : { unavailable: why }));
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
     console.log(

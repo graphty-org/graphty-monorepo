@@ -64,7 +64,7 @@ import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { liveTickets, markGate, slotDir } from "./test-slots.mjs";
+import { liveTickets, slotDir } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -819,7 +819,7 @@ async function main() {
         const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
         // Through the quarantine wrapper (tools/test-quarantine.mjs): when only tests failed, it runs the failed
         // files once more, and a flaky or quarantined test does not fail the shard. The gate's own copies of it
-        // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
+        // and of test-slots.mjs, so a gate fix holds for every branch at once.
         const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
         const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
         const cmd = [process.execPath, ...quarantine];
@@ -840,7 +840,6 @@ async function main() {
                 ...shardEnv(shard),
                 ...(runId ? { TEST_LEDGER_RUN: runId } : {}),
                 TEST_QUARANTINE_RESULT: resultFile,
-                TEST_SLOT_GATE: String(process.pid),
             },
         });
         child.stdout.pipe(out);
@@ -1080,8 +1079,6 @@ async function main() {
         }
     };
 
-    // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
-    process.on("exit", markGate());
     // On by default; with GRAPHTY_TEST_QUARANTINE=0 the wrapper writes no result and nothing here runs.
     if (quarantineEnabled()) {
         quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));

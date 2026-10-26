@@ -2,7 +2,7 @@
     "version": 1,
     "defaults": { "warnRatio": 1.0, "hangRatio": 2.0, "minHangMinutes": 10, "owner": "pipeline" },
     "budgets": {
-        "run:ci.yml:pr": { "minutes": 20, "why": "light checks; the pull request waits on this" },
+        "run:ci.yml:pr": { "minutes": 10, "why": "light checks; the pull request waits on this (5-10 minute target)" },
         "run:ci.yml:pr-wide": { "minutes": 35, "why": "graphty-element src/ or global inputs changed" },
         "run:ci.yml:full": { "minutes": 60, "why": "green full runs measured 31-48 min" },
         "run:release.yml:full": { "minutes": 75, "why": "full run plus the release lanes" },
@@ -38,6 +38,23 @@
         "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
         "ttg:owner-wait": { "record": true, "why": "recorded, no line" },
         "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },
-        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" }
+        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" },
+        "job:ci.yml:Cache hygiene": { "minutes": 3, "why": "one list call and a delete per superseded key" },
+        "cache:codeql-*": { "gb": 1.5, "why": "per ref: CodeQL overlay base database, 1.3 GB for javascript" },
+        "cache:lfs-*": {
+            "gb": 0.6,
+            "why": "per ref: one project's LFS baselines (graph-io-fidelity 0.54 GB, graphty 0.5 GB)"
+        },
+        "cache:node-cache-*": {
+            "gb": 0.7,
+            "why": "per ref: pnpm store 0.32 GB, two while an older lockfile is still read"
+        },
+        "cache:playwright-*": {
+            "gb": 0.6,
+            "why": "per ref, each of playwright-Linux (visual jobs, by version) and playwright-lock-Linux (test jobs, by lockfile): browsers 0.26 GB, two while an older one is still read"
+        },
+        "cache:test-select-graphs": { "gb": 0.05, "why": "per ref: the selector's import graphs, about 10 MB" },
+        "cache:test-durations-*": { "gb": 0.01, "why": "per ref: a key per shard per run, KB each" },
+        "cache:*": { "gb": 0.5, "why": "per ref: any other family" }
     }
 }

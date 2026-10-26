@@ -2,7 +2,7 @@
 // 50 pull requests with no nested workflowRun: 100 with it timed out at GitHub (a 502).
 
 const PR_BASE = `
-  number title state isDraft reviewDecision baseRefName createdAt updatedAt mergedAt closedAt
+  number title state isDraft reviewDecision baseRefName headRefName headRefOid createdAt updatedAt mergedAt closedAt
   autoMergeRequest { enabledAt }
   labels(first: 20) { nodes { name } }
   readyEvents: timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT], last: 5) {

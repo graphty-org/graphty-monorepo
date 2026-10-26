@@ -1304,11 +1304,12 @@ describe("visual-review files only the story setups load", () => {
             .map((s) => s.shard);
     };
 
-    it("a story-test-setup.mjs change runs only visual-review and the story shards", () => {
+    it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
         const picked = run(["visual-review/capture/story-test-setup.mjs"]);
         const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
         const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
-        assert.deepEqual([...picked].sort(), [...own, ...story].sort());
+        // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
+        assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
         assert.ok(story.length === 6, story.join(", "));
     });
 

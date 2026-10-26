@@ -242,8 +242,17 @@ describe("bestEffort", () => {
 describe("lane-red: the red issue the moment one lane ends red", () => {
     it("files nothing for a run whose red issue a fixing merge just closed, since release-due cancels it", () => {
         const now = Date.parse("2026-10-25T12:00:00Z");
-        const closed = [{ number: 9001, title: "Full run red: CI on abcdef1", closedAt: "2026-10-25T11:50:00Z" }];
+        const closed = [
+            {
+                number: 9001,
+                title: "Full run red: CI on abcdef1",
+                closedAt: "2026-10-25T11:50:00Z",
+                stateReason: "completed",
+            },
+        ];
         assert.equal(fixedRecently(closed, "abcdef1234", now), 9001);
+        const dup = [{ ...closed[0], stateReason: "not_planned" }];
+        assert.equal(fixedRecently(dup, "abcdef1234", now), null, "a duplicate closed by fileRed is not a fix");
         assert.equal(fixedRecently(closed, "1234567890", now), null, "another commit's issue");
         assert.equal(fixedRecently(closed, "abcdef1234", now + 2 * 60 * 60 * 1000), null, "closed long ago");
     });

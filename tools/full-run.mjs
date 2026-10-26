@@ -241,17 +241,21 @@ async function pickMain(env) {
  * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
  * issue, and release-due on a quick fix that references it, must both find it.
  * @param [state] open, closed or all
+ * @param [since] ISO time: only issues updated since then
  * @returns the issues
  */
-export const listRedIssues = (state = "open") =>
-    JSON.parse(
-        sh("gh", [
-            "api",
-            `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100`,
-            "--jq",
-            String.raw`[.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at}]`,
-        ]) || "[]",
-    );
+export const listRedIssues = (state = "open", since = "") =>
+    sh("gh", [
+        "api",
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
+        "--jq",
+        String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at, stateReason: .state_reason} | tojson`,
+        // every page: an issue left open for weeks must not drop out of the listing
+        "--paginate",
+    ])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
 // The open red issue's number and title ("<number> <title>"), or empty.
 const openRedIssue = () => {
     const [i] = listRedIssues();
@@ -416,7 +420,11 @@ async function verdictMain(env) {
  */
 export function fixedRecently(closed, sha, now = Date.now()) {
     const hit = closed.find(
-        (i) => i.title.endsWith(` on ${short(sha)}`) && i.closedAt && now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+        (i) =>
+            i.title.endsWith(` on ${short(sha)}`) &&
+            i.stateReason === "completed" && // a duplicate fileRed closed is "not_planned"
+            i.closedAt &&
+            now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
     );
     return hit ? hit.number : null;
 }
@@ -426,7 +434,7 @@ function laneRedMain(env) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
     }
-    const fixed = fixedRecently(listRedIssues("closed"), env.SHA);
+    const fixed = fixedRecently(listRedIssues("closed", new Date(Date.now() - 60 * 60 * 1000).toISOString()), env.SHA);
     if (fixed) {
         console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
         return;

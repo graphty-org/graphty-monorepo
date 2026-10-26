@@ -141,7 +141,11 @@ function cancelRedRun(issue, dryRun) {
 
 function main() {
     const dryRun = process.argv.includes("--dry-run");
-    const issues = listRedIssues("all");
+    // the open ones, and those closed in the last hour (by this merge's Fixes)
+    const issues = [
+        ...listRedIssues("open"),
+        ...listRedIssues("closed", new Date(Date.now() - CLOSED_WITHIN_MS).toISOString()),
+    ];
     // A merge commit brings in HEAD^1..HEAD; a plain commit is only itself.
     let range = ["-1", "HEAD"];
     try {

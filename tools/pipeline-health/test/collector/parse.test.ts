@@ -9,6 +9,7 @@ import {
     llmCost,
     masterState,
     pool,
+    prOfRun,
     prStocks,
     releaseAttempt,
     releaseTags,
@@ -328,5 +329,30 @@ describe("npm", () => {
         expect(missing).not.toContain("graph-format@1.4.7");
         expect(missing).toContain("layout@2.5.10");
         expect(missing.some((m) => m.startsWith("graphty@") || m.startsWith("githerd@"))).toBe(false);
+    });
+});
+
+describe("pull request of a run", () => {
+    const run = (o: Partial<GhRun>) =>
+        ({ id: 1, head_branch: "fix/1-a", head_sha: "bbb", pull_requests: [], ...o }) as GhRun;
+    const prs = [
+        { number: 10, headRefName: "fix/1-a", headRefOid: "aaa" },
+        { number: 11, headRefName: "fix/1-a", headRefOid: "bbb" },
+        { number: 12, headRefName: "fix/2-b", headRefOid: "ccc" },
+    ] as GqlPr[];
+
+    it("uses the run's own pull request when GitHub lists one", () => {
+        expect(prOfRun(run({ pull_requests: [{ number: 7 }] }), prs)).toBe(7);
+    });
+
+    it("maps a merged pull request's run (empty pull_requests) by head branch, preferring the head commit", () => {
+        expect(prOfRun(run({}), prs)).toBe(11);
+        expect(prOfRun(run({ head_sha: "zzz" }), prs)).toBeUndefined();
+        expect(prOfRun(run({ head_branch: "other" }), prs)).toBeUndefined();
+        const merged = [{ number: 21, headRefName: "fix/1-a", mergedAt: "2026-10-25T00:00:00Z" }] as GqlPr[];
+        expect(prOfRun(run({ head_sha: "zzz" }), merged)).toBe(21);
+        // Two pull requests share the branch name (fork branches named "main", a reused name): no guess.
+        const shared = [{ number: 20, headRefName: "fix/1-a", mergedAt: null }, ...merged] as GqlPr[];
+        expect(prOfRun(run({ head_sha: "zzz" }), shared)).toBeUndefined();
     });
 });

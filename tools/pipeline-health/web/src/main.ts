@@ -19,7 +19,7 @@ import {
     type StatusResponse,
     type TestHistoryResponse,
 } from "./contract";
-import { type Here, nav, overviewView, pageView, setHere, stateWord, testView } from "./render";
+import { type Here, nav, overviewView, PAGE_TITLE, pageView, setHere, stateWord, testView } from "./render";
 import { clock, esc, fmtDur, fmtTime } from "./text";
 
 const DEFAULT_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
@@ -146,11 +146,9 @@ async function load(h: Here): Promise<Loaded> {
         status,
         html: pageView(p),
         generated: p.generated,
-        title: `${cat ? `${stateWord(cat.state)} ` : ""}${pageTitle(page)}`,
+        title: `${cat ? `${stateWord(cat.state)} ` : ""}${PAGE_TITLE[page]}`,
     };
 }
-
-const pageTitle = (p: string) => p.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // ---------------------------------------------------------------- drawing
 

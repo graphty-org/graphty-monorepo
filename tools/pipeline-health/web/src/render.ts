@@ -76,7 +76,7 @@ export const PAGE_PATH: Record<PageId, string> = {
     "data-sources": "/data-sources",
 };
 
-const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
+export const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
     ...CATEGORY_NAME,
     runners: "Runners",
     "local-runs": "Local runs",

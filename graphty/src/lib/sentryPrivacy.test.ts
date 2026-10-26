@@ -84,5 +84,7 @@ describe("what error reporting sends", () => {
         // Sentry's server must not fill in the reader's IP address.
         assert.include(all, '"infer_ip":"never"');
         assert.notInclude(all, "{{auto}}");
+        // The browser string is kept on purpose.
+        assert.include(all, '"User-Agent"');
     });
 });

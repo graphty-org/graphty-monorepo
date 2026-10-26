@@ -73,7 +73,8 @@ export function initSentry(config?: SentryConfig): void {
         dataCollection: {
             userInfo: false,
             cookies: false,
-            httpHeaders: false,
+            // the browser string, which privacyFilters keeps; every other header stays on the page
+            httpHeaders: { allow: ["User-Agent"] },
             httpBodies: [],
             urlQueryParams: false,
             graphQL: { document: false, variables: false },

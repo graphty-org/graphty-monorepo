@@ -216,7 +216,8 @@ function main() {
     let bodies = "";
     for (const sha of commits) {
         try {
-            bodies += `${run("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/pulls`, "--jq", ".[].body // empty"])}\n`;
+            const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
+            bodies += run("gh", ["api", path, "--jq", ".[].body // empty"]) + "\n";
         } catch (error) {
             console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
         }

@@ -1074,6 +1074,24 @@ class Session implements ElementSession {
      * @returns A function that stops the subscription.
      */
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+        if (this.disposed) {
+            // Nothing fires again; a host that asks too late to hear about the disposal still does.
+            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            let live = event === "session:disposed";
+
+            if (live) {
+                queueMicrotask(() => {
+                    if (live) {
+                        publish(new Map([["session:disposed", new Set([handler])]]), "session:disposed", {});
+                    }
+                });
+            }
+
+            return () => {
+                live = false;
+            };
+        }
+
         let subscribers = this.watchers.get(event);
 
         if (subscribers === undefined) {
@@ -1115,6 +1133,8 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        // The last event: a host drops the session here, before anything re-reads it.
+        publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();

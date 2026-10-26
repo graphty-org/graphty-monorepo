@@ -6169,7 +6169,14 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         ]);
         assert.deepEqual(Object.fromEntries(uploads), STORYBOOKS);
         // every step that builds is skipped when the builds are downloaded instead
-        for (const step of build.split(/\n {12}- /).filter((s) => /nx run .*:build-storybook|pnpm install/.test(s))) {
+        const building = build
+            .split(/\n {12}- /)
+            .filter((s) => /nx run(-many)? .*build-storybook|pnpm install/.test(s));
+        assert.ok(
+            building.some((s) => /build-storybook/.test(s)),
+            "no step builds the Storybooks",
+        );
+        for (const step of building) {
             assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
         }
     });

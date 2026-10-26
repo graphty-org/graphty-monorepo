@@ -869,6 +869,8 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(VISUAL?.providerOptions),
                         instances: [{ browser: "chromium" }],
+                        // addon-vitest 9.1.21 turns both off unless set; the tests' cdp() needs them.
+                        api: { allowWrite: true, allowExec: true },
                         ...(VISUAL && { viewport: VISUAL.viewport, commands: VISUAL.commands }),
                     },
                     setupFiles: [

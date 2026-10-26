@@ -203,6 +203,9 @@ export async function getPlan(q, who, db, now) {
     };
 }
 
+// The held nightly candidate (channels-pipeline.md section 3), or null: one row at most
+const heldCandidate = (db) => db.prepare("SELECT base, head, issue, at FROM candidate WHERE id = 1").first();
+
 const newestSite = (db) =>
     db.prepare("SELECT sha, built_at AS builtAt FROM site ORDER BY built_at DESC LIMIT 1").first();
 const latestVerdict = (db, sha) =>
@@ -221,8 +224,8 @@ const latestVerdict = (db, sha) =>
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, recent, and sites (the last
- *   200 recorded, newest record first)
+ * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, recent, sites (the last
+ *   200 recorded, newest record first) and hold: the held candidate ({ base, head, issue, at }) or null
  */
 export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
@@ -236,7 +239,8 @@ export async function getCandidate(q, who, db, now) {
     );
     // the recorded sites, so the pick can order them by master's history (a late record is not a newer commit)
     const sites = (await all(db, "SELECT sha FROM site ORDER BY built_at DESC LIMIT 200")).map((r) => r.sha);
-    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent, sites };
+    const hold = await heldCandidate(db);
+    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent, sites, hold };
 }
 
 /**
@@ -327,7 +331,7 @@ function sameAsNightly(sha, nightlySha, states) {
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns nightly, red, approved, offered, canary, ageNightlyMs and blocking
+ * @returns nightly, red, approved, offered, canary, ageNightlyMs, blocking and hold
  */
 export async function getReleaseState(q, who, db, now) {
     const nightly = await db
@@ -361,17 +365,22 @@ export async function getReleaseState(q, who, db, now) {
     );
     const start = after.find((r) => !sameAsNightly(r.sha, nightly?.sha, states))?.at;
     const canaryState = canaryVerdict?.state;
+    const hold = await heldCandidate(db);
+    // a held candidate is the only one offered, and only once its tested head is green-images
+    const heldHead = hold && states.find((s) => s.sha === hold.head);
+    const oldestWaiting = states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0];
     return {
         nightly,
         red: last?.state === "red" ? last : null,
         // a Finish promotes only a candidate newer than nightly; each of these is a resume that is due
         approved: states.filter((s) => s.state === "approved" && s.builtAt > nightlyBuilt),
-        // the frozen candidate: the oldest still waiting for the owner
-        offered: states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0] ?? null,
+        // with no hold, the frozen candidate: the oldest still waiting for the owner
+        offered: (hold ? (heldHead?.state === "green-images" ? heldHead : null) : oldestWaiting) ?? null,
         canary,
         // null while nightly has never moved: not started, so the stall alarm has nothing to count from
         ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
-        blocking: unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
+        blocking: hold ? "held" : unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
+        hold,
     };
 }
 

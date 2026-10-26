@@ -492,7 +492,32 @@ async function postChannelMove(body, who, db, nowMs) {
     return { stored: true };
 }
 
+// The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
+// is not green-clean, a fix forward moves its head, a promotion or the owner's abandon clears it ({ clear: true }).
+// Only master's own release.yml writes it.
+async function postHold(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml holds a candidate");
+    }
+    if (body?.clear === true) {
+        const { meta } = await db.prepare("DELETE FROM candidate WHERE id = 1").run();
+        return { cleared: meta.changes === 1 };
+    }
+    if (!SHA.test(body?.base ?? "") || !SHA.test(body?.head ?? ""))
+        refuse(400, "base and head must be full commit ids");
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const held = await db.prepare("SELECT base FROM candidate WHERE id = 1").first();
+    // one hold at a time: a new base replaces a hold only after it is cleared
+    if (held && held.base !== body.base) refuse(409, `nightly is already held on ${held.base}`);
+    await db
+        .prepare("INSERT OR REPLACE INTO candidate (id, base, head, issue, at) VALUES (1, ?, ?, ?, ?)")
+        .bind(body.base, body.head, body.issue ?? null, nowMs)
+        .run();
+    return { held: true };
+}
+
 const ROUTES = {
+    "POST /v1/hold": postHold,
     "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,

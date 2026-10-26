@@ -1639,6 +1639,33 @@ jobs:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
 
+            # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
+            # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
+            # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
+            # cache key, all three browsers' system packages), before either benchmark runs.
+            # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
+            # came before them.
+            - name: Cache Playwright browsers
+              if: ${{ !cancelled() }}
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
+
+            - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium firefox webkit
+
+            # A cache hit may hold only Chromium; a browser already installed is skipped.
+            - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
+              run: pnpm exec playwright install chromium firefox webkit
+
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
             # the mechanisms they time are pinned by counts in the test shards.
@@ -1647,19 +1674,7 @@ jobs:
               working-directory: graphty-element
               run: pnpm exec vitest run --project=bench
 
-            # A failed benchmark above must not cost the browser numbers, so the browser set-up
-            # runs whatever came before it.
-            - uses: ./.github/actions/drop-microsoft-apt-source
-              if: ${{ !cancelled() }}
-
-            - name: Install Playwright system packages
-              if: ${{ !cancelled() }}
-              uses: ./.github/actions/playwright-system-deps
-
-            - name: Install Playwright browsers
-              if: ${{ !cancelled() }}
-              run: pnpm exec playwright install chromium
-
+            # A failed benchmark above must not cost the browser numbers.
             - name: Run the graphty-element browser timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element

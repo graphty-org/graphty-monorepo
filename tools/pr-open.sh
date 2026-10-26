@@ -23,8 +23,9 @@
 #      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
 #      Integrity checks) unless one with that marker is already there;
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
-#      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE) and a pull
-#      request someone other than the agent opened. A change to CI or to what guards the owner merges like any
+#      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE), a change
+#      to one of the few files that guard the owner (GUARD_PATHS below), and a pull request someone other than
+#      the agent opened. A change to CI or to what guards the owner merges like any
 #      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
 #      CI"). Until code-owner review is turned on (the last rollout step, .github/CODEOWNERS), such a pull
 #      request -- one that can change the very checks that judge it -- merges with only the fresh review and
@@ -144,10 +145,17 @@ marker=$(head -n 1 "$report")
 if ! grep -qF -- "$marker" <<<"$(gh pr view "$url" --json reviews --jq '.reviews[].body')"; then
     gh pr review "$url" --comment --body-file "$report" >/dev/null || die "the review could not be posted on $url"
 fi
+# The few files that guard the owner rather than judge CI: the screenshot approval keys and gate, the
+# release approvals and holds, the agents' credential guard and settings, the quarantine list, and the two
+# that hold breaking changes (this script and pr-title.yml, which a pull request runs its own copy of).
+# A change to one waits for the owner; every other CI change merges on green.
+GUARD_PATHS='^(visual-review/passkeys\.json$|visual-review/trusted/|release-[^/]*\.json$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.json$|tools/pr-open\.sh$|\.github/workflows/pr-title\.yml$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then
     hold="it holds a breaking change (it bumps a published major)"
+elif guarded=$(git diff --name-only "$base" HEAD | grep -E "$GUARD_PATHS"); then
+    hold="it changes what guards the owner: $(echo $guarded)"
 elif [ "$author" != "$agent" ]; then
     hold="it was opened by $author, not by $agent"
 fi

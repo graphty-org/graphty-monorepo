@@ -276,6 +276,14 @@ describe("pr-open.sh", () => {
         ]);
     });
 
+    it("leaves auto-merge off for a file that guards the owner", () => {
+        branch("ci/1248-keys", { "visual-review/passkeys.json": "{}\n" }, "ci(visual-review): add a key");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/11 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /guards the owner: visual-review\/passkeys\.json/);
+        assert.equal(armed().length, 0);
+    });
+
     it("never arms auto-merge on a pull request someone else opened", () => {
         branch("fix/1245-owners");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });

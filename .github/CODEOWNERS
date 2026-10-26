@@ -9,7 +9,8 @@
 # own copy of them, so a change here would judge itself), the screenshot gate, the release and the agents'
 # own guards (design/ci/channels-pipeline.md, section 6.2). Everything else merges on green. It takes effect
 # once the master ruleset requires a code owner's review; until then a pull request that changes an owned
-# path auto-merges on green like any other (owner, 2026-10-25).
+# path auto-merges on green like any other (owner, 2026-10-25), except the few files that guard
+# the owner, which tools/pr-open.sh holds (GUARD_PATHS).
 #
 # Owned closure: tools/check-owned-closure.mjs fails when an owned script or workflow reaches an
 # unowned file through its imports or the paths it runs; such a file is added below, in its own

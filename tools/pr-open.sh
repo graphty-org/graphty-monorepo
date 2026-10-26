@@ -25,8 +25,10 @@
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
 #      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE) and a pull
 #      request someone other than the agent opened. A change to CI or to what guards the owner merges like any
-#      other once green (owner, 2026-10-25); the fresh review and PR Integrity judge it, and the code-owner review
-#      in .github/CODEOWNERS is where the owner's own review of those paths is required.
+#      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
+#      CI"). Until code-owner review is turned on (the last rollout step, .github/CODEOWNERS), such a pull
+#      request -- one that can change the very checks that judge it -- merges with only the fresh review and
+#      PR Integrity looking at it; the owner accepted that gap.
 #
 # Every git and gh call runs as the agent account, never as the owner: GIT_CONFIG_GLOBAL is the agent's
 # git config (its name, its signing key, its SSH key), GH_CONFIG_DIR its gh login, and the session's

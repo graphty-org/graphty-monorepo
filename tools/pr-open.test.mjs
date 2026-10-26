@@ -254,17 +254,26 @@ describe("pr-open.sh", () => {
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
     });
 
-    it("arms auto-merge for a change to CI or to a path CODEOWNERS owns", () => {
-        mkdirSync(join(work, ".github"), { recursive: true });
-        writeFileSync(join(work, ".github/CODEOWNERS"), "# owned\n/nx.json @o\n");
-        git(work, "add", ".");
-        git(work, "commit", "-q", "-m", "owners");
-        git(work, "push", "-q", "origin", "master");
-        branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n", "nx.json": "{}\n" }, "ci(ci): change the gate");
+    it("arms auto-merge for a change to CI", () => {
+        branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n" }, "ci(ci): change the gate");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });
         assert.equal(r.code, 0, r.out);
         assert.doesNotMatch(r.out, /auto-merge is NOT on/);
         assert.equal(armed().length, 1);
+    });
+
+    it("turns auto-merge off on a re-run when the pull request now holds a breaking change", () => {
+        branch("feat/1247-break", { "x.txt": "x\n" }, "feat(layout)!: drop the old layout");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/10 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
+        assert.equal(armed().length, 0);
+        assert.deepEqual(calls().find((x) => x.a[1] === "merge").a, [
+            "pr",
+            "merge",
+            "https://github.com/o/r/pull/10",
+            "--disable-auto",
+        ]);
     });
 
     it("never arms auto-merge on a pull request someone else opened", () => {

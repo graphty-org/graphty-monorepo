@@ -658,7 +658,7 @@ describe("flaky tests from master's records", () => {
     });
 
     it("names a signature's earlier issue so the job comments on it instead of filing another", async () => {
-        const { call, env } = service();
+        const { call, env, rows } = service();
         const token = master("release.yml");
         const sig = failureHashes("AssertionError: expected 2 to be 3", X).signature;
         env.DB.sqlite.prepare(`INSERT INTO tracked_issue VALUES ('${sig}', 'flaky', 12, 'closed', 0, 0)`).run();
@@ -672,6 +672,11 @@ describe("flaky tests from master's records", () => {
             (await call("POST", "/v1/issues", { token, body: { signature: sig, kind: "x", number: 1 } })).status,
             400,
         );
+        // an issue of the other kind for the signature does not overwrite the tracked flaky one
+        await call("POST", "/v1/issues", { token, body: { signature: sig, kind: "failing-on-master", number: 20 } });
+        assert.deepEqual(rows(`SELECT kind, number FROM tracked_issue WHERE signature = '${sig}'`), [
+            { kind: "flaky", number: 12 },
+        ]);
     });
 });
 

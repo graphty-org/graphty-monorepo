@@ -156,17 +156,20 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
 }
 
 const ghCli = (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-const marker = (signature) => `<!-- results signature=${signature} -->`;
+// one marker per kind, so a flaky test's issue and a `Failing on master` one for the same signature stay apart
+const marker = (signature, kind) => `<!-- results kind=${kind} signature=${signature} -->`;
 
 /**
  * The issue carrying a signature's marker (a post-back that was lost), or null.
  * @param gh `(args) => stdout`
  * @param signature the failure signature
+ * @param kind `flaky` or `failing-on-master`
  * @returns the number or null
  */
-function findIssue(gh, signature) {
+function findIssue(gh, signature, kind) {
     try {
-        const out = gh(["issue", "list", "--state", "all", "--search", `"results signature=${signature}" in:body`]);
+        const search = `"results kind=${kind} signature=${signature}" in:body`;
+        const out = gh(["issue", "list", "--state", "all", "--search", search]);
         return Number(/^(\d+)\s/m.exec(out)?.[1]) || null;
     } catch {
         return null;
@@ -187,7 +190,7 @@ function reopen(gh, number) {
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
 function fileFailingOnMaster(gh, f, sha) {
     const { signature, line } = failureHashes(f.message, f.file);
-    const had = findIssue(gh, signature);
+    const had = findIssue(gh, signature, "failing-on-master");
     const body = [
         `\`${idOf(f)}\` fails on master ${sha} in its base check.`,
         "",
@@ -195,7 +198,7 @@ function fileFailingOnMaster(gh, f, sha) {
         f.message.slice(0, 600),
         "```",
         "",
-        marker(signature),
+        marker(signature, "failing-on-master"),
     ].join("\n");
     try {
         if (had) {
@@ -253,9 +256,9 @@ export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now
                 `longer fail CI. It leaves when this issue closes, after ${PASSES_TO_LEAVE} consecutive passing runs on`,
                 `master, or on ${day(now + 14 * 86_400_000)}.`,
             ],
-            extra: ["", marker(t.signature)],
+            extra: ["", marker(t.signature, "flaky")],
         };
-        const earlier = t.had ?? findIssue(gh, t.signature);
+        const earlier = t.had ?? findIssue(gh, t.signature, "flaky");
         const current = answers.at(-1)?.data?.kind !== "base";
         const number = fileIssue(entry, earlier && current ? reopen(gh, earlier) : earlier, gh);
         if (number)

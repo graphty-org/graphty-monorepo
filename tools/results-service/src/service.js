@@ -280,7 +280,9 @@ async function concludeFlakySafely(db, id, nowMs) {
     }
 }
 
-// The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names.
+// The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names. A
+// signature holds one tracked row; an issue of the other kind never overwrites it (the job finds that one by its
+// kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
 async function postIssue(body, who, db, nowMs) {
     if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
     need(body, { signature: "string", number: "number" });
@@ -289,7 +291,8 @@ async function postIssue(body, who, db, nowMs) {
         db
             .prepare(
                 `INSERT INTO tracked_issue (signature, kind, number, state, opened_at, last_seen) VALUES (?, ?, ?, 'open', ?, ?)
-                 ON CONFLICT(signature) DO UPDATE SET kind = excluded.kind, number = excluded.number, state = 'open', last_seen = excluded.last_seen`,
+                 ON CONFLICT(signature) DO UPDATE SET number = excluded.number, state = 'open', last_seen = excluded.last_seen
+                 WHERE tracked_issue.kind = excluded.kind`,
             )
             .bind(body.signature, body.kind, body.number, nowMs, nowMs),
         db

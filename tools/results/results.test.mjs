@@ -537,7 +537,7 @@ describe("fileIssues", () => {
         assert.equal(creates.length, 1);
         assert.ok(creates[0].includes("priority:critical"));
         const body = creates[0].at(-1);
-        assert.match(body, /<!-- results signature=sig1 -->/);
+        assert.match(body, /<!-- results kind=flaky signature=sig1 -->/);
         assert.match(body, /AssertionError: x/);
         assert.match(body, /on 2026-11-08/);
         const back = s.seen.find((r) => r.url === "/v1/issues");
@@ -582,6 +582,13 @@ describe("fileIssues", () => {
             calls.filter((c) => c[1] === "reopen").map((c) => c[2]),
             ["41", "12"],
         );
+    });
+
+    it("looks for an earlier issue by its own kind's marker", async () => {
+        const { gh, calls } = ghFake();
+        await fileIssues(null, [rec("passed", [])], [{ ok: true, data: { kind: "full", flaky: [flaky] } }], [], gh);
+        const list = calls.find((c) => c[1] === "list");
+        assert.match(list.at(-1), /results kind=flaky signature=sig1/);
     });
 
     it("never reopens an earlier issue from a base run, whose commit may predate the fix", async () => {

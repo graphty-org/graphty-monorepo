@@ -16,6 +16,8 @@
 //                                      a run's attempts and jobs, for GET /v1/run/<id>
 //   TESTH#<file>        <seenAt>#<test id>#<attempt>
 //                                      a file's failed and flaky tests by time, for GET /v1/test-history
+//   RUNTESTS#<run id>   <run attempt>#<test id>
+//                                      a CI run's failed and flaky tests, for "Blocked by a flake" (collector/flaky.ts)
 
 import type { Histogram } from "./histogram.js";
 import type { Item } from "./store.js";
@@ -273,7 +275,13 @@ export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: stri
 export function indexKeys(r: RawItem): Item[] {
     if (r.kind === "run") return [{ pk: `RUN#${r.runId}`, sk: `run#${r.attempt}` }];
     if (r.kind === "job") return [{ pk: `RUN#${r.runId}`, sk: `job#${r.id.split("/").pop()}#${r.attempt}` }];
-    if (r.kind === "test") return [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
+    if (r.kind === "test") {
+        const keys = [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
+        // A CI invocation id starts with its run id and run attempt (ingest.ts ownId).
+        const run = r.source === "ci" ? /^(\d+)\.(\d+)\./.exec(r.invocation) : null;
+        if (run) keys.push({ pk: `RUNTESTS#${run[1]}`, sk: `${run[2]}#${r.id}` });
+        return keys;
+    }
     return [];
 }
 

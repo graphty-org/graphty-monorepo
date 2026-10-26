@@ -876,6 +876,7 @@ describe("mutation testing of the selection", () => {
             fidelity.some((f) => /^graph-io\/test\/corpus\/.+\.cx2$/u.test(f)),
             "a corpus file a story imports with ?url",
         );
+        assert.ok(fidelity.includes("graphty-element/index.ts"), "a bare side-effect import");
         assert.ok(!fidelity.some((f) => f.includes("/.storybook/")), "never the Storybook setup");
         assert.equal(new Set(fidelity).size, fidelity.length, "each file once");
     });

@@ -463,10 +463,12 @@ export function storySideImports(wt, stories, known) {
     // for-of visits what the loop pushes, so this walks the whole closure
     for (const f of queue) {
         const text = readFileSync(join(wt, f), "utf8");
-        for (const m of text.matchAll(/(?:from|import\s*\()\s*["'](\.{1,2}\/[^"'?]+)/gu)) {
+        // `from "..."`, `import("...")` and a bare `import "..."`
+        for (const m of text.matchAll(/(?:from|import\s*\(?)\s*["'](\.{1,2}\/[^"'?]+)/gu)) {
             const base = join(dirname(f), m[1]);
+            // a "./x.js" specifier names x.ts, as TypeScript resolves it
             const hit = ["", ".ts", ".tsx", ".js", ".mjs", "/index.ts", "/index.js"]
-                .map((e) => base + e)
+                .flatMap((e) => [base + e, base.replace(/\.js$/u, ".ts") + e])
                 .find((c) => existsSync(join(wt, c)) && statSync(join(wt, c)).isFile());
             const ok =
                 hit &&

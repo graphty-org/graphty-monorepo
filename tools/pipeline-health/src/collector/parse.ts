@@ -1,7 +1,16 @@
 // Pure mapping from GitHub's responses to the model's raw items and the values the collector observes
 // (design/ci/health-dashboard.md section 4). No I/O here, so every rule is tested on recorded responses.
 
-import type { CostItem, IssueItem, JobItem, PrStages, PullRequestItem, RunItem, StepItem } from "../model/items.js";
+import type {
+    CostItem,
+    IssueItem,
+    JobItem,
+    PrStages,
+    PullRequestItem,
+    RunItem,
+    StepItem,
+    TestItem,
+} from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
 import type { LaneJob, OwnerWait, WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
@@ -805,4 +814,66 @@ export function oldestUntested(commits: CompareCommit[]): number | undefined {
         at = bySha.get(at.parents[0]?.sha ?? "");
     }
     return oldest;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Flaky tests from CI annotations (the flaky-history backfill).
+
+/**
+ * The jobs that run test shards through tools/test-quarantine.mjs: the check run's name, its job key (GITHUB_JOB,
+ * the third part of the invocation id tools/results/run-group.mjs baseId() makes) and the family suffix
+ * (run-group.mjs groupFamily(): the story-tests job takes screenshots, `<family>-shots`).
+ */
+const SHARD_JOBS: [RegExp, string, string][] = [
+    [/(?:^|\/ )Test \(/, "test", ""],
+    [/(?:^|\/ )Story tests \(/, "story-tests", "-shots"],
+    [/(?:^|\/ )Restricted CPU \(/, "stress", ""],
+];
+
+/**
+ * A test that failed on try 1 and passed its retry, as tools/test-quarantine.mjs prints it (printDecision) and
+ * tools/results/run-group.mjs prJudge() rewords it: `[FLAKY] <shard>: <file> > <test> failed and passed on the same
+ * inputs, ...`, `[FLAKY-UNRELATED] ... failed and passed; ...`, `[QUARANTINED] ... failed and passed; ...`. A
+ * `[QUARANTINED] ... failed again` test failed both times: not flaky. A file name holds no " > "; a test name may.
+ */
+const FLAKY_LINE =
+    /^\[(?:FLAKY|FLAKY-UNRELATED|QUARANTINED)\] (\S+): (.+?) > (.+) failed and passed(?: on the same inputs,|;)/;
+
+/**
+ * The live feed's row (ingest.ts failureItems() for tools/results/client.mjs postFlaky()) for one annotation of a
+ * test shard's check run, or undefined when the annotation is not a flaky test or the check run is no test shard.
+ * Same id, so a backfilled row and a live one are the same row. The annotation carries no failure message, so the
+ * signature is empty.
+ * @param message the annotation's message
+ * @param checkRun the check run's name ("Test (layout)", "CI / Test (layout)")
+ * @param runId the workflow run's id
+ * @param attempt the run attempt the check run belongs to
+ * @param seenAt when the check run completed
+ */
+export function flakyTestItem(
+    message: string,
+    checkRun: string,
+    runId: number,
+    attempt: number,
+    seenAt: number,
+): TestItem | undefined {
+    const job = SHARD_JOBS.find(([re]) => re.test(checkRun));
+    const m = FLAKY_LINE.exec(message);
+    if (!job || !m) return undefined;
+    const [, shard, file, name] = m;
+    const invocation = `${runId}.${attempt}.${job[1]}.${shard}.1`;
+    return {
+        kind: "test",
+        id: `${invocation}#${file}#${name}`,
+        attempt: 1,
+        source: "ci",
+        invocation,
+        family: shard.replace(/-\d+$/, "") + job[2],
+        file,
+        name,
+        outcome: "flaky",
+        status: "fail",
+        signature: "",
+        seenAt,
+    };
 }

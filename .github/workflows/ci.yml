@@ -392,9 +392,15 @@ jobs:
                       exit 0
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
-                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                      "$plan/light-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+                  # the summary describes the bins only when their matrix was written (else every shard runs whole)
+                  if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
+                      node tools/test-select.mjs --summary "$plan/light-plan.json" --affected "$AFFECTED" \
+                          >> "$GITHUB_STEP_SUMMARY" \
+                          || echo "::warning::could not write the light check's job summary"
+                  fi
 
             # The run's one read of the results store and the light plan it fed, for every later job (quarantine
             # and the master excuse read it from store-reads-live on). Absent when the run made no plan.

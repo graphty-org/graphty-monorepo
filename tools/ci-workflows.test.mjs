@@ -1732,7 +1732,29 @@ describe("verification runs of ci.yml", () => {
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
         }
         assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
-        assert.match(job(ci, "story-tests"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        // Through the results store like every test shard, and judged against the committed quarantine list.
+        assert.match(job(ci, "story-tests"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
+        assert.match(job(ci, "story-tests"), /id-token: write/);
+        // the combine step judges by the very list the run step judged by, which the run step writes
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_QUARANTINE_OUT: \$\{\{ runner\.temp \}\}\/stories\/quarantine\.json/,
+        );
+        assert.match(job(ci, "story-tests"), /merge-results .*--quarantine "\$RUNNER_TEMP\/stories\/quarantine\.json"/);
+        // the store quarantines a flaky story with an issue, which the step files
+        assert.match(job(ci, "story-tests"), /issues: write/);
+        // the pull request's own stories run here, so no token reaches them on a pull request
+        assert.match(job(ci, "story-tests"), /persist-credentials: false/);
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_PLAN: \$\{\{ runner\.temp \}\}\/results-plan\/results-plan\.json/,
+        );
+        assert.match(
+            job(ci, "story-tests"),
+            /GH_TOKEN: \$\{\{ github\.event_name != 'pull_request' && github\.token \|\| '' \}\}/,
+        );
+        // The blocking switch stays off until the project switches.
+        assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);

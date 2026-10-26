@@ -11,10 +11,13 @@ import {
     bisectPlan,
     captureLane,
     changedSummary,
+    deferred,
     differingImages,
     duplicateOf,
     fixedRecently,
+    flakyLanes,
     greenCloses,
+    holdAction,
     isOnNightly,
     LANES,
     laneRedIssue,
@@ -420,5 +423,161 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         );
         assert.match(opened.stdout, /^issue=77$/m);
         assert.equal(runLaneRed([], { LANE: "llm", OWNER_ITEM: "the key was refused" }).calls, "");
+    });
+});
+
+describe("the held candidate", () => {
+    const C = "c1";
+    const held = (recent) => ({ ...store(recent), hold: { base: C, head: C, issue: 4 } });
+    it("tests the held head first while no run judged it, then leaves the slot to master", () => {
+        let p = pick({ mode: "full", head: "h", store: held([]), firstParents, stray: code });
+        assert.deepEqual([p.run, p.sha, p.held], [true, C, C]);
+        p = pick({ mode: "full", head: "h", store: held([{ sha: C, state: "red" }]), firstParents, stray: code });
+        assert.deepEqual([p.run, p.sha, p.held], [true, "c3", C], "the master slot still runs, under the hold");
+        assert.equal(pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code }).held, "");
+        assert.equal(pick({ mode: "full", head: "h", store: null, firstParents, stray: code }).held, "unknown");
+    });
+    it("holds a deciding run that is not green-clean, updates the held head and leaves every other commit", () => {
+        assert.equal(holdAction({ held: "", sha: "s", state: "red" }), "start");
+        assert.equal(holdAction({ held: "", sha: "s", state: "green-images" }), "start");
+        assert.equal(holdAction({ held: "", sha: "s", state: "green-clean" }), "none");
+        assert.equal(holdAction({ held: "s", sha: "s", state: "green-clean" }), "update");
+        assert.equal(holdAction({ held: "t", sha: "s", state: "red" }), "none", "a master slot never replaces it");
+        assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "none");
+    });
+});
+
+describe("same-commit re-run", () => {
+    const red = (lanes) => ({ ...ALL_GREEN, ...lanes });
+    it("defers only attempt 1 of a re-runnable mode, red on lanes a re-run of failed jobs runs again", () => {
+        const t4 = { state: "red", red: ["t4"], lanes: red({ t4: "failure" }) };
+        assert.equal(deferred({ attempt: 1, mode: "full", ...t4 }), true);
+        assert.equal(deferred({ attempt: 1, mode: "restart", ...t4 }), true);
+        assert.equal(deferred({ attempt: 2, mode: "full", ...t4 }), false, "the re-run decides");
+        assert.equal(deferred({ attempt: 1, mode: "legacy", ...t4 }), false);
+        assert.equal(
+            deferred({ attempt: 1, mode: "full", state: "red", red: ["pick"], lanes: red({ pick: "failure" }) }),
+            false,
+        );
+        const missing = { state: "red", red: ["captures"], lanes: red({ captures: "missing for graphty" }) };
+        assert.equal(deferred({ attempt: 1, mode: "full", ...missing }), false, "nothing to re-run");
+        const recapture = {
+            ...missing,
+            red: ["captures", "recapture"],
+            lanes: { ...missing.lanes, recapture: "failure" },
+        };
+        assert.equal(deferred({ attempt: 1, mode: "full", ...recapture }), true);
+        assert.equal(deferred({ attempt: 1, mode: "full", state: "green-images", red: [], lanes: ALL_GREEN }), false);
+    });
+    it("calls a lane flaky when it was red before and passed on the re-run", () => {
+        assert.deepEqual(flakyLanes(["ci", "t4"], ["ci"]), ["t4"]);
+        assert.deepEqual(flakyLanes([], []), []);
+    });
+
+    // the verdict as release.yml runs it, with a fake gh that logs every call and lists no open issue
+    const runVerdict = (env, { flaky = null, before = null } = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), "verdict-"));
+        const log = join(dir, "calls.log");
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/88; fi\n`,
+            {
+                mode: 0o755,
+            },
+        );
+        const captures = join(dir, "visual");
+        const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects);
+        for (const p of projects) {
+            mkdirSync(join(captures, `visual-${p}-1`), { recursive: true });
+            writeFileSync(join(captures, `visual-${p}-1`, "results.json"), JSON.stringify({ items: [] }));
+        }
+        if (flaky) writeFileSync(join(captures, `visual-${projects[0]}-1`, "flaky.json"), JSON.stringify(flaky));
+        if (before) writeFileSync(join(dir, "verdict-1.json"), JSON.stringify(before));
+        const out = join(dir, "out");
+        writeFileSync(out, "");
+        const r = spawnSync(process.execPath, ["tools/full-run.mjs", "verdict"], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                RESULTS_URL: "",
+                HEALTH_API_URL: "",
+                GITHUB_OUTPUT: out,
+                SHA: "abcdef1234",
+                GOOD: "",
+                RUN_ID: "5",
+                RUN_URL: "https://run",
+                CAPTURES: captures,
+                RECORDS: dir,
+                RECORD: join(dir, `verdict-${env.RUN_ATTEMPT}.json`),
+                MODE: "full",
+                HELD: "",
+                ...env,
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        let calls = "";
+        try {
+            calls = readFileSync(log, "utf8");
+        } catch {
+            // no gh call at all
+        }
+        const outputs = Object.fromEntries(
+            readFileSync(out, "utf8")
+                .trim()
+                .split("\n")
+                .map((l) => l.split(/=(.*)/s).slice(0, 2)),
+        );
+        return {
+            calls,
+            outputs,
+            record: JSON.parse(readFileSync(join(dir, `verdict-${env.RUN_ATTEMPT}.json`), "utf8")),
+        };
+    };
+    const lanesJson = (over = {}) => JSON.stringify({ ...ALL_GREEN, captures: undefined, ...over });
+
+    it("files nothing on attempt 1 red on a lane, records it for the re-run, and holds nothing yet", () => {
+        const v = runVerdict({ RUN_ATTEMPT: "1", LANES: lanesJson({ t4: "failure" }) });
+        assert.equal(v.calls, "", "no red issue, no bisect");
+        assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.hold], ["red", "true", "none"]);
+        assert.deepEqual([v.record.deferred, v.record.red], [true, ["t4"]]);
+    });
+    it("files a lane green on the re-run, and a story the re-capture found flaky, as flaky, and blocks on neither", () => {
+        const v = runVerdict(
+            { RUN_ATTEMPT: "2", LANES: lanesJson() },
+            { before: { red: ["t4"] }, flaky: [{ file: "a--b.png", why: "matched its baseline" }] },
+        );
+        assert.equal(v.outputs.state, "green-clean");
+        assert.match(
+            v.calls,
+            /^issue create --title Flaky in full run: T4 GPU --label bug --label priority:critical --label effort:medium/m,
+        );
+        assert.match(v.calls, /^issue create --title Flaky in full run: [a-z-]+\/a--b\.png --label bug/m);
+        assert.doesNotMatch(v.calls, /issue create --title Full run red/);
+    });
+    it("holds a deciding red run, and decides at once when attempt 1 has nothing to re-run", () => {
+        const v = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson({ t4: "failure" }) }, { before: { red: ["t4"] } });
+        assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.hold], ["red", "false", "start"]);
+        assert.match(v.calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
+        const other = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson({ t4: "failure" }), HELD: "f".repeat(40) });
+        assert.equal(other.outputs.hold, "none", "another commit is held: a master slot never replaces it");
+    });
+});
+
+describe("lane-red on attempt 1", () => {
+    it("files nothing: the verdict decides after the one re-run", () => {
+        const r = spawnSync(process.execPath, ["tools/full-run.mjs", "lane-red"], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: "/nonexistent",
+                LANE: "t4",
+                RESULT: "failure",
+                RUN_ATTEMPT: "1",
+                MODE: "full",
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /the verdict decides after the one same-commit re-run/);
     });
 });

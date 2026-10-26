@@ -4540,6 +4540,7 @@ describe("release.yml", () => {
                     CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
                     GITHUB_RUN_ID: "7",
+                    GITHUB_RUN_ATTEMPT: "2",
                     GITHUB_JOB: "check",
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
@@ -4559,7 +4560,7 @@ describe("release.yml", () => {
             assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
             assert.deepEqual(decide(), {
                 deploy: "deploy=true",
-                curl: "-fsSL --max-time 30 https://canary.graphty.app/?run=7-check\n",
+                curl: "-fsSL --max-time 30 https://canary.graphty.app/?run=7-2-check\n",
             });
             // the stamp is read from canary, never from graphty.app, which graphty-site serves
             assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);

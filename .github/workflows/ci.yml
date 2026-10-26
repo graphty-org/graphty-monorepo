@@ -382,8 +382,6 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
-                  # a matrix command that fails must stop the step before the summary describes bins that never run
-                  set -o pipefail
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
@@ -397,8 +395,11 @@ jobs:
                       "$plan/light-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
-                  node tools/test-select.mjs --summary "$plan/light-plan.json" >> "$GITHUB_STEP_SUMMARY" \
-                      || echo "::warning::could not write the light check's job summary"
+                  # the summary describes the bins only when their matrix was written (else every shard runs whole)
+                  if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
+                      node tools/test-select.mjs --summary "$plan/light-plan.json" >> "$GITHUB_STEP_SUMMARY" \
+                          || echo "::warning::could not write the light check's job summary"
+                  fi
 
             # The run's one read of the results store and the light plan it fed, for every later job (quarantine
             # and the master excuse read it from store-reads-live on). Absent when the run made no plan.

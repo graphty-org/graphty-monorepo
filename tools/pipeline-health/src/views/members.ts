@@ -474,6 +474,9 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         if (state === "partial" && s.reason) {
             out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
         }
+        if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
+            out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
+        }
     }
     if (windowed(c)) {
         let v6 = s.value6h;

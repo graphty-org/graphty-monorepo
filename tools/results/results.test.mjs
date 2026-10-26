@@ -423,7 +423,7 @@ describe("the pull request rules", () => {
         assert.equal(d.pass, false);
         assert.match(
             d.lines[0].text,
-            /gh workflow run base-check\.yml --ref master -f base=b1 -f file=a\.test\.ts -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
+            /gh workflow run base-check\.yml --ref master -f base=b1 -f file='a\.test\.ts' -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
         );
         assert.equal(judge(plan, report(fail("flips")), report()).pass, true);
         // a family with no file-level answer counts every one of its files as touched
@@ -611,7 +611,9 @@ describe("fileIssues", () => {
     });
 
     it("never reopens an earlier issue from a base run, whose commit may predate the fix", async () => {
-        const { gh, calls } = ghFake();
+        const { gh: base, calls } = ghFake();
+        const gh = (args) =>
+            args[0] === "api" ? JSON.stringify({ data: { repository: { i12: { state: "OPEN" } } } }) : base(args);
         const answers = [{ ok: true, data: { kind: "base", flaky: [{ ...flaky, had: 12 }] } }];
         await fileIssues(null, [rec("passed", [])], answers, [], gh);
         assert.equal(calls.filter((c) => c[1] === "reopen").length, 0);
@@ -639,6 +641,37 @@ describe("fileIssues", () => {
             s.seen.filter((r) => r.url === "/v1/issues").map((r) => r.body.number),
             [88],
         );
+    });
+
+    it("does not reuse an earlier issue from a base run when GitHub cannot say whether it is open", async () => {
+        const { gh: base, calls } = ghFake();
+        const gh = (args) => {
+            if (args[0] === "api") throw new Error("HTTP 502");
+            return base(args);
+        };
+        const answers = [{ ok: true, data: { kind: "base", flaky: [{ ...flaky, had: 12 }] } }];
+        const out = await fileIssues(null, [rec("passed", [])], answers, [], gh);
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [88],
+        );
+        assert.equal(calls.filter((c) => c[1] === "reopen" || c[1] === "comment").length, 0);
+        assert.equal(calls.find((c) => c[1] === "list")[3], "open");
+    });
+
+    it("files Failing on master only for the file a base check was asked about", async () => {
+        const { gh, calls } = ghFake();
+        const failures = [
+            { file: "a.test.ts", name: "one", message: "Error: broken 1" },
+            { file: "b.test.ts", name: "other", message: "Error: unrelated" },
+        ];
+        const failing = failures.map(({ file, name }) => ({ file, name }));
+        const answers = [{ ok: true, data: { kind: "base", flaky: [] } }];
+        const out = await fileIssues(null, [rec("failed", failures)], answers, failing, gh, 0, { file: "a.test.ts" });
+        assert.equal(out.length, 1);
+        const titles = calls.filter((c) => c[1] === "create").map((c) => c[c.indexOf("--title") + 1]);
+        assert.equal(titles.length, 1);
+        assert.match(titles[0], /broken 1/);
     });
 
     it("knows a base run whose last answer was spooled, from its environment or any earlier answer", async () => {
@@ -775,7 +808,11 @@ describe("cli", () => {
         const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));
         const marks = (codes) => {
             const seen = [];
-            const run = async (shard, cmd, o) => (seen.push(o.env.RESULTS_FILE_FAILING), codes[seen.length - 1]);
+            const run = async (shard, cmd, o) => {
+                assert.equal(o.env.RESULTS_BASE_FILE, `layout/test/${file}`);
+                seen.push(o.env.RESULTS_FILE_FAILING);
+                return codes[seen.length - 1];
+            };
             return { seen, run };
         };
         const check = (run, repeat) =>

@@ -417,7 +417,7 @@ jobs:
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
-                      --base "$(git rev-parse "origin/$BASE_REF")" --files "$RUNNER_TEMP/changed.txt" || true
+                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" || true
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
@@ -433,7 +433,7 @@ jobs:
                   # reach a changed file (not the ones a rule runs), and the families with no file-level answer
                   # (every file of those counts as touched). An unavailable or everything plan stays as it is:
                   # every test counts as touched, and an outage leaves the committed quarantine list in force.
-                  jq -s --arg base "$(git rev-parse "origin/$BASE_REF")" --rawfile changed "$RUNNER_TEMP/changed.txt" \
+                  jq -s --arg base "$(git rev-parse HEAD^1)" --rawfile changed "$RUNNER_TEMP/changed.txt" \
                       'if .[0].unavailable or .[1].everything then .[0] else .[0] + {base: $base,
                           affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
                           unknownFamilies: (.[1].unknown // [])} end' \

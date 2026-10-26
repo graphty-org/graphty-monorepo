@@ -5986,6 +5986,9 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     it("plans inside Build after the builds: one results-store read, then the selector's bins, pull requests only", () => {
         const bins = stepOf("Plan the light check's test bins");
         assert.match(bins, /\n {14}id: bins\n/);
+        // the base is the master commit the merge ref was built on, never master's tip at fetch time
+        assert.doesNotMatch(bins, /rev-parse "origin\/\$BASE_REF"/);
+        assert.match(bins, /--arg base "\$\(git rev-parse HEAD\^1\)"/);
         assert.match(
             bins,
             /\n {14}if: steps\.plan\.outputs\.full == 'false' && steps\.reuse\.outputs\.reuse-run == ''\n/,

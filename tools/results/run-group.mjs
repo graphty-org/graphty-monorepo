@@ -79,7 +79,7 @@ export function prJudge(plan, { shard, family, variant, base }) {
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
     const check = (f, repeat) =>
-        `gh workflow run base-check.yml --ref master -f base=${base} -f file=${f.file} -f variant='${variant}' -f repeat=${repeat}`;
+        `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     return (d, { firstOutcome }) => {
         if (firstOutcome !== "failed" || d.flaky.length + d.excused.length + d.failing.length === 0) return d;
         const lines = [];
@@ -199,7 +199,8 @@ function earlierIssue(gh, t, isBase) {
     const earlier = t.had ?? findIssue(gh, t.signature, "flaky");
     if (!earlier) return earlier;
     if (!isBase) return reopen(gh, earlier);
-    return closedIssues([earlier], gh)?.has(earlier) ? findIssue(gh, t.signature, "flaky", "open") : earlier;
+    // reused only when GitHub says it is open: closed, or unknown (the query failed), takes an open one or a new one
+    return closedIssues([earlier], gh)?.has(earlier) === false ? earlier : findIssue(gh, t.signature, "flaky", "open");
 }
 
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
@@ -264,7 +265,7 @@ export async function fileIssues(
     failing,
     gh,
     now = Date.now(),
-    { onMaster = true, base = false } = {},
+    { onMaster = true, base = false, file } = {},
 ) {
     const out = [];
     const isBase = base || answers.some((a) => a.ok && a.data?.kind === "base");
@@ -291,7 +292,10 @@ export async function fileIssues(
     }
     const last = recs.at(-1);
     if (onMaster && isBase && last?.outcome === "failed") {
-        const broken = last.failures.filter((f) => failing.some((x) => x.file === f.file && x.name === f.name));
+        // only the file the base check was asked about: a whole-shard check also fails tests nobody asked about
+        const broken = last.failures.filter(
+            (f) => (!file || f.file === file) && failing.some((x) => x.file === f.file && x.name === f.name),
+        );
         const bySignature = new Map(broken.map((f) => [failureHashes(f.message, f.file).signature, f]));
         for (const f of bySignature.values()) {
             const r = fileFailingOnMaster(gh, f, last.sha);
@@ -526,6 +530,7 @@ async function record(shard, o) {
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),
+        file: env.RESULTS_BASE_FILE,
     });
 }
 

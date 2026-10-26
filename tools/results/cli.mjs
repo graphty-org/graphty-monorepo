@@ -135,6 +135,7 @@ export async function baseCheck({ root, variant, file, repeat = 1, env = process
             RESULTS_VARIANT: variant,
             GRAPHTY_FLAGS: flags,
             RESULTS_REPEAT: String(i),
+            RESULTS_BASE_FILE: file,
             RESULTS_FILE_FAILING: i === repeat && best > 0 ? "1" : "0",
         };
         console.log(`base-check: ${file} at ${variant}, run ${i} of ${repeat}`);

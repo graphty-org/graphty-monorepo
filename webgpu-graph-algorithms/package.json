@@ -123,12 +123,12 @@
         "fast-check": "^4.2.0",
         "ngraph.forcelayout": "^3.3.1",
         "ngraph.graph": "^20.0.1",
-        "playwright": "^1.54.1",
+        "playwright": "^1.64.1",
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.71.1",
+        "typescript-eslint": "^8.72.0",
         "vite": "^7.3.7",
         "vitest": "catalog:",
-        "webgpu": "0.6.1"
+        "webgpu": "0.6.2"
     }
 }

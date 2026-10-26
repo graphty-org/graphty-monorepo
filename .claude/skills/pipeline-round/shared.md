@@ -136,7 +136,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 Only the owner can do these. Each is asked once, on one final line
 `ACTION NEEDED: <what, specific enough to act on from a phone>`, only when he can act on it now, and recorded with an
 `asked owner` marker so no later round repeats it: a pull request's screenshots to review (once per head commit); a
-breaking change or a major release; a release (`mode=legacy`) or a production promotion (`promote.yml`); money (the T4 balance, runner minutes, a paid plan); a
+breaking change or a major release; a release (`mode=legacy`); money (the T4 balance, runner minutes, a paid plan); a
 credential, token, login, passkey or new terms; a new package's first npm publish; anything needing sudo or a change
 to permission rules or `~/.claude`; a commit under `design/brand`; a one-way decision a subagent labelled
 `needs-decision`. Nothing else, ever: everything else is decided and done in the round, with its reason in a marker

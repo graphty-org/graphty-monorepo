@@ -1,4 +1,4 @@
-# Keeps master green (design/ci/ci-cd-plan.md section 12). When CI or the canary deploy finishes on master,
+# Keeps master green (design/ci/ci-cd-plan.md section 12). When CI or the graphty.app deploy finishes on master,
 # tools/master-guard.mjs:
 # - CI red: freezes the Mergify queue (only priority:critical pull requests merge), opens a revert of the
 #   commit when its parent was green, and opens a priority:critical issue; when the failure looks external (an
@@ -8,7 +8,7 @@
 #   issue, no freeze and no revert; not when a newer master run superseded it;
 # - CI green at or after a frozen red commit: lifts the freeze;
 # - either way: closes its own revert pull requests that master CI shows are no longer needed;
-# - Deploy to GitHub Pages red (canary.graphty.app did not get the green master build): opens, or adds to, one
+# - Deploy to GitHub Pages red (graphty.app did not get the green master build): opens, or adds to, one
 #   priority:critical issue. Never freezes or reverts: the commit passed CI, and the deploy only publishes it.
 # The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) no longer run on master: the release train runs them and files its
 # own issue.

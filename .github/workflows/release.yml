@@ -30,8 +30,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   Nothing announces it.
 # - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
 #   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
-#   (npm `latest`) run in environment `release`, as described below. graphty.app does not follow it: graphty.app is
-#   graphty-site's and moves only by promote.yml, so a legacy run moves npm `latest` alone. Its removal is still open on issue #3467.
+#   (npm `latest`) run in environment `release`, as described below. graphty.app follows the version merge
+#   (deploy-pages.yml). Deleted once promote.yml exists.
 #
 # No workflow_run trigger: a master push never starts or restarts a release.
 #

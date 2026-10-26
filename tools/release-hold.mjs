@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Holds individual packages back from a release, so one package that must not ship never stops
- * the others.
+ * the others (or the graphty.app deploy, which runs only after a release).
  *
  * release-hold.json at the repository root lists the held packages:
  *
@@ -70,7 +70,7 @@ export function problems(hold, projects) {
         }
     }
     if (projects.length > 0 && projects.every((p) => seen.has(p))) {
-        out.push("every project is held, which stops the release; hold fewer");
+        out.push("every project is held, which stops the release and the graphty.app deploy; hold fewer");
     }
     return out;
 }

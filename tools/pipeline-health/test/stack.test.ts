@@ -35,7 +35,7 @@ describe("health stack", () => {
         expect(shapes).toEqual([
             [20, 28, "nodejs22.x", "arm64"],
             [5, 10, "nodejs22.x", "arm64"],
-            [1, 60, "nodejs22.x", "arm64"],
+            [1, 240, "nodejs22.x", "arm64"],
         ]);
     });
 

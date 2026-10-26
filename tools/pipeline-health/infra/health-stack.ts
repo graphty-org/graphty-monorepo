@@ -94,7 +94,7 @@ export class HealthStack extends Stack {
         const ingest = fn("Ingest", 20, 28, 1024);
         const read = fn("Read", 5, 10);
         // The collector also recomputes rollups, runs the SLA engine and writes about 40 gzipped page items.
-        const collector = fn("Collector", 1, 60, 512);
+        const collector = fn("Collector", 1, 240, 512);
         // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
         collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
         table.grantReadWriteData(ingest);

@@ -1076,13 +1076,20 @@ class Session implements ElementSession {
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
         if (this.disposed) {
             // Nothing fires again; a host that asks too late to hear about the disposal still does.
-            if (event === "session:disposed") {
-                const watchers: Watchers = new Map([["session:disposed", new Set([handler])]]);
+            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            let live = event === "session:disposed";
+
+            if (live) {
                 queueMicrotask(() => {
-                    publish(watchers, "session:disposed", {});
+                    if (live) {
+                        publish(new Map([["session:disposed", new Set([handler])]]), "session:disposed", {});
+                    }
                 });
             }
-            return () => undefined;
+
+            return () => {
+                live = false;
+            };
         }
 
         let subscribers = this.watchers.get(event);

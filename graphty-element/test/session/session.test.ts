@@ -44,6 +44,18 @@ describe("createGraphSession", () => {
         assert.isFalse(session.status.ready);
     });
 
+    it("does not tell a late watcher that stopped before the disposal was announced", async () => {
+        const session = createGraphSession();
+        session.dispose();
+        let told = false;
+        session.on("session:disposed", () => {
+            told = true;
+        })();
+
+        await Promise.resolve();
+        assert.isFalse(told);
+    });
+
     it("takes the element's own data defaults when it is given no configuration", () => {
         const session = createGraphSession();
 

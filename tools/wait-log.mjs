@@ -7,10 +7,8 @@
  *
  * Each wait that ended is one JSON line in <main checkout>/tmp/waits.jsonl:
  *   { kind, start, end, ms, waiter, pid, heldBy, ...extra }
- * - kind: what was waited for: "land-lock" and "cut-lock" (tools/land.mjs), "gate-slot"
- *   (tools/push-queue.sh), "browser-slot" (tools/with-browser.sh), "test-slot" and "gpu-slot"
- *   (tools/test-slots.mjs), "preview-lock" (tools/visual-preview.sh). "land-lock-held" and
- *   "cut-lock-held" are the time a landing held the lock, from taking it to giving it back.
+ * - kind: what was waited for: "browser-slot" (tools/with-browser.sh), "test-slot" and "gpu-slot"
+ *   (tools/test-slots.mjs), "preview-lock" (tools/visual-preview.sh).
  * - start, end: ISO times; ms: end - start.
  * - waiter: who waited (its checkout and command); pid: its process.
  * - heldBy: who held what it waited for when the wait began, as each tool describes its holders.

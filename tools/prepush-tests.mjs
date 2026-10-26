@@ -78,8 +78,8 @@ const ledger = await import("./test-ledger.mjs").catch((e) => {
 });
 
 /**
- * Whether a failing shard may be excused as failing on golden: only in a land check (land.mjs sets
- * TEST_LEDGER_KIND), never under PREPUSH_ALL=1 (verification), PREPUSH_EXONERATE=0, or a push to the cut or master.
+ * Whether a failing shard may be excused as failing on golden: only when TEST_LEDGER_KIND
+ * names a land check, never under PREPUSH_ALL=1 (verification), PREPUSH_EXONERATE=0, or a push to the cut or master.
  * @param env the environment
  * @returns boolean
  */
@@ -326,7 +326,7 @@ const SELECT_DEFAULT = "1";
  * @returns boolean
  */
 export function selectionOn(env, base) {
-    // a push to the cut (land.mjs cut and cut-fix measure it from origin/golden-cut) or to master runs whole
+    // a push measured from golden-cut or master runs whole
     const cut = /(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "");
     return Boolean(base) && !cut && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
 }
@@ -525,7 +525,7 @@ export function rerunOnBase(shard, base, files, main) {
         const dir = join(main, ".worktrees", `${basename(ROOT)}-base`);
         const orig = SHARDS.find((s) => s.shard === shard.shard) ?? shard;
         try {
-            // A detached scratch worktree at golden's tip, installed (was land.mjs prepareScratch, deleted, #3477).
+            // A detached scratch worktree at the base's tip, installed.
             const git = (cwd, args) => execFileSync("git", args, { cwd, stdio: "pipe" });
             if (existsSync(dir)) {
                 git(dir, ["reset", "-q", "--hard", base]);
@@ -715,7 +715,7 @@ function passed(shards, main) {
 }
 
 // Why a gate runs no shard.
-// Verification after landing (tools/verify.mjs) names this file, and writes it once a newer golden commit is
+// A caller names this file in PREPUSH_SUPERSEDED_FILE and writes it once the run is no longer
 // wanted: at the next shard boundary the gate starts no more shards and stops with [SUPERSEDED].
 const SUPERSEDED = process.env.PREPUSH_SUPERSEDED_FILE;
 
@@ -1023,7 +1023,7 @@ async function main() {
         }
         if (failed.length) {
             failed.forEach(keepLog);
-            // push-queue.sh reads "Stopped after SIG... failed" as the machine's failure, not this push's, so a
+            // "Stopped after SIG... failed" reads as the machine's failure, not this push's, so a
             // signal is named first even when a shard failed before it.
             const first = failed.find((f) => f.startsWith("SIG")) ?? failed[0];
             const what = stopping ? `Stopped after ${first} failed` : `Failed: ${failed.join(", ")}`;

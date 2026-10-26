@@ -381,7 +381,7 @@ describe("prepush.sh with a gate that already passed", () => {
         assert.deepEqual(r.steps().slice(0, 2).sort(), ["links", "sonar"]);
         assert.deepEqual(r.steps().slice(2, 3), ["build"]);
         assert.deepEqual(r.steps().slice(3).sort(), ["gpu", "lint"]);
-        assert.match(light.stdout, /\[LIGHT\] tests run in CI verification/);
+        assert.match(light.stdout, /\[LIGHT\] tests run in CI;/);
         assert.equal(r.inputs("passed", "gate").status, 1, "a light pass is not recorded for the full gate's key");
 
         // the full gate is another key, so the light pass does not stand in for it
@@ -392,11 +392,11 @@ describe("prepush.sh with a gate that already passed", () => {
         assert.doesNotMatch(full.stdout, /\[LIGHT\]/);
     });
 
-    it("stops, running nothing, when its inputs are not the ones the push queue found a pass for", () => {
+    it("stops, running nothing, when its inputs are not the ones its caller found a pass for", () => {
         const r = gateRepo();
         const p = r.gate({ PREPUSH_EXPECTED_KEY: "0".repeat(64) });
         assert.equal(p.status, 1);
-        assert.match(p.stderr, /inputs changed after the push queue found a pass/);
+        assert.match(p.stderr, /inputs changed after the caller found a pass/);
         assert.deepEqual(r.steps(), []);
     });
 });

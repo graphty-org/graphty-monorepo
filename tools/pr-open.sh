@@ -1,7 +1,6 @@
 #!/bin/bash
 # Opens the pull request for a finished branch, into master, as the agent account, with auto-merge on.
-# It replaces `node tools/land.mjs land <branch>` (design/ci/channels-pipeline/merging.md, section 2.2)
-# and runs no tests: CI is the only gate. It returns in seconds and never waits for CI.
+# (design/ci/channels-pipeline/merging.md, section 2.2). It runs no tests: CI is the only gate. It returns in seconds and never waits for CI.
 #
 #   tools/pr-open.sh --proof <file> [--refs] [--title "<header>"] [--issue N] [--review-answered]
 #

@@ -1,6 +1,6 @@
 # githerd
 
-> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> SUPERSEDED 2026-10-18. Kept for history; do not follow it.
 > githerd is retired: the daemon is not run and its MCP server is not configured. The code is kept in this package for now; nothing here describes live behavior.
 
 The repository pipeline daemon, launcher and CLI. Design: `design/githerd/githerd-design.md`.

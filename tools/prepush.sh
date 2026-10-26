@@ -9,8 +9,8 @@
 # no package included: they check the whole repository, root files (knip.config.ts, package.json
 # scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
-# PREPUSH_LIGHT=1 is the light gate: everything above but the test shards and the screenshots, which CI's
-# verification of golden runs instead (tools/verify.mjs backend ci; design/ci/ci-full-testing.md). The NVIDIA
+# PREPUSH_LIGHT=1 is the light gate: everything above but the test shards and the screenshots, which CI
+# runs instead. The NVIDIA
 # GPU step still runs when webgpu-graph-algorithms is affected. Unset or 0 is the full gate.
 # This script avoids nx to work around git hook issues with nx daemon
 
@@ -392,8 +392,8 @@ fi
 # Whether the branch on the remote moved while the gate ran: git sends the push with the tip it read
 # before the hook (PUSH_REMOTE_SHA, .husky/pre-push), so a newer commit's post-commit push or the nightly
 # sync's merge in the meantime makes git reject a push whose every check passed (18 pushes in the 14 days
-# to 2026-10-24, about 47 minutes each). golden, golden-cut and master are left to git: tools/land.mjs
-# handles golden moving, and reads git's own rejection. A remote that cannot be asked is not "moved".
+# to 2026-10-24, about 47 minutes each). golden, golden-cut and master are left to git, which rejects
+# the push itself. A remote that cannot be asked is not "moved".
 remote_moved() {
     [ -n "${PUSH_REMOTE:-}" ] && [ -n "${PUSH_REMOTE_REF:-}" ] || return 1
     case "$PUSH_REMOTE_REF" in refs/heads/golden | refs/heads/golden-cut | refs/heads/master) return 1 ;; esac
@@ -405,7 +405,7 @@ remote_moved() {
 # a knip-only failure must still fail the push.
 echo "========================================"
 sonar_reminder
-[ "$LIGHT" = 1 ] && echo -e "${YELLOW}[LIGHT] tests run in CI verification (tools/verify.mjs); no shard and no screenshot ran here${NC}"
+[ "$LIGHT" = 1 ] && echo -e "${YELLOW}[LIGHT] tests run in CI; no shard and no screenshot ran here${NC}"
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).

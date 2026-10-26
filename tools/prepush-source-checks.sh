@@ -2,9 +2,8 @@
 # The pre-push gate's source-only checks: formatting, the offline link check, the CI workflow tests,
 # the config and tool checks and the SonarQube changed-lines scan. They read only the source -- no
 # build, no affected list -- and take about two minutes together, so they run before anything slow:
-#  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
-#  - tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
-#    instead of after the queue.
+#  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), so a slip fails
+#    in about a minute.
 # A pass is recorded under the checkout's gate key (tools/prepush-inputs.mjs: the content of every
 # file git does not ignore, the installed lockfile, the gate's own scripts, the Node version and the
 # lane environment, and the parent branch when this one is stacked on an unlanded branch -- not the
@@ -150,11 +149,10 @@ mkdir -p "$(dirname "$SONAR_LOG")"
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_TOOLS/push-base.mjs")} && export PUSH_BASE_REF
 
 GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
-# The push queue let this push skip the wait for a gate slot because the whole gate had passed under the
-# key it computed. If the inputs changed since (an edit, or the gate's live copy moved forward), the gate
-# would run in full without a slot, so stop instead.
+# A caller that found a pass under the key PREPUSH_EXPECTED_KEY names expects these exact inputs. If they
+# changed since (an edit, or the gate's own scripts), stop instead of running the whole gate unasked.
 if [ -n "${PREPUSH_EXPECTED_KEY:-}" ] && [ "$PREPUSH_EXPECTED_KEY" != "$GATE_KEY" ]; then
-    echo -e "${RED}The gate's inputs changed after the push queue found a pass for them (the checkout, the installed lockfile or the gate's own scripts), so this push would run the whole gate without a gate slot. Push again through tools/push-queue.sh.${NC}" >&2
+    echo -e "${RED}The gate's inputs changed after the caller found a pass for them (the checkout, the installed lockfile or the gate's own scripts), so this push would run the whole gate without a gate slot. Push again through tools/push-queue.sh.${NC}" >&2
     exit 1
 fi
 unset PREPUSH_EXPECTED_KEY

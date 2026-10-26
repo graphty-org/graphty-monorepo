@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // The branch a push will be merged into, for every pre-push step that judges "what this push
 // changes": the SonarQube changed lines (tools/sonar-gate.mjs), the affected packages and test shards
-// (tools/prepush.sh), the secret scan (.husky/pre-push) and the push queue's fast lane and push log
-// (tools/push-queue.sh). Measured against origin/master, a branch stacked on another pull request's
+// (tools/prepush.sh), and the secret scan (.husky/pre-push). Measured against origin/master, a branch stacked on another pull request's
 // branch counts the whole parent branch as its own change (#2546).
 //
 //   node tools/push-base.mjs [--branch <name>]   prints the base ref, such as origin/master

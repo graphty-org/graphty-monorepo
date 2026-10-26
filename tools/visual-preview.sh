@@ -6,18 +6,18 @@
 # Usage:
 #   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
 #   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
-#   ./tools/visual-preview.sh --promote <commit>   (tools/push-queue.sh, once GitHub accepted the push)
-#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh or push-queue.sh, when it was refused)
+#   ./tools/visual-preview.sh --promote <commit>   (once GitHub accepted the push)
+#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when it was refused)
 #
 # --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
 # fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in
 # local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
 # request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
 # review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
-# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (tools/land.mjs,
-# whose check worktrees are detached) names the branch being pushed, whose pull request it captures for;
+# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (for a caller
+# in a detached worktree) names the branch being pushed, whose pull request it captures for;
 # then --promote leaves a capture made for a pull request staged, the review page offers it as "pending
-# push" (decisions allowed, no Finish) while the gate runs, and land.mjs makes it the pull request's
+# push" (decisions allowed, no Finish) while the gate runs, and the caller makes it the pull request's
 # preview once the push landed. Without a pull request it goes under
 # local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
 # skips the capture (CI cannot build that pull request either).
@@ -30,7 +30,7 @@
 # of the pull request's current head as "local preview, CI pending"; CI's own capture replaces it
 # project by project, and the gate still checks CI's capture against whatever was approved.
 #
-# --expect <commit> (tools/land.mjs, right after its push) waits until GitHub lists that commit as the
+# --expect <commit> (a caller, right after its push) waits until GitHub lists that commit as the
 # pull request's head: just after a push GitHub can still report the old head for a while, and a
 # preview of the old head is useless. It asks every VISUAL_PREVIEW_POLL seconds (default 15) for at
 # most VISUAL_PREVIEW_HEAD_WAIT seconds (default 600), then fails.
@@ -80,8 +80,8 @@ case "${1:-}" in
     --head | --promote | --discard) MODE="${1#--}" ;;
 esac
 if [[ "$MODE" != "pr" ]]; then
-    # Under tools/push-queue.sh the gate's --promote does nothing: the queue promotes after GitHub
-    # accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
+    # Under a caller that promotes itself (PUSH_QUEUE_PROMOTES=1) the gate's --promote does nothing: the
+    # caller promotes after GitHub accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
     # a push of golden-cut that was then rejected, a capture replaced the cut's owner-reviewed preview.
     [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
@@ -99,7 +99,7 @@ if [[ "$MODE" != "pr" ]]; then
     case "$MODE" in
         promote)
             [[ -d "$STAGED" ]] || exit 0
-            # land.mjs moves it after its push (defaultPreview); until then it is pending push.
+            # The caller moves it after its push; until then it is pending push.
             [[ -z "${VISUAL_PREVIEW_BRANCH:-}" || -z "$PR" ]] || exit 0
             rm -rf "${ROOT:?}/$KEY.old"
             [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
@@ -292,7 +292,7 @@ STEP="waiting for the lock"
 status running
 
 # The queue: one preview works at a time, in order of arrival, the cut's first (VISUAL_PREVIEW_PRIORITY,
-# which land.mjs sets for the cut pull request's previews, or a push of golden-cut). Each waiter holds a
+# or a push of golden-cut). Each waiter holds a
 # ticket <rank>-<arrival>-<pid> in $ROOT/.queue and works once its ticket is the first one whose process
 # is alive; a dead waiter's ticket is removed, so it never blocks the queue. While it waits, a run of the
 # same capture that finishes ahead of it is reused. The flock on .lock stays, for previews started by a
@@ -382,7 +382,7 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# The cut's preview (VISUAL_PREVIEW_PRIORITY, set by tools/land.mjs, or the gate's capture of a push to
+# The cut's preview (VISUAL_PREVIEW_PRIORITY, or the gate's capture of a push to
 # golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
 [[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()

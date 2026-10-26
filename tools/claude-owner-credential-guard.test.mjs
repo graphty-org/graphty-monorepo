@@ -74,7 +74,7 @@ const ALLOWED_BASH = [
     "GH_CONFIG_DIR=~/.config/gh-agent gh pr list",
     "cat .gitconfig.example",
     "grep -rn npmrc tools/",
-    "node tools/land.mjs status",
+    "node tools/test-ledger.mjs status",
     "cat ~/.config/gh-agent/hosts.yml",
     "env CI=1 node x.mjs -i",
     "env | grep -i path",

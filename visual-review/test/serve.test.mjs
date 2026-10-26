@@ -1551,7 +1551,7 @@ describe("serve: local previews of a pull request", () => {
         [t] = (await s.api("GET", "/api/prs")).body.targets;
         expect(t.projects[0]).toMatchObject({ pending: true, decided: 0 });
 
-        // Pushed: GitHub lists it as the head and land.mjs made it the pull request's preview. Finish opens.
+        // Pushed: GitHub lists it as the head and the pusher made it the pull request's preview. Finish opens.
         renameSync(join(previews, `.pending-${third}`), join(previews, "123"));
         head = third;
         [t] = (await s.api("GET", "/api/prs")).body.targets;

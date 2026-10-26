@@ -3489,7 +3489,7 @@ describe("review page: a pending push", () => {
         );
         expect(decided).toBe(200);
 
-        // Pushed: land.mjs made the capture #123's preview and GitHub lists the commit as the head.
+        // Pushed: the pusher made the capture #123's preview and GitHub lists the commit as the head.
         renameSync(join(previews, `.pending-${candidate}`), join(previews, "123"));
         head = candidate;
         await expect

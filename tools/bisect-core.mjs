@@ -1,5 +1,4 @@
-// The bisect's rules, moved out of tools/verify.mjs so a CI bisect (bisect.yml, design/ci/channels-pipeline/channels.md
-// section 6) and verification judge a failure the same way. No git, no files, no processes: every function takes
+// The bisect's rules, for the CI bisect (bisect.yml, design/ci/channels-pipeline/channels.md section 6). No git, no files, no processes: every function takes
 // the facts and returns the answer.
 //
 // A failure is first confirmed on the failing commit: its targets run up to CONFIRM_RUNS times. A target that fails

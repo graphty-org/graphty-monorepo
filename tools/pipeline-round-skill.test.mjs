@@ -1,5 +1,5 @@
-// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
-// command that now refuses, and the subagent rules end every job with pr-open.sh.
+// The pipeline-round and issue-round skills: every change goes through its own pull request opened by tools/pr-open.sh, no skill names a command
+// of the deleted landing tool, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ const flatShared = shared.replace(/\s*\n\s*>?\s*/g, " ");
 const issueRound = read(".claude/skills/issue-round/SKILL.md");
 const claude = read("CLAUDE.md");
 
-// The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
+// Commands of the deleted landing tool, which no skill may name.
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 describe("pipeline-round skill", () => {

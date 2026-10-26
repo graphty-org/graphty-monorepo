@@ -1871,9 +1871,7 @@ function opaqueSpecs(root, pkg, projects, imports) {
  * failed, to <main checkout>/tmp/test-select/advisory.jsonl for the replay. PREPUSH_SELECT_ADVISORY=0
  * turns it off.
  *
- * The change is measured from PREPUSH_SELECT_BASE when it is set (tools/land.mjs sets it to the golden
- * tip a landing's push replaces, so the record is about the landed branch, not about everything golden
- * has not shipped yet), else from the gate's own base. The selector runs at the lowest CPU priority in
+ * The change is measured from PREPUSH_SELECT_BASE when it is set (the commit the change starts from), else from the gate's own base. The selector runs at the lowest CPU priority in
  * its own process group, so it does not slow the shards it runs beside and report() stops all of it.
  * @param root the checkout under test
  * @param base the commit the gate compares the push with

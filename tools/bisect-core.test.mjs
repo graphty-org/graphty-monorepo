@@ -1,4 +1,4 @@
-// Tests of tools/bisect-core.mjs: recorded verifications replay to verify.mjs's answers, and the rules alone.
+// Tests of tools/bisect-core.mjs: recorded verifications replay to the answers recorded with them, and the rules alone.
 //
 //   node tools/bisect-core.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ describe("recorded verifications", () => {
         it(rec.name, () => {
             const { answer, left } = replay(rec);
             assert.deepEqual(answer, rec.answer);
-            assert.deepEqual(left, {}, "every recorded run is read, so the replay ran the points verify.mjs ran");
+            assert.deepEqual(left, {}, "every recorded run is read, so the replay ran the recorded points");
         });
 
     it("covers a culprit, a flaky-before and a no-culprit answer", () => {

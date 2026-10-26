@@ -34,7 +34,7 @@
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
 #
-# golden and golden-cut (made by tools/land.mjs) need no issue and are not pushed from here.
+# golden and golden-cut (the retired integration branches) need no issue and are not pushed from here.
 # The worktree lands in .worktrees/<name>. Remove finished ones with tools/worktree-prune.sh.
 
 set -euo pipefail
@@ -46,8 +46,7 @@ retry() { "$@" || { sleep 2; "$@"; } || { sleep 5; "$@"; }; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Every run executes one copy of this script, the live copy in <main checkout>/.worktrees/land-live (put a
-# new version there with `tools/live.sh land <branch>`), whichever checkout's copy was called, as
-# tools/land.mjs does: it runs the live copy with the same arguments and directory. Without a live copy it
+# new version there with `tools/live.sh land <branch>`), whichever checkout's copy was called: it runs the live copy with the same arguments and directory. Without a live copy it
 # runs itself and says so. LAND_LIVE names the live worktree instead (tests). A handed-off run carries
 # WORKTREE_NEW_LIVE_COPY and never hands off again, and drops the mark so nothing it starts inherits it.
 if [ -z "${WORKTREE_NEW_LIVE_COPY:-}" ]; then

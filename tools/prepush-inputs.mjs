@@ -8,15 +8,14 @@
  * passes instead of running them again (design/ci/fast-pipeline.md, section 5.3).
  *
  * - The fingerprint of the whole checkout: HEAD and the content of every file git does not ignore
- *   (tracked or not). tools/push-queue.sh uses it to refuse a commit whose gate already failed.
+ *   (tracked or not).
  * - The gate key of a checkout: the content of every file git does not ignore (not HEAD), the
  *   installed lockfile (node_modules/.pnpm/lock.yaml), the gate's own version (the content of the
- *   gate's tools/ and .husky/, which is .worktrees/gate-live for a push through the queue), the Node
+ *   gate's tools/ and .husky/), the Node
  *   version, the environment that chooses lanes (GRAPHTY_*, VK_*, PREPUSH_ALL) and the branch the push
- *   is measured from when that is not master or golden (a stacked branch's parent).
+ *   is measured from when that is not master (a stacked branch's parent).
  *   tools/prepush-source-checks.sh records a pass of the source-only checks under it, and
- *   tools/prepush.sh a pass of the whole gate; tools/push-queue.sh lets a push whose whole gate already
- *   passed skip the source-only checks and the wait for a gate slot.
+ *   tools/prepush.sh a pass of the whole gate.
  * - The input key of a test shard: the shard's definition, the Node version, the GRAPHTY_ and VK_
  *   environment, the installed lockfile, the gate's rule for judging a shard's run
  *   (tools/shard-verdict.mjs), every file outside the workspace packages (root configs, the lockfile,

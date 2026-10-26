@@ -796,6 +796,9 @@ describe("cli", () => {
         const once = marks([1]);
         await check(once.run, 1);
         assert.deepEqual(once.seen, ["1"]);
+    });
+});
+
 /**
  * A health API on a local server: answers tokens on /token, and `status` (or nothing, for null) on every POST.
  * @param [status] the POST's HTTP status; null never answers

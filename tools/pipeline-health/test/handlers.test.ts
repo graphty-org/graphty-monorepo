@@ -180,6 +180,25 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("stamps a full-run shard with its ci-budgets.json budget, and a pull request bin with none", async () => {
+        const h = await ingest();
+        const full = {
+            ...CI_CLAIMS,
+            event_name: "workflow_call",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/release.yml@refs/heads/master",
+        };
+        const passed = invocation({ outcome: "passed" });
+        delete (passed as Record<string, unknown>).failures;
+        expect((await h(event("/v1/invocations", passed, { claims: full }))).statusCode).toBe(200);
+        expect(mem.items.get("R#shard_run#500.1.graphty-element-browser-3\u0000A#1")).toMatchObject({
+            full: true,
+            budgetMs: 15 * 60_000,
+        });
+        await h(event("/v1/invocations", invocation({ id: "500.1.x" })));
+        expect(mem.items.get("R#shard_run#500.1.x\u0000A#1")?.budgetMs).toBeUndefined();
+    });
+
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
         const fail = { invocation: "500.1.compact-mantine", failures: [{ file: "b.ts", name: "t", message: "x" }] };

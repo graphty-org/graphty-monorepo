@@ -26,9 +26,11 @@ export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 10;
 /**
- * The cost-allocation tag on every resource of the stack; the Budget counts only spend that carries
- * it. Costs are tagged only after the tag is activated in Billing (`aws ce
- * update-cost-allocation-tags-status`), and Billing lists a tag for activation a day after first use.
+ * The tag on every resource of the stack. The Budget cannot filter on it: this project's account is
+ * a linked account, and Billing refuses to activate cost-allocation tags there ("Linked account
+ * doesn't have access to cost allocation tags"), so a tag filter would match no cost and the Budget
+ * would never fire. The Budget therefore counts the whole account; a service that moves into this
+ * account must get its own project, or this Budget's limit and deny action must be revisited.
  */
 export const COST_TAG = { key: "graphty-cost", value: "graphty-health" };
 export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts"];
@@ -236,10 +238,9 @@ export class HealthStack extends Stack {
                 budgetType: "COST",
                 timeUnit: "MONTHLY",
                 budgetLimit: { amount: MONTHLY_BUDGET_USD, unit: "USD" },
-                // Credits would hide the stack's spend, and other services in the account must not
-                // trip the deny action on these Lambdas: count only this stack's tagged, pre-credit cost.
+                // Credits would hide the spend until they run out, so count cost before credits.
+                // No tag filter: see COST_TAG.
                 costTypes: { includeCredit: false, includeRefund: false },
-                costFilters: { TagKeyValue: [`user:${COST_TAG.key}$${COST_TAG.value}`] },
             },
             notificationsWithSubscribers: [notify("ACTUAL", 50), notify("FORECASTED", 100)],
         });

@@ -107,7 +107,6 @@ describe("health stack", () => {
                 BudgetLimit: { Amount: 10, Unit: "USD" },
                 TimeUnit: "MONTHLY",
                 CostTypes: Match.objectLike({ IncludeCredit: false }),
-                CostFilters: { TagKeyValue: ["user:graphty-cost$graphty-health"] },
             }),
         });
         t.hasResourceProperties("AWS::DynamoDB::GlobalTable", {

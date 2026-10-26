@@ -35,7 +35,12 @@ const timesOf = (r: RawItem): [string, number][] =>
  * @param items
  * @param nowMs
  */
-export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
+export async function putRaw(
+    store: Store,
+    items: RawItem[],
+    nowMs: number,
+    opts: { merge?: boolean } = {},
+): Promise<number> {
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
     items.forEach(check);
@@ -45,12 +50,25 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    items.forEach((r, i) => ops.push(...writesFor(r, olds[i], nowMs, dirty)));
+    items.forEach((r, i) => ops.push(...writesFor(opts.merge ? mergeOld(r, olds[i]) : r, olds[i], nowMs, dirty)));
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }
     await store.batch(ops);
     return items.length;
+}
+
+/**
+ * `r` over what is stored: a field `r` leaves out or undefined keeps its stored value, so a writer that knows less
+ * (the backfill) never erases what one that knew more (the live collector: cause, cancelClass, hang, stages) stored.
+ * @param r
+ * @param old
+ */
+function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
+    if (!old) return r;
+    const { pk: _pk, sk: _sk, ttl: _ttl, field: _field, ...kept } = old;
+    const known = Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined));
+    return { ...kept, ...known } as RawItem;
 }
 
 function check(r: RawItem): void {

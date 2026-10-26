@@ -732,7 +732,7 @@ describe("GET /v1/release-state", () => {
         assert.deepEqual([st.red.sha, st.red.lane, st.red.issue], ["c3", "ci", 77]);
         assert.equal(st.offered.sha, "c1", "the oldest waiting candidate stays offered");
         assert.deepEqual(st.approved, []);
-        assert.equal(st.ageNightlyMs, 49 * HOUR);
+        assert.equal(st.ageNightlyMs, 40 * HOUR, "from the first site built after nightly's");
         assert.equal(st.blocking, "red");
 
         s.verdict("c1", "approved", NOW - 30 * 60_000);
@@ -761,9 +761,24 @@ describe("GET /v1/release-state", () => {
         s.site("m1", NOW - 48 * HOUR);
         s.verdict("m1", "green-clean", NOW - 47 * HOUR, { lane: "inherited from aaaaaaa" });
         assert.deepEqual([(await state(call)).ageNightlyMs, (await state(call)).blocking], [0, null]);
-        s.site("m2", NOW - 46 * HOUR);
-        s.verdict("m2", "green-clean", NOW - 45 * HOUR, { lane: "inherited from bbbbbbb" });
-        assert.equal((await state(call)).ageNightlyMs, 49 * HOUR, "inherited from another commit still waits");
+        // an approvals-only merge after it inherits from the version merge: still nightly
+        const m1 = "b".repeat(40);
+        s.site(m1, NOW - 46 * HOUR);
+        s.verdict(m1, "green-clean", NOW - 45 * HOUR, { lane: "inherited from aaaaaaa" });
+        s.site("y", NOW - 44 * HOUR);
+        s.verdict("y", "green-clean", NOW - 43 * HOUR, { lane: "inherited from bbbbbbb" });
+        assert.equal((await state(call)).ageNightlyMs, 0, "the inherited chain leads to nightly");
+        s.site("z", NOW - 42 * HOUR);
+        s.verdict("z", "green-clean", NOW - 41 * HOUR, { lane: "inherited from ccccccc" });
+        assert.equal((await state(call)).ageNightlyMs, 48 * HOUR, "a chain that does not reach nightly waits");
+    });
+    it("counts nightly's age from the first site after it, so a quiet master is no stall", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("n", NOW - 72 * HOUR);
+        s.nightly("n", NOW - 72 * HOUR);
+        s.site("c1", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR);
     });
     it("counts nightly's age from the first site when nightly never moved", async () => {
         const { call, env } = service();

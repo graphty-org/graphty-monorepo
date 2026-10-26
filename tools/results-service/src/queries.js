@@ -272,6 +272,29 @@ const BLOCKING = {
 };
 
 /**
+ * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or screenshot
+ * approvals: the full run's pick writes such a verdict as "inherited from <short sha>" (tools/full-run.mjs) and
+ * never promotes that commit, so it is nightly, not a candidate waiting for it. The chain is followed (a
+ * promotion's version merge, then an approvals-only merge after it).
+ * @param sha the commit
+ * @param nightlySha nightly's commit
+ * @param states the newest verdict of each recent commit
+ * @returns true when it is nightly's
+ */
+function sameAsNightly(sha, nightlySha, states) {
+    if (!sha || !nightlySha) return false;
+    let at = sha;
+    for (let hop = 0; hop <= states.length; hop++) {
+        if (at === nightlySha || (at.length < 40 && nightlySha.startsWith(at))) return true;
+        const lane = states.find((v) => v.sha === at || (at.length < 40 && v.sha.startsWith(at)))?.lane;
+        const from = /^inherited from ([0-9a-f]{7,})$/.exec(lane ?? "")?.[1];
+        if (!from) return false;
+        at = from;
+    }
+    return false;
+}
+
+/**
  * GET /v1/release-state : what ci.yml's release-due job and every release.yml run's catch-up read
  * (channels 5 and 7), and `age:nightly` for the stall alarm (main section 7).
  * @param q the query string
@@ -298,13 +321,11 @@ export async function getReleaseState(q, who, db, now) {
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);
     const canaryVerdict = states.find((s) => s.sha === canary?.sha);
-    // the version merge a promotion pushes to master differs from nightly only in versions, so the full run's pick
-    // gives it nightly's verdict ("inherited from <short sha>", tools/full-run.mjs) and never promotes it: it is
-    // nightly, not a candidate waiting for it
-    const from = /^inherited from ([0-9a-f]{7,})$/.exec(canaryVerdict?.lane ?? "")?.[1];
-    const isNightly = canary?.sha === nightly?.sha || (!!from && !!nightly?.sha.startsWith(from));
-    const unpromoted = !!canary && !isNightly && canary.builtAt > nightlyBuilt;
-    const start = nightly?.movedAt ?? (await db.prepare("SELECT min(built_at) AS at FROM site").first())?.at;
+    const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
+    // nightly is behind from the first site built after it, not from its own move: a quiet master is no stall
+    const start = (
+        await db.prepare("SELECT min(built_at) AS at FROM site WHERE built_at > ?").bind(nightlyBuilt).first()
+    )?.at;
     const canaryState = canaryVerdict?.state;
     return {
         nightly,

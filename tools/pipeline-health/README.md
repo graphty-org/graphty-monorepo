@@ -64,7 +64,8 @@ dashboard cannot judge this", never "all is well":
 
 Add `?fixtures` to the page URL (before the `#`) to draw the bundled sample data in `web/fixtures/`
 instead of the live API; `?fixtures=gray` and `?fixtures=stale` show the gray and stale scenarios. A
-FIXTURE DATA banner says when sample data is on screen.
+FIXTURE DATA banner says when sample data is on screen. Fixtures work in the dev server and in a build made
+with `VITE_HEALTH_FIXTURES=1`; the published page has none and ignores `?fixtures`.
 
 ## The read API
 

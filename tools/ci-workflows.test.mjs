@@ -1198,7 +1198,11 @@ describe("ci.yml", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
-        assert.doesNotMatch(job(ci, "packages"), /\n {8}(needs|if):/, "Build has no needs and no condition");
+        // Build needs only the run cap (tools/ci-run-cap.mjs), which never fails, and has no condition
+        assert.doesNotMatch(job(ci, "packages"), /\n {8}if:/, "Build has no condition");
+        // a skipped run cap would skip every job below Build, so the job always runs and only its steps wait
+        assert.doesNotMatch(job(ci, "run-cap"), /\n {8}if:/, "the run cap job runs on every event");
+        assert.match(job(ci, "packages"), /\n {8}needs: run-cap\n/, "Build needs only the run cap");
         assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
@@ -1685,6 +1689,22 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
+        // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
+        // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
+        const legs = [...job(ci, "story-tests").matchAll(/^\s+shard: (\S+)$/gm)].map((m) => m[1]);
+        assert.ok(legs.includes("algorithms-browser"));
+        const jobIf = job(ci, "story-tests").match(/^\s+if: (.*)$/m)[1];
+        for (const shard of legs) {
+            const own = SHARDS.find((s) => s.shard === shard);
+            // A pull request's light check runs it as a file-level bin named after it, not as itself.
+            const bins = { bins: [{ name: `${shard}-1`, shard, covers: [shard], command: "true", files: ["x"] }] };
+            for (const [affected, light] of [[PACKAGES], [[own.package]], [[own.package], bins]]) {
+                const matrix = JSON.stringify(plan(affected, undefined, light));
+                assert.ok(matrix.includes(`"${shard}"`), `${shard} for ${affected.join(",")} ${light ? "binned" : ""}`);
+            }
+            // The job's own condition names every leg's shard, or a leg alone in a run is never started.
+            assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
+        }
     });
 
     it("is not seen by the workflows that react to master's CI", () => {
@@ -2319,13 +2339,25 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.deepEqual(skippedProjects({ ...base, changed: [] }), []);
         for (const root of [
             "pnpm-lock.yaml",
+            "tools/storybook-brand-theme.mjs",
+            "tools/visual-capture-plan.mjs",
             ".github/workflows/ci.yml",
+            ".github/actions/playwright-system-deps/install.sh",
             "visual-baselines/layout/a.png",
             "visual-fonts/fonts.conf",
             "design/x.md",
         ]) {
             assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
         }
+    });
+
+    it("judges a change to workflows and tools no Storybook reads by its packages alone", () => {
+        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs"];
+        assert.deepEqual(
+            skippedProjects({ ...base, changed }),
+            skippedProjects({ ...base, changed: changed.slice(0, 1) }),
+        );
+        assert.notDeepEqual(skippedProjects({ ...base, changed }), []);
     });
 
     it("still sees a root file a pull request moves into a package", () => {
@@ -2352,9 +2384,9 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         }
     });
 
-    it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
+    it("is switched on in ci.yml (master's gate accepts the not-affected marker)", () => {
         const build = job(ci, "packages");
-        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
+        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "true"\n/);
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
@@ -2754,6 +2786,11 @@ describe("gpu.yml", () => {
                 // the whole apt-get install command, with its backslash-continued lines
                 const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
                 assert.match(install, /\blibvulkan1 libegl1\b/, where);
+                assert.match(
+                    install,
+                    /\blibatomic1\b/,
+                    `${where}: pnpm/action-setup v6 runs @pnpm/exe, which links libatomic.so.1`,
+                );
                 assert.doesNotMatch(body, /modprobe/, `${where}: a container cannot load kernel modules`);
                 if (/\bgh (issue|api|pr|run) /.test(body)) {
                     assert.match(install, /\sgh\s/, `${where}: calls gh, so installs it`);
@@ -4605,11 +4642,12 @@ describe("release.yml", () => {
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told
-        const record = ({ url = "https://results.test/", store = 0 } = {}) => {
+        const record = ({ url = "https://results.test/", store = 0, health = "", healthStatus = 0 } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-record-"));
             writeFileSync(
                 join(dir, "curl"),
-                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*/v1/sites*) exit ${store};;\n*) echo '{"value":"jwt"}';;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*health.test/v1/sites*) exit ${healthStatus};;\n` +
+                    `*/v1/sites*) exit ${store};;\n*graphty-health*) echo '{"value":"hjwt"}';;\n*) echo '{"value":"jwt"}';;\nesac\n`,
                 { mode: 0o755 },
             );
             const step = /- name: Record the site in the results store\n[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
@@ -4620,6 +4658,7 @@ describe("release.yml", () => {
                 env: {
                     ...process.env,
                     RESULTS_URL: url,
+                    HEALTH_API_URL: health,
                     SHA: "a".repeat(40),
                     ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.test/?x=1",
                     ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req",
@@ -4644,12 +4683,62 @@ describe("release.yml", () => {
             const unset = record({ url: "" });
             assert.equal(unset.status, 0);
             assert.equal(unset.calls, "", "no store configured: no call");
+            assert.doesNotMatch(ok.calls, /graphty-health/, "no health API configured: no call there");
             // after the site is uploaded, so a recorded site always exists as an artifact
             const build = job(deploy, "build");
             assert.ok(
                 build.indexOf("name: Upload the site") < build.indexOf("name: Record the site in the results store"),
             );
         });
+
+        it("records each kept site in the pipeline health API too, with its own token, failing open", () => {
+            const both = record({ health: "https://health.test/" });
+            assert.equal(both.status, 0);
+            assert.match(both.calls, /audience=graphty-health/);
+            assert.match(both.calls, /-X POST https:\/\/health.test\/v1\/sites -H Authorization: Bearer hjwt /);
+            assert.match(both.calls, /-X POST https:\/\/results.test\/v1\/sites -H Authorization: Bearer jwt /);
+            const down = record({ health: "https://health.test/", healthStatus: 22 });
+            assert.equal(down.status, 0, "a health API that does not answer never fails the deploy");
+            assert.match(down.calls, /results.test\/v1\/sites/, "and never stops the store's record");
+            const alone = record({ url: "", health: "https://health.test/" });
+            assert.equal(alone.status, 0);
+            assert.match(alone.calls, /health.test\/v1\/sites/);
+        });
+    });
+});
+
+// Every POST to the results store also goes to the pipeline health API (issue #3602), which
+// takes the same bodies: tools/results/client.mjs sends there when HEALTH_API_URL is set.
+describe("the pipeline health API", () => {
+    const files = [
+        ...readdirSync(new URL("../.github/workflows/", import.meta.url))
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => [f, workflow(f)]),
+        ["tools/channel/site-deploy.yml", readFileSync(new URL("channel/site-deploy.yml", import.meta.url), "utf8")],
+    ];
+    it("gets HEALTH_API_URL beside every RESULTS_URL and health-api-url beside every results-url", () => {
+        for (const [name, text] of files) {
+            const lines = text.split("\n");
+            lines.forEach((line, i) => {
+                const m = /^( *)RESULTS_URL: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (m)
+                    assert.equal(
+                        lines[i + 1],
+                        `${m[1]}HEALTH_API_URL: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+                const r = /^( *)results-url: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (r)
+                    assert.equal(
+                        lines[i + 1],
+                        `${r[1]}health-api-url: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+            });
+        }
+        const action = readFileSync(new URL("../.github/actions/timings/action.yml", import.meta.url), "utf8");
+        assert.match(action, /^ {4}health-api-url:\n/m);
+        assert.match(action, /HEALTH_API_URL: \$\{\{ inputs\.health-api-url \}\}/);
     });
 });
 

@@ -117,7 +117,7 @@
         "knip": "^5.61.3",
         "playwright": "^1.53.0",
         "semantic-release": "^25.0.2",
-        "storybook": "^9.0.11",
+        "storybook": "^9.1.21",
         "ts-node": "^10.9.2",
         "tsx": "^4.20.3",
         "typedoc": "^0.28.15",
@@ -125,7 +125,7 @@
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.71.1",
-        "vite": "^7.0.5",
+        "vite": "^7.3.7",
         "vitepress": "^1.6.3",
         "vitest": "catalog:"
     },

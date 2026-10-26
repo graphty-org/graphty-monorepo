@@ -16,6 +16,10 @@ inputs:
         description: The results store's URL (the repository variable RESULTS_URL); empty sends nothing
         required: false
         default: ""
+    health-api-url:
+        description: The pipeline health API's URL (the repository variable HEALTH_API_URL); empty sends nothing there
+        required: false
+        default: ""
 runs:
     using: composite
     steps:
@@ -36,6 +40,7 @@ runs:
           env:
               GITHUB_TOKEN: ${{ github.token }}
               RESULTS_URL: ${{ inputs.results-url }}
+              HEALTH_API_URL: ${{ inputs.health-api-url }}
               KIND: ${{ inputs.kind }}
               PROFILES: ${{ runner.temp }}/nx-profiles
           run: |

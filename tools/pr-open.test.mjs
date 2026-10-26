@@ -35,6 +35,7 @@ const fs = require("node:fs");
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
+if (a[0] === "pr" && a[1] === "view") process.stdout.write(process.env.FAKE_REVIEWS ?? "");
 if (a[0] === "pr" && a[1] === "create") {
     fs.copyFileSync(a[a.indexOf("--body-file") + 1], ${JSON.stringify(join(dir, "body.md"))});
     process.stdout.write("https://github.com/o/r/pull/42\\n");
@@ -42,6 +43,18 @@ if (a[0] === "pr" && a[1] === "create") {
 `,
 );
 chmodSync(join(bin, "gh"), 0o755);
+// The fake review (tools/pr-review.sh): writes a report with a fixed marker, prints its path, exits FAKE_REVIEW_RC.
+const review = join(dir, "review.sh");
+const report = join(dir, "report.md");
+writeFileSync(
+    review,
+    `#!/bin/bash
+printf '<!-- fresh-review abc123 -->\\n\\nBlocking findings: 0\\n' > ${JSON.stringify(report)}
+echo ${JSON.stringify(report)}
+exit "\${FAKE_REVIEW_RC:-0}"
+`,
+);
+chmodSync(review, 0o755);
 
 // Setup git runs isolated and unsigned; the script under test gets the fake HOME and PATH, plus a
 // session override it must drop.
@@ -84,6 +97,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         PATH: `${bin}:${process.env.PATH}`,
         PR_OPEN_SCAN: "true",
         PR_OPEN_TITLE_LINT: "true",
+        PR_OPEN_REVIEW: review,
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: "user.name",
         GIT_CONFIG_VALUE_0: "the-owner",
@@ -254,6 +268,19 @@ describe("pr-open.sh", () => {
         ]);
     });
 
+    it("leaves auto-merge off for a path master's CODEOWNERS owns", () => {
+        mkdirSync(join(work, ".github"), { recursive: true });
+        writeFileSync(join(work, ".github/CODEOWNERS"), "# owned\n/nx.json @o\n**/.storybook/vitest.setup.* @o\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "owners");
+        git(work, "push", "-q", "origin", "master");
+        branch("ci/1246-nx", { "nx.json": "{}\n", "graphty/.storybook/vitest.setup.ts": "x\n" }, "ci(ci): change nx");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /guards the owner: graphty\/\.storybook\/vitest\.setup\.ts nx\.json/);
+        assert.equal(armed().length, 0);
+    });
+
     it("never arms auto-merge on a pull request someone else opened", () => {
         branch("fix/1245-owners");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });
@@ -311,6 +338,43 @@ describe("pr-open.sh", () => {
         const body = readFileSync(join(dir, "body.md"), "utf8");
         assert.equal(body.match(/^- fix/gm).length, 50);
         assert.match(body, /^- and 5 more$/m);
+    });
+
+    it("posts the fresh review's report as a COMMENT review, once per patch id", () => {
+        branch("fix/1249-review");
+        let r = run();
+        assert.equal(r.code, 0, r.out);
+        const posted = calls().filter((x) => x.a[1] === "review");
+        assert.equal(posted.length, 1);
+        assert.deepEqual(posted[0].a, [
+            "pr",
+            "review",
+            "https://github.com/o/r/pull/42",
+            "--comment",
+            "--body-file",
+            report,
+        ]);
+        rmSync(ghLog, { force: true });
+        r = run(undefined, {
+            FAKE_EXISTING: "https://github.com/o/r/pull/42 graphty-agent",
+            FAKE_REVIEWS: "old\n<!-- fresh-review abc123 -->\n",
+        });
+        assert.equal(r.code, 0, r.out);
+        assert.equal(calls().filter((x) => x.a[1] === "review").length, 0, "the same patch id is not posted twice");
+    });
+
+    it("stops with exit 3 on a blocking review, pushing nothing, unless the findings are answered", () => {
+        branch("fix/1250-blocked");
+        let r = run(undefined, { FAKE_REVIEW_RC: "3" });
+        assert.equal(r.code, 3, r.out);
+        assert.match(r.out, /blocking findings/);
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+        r = run(["--proof", proof, "--review-answered"], { FAKE_REVIEW_RC: "3" });
+        assert.equal(r.code, 0, r.out);
+        assert.equal(armed().length, 1);
+        r = run(undefined, { FAKE_REVIEW_RC: "1" });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /the review failed/);
     });
 
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {

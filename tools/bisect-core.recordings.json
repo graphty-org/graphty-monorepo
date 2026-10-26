@@ -1,0 +1,302 @@
+{
+    "recordings": [
+        {
+            "from": "5a0cdfd981c14ea4509fca00c77ae5dab7435a4a",
+            "target": "def0898817d6c8d40cccb90b8c7e0f337e9c5e1c",
+            "ci": true,
+            "width": 2,
+            "candidates": [
+                "10d3c744d363c7d1a7f3748dc5692e99b8ab3872",
+                "b7255df56e82d53c5bf2147293a19d2cce39af1d",
+                "2322ac080eb040129ed93d7f35e52756f74c7ce4"
+            ],
+            "parents": {
+                "10d3c744d363c7d1a7f3748dc5692e99b8ab3872": "5a0cdfd981c14ea4509fca00c77ae5dab7435a4a",
+                "b7255df56e82d53c5bf2147293a19d2cce39af1d": "64f7ec1f2c232d5e69470dbed25724fb353ef2dc",
+                "2322ac080eb040129ed93d7f35e52756f74c7ce4": "b7255df56e82d53c5bf2147293a19d2cce39af1d"
+            },
+            "tests": [
+                {
+                    "shard": "graphty-element-default",
+                    "file": "graphty-element/test/cost-coverage/cost-coverage.test.ts",
+                    "name": "cost coverage > classifies every public method as mutating or read-only, once"
+                }
+            ],
+            "failedBefore": [],
+            "runs": {
+                "def0898817d6c8d40cccb90b8c7e0f337e9c5e1c": [
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ]
+                ],
+                "2322ac080eb040129ed93d7f35e52756f74c7ce4": [
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ]
+                ],
+                "b7255df56e82d53c5bf2147293a19d2cce39af1d": [
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/cost-coverage/cost-coverage.test.ts > cost coverage > classifies every public method as mutating or read-only, once"
+                    ]
+                ],
+                "10d3c744d363c7d1a7f3748dc5692e99b8ab3872": [[]],
+                "64f7ec1f2c232d5e69470dbed25724fb353ef2dc": [[], [], [], [], []]
+            },
+            "name": "culprit: fix/3377-stable-ignores-camera-moves broke cost coverage (golden def0898817, 2026-10-25)",
+            "source": "the test ledger's confirm and bisect runs; verify.mjs named b7255df56e (tmp/test-ledger/misses)",
+            "answer": {
+                "status": "failed",
+                "culprit": "b7255df56e82d53c5bf2147293a19d2cce39af1d",
+                "flaky": []
+            }
+        },
+        {
+            "from": "957359c72be566a3ac951cd55a322caf9278b6e9",
+            "target": "604fd9377bc3a2baa2756d0a07782be870df1473",
+            "ci": true,
+            "width": 2,
+            "candidates": [
+                "d5e485b30f8775e224535141c1519cf813e36e04",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "8451fca0a1da254d0032b955b6e978357e38296d",
+                "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "38173fa63ad2c499649647694ecf09218de692cb",
+                "604fd9377bc3a2baa2756d0a07782be870df1473"
+            ],
+            "parents": {
+                "d5e485b30f8775e224535141c1519cf813e36e04": "957359c72be566a3ac951cd55a322caf9278b6e9",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf": "d5e485b30f8775e224535141c1519cf813e36e04",
+                "8451fca0a1da254d0032b955b6e978357e38296d": "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "74b146ec1408ce3fc5383955397f749a1e495c08": "8451fca0a1da254d0032b955b6e978357e38296d",
+                "38173fa63ad2c499649647694ecf09218de692cb": "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "604fd9377bc3a2baa2756d0a07782be870df1473": "38173fa63ad2c499649647694ecf09218de692cb"
+            },
+            "tests": [
+                {
+                    "shard": "graphty-element-default",
+                    "file": "graphty-element/test/session/history/door-surface.test.ts",
+                    "name": "the door list is complete > classifies every public member of every root, and names no member that is not one"
+                }
+            ],
+            "failedBefore": [],
+            "runs": {
+                "604fd9377bc3a2baa2756d0a07782be870df1473": [
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ]
+                ],
+                "8451fca0a1da254d0032b955b6e978357e38296d": [[]],
+                "38173fa63ad2c499649647694ecf09218de692cb": [[], [], [], [], [], []],
+                "74b146ec1408ce3fc5383955397f749a1e495c08": [[]]
+            },
+            "name": "culprit: fix/3373-resize-blanks-canvas broke the door list (golden 604fd9377b, 2026-10-25)",
+            "source": "the test ledger's confirm and bisect runs; verify.mjs named 604fd9377b (tmp/test-ledger/misses)",
+            "answer": {
+                "status": "failed",
+                "culprit": "604fd9377bc3a2baa2756d0a07782be870df1473",
+                "flaky": []
+            }
+        },
+        {
+            "from": "957359c72be566a3ac951cd55a322caf9278b6e9",
+            "target": "604fd9377bc3a2baa2756d0a07782be870df1473",
+            "ci": true,
+            "width": 2,
+            "candidates": [
+                "d5e485b30f8775e224535141c1519cf813e36e04",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "8451fca0a1da254d0032b955b6e978357e38296d",
+                "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "38173fa63ad2c499649647694ecf09218de692cb",
+                "604fd9377bc3a2baa2756d0a07782be870df1473"
+            ],
+            "parents": {
+                "d5e485b30f8775e224535141c1519cf813e36e04": "957359c72be566a3ac951cd55a322caf9278b6e9",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf": "d5e485b30f8775e224535141c1519cf813e36e04",
+                "8451fca0a1da254d0032b955b6e978357e38296d": "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "74b146ec1408ce3fc5383955397f749a1e495c08": "8451fca0a1da254d0032b955b6e978357e38296d",
+                "38173fa63ad2c499649647694ecf09218de692cb": "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "604fd9377bc3a2baa2756d0a07782be870df1473": "38173fa63ad2c499649647694ecf09218de692cb"
+            },
+            "tests": [
+                {
+                    "shard": "graphty-element-default",
+                    "file": "graphty-element/test/session/history/door-surface.test.ts",
+                    "name": "the door list is complete > classifies every public member of every root, and names no member that is not one"
+                }
+            ],
+            "failedBefore": [
+                "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+            ],
+            "runs": {
+                "604fd9377bc3a2baa2756d0a07782be870df1473": [
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [],
+                    []
+                ]
+            },
+            "name": "flaky before the range: passes 3 of 5 confirming runs and failed before the range",
+            "source": "constructed from the 604fd9377b recording: no verification has recorded this case yet",
+            "answer": {
+                "status": "flaky",
+                "culprit": null,
+                "flaky": [
+                    "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                ]
+            }
+        },
+        {
+            "from": "957359c72be566a3ac951cd55a322caf9278b6e9",
+            "target": "604fd9377bc3a2baa2756d0a07782be870df1473",
+            "ci": true,
+            "width": 2,
+            "candidates": [
+                "d5e485b30f8775e224535141c1519cf813e36e04",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "8451fca0a1da254d0032b955b6e978357e38296d",
+                "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "38173fa63ad2c499649647694ecf09218de692cb",
+                "604fd9377bc3a2baa2756d0a07782be870df1473"
+            ],
+            "parents": {
+                "d5e485b30f8775e224535141c1519cf813e36e04": "957359c72be566a3ac951cd55a322caf9278b6e9",
+                "cfb5e69f2466e84359ebfc987f543ced9286fdaf": "d5e485b30f8775e224535141c1519cf813e36e04",
+                "8451fca0a1da254d0032b955b6e978357e38296d": "cfb5e69f2466e84359ebfc987f543ced9286fdaf",
+                "74b146ec1408ce3fc5383955397f749a1e495c08": "8451fca0a1da254d0032b955b6e978357e38296d",
+                "38173fa63ad2c499649647694ecf09218de692cb": "74b146ec1408ce3fc5383955397f749a1e495c08",
+                "604fd9377bc3a2baa2756d0a07782be870df1473": "38173fa63ad2c499649647694ecf09218de692cb"
+            },
+            "tests": [
+                {
+                    "shard": "graphty-element-default",
+                    "file": "graphty-element/test/session/history/door-surface.test.ts",
+                    "name": "the door list is complete > classifies every public member of every root, and names no member that is not one"
+                }
+            ],
+            "failedBefore": [],
+            "runs": {
+                "604fd9377bc3a2baa2756d0a07782be870df1473": [
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ]
+                ],
+                "8451fca0a1da254d0032b955b6e978357e38296d": [[]],
+                "38173fa63ad2c499649647694ecf09218de692cb": [
+                    [],
+                    [],
+                    [
+                        "graphty-element-default: graphty-element/test/session/history/door-surface.test.ts > the door list is complete > classifies every public member of every root, and names no member that is not one"
+                    ],
+                    [],
+                    [],
+                    []
+                ],
+                "74b146ec1408ce3fc5383955397f749a1e495c08": [[]]
+            },
+            "name": "no culprit: the first bad landing's parent fails 1 of 5",
+            "source": "constructed from the 604fd9377b recording: no verification has recorded this case yet",
+            "answer": {
+                "status": "failed",
+                "culprit": null,
+                "flaky": [],
+                "noLanding": "the first bad landing is 604fd9377b, but its parent 38173fa63a, not a landing, fails it too (in 1 of 5 runs)"
+            }
+        }
+    ]
+}

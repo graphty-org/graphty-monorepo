@@ -131,7 +131,8 @@ interface SafariLog {
 
 /**
  * Follow Safari's log in the Simulator for the facts a page cannot report: that Safari became active
- * (UIKit's "deactivation reasons: N -> 0"), that Safari's scene went to the background, and that
+ * (UIKit's "deactivation reasons: N -> 0"), that a URL reached it ("UIOpenURLAction"), that Safari's
+ * scene went to the background, and that
  * WebKit terminated a page's web process (after the GPU process crashed too many times, Safari shows
  * its own error page in place of the page).
  * @param udid - The Simulator.
@@ -139,7 +140,7 @@ interface SafariLog {
  */
 function followSafari(udid: string): SafariLog {
     const predicate =
-        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons")';
+        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons" OR eventMessage CONTAINS "UIOpenURLAction")';
     const child: ChildProcess = ownChild(
         spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
             stdio: ["ignore", "pipe", "pipe"],
@@ -263,6 +264,13 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      * spawned and it became active 24 s after (issue #3654), so an openurl sent when launch returned
      * timed out. So wait until this Safari process logs that it became active, unless the last
      * activation change it logged before the launch already said so (Safari was in front).
+     *
+     * Being active is not enough when Safari's main thread is busy: after its web content processes
+     * were killed, Safari's main thread logged nothing for 11.6 s (it ended with "Failed to take web
+     * view snapshot"), SpringBoard held the open request until then, and `simctl openurl` gave up,
+     * though SpringBoard delivered the URL to Safari right after (issue #3654, second failure). So
+     * openurl's own time limit is not the test: when it gives up (code 60, "Operation timed out"),
+     * wait for this Safari process to log that it received the URL. Any other failure is thrown.
      * @param url - The page.
      */
     async function openInSafari(url: string): Promise<void> {
@@ -277,7 +285,20 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             await safariLog.waitFor(active, last === undefined ? from : safariLog.lines.lastIndexOf(last) + 1);
         }
 
-        simctl("openurl", udid, url);
+        const sent = safariLog.lines.length;
+        try {
+            simctl("openurl", udid, url);
+        } catch (error) {
+            if (!String((error as { stderr?: unknown }).stderr).includes("code=60")) {
+                throw error;
+            }
+
+            console.log(`[ios] simctl openurl gave up; waiting for Safari ${pid} to receive the URL`);
+            await safariLog.waitFor(
+                new RegExp(`MobileSafari\\[${pid}:.*Received action\\(s\\) in scene-update: UIOpenURLAction`),
+                sent,
+            );
+        }
     }
 
     /**

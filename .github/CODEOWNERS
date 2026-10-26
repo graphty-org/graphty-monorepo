@@ -1,7 +1,8 @@
 # Owners are the team @graphty-org/code-owners, which does not exist yet, on purpose (owner's decision,
 # 2026-10-25): until code-owner review is turned on -- the last step of the channels pipeline rollout --
 # GitHub requests no review from it, so the owner gets no review-request email for every agent pull
-# request. tools/pr-open.sh and tools/check-owned-closure.mjs read only the path patterns, which stay.
+# request. tools/pr-open.sh and tools/check-owned-closure.mjs read only the path patterns, which stay;
+# tools/pr-integrity.mjs counts the owner's approval through its OWNER constant, not this file.
 # Turning code-owner review on creates the team (with the owner in it) together with the ruleset change.
 #
 # What only the owner merges: the files that decide whether a pull request passes (a pull request runs its

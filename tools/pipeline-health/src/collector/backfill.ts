@@ -113,7 +113,7 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const write = async (out: RawItem[]) => {
         if (out.length && !(await takeQuota(o.store, out.length, o.now, o.rowLimit ?? DAILY_ROW_LIMIT / 2)))
             throw new Stop("write_budget");
-        await putRaw(o.store, out, o.now);
+        await putRaw(o.store, out, o.now, { merge: true });
         r.items += out.length;
     };
     const first = Math.floor((o.now - o.days * DAY) / DAY) * DAY;

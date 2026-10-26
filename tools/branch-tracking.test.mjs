@@ -231,7 +231,7 @@ describe("the post-commit push", () => {
         assert.equal(gh().calls.length, calls, "no GitHub call");
     });
 
-    it("merges the branch's newer commits on GitHub (the nightly sync's merge) before it pushes", async () => {
+    it("merges the branch's newer commits on GitHub (the owner's Finish, a merge of master) before it pushes", async () => {
         const other = join(dir, "push-other");
         git(dir, "clone", "-q", "-b", "feat/512-thing", join(dir, "push.git"), other);
         writeFileSync(join(other, "synced.txt"), "from golden\n");
@@ -436,20 +436,23 @@ describe("tools/branch-note.mjs", () => {
         assert.equal(fields.left, undefined);
     });
 
-    it("busy marks the branch busy until a time and clear ends it, keeping the rest of the note", () => {
+    it("has no busy command, and drops a note's old busy and sync lines on its next write", () => {
         const wt = join(dir, "wt/.worktrees/feat-512-thing");
-        const comments = [{ id: 1, body: noteBody("feat/512-thing", { owner: "session s1" }) }];
-        writeFileSync(state, JSON.stringify({ calls: [], nextId: 1, issues: { 512: { ...issue("t"), comments } } }));
-        const r = run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "a design study");
-        assert.equal(r.status, 0, r.stderr);
-        const fields = () => parseNote(gh().issues[512].comments[0].body);
-        assert.match(fields().busy, /^until \d{4}-\d\d-\d\dT\S+Z -- a design study$/);
-        assert.equal(Date.parse(fields().busy.split(" ")[1]) > Date.now() + 23 * 3600e3, true);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "clear").status, 0);
-        assert.equal(fields().busy, undefined);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "soon", "--reason", "x").status, 1);
+        const old = `${noteBody("feat/512-thing", { owner: "session s1" })}- busy: until 2099-01-01T00:00:00Z -- x\n- sync: synced\n`;
+        writeFileSync(
+            state,
+            JSON.stringify({
+                calls: [],
+                nextId: 1,
+                issues: { 512: { ...issue("t"), comments: [{ id: 1, body: old }] } },
+            }),
+        );
+        assert.equal(run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "x").status, 1);
+        assert.equal(run(wt, process.execPath, note, "update", "--done", "d").status, 0);
+        const body = gh().issues[512].comments[0].body;
+        assert.doesNotMatch(body, /^- (busy|sync):/m);
+        assert.equal(parseNote(body).owner, "session s1");
+        assert.equal(parseNote(body).done, "d");
     });
 
     it("finds the issue number in a branch's name", () => {

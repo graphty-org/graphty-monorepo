@@ -9,7 +9,7 @@ import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
-import type { Fetch, GitHub } from "./github.js";
+import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
     classifyCancel,
     codeownerPatterns,
@@ -19,6 +19,7 @@ import {
     npmName,
     ownerWait,
     ownerWaitOf,
+    prOfRun,
     prRunOf,
     prStages,
     prStocks,
@@ -351,20 +352,99 @@ async function flaky(c: Cycle, run: GhRun, repo: string) {
 
 const prRunsKey = (repo: string, pr: number) => ({ pk: `PRRUNS#${repo}#${pr}`, sk: "-" });
 
-/** Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). */
+/** A finished pull request run GitHub names no pull request for (it merged), until the pull requests part maps it. */
+interface PendingPrRun {
+    id: string;
+    run: Pick<GhRun, "head_branch" | "head_sha">;
+    r: PrRun;
+    /** Its commit was looked up once and named no merged pull request. */
+    looked?: true;
+}
+const PENDING_PR_RUNS = "prruns-pending";
+
+async function putPrRun(c: Cycle, repo: string, pr: number, id: string, r: PrRun) {
+    const key = prRunsKey(repo, pr);
+    const old = (await c.d.store.get(key))?.runs as Record<string, PrRun> | undefined;
+    await c.d.store.put({ ...key, runs: { ...old, [id]: r }, ttl: ttlAt(c.now + 30 * DAY) });
+}
+
+/**
+ * Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). A run GitHub
+ * names its pull request for is recorded now; a home-repository run it names none for (its pull request merged)
+ * is kept pending in a cursor until a pull requests part maps it (pendingPrRuns), because putRaw stores the run
+ * complete at the end of this cycle and it is never collected again.
+ */
 async function prRuns(c: Cycle, xs: Collected[]) {
+    const pending = await c.json<PendingPrRun[]>(PENDING_PR_RUNS, []);
+    const ids = new Set(pending.map((p) => p.id));
     for (const { run, repo, jobs } of xs) {
+        const r = prRunOf(run, jobs ?? []);
+        if (!r) continue;
+        const id = `${run.id}.${run.run_attempt}`;
         const pr = run.pull_requests?.[0]?.number;
-        const r = pr === undefined ? undefined : prRunOf(run, jobs ?? []);
-        if (pr === undefined || !r) continue;
-        const key = prRunsKey(repo, pr);
-        const old = (await c.d.store.get(key))?.runs as Record<string, PrRun> | undefined;
-        await c.d.store.put({
-            ...key,
-            runs: { ...old, [`${run.id}.${run.run_attempt}`]: r },
-            ttl: ttlAt(c.now + 30 * DAY),
-        });
+        if (pr !== undefined) await putPrRun(c, repo, pr, id, r);
+        else if (repo === c.d.repo && run.head_branch && !ids.has(id)) {
+            ids.add(id);
+            pending.push({ id, run: { head_branch: run.head_branch, head_sha: run.head_sha }, r });
+        }
     }
+    if (pending.length) await c.setJson(PENDING_PR_RUNS, pending);
+}
+
+/**
+ * Records the pending runs this pass's pull requests map. One that none of them maps (the pull request merged
+ * before the `prs` cursor's window) is looked up once by its commit, and its pull request item is written again
+ * with its stages; a run still unmapped is dropped a day after it ended.
+ */
+async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]) {
+    const pending = await c.json<PendingPrRun[]>(PENDING_PR_RUNS, []);
+    if (!pending.length) return;
+    const left: PendingPrRun[] = [];
+    for (const p of pending) {
+        let pr = prOfRun(p.run, prs);
+        const late = pr === undefined && !p.looked;
+        if (late) {
+            const got = await prOfCommit(c, gh, p);
+            if (got === "retry") {
+                if (c.now - p.r[2] < DAY) left.push(p);
+                continue;
+            }
+            pr = got;
+        }
+        if (pr === undefined) {
+            if (c.now - p.r[2] < DAY) left.push({ ...p, looked: true });
+            continue;
+        }
+        await putPrRun(c, c.d.repo, pr, p.id, p.r);
+        if (late) await restage(c, pr);
+    }
+    await c.setJson(PENDING_PR_RUNS, left);
+}
+
+/**
+ * The merged pull request whose head branch is the run's, among those GitHub lists for the run's commit (a stacked
+ * branch's pull request contains the commit too). "retry" on a server error or rate limit, so one failing lookup
+ * never stops the pull requests part; any other client error counts as found nothing.
+ */
+async function prOfCommit(c: Cycle, gh: GitHub, p: PendingPrRun): Promise<number | "retry" | undefined> {
+    try {
+        const found = await gh.rest<{ number: number; merged_at: string | null; head: { ref: string } }[]>(
+            `repos/${c.d.repo}/commits/${p.run.head_sha}/pulls`,
+        );
+        return found?.find((x) => x.merged_at && x.head.ref === p.run.head_branch)?.number;
+    } catch (e) {
+        const status = e instanceof HttpError ? e.status : 0;
+        return status >= 400 && status < 500 && status !== 403 && status !== 429 ? undefined : "retry";
+    }
+}
+
+/** Writes a stored merged pull request item again with the stages of its now complete runs. */
+async function restage(c: Cycle, pr: number) {
+    const stored = (await c.d.store.get(homeKey({ kind: "pr", id: `${c.d.repo}#${pr}`, attempt: 1 }))) as
+        (PullRequestItem & { pk: string; sk: string; ttl?: number }) | undefined;
+    if (!stored) return;
+    const { pk: _pk, sk: _sk, ttl: _ttl, ...item } = stored;
+    c.items.push(await withStages(c, item));
 }
 
 /** A merged pull request's stage times from its recorded runs. */
@@ -436,11 +516,12 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         if (page === 0) open = data.repository.open.nodes;
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
-        for (const p of newer) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
         recentSeen.push(...newer);
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
+    await pendingPrRuns(c, gh, [...open, ...recentSeen]);
+    for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     await ownerWaits(c, gh, open);
     const s = prStocks(open, c.now);
@@ -687,12 +768,13 @@ const DEPLOY_ATTEMPTS = 3;
 export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     tree: object(expression: "master:tools/pipeline-health") { oid }
+    budgets: object(expression: "master:ci-budgets.json") { oid }
     head: object(expression: "master") { oid }
   }
 }`;
 
 /**
- * Redeploys the health stack: when master's tools/pipeline-health tree differs from the one the last build was
+ * Redeploys the health stack: when master's tools/pipeline-health tree (or ci-budgets.json) differs from the one the last build was
  * started for, starts the deploy build at master's head, unless the last build is still running. A failed build
  * is retried for the same tree up to DEPLOY_ATTEMPTS times and stays an error on the deploy source until one passes.
  * @param c - the cycle
@@ -701,11 +783,12 @@ export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
  */
 async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void> {
     const [owner, name] = c.d.repo.split("/");
-    const data = await gh.graphql<{ repository: { tree: { oid: string } | null; head: { oid: string } | null } }>(
-        DEPLOY_QUERY,
-        { owner, name },
-    );
-    const tree = data.repository.tree?.oid;
+    const data = await gh.graphql<{
+        repository: { tree: { oid: string } | null; budgets?: { oid: string } | null; head: { oid: string } | null };
+    }>(DEPLOY_QUERY, { owner, name });
+    // ci-budgets.json is bundled into the Lambda (metrics.ts), so a budget change redeploys like a folder change.
+    const folder = data.repository.tree?.oid;
+    const tree = folder && data.repository.budgets ? `${folder}+${data.repository.budgets.oid}` : folder;
     const head = data.repository.head?.oid;
     if (!tree || !head) {
         throw new Error("master has no tools/pipeline-health");
@@ -716,7 +799,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
         await recordSource(c.d.store, "deploy", c.now, { ok: true });
         return;
     }
-    const failed = status !== undefined && status !== "SUCCEEDED";
+    // STOPPED is someone stopping the build on purpose: never started again for the same tree.
+    const failed = status !== undefined && status !== "SUCCEEDED" && status !== "STOPPED";
     const attempt = last.tree === tree ? (last.attempt ?? 1) : 0;
     // A new tree starts a build; a failed build of the same tree is retried up to DEPLOY_ATTEMPTS times in all.
     if (last.tree !== tree || (failed && attempt < DEPLOY_ATTEMPTS)) {
@@ -726,6 +810,9 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
             throw new Error(`deploy build ${last.buildId} ${status}; attempt ${attempt + 1} started`);
     } else if (failed) {
         throw new Error(`deploy build ${last.buildId} ${status} after ${attempt} attempts`);
+    } else if (status === "STOPPED") {
+        // Not restarted, but not healthy either: the stack runs older code than master until a new tree deploys.
+        throw new Error(`deploy build ${last.buildId} STOPPED; not restarted for the same tree`);
     }
     await recordSource(c.d.store, "deploy", c.now, { ok: true });
 }
@@ -779,6 +866,47 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
     return items.filter((_, i) => keep[i]);
 }
 
+/** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
+async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
+    const d = c.d;
+    let ok = true;
+    ok &&= await c.part("github", "collector", async () => {
+        const repos = await activeRepos(c, gh);
+        const masterList = (
+            (
+                await gh.rest<RunsPage>(
+                    `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
+                )
+            )?.workflow_runs ?? []
+        ).map((run) => ({ run, repo: d.repo }));
+        const xs = await collectRuns(c, gh, repos, []);
+        // Pending is persisted now, before putRaw stores the runs complete at the end of the cycle.
+        await prRuns(c, xs);
+        const cancels = await classify(gh, [...xs, ...masterList]);
+        await writeRuns(c, xs, cancels);
+        await runners(c, xs, elapsed);
+        await master(c, masterList, cancels, elapsed);
+    });
+    if (hourly || (await c.cursor("quarantine")) === undefined)
+        await c.part("repo files", "collector", () => repoFiles(c, gh));
+    ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+    let heldSince = 0;
+    const readIssues = async () => {
+        heldSince = await issues(c, gh);
+    };
+    ok = (await c.part("issues", "collector", readIssues)) && ok;
+    await c.part("releases", "release", () => releases(c, gh, heldSince));
+    if (hourly) {
+        await c.part("stress", "stress", () => stress(c, gh));
+        await c.part("hosts", "hosts", () => hosts(c, gh));
+        await c.part("npm", "npm", () => npm(c, gh));
+    }
+    const builds = d.deploy;
+    if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
+    if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
+    if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
+}
+
 export async function collect(d: Deps): Promise<CycleReport> {
     const c = new Cycle(d);
     const prev = Number((await c.cursor("cycle")) ?? 0);
@@ -790,40 +918,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
     if (daily) await c.part("costs", "billing", () => costs(c));
 
     const gh = d.gh;
-    if (gh) {
-        let ok = true;
-        ok &&= await c.part("github", "collector", async () => {
-            const repos = await activeRepos(c, gh);
-            const masterList = (
-                (
-                    await gh.rest<RunsPage>(
-                        `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
-                    )
-                )?.workflow_runs ?? []
-            ).map((run) => ({ run, repo: d.repo }));
-            const xs = await collectRuns(c, gh, repos, []);
-            const cancels = await classify(gh, [...xs, ...masterList]);
-            await writeRuns(c, xs, cancels);
-            await prRuns(c, xs);
-            await runners(c, xs, elapsed);
-            await master(c, masterList, cancels, elapsed);
-        });
-        if (hourly || (await c.cursor("quarantine")) === undefined)
-            await c.part("repo files", "collector", () => repoFiles(c, gh));
-        ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
-        let heldSince = 0;
-        ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
-        await c.part("releases", "release", () => releases(c, gh, heldSince));
-        if (hourly) {
-            await c.part("stress", "stress", () => stress(c, gh));
-            await c.part("hosts", "hosts", () => hosts(c, gh));
-            await c.part("npm", "npm", () => npm(c, gh));
-        }
-        const builds = d.deploy;
-        if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
-        if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
-        if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
-    }
+    if (gh) await collectGitHub(c, gh, elapsed, hourly);
 
     const items = await changed(d.store, c.items);
     await putRaw(d.store, items, d.now);

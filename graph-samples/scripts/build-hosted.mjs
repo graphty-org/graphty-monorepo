@@ -7,8 +7,8 @@
  *
  *     node scripts/build-hosted.mjs [--cache <dir>] [--reuse-published] [--from-original-hosts]
  *
- * With --reuse-published (the deploy), a large dataset whose file graphty.app already publishes with
- * the SHA-256 recorded in src/datasets/hosted.ts is taken from graphty.app and its sources are never
+ * With --reuse-published (the canary deploy), a large dataset whose file canary.graphty.app already
+ * (or else graphty.app) publishes with the SHA-256 recorded in src/datasets/hosted.ts is taken from there and its sources are never
  * fetched, so a deploy does not depend on the third-party hosts; only a dataset whose recorded
  * checksum changed (or is not published yet) is built from its sources. Sources come from this
  * repository's GitHub release graph-samples-sources-v1 (scripts/hosted-sources.mjs), never from
@@ -52,6 +52,8 @@ const cacheDir =
         : path.resolve(packageRoot, "../tmp/graph-samples-sources");
 const outDir = path.join(packageRoot, "public-data/v1");
 const BASE_URL = "https://graphty.app/data/graph-samples/v1/";
+// Every green master build deploys to canary, and graphty.app moves only by promotion, so canary has the newest files
+const REUSE_URL = "https://canary.graphty.app/data/graph-samples/v1/";
 const reusePublished = process.argv.includes("--reuse-published");
 const fromOriginalHosts = process.argv.includes("--from-original-hosts");
 
@@ -398,7 +400,11 @@ async function main() {
     const metas = [];
     for (const dataset of DATASETS) {
         const recordedSha = recorded.find((meta) => meta.name === dataset.meta.name)?.sha256;
-        let gz = await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha);
+        // canary first, then graphty.app (before canary serves the data, or while it cannot be read); both are
+        // checked against the recorded SHA-256
+        let gz =
+            (await publishedCopy(`${REUSE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha)) ??
+            (await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha));
         let snapshot;
         if (gz === null) {
             const files = {};

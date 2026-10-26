@@ -31,9 +31,21 @@ import type { Store } from "../model/store.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_ROWS = 5000;
+/**
+ * A row DynamoDB would refuse (an item over its 400 KB, a partition key over 2048 bytes), refused before the quota
+ * is charged or anything is written, so the request is all or nothing. Below the hard limits for the copies' keys.
+ */
+const MAX_ITEM_BYTES = 300_000;
+const MAX_TRIES = 3;
+const MAX_ID_BYTES = 900; // under the 1024-byte sort key with the copies' prefix and suffix
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
 export const REPOSITORY_ID = "1122477634";
+/** The site repositories (tools/channel/site-deploy.yml), by id: each writes only its own deploy durations. */
+export const DEPLOY_REPOSITORIES: Record<string, string> = {
+    "1429353022": "graphty-org/graphty-site",
+    "1433424324": "graphty-org/graphty-nightly",
+};
 const MASTER = "refs/heads/master";
 /** The workflows that may write from master, and the kind each writes (as tools/results-service). */
 const MASTER_KINDS: Record<string, Kind> = {
@@ -45,13 +57,14 @@ const MASTER_KINDS: Record<string, Kind> = {
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
+    "deploy-pages.yml": "site",
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts"]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites"]);
 const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits"]);
 
-type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local";
+type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local" | "deploy" | "site";
 type Claims = Record<string, string | number | boolean | string[] | undefined>;
 interface Who {
     kind: Kind;
@@ -89,6 +102,19 @@ export async function handler(
         return json(200, await ingest(event, Date.now()));
     } catch (error) {
         if (error instanceof Refused) return json(error.status, { code: error.code, params: error.params });
+        // DynamoDB refused a row's content (a key or an item over its size limit): the body's fault, not an
+        // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
+        // Only DynamoDB's size limits: any other ValidationException is our own bug and must stay a 500.
+        const e = error as { name?: unknown; message?: unknown } | null;
+        if (
+            e?.name === "ValidationException" &&
+            /item size (to update )?has exceeded|size of (hashkey|range ?key)|size of all range keys/i.test(
+                String(e.message),
+            )
+        ) {
+            console.error(JSON.stringify({ route: event.rawPath, refused: String(error) }));
+            return json(400, { code: "row_refused" });
+        }
         console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));
         return json(500, { code: "internal" });
     }
@@ -117,18 +143,45 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!body || typeof body !== "object") refuse(400, "bad_body");
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
-    if (items.length + extra.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
+    if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    checkSizes(items);
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
-    await putRaw(db, items, now);
+    // The bookkeeping copies first: a failing try's INVTESTS rows exist before its test rows, so a passing retry
+    // finds them even when a test write below fails.
     if (extra.length) await db.batch(extra.map((put) => ({ put })));
+    await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
     log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
     return { stored: items.length, kind: who.kind };
 }
 
+/** Refuses a row over DynamoDB's key or item size before anything is charged or written. */
+function checkSizes(items: RawItem[]): void {
+    for (const item of items)
+        if (
+            Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
+            Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
+        )
+            refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
+}
+
 /** The kind a token's claims may write (tools/results-service kindOf), or a refusal. */
 export function whoOf(claims: Claims): Who {
     if (claims.repository_owner !== "graphty-org") refuse(403, "wrong_owner");
+    const site = DEPLOY_REPOSITORIES[String(claims.repository_id)];
+    if (site && claims.repository === site) {
+        // Only the site repository's deploy.yml (tools/channel/site-deploy.yml) at its default branch: never a pull
+        // request's, another branch's, or another workflow's (pull_request_target, workflow_run) token.
+        const ref = String(claims.ref);
+        if (
+            claims.event_name === "pull_request" ||
+            !/^refs\/heads\/(main|master)$/.test(ref) ||
+            claims.job_workflow_ref !== `${site}/.github/workflows/deploy.yml@${ref}`
+        )
+            refuse(403, "deploy_from_default_branch_only");
+        return { kind: "deploy", claims };
+    }
     if (claims.repository !== REPOSITORY || String(claims.repository_id) !== REPOSITORY_ID)
         refuse(403, "wrong_repository");
     if (claims.event_name === "pull_request") return { kind: "pr", claims };
@@ -170,25 +223,42 @@ interface Built {
     source: string;
 }
 
-async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
-    if (who.kind === "local") {
-        const rows = list(body.rows, "rows");
-        if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
-        const items: RawItem[] = [];
-        for (const r of rows) {
-            if (route === "invocations") items.push(...(await invocationItems(r, who, db)));
-            else if (route === "push-runs") items.push(pushRun(r));
-            else items.push(slotWait(r));
-        }
-        return { items, extra: [], source: "local" };
+async function localItems(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number) {
+    const rows = list(body.rows, "rows");
+    if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    const items: RawItem[] = [];
+    for (const r of rows) {
+        if (route === "invocations") items.push(...(await invocationItems(r, who, db, now)).items);
+        else if (route === "push-runs") items.push(pushRun(r));
+        else items.push(slotWait(r));
     }
+    return items;
+}
+
+async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
+    if (who.kind === "local") return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
+    // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
+    if (
+        (who.kind === "deploy" || who.kind === "site") &&
+        route !== "durations" &&
+        !(who.kind === "site" && route === "sites")
+    )
+        refuse(403, "wrong_route", { kind: who.kind });
+    if (route === "sites" && who.kind !== "site") refuse(403, "sites_from_deploy_pages_only");
     switch (route) {
+        case "sites":
+            return { items: [], extra: [siteItem(body, who, now)], source: "site" };
         case "invocations":
-            return { items: await invocationItems(body, who, db), extra: [], source: "ci-results" };
+            return { ...(await invocationItems(body, who, db, now)), source: "ci-results" };
         case "failures":
             return { ...(await failureItems(body, who, db, now)), source: "ci-results" };
         case "durations":
-            return { items: durationItems(body, who, now), extra: [], source: "ci-results" };
+            // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
+            return {
+                items: durationItems(body, who, now),
+                extra: [],
+                source: who.kind === "deploy" || who.kind === "site" ? "site" : "ci-results",
+            };
         default:
             return { items: [verdictItem(body, who, now)], extra: [], source: "release" };
     }
@@ -227,9 +297,15 @@ function testItem(
     };
 }
 
-async function invocationItems(b: Record<string, unknown>, who: Who, db: Store): Promise<RawItem[]> {
+async function invocationItems(
+    b: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ items: RawItem[]; extra: Extra[] }> {
     const id = ownId(b.id, who);
     need(b, { sha: "string", variant: "string", try: "number", startedAt: "number", secs: "number" });
+    if (!Number.isInteger(b.try)) refuse(400, "bad_field", { field: "try", type: "integer" });
     if (!OUTCOMES.has(b.outcome as string)) refuse(400, "bad_field", { field: "outcome", type: "outcome" });
     if (who.kind === "pr" && b.sha !== who.claims.sha) refuse(403, "foreign_sha");
     const files = b.files ?? [];
@@ -261,14 +337,36 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.
     const items: RawItem[] = [run];
     for (const f of list(b.failures ?? [], "failures")) items.push(testItem(id, f, family, source, passed, endedAt));
-    if (passed && !b.failures && source === "ci") {
-        for (const t of await db.query(INV_TESTS(id))) {
-            const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
-            items.push({ ...(test as unknown as TestItem), outcome: "flaky" });
-        }
+    if (passed && source === "ci") {
+        // This try's own failures are recorded above; the lookback marks only the earlier tries' other tests.
+        const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
+        // The CI writers give each try its own id, `<base>.<try>` (tools/results/run-group.mjs): the failures
+        // of the earlier tries are under their ids.
+        const tryOf = /^(.*)\.(\d+)$/.exec(id);
+        const invs = [id];
+        // The poster sets try: bounded to the few retries CI makes, so it cannot drive unbounded queries.
+        if (tryOf && Number(tryOf[2]) === b.try)
+            for (let k = Math.max(1, b.try - MAX_TRIES); k < b.try; k++) invs.push(`${tryOf[1]}.${k}`);
+        for (const inv of invs)
+            for (const t of await db.query(INV_TESTS(inv))) {
+                const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
+                if (own.has(`${String(test.file)}#${String(test.name)}`)) continue;
+                // The passing run's family: an early failure post only guessed it from the id.
+                items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
+            }
     }
-    return items;
+    // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one. A failing CI try
+    // remembers its failures itself (written before its test rows), so a passing try can find them even when the
+    // separate /v1/failures post was lost; a passing try that finishes its lookback before then still misses them.
+    const extra = !passed && source === "ci" ? invTests(id, items, now) : [];
+    return { items, extra };
 }
+
+/** Each failure, remembered per invocation, so a shard run posted later as passed can turn it flaky. */
+const invTests = (inv: string, items: RawItem[], now: number): Extra[] =>
+    items.flatMap((t) =>
+        t.kind === "test" ? [{ ...t, pk: INV_TESTS(inv), sk: t.id, ttl: ttlAt(now + 90 * DAY) }] : [],
+    );
 
 async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now: number) {
     const inv = ownId(b.invocation, who);
@@ -278,9 +376,7 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     const run = runs.at(-1);
     const family = run?.family ?? familyOf(inv.split(".").slice(2).join("."));
     const items = failures.map((f) => testItem(inv, f, family, "ci", run?.outcome === "passed", run?.endedAt ?? now));
-    // Remembered per invocation, so a shard run posted later as passed can turn them flaky.
-    const extra = items.map((t) => ({ ...t, pk: INV_TESTS(inv), sk: t.id, ttl: ttlAt(now + 90 * DAY) }));
-    return { items, extra };
+    return { items, extra: invTests(inv, items, now) };
 }
 
 /** Job and step timings: kept for drill-downs; no metric counts them, so they never double the collector's jobs. */
@@ -297,7 +393,7 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
             kind: "step",
             id: `${r.runId as string | number}.${r.job as string}.${part}`,
             attempt: Number(r.attempt),
-            repo: REPOSITORY,
+            repo: who.kind === "deploy" ? String(who.claims.repository) : REPOSITORY,
             runId: Number(r.runId),
             jobId: 0,
             workflow: r.workflow as string,
@@ -308,6 +404,12 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
             completedAt: startedAt + (r.ms as number),
         };
     });
+}
+
+/** A site deploy-pages.yml built and kept as artifact site-<sha> (as the results service's `site` table). */
+function siteItem(b: Record<string, unknown>, who: Who, now: number): Extra {
+    if (!/^[0-9a-f]{40}$/.test(String(b.sha ?? ""))) refuse(400, "bad_field", { field: "sha", type: "commit" });
+    return { pk: "SITE", sk: b.sha as string, sha: b.sha, builtAt: now, runId: Number(who.claims.run_id) };
 }
 
 function verdictItem(b: Record<string, unknown>, who: Who, now: number): ObservationItem {

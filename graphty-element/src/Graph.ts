@@ -35,6 +35,12 @@ import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
+/** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+interface StableFrameWait {
+    gaveUp: boolean;
+    stop: (() => void) | undefined;
+}
+
 /**
  * How long {@link Graph.waitForStableFrame} waits before it gives up and says so.
  *
@@ -1275,6 +1281,10 @@ export class Graph implements GraphContext {
         // after the graph and layout hooks it awaits, so until the pass ends the framing a
         // settling layout ends with, and the finished picture, wait for it (issue #3378).
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
+        // A queued operation, or a queued command waiting beside the queue for a key, is going to
+        // change the picture, so the frame is not final until it has run (issue #3528).
+        this.updateManager.operationsPending = () =>
+            this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -3723,6 +3733,10 @@ export class Graph implements GraphContext {
      * The verb the data guide has always taught -- as `graph.clear()`, which has never existed.
      * `<graphty-element>` has had `clearData()` throughout; a consumer holding a `Graph` had to
      * reach through `graph.getDataManager().clear()`, which is the element's own internals.
+     *
+     * The graph is empty when this returns, except while a project open is writing: then the
+     * clear lands once the open has written, and a read right after this call still sees the
+     * graph as it was. A load still reading is abandoned: it rejects with `E_SUPERSEDED`.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -3730,9 +3744,23 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
-        // A load still in flight would otherwise put its data back after the graph was closed.
+        // A load still in flight would otherwise put its data back after the graph was closed:
+        // the graph's own, dispatched or not, and every session load or edit still waiting in line
+        // (issue #3524). The clear itself happens before this returns, as it always has; only
+        // while a project open writes does it wait for the open, which it would otherwise land in.
         this.dataManager.supersedeLoads();
-        this.dataManager.clear();
+        loadLineOf(dispatcherOf(this.session))
+            .clear(() => {
+                this.dataManager.clear();
+                return Promise.resolve();
+            })
+            .catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                );
+            });
     }
 
     /**
@@ -5244,16 +5272,14 @@ export class Graph implements GraphContext {
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
         const firstFrame = this.scene.getRenderId();
-        let listenerId: symbol | undefined;
+        const wait: StableFrameWait = { gaveUp: false, stop: undefined };
         let timer: ReturnType<typeof setTimeout> | undefined;
         let onTeardown: (() => void) | undefined;
         const teardown = this.#teardown.signal;
 
         try {
             await Promise.race([
-                this.untilFrameIsStable((id) => {
-                    listenerId = id;
-                }),
+                this.untilFrameIsStable(wait),
                 // A shut-down graph never draws again: end the wait now rather than at the timeout.
                 new Promise<never>((_resolve, reject) => {
                     onTeardown = () => {
@@ -5295,36 +5321,39 @@ export class Graph implements GraphContext {
                 teardown.removeEventListener("abort", onTeardown);
             }
 
-            if (listenerId !== undefined) {
-                this.eventManager.removeListener(listenerId);
-            }
+            // A wait that ended, timed out or was torn down starts no further round (issue #3528).
+            wait.gaveUp = true;
+            wait.stop?.();
         }
     }
 
     /**
      * The unbounded half of {@link Graph.waitForStableFrame}.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
+     * @param wait - Whether the caller gave up, and how to stop the round waiting now.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      */
-    private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
-        // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
-        // styles before the queue, because they queue their reordering only once they are due.
-        // Loads not queued yet (the element's, held behind the autosave restore) before both.
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
-        await this.untilQueueDrained();
+    private async untilFrameIsStable(wait: StableFrameWait): Promise<void> {
+        // Until one round finds nothing owed: an operation queued while a round waited -- after its
+        // queue drain, or while the label counts were announced -- is waited for by the next one
+        // (issue #3528).
+        do {
+            // The queue first: a layout change or a data load that has not run yet is going to move
+            // the picture, so a frame that is final right now is final about the wrong graph.
+            // Suggested styles before the queue, because they queue their reordering only once
+            // they are due. Loads not queued yet (the element's, held behind the autosave restore)
+            // before both.
+            await loadsAhead.get(this)?.();
+            await this.#suggestionsStacked;
+            await this.untilQueueDrained();
+            await this.untilNothingIsOwed(wait);
 
-        if (!this.updateManager.frameIsStable) {
-            await this.untilFrameStableEvent(track);
-        }
-
-        // The picture is final, but the label counts it drew are announced a few frames later
-        // (`graphty-label-change`); a page that shows them is not final until they are.
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
-        if (declutter instanceof LabelDeclutter) {
-            await declutter.whenPublished();
-        }
+            // The picture is final, but the label counts it drew are announced a few frames later
+            // (`graphty-label-change`); a page that shows them is not final until they are.
+            const declutter: unknown = this.scene.metadata?.labelDeclutter;
+            if (declutter instanceof LabelDeclutter) {
+                await declutter.whenPublished();
+            }
+        } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
@@ -5339,25 +5368,18 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Wait for the `graph-frame-stable` event.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
-     * @returns Promise that resolves on the event, or at once when the frame became stable first.
+     * Wait until nothing is owed to the picture, asked after every pass rather than on the edge the
+     * `graph-frame-stable` event marks; see `UpdateManager.onceNothingIsOwed`.
+     * @param wait - Whether the caller gave up, and where to leave how to stop waiting.
+     * @returns Promise that resolves once nothing is owed, soon when nothing already is.
      */
-    private async untilFrameStableEvent(track: (id: symbol) => void): Promise<void> {
+    private async untilNothingIsOwed(wait: StableFrameWait): Promise<void> {
+        if (wait.gaveUp) {
+            return;
+        }
+
         await new Promise<void>((resolve) => {
-            const id = this.eventManager.addListener("graph-frame-stable", () => {
-                this.eventManager.removeListener(id);
-                resolve();
-            });
-
-            track(id);
-
-            // A frame can be drawn between the check above and the listener being attached, and
-            // an event nobody was listening for is not coming back.
-            if (this.updateManager.frameIsStable) {
-                this.eventManager.removeListener(id);
-                resolve();
-            }
+            wait.stop = this.updateManager.onceNothingIsOwed(resolve);
         });
     }
 
@@ -5366,10 +5388,12 @@ export class Graph implements GraphContext {
      * @returns One phrase naming what has not finished.
      */
     private whyTheFrameIsNotStable(): string {
-        const queue = this.operationQueue.getStats();
-
-        if (queue.pending > 0 || queue.size > 0) {
-            return `${String(queue.pending + queue.size)} queued operations have not finished`;
+        if (this.updateManager.operationsPending?.() === true) {
+            const queue = this.operationQueue.getStats();
+            const count = queue.pending + queue.size;
+            return count > 0
+                ? `${String(count)} queued operations have not finished`
+                : "a queued operation has not finished";
         }
 
         if (this.updateManager.frameIsStable) {

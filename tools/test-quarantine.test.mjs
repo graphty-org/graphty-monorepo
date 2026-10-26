@@ -23,8 +23,10 @@ import {
     quarantineTests,
     readState,
     runShard,
+    shardOfRun,
     splitLog,
 } from "./test-quarantine.mjs";
+import { selectedCommand } from "./test-select.mjs";
 
 const TMP = mkdtempSync(join(tmpdir(), "test-quarantine-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
@@ -176,6 +178,30 @@ describe("blameChange", () => {
         assert.equal(none.pass, true);
         assert.equal(none.flaky.length, 2);
         assert.equal(none.suspects[0].branch, "fix/1-x");
+    });
+});
+
+describe("shardOfRun", () => {
+    const layout = {
+        shard: "layout",
+        package: "layout",
+        "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
+    };
+
+    it("retries a story-tests leg's failed story files with the leg's own config, not the unit shard's", () => {
+        const command = "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts";
+        const shard = shardOfRun(fresh(), layout, command);
+        assert.equal(shard["test-command"], command);
+        assert.equal(
+            selectedCommand(fresh(), shard, ["layout/stories/3d/Spring3D.stories.ts"]),
+            "cd layout && pnpm exec vitest run --config=vitest.storybook.config.ts 'stories/3d/Spring3D.stories.ts'",
+        );
+    });
+
+    it("keeps the shard's own command for a command that is not a plain vitest run of its package", () => {
+        assert.equal(shardOfRun(fresh(), layout, "bash tools/run-tests.sh layout"), layout);
+        assert.equal(shardOfRun(fresh(), layout, "cd algorithms && pnpm exec vitest run"), layout);
+        assert.equal(shardOfRun(fresh(), undefined, "cd layout && pnpm exec vitest run"), undefined);
     });
 });
 

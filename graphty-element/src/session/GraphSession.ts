@@ -1074,6 +1074,24 @@ class Session implements ElementSession {
      * @returns A function that stops the subscription.
      */
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+        if (this.disposed) {
+            // Nothing fires again; a host that asks too late to hear about the disposal still does.
+            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            let live = event === "session:disposed";
+
+            if (live) {
+                queueMicrotask(() => {
+                    if (live) {
+                        publish(new Map([["session:disposed", new Set([handler])]]), "session:disposed", {});
+                    }
+                });
+            }
+
+            return () => {
+                live = false;
+            };
+        }
+
         let subscribers = this.watchers.get(event);
 
         if (subscribers === undefined) {
@@ -1115,6 +1133,8 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        // The last event: a host drops the session here, before anything re-reads it.
+        publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -2166,6 +2186,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
     let painted: GraphSnapshot | null = null;
@@ -2237,6 +2258,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
             painted = null;
@@ -2400,7 +2422,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         records,
         readData,
         {
-            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            applier: () => {
+                const send = dispatcher.capturedDispatch();
+                return (mutation) => send({ op: "data.apply", mutation });
+            },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
             slice,
@@ -3181,6 +3206,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
+        // The passes a selection or pointer change starts without awaiting: `settled()` waits for
+        // those already asked for when it is called.
+        idle: painter.idle,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.

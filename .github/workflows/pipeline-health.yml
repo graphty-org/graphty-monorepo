@@ -10,11 +10,13 @@ on:
         paths:
             - "tools/pipeline-health/**"
             - ".github/workflows/pipeline-health.yml"
+            - "ci-budgets.json"
     push:
         branches: [master]
         paths:
             - "tools/pipeline-health/**"
             - ".github/workflows/pipeline-health.yml"
+            - "ci-budgets.json"
 
 permissions:
     contents: read

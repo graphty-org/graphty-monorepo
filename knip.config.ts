@@ -216,6 +216,8 @@ const config: KnipConfig = {
         // Layout package
         layout: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -270,8 +272,6 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
-                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
-                ".storybook/vitest.setup.visual.ts",
             ],
             project: [
                 "*.ts!",
@@ -365,6 +365,8 @@ const config: KnipConfig = {
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
                 "stories/**/*.stories.tsx",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignoreDependencies: [

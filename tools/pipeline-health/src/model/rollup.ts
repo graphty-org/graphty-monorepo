@@ -263,14 +263,38 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
 }
 
 /**
- * Recomputes every dirty 5-minute bucket and its parents, then clears the marks it consumed. The collector runs it
- * every cycle (reserved concurrency 1, so two never race each other).
+ * Recomputes every dirty 5-minute bucket and its parents, then clears the marks it consumed. The collector and the
+ * backfill both run it, so it first takes a lease item under a condition: while another holds it, it does nothing
+ * and answers `busy`. A holder that died leaves the lease to expire after `leaseMs`: LEASE_MS (the scheduled
+ * collector's 240 s timeout plus a margin) unless the caller, such as the 15-minute backfill, passes its own.
  * @param store
  * @param nowMs
  */
 export const MAX_MARKS = 200;
+export const LEASE_KEY = { pk: "LEASE", sk: "recompute" };
+export const LEASE_MS = 5 * 60_000;
 
-export async function recompute(store: Store, nowMs: number): Promise<{ buckets: number; items: number }> {
+export async function recompute(
+    store: Store,
+    nowMs: number,
+    leaseMs = LEASE_MS,
+): Promise<{ buckets: number; items: number; busy?: true }> {
+    const token = `${nowMs}-${Math.random()}`;
+    const taken = await store.put(
+        { ...LEASE_KEY, token, until: nowMs + leaseMs, ttl: Math.ceil((nowMs + leaseMs) / 1000) + 3600 },
+        { field: "until", op: "<", value: nowMs, orNotExists: true },
+    );
+    if (!taken) {
+        return { buckets: 0, items: 0, busy: true };
+    }
+    try {
+        return await recomputeHeld(store, nowMs);
+    } finally {
+        await store.update(LEASE_KEY, { set: { until: 0 } }, { field: "token", op: "=", value: token });
+    }
+}
+
+async function recomputeHeld(store: Store, nowMs: number): Promise<{ buckets: number; items: number }> {
     // ponytail: newest MAX_MARKS buckets per cycle, so the live hour is right first and a backlog (a backfill, a
     // local collector's first pass) drains over later cycles instead of outliving the 60 s collector.
     const marks = (await store.query(DIRTY_PK))

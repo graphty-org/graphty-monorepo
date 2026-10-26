@@ -9,7 +9,7 @@ import { readSnapshot } from "../../src/model/snapshots.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
-import { fakeGitHub, NOW } from "./fake-github.js";
+import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
 const deps = (store: MemoryStore, fake: ReturnType<typeof fakeGitHub>, now = NOW, withApp = true): Deps => ({
     store,
@@ -192,6 +192,26 @@ describe("collector deploy trigger", () => {
     const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
         collect({ ...deps(store, fakeGitHub(), now, false), gh: g, deploy: b });
 
+    it("starts a build when only ci-budgets.json changed", async () => {
+        const store = new MemoryStore();
+        let budgets = "d".repeat(40);
+        const answer = () =>
+            new GitHub(
+                async () => "ghs_test",
+                async () =>
+                    Response.json({
+                        data: { repository: { tree: { oid: TREE }, budgets: { oid: budgets }, head: { oid: HEAD } } },
+                    }),
+            );
+        const b = builds();
+        await run(store, answer(), b);
+        await run(store, answer(), b, NOW + 5 * MIN);
+        expect(b.started).toEqual([HEAD]);
+        budgets = "e".repeat(40);
+        await run(store, answer(), b, NOW + 10 * MIN);
+        expect(b.started).toEqual([HEAD, HEAD]);
+    });
+
     it("starts a build at master's head when the tree changed, and not again while it is unchanged", async () => {
         const store = new MemoryStore();
         let tree = TREE;
@@ -275,5 +295,115 @@ describe("collector deploy trigger", () => {
         expect(errors[0]).toContain("attempt 2 started");
         expect(errors[2]).toContain("after 3 attempts");
         expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("FAILED");
+    });
+
+    it("never starts again a build someone stopped, and reports the deploy source as failed", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ status: "STOPPED" });
+        const r = await run(
+            store,
+            gh(() => TREE),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([]);
+        expect(r.errors.deploy).toContain("STOPPED");
+    });
+});
+
+describe("a merged pull request's last run", () => {
+    it("is recorded for its pull request by a later cycle when the pull requests part failed (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        let prsDown = true;
+        // Run 40238975833 finished on a merged pull request: GitHub lists no pull request for it.
+        const gql = fixture<{ data: { repository: { recent: { nodes: Record<string, unknown>[] } } } }>("gql-pr.json");
+        const merged = gql.data.repository.recent.nodes.find((n) => n.mergedAt)!;
+        gql.data.repository.recent.nodes.unshift({
+            ...merged,
+            number: 3600,
+            headRefName: "ci/3418-design-studio-master-wait",
+            headRefOid: "5a2ebfac75cc6510846149d8cc07b65d83f0ba0b",
+            mergedAt: "2026-10-26T00:36:00Z",
+            updatedAt: "2026-10-26T00:36:00Z",
+        });
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname === "/graphql" && String(init?.body).includes("pullRequests")) {
+                if (prsDown) return new Response("{}", { status: 502 });
+                return new Response(JSON.stringify(gql), { status: 200 });
+            }
+            return base(url, init);
+        };
+        const first = await collect(deps(store, fake));
+        expect(first.errors["pull requests"]).toBeDefined();
+        prsDown = false;
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3600", sk: "-" });
+        expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
+    });
+
+    it("is found by its commit when its pull request merged before the pull requests window (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        const lookups: string[] = [];
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname.endsWith("/commits/5a2ebfac75cc6510846149d8cc07b65d83f0ba0b/pulls")) {
+                lookups.push(url);
+                return new Response(
+                    JSON.stringify([
+                        { number: 3599, merged_at: "2026-10-26T00:10:00Z", head: { ref: "stacked/on-top" } },
+                        {
+                            number: 3601,
+                            merged_at: "2026-10-26T00:20:00Z",
+                            head: { ref: "ci/3418-design-studio-master-wait" },
+                        },
+                    ]),
+                    {
+                        status: 200,
+                    },
+                );
+            }
+            return base(url, init);
+        };
+        await collect(deps(store, fake));
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3601", sk: "-" });
+        expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
+        expect(lookups).toHaveLength(1);
+    });
+
+    it("never fails the pull requests part on a failing commit lookup, and does not repeat a 422 (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        let lookups = 0;
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname.endsWith("/pulls") && u.pathname.includes("/commits/")) {
+                lookups++;
+                return new Response(JSON.stringify({ message: "No commit found for SHA" }), { status: 422 });
+            }
+            return base(url, init);
+        };
+        await collect(deps(store, fake));
+        const second = await collect(deps(store, fake, NOW + 5 * MIN));
+        await collect(deps(store, fake, NOW + 10 * MIN));
+        expect(second.errors["pull requests"]).toBeUndefined();
+        expect(lookups).toBe(1);
     });
 });

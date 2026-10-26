@@ -81,6 +81,20 @@ interface Page {
 const DIRECTIONS: ReadonlySet<string> = new Set(["out", "in", "both"]);
 
 /**
+ * A query without the semicolons it ends with, so it can sit inside `CALL { }`. A loop, not
+ * `/;+$/`, which backtracks over every run of semicolons that is not at the end.
+ * @param query - the trimmed query
+ * @returns the query
+ */
+function withoutTrailingSemicolons(query: string): string {
+    let end = query.length;
+    while (end > 0 && query[end - 1] === ";") {
+        end--;
+    }
+    return query.slice(0, end);
+}
+
+/**
  * A list parameter: an array, or one value. A string is one item, never split, since an id or a
  * label may hold any character.
  * @param value - the value
@@ -256,7 +270,9 @@ class Reader {
         let capped = rows !== null;
         try {
             result = await this.transport.run(
-                rows === null ? query : `CALL {\n${query.trim().replace(/;+$/, "")}\n}\nRETURN * LIMIT ${String(rows)}`,
+                rows === null
+                    ? query
+                    : `CALL {\n${withoutTrailingSemicolons(query.trim())}\n}\nRETURN * LIMIT ${String(rows)}`,
                 parameters,
             );
         } catch (err) {

@@ -60,7 +60,7 @@ const ISO =
 const GEOHASH = /^[0-9b-hjkmnp-z]{1,12}$/i;
 const MGRS = /^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d\d){0,5}$/i;
 const UTM =
-    /^\s*(\d{1,2})\s*([C-HJ-NP-X])\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?E?\s*[,;]?\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?N?\s*$/i;
+    /^\s*(\d{1,2})\s*([C-HJ-NP-X])\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?E?\s*[,;]?\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?N?\s*$/i; // NOSONAR(S5852): matched only against text whose whitespace runs are collapsed to one space (singleSpaced), so the adjacent \s quantifiers cannot backtrack
 
 /**
  * ISO 6709 degrees from a sign, integer digits (degrees, then minutes and seconds) and a fraction.
@@ -103,6 +103,16 @@ function geojson(value: unknown): LatLon | LocationError {
     return checked(toNumber(coordinates[1]), toNumber(coordinates[0]), value);
 }
 
+/**
+ * Collapses every run of whitespace to one space, so a pattern's adjacent `\s*` and `\s+` cannot
+ * backtrack over a long run. No pattern here needs two whitespace characters in a row.
+ * @param text - The text.
+ * @returns The text with single spaces.
+ */
+function singleSpaced(text: string): string {
+    return text.split(/\s+/).join(" ");
+}
+
 function fromString(value: unknown, read: (text: string) => LatLon | LocationError): LatLon | LocationError {
     return typeof value === "string" ? read(value.trim()) : locationError("syntax", value);
 }
@@ -129,7 +139,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
     dms: (value) =>
         fromString(value, (text) => {
             try {
-                const parsed = new CoordinateParser(text.replace(/deg/gi, "°"));
+                const parsed = new CoordinateParser(text.replace(/deg/gi, "°")); // NOSONAR(S7781): babylonjs-map's lib is ES2020, which has no String#replaceAll
                 return checked(parsed.getLatitude(), parsed.getLongitude(), value);
             } catch {
                 return locationError("syntax", value);
@@ -153,7 +163,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
         }),
     mgrs: (value) =>
         fromString(value, (text) => {
-            const compact = text.replace(/\s+/g, "");
+            const compact = text.replace(/\s+/g, ""); // NOSONAR(S7781): babylonjs-map's lib is ES2020, which has no String#replaceAll
             if (!MGRS.test(compact)) {
                 return locationError("syntax", value);
             }
@@ -166,7 +176,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
         }),
     utm: (value) =>
         fromString(value, (text) => {
-            const m = UTM.exec(text);
+            const m = UTM.exec(singleSpaced(text));
             if (!m || Number(m[1]) < 1 || Number(m[1]) > 60) {
                 return locationError("syntax", value);
             }
@@ -219,7 +229,7 @@ export function parseLocation(value: unknown, format: LocationFormat | "auto" = 
 }
 
 /** A number with an optional hemisphere letter before or after it, and a decimal point or comma. */
-const HEMISPHERE_NUMBER = /^\s*([NSEW])?\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?\s*$/i;
+const HEMISPHERE_NUMBER = /^\s*([NSEW])?\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?\s*$/i; // NOSONAR(S5852): matched only against singleSpaced text, so the adjacent \s quantifiers cannot backtrack
 
 /**
  * Reads one angle of a latitude or longitude column: a number, or text holding a number with an
@@ -233,7 +243,7 @@ function angleOf(value: unknown, axis: "lat" | "lon"): number {
     if (typeof value === "number") {
         return value;
     }
-    const match = typeof value === "string" ? HEMISPHERE_NUMBER.exec(value) : null;
+    const match = typeof value === "string" ? HEMISPHERE_NUMBER.exec(singleSpaced(value)) : null;
     if (match === null) {
         return Number.NaN;
     }
@@ -276,7 +286,8 @@ export function latLonFromColumns(lat: unknown, lon: unknown): LatLon | Location
  */
 export function angleFromColumn(value: unknown, axis: "lat" | "lon"): number {
     const angle = isEmpty(value) ? Number.NaN : angleOf(value, axis);
-    return Math.abs(angle) <= (axis === "lat" ? 90 : 180) ? angle : Number.NaN;
+    const limit = axis === "lat" ? 90 : 180;
+    return Math.abs(angle) <= limit ? angle : Number.NaN;
 }
 
 /**

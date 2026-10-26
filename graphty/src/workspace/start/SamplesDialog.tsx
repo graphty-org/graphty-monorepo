@@ -257,7 +257,7 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
  * @param props.separable - whether to offer Open as a separate graph
  * @returns the tile
  */
-function SampleTile({ entry, separable }: { entry: SampleEntry; separable: boolean }): React.JSX.Element {
+function SampleTile({ entry, separable }: Readonly<{ entry: SampleEntry; separable: boolean }>): React.JSX.Element {
     const counted = entry.nodes !== undefined || entry.edges !== undefined;
     return (
         <div className="ws-samples-tile">

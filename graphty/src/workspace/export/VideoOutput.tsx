@@ -37,9 +37,9 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
     const [failure, setFailure] = useState<string | null>(null);
 
     const presets = session?.catalog.cameras() ?? [];
-    const cameras = presets.map((camera) => camera.id);
+    const cameras = new Set(presets.map((camera) => camera.id));
     const saved = session === null ? [] : [...session.views.keys()];
-    const firstStops = saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.includes(id));
+    const firstStops = saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.has(id));
     const stops = choices.stops.length > 0 ? choices.stops : firstStops;
     const asked: VideoChoices = { ...choices, stops };
     const tourShort = asked.camera === "tour" && stops.length < 2;

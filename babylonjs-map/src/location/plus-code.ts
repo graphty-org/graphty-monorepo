@@ -15,7 +15,7 @@ export function decodePlusCode(value: string): { lat: number; lon: number } | "s
     if (!FULL.test(code)) {
         return SHORT.test(code) && code.indexOf("+") < 8 ? "short" : null;
     }
-    const digits = code.replace("+", "").replace(/0+$/, "");
+    const digits = code.replace("+", "").replace(/0+$/, ""); // NOSONAR(S5852): FULL passed, so the code holds at most 8 characters before "+" and no 0 after it
     if (ALPHABET.indexOf(digits[0]) > 8 || ALPHABET.indexOf(digits[1]) > 17) {
         return null; // beyond 90 degrees north or 180 east
     }

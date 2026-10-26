@@ -70,7 +70,8 @@ export function readQuery(query: string): UserQuery {
  */
 export function pagedQuery(query: string, shape: UserQuery, limit: number, offset: number): string {
     const order = shape.ordered || shape.templateVars.length === 0 ? "" : `\nORDER BY ${shape.templateVars.join(" ")}`;
-    return `${query.trimEnd()}${order}\nLIMIT ${String(limit)}${offset > 0 ? ` OFFSET ${String(offset)}` : ""}`;
+    const skip = offset > 0 ? ` OFFSET ${String(offset)}` : "";
+    return `${query.trimEnd()}${order}\nLIMIT ${String(limit)}${skip}`;
 }
 
 /**

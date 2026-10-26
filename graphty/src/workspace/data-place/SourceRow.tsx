@@ -141,7 +141,7 @@ export function SourceRow({
     return (
         <ContextMenu
             target={
-                <div
+                <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                     className="dp-source"
                     data-source={source.key}
                     data-selected={selected ? "" : undefined}

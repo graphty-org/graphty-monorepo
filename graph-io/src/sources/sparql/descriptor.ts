@@ -60,7 +60,7 @@ export const SPARQL_DESCRIPTOR: SourceDescriptor = Object.freeze({
                 query: WIKIDATA_ADVISORS,
                 pageSize: 100,
                 language: "en",
-                predicates: ["http://www.wikidata.org/prop/direct/"],
+                predicates: ["http://www.wikidata.org/prop/direct/"], // NOSONAR(S5332): an RDF namespace IRI, never fetched; Wikidata's IRIs are http
             },
         },
     ],

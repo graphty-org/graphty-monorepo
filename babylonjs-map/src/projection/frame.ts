@@ -38,9 +38,9 @@ export interface BoundsOfOptions {
 function longitudeRange(lons: number[]): [number, number] {
     const sorted = [...lons].sort((a, b) => a - b);
     // The gap across the antimeridian, from the last longitude round to the first.
-    let gap = sorted[0] + 360 - sorted[sorted.length - 1];
+    let gap = sorted[0] + 360 - sorted[sorted.length - 1]; // NOSONAR(S7755): babylonjs-map's lib is ES2020, which has no Array#at
     let west = sorted[0];
-    let east = sorted[sorted.length - 1];
+    let east = sorted[sorted.length - 1]; // NOSONAR(S7755): babylonjs-map's lib is ES2020, which has no Array#at
     for (let i = 1; i < sorted.length; i++) {
         const between = sorted[i] - sorted[i - 1];
         if (between > gap) {

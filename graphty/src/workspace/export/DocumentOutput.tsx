@@ -71,10 +71,8 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         };
     });
 
-    const name =
-        kind === "project"
-            ? `${slug(project)}.graphty.json`
-            : fileName(project, kind, kind === "styles" ? "style.json" : "json");
+    const extension = kind === "styles" ? "style.json" : "json";
+    const name = kind === "project" ? `${slug(project)}.graphty.json` : fileName(project, kind, extension);
 
     const save = async (): Promise<void> => {
         if (kind === "project") {

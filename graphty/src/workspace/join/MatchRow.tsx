@@ -71,7 +71,11 @@ export function MatchRow({
         onChange({ ...choices, keys: choices.keys.map((each, i) => (i === at ? { ...each, ...key } : each)) });
     };
     return (
-        <div className="jn-match" role="group" aria-label="Match">
+        <div // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+            className="jn-match"
+            role="group"
+            aria-label="Match"
+        >
             <Select
                 size="xs"
                 className="jn-shape"
@@ -89,7 +93,10 @@ export function MatchRow({
                     const side = keyLabel(edges, at);
                     const name = edges || at === 0 ? side : `Match ${String(at + 1)}`;
                     return (
-                        <div className="jn-key" key={at}>
+                        <div // NOSONAR(S6479): one slot per key position; the position is its identity
+                            className="jn-key"
+                            key={at}
+                        >
                             <span className="jn-key-label">{side}</span>
                             <Select
                                 size="xs"

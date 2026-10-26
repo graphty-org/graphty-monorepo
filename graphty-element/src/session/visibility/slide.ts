@@ -166,8 +166,7 @@ export class WindowSlider {
     move(target: SlideTarget, window: TimeWindow): SlideCounts {
         const { state } = this;
         if (
-            state === null ||
-            state.graph !== target.graph ||
+            state?.graph !== target.graph ||
             state.filter.length !== target.filter.length ||
             state.filter.some((part, at) => part !== target.filter[at]) ||
             state.attribute !== window.attribute ||
@@ -209,7 +208,8 @@ export class WindowSlider {
             const inside = new Uint8Array(count);
             for (let row = 0; row < count; row++) {
                 const at = instants.rows[row];
-                inside[row] = (Number.isNaN(at) ? missingInside : at >= from && at < to) ? 1 : 0;
+                const isInside = Number.isNaN(at) ? missingInside : at >= from && at < to;
+                inside[row] = isInside ? 1 : 0;
             }
 
             return {

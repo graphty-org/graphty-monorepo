@@ -236,7 +236,7 @@ function write(graphed: Graphed, sink: GraphSink, ctx: SourceContext): void {
  * @returns the SHA-256, hex
  */
 function hashOf(triples: readonly Triple[]): Promise<string> {
-    return sha256Hex(triples.map(canonicalTriple).sort().join("\n"));
+    return sha256Hex(triples.map(canonicalTriple).sort().join("\n")); // NOSONAR(S2871): code-unit order is the point: a locale-free, stable order for the hash
 }
 
 /**

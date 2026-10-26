@@ -134,7 +134,18 @@ const round = (x) => Math.round(x * 1e4) / 1e4;
  * @returns The file.
  */
 function layerFile(layer, source, license, attribution, places) {
-    places.sort((a, b) => b[6] - a[6] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    /**
+     * @param {string} x - One name.
+     * @param {string} y - The other.
+     * @returns {number} Their order by UTF-16 code units, the same on every machine.
+     */
+    const byCodeUnits = (x, y) => {
+        if (x < y) {
+            return -1;
+        }
+        return x > y ? 1 : 0;
+    };
+    places.sort((a, b) => b[6] - a[6] || byCodeUnits(a[0], b[0]));
     return { format: "graphty-gazetteer", version: 1, layer, attribution, source, license, fields: FIELDS, places };
 }
 

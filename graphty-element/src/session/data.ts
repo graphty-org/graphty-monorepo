@@ -2476,7 +2476,7 @@ export class SessionData implements SessionDataApi {
             ...planned,
             fixed: [...(planned.fixed ?? []).filter((each) => each.id !== found.id), { ...facts, fixedBy: fix }],
         };
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: `Fixed ${found.code}`,
@@ -2510,7 +2510,7 @@ export class SessionData implements SessionDataApi {
             this.issueNamed(id);
         }
 
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: ignored ? `Ignored ${id}` : `Stopped ignoring ${id}`,
@@ -2551,7 +2551,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const changed = new Set(ids);
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: ignored ? `Ignored ${ids.join(", ")}` : `Stopped ignoring ${ids.join(", ")}`,
@@ -2570,25 +2570,6 @@ export class SessionData implements SessionDataApi {
             },
             "ignore issues",
         );
-    }
-
-    /**
-     * Dispatch an issue verb's step. ponytail: the same as the column commands' private `send`;
-     * keep one once both have landed.
-     * @param command - the step
-     * @param verb - the verb asking, for the error
-     * @returns settles once it is recorded
-     */
-    private async sendIssues(command: SessionCommand, verb: string): Promise<void> {
-        if (this.writes.send === undefined) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `This session cannot dispatch commands, so it cannot ${verb}.`,
-                source: "data",
-            });
-        }
-
-        await this.writes.send(command);
     }
 
     /**

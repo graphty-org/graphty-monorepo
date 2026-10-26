@@ -249,7 +249,7 @@ export function TimeDock(): React.JSX.Element | null {
     const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
 
     return (
-        <section
+        <section // NOSONAR(S6847): Space plays and pauses as it bubbles from the dock's own controls
             className="tl-dock"
             aria-label="Timeline"
             ref={ref}
@@ -385,7 +385,7 @@ export function TimeDock(): React.JSX.Element | null {
                         onChangeEnd: (value) => {
                             // One gesture, one undoable step.
                             time.pause();
-                            time.window({ ...(window ?? {}), from: value[0], to: value[1] }).then(
+                            time.window({ ...window, from: value[0], to: value[1] }).then(
                                 () => {
                                     setDrag(null);
                                     announceWindow(session, store);

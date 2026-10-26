@@ -1728,7 +1728,7 @@ export class Ingest<K extends KnownEdge> {
                     type,
                     tally,
                     writer,
-                    held === undefined ? undefined : HELD_KINDS.get(held),
+                    held === undefined ? undefined : HELD_KINDS.get(held), // NOSONAR(S4158): data.ts and draft.ts fill HELD_KINDS; the rule reads one file
                 );
                 this.sealedTally = tally;
                 await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);

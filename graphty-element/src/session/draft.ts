@@ -390,7 +390,7 @@ const NEARLY_UNIQUE = 0.95;
 const REPEATING_MIN = 3;
 
 /** Column names whose numbers measure how alike or how strongly tied two ends are. */
-const SIMILARITY_COLUMNS: readonly string[] = ["confidence", "score", "strength"];
+const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
 
 /** Column names a node's label is read from when no label path is configured. */
 export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];
@@ -503,7 +503,7 @@ function guessedWeight(held: HeldTable, ends: readonly string[] | undefined): st
     const numeric = held.table.columns
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
         .map((column) => column.name);
-    const named = numeric.find((name) => SIMILARITY_COLUMNS.includes(name.toLowerCase()));
+    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
     return named ?? (numeric.length === 1 ? numeric[0] : null);
 }
 
@@ -1068,7 +1068,7 @@ export class Draft implements LoadDraft {
             (choices.mode === "merge" ? this.host.config().knownFields.edgeWeightMeaning : null);
         const similar =
             typeof named.edgeWeightPath === "string" &&
-            SIMILARITY_COLUMNS.includes(named.edgeWeightPath.toLowerCase()) &&
+            SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
             meaning === null;
         const knownFields = similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
         if (read.tables.every((held) => held.table.fixed)) {

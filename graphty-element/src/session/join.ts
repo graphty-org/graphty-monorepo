@@ -83,7 +83,7 @@ function norm(value: unknown, loose: Loose): string | undefined {
 
     let text = String(value);
     if (loose.ignoreSpaces) {
-        text = text.replace(/\s+/g, "");
+        text = text.replaceAll(/\s+/g, "");
     }
 
     if (loose.ignoreCase) {
@@ -131,7 +131,7 @@ function indexOf(
     const out = new Map<string, (NodeId | EdgeId)[]>();
     for (const element of elements) {
         const parts = paths.map((path) => norm(graphValue(element, path), loose));
-        if (parts.some((part) => part === undefined)) {
+        if (parts.includes(undefined)) {
             continue;
         }
 
@@ -378,7 +378,7 @@ function matchValues(
     const rowKeys: (string | undefined)[] = [];
     const rowIds = table.rows.map((row) => {
         const parts = choices.keys.map((key, at) => norm(at === 0 ? translate(row[key.file]) : row[key.file], loose));
-        const key = parts.some((part) => part === undefined) ? undefined : parts.join(PART);
+        const key = parts.includes(undefined) ? undefined : parts.join(PART);
         rowKeys.push(key);
         const ids = key === undefined ? [] : (index.get(key) ?? []);
         ids.forEach((id) => matched.add(id));
@@ -685,7 +685,9 @@ export function planJoin(
 
             values[name] = value;
             written.add(name);
-            (before[String(id)] ??= {})[name] = held[name] ?? null;
+            const rowKey = String(id);
+            before[rowKey] ??= {};
+            before[rowKey][name] = held[name] ?? null;
         }
 
         if (Object.keys(values).length > 0) {

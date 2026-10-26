@@ -616,13 +616,22 @@ function WaitingLoads(): React.JSX.Element | null {
     }
     const names = new Map(serverKinds().map((each) => [each.id, each.descriptor.plainName]));
     return (
-        <div role="list" aria-label="Waiting loads" className="sv-waiting">
+        <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+            role="list"
+            aria-label="Waiting loads"
+            className="sv-waiting"
+        >
             {waiting.map((load) => {
                 const host = load.endpoint !== null && URL.canParse(load.endpoint) ? new URL(load.endpoint).host : "";
                 const name = `${names.get(load.source) ?? load.source} ${host}`.trim();
                 const fact = failed[load.id];
                 return (
-                    <div key={load.id} role="listitem" aria-label={name} className="dp-source">
+                    <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+                        key={load.id}
+                        role="listitem"
+                        aria-label={name}
+                        className="dp-source"
+                    >
                         <span className="dp-source-icon">
                             <GLYPHS.server size={14} aria-hidden />
                         </span>

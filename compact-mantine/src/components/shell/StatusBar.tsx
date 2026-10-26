@@ -21,7 +21,7 @@ export interface StatusBarProps extends Omit<React.HTMLAttributes<HTMLDivElement
  * @param props - see StatusBarProps.
  * @returns the status bar.
  */
-export function StatusBar(props: StatusBarProps): React.JSX.Element {
+export function StatusBar(props: Readonly<StatusBarProps>): React.JSX.Element {
     const { left, right, className, ...rest } = props;
     return (
         <div {...rest} className={className === undefined ? "cm-status-bar" : `cm-status-bar ${className}`}>

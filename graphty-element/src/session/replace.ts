@@ -61,7 +61,7 @@ export interface ReplacePlan {
 export function pairKey(source: string | number, target: string | number, directed: boolean): string {
     const ends = [String(source), String(target)];
     if (!directed) {
-        ends.sort();
+        ends.sort(); // NOSONAR(S2871): code-unit order is the point: a locale-free key for the pair
     }
 
     return ends.join("\u0000");

@@ -39,6 +39,7 @@ tools/release-status.test.mjs
 tools/restricted-cpu-stress.test.mjs
 tools/results-service/test/index.test.mjs
 tools/results/results.test.mjs
+tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
 tools/test-history.test.mjs

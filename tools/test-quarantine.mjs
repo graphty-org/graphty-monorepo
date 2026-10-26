@@ -226,6 +226,20 @@ const failureText = (f) =>
 const brief = (list) => list.map((f) => ({ file: f.file, name: f.name, excerpt: failureText(f) }));
 
 /**
+ * The shard a run is retried and counted as. A run of another command under a shard's name (ci.yml's
+ * story-tests legs run a package's story config under its unit shard's name) is retried with that command
+ * when it is a plain vitest run of the shard's package; any other command, the shard's own.
+ * @param root the checkout
+ * @param listed the SHARDS entry of that name, or undefined
+ * @param command the command the run ran
+ * @returns the SHARDS entry, with the run's command when that is the one to retry
+ */
+export function shardOfRun(root, listed, command) {
+    const own = listed && { ...listed, "test-command": command };
+    return own && selectedCommand(root, own, null) ? own : listed;
+}
+
+/**
  * The shard wrapper: runs the shard's command; when only tests failed, runs the failed test files once more;
  * decides with decide(); prints what it decided; writes the facts to TEST_QUARANTINE_RESULT when set.
  * @param shardName the shard (tools/ci-test-matrix.mjs)
@@ -259,7 +273,11 @@ export async function runShard(
     let code = r1.code;
     try {
         const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-        const shard = SHARDS.find((s) => s.shard === shardName);
+        const shard = shardOfRun(
+            root,
+            SHARDS.find((s) => s.shard === shardName),
+            command,
+        );
         reports.pkg = shard?.package;
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];

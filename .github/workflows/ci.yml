@@ -1894,7 +1894,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1913,6 +1913,9 @@ jobs:
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: layout
+                      shard: layout
+                      command: cd layout && pnpm exec vitest run --config vitest.storybook.config.ts
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
             # every step below but the summary is.
@@ -2044,7 +2047,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, algorithms]
+                project: [graphty, graphty-element, algorithms, layout]
         steps:
             - uses: actions/checkout@v4
               with:

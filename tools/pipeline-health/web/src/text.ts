@@ -165,7 +165,7 @@ export function showsRangeValue(
 
 /** The state cell of a member row: a chip for a judged state not OK, muted words for the gray ones. */
 export function stateChip(
-    m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "window" | "value">>,
+    m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "window" | "value" | "coveredDays">>,
     range?: Range | SlowRange,
 ): string {
     switch (m.state) {
@@ -184,7 +184,9 @@ export function stateChip(
         case "idle":
             return `<span class="sw low">n=0</span>`;
         case "slow":
-            return `<span class="sw low">slow measure</span>`;
+            return m.coveredDays
+                ? `<span class="sw low">slow measure, covers ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days</span>`
+                : `<span class="sw low">slow measure</span>`;
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
     }

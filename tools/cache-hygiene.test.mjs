@@ -19,6 +19,26 @@ const cache = (id, key, ref, readHoursAgo, createdHoursAgo = readHoursAgo) => ({
 const ids = (caches, open = []) => toDelete(caches, open, NOW).map((d) => d.cache.id);
 
 describe("cache hygiene", () => {
+    it("never deletes a keeper the listing returned twice (a page boundary that shifted)", () => {
+        const keep = () =>
+            cache(
+                1,
+                `codeql-overlay-base-database-1-c801913f1ee29663-javascript-2.27.3-${"a".repeat(40)}-40220025309-1`,
+                M,
+                30,
+                30,
+            );
+        const old = cache(
+            2,
+            `codeql-overlay-base-database-1-c801913f1ee29663-javascript-2.27.3-${"b".repeat(40)}-40220025300-1`,
+            M,
+            40,
+            40,
+        );
+        const lfs = () => cache(3, `lfs-graphty-${H1}`, M, 30);
+        assert.deepEqual(ids([keep(), old, keep(), lfs(), lfs()]), [2]);
+    });
+
     it("names a key's family without its hashes, run id and versions", () => {
         assert.equal(family(`lfs-graphty-${H1}`), "lfs-graphty");
         assert.equal(family(`lfs-graphty-element-${H1}`), "lfs-graphty-element");

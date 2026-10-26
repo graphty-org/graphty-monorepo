@@ -66,7 +66,8 @@ export function toDelete(caches, openPrs, now = Date.now()) {
     for (const c of caches) {
         const pr = prOf(c.ref);
         if (pr && !open.has(pr)) out.push({ cache: c, why: `pull request #${pr} is closed` });
-        else if (keeper.get(slot(c)) === c) continue;
+        // by id: a listing that shifted while it was paged returns one cache twice, as two objects
+        else if (keeper.get(slot(c)).id === c.id) continue;
         else if (AT_ONCE.test(family(c.key)))
             out.push({
                 cache: c,
@@ -115,7 +116,8 @@ const lines = (path) =>
 
 function deleteCache(id) {
     const r = spawnSync("gh", ["api", "-X", "DELETE", `repos/${process.env.GITHUB_REPOSITORY}/actions/caches/${id}`]);
-    return r.status === 0;
+    // a 404 is a cache another hygiene job (or GitHub's eviction) already deleted
+    return r.status === 0 || /HTTP 404/.test(String(r.stderr));
 }
 
 function main(argv) {
@@ -125,7 +127,8 @@ function main(argv) {
         console.error("usage: cache-hygiene.mjs <caches.ndjson> <open-prs.txt> [--apply]");
         return 2;
     }
-    const caches = lines(input).map((l) => JSON.parse(l));
+    // once each: a cache listed on two pages would count twice in the sizes
+    const caches = [...new Map(lines(input).map((l) => [JSON.parse(l).id, JSON.parse(l)])).values()];
     const gone = toDelete(caches, lines(prs));
     const failed = new Set();
     for (const { cache, why } of gone) {

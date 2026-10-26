@@ -124,6 +124,8 @@ interface SafariLog {
     lines: string[];
     /** Wait until a line matching `pattern` arrived at or after line `from`; resolves with its index. */
     waitFor(pattern: RegExp, from: number): Promise<number>;
+    /** Resolves once `log stream` printed anything, on stdout or stderr: it is running. */
+    ready: Promise<void>;
     stop(): void;
 }
 
@@ -150,10 +152,18 @@ function followSafari(udid: string): SafariLog {
     let stopped = false;
     let rest = "";
     let stderr = "";
+    let attached: () => void = () => undefined;
+    let died: (error: Error) => void = () => undefined;
+    const ready = new Promise<void>((resolve, reject) => {
+        attached = resolve;
+        died = reject;
+    });
     child.stderr?.on("data", (chunk: Buffer) => {
+        attached();
         stderr = (stderr + chunk.toString("utf8")).slice(-1000);
     });
     child.stdout?.on("data", (chunk: Buffer) => {
+        attached();
         const text = rest + chunk.toString("utf8");
         const parts = text.split("\n");
         rest = parts.pop() ?? "";
@@ -176,10 +186,12 @@ function followSafari(udid: string): SafariLog {
         ended = new Error(
             `Safari's log stream ended (code ${String(code)}, signal ${String(signal)}): ${stderr.trim()}`,
         );
+        died(ended);
         failures.forEach((fail) => fail(ended as Error));
     });
     return {
         lines,
+        ready,
         waitFor: (pattern, from) =>
             new Promise((resolve, reject) => {
                 const fail = (error: Error): void => {
@@ -225,10 +237,10 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
 
         simctl("bootstatus", udid, "-b");
         safariLog = followSafari(udid);
-        // The stream is attached once it printed anything (`log stream` starts with "Filtering the log
+        // The stream is running once it printed anything (`log stream` starts with "Filtering the log
         // data using ..."). A Safari already running (a Simulator booted before this run) logged its
         // activation before that; terminated, every open below launches a process the stream sees whole.
-        await safariLog.waitFor(/./, 0);
+        await safariLog.ready;
         terminateSafari(udid);
     });
 
@@ -258,13 +270,11 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         // `simctl launch` prints "com.apple.mobilesafari: <pid>".
         const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
         assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
-        const own = `MobileSafari[${pid}:`;
-        const active = (line: string): boolean => /deactivation reasons: \d+ -> 0;/.test(line);
-        const last = safariLog.lines
-            .filter((line) => line.includes(own) && line.includes("deactivation reasons"))
-            .at(-1);
-        if (last === undefined || !active(last)) {
-            await safariLog.waitFor(new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`), from);
+        const change = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> \\d+;`);
+        const active = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`);
+        const last = safariLog.lines.filter((line) => change.test(line)).at(-1);
+        if (last === undefined || !active.test(last)) {
+            await safariLog.waitFor(active, from);
         }
 
         simctl("openurl", udid, url);

@@ -70,6 +70,7 @@
 /graph-samples/scripts/refresh-sources.mjs @apowers313
 /tools/assemble-pages-site.sh @apowers313
 /tools/bisect-ci.mjs @apowers313
+/tools/cache-hygiene.mjs @apowers313
 /tools/check-links.sh @apowers313
 /tools/check-storybook-links.mjs @apowers313
 /tools/claude-area-rules.mjs @apowers313

@@ -998,32 +998,53 @@ jobs:
             - name: ESLint root config
               run: pnpm run lint:eslint-root
 
-            - name: Formatting
-              if: needs.packages.outputs.full == 'true'
-              run: pnpm run format:check
-
-            # A pull request checks only the files it changed (about 2.5 minutes saved): a file it did not
-            # touch keeps its formatting unless prettier itself changed, and then the whole tree is checked.
-            - name: Formatting (changed files)
-              if: needs.packages.outputs.full != 'true'
+            # Which of the steps below this run needs. Every run but a pull request's own runs them all. A pull
+            # request runs a package's step when that package is affected or the step's own script changed, and
+            # checks the formatting of only the files it changed unless one of prettier's inputs changed (a file
+            # it did not touch keeps its formatting otherwise). About 3 minutes off a one-package pull request.
+            - name: Plan the package-only checks
+              id: scope
               env:
+                  FULL: ${{ needs.packages.outputs.full }}
+                  AFFECTED: ${{ needs.packages.outputs.affected }}
                   BASE_REF: ${{ github.base_ref }}
               run: |
-                  base=$(git merge-base "origin/$BASE_REF" HEAD)
-                  if ! git diff --quiet "$base" HEAD -- .prettierrc .prettierignore package.json pnpm-lock.yaml; then
-                      pnpm run format:check
-                  else
-                      git diff --name-only --diff-filter=d -z "$base" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
+                  if [[ "$FULL" == "true" ]]; then
+                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      exit 0
                   fi
+                  changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
+                  has() { jq -e --arg p "$1" 'index($p) != null' <<<"$AFFECTED" >/dev/null || grep -qE "$2" <<<"$changed"; }
+                  out() { if has "$2" "$3"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+                  out bundle graphty-element '^tools/check-bundle-size'
+                  out api graphty-element '^tools/api-report'
+                  out datasource graphty-element '^tools/check-data-source-migration'
+                  out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
+                      echo "format-all=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "format-all=false" >> "$GITHUB_OUTPUT"
+                  fi
+                  cat "$GITHUB_OUTPUT"
+
+            - name: Formatting
+              if: steps.scope.outputs.format-all == 'true'
+              run: pnpm run format:check
+
+            - name: Formatting (changed files)
+              if: steps.scope.outputs.format-all != 'true'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
 
             - name: Bundle size (graphty-element)
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
+              if: steps.scope.outputs.bundle == 'true'
               run: pnpm run check:bundle-size
 
             # What a browser application downloads for each part of cytoscape-extensions (the main entry and each
             # part it loads on first use), against cytoscape-extensions/size-budgets.json. Needs the build above.
             - name: Bundle size (cytoscape-extensions)
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'cytoscape-extensions')
+              if: steps.scope.outputs.cytoscape == 'true'
               run: pnpm --filter @graphty/cytoscape-extensions run size
 
             # graphty-element's public API, as built, must match the committed report
@@ -1032,7 +1053,7 @@ jobs:
             # so every API change shows up in the pull request as a diff of that report.
             # The same check runs in tools/prepush.sh.
             - name: Public API report (graphty-element)
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
+              if: steps.scope.outputs.api == 'true'
               run: pnpm run check:api-report
 
             # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
@@ -1052,7 +1073,7 @@ jobs:
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io
-              if: needs.packages.outputs.full == 'true' || contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
+              if: steps.scope.outputs.datasource == 'true'
               run: pnpm run check:data-source-migration
 
             # The import reader of the script that prints the counts in design/graph-format/STATUS.md.

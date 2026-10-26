@@ -737,30 +737,6 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Build Storybook (graphty-element)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty-element:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (graphty)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (compact-mantine)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run compact-mantine:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (algorithms)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run algorithms:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (layout)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run layout:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (cytoscape-extensions)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
@@ -772,9 +748,15 @@ jobs:
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
                   restore-keys: lfs-fidelity-references-
 
-            - name: Build Storybook (graph-io-fidelity)
+            # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
+            # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
+            # four 49 s together), and every Stories and visual job waits for this job. Each build reads only
+            # the package builds downloaded above, so none waits on another.
+            - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
+              run: >-
+                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the visual job

@@ -73,7 +73,8 @@ export async function recomputeAll(
     now: number,
     deps: RecomputeDeps = {},
 ): Promise<{ buckets: number; items: number; pages: number; alerts: AlertsResult }> {
-    await refold(store, now);
+    // A background re-mark: its failure is logged and retried next cycle, never a reason to skip the live hour.
+    await refold(store, now).catch((err: unknown) => console.error(JSON.stringify({ refold: String(err) })));
     const rolled = await recompute(store, now);
     const evaluation = await evaluate(store, now);
     const views = await writeViews(store, now, SLAS, evaluation);

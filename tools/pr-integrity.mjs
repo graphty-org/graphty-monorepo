@@ -202,12 +202,13 @@ function agentProblems(cwd, pr) {
             "Proof: the description has no non-empty `## Proof` section (the command and its output, the test that failed before the fix, or a capture)",
         );
     }
-    const id = patchId(cwd, pr.mergeBase, pr.head);
     // Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
+    // One review per pull request (owner, 2026-10-26): any fresh-review marker counts, whatever the branch changed
+    // after it, so a fix no longer needs a whole new review.
     const trusted = (r) => r.user?.login === AGENT || pr.owners.has(r.user?.login);
-    if (id && !pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes(`<!-- fresh-review ${id} -->`))) {
+    if (!pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes("<!-- fresh-review "))) {
         problems.push(
-            `Fresh review: no review is marked <!-- fresh-review ${id} --> (the patch id of this branch's own diff); run tools/pr-review.sh`,
+            "Fresh review: the pull request has no review marked <!-- fresh-review ... -->; run tools/pr-review.sh",
         );
     }
     return problems;

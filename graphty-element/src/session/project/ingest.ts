@@ -12,13 +12,12 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
 import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
-import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
+import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, readGroups } from "../../data/groups";
@@ -799,7 +798,7 @@ export class Ingest<K extends KnownEdge> {
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
         const { builder } = this.host.store();
-        const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
+        const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
@@ -1172,7 +1171,7 @@ export class Ingest<K extends KnownEdge> {
      */
     refuseNodeReplacement(nodes: readonly Record<string | number, unknown>[], idPath?: string): void {
         const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
-        const ids = new Set(nodes.map((node) => jmespath.search(node, query) as unknown));
+        const ids = new Set(nodes.map((node) => searchRecord(node, query)));
         this.refuseAboveCeiling("nodes", 0, ids.size, DEFAULT_LIMITS.renderCeiling);
     }
 

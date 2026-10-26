@@ -50,13 +50,13 @@ jobs:
         steps:
             # Before checkout: a bare ubuntu:24.04 has no git. The packages are gpu.yml's bootstrap (see its comment
             # for each one) plus gh, which the regression-issue step below calls.
-            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, gh)
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm, gh)
               working-directory: /
               run: |
                   apt-get update
                   apt-get install -y --no-install-recommends \
                       ca-certificates curl git gnupg sudo xz-utils gh \
-                      libvulkan1 libegl1 libgl1
+                      libvulkan1 libegl1 libgl1 libatomic1
             - uses: actions/checkout@v4
               with: { ref: master, fetch-depth: 0 } # every tag, and the release commit bench-ab.js checks out
             - name: Let git use the checkout inside the container
@@ -70,7 +70,7 @@ jobs:
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               working-directory: .

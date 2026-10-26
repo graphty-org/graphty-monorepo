@@ -5510,6 +5510,7 @@ export class OperationQueueManager implements Manager {
     };
     // (undocumented)
     hasLayoutEngine?: () => boolean;
+    get hasWork(): boolean;
     init(): Promise<void>;
     isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
@@ -5787,6 +5788,8 @@ export class RenderManager implements Manager {
     holdFrames(): () => void;
     init(): Promise<void>;
     requestFrame(): void;
+    // @internal
+    resize(): void;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
@@ -6638,6 +6641,9 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    nothingIsOwed(): boolean;
+    onceNothingIsOwed(callback: () => void): () => void;
+    operationsPending: (() => boolean) | null;
     picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;

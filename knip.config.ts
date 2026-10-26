@@ -135,6 +135,8 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 // compiled by test/consumer-types.test.ts as a consumer would compile it
                 "test/consumer/consumer.ts",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
@@ -224,6 +226,8 @@ const config: KnipConfig = {
         // Layout package
         layout: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -371,6 +375,8 @@ const config: KnipConfig = {
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
                 "stories/**/*.stories.tsx",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignoreDependencies: [
@@ -399,6 +405,9 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
+
+    // A standalone package with its own dependencies and lockfile, outside the pnpm workspace
+    ignore: ["tools/pipeline-health/**"],
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types

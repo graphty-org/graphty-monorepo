@@ -1,0 +1,119 @@
+name: Base check
+
+# Runs one test file on master's code at a pull request's base and writes each run to the results store as kind
+# `base`, which only master's own copy of this workflow may write. The pipeline round dispatches it:
+# - `[KNOWN?]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. When the
+#   file fails here the same way, the round re-runs the pull request's failed job, whose plan now excuses it, and
+#   this run files one `Failing on master` issue per signature.
+# - `[FLAKY-UNRELATED]`: a pull request saw a test it did not touch fail and pass; repeat 5. A pass and a fail here
+#   quarantine the test, and this run files its priority:critical issue.
+# Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
+
+on:
+    workflow_dispatch:
+        inputs:
+            base:
+                description: The pull request's base commit (a master commit)
+                required: true
+            file:
+                description: The test file, from the repository root
+                required: true
+            variant:
+                description: The variant, as the pull request's job printed it (family|flags=off|selected)
+                required: true
+            repeat:
+                description: How many times to run the file
+                default: "1"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: base-check-${{ inputs.base }}-${{ inputs.file }}-${{ inputs.variant }}-${{ inputs.repeat }}
+    cancel-in-progress: false
+
+jobs:
+    check:
+        name: Base check
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 40
+        permissions:
+            contents: read
+            id-token: write
+            issues: write
+        env:
+            RESULTS_URL: ${{ vars.RESULTS_URL }}
+            HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+            GH_TOKEN: ${{ github.token }}
+            HUSKY: "0"
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.base }}
+                  fetch-depth: 2
+
+            # The base's tests, run by master's own tools (this run's commit): a base older than a tools change, or
+            # than the tools themselves, still gets the current ones. Only what is tested is the base's.
+            - name: Take the tools from master
+              run: |
+                  git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+                  mkdir -p "$RUNNER_TEMP/trusted"
+                  git archive FETCH_HEAD tools | tar -x -C "$RUNNER_TEMP/trusted"
+
+            # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)
+            - name: Refuse a base that is not on master
+              env:
+                  BASE: ${{ inputs.base }}
+              run: |
+                  status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...master" --jq .status)"
+                  if [[ "$status" != ahead && "$status" != identical ]]; then
+                      echo "::error::$BASE is not on master (compare: $status)"
+                      exit 1
+                  fi
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium firefox webkit
+
+            - name: Install Playwright's browsers
+              run: pnpm exec playwright install chromium firefox webkit
+
+            # as ci.yml's test job: the style fidelity oracle pictures, and lavapipe for the WebGPU node families
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(inputs.variant, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
+            - name: Install Mesa lavapipe and export the lane's environment
+              if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
+              run: |
+                  sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+                  icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
+                  if [ -z "$icd" ]; then echo "::error::no lavapipe ICD json"; exit 1; fi
+                  {
+                      echo "VK_DRIVER_FILES=$icd"
+                      echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
+                      echo "GRAPHTY_GPU_REQUIRE=any"
+                      echo "XDG_RUNTIME_DIR=/tmp"
+                  } >> "$GITHUB_ENV"
+
+            - name: Run the file
+              env:
+                  FILE: ${{ inputs.file }}
+                  VARIANT: ${{ inputs.variant }}
+                  REPEAT: ${{ inputs.repeat }}
+              run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"

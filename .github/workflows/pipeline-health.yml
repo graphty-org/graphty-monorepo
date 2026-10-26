@@ -1,0 +1,51 @@
+name: Pipeline health
+
+# Type-checks, tests and synthesizes the pipeline health backend (tools/pipeline-health/: the CDK stack
+# and its Lambda handlers, the MCP server, the local collector and the page). It needs no AWS credentials:
+# the collector Lambda starts the deploy build (graphty-health-deploy, infra/deploy-stack.ts) when master's
+# tools/pipeline-health changes. Design: design/ci/health-dashboard.md, section 10.
+
+on:
+    pull_request:
+        paths:
+            - "tools/pipeline-health/**"
+            - ".github/workflows/pipeline-health.yml"
+            - "ci-budgets.json"
+    push:
+        branches: [master]
+        paths:
+            - "tools/pipeline-health/**"
+            - ".github/workflows/pipeline-health.yml"
+            - "ci-budgets.json"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: pipeline-health-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    check:
+        name: Test the pipeline health stack
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        defaults:
+            run:
+                working-directory: tools/pipeline-health
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v7
+              with: { node-version: 22.x }
+            - name: Install
+              run: npx --yes pnpm@10.34.5 install --frozen-lockfile
+            - name: Type-check
+              run: npx --yes pnpm@10.34.5 run typecheck
+            - name: Type-check the page
+              run: npx tsc --noEmit -p web
+            - name: Test
+              run: npx --yes pnpm@10.34.5 run test
+            - name: Test the MCP server and the local collector
+              run: node --test mcp/server.test.mjs local/collector.test.mjs
+            - name: Synthesize
+              run: npx --yes pnpm@10.34.5 run synth

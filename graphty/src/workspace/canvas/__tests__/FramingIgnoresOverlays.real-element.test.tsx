@@ -42,6 +42,10 @@ async function open(): Promise<{ element: GraphtyTag; session: GraphSession }> {
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
     }
+    // A static layout to start from: the test reads only the picture Circle lands on, and waiting
+    // for the default force layout to converge on Les Miserables, frame by frame, was most of the
+    // test's time (issue #3538).
+    await session.layout.set("spiral");
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     await element.waitForStableFrame();
     return { element, session };

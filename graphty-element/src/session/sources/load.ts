@@ -29,6 +29,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
+import { historyMark } from "../loadLine";
 import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
@@ -277,7 +278,7 @@ function importCommand(
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
         ...(options.sourceKey === undefined ? {} : { key: options.sourceKey }),
-        ...(options.history === "start" ? { startsHistory: true } : {}),
+        ...historyMark(options),
     };
     return command;
 }

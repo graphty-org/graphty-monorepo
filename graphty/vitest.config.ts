@@ -216,14 +216,18 @@ export default defineConfig({
                     // The size the visual capture draws every story at (visual-review captures a
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
-                    browser: VISUAL
-                        ? {
-                              ...chromium(),
-                              provider: playwright(VISUAL.providerOptions),
-                              viewport: VISUAL.viewport,
-                              commands: { chooseNextFile, ...mapTileCommands, ...VISUAL.commands },
-                          }
-                        : { ...chromium(), viewport: { width: 1200, height: 900 } },
+                    browser: {
+                        ...(VISUAL
+                            ? {
+                                  ...chromium(),
+                                  provider: playwright(VISUAL.providerOptions),
+                                  viewport: VISUAL.viewport,
+                                  commands: { chooseNextFile, ...mapTileCommands, ...VISUAL.commands },
+                              }
+                            : { ...chromium(), viewport: { width: 1200, height: 900 } }),
+                        // addon-vitest 9.1.21 turns write and exec off unless set; real-input cdp() needs them. Loopback only: the project's server.host is true.
+                        api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
+                    },
                     setupFiles: [
                         MAP_TILES_SETUP,
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),

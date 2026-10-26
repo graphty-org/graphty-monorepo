@@ -21,6 +21,7 @@ import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
+import { historyMark } from "./loadLine";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
@@ -906,7 +907,7 @@ export class Draft implements LoadDraft {
                 named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
             }
         }
-        const starts = choices.history === "start" ? { startsHistory: true } : {};
+        const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],

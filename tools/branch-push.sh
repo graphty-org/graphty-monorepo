@@ -4,16 +4,16 @@
 # refreshes the latest-commit line of the branch's progress note on its issue (tools/branch-note.mjs, at
 # most once per 10 minutes per branch). It returns at once and never fails the commit.
 #
-# The push skips the pre-push gate (--no-verify): it is a copy of work in progress, not a landing, and
-# nothing runs CI on a branch push. The gate runs when the branch lands (tools/land.mjs).
+# The push skips the pre-push gate (--no-verify): it is a copy of work in progress, and nothing runs CI on
+# a branch push. CI runs on the branch's pull request (tools/pr-open.sh).
 #
 # Never for golden, golden-cut, golden-verified (which the main checkout follows) or master, a detached
 # HEAD, or a commit in the middle of a rebase. What happens goes to tmp/branch-push.log in the main
 # checkout; a failed push (no network, a branch that moved on GitHub) is only logged, and the next commit
 # tries again.
 #
-# The branch on GitHub can hold commits this one lacks: the nightly branch sync (tools/branch-sync.mjs)
-# pushes its merges of golden there. So before the push, while the commit is fresh and nothing else runs
+# The branch on GitHub can hold commits this one lacks: the owner's screenshot Finish commits its approval
+# there, and visual-review's update pushes its merge of master. So before the push, while the commit is fresh and nothing else runs
 # in the worktree, origin/<branch> is fetched and merged into the local branch (a fast-forward or a merge
 # commit, never a rebase), so the push goes through. Only when the worktree is clean, with no merge in
 # progress; a merge that conflicts is aborted at once, leaving the worktree as it was, and logged. The
@@ -33,7 +33,7 @@ if timeout 30 git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$bran
     if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ] || [ -n "$(git status --porcelain --untracked-files=no)" ]; then
         echo "$(date -Iseconds) $branch: origin/$branch has commits this branch lacks; not merged (uncommitted changes or a merge in progress)" >>"$log"
     elif git -c core.hooksPath=/dev/null merge -q --no-edit "origin/$branch" >>"$log" 2>&1; then
-        echo "$(date -Iseconds) $branch: merged origin/$branch (the nightly branch sync's merge of golden)" >>"$log"
+        echo "$(date -Iseconds) $branch: merged origin/$branch" >>"$log"
     else
         git merge --abort >/dev/null 2>&1
         echo "$(date -Iseconds) $branch: origin/$branch does not merge cleanly; merge it by hand: git merge origin/$branch" >>"$log"

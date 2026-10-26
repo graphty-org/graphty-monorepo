@@ -12,6 +12,12 @@ const h16 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 const UNINFORMATIVE = /^\w*Error:?$|Click to debug|^Ignored nodes:|^</;
 // A wait that expired: Vitest's and Playwright's timeouts, Testing Library's findBy / waitFor, expect.poll.
 const WAIT_EXPIRED = /timed out|TimeoutError|Timeout -?\d+ms exceeded|Unable to find|expect\.poll/i;
+// A story whose two renders drew different pictures (visual-review's story tests): flaky by definition.
+const UNSTABLE_STORY = /visual-review: \S+ is unstable \(two renders drew different pictures\)/;
+const statusOf = (timeout, first) => {
+    if (timeout) return "timeout";
+    return UNSTABLE_STORY.test(first) ? "unstable" : "fail";
+};
 
 /**
  * A failure's first informative line, its key (the first two informative lines, cleaned, numbers kept) and its
@@ -19,7 +25,7 @@ const WAIT_EXPIRED = /timed out|TimeoutError|Timeout -?\d+ms exceeded|Unable to 
  * @param text the failure message and stack
  * @param file the test file
  * @param main the main checkout, whose path and worktree paths are removed
- * @returns `{ line, key, signature, status }`; status is `timeout` for an expired wait, else `fail`
+ * @returns `{ line, key, signature, status }`; status is `timeout` for an expired wait, `unstable` for an unstable story, else `fail`
  */
 export function failureHashes(text, file, main = "/nonexistent") {
     const esc = main.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -45,6 +51,20 @@ export function failureHashes(text, file, main = "/nonexistent") {
         .filter((l) => frame(l) && !l.includes("node_modules"))
         .slice(0, 2)
         .map((l) => mask(clean(l)));
-    const signature = timeout ? h16(`timeout\0${file}`) : h16([mask(first), ...frames].join("\n"));
-    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status: timeout ? "timeout" : "fail" };
+    const status = statusOf(timeout, first);
+    // a timeout's or an unstable story's text changes from run to run (the wait, the modes that differed): signed by its file
+    const signature = status === "fail" ? h16([mask(first), ...frames].join("\n")) : h16(`${status}\0${file}`);
+    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status };
 }
+
+/**
+ * The key a flaky test's issue is filed and tracked under: its failure signature, except for a timeout or an
+ * unstable story, whose signature names only its file, so two in one file would share one issue; that key adds the
+ * test name.
+ * @param signature the failure signature
+ * @param status the failure's status, `timeout`, `unstable` or `fail`
+ * @param name the test name
+ * @returns the issue key
+ */
+export const issueKey = (signature, status, name) =>
+    status === "timeout" || status === "unstable" ? h16(`${signature}\0${name}`) : signature;

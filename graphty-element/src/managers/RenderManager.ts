@@ -15,6 +15,7 @@ import {
     TransformNode,
     Vector3,
     WebGPUEngine,
+    WebXRState,
 } from "@babylonjs/core";
 
 import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
@@ -356,8 +357,6 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
-    /** Whether {@link drawNow} drew past the fence still unsignalled; see {@link drawNow}. */
-    private drawnAhead = false;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
@@ -413,7 +412,6 @@ export class RenderManager implements Manager {
      */
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
-        this.drawnAhead = false;
         this.drawOwed = true;
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
@@ -518,7 +516,7 @@ export class RenderManager implements Manager {
             // The device ratio changes with the browser's zoom and the screen the window is on,
             // and both fire a resize.
             this.applyPixelRatio();
-            this.engine.resize();
+            this.resize();
         };
         this.pixelRatio = this.config.pixelRatio ?? 1;
         this.applyPixelRatio();
@@ -698,14 +696,39 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Fits the drawing to the canvas's current size and, when that changed the size, draws it at
+     * once, so the frame the page paints after a resize holds the graph rather than the canvas the
+     * resize cleared. Every resize goes through here: the element's ResizeObserver and the
+     * window's resize event alike, since either one can be the call that assigns the new size.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery or a box
+        // change that keeps the render size are not. An XR session draws in its own frames, so
+        // nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.drawNow();
+        }
+    }
+
+    /**
      * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
      *
      * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
      * resize found by a ResizeObserver lands after the step's animation frames have run, so
      * without this the page paints that step with an empty canvas -- and a full-page screenshot,
-     * which resizes the page, captures it (#3373). Drawn while the GPU is still behind, since
-     * waiting for it left the canvas blank, but only once until it catches up: a continuous resize
-     * (a window edge dragged) then queues at most one frame past {@link gpuBehind}'s pacing.
+     * which resizes the page, captures it (#3373). Drawn even while the GPU is still behind, every
+     * time: a full-page screenshot shrinks the page and restores it in two quick steps, and when
+     * the second resize was skipped to keep {@link gpuBehind}'s pacing, the screenshot caught the
+     * cleared canvas and the graph was missing from it (#3704). A resize is delivered at most once
+     * per rendering step, so this adds at most one frame per step past the pacing.
      *
      * Wrapped in the engine's frame, as Babylon's own loop wraps every tick: WebGPU submits what a
      * frame encoded only when the frame ends, and the frame observers fire as for any other frame.
@@ -714,14 +737,6 @@ export class RenderManager implements Manager {
     drawNow(): void {
         if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
             return;
-        }
-
-        if (this.gpuBehind()) {
-            if (this.drawnAhead) {
-                return;
-            }
-
-            this.drawnAhead = true;
         }
 
         this.engine.beginFrame();
@@ -761,7 +776,6 @@ export class RenderManager implements Manager {
 
         gl.deleteSync(this.lastFrameFence);
         this.lastFrameFence = null;
-        this.drawnAhead = false;
         return false;
     }
 

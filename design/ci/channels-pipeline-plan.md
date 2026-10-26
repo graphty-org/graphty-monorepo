@@ -49,6 +49,9 @@ the item named corrects the design's text in its own branch.
     freeze switch": three lines that refuse a top-level `land` or `sync`, never `cut-fix`.
 12. **Root CLAUDE.md's target is 12,000 words** after step 5, not migration's 9,000, because the
     golden sections stay until step 10 as the undo; step 10's deletion reaches 9,000.
+13. **Nightly holds and fixes its candidate** (owner, 2026-10-26, issue #3741), replacing the
+    oldest-candidate offer and the dropped rejected candidate; #3737 (newest first) is superseded.
+    Design sections 3 and 5 say how; `candidate-hold` corrects channels section 7.
 
 ## 2. How to read an item
 
@@ -96,7 +99,9 @@ Storybook 9 upgrade.
 5. Step 6, overlapping step 5: `bisect-workflow`, `full-run-calls`, `full-run-release`,
    `version-dry-run`, `light-check-workflow` (c) -> `step-6-acceptance` (needs `step-5-acceptance`).
 6. Step 7: `nightly-publish-environment` -> `nightly-site` (publishing on) -> `owner-npm-bind` at
-   once -> `nightly-approval` -> `step-7-acceptance`.
+   once -> `nightly-approval` -> `nightly-resume` -> `step-7-acceptance`. Beside step 8, not
+   before it: `same-commit-rerun` -> `candidate-hold` -> `candidate-fix-forward` ->
+   `candidate-fix-acceptance`.
 7. Step 8: `promote-workflow` -> `owner-dist-tag-token` -> `owner-domain-swap` -> `canary-deploy`
    -> `step-8-acceptance`.
 8. 7 days without undo, #3318 closed -> `deletion` (three pull requests) -> `local-cleanup`.
@@ -535,11 +540,48 @@ binding (a publisher with no environment accepts any), so every publisher is use
 its edit and none can expire; a refused publish is a publish hold, cleared with `gh run rerun <run
 id> --failed`. Done: the next `next` publish succeeds from `release`.
 
-**nightly-approval** (#3463) -- agent, M. The review page and server (not `trusted/`): offer the oldest
-unpromoted green-images candidate, frozen, decisions by hash; Finish opens the accept-only pull
-request whose merge resumes it (`promote-nightly`); live via `tools/live.sh visual-review`. Needs:
-`nightly-site`. Done: a candidate with a changed image waits; Finish's pull request merges and the
-candidate promotes. Undo: revert.
+**nightly-approval** (#3463) -- agent, M. The review page and server (not `trusted/`): offer the
+candidate, decisions by hash; Finish opens the accept-only pull request; live via `tools/live.sh
+visual-review`. Merged as #3653; the resume it named is `nightly-resume`. Needs: `nightly-site`.
+
+Order below: the smallest piece that unblocks nightly first. Each is part of #3741; those that
+change release.yml are owned.
+
+**nightly-resume** (#3741) -- agent, M, CP. `mode: promote-nightly` (design section 5): refuse unless
+the accept's parent is the candidate and its latest verdict is green-images; gate on its
+`visual-*` with `--head <accept>`; version, land (with the version-only `release-diff` of the master
+merge), publish, site on the accept commit; store `approved`; `release-due` dispatches it on an
+accept merge naming a waiting candidate (the oldest waiting one until `candidate-hold`). Needs:
+`nightly-site`. Done: an approved green-images run promotes to `next` and nightly.graphty.app; a
+second dispatch, or one for a red run, does nothing. Undo: revert; candidates wait as today.
+
+**same-commit-rerun** (#3741) -- agent, M. The `recapture` job and `visual-final-*`,
+`release-rerun.yml` (absorbing `gpu-rerun-on-runner-loss.yml`; modes and jobs as design section 3),
+no red issue or bisect on attempt 1, `release-watch.yml` filing when no attempt 2 started, "Flaky in
+full run" filing in `full-run.mjs verdict`. First check on a scratch run that `--failed` re-runs a
+failed job inside the called ci.yml and its dependents. Needs: none. Done: a seeded one-time lane
+failure and a seeded one-time story difference each end green with one flaky issue; a consistent
+failure ends red with one issue and one bisect; a failed publish is never re-run. Undo: revert.
+
+**candidate-hold** (#3741) -- agent, M. `channel/candidate`, the store's `candidate` table read by
+`release-state`, `offered`, `candidates.mjs` and the stall alarm; `pick()` serves the hold first;
+`offeredCandidate()` offers only its head, once green-images; `mode: abandon`; the hold issue;
+channels section 7. Needs: `nightly-resume`, `same-commit-rerun`, the owner adding
+`channel/candidate` to the deploy-key ruleset. Done: a seeded red C stays held across two master
+slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the newest again.
+
+**candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
+(reachability refusals, the conflict branch), `pr-open.sh --candidate` (a guarded path: the owner
+merges it), `mode: candidate` with T4 and the affected lanes on H, the release.yml
+`candidate-capture` job (ci.yml's visual job and gate untouched; ci.yml gets no new input), the
+run's own build and `site-<H>`, `release-due` on a merge with `Refs #<hold issue>`. Needs:
+`candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a scratch fix from C
+merges into master and `channel/candidate`, the run on H re-tests the selected shards, T4 and the
+affected projects' stories and promotes; a fix whose range holds a commit reachable from the
+earlier master tip is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+
+**candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
+recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.
 
 **immutable-release-probe** (#3464) -- agent, S. On a scratch repository with immutable releases on, check
 that `gh release edit --prerelease` and `--latest` work; report on #3418.

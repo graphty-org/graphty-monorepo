@@ -39,8 +39,9 @@ env:
     # failed. Half, not less: the dev machine's failures came from two or three gates sharing it, and
     # every vitest default timeout (5 s per test, 10 s per hook) is many times what a healthy test takes
     # on a CI runner, so a healthy suite is expected to pass at half speed; a tighter quota would mostly
-    # find the suite's startup limits. If a run finds more than tools/restricted-cpu-stress.mjs's
-    # MAX_FILED failing tests it files none and fails: the quota is too tight, loosen it here.
+    # find the suite's startup limits. A test file with more than tools/restricted-cpu-stress.mjs's
+    # MAX_FILED failing tests is reported as suite broken and none of its tests is filed; many such
+    # files mean the quota is too tight, loosen it here.
     CPU_MAX: "200000 100000"
     RESTRICTION: "cgroup v2 cpu.max 200000 100000 (two CPUs of time for every process of the shard) on a four-vCPU ubuntu-24.04 GitHub-hosted runner"
 
@@ -57,7 +58,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -116,7 +117,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -132,13 +133,19 @@ jobs:
                   name: stress-build-packages
                   path: .
 
+            # The style fidelity scorecard compares the canvas with oracle PNGs held in Git LFS; without them every
+            # one of its tests fails and the run's cap files nothing (#3539). Same files ci.yml's test job pulls.
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v4
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
@@ -198,6 +205,7 @@ jobs:
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
 
             - name: Upload the junit reports
               if: always()
@@ -220,7 +228,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

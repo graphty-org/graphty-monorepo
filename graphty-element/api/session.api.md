@@ -4703,6 +4703,7 @@ export interface SessionEventMap {
     "selection:origin-changed": {
         readonly origin: SelectionTarget | null;
     };
+    "session:disposed": Readonly<Record<string, never>>;
     "set:changed": SetChange;
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;

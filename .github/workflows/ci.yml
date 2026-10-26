@@ -388,6 +388,9 @@ jobs:
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
+                      # no answer about what the change touched: the pull request rules stay off and the committed
+                      # quarantine list stands, as in a store outage
+                      echo '{"unavailable":"the test selector failed"}' > "$plan/results-plan.json"
                       exit 0
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \

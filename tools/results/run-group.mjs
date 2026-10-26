@@ -164,12 +164,13 @@ const marker = (signature, kind) => `<!-- results kind=${kind} signature=${signa
  * @param gh `(args) => stdout`
  * @param signature the failure signature
  * @param kind `flaky` or `failing-on-master`
+ * @param [state] `all` or `open`
  * @returns the number or null
  */
-function findIssue(gh, signature, kind) {
+function findIssue(gh, signature, kind, state = "all") {
     try {
         const search = `"results kind=${kind} signature=${signature}" in:body`;
-        const out = gh(["issue", "list", "--state", "all", "--search", search]);
+        const out = gh(["issue", "list", "--state", state, "--search", search]);
         return Number(/^(\d+)\s/m.exec(out)?.[1]) || null;
     } catch {
         return null;
@@ -190,7 +191,8 @@ function reopen(gh, number) {
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
 function fileFailingOnMaster(gh, f, sha) {
     const { signature, line } = failureHashes(f.message, f.file);
-    const had = findIssue(gh, signature, "failing-on-master");
+    // open only: a closed one may have been fixed after this base, so a failure here is a new issue, not a comment
+    const had = findIssue(gh, signature, "failing-on-master", "open");
     const body = [
         `\`${idOf(f)}\` fails on master ${sha} in its base check.`,
         "",

@@ -5,7 +5,8 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ciBudgets from "../../../ci-budgets.json" with { type: "json" };
-import { METRICS } from "../src/model/metrics.ts";
+import { FOLD_VERSION, METRICS } from "../src/model/metrics.ts";
+import { setCursor } from "../src/model/raw.ts";
 import { MemoryStore } from "../src/model/store.ts";
 
 const ssmSend = vi.fn();
@@ -252,6 +253,8 @@ describe("recompute and read", () => {
         );
 
         const { recomputeAll } = await import("../src/recompute.ts");
+        // A table already folded at this version: the cycle's only marks are the post's.
+        await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
         const getSecret = vi.fn(async () => undefined);
         const done = await recomputeAll(mem, NOW, { getSecret, fetch: vi.fn() });
         expect(done.pages).toBeGreaterThan(30);

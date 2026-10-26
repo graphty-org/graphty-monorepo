@@ -35,8 +35,13 @@ const src = <K extends RawKind>(kind: K, field: string, fold: (item: Of<K>) => C
 /** PR check duration and full-run shard times are normalized to this budget, so a median compares to one value. */
 export const PR_BASE_MS = 20 * MIN;
 export const SHARD_BASE_MS = HOUR;
-/** A full-run test shard's budget (ci-budgets.json `job:ci.yml:Test (*)`), applied on recompute so old records count. */
+/**
+ * A full-run test shard's budget (ci-budgets.json `job:ci.yml:Test (*)`), applied when a bucket is folded; a change
+ * to it re-marks the stored shard runs' buckets once (FOLD_VERSION, recompute.ts).
+ */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
+/** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}`;
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string) => base === "master" || base === "main";
@@ -138,12 +143,15 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.full_shard_time",
         from: [
-            src("shard_run", "endedAt", (s) => {
-                const budgetMs = s.budgetMs ?? (s.full ? FULL_SHARD_BUDGET_MS : undefined);
-                return s.source === "ci" && s.full && s.attempt === 1 && s.outcome === "passed" && budgetMs
-                    ? { value: (s.secs * 1000 * SHARD_BASE_MS) / budgetMs, sum: budgetMs, dim: s.variant }
-                    : null;
-            }),
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.full && s.attempt === 1 && s.outcome === "passed"
+                    ? {
+                          value: (s.secs * 1000 * SHARD_BASE_MS) / FULL_SHARD_BUDGET_MS,
+                          sum: FULL_SHARD_BUDGET_MS,
+                          dim: s.variant,
+                      }
+                    : null,
+            ),
         ],
     },
     // The Shard times section's pull request bins view: bin time per family, against the 8-minute packing target.

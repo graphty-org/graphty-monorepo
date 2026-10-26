@@ -58,6 +58,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CODE = /\.[cm]?[jt]sx?$/u;
+const STORY_SIDE = /(\.stories\.[cm]?[jt]sx?$|\/stories\/)/u;
 const DATA = /\.(json|jsonl|txt|csv|tsv|xml|ya?ml|graphml|gexf|gml|dot|gv|net|obo|cx2?|xgmml|wgsl|glsl|svg|html|css)$/u;
 
 /**
@@ -377,37 +378,43 @@ export function storiesMissed(changed, sel, fileOf) {
 /**
  * Story id -> repo-relative story file, from a built Storybook's index.json.
  * @param index the parsed index.json
- * @param dir the project's Storybook directory, repo-relative
+ * @param root the directory Storybook was built from, repo-relative (its package: graph-io-fidelity's
+ *   importPaths are relative to graph-io/, not to its config directory)
  * @returns a Map
  */
-export function storyFiles(index, dir) {
+export function storyFiles(index, root) {
     const out = new Map();
     for (const e of Object.values(index.entries ?? {})) {
         if (e.type === "story") {
-            out.set(e.id, join(dir, e.importPath));
+            out.set(e.id, join(root, e.importPath));
         }
     }
     return out;
 }
 
 /**
- * The files of a package that --stories may break: its source and story files, never its tests, docs or
- * Storybook setup (the setup runs every story, stories.projectGlobal).
+ * The files --stories may break: the package's source and story files (never its tests, docs or Storybook
+ * setup, which runs every story: stories.projectGlobal), and the source of every workspace package it depends
+ * on, since a story can draw with a dependency no test of the package reaches.
  * @param wt the scratch worktree
  * @param pkg the package
- * @param dir the project's Storybook directory
  * @returns repo-relative paths
  */
-function storyCandidates(wt, pkg, dir) {
-    return execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
+export function storyCandidates(wt, pkg) {
+    const manifest = JSON.parse(readFileSync(join(wt, pkg, "package.json"), "utf8"));
+    const deps = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies, ...manifest.peerDependencies })
+        .filter((d) => d.startsWith("@graphty/"))
+        .map((d) => d.slice("@graphty/".length))
+        .filter((d) => d !== pkg && existsSync(join(wt, d, "package.json")));
+    const story = (f) => STORY_SIDE.test(f) && !/\/\.storybook\//u.test(f);
+    return execFileSync("git", ["ls-files", "--", pkg, ...deps], { cwd: wt, encoding: "utf8" })
         .split("\n")
-        .filter((f) => f && (CODE.test(f) || DATA.test(f)))
-        .filter(
-            (f) =>
-                !f.endsWith(".d.ts") && !/\.config\.[cm]?[jt]s$/u.test(f) && !/\.(test|spec)\.[cm]?[jt]sx?$/u.test(f),
-        )
-        .filter((f) => !/\/(\.storybook|test|tests|__tests__|docs|benchmarks?)\//u.test(f))
-        .filter((f) => buildInput(f.slice(pkg.length + 1)) || f.startsWith(`${dir}/`));
+        .filter((f) => f && (CODE.test(f) || DATA.test(f)) && !f.endsWith(".d.ts"))
+        .filter((f) => {
+            const own = f.startsWith(`${pkg}/`);
+            const src = f.startsWith(`${f.split("/")[0]}/src/`) && buildInput(f.slice(f.indexOf("/") + 1));
+            return src || (own && story(f));
+        });
 }
 
 /**
@@ -415,7 +422,7 @@ function storyCandidates(wt, pkg, dir) {
  * @param c storiesMain()'s context: wt, project, cfg, SHARDS, graphs, rules, build, capture, changedIds, ref, fileOf
  * @param n the mutant's number
  * @param f the repo-relative file
- * @returns `{ misses, inconclusive }`
+ * @returns `{ misses, inconclusive, checked }`, checked 0 when the file was skipped
  */
 async function storyMutant(c, n, f) {
     const change = await selectChange(c.wt, [f], c.SHARDS, c.graphs);
@@ -440,20 +447,22 @@ async function storyMutant(c, n, f) {
     }
     if (broken === "unbuilt") {
         log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
-        return { misses: 0, inconclusive: 0 };
+        return { misses: 0, inconclusive: 0, checked: 0 };
     }
     // a capture that cannot run at all (the Storybook does not load) changes every story
     const changed = broken ? c.changedIds(c.ref, broken) : [...c.fileOf.keys()].sort();
     const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
     let found = [];
     if (missed.length > 0) {
-        c.build();
-        const again = await c.capture(`mutant-${n}-unbroken`, missed);
+        // a failed rebuild would leave the broken Storybook in place and call every miss flaky
+        const again = c.build().status === 0 ? await c.capture(`mutant-${n}-unbroken`, missed) : null;
         if (!again) {
-            return { misses: 0, inconclusive: 1 };
+            log("  INCONCLUSIVE: the unbroken Storybook could not be built or captured again");
+            return { misses: 0, inconclusive: 1, checked: 1 };
         }
-        const mine = { ...c.ref, items: c.ref.items.filter((i) => missed.includes(i.id)) };
-        const flaky = new Set(c.changedIds(mine, again));
+        // --stories matches by prefix, so the capture can hold stories that were not missed
+        const only = (r) => ({ ...r, items: r.items.filter((i) => missed.includes(i.id)) });
+        const flaky = new Set(c.changedIds(only(c.ref), only(again)));
         flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
         found = missed.filter((id) => !flaky.has(id));
     }
@@ -462,7 +471,7 @@ async function storyMutant(c, n, f) {
         `  ${changed.length} stories changed, ${changed.length - missed.length} of them selected` +
             (found.length > 0 ? ", MISSED: " + list : ""),
     );
-    return { misses: found.length, inconclusive: 0 };
+    return { misses: found.length, inconclusive: 0, checked: 1 };
 }
 
 /**
@@ -495,7 +504,7 @@ async function storiesMain(project, opt) {
     });
     const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
     const rules = { ...loadRules(wt).stories, selectProjects: [project] };
-    const work = join(main, "tmp", "select-mutate", `stories-${project}`);
+    const work = dirname(paths.report);
     // no baselines: only the captures' bytes are compared, unbroken against broken
     const empty = join(work, "no-baselines");
     mkdirSync(empty, { recursive: true });
@@ -539,13 +548,13 @@ async function storiesMain(project, opt) {
         log(`the unbroken ${project} Storybook does not build:\n${unbroken.stderr.slice(-2000)}`);
         return 2;
     }
-    const fileOf = storyFiles(JSON.parse(readFileSync(join(wt, cfg[project].storybook, "index.json"), "utf8")), dir);
+    const fileOf = storyFiles(JSON.parse(readFileSync(join(wt, cfg[project].storybook, "index.json"), "utf8")), pkg);
     const ref = await capture("unbroken", null);
     if (!ref) {
         return 2;
     }
     log(`${ref.items.length} captures of ${fileOf.size} stories`);
-    const candidates = storyCandidates(wt, pkg, dir);
+    const candidates = storyCandidates(wt, pkg);
     const given = opt("--files", null);
     const picked = given
         ? given.split(",")
@@ -553,18 +562,23 @@ async function storiesMain(project, opt) {
     const ctx = { wt, project, cfg, SHARDS, graphs, rules, build, capture, changedIds, ref, fileOf };
     let misses = 0;
     let inconclusive = 0;
+    let checked = 0;
     for (const [n, f] of picked.entries()) {
         const r = await storyMutant(ctx, n + 1, f);
         misses += r.misses;
         inconclusive += r.inconclusive;
+        checked += r.checked;
     }
-    build();
+    if (build().status !== 0) {
+        log(`the scratch worktree's ${project} Storybook did not rebuild unbroken`);
+    }
+    const clean = misses === 0 && inconclusive === 0 && checked > 0;
     log(
-        misses === 0 && inconclusive === 0
-            ? `No misses in ${picked.length} mutant(s) of ${project}.`
-            : `${misses} miss(es), ${inconclusive} inconclusive.`,
+        clean
+            ? `No misses in ${checked} checked mutant(s) of ${project} (${picked.length - checked} skipped).`
+            : `${misses} miss(es), ${inconclusive} inconclusive, ${checked} of ${picked.length} mutant(s) checked.`,
     );
-    return misses === 0 && inconclusive === 0 ? 0 : 1;
+    return clean ? 0 : 1;
 }
 
 async function main(argv) {

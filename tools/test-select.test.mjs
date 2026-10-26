@@ -48,7 +48,15 @@ import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } fr
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, runPaths, seededPick, storiesMissed, storyFiles, unexplained } from "./test-select-mutate.mjs";
+import {
+    mutant,
+    runPaths,
+    seededPick,
+    storiesMissed,
+    storyCandidates,
+    storyFiles,
+    unexplained,
+} from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -818,6 +826,17 @@ describe("mutation testing of the selection", () => {
             "b--two",
         ]);
         assert.deepEqual(storiesMissed(["b--two"], sel("none", [], ["b--two"]), of), [], "a changed baseline runs");
+    });
+
+    it("--stories: breaks the package's source and story files and its workspace dependencies' source", () => {
+        const files = storyCandidates(ROOT, "layout");
+        const has = (re) => files.some((f) => re.test(f));
+        assert.ok(has(/^layout\/src\//u), "the package's source");
+        assert.ok(has(/^layout\/stories\/.+\.stories\.ts$/u), "its story files");
+        assert.ok(has(/^graph-samples\/src\//u) && has(/^graph-format\/src\//u), "its dependencies' source");
+        assert.ok(!has(/\/(test|\.storybook)\//u), "never a test or the Storybook setup");
+        assert.ok(!has(/^layout\/[^/]+$/u), "never a root file of the package (package.json, tsconfig)");
+        assert.ok(!has(/^graph-samples\/(?!src\/)/u), "only a dependency's source");
     });
 
     it("gives runs with different names their own worktree and report", () => {

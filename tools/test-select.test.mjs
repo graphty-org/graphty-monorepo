@@ -1284,6 +1284,44 @@ describe("reads of another package's files, path by path", () => {
     });
 });
 
+describe("visual-review files only the story setups load", () => {
+    const pkgs = ["visual-review", "algorithms", "layout", "graphty", "graphty-element"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map(pkgs.map((d) => [d, new Set(d === "visual-review" ? [] : ["visual-review"])]));
+    const noGraphs = new Map(pkgs.map((d) => [d, []]));
+    const run = (changed) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        return selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke)
+            .filter((s) => s.mode !== "none")
+            .map((s) => s.shard);
+    };
+
+    it("a story-test-setup.mjs change runs only visual-review and the story shards", () => {
+        const picked = run(["visual-review/capture/story-test-setup.mjs"]);
+        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
+        assert.deepEqual([...picked].sort(), [...own, ...story].sort());
+        assert.ok(story.length === 6, story.join(", "));
+    });
+
+    it("a change to visual-review's other code still runs every dependent's shards", () => {
+        for (const f of ["visual-review/trusted/cli.mjs", "visual-review/capture/story-test.mjs"]) {
+            const picked = run([f]);
+            for (const sh of ["algorithms-default", "layout", "graphty-1", "graphty-element-browser-1"]) {
+                assert.ok(picked.includes(sh), `${f}: ${sh} in ${picked.join(", ")}`);
+            }
+        }
+    });
+});
+
 describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md section 4.3)", () => {
     const real = new Map([
         ["graph-format", "graph-format"],

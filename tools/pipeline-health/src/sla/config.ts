@@ -1,7 +1,7 @@
 // The shape of config/slas.json: every SLA member of design/ci/health-dashboard.md section 4, the sources of
 // section 9, and the limits the writers read. Labels are catalog data; the page writes every sentence.
 
-import slas from "../../config/slas.json";
+import slas from "../../config/slas.json" with { type: "json" };
 
 export type Op = "<" | "<=" | ">" | ">=" | "=";
 export type Threshold = [Op, number];

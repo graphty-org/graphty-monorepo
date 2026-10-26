@@ -37,7 +37,7 @@ writeFileSync(
 chmodSync(join(bin, "claude"), 0o755);
 chmodSync(join(bin, "gh"), 0o755);
 
-const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}` });
+const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}`, PR_REVIEW_LOCAL: "1" });
 const git = (cwd, ...args) => {
     const r = spawnSync("git", args, { cwd, env, encoding: "utf8" });
     assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
@@ -143,6 +143,24 @@ describe("pr-review.sh", () => {
         assert.ok(!existsSync(argsLog), "claude was not called for the fix");
         assert.equal(run(["--proof", proof, "--again"]).code, 0);
         assert.ok(existsSync(argsLog), "--again reviewed the branch once more");
+    });
+
+    it("runs master's copy of itself when this branch's copy is older", () => {
+        // master gets a different pr-review.sh; the branch's run must hand over to it
+        git(work, "checkout", "-q", "master");
+        mkdirSync(join(work, "tools"), { recursive: true });
+        writeFileSync(join(work, "tools", "pr-review.sh"), "echo MASTER-COPY $PR_REVIEW_FROM_MASTER\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore(tools): newer review");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        const r = spawnSync("bash", [script, "--proof", proof], {
+            cwd: work,
+            env: { ...env, PR_REVIEW_LOCAL: "" },
+            encoding: "utf8",
+        });
+        assert.match(r.stdout, /^MASTER-COPY 1$/m, r.stdout + r.stderr);
+        assert.ok(!existsSync(argsLog), "the branch's own copy did not run the review");
     });
 
     it("refuses without a Proof file, calling nothing", () => {

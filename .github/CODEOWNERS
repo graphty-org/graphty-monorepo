@@ -83,6 +83,7 @@
 /tools/check-storybook-links.mjs @graphty-org/code-owners
 /tools/claude-area-rules.mjs @graphty-org/code-owners
 /tools/claude-no-foreground-wait.mjs @graphty-org/code-owners
+/tools/copy-docs-content.js @graphty-org/code-owners
 /tools/eslint-rules/no-test-timing.mjs @graphty-org/code-owners
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners
 /tools/full-run.mjs @graphty-org/code-owners
@@ -100,13 +101,13 @@
 /tools/sonar-baseline.mjs @graphty-org/code-owners
 /tools/sonar-gate.mjs @graphty-org/code-owners
 /tools/sonar/api.mjs @graphty-org/code-owners
+/tools/storybook-brand-theme.mjs @graphty-org/code-owners
 /tools/test-changed.mjs @graphty-org/code-owners
 /tools/test-history.mjs @graphty-org/code-owners
 /tools/test-ledger.mjs @graphty-org/code-owners
 /tools/test-select-mutate.mjs @graphty-org/code-owners
 /tools/test-slots.mjs @graphty-org/code-owners
 /tools/visual-capture-plan.mjs @graphty-org/code-owners
-/tools/storybook-brand-theme.mjs @graphty-org/code-owners
 /tools/visual-flaky-report.mjs @graphty-org/code-owners
 /tools/visual-preview.sh @graphty-org/code-owners
 /tools/vitest-time-budget.mjs @graphty-org/code-owners

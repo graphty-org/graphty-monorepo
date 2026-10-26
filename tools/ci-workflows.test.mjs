@@ -7,7 +7,7 @@
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
     copyFileSync,
@@ -2376,6 +2376,46 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.ok(visual.includes(`"$RUNNER_TEMP/visual/${SKIPPED_FILE}"`));
         const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(visual)[1];
         assert.ok(isSkipMarker(JSON.parse(printf.replace("%s", "layout")), "layout"));
+    });
+});
+
+describe("base-check.yml", () => {
+    const steps = () => parseYaml(workflow("base-check.yml")).jobs.check.steps;
+
+    it("runs master's own copy of the tools against the base's tests", () => {
+        const all = steps();
+        const take = all.findIndex((s) => s.name === "Take the tools from master");
+        const run = all.findIndex((s) => s.name === "Run the file");
+        assert.ok(take > 0 && take < run, "the tools are taken from master before the file runs");
+        assert.match(all[run].run, /^node "\$RUNNER_TEMP\/trusted\/tools\/results\/cli\.mjs" base-check /);
+        for (const s of all) assert.doesNotMatch(s.run ?? "", /^node tools\//m, `${s.name} runs the base's own tools`);
+    });
+
+    it("takes the tools of this run's commit, not the base's, against a throwaway repository", () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-check-"));
+        const git = (...a) => execFileSync("git", a, { cwd: join(dir, "base"), encoding: "utf8" });
+        mkdirSync(join(dir, "base/tools/results"), { recursive: true });
+        execFileSync("git", ["init", "-q", "-b", "master"], { cwd: join(dir, "base") });
+        git("config", "user.email", "t@t");
+        git("config", "user.name", "t");
+        git("config", "commit.gpgsign", "false");
+        writeFileSync(join(dir, "base/tools/results/cli.mjs"), "old\n");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        const base = git("rev-parse", "HEAD").trim();
+        writeFileSync(join(dir, "base/tools/results/cli.mjs"), "new\n");
+        git("commit", "-qam", "master");
+        const master = git("rev-parse", "HEAD").trim();
+        git("checkout", "-q", base);
+        git("remote", "add", "origin", join(dir, "base"));
+        const script = steps().find((s) => s.name === "Take the tools from master").run;
+        execFileSync("bash", ["-euo", "pipefail", "-c", script], {
+            cwd: join(dir, "base"),
+            env: { ...process.env, GITHUB_SHA: master, RUNNER_TEMP: dir },
+        });
+        assert.equal(readFileSync(join(dir, "trusted/tools/results/cli.mjs"), "utf8"), "new\n");
+        assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
+        rmSync(dir, { recursive: true, force: true });
     });
 });
 

@@ -52,6 +52,14 @@ jobs:
                   ref: ${{ inputs.base }}
                   fetch-depth: 2
 
+            # The base's tests, run by master's own tools (this run's commit): a base older than a tools change, or
+            # than the tools themselves, still gets the current ones. Only what is tested is the base's.
+            - name: Take the tools from master
+              run: |
+                  git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+                  mkdir -p "$RUNNER_TEMP/trusted"
+                  git archive FETCH_HEAD tools | tar -x -C "$RUNNER_TEMP/trusted"
+
             # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)
             - name: Refuse a base that is not on master
               env:
@@ -107,4 +115,4 @@ jobs:
                   FILE: ${{ inputs.file }}
                   VARIANT: ${{ inputs.variant }}
                   REPEAT: ${{ inputs.repeat }}
-              run: node tools/results/cli.mjs base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"
+              run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"

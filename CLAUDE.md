@@ -341,7 +341,7 @@ The `tools/` directory contains build scripts:
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
-| `tool-tests.txt` | The tool tests `pnpm run test:ci-workflows` runs (ci.yml's Checks job), one path per line, sorted, run in order by `run-ci-workflow-tests.mjs`, which names the failed files. A new tool test is added here, not to package.json; the file merges with `merge=union` (`.gitattributes`), so two branches that each add a line never conflict. Not code-owned, so adding a tool test leaves auto-merge on; PR Integrity (`check-test-integrity.mjs`) flags a line removed while its file still exists |
+| `tool-tests.txt` | The tool tests `pnpm run test:ci-workflows` runs (ci.yml's Checks job), one path per line, sorted, run in order by `run-ci-workflow-tests.mjs`, which names the failed files. A new tool test is added here, not to package.json; the file merges with `merge=union` (`.gitattributes`), so two branches that each add a line never conflict. PR Integrity (`check-test-integrity.mjs`) flags a line removed while its file still exists |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it and caps a Node run at its share of the cores (`workerShare()`, cores / slots), and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard); `--gpu <command>` holds the one machine-wide GPU slot instead (the gate's NVIDIA step, which runs beside the shards). Three lanes: a gate's shards (`TEST_SLOT_GATE`, set by `prepush-tests.mjs`) go ahead of every waiting run; `GRAPHTY_SLOT_PRIORITY=low` (the branch sync, `low-priority.sh`) queues behind every other run, and so does EVERY run outside a gate while a gate runs its test shards (its mark, `tmp/test-slots/.gate-<pid>`); a run that holds a slot keeps it. `node tools/test-slots.mjs status` lists the running gates and every holder and waiter. Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `vitest-time-budget.mjs` | A Vitest reporter that reports, and never fails a run for, every passing test over 10 s or over 3 times its median over its last 9 runs (a log block, and a GitHub Actions warning in CI). The history is the JSON file `VITEST_DURATION_HISTORY` names, which ci.yml's test job keeps per shard in the Actions cache. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A slow test is a defect to find; a timeout is never raised for one |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
@@ -570,7 +570,8 @@ mode for now (see "Release versioning"). In short:
   dispatch releases.
 
 **Live today:** every pull request into master runs the affected suite with the screenshots and the visual
-gate; `Cost Estimate Accuracy` runs on every pull request that affects graphty-element and gates it; the short
+gate; `Cost Estimate Accuracy` runs on a pull request only when what the estimates read, time or run with changed
+(ci.yml's "Plan the optional jobs" step lists the paths), and gates it; Docs runs only on a docs input; the short
 test shards run as two grouped jobs. ci.yml still holds the handling for the retired Mergify merge-queue runs
 (`Queue Checks Pass`), which no longer happen. A push to master runs no tests: ci.yml builds every package,
 Storybook and docs site and skips every test, link, cost and screenshot job; every green master build keeps its
@@ -607,7 +608,8 @@ writes `Fixes #N` (or `Refs #N`) from the branch's issue number.
 Configured by `lychee.toml` and `.lycheeignore` (URL patterns never worth checking, each with its
 reason); run by `tools/check-links.sh`:
 
-- **Every pull request** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
+- **Every pull request** runs the offline half (`tools/check-links.sh --offline`, in the Checks job).
+- **The full run** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
   the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
   and package.json; `github.com/graphty-org/graphty-monorepo/(blob|tree)/master/...` links resolved
   against the checkout; every other `github.com/graphty-org` link over the network; and every
@@ -772,7 +774,7 @@ shard. The shards:
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-5`
 - `graphty-element-lifecycle` (autosave across reloads, closes, discards, crashes and kills in Chromium,
-  Firefox and WebKit; never in the pre-push gate)
+  Firefox and WebKit; never in the pre-push gate, and only in the full run, never on a pull request)
 
 A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
@@ -1231,11 +1233,12 @@ rollout: issue #3418.
    pull request this way and stops.
 4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch; each
    push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
-5. `pr-open.sh` leaves auto-merge off, and the owner merges, for a breaking (`!` or `BREAKING CHANGE`)
-   commit, for a change to what judges a pull request or guards the owner (`.github/`, `.claude/`,
-   `tools/ci-*`, `tools/test-select*`, `tools/test-quarantine.json`, visual-review, the release files,
-   the credential guard, `pr-open.sh` itself; the same list as `.github/CODEOWNERS`), and for a pull
-   request someone else opened. `Lint PR Title` also fails any pull request holding a breaking commit
+5. `pr-open.sh` leaves auto-merge off, and the owner merges, only for a breaking (`!` or `BREAKING CHANGE`)
+   commit, for a change to a file that guards the owner (`GUARD_PATHS` in `pr-open.sh`: the screenshot
+   approval keys and trusted gate, `release-*.json`, the credential guard, `.claude/settings.json`, the
+   quarantine list, `pr-open.sh` and `pr-title.yml`), and for a pull request someone else opened. A change to CI or to what guards the owner
+   (the rest of `.github/`, `tools/ci-*`, `tools/test-select*`, the rest of visual-review) merges like any
+   other once green (owner, 2026-10-25). `Lint PR Title` also fails any pull request holding a breaking commit
    until the owner adds the label `breaking-go`, so a breaking commit pushed later cannot merge on its own.
 
 Rules:

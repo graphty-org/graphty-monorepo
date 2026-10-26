@@ -37,6 +37,7 @@ export const MAX_ROWS = 5000;
  * is charged or anything is written, so the request is all or nothing. Below the hard limits for the copies' keys.
  */
 const MAX_ITEM_BYTES = 300_000;
+const MAX_TRIES = 3;
 const MAX_ID_BYTES = 900; // under the 1024-byte sort key with the copies' prefix and suffix
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
@@ -327,7 +328,9 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
         // of the earlier tries are under their ids.
         const tryOf = /^(.*)\.(\d+)$/.exec(id);
         const invs = [id];
-        if (tryOf && Number(tryOf[2]) === b.try) for (let k = 1; k < b.try; k++) invs.push(`${tryOf[1]}.${k}`);
+        // The poster sets try: bounded to the few retries CI makes, so it cannot drive unbounded queries.
+        if (tryOf && Number(tryOf[2]) === b.try)
+            for (let k = Math.max(1, b.try - MAX_TRIES); k < b.try; k++) invs.push(`${tryOf[1]}.${k}`);
         for (const inv of invs)
             for (const t of await db.query(INV_TESTS(inv))) {
                 const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;

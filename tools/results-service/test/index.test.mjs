@@ -752,6 +752,19 @@ describe("GET /v1/release-state", () => {
         assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], ["c4", 0, null]);
         assert.deepEqual(st.approved, [], "an approved candidate older than nightly promotes nothing");
     });
+    it("takes a promotion's version merge, which inherited nightly's verdict, for nightly itself", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "a".repeat(40);
+        s.site(n, NOW - 50 * HOUR);
+        s.nightly(n, NOW - 49 * HOUR);
+        s.site("m1", NOW - 48 * HOUR);
+        s.verdict("m1", "green-clean", NOW - 47 * HOUR, { lane: "inherited from aaaaaaa" });
+        assert.deepEqual([(await state(call)).ageNightlyMs, (await state(call)).blocking], [0, null]);
+        s.site("m2", NOW - 46 * HOUR);
+        s.verdict("m2", "green-clean", NOW - 45 * HOUR, { lane: "inherited from bbbbbbb" });
+        assert.equal((await state(call)).ageNightlyMs, 49 * HOUR, "inherited from another commit still waits");
+    });
     it("counts nightly's age from the first site when nightly never moved", async () => {
         const { call, env } = service();
         const s = seed(env);

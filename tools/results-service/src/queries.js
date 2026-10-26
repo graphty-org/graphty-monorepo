@@ -297,9 +297,15 @@ export async function getReleaseState(q, who, db, now) {
         : 0;
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);
-    const unpromoted = !!canary && canary.sha !== nightly?.sha && canary.builtAt > nightlyBuilt;
+    const canaryVerdict = states.find((s) => s.sha === canary?.sha);
+    // the version merge a promotion pushes to master differs from nightly only in versions, so the full run's pick
+    // gives it nightly's verdict ("inherited from <short sha>", tools/full-run.mjs) and never promotes it: it is
+    // nightly, not a candidate waiting for it
+    const from = /^inherited from ([0-9a-f]{7,})$/.exec(canaryVerdict?.lane ?? "")?.[1];
+    const isNightly = canary?.sha === nightly?.sha || (!!from && !!nightly?.sha.startsWith(from));
+    const unpromoted = !!canary && !isNightly && canary.builtAt > nightlyBuilt;
     const start = nightly?.movedAt ?? (await db.prepare("SELECT min(built_at) AS at FROM site").first())?.at;
-    const canaryState = states.find((s) => s.sha === canary?.sha)?.state;
+    const canaryState = canaryVerdict?.state;
     return {
         nightly,
         red: last?.state === "red" ? last : null,

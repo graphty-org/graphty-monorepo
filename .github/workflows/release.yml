@@ -1426,6 +1426,18 @@ jobs:
                       exit 1
                   }
 
+            # A re-run of an older run's site job must not roll nightly.graphty.app back: deploy only while
+            # channel/nightly is still this run's commit (the land job moved it; a later promotion moves it on).
+            - name: Check that nightly is still this run's
+              run: |
+                  set -euo pipefail
+                  git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
+                  at=$(git rev-parse refs/remotes/origin/channel/nightly)
+                  [ "$at" = "${COMMIT:-$SHA}" ] || {
+                      echo "::error::channel/nightly is at ${at} now, not this run's ${COMMIT:-$SHA}: a later promotion moved it, so this run deploys nothing"
+                      exit 1
+                  }
+
             - name: Download the candidate's built site
               run: |
                   set -euo pipefail

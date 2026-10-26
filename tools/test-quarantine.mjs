@@ -422,8 +422,23 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const run = viaRunTests ? `bash tools/run-tests.sh --command ${shard.shard} ${shQuote(cmd)}` : cmd;
     const retryAt = Date.now();
     const r2 = await sh(run, retryEnv, root);
-    const second = newReports(reports, ".retry");
-    return { second, facts: { retried: true, retryCode: r2.code, retryRunId: retryId, retryFiles: files, retryAt } };
+    const read = newReports(reports, ".retry");
+    // A retry that wrote no report, or one without the failed files (they matched no test file under its
+    // command), ran nothing: it cannot excuse a failure, so the first run's failures stand.
+    const ranThem = read && files.every((f) => read.files.has(f));
+    if (!ranThem) console.log(`${RETRY_MARK} the retry reported no run of the failed file(s): its failures stand`);
+    const second = ranThem ? read : null;
+    return {
+        second,
+        facts: {
+            retried: true,
+            retryCode: r2.code,
+            retryRunId: retryId,
+            retryFiles: files,
+            retryAt,
+            retryRan: !!ranThem,
+        },
+    };
 }
 
 // A judge's own lines (runShard()'s `judge`), warnings as annotations in GitHub Actions.

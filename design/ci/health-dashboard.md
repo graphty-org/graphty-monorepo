@@ -170,8 +170,12 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   now and during saturated spans, by repository, workflow and event, as sorted bars; runs still
   queued with no job created; superseded runs still running. Every GitHub-hosted job counts against
   the limit of 60 and a macOS job also against its own 5; machine.dev T4 jobs are not counted.
-- **Local runs**: "no local gate since 2026-10-25"; the page state is a gray IDLE, and its members
-  are idle with hatched "no history" sparklines (3.1).
+- **Local runs**: local vs CI disagreement, local shard time and test-slot waits, and the local
+  runs themselves (gate runs from the push log, shard times). Its members are informational, never
+  judged, so they have no SLA entry: the page builder reads them from the local writer's rollups.
+  The page state follows the local writer: OK while it reports, a gray IDLE when no local runs
+  happen (members idle with hatched "no history" sparklines, 3.1), NO DATA when the writer is stale
+  or failing. Values are shown only while the writer reports.
 - **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
   which states that no entries exist.
 - **Releases**: the lanes of the newest tested candidate; train attempts, including those that
@@ -502,8 +506,9 @@ The Costs page answers what running the pipeline costs and which process costs i
   recorded, paid test steps (as `llm-due.mjs` counts them) times 0.94 USD, about 29 USD a month.
   Local runs are on the owner's own Gemini bill and not in it.
 - **AWS (money).** Cost Explorer, daily by service; credits left.
-- **Cloudflare and Sentry (money).** Their plans (5 USD; the Sentry plan), plus usage against the
-  allowance or quota from their APIs, which need read-only tokens.
+- **Cloudflare and Sentry (money).** Their plans (Cloudflare Workers Paid, 5 USD; the Sentry plan,
+  whose price is not recorded yet, so its money line shows NO DATA), plus usage against the
+  allowance or quota from their APIs, which need read-only tokens (section 16).
 - **GitHub (money).** Team, 2 seats, 8 USD. Actions minutes are free for this public repository;
   their list-price value (Linux 0.006, Windows 0.010, macOS 0.062 USD/min) is value, never money.
 
@@ -556,8 +561,8 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Weekly stress run (from GitHub)                     | Sundays              | 8 d                 |
 | Host matrix                                         | nightly              | 30 h                |
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
-| Feed of CI's flaky detections                       | each new flaky entry | not set up          |
-| Local writer (test ledger, push log)                | each local run       | idle, not judged    |
+| Feed of CI's flaky detections (issue #3610)         | each new flaky entry | not set up          |
+| Local writer (test ledger, push log, slot waits)    | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local
@@ -592,10 +597,19 @@ AWS credential in GitHub at all.
   `ref`) against the record kinds each workflow may write, as `tools/results-service/` does today.
 - **Reads are public.** Everything stored is already public on GitHub (runs, pull requests, test
   names, truncated failure messages); no tokens, logs or host names are stored.
-- **The collector** signs in as a GitHub App, with the App's own rate limit, never the budget the
-  sessions share. Every secret is an SSM SecureString under `/graphty-health/`.
-- CORS allows `GET` from `https://health.graphty.app` and the servherd dev origin only. A local
-  writer, if a local gate runs again, gets its own token route accepting only kind `local`.
+- **The collector** signs in as the read-only GitHub App `graphty-pipeline-health` (actions,
+  checks, contents, issues, metadata and pull requests, all read; contents lets it read tags,
+  commits and workflow files), with the App's own rate limit, never the budget the sessions share.
+  Every secret is an SSM SecureString under `/graphty-health/`: the App's id, private key and
+  installation id under `github-app/`, the Pushover keys under `pushover/`, the optional Cloudflare
+  and Sentry tokens under `cloudflare/` and `sentry/`.
+- CORS allows `GET` from `https://health.graphty.app` and one dev origin (the page's Vite default,
+  or the one passed as the `devOrigin` context at deploy) only.
+- **The local writer** posts to its own routes, `POST /v1/local/{invocations,push-runs,waits}`,
+  with a bearer token whose SHA-256 alone is stored (SSM `local-token-sha256`); those routes accept
+  only kind `local` and answer 401 to any other token. The writer is a plain Node script,
+  `tools/pipeline-health/local/collector.mjs`, run under servherd from the main checkout: it reads
+  the test ledger, the push log and the slot-wait log, and posts each record once.
 
 ### 10.3 Storage
 
@@ -623,7 +637,9 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
 
 - **Collector Lambda**, every 5 minutes (EventBridge Scheduler, reserved concurrency 1): runs and
   jobs created or finished since its cursor, plus every queued and in-progress job, across every
-  organization repository with Actions activity (runner demand is organization-wide); one GraphQL
+  organization repository with Actions activity in 28 days that the App can see (runner demand is
+  organization-wide; the App is installed on graphty-monorepo only, so jobs of other repositories
+  are not counted until it is installed there too, section 16); one GraphQL
   query each for pull requests and issues; one jobs call (`filter=latest`) per unfinished run, about
   40 calls a cycle at the 2026-10-25 peak; `release.yml` and `restricted-cpu-stress.yml` job and
   step conclusions; npm hourly; billing daily. Then rollups, status and alerts (section 13). The
@@ -631,9 +647,12 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
 - **CI posts** (results wiring, #3429): each shard run with per-file results and every failed or
   retried test, from the JUnit each shard writes; run, job and step timings; LLM token counts once
   recorded. A failed post never fails a job.
-- **Backfill**: the last 28 days of runs and jobs, throttled. Check first on a known run whether a
-  job behind `needs:` gets its `created_at` at run creation; if so, its wait starts when its last
-  dependency finished.
+- **Backfill**: the last 28 days of runs and jobs, pull requests and issues, as a collector mode
+  run by hand (`pnpm run backfill`, default 28 days), throttled under the App's hourly budget and
+  resumable from a cursor; the scheduled recompute rebuilds the rollups. A job behind `needs:` gets
+  its `created_at` when it becomes ready (its last dependency's `completed_at`, to the second,
+  checked on runs 40239928447 and 40238975833), not at run creation, so a job's queue wait is
+  `started_at - created_at` for every job, skipped jobs left out.
 
 ### 10.5 Spend protection
 
@@ -642,7 +661,10 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
    budget**: each ingest adds its rows to a `QUOTA#<day>` item under a condition (300,000 rows,
    about 5 times normal); past it writes get 429 and Data sources turns red. Reads are answered from
    the precomputed page items with `Cache-Control: max-age=60` (an HTTP API has no gateway cache).
-   Timeouts 10 s (collector 60 s); logs kept 14 days.
+   Timeouts: read 10 s; ingest 28 s at 1,024 MB (under the HTTP API's 30 s; at 256 MB a 200-row
+   post took longer than 10 s); collector 60 s at 512 MB, which recomputes at most the newest 200
+   dirty 5-minute buckets a cycle, so the live hour is right first and a backlog (a backfill)
+   drains over later cycles. Logs kept 14 days.
 2. **An AWS Budget (hours).** 10 USD a month, email at 50% actual and 100% forecast, and an action
    at 100% actual that attaches a deny-all policy to the Lambda roles.
 3. **The project spend limit (days).** Set by the owner: 20 USD (the minimum), "stop new resource
@@ -653,9 +675,20 @@ adds an alarm outside the collector.
 
 ### 10.6 Code and deploy
 
-CDK in TypeScript in `tools/pipeline-health/` (`infra/`, `src/`, `web/`, `mcp/`, `test/`), deployed
-by CodeBuild through a CodeConnections connection on master pushes that touch it; by hand until the
-owner approves the connection.
+CDK in TypeScript in `tools/pipeline-health/` (`infra/`, `src/`, `config/`, `web/`, `mcp/`,
+`local/`, `test/`), a standalone package with its own lockfile, outside the repository's pnpm
+workspace and ignored by nx, so it is never released to npm. Its own workflow
+(`.github/workflows/pipeline-health.yml`) type-checks, tests and synthesizes it on pull requests and
+master pushes that touch it.
+
+Two stacks. `graphty-health` holds the service (table, API, Lambdas, schedule, Budget, alarm,
+topic) and is deployed by hand with the `graphty` profile until CodeBuild takes over.
+`graphty-health-deploy` holds the CodeConnections connection `graphty-health-github`, a build role
+that may assume only the CDK bootstrap roles, and, once the connection is approved, a CodeBuild
+project with a webhook on master pushes that touch `tools/pipeline-health/`, which type-checks,
+tests and runs `cdk deploy graphty-health` (no CodePipeline). CodeBuild refuses a project whose
+connection is still pending, so the project and webhook are added only when the context
+`connectionApproved` in `cdk.json` is set to `true` and `graphty-health-deploy` is deployed again.
 
 ### 10.7 Cost
 
@@ -674,7 +707,11 @@ backend's own cost is a line on the Costs page.
 **Hosting: a new public repository, `graphty-org/pipeline-health`, at `health.graphty.app`.**
 graphty.app is the production channel and moves only on the owner's go, but a health page must keep
 updating when the pipeline is broken. The source stays in `tools/pipeline-health/web/`; a workflow
-on master builds it and pushes it to the pages repository with a deploy key. The page holds no data:
+on master (`.github/workflows/pipeline-health-pages.yml`, on pushes that touch the page) builds it
+against the API URL in the repository variable `HEALTH_API_URL` and pushes it, with a `CNAME` and
+`.nojekyll`, to the pages repository's `gh-pages` branch with a deploy key (secret
+`HEALTH_PAGES_DEPLOY_KEY`). The pages repository holds only the site, its README and a small check
+that `gh-pages` holds `index.html` and the right `CNAME`. The page holds no data:
 it reads the API on load and every 60 seconds, and says so in red when the data is over 15 minutes
 old.
 
@@ -720,7 +757,7 @@ minutes) emails the owner through SNS, which needs neither the collector nor Pus
 1. **First AWS service, with its alarms.** Bootstrap CDK; deploy the stack (table, API, Lambdas,
    schedule, parameters, Budget, CloudWatch alarm and SNS email) by hand; create the collector's
    GitHub App; collect and backfill; turn on the Pushover alerts.
-2. **The same day, open the issues:**
+2. **The same day, open the issues** (opened: #3607, #3608, #3609, #3610 in this order):
     - **Results service** (Worker and D1) becomes routes of the health API with the same claim rules.
       `/v1/plan` is on CI's path, so it fails open on a 5xx, a 429 or a paused project. CI posts
       through the one URL variable of the #3429 wiring, so it never posts to two stores longer than
@@ -796,13 +833,33 @@ Where the two reviews of version 2 disagreed:
 
 ## 16. Owner decisions
 
-One-way doors, for the owner:
+These choices belonged to the owner because they publish a name, spend money or need the owner's
+own accounts. What was decided, and what is still the owner's to do:
 
-1. The URL `health.graphty.app` and the repository name `graphty-org/pipeline-health` (public
-   names; the default above).
-2. The AWS project spend limit (20 USD recommended), which only the owner can set.
-3. The CodeConnections approval, and the collector's read-only GitHub App (actions, checks, pull
-   requests, issues, metadata).
-4. Read-only tokens for the cost lines: Cloudflare (Account Analytics: Read, Billing: Read) and
-   Sentry (org:read). Until they exist, those members are not set up, out of the status.
-5. The email address the CloudWatch alarm sends to.
+1. **Address and repository: decided.** The page is at `https://health.graphty.app`, published from
+   the public repository `graphty-org/pipeline-health` by GitHub Pages from its `gh-pages` branch,
+   with HTTPS enforced. The DNS record (`health` CNAME `graphty-org.github.io`) is in place and the
+   site is live.
+2. **AWS project spend limit: set** at 20 USD, the minimum, by the owner in the AWS console (only
+   the account owner can set it). If it is ever raised or removed, the AWS Budget of section 10.5
+   is the only cap left.
+3. **GitHub access for the collector: the App is done; the deploy connection waits for the owner.**
+   The owner created the read-only GitHub App `graphty-pipeline-health` on 2026-10-26 with actions,
+   checks, contents, issues, metadata and pull requests, all read (contents was added beyond the
+   first list so the collector can read tags, commits and workflow files), no webhook, installed on
+   graphty-monorepo only. Its keys are in SSM (section 10.2). Installing it on another organization
+   repository is optional and makes that repository's jobs count in Runners. The CodeConnections
+   connection `graphty-health-github` exists and is pending: the owner approves it once in the AWS
+   console (Developer Tools, Settings, Connections, "Update pending connection"); then
+   `connectionApproved` is set to `true` in `cdk.json` and `graphty-health-deploy` is deployed again
+   (section 10.6). Until then `graphty-health` is deployed by hand.
+4. **Cloudflare and Sentry tokens: optional, not given.** A Cloudflare token with Account Analytics:
+   Read and Billing: Read, and a Sentry token with org:read, stored as the SSM parameters
+   `/graphty-health/cloudflare/token` and `/graphty-health/sentry/token`, turn on the two usage
+   members of Costs. Until they exist those members are not set up and out of the status. The
+   Sentry money line also needs the plan's monthly price in `config/rates.json`, which only the
+   owner knows; until then it shows NO DATA.
+5. **Alarm email: subscribed, waiting for confirmation.** The address is the owner's choice and is
+   kept out of the repository: the owner subscribes it to the SNS topic `graphty-health-alarms`
+   with `tmp/health-alarm-email.sh <address>` (done), then clicks the confirmation link AWS emails.
+   Until that click the dead-man alarm and the Budget notifications reach nobody.

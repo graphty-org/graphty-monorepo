@@ -11,6 +11,7 @@
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { failureHashes } from "../results-service/src/signature.js";
 import { config, flushHealth, postFailures } from "./client.mjs";
 
 export const IMMEDIATE = 20;
@@ -64,12 +65,10 @@ export default class ResultsReporter {
         const result = testCase.result();
         if (!this.on || result.state !== "failed") return;
         const error = result.errors?.[0];
-        const failure = {
-            file: relative(this.root, testCase.module.moduleId).split(sep).join("/"),
-            name: testCase.fullName,
-            status: "fail",
-            message: `${error?.message ?? ""}\n${error?.stack ?? ""}`.trim().slice(0, MESSAGE_CHARS),
-        };
+        const file = relative(this.root, testCase.module.moduleId).split(sep).join("/");
+        const message = `${error?.message ?? ""}\n${error?.stack ?? ""}`.trim().slice(0, MESSAGE_CHARS);
+        // The store computes the status again from the message; the same function names it here.
+        const failure = { file, name: testCase.fullName, status: failureHashes(message, file).status, message };
         if (this.sent < IMMEDIATE) {
             this.sent++;
             this.pending.push(this.send(this.cfg, this.invocation, [failure]));

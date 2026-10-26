@@ -1932,8 +1932,11 @@ jobs:
     # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
     # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
-    # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
-    # different pictures fail its test) is retried once and reported flaky when the retry passes.
+    # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
+    # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
+    # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
+    # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
+    # promotion.blocked; it stays unset (report only) until the project switches.
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
@@ -1941,6 +1944,12 @@ jobs:
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record);
+        # issues: write files the issue of a story the store quarantines
+        permissions:
+            contents: read
+            id-token: write
+            issues: write
         strategy:
             fail-fast: false
             matrix:
@@ -1972,6 +1981,8 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+                  # the token is not left in .git/config for a pull request's code
+                  persist-credentials: false
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
@@ -2040,17 +2051,32 @@ jobs:
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
+            # the store's plan (the Packages job's results-plan artifact) holds a quarantine of the `-shots` family
+            - name: Download the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:
                   SHARD: ${{ matrix.shard }}
                   COMMAND: ${{ matrix.command }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
-              run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
+                  # the quarantine list this run judges by, which the combine step must judge by too
+                  RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
+                  GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
+              run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
-              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}

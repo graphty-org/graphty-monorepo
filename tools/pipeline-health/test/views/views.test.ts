@@ -178,7 +178,6 @@ describe("views", () => {
                 startedAt: at - 600_000,
                 endedAt: at,
                 secs: 300 + (i % 400),
-                budgetMs: 900_000,
                 files: [["a.test.ts", 3, 0, 0, 1000]],
             };
             items.push(run);

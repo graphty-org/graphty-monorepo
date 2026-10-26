@@ -759,11 +759,12 @@ export interface StylesApi {
      * what a consumer should never have to write against this element. So the element answers the
      * question instead.
      *
-     * It waits for everything that paints without being awaited: the runs on the session's
-     * queue, the repaint of every style edit written so far, the repaint a selection or pointer
-     * change asks for (`selection.apply`, `hover`, `previewHover`), and a live set's new
-     * membership after the graph changed, which arrives a frame later. After it resolves there
-     * is no element-initiated painting outstanding, whoever started it.
+     * It waits for the runs on the session's queue, the repaint of every style edit written so
+     * far, and every repaint pass already asked for when it is called, such as the one a
+     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). A pass
+     * asked for after the call is not waited for, so steady pointer input cannot keep it from
+     * resolving. A live set's new membership after the graph changed arrives on a later rendered
+     * frame and is not waited for.
      * @returns A promise that resolves when nothing the element started is still in flight.
      */
     settled(): Promise<void>;

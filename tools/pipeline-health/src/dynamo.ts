@@ -203,8 +203,13 @@ export function dynamoStore(
                     await client.send(new TransactWriteCommand({ TransactItems: items }));
                     return true;
                 } catch (error) {
-                    const reasons = (error as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
+                    const reasons =
+                        (error as { CancellationReasons?: { Code?: string; Message?: string }[] })
+                            .CancellationReasons ?? [];
                     if (reasons.some((r) => r.Code === "ConditionalCheckFailed")) return false;
+                    // A row DynamoDB refuses (over a size limit) answers as it does outside a transaction.
+                    const invalid = reasons.find((r) => r.Code === "ValidationError");
+                    if (invalid) throw Object.assign(new Error(invalid.Message), { name: "ValidationException" });
                     if (tries === 4 || !reasons.some((r) => RETRY.has(r.Code ?? ""))) throw error;
                     await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
                 }

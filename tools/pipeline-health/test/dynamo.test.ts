@@ -41,6 +41,18 @@ describe("dynamoStore.transact", () => {
         expect(send).toHaveBeenCalledTimes(3);
     });
 
+    it("throws a refused row as the ValidationException DynamoDB gives outside a transaction", async () => {
+        const error = Object.assign(cancelled(), {
+            CancellationReasons: [
+                { Code: "ValidationError", Message: "Item size has exceeded the maximum allowed size" },
+            ],
+        });
+        await expect(storeWith(vi.fn().mockRejectedValue(error)).transact(ops)).rejects.toMatchObject({
+            name: "ValidationException",
+            message: "Item size has exceeded the maximum allowed size",
+        });
+    });
+
     it("throws any other error", async () => {
         await expect(storeWith(vi.fn().mockRejectedValue(new Error("boom"))).transact(ops)).rejects.toThrow("boom");
     });

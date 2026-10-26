@@ -147,8 +147,10 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
     checkSizes(items);
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
-    await putRaw(db, items, now);
+    // The bookkeeping copies first: a failing try's INVTESTS rows exist before its test rows, so a passing retry
+    // finds them even when a test write below fails.
     if (extra.length) await db.batch(extra.map((put) => ({ put })));
+    await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
     log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
     return { stored: items.length, kind: who.kind };
@@ -353,9 +355,9 @@ async function invocationItems(
                 items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
             }
     }
-    // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one, even when both
-    // arrive at once. A failing CI try remembers its failures itself, so a passing try can find them even when the
-    // separate /v1/failures post was lost.
+    // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one. A failing CI try
+    // remembers its failures itself (written before its test rows), so a passing try can find them even when the
+    // separate /v1/failures post was lost; a passing try that finishes its lookback before then still misses them.
     const extra = !passed && source === "ci" ? invTests(id, items, now) : [];
     return { items, extra };
 }

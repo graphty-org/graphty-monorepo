@@ -391,6 +391,8 @@ describe("ingest: what it stores", () => {
         expect(mem.items.get("R#shard_run#500.1.test.layout.1\u0000A#1")).toBeDefined();
         expect([...mem.items.keys()].some((k) => k.startsWith("DIRTY"))).toBe(true);
         expect([...mem.items.values()].filter((i) => i.pk.startsWith("R#test#"))).toHaveLength(1);
+        // Its failures are remembered for a passing retry even though one test write failed.
+        expect(await mem.query("INVTESTS#500.1.test.layout.1")).toHaveLength(2);
     });
 
     it("keeps flaky when try 1 and try 2 arrive at the same moment, in every row of the test", async () => {

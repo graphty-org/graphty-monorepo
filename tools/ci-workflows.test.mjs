@@ -1744,6 +1744,11 @@ describe("verification runs of ci.yml", () => {
         // the store quarantines a flaky story with an issue, which the step files
         assert.match(job(ci, "story-tests"), /issues: write/);
         // the pull request's own stories run here, so no token reaches them on a pull request
+        assert.match(job(ci, "story-tests"), /persist-credentials: false/);
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_PLAN: \$\{\{ runner\.temp \}\}\/results-plan\/results-plan\.json/,
+        );
         assert.match(
             job(ci, "story-tests"),
             /GH_TOKEN: \$\{\{ github\.event_name != 'pull_request' && github\.token \|\| '' \}\}/,

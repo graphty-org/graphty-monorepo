@@ -1945,6 +1945,8 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+                  # the token is not left in .git/config for a pull request's code
+                  persist-credentials: false
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
@@ -2013,6 +2015,15 @@ jobs:
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
+            # the store's plan (the Packages job's results-plan artifact) holds a quarantine of the `-shots` family
+            - name: Download the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:
@@ -2022,6 +2033,7 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
                   # the quarantine list this run judges by, which the combine step must judge by too
+                  RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"

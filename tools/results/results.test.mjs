@@ -452,6 +452,14 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
+    it("also asks for a story shard's screenshot family", () => {
+        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
+        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+            "graphty-storybook|flags=off|whole",
+            "graphty-storybook|flags=off|selected",
+            "graphty-storybook-shots|flags=off|shots",
+        ]);
+    });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {
             variants: {

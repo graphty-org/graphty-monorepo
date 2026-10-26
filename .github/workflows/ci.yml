@@ -2364,7 +2364,11 @@ jobs:
     release-due:
         name: Release due
         needs: all-checks
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        # always() with the result, not the implicit success(): a master push skips the test, link and cost jobs
+        # under All Checks Pass, and success() is false when any job up the chain was skipped (#3634).
+        if: >-
+            always() && needs.all-checks.result == 'success' &&
+            github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
         # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
         continue-on-error: true

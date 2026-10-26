@@ -61,7 +61,7 @@ import {
     STORYBOOKS,
     treeWithout,
 } from "./ci-reuse-plan.mjs";
-import { due as releaseDue } from "./release-due.mjs";
+import { due as releaseDue, toCancel as releaseToCancel } from "./release-due.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -1381,11 +1381,22 @@ describe("ci.yml", () => {
             issue: 9001,
         });
         assert.equal(releaseDue(closed("2026-10-24T11:55:00Z"), "Refs #9001", now), null, "closed long ago");
+        // the restart cancels the full runs in progress first, which hold it pending in release.yml's group
+        const runs = [
+            { databaseId: 1, displayTitle: "Release (full)" },
+            { databaseId: 2, displayTitle: "Release (restart)" },
+            { databaseId: 3, displayTitle: "Release (shadow)" },
+            { databaseId: 4, displayTitle: "Release (legacy)" },
+        ];
+        assert.deepEqual(releaseToCancel(runs), [1, 2], "never a shadow or a legacy release");
         const due = job(ci, "release-due");
         assert.match(due, /\n {8}needs: all-checks\n/);
-        assert.match(
-            due,
-            /\n {8}if: github.event_name == 'push' && github.ref == 'refs\/heads\/master' && !inputs.ref\n/,
+        // the implicit success() is false on a master push, whose test jobs under All Checks Pass are skipped (#3634)
+        const cond = /\n {8}if: >-\n((?: {12}.*\n)+)/.exec(due)?.[1].replace(/\s+/g, " ").trim();
+        assert.equal(
+            cond,
+            "always() && needs.all-checks.result == 'success' && github.event_name == 'push' && " +
+                "github.ref == 'refs/heads/master' && !inputs.ref",
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
@@ -3294,7 +3305,8 @@ describe("release.yml", () => {
             /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' \}\}/,
         );
         // the verdict judges every lane, whatever it ended with, only in a full run
-        assert.match(verdict, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run\]/);
+        const lanes = ["ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version_dry_run"];
+        assert.deepEqual(parseYaml(release).jobs.verdict.needs, ["pick", ...lanes, ...lanes.map((l) => `${l}_red`)]);
         assert.match(
             verdict,
             /if: \$\{\{ !cancelled\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && \(needs.pick.outputs.release == 'true' \|\| \(needs.pick.result != 'success' && needs.pick.result != 'skipped'\)\) \}\}/,
@@ -3316,6 +3328,33 @@ describe("release.yml", () => {
         // a full run versions, lands and publishes nothing, and never opens a "Release held" issue
         for (const j of [version, held]) assert.match(j, /inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'/);
         assert.match(job(release, "timings"), /needs:\s+\[[^\]]*\bverdict\b/);
+    });
+
+    it("files the red issue the moment a lane ends red, one job per lane, one at a time per run", () => {
+        const jobs = parseYaml(release).jobs;
+        const owner = {
+            llm: "${{ needs.llm.outputs.owner_item }}",
+            version_dry_run: "${{ needs.version_dry_run.outputs.held }}",
+        };
+        for (const lane of ["ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version_dry_run"]) {
+            const red = jobs[`${lane}_red`];
+            assert.ok(red, lane);
+            assert.deepEqual(red.needs, ["pick", lane]);
+            // without a status function the job would need every lane to succeed, and never run
+            assert.equal(
+                red.if,
+                `\${{ !cancelled() && needs.${lane}.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}`,
+            );
+            assert.equal(red.concurrency.group, "full-run-red-${{ github.run_id }}");
+            assert.equal(red.concurrency["cancel-in-progress"], false);
+            assert.deepEqual(red.permissions, { contents: "read", issues: "write" });
+            const step = red.steps.at(-1);
+            assert.equal(step.run, "node tools/full-run.mjs lane-red");
+            assert.equal(step.env.LANE, lane);
+            assert.equal(step.env.RESULT, `\${{ needs.${lane}.result }}`);
+            assert.equal(step.env.SHA, "${{ needs.pick.outputs.sha }}");
+            assert.equal(step.env.OWNER_ITEM, owner[lane]);
+        }
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {

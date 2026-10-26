@@ -185,14 +185,23 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
 - **Nightly fixes the run it has.** Master moves every 6 hours with new fixes and new problems, so
   waiting for a clean newest full run may never publish. A full run that is not green-clean is
   checked once more on its own commit, then held and fixed in place, never replaced by newer master.
-- **Same-commit re-run, once.** A `recapture` job (needs ci) re-shoots, on a fresh runner, only the
-  stories attempt 1 found changed or new (`capture --stories`); a story counts as changed only when
-  both shots differ from its baseline. `release-rerun.yml` (`workflow_run` on Release, attempt 1
-  only, the pattern of `gpu-rerun-on-runner-loss.yml`) runs `gh run rerun --failed` on a red run.
-  Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does. A test, lane or
-  story that failed and then passed is filed "Flaky in full run: <name>" (bug, priority:critical,
-  effort:medium; a comment when it recurs) and does not block. It is a confirmation, not a
-  quarantine: nothing joins a quarantine list, so the screenshot gate and GPU tests keep their rule.
+- **Same-commit re-run, once.** A release.yml `recapture` job (needs ci; ci.yml's visual job and
+  gate step are untouched) re-shoots on a fresh runner only the stories attempt 1 found changed or
+  new (`capture --stories`). A story is changed only when both shots differ from its baseline and
+  equal each other; two different shots are nondeterministic rendering, filed as flaky and never
+  approvable, so they hold the candidate until fixed. The run's one gated capture is
+  `visual-final-<project>` (attempt 1's shots with the re-shot ones replaced); the verdict, the page
+  and `promote-nightly` all read it. `release-rerun.yml` (`workflow_run` on Release; it absorbs
+  `gpu-rerun-on-runner-loss.yml`, so one workflow re-runs a run) runs `gh run rerun --failed` once,
+  on attempt 1 of a `full`, `restart` or `candidate` run whose failed jobs are all lanes or the
+  verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
+  `release-train` group like any run (every run catches up first, so a pending run it replaces
+  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does,
+  and `release-watch.yml` files the red issue when attempt 1 ended red and no attempt 2 started. A
+  test, lane or story that failed and then passed is filed "Flaky in full run: <name>" (bug,
+  priority:critical, effort:medium; a comment when it recurs) and does not block. It is a
+  confirmation, not a quarantine: nothing joins a quarantine list, so the screenshot gate and GPU
+  tests keep their rule. Today's flaky drop-target story ends here, not in a hold.
 - **Held candidate.** A run still not green-clean after its re-run holds its commit C: release.yml
   pushes branch `channel/candidate` at C (deploy key, environment `release`, ruleset like
   `channel/nightly`), writes the store's one-row `candidate` table (`base` C, `head`), and opens
@@ -202,20 +211,33 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
   only); newer master supersedes it only through that abandon.
-- **Fix forward into the candidate.** A real failure is fixed on a branch from the candidate head
-  (`./tools/worktree-new.sh fix/<n>-<topic> <head> --issue <n>`), commit message `Refs #<hold issue>`,
-  and merges into master by pull request as usual. On that merge `release-due` dispatches
-  `mode: candidate` (input `fix_pr`), which merges the fix's last commit before `pr-open.sh`'s master
-  merge into `channel/candidate`: a merge, never a cherry-pick. `tools/channel/candidate-fix.mjs`
-  refuses when that range holds a master first-parent commit the candidate lacks; a conflict
-  comments on the hold issue and the round resolves it on a branch from the candidate. The run
-  re-tests the new head H with nothing newer from master: the ci.yml shards `test-select.mjs` picks
-  for C..H plus every red lane (ci.yml `shards`, the lanes' `files`), and only the stories in the
-  changed import closure plus those still changed (new ci.yml input `stories`, merged with the last
-  capture by `merge-results`); other lanes carry the last result. H has no master build, so the run
-  builds it and assembles `site-<H>` itself.
+- **Fix forward into the candidate.** A fix branch never contains master. It starts from the
+  candidate head (`./tools/worktree-new.sh fix/<n>-<topic> <head> --issue <n>`), its commits say
+  `Refs #<hold issue>`, and `pr-open.sh --candidate` opens it into master without merging
+  origin/master (required checks are not strict, so GitHub merges it as is); later fix commits go
+  on the same branch. If it conflicts with master, the author merges the fix branch and master on a
+  second branch `<branch>-master` and opens that one instead, still committing fixes on the first
+  and merging them across. On the merge into master `release-due` dispatches `mode: candidate`
+  (input `fix_pr`). `tools/channel/candidate-fix.mjs` takes F, the newest commit of that pull
+  request with no master merge in its ancestry since the candidate, and merges F into
+  `channel/candidate` (a merge, never a cherry-pick). It refuses, commenting on the hold issue, when
+  any commit in `channel/candidate..F` is reachable from M0, the master tip before the fix merged
+  (first parent of its merge commit), or is not in the pull request's own commit list; a conflict
+  comments too, and the round opens a new fix branch from the head. A defect already fixed on
+  master from a newer base therefore cannot enter without a copy: the refusal says so and names the
+  owner's choice, abandon (the next slot holds a commit with the fix) or a fix forward from the
+  head. The run re-tests the new head H with nothing newer from master: ci.yml with `shards` (the
+  shards `test-select.mjs` picks for C..H plus every red one), T4, the audit, and Hosts and macOS
+  work protection when their paths or the lockfile changed in C..H; LLM regression keeps its daily
+  rule. A release.yml `candidate-capture` job re-shoots every story of each project nx calls
+  affected by C..H (every project for root files, the lockfile or Storybook config) plus the
+  stories still changed, and builds `visual-final-*` with C's captures for the rest. H has no
+  master build, so the run builds it and assembles `site-<H>` itself.
 - **Nightly promotion** reuses today's `version`, `land` (deploy key, version merge and tags, the
-  site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. While a publish hold
+  site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. A held candidate's
+  merge brings candidate merge commits into master, so `land` first runs `release-diff.mjs` over
+  origin/master..(its merge result) and refuses unless that adds only version fields and
+  changelogs: candidate code reaches master only through master's own pull requests. While a publish hold
   is open, slots still run; promoting a new version set waits for the hold to clear.
 - **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
   "prevent self-review" off, master only) refuses a nightly that was not clean or approved, whose
@@ -295,18 +317,21 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   exactly that tree.
 - **Approval gates nightly.** Images still changed after the re-capture hold the candidate and set
   the pending status `promotion/screenshots`. The page offers only the held candidate's tested head
-  H (`channel/candidate`, read from the store), never an older or newer run; `visual-review notify`
-  tells the owner once when H's captures are ready. Finish commits accept commit A parented on H,
-  on branch `visual/approve-<sha12>`, and opens a pull request touching only `visual-baselines/` and
+  H (`channel/candidate`, read from the store), and only once the store's latest verdict for
+  exactly H is `green-images` (every lane green, no owner item), never an older or newer run;
+  `visual-review notify` tells the owner once. Finish commits accept commit A parented on H, on
+  branch `visual/approve-<sha12>`, writing every accept carried by hash from an earlier head into
+  A's tree, and opens a pull request touching only `visual-baselines/` and
   `visual-review-approvals/`. When it merges, `release-due` matches its subject ("approve visual
   baselines at <sha12>") to H and dispatches release.yml `mode: promote-nightly` (inputs
-  `candidate`, `accept`): the gate runs unchanged on H's own capture (the run's `visual-*`
-  artifacts, 30 days) against A's baselines (byte copies, so `capture_sha == baseline_sha`), with
-  `--base channel/nightly --head A`; then version, land, publish and site on A; the store records
-  `approved`, the branch is deleted and the hold issue closed. A head that moved after Finish is
-  offered again only for images whose hash differs. A rejection keeps the hold: rejected images are
-  fixed forward. The gate and capture code come from master's tip at the run's start (code-owned
-  paths), recorded in `channel.json`.
+  `candidate`, `accept`); an accept for a head no longer current dispatches nothing and comments on
+  the hold issue. `promote-nightly` refuses unless A's parent is H and H's latest verdict is
+  `green-images`; then the gate runs unchanged on H's `visual-final-*` (30 days) against A's
+  baselines (byte copies, so `capture_sha == baseline_sha`), with `--base channel/nightly --head A`;
+  then version, land, publish and site on A; the store records `approved`, the branch is deleted and
+  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. The gate and
+  capture code come from master's tip at the run's start (code-owned paths), recorded in
+  `channel.json`.
 - **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;
   CI is the reference until local captures match it on two days.
 - **Migration:** a spike measures byte parity on 50 graphty and graphty-element stories. Either

@@ -9,10 +9,7 @@
 #                                         against this checkout. No network. About a second.
 #   tools/check-links.sh                  the above, plus every other github.com/graphty-org link
 #                                         over the network (set GITHUB_TOKEN to avoid rate limits),
-#                                         and every https://graphty.app link against canary.graphty.app:
-#                                         a path only the newest nightly serves is "pending promotion",
-#                                         not dead (tools/check-graphty-links.mjs; LINKS_CANARY_URL and
-#                                         LINKS_NIGHTLY_URL override the two sites)
+#                                         and every https://graphty.app link against canary.graphty.app
 #   tools/check-links.sh --site <dir>     the above, plus links to https://graphty.app checked
 #                                         against <dir>, the site tools/assemble-pages-site.sh
 #                                         builds -- so a link is judged against what the next
@@ -23,7 +20,7 @@
 #   tools/check-links.sh --external <report.md>
 #                                         every link in those files, external ones included, over
 #                                         the network; writes a Markdown report of the dead ones.
-#                                         graphty.app links are judged as in the network form above.
+#                                         graphty.app links are checked against canary.graphty.app.
 #                                         For the weekly workflow, not for a gate: another site's
 #                                         outage is not a reason to fail anyone's pull request
 #
@@ -88,21 +85,14 @@ git ls-files \
     | grep -vE '^[^/]+/index\.html$' \
     > "$INPUTS"
 
-# graphty.app links against canary, with the newest nightly as "pending promotion"
-check_graphty_links() {
-    "$LYCHEE" --dump --include '^https://graphty\.app' --exclude '.*' --files-from "$INPUTS" \
-        | node "$ROOT_DIR/tools/check-graphty-links.mjs"
-}
+# graphty.app is production, which moves only on promotion; canary serves master's newest build,
+# so a link to a page master already publishes is judged against canary.
+CANARY_REMAP='^https://graphty\.app(.*)$ https://canary.graphty.app$1'
 
 if [ -n "$REPORT" ]; then
-    echo "Checking every link in $(wc -l < "$INPUTS") files"
-    "$LYCHEE" --format markdown --output "$REPORT" --exclude '^https://graphty\.app' --files-from "$INPUTS"
-    STATUS=$?
-    echo "Checking graphty.app links against canary"
-    GRAPHTY="$(check_graphty_links)" || STATUS=1
-    echo "$GRAPHTY"
-    { echo; echo "## graphty.app links (against canary, then nightly)"; echo; echo "$GRAPHTY" | sed 's/^/- /'; } >> "$REPORT"
-    exit $STATUS
+    echo "Checking every link in $(wc -l < "$INPUTS") files (graphty.app against canary)"
+    "$LYCHEE" --format markdown --output "$REPORT" --remap "$CANARY_REMAP" --files-from "$INPUTS"
+    exit $?
 fi
 
 REPO_REMAP="^https://github\.com/graphty-org/graphty-monorepo/(?:blob|tree)/master/([^?#]*)(?:[?#].*)?$ file://$ROOT_DIR/\$1"
@@ -135,8 +125,10 @@ if [ $OFFLINE -eq 0 ]; then
         --remap '^https://github\.com/graphty-org/[^/]+/actions/runs/.* https://actions-run.invalid/' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
     if [ -z "$SITE" ]; then
-        echo "Checking graphty.app links against canary"
-        check_graphty_links || FAILED=1
+        # The include sees the remapped URL, so it names canary.
+        echo "Checking graphty.app links against canary.graphty.app"
+        "$LYCHEE" --remap "$CANARY_REMAP" --include '^https://canary\.graphty\.app' --exclude '.*' \
+            --files-from "$INPUTS" || FAILED=1
     fi
 fi
 

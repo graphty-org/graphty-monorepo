@@ -4,9 +4,7 @@ name: Links (weekly)
 # once a week. Dead ones go into one open issue labelled "dead-links", which each run rewrites and
 # a clean run closes. This never fails a pull request: an external site going down is not
 # something a contributor did. Our own links (relative, anchors, github.com/graphty-org,
-# graphty.app) are gated on every pull request by the "Links" job in ci.yml instead; here graphty.app
-# links are checked against canary.graphty.app, and one only the newest nightly serves is listed as
-# "pending promotion", not dead.
+# graphty.app) are gated on every pull request by the "Links" job in ci.yml instead.
 # See tools/check-links.sh.
 
 on:

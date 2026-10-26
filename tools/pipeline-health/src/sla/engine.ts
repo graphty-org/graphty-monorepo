@@ -502,14 +502,10 @@ function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[]
     let open: OpenEpisode | undefined;
     for (let i = HISTORY_STEPS - 1; i >= 0; i--) {
         const t = now5 - i * STEP;
-        const h: StepState =
-            i === 0
-                ? { state: BAD(current.state) || current.state === "OK" ? current.state : null, ...valueOf(current) }
-                : historicState(ctx, c, { t, end: t + STEP });
+        const h = i === 0 ? currentStep(current) : historicState(ctx, c, { t, end: t + STEP });
         if (BAD(h.state)) {
             open = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
-            if (!recovered(ctx, c, t)) delete open.clearedAt;
-            else open.clearedAt ??= t;
+            clearing(open, recovered(ctx, c, t), t);
         } else if (h.state === "OK" && open) {
             // Gray or unknown steps (null) neither open nor clear an episode.
             open.clearedAt ??= t;
@@ -522,10 +518,18 @@ function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[]
     return out;
 }
 
-const valueOf = (m: MemberStatus) => ({
+/** The state now as an episode step: gray states are unknown (null). */
+const currentStep = (m: MemberStatus): StepState => ({
+    state: BAD(m.state) || m.state === "OK" ? m.state : null,
     ...(m.value === undefined ? {} : { value: m.value }),
     ...(m.excess === undefined ? {} : { excess: m.excess }),
 });
+
+/** Cleared from the first recovered bucket on; a relapse takes it back. */
+function clearing(open: OpenEpisode, isRecovered: boolean, t: number): void {
+    if (!isRecovered) delete open.clearedAt;
+    else open.clearedAt ??= t;
+}
 
 const RANK: Record<string, number> = { OK: 0, "NO DATA": 1, WARNING: 2, FAILING: 3 };
 

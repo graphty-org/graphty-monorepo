@@ -330,8 +330,6 @@ export class LayerScopes {
     readonly #sources: LayerScopeSources;
     /** Whether a whole-graph repaint is running, and whether another was asked for meanwhile. */
     #whole: "idle" | "running" | "again" = "idle";
-    /** Who waits for the whole-graph repaints to end: see {@link LayerScopes.idle}. */
-    #idle: (() => void)[] = [];
 
     /**
      * Build over a session. Whole-graph repaints the entries ask for are coalesced: while one is
@@ -356,28 +354,6 @@ export class LayerScopes {
         };
     }
 
-    /**
-     * Whether a whole-graph repaint is running or folded in after the running one.
-     * @returns True until {@link LayerScopes.idle} would resolve.
-     */
-    get repainting(): boolean {
-        return this.#whole !== "idle";
-    }
-
-    /**
-     * Resolve once no whole-graph repaint is running and none is folded in after it.
-     * @returns a promise that never rejects
-     */
-    idle(): Promise<void> {
-        if (this.#whole === "idle") {
-            return Promise.resolve();
-        }
-
-        return new Promise((resolve) => {
-            this.#idle.push(resolve);
-        });
-    }
-
     /** Run one whole-graph repaint, or fold this request into the one after the running pass. */
     #repaintWhole(): void {
         if (this.#whole !== "idle") {
@@ -392,13 +368,6 @@ export class LayerScopes {
             this.#whole = "idle";
             if (again) {
                 this.#repaintWhole();
-                return;
-            }
-
-            const waiting = this.#idle;
-            this.#idle = [];
-            for (const resolve of waiting) {
-                resolve();
             }
         };
         const pass = this.#inner.repaint({ node: every(graph.nodeCount), edge: every(graph.edgeCount) });

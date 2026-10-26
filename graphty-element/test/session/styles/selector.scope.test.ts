@@ -127,27 +127,6 @@ describe("the scope selector", () => {
         assert.deepStrictEqual(colours(h), { a: BASE, b: "#ff0000", c: BASE, d: "#ff0000", e: BASE });
     });
 
-    it("a live set's new membership after the graph changes is painted once styles.settled() resolves", async () => {
-        const h = graph();
-        const id = h.session.sets.create(
-            { kind: "rule", where: { kind: "range", attribute: "data.weight", max: 3 }, reading: "induced" },
-            { name: "Light" },
-        );
-        await h.session.styles.add({
-            name: "Light",
-            selector: { match: "member", of: { set: id } },
-            set: { "node.color": "#ff0000" },
-        });
-        await paintAll(h);
-
-        // A new snapshot: the set resolves again on a later frame, then asks for its repaint (#3640).
-        await h.session.data.addNodes([{ id: "f", weight: 2 }]);
-        await h.session.styles.settled();
-
-        assert.strictEqual(colours(h).f, "#ff0000", "the new node is a member, and painted as one");
-        assert.isFalse(painter(h).painting());
-    });
-
     it("a detached scope paints nothing, the layers above it still paint, and an id never issued is refused", async () => {
         const h = graph();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Gone" });

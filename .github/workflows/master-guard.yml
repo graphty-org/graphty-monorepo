@@ -1,29 +1,15 @@
 # Keeps master green (design/ci/ci-cd-plan.md section 12). When CI or the canary deploy finishes on master,
 # tools/master-guard.mjs:
-<<<<<<< HEAD
 # - CI red: opens a revert of the commit when its parent was green, and opens a priority:critical issue; when
 #   the failure looks external (an outside service's error, a lost runner, the same job red on an earlier
 #   commit) it re-runs the failed jobs instead of reverting, and the issue names the evidence;
-# - either way: closes its own revert pull requests that master CI shows are no longer needed;
-# - Hosts red (the nightly; a push to master no longer runs Hosts): opens, or adds to, a priority:critical
-#   issue naming the merges since the lane's last green run. Never reverts; release.yml already refuses to release.
-# - Deploy to GitHub Pages red (graphty.app did not get the green master build): opens, or adds to, one
-#   priority:critical issue. Never reverts: the commit passed CI, and the deploy only publishes it.
-# The T4 GPU lane (gpu.yml) no longer runs on master: the release train runs it and files its own issue.
-=======
-# - CI red: freezes the Mergify queue (only priority:critical pull requests merge), opens a revert of the
-#   commit when its parent was green, and opens a priority:critical issue; when the failure looks external (an
-#   outside service's error, a lost runner, the same job red on an earlier commit) it re-runs the failed jobs
-#   instead of freezing and reverting, and the issue names the evidence;
 # - CI cancelled or never started (a job past its timeout ends the run cancelled): the same priority:critical
-#   issue, no freeze and no revert; not when a newer master run superseded it;
-# - CI green at or after a frozen red commit: lifts the freeze;
+#   issue, no revert; not when a newer master run superseded it;
 # - either way: closes its own revert pull requests that master CI shows are no longer needed;
 # - Deploy to GitHub Pages red (canary.graphty.app did not get the green master build): opens, or adds to, one
-#   priority:critical issue. Never freezes or reverts: the commit passed CI, and the deploy only publishes it.
+#   priority:critical issue. Never reverts: the commit passed CI, and the deploy only publishes it.
 # The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) no longer run on master: the release train runs them and files its
 # own issue.
->>>>>>> origin/master
 #
 # MASTER_GUARD_TOKEN is optional: a token that may open pull requests (contents and pull requests write). A pull
 # request opened with the workflow's own token starts no workflows, so without it the revert pull request (or, when

@@ -1514,7 +1514,10 @@ describe("ci.yml", () => {
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'\n/);
+        assert.match(
+            job(ci, "performance"),
+            /if: github.event_name != 'pull_request' && needs.packages.outputs.light != 'true'\n/,
+        );
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {

@@ -177,7 +177,7 @@ describe("collector deploy trigger", () => {
                 return new Response("{}", { status: 500 });
             },
         );
-    const builds = (opts: { running?: boolean; fail?: boolean } = {}) => {
+    const builds = (opts: { status?: string; fail?: boolean } = {}) => {
         const started: string[] = [];
         return {
             started,
@@ -186,7 +186,7 @@ describe("collector deploy trigger", () => {
                 started.push(commit);
                 return `graphty-health-deploy:${started.length}`;
             },
-            running: async () => opts.running ?? false,
+            status: async () => opts.status ?? "SUCCEEDED",
         };
     };
     const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
@@ -229,7 +229,7 @@ describe("collector deploy trigger", () => {
             gh(() => TREE),
             builds(),
         );
-        const b = builds({ running: true });
+        const b = builds({ status: "IN_PROGRESS" });
         await run(
             store,
             gh(() => "d".repeat(40)),
@@ -249,5 +249,31 @@ describe("collector deploy trigger", () => {
         expect(report.errors.deploy).toContain("AccessDenied");
         expect(await getCursor(store, "deploy")).toBeUndefined();
         expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("AccessDenied");
+    });
+
+    it("retries a failed build of the same tree, then leaves the deploy source in error", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ status: "FAILED" });
+        const errors: (string | undefined)[] = [];
+        for (let i = 1; i <= 3; i++)
+            errors.push(
+                (
+                    await run(
+                        store,
+                        gh(() => TREE),
+                        b,
+                        NOW + i * 5 * MIN,
+                    )
+                ).errors.deploy,
+            );
+        expect(b.started).toEqual([HEAD, HEAD]);
+        expect(errors[0]).toContain("attempt 2 started");
+        expect(errors[2]).toContain("after 3 attempts");
+        expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("FAILED");
     });
 });

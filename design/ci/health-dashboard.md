@@ -638,8 +638,8 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
 - **Collector Lambda**, every 5 minutes (EventBridge Scheduler, reserved concurrency 1): runs and
   jobs created or finished since its cursor, plus every queued and in-progress job, across every
   organization repository with Actions activity in 28 days that the App can see (runner demand is
-  organization-wide; the App is installed on graphty-monorepo only, so jobs of other repositories
-  are not counted until it is installed there too, section 16); one GraphQL
+  organization-wide; the App is installed org-wide on graphty-org, all repositories, read-only,
+  so every repository's jobs are counted, section 16); one GraphQL
   query each for pull requests and issues; one jobs call (`filter=latest`) per unfinished run, about
   40 calls a cycle at the 2026-10-25 peak; `release.yml` and `restricted-cpu-stress.yml` job and
   step conclusions; npm hourly; billing daily. Then rollups, status and alerts (section 13). The
@@ -683,12 +683,11 @@ master pushes that touch it.
 
 Two stacks. `graphty-health` holds the service (table, API, Lambdas, schedule, Budget, alarm,
 topic) and is deployed by hand with the `graphty` profile until CodeBuild takes over.
-`graphty-health-deploy` holds the CodeConnections connection `graphty-health-github`, a build role
-that may assume only the CDK bootstrap roles, and, once the connection is approved, a CodeBuild
-project with a webhook on master pushes that touch `tools/pipeline-health/`, which type-checks,
-tests and runs `cdk deploy graphty-health` (no CodePipeline). CodeBuild refuses a project whose
-connection is still pending, so the project and webhook are added only when the context
-`connectionApproved` in `cdk.json` is set to `true` and `graphty-health-deploy` is deployed again.
+`graphty-health-deploy` holds a CodeBuild project with no source and a build role that may assume
+only the CDK bootstrap roles. It needs no GitHub connection: when the collector sees that master's
+`tools/pipeline-health/` changed since the last deployed commit, it starts the project (with
+`codebuild:StartBuild`), which fetches that commit from the public repository, type-checks, tests and runs
+`cdk deploy graphty-health` (no CodePipeline, no webhook).
 
 ### 10.7 Cost
 
@@ -843,16 +842,14 @@ own accounts. What was decided, and what is still the owner's to do:
 2. **AWS project spend limit: set** at 20 USD, the minimum, by the owner in the AWS console (only
    the account owner can set it). If it is ever raised or removed, the AWS Budget of section 10.5
    is the only cap left.
-3. **GitHub access for the collector: the App is done; the deploy connection waits for the owner.**
+3. **GitHub access for the collector: done.**
    The owner created the read-only GitHub App `graphty-pipeline-health` on 2026-10-26 with actions,
    checks, contents, issues, metadata and pull requests, all read (contents was added beyond the
-   first list so the collector can read tags, commits and workflow files), no webhook, installed on
-   graphty-monorepo only. Its keys are in SSM (section 10.2). Installing it on another organization
-   repository is optional and makes that repository's jobs count in Runners. The CodeConnections
-   connection `graphty-health-github` exists and is pending: the owner approves it once in the AWS
-   console (Developer Tools, Settings, Connections, "Update pending connection"); then
-   `connectionApproved` is set to `true` in `cdk.json` and `graphty-health-deploy` is deployed again
-   (section 10.6). Until then `graphty-health` is deployed by hand.
+   first list so the collector can read tags, commits and workflow files), no webhook, installed
+   org-wide on graphty-org (all repositories, read-only), so every repository's jobs count in
+   Runners. Its keys are in SSM (section 10.2). Deploys need no GitHub connection: the collector
+   starts the `graphty-health-deploy` build itself (section 10.6), once that stack is deployed in its
+   connection-free form.
 4. **Cloudflare and Sentry tokens: optional, not given.** A Cloudflare token with Account Analytics:
    Read and Billing: Read, and a Sentry token with org:read, stored as the SSM parameters
    `/graphty-health/cloudflare/token` and `/graphty-health/sentry/token`, turn on the two usage

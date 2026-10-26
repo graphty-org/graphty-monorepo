@@ -681,6 +681,9 @@ async function npm(c: Cycle, gh: GitHub) {
     await recordSource(c.d.store, "npm", c.now, { ok: true });
 }
 
+/** Builds started for one tools/pipeline-health tree before a failure is left for a person. */
+const DEPLOY_ATTEMPTS = 3;
+
 export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     tree: object(expression: "master:tools/pipeline-health") { oid }
@@ -690,7 +693,8 @@ export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
 
 /**
  * Redeploys the health stack: when master's tools/pipeline-health tree differs from the one the last build was
- * started for, starts the deploy build at master's head, unless the last build is still running.
+ * started for, starts the deploy build at master's head, unless the last build is still running. A failed build
+ * is retried for the same tree up to DEPLOY_ATTEMPTS times and stays an error on the deploy source until one passes.
  * @param c - the cycle
  * @param gh - the GitHub App client
  * @param builds - the deploy build
@@ -706,10 +710,22 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
     if (!tree || !head) {
         throw new Error("master has no tools/pipeline-health");
     }
-    const last = await c.json<{ tree?: string; buildId?: string }>("deploy", {});
-    if (last.tree !== tree && !(last.buildId && (await builds.running(last.buildId)))) {
+    const last = await c.json<{ tree?: string; buildId?: string; attempt?: number }>("deploy", {});
+    const status = last.buildId ? await builds.status(last.buildId) : undefined;
+    if (status === "IN_PROGRESS") {
+        await recordSource(c.d.store, "deploy", c.now, { ok: true });
+        return;
+    }
+    const failed = status !== undefined && status !== "SUCCEEDED";
+    const attempt = last.tree === tree ? (last.attempt ?? 1) : 0;
+    // A new tree starts a build; a failed build of the same tree is retried up to DEPLOY_ATTEMPTS times in all.
+    if (last.tree !== tree || (failed && attempt < DEPLOY_ATTEMPTS)) {
         const buildId = await builds.start(head);
-        await c.setJson("deploy", { tree, buildId, commit: head });
+        await c.setJson("deploy", { tree, buildId, commit: head, attempt: attempt + 1 });
+        if (last.tree === tree)
+            throw new Error(`deploy build ${last.buildId} ${status}; attempt ${attempt + 1} started`);
+    } else if (failed) {
+        throw new Error(`deploy build ${last.buildId} ${status} after ${attempt} attempts`);
     }
     await recordSource(c.d.store, "deploy", c.now, { ok: true });
 }

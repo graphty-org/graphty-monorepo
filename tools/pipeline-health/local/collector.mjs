@@ -25,8 +25,9 @@
 //     command: "node tools/pipeline-health/local/collector.mjs --watch" })
 //
 // The cursor is <root>/tmp/pipeline-health-local/cursor.json. A failed post logs one line and leaves
-// the cursor where it was, so the next pass sends the same rows again. Delete the cursor to post
-// everything again.
+// the cursor where it was, so the next pass sends the same rows again; a post the API refuses for its
+// content (400, 413) is split, and a single refused row is logged and skipped. Delete the cursor to
+// post everything again.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
@@ -257,7 +258,8 @@ export function sources(root) {
  * One pass over every source.
  * @param o the pass
  * @param o.root the checkout whose tmp/ is read
- * @param o.post (kind, body) resolving true when the API took the body
+ * @param o.post (kind, body) resolving true when the API took the body, "refused" when it refused the body's
+ *   content (the body is split and a refused single row skipped), false for any other failure
  * @param o.dryRun count and keep the first row per kind, post nothing, move no cursor
  * @param o.cursorFile where the cursor is kept
  * @returns rows, posts, posted and one example per kind
@@ -283,12 +285,28 @@ export async function collect({
             cursor = { ...cursor, ...item.cursor };
             writeCursor(cursorFile, cursor);
         };
+        // A body the API refuses for its content (400, 413) is split until the refused row is alone; that
+        // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here.
+        const send = async (body) => {
+            const r = await post(kind, { rows: body.map((i) => i.row) });
+            if (r === true) {
+                counts[kind].posted += body.length;
+                save(body.at(-1));
+                return true;
+            }
+            if (r !== "refused") return false;
+            if (body.length === 1) {
+                log(`POST /v1/local/${kind}: row ${body[0].row.id} refused, skipped`);
+                save(body[0]);
+                return true;
+            }
+            const half = Math.ceil(body.length / 2);
+            return (await send(body.slice(0, half))) && send(body.slice(half));
+        };
         let ok = true;
         for (const body of bodies) {
-            ok = await post(kind, { rows: body.map((i) => i.row) });
+            ok = await send(body);
             if (!ok) break;
-            counts[kind].posted += body.length;
-            save(body.at(-1));
         }
         if (ok && items.length) save(items.at(-1)); // trailing lines with nothing to post
     }
@@ -326,9 +344,10 @@ function httpPost(url, token) {
                 body: JSON.stringify(body),
                 signal: AbortSignal.timeout(30_000),
             });
-            if (!res.ok)
-                log(`POST /v1/local/${kind}: HTTP ${res.status}, ${body.rows.length} rows kept for the next pass`);
-            return res.ok;
+            if (res.ok) return true;
+            if (res.status === 400 || res.status === 413) return "refused";
+            log(`POST /v1/local/${kind}: HTTP ${res.status}, ${body.rows.length} rows kept for the next pass`);
+            return false;
         } catch (error) {
             log(`POST /v1/local/${kind}: ${error.message}, ${body.rows.length} rows kept for the next pass`);
             return false;

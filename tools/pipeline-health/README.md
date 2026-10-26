@@ -269,5 +269,7 @@ health.graphty.app and `http://localhost:5173`, so on any other origin use `?fix
 
 Two CDK stacks in AWS account 494945606241, Region us-east-2: `graphty-health` (the table, API, Lambdas,
 schedule, alarms and Budget) and `graphty-health-deploy` (a CodeBuild project that deploys
-`graphty-health` on every master push touching this directory). The page is published to
+`graphty-health` on every master push touching this directory; the build deploys only `graphty-health`, so a
+change to `infra/deploy-stack.ts` itself takes effect after `npx cdk deploy graphty-health-deploy --profile
+graphty`). The page is published to
 https://health.graphty.app by `.github/workflows/pipeline-health-pages.yml`.

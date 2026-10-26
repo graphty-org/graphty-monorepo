@@ -127,6 +127,25 @@ test("a failed post leaves the cursor where it was", async () => {
     assert.equal(retry.calls[0].body.rows.length, 2);
 });
 
+test("a refused body is split and only the refused row is skipped", async () => {
+    const calls = [];
+    const post = async (kind, body) => {
+        calls.push({ kind, n: body.rows.length });
+        if (kind !== "push-runs") return true;
+        // The two-row body is refused, then its first row alone; its second row is taken.
+        return calls.filter((c) => c.kind === kind).length > 2 || "refused";
+    };
+    const counts = await collect({ root, post });
+    assert.deepEqual(
+        calls.filter((c) => c.kind === "push-runs").map((c) => c.n),
+        [2, 1, 1],
+    );
+    assert.equal(counts["push-runs"].posted, 1);
+    const again = recorder();
+    await collect({ root, post: again.post });
+    assert.deepEqual(again.calls, []);
+});
+
 test("dry run posts nothing and keeps no cursor", async () => {
     const counts = await collect({ root, dryRun: true, post: () => assert.fail("posted") });
     assert.equal(counts.invocations.rows, 2);

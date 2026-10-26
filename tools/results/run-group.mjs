@@ -256,6 +256,7 @@ function fileFailingOnMaster(gh, f, sha) {
  *   which alone proves nothing: the repeats together decide, through the store's flaky verdict)
  * @param [o.base] whether this is a base run (`cli.mjs base-check` sets RESULTS_REPEAT); also true when any answer
  *   the store gave says kind `base`, so a spooled last answer cannot turn a base run into a master one
+ * @param [o.file] the one test file a base check asked about; `Failing on master` files only its tests
  * @returns the issues filed or commented on: `{ signature, number }`
  */
 export async function fileIssues(

@@ -123,6 +123,7 @@ function nxProject(root, dir) {
  * @param [o.env] the environment
  * @param [o.build] build the shard's package first
  * @param [o.run] runGroup (tests replace it)
+ * @param [o.exec] execFileSync (tests replace it)
  * @returns the worst exit code
  */
 export async function baseCheck({

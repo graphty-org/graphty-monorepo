@@ -160,6 +160,35 @@ function acceptOnlyFrom(candidate, approval) {
     return diffCommits(candidate, approval, { acceptMerges: true }).stray.length === 0;
 }
 
+/**
+ * The git facts resumeDecision needs about an approval, from the run's master checkout.
+ * @param candidate H
+ * @param accept P
+ * @returns acceptOnly, onMaster, promoted and older
+ */
+function approvalFacts(candidate, accept) {
+    const hasNightly = gitOk("rev-parse", "--verify", "--quiet", NIGHTLY);
+    return {
+        acceptOnly: gitOk("cat-file", "-e", `${accept}^{commit}`) && acceptOnlyFrom(candidate, accept),
+        onMaster: gitOk("merge-base", "--is-ancestor", accept, "HEAD"),
+        promoted: hasNightly && gitOk("merge-base", "--is-ancestor", accept, NIGHTLY),
+        older: hasNightly && !gitOk("merge-base", "--is-ancestor", NIGHTLY, accept),
+    };
+}
+
+/**
+ * The approval to look at: promote-nightly's inputs, or for a full slot's catch-up the held head's approval on
+ * master (only with no publish hold, under which the promotion would wait).
+ * @param env the environment
+ * @param hold the store's held candidate, or null
+ * @returns `{ candidate, accept }`, accept null when nothing is waiting
+ */
+function approvalToCheck(env, hold) {
+    if (env.MODE === "promote-nightly") return { candidate: env.CANDIDATE, accept: env.ACCEPT };
+    const candidate = hold?.head;
+    return { candidate, accept: candidate && !env.PUBLISH_HOLD ? approvalOnMaster(candidate) : null };
+}
+
 async function check(env) {
     const cfg = config(env);
     const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false, why: "no store configured" };
@@ -171,32 +200,15 @@ async function check(env) {
         return;
     }
     const hold = r.data.hold ?? null;
-    let candidate = env.CANDIDATE;
-    let accept = env.ACCEPT;
-    if (env.MODE !== "promote-nightly") {
-        // the catch-up of a full slot: only a held head, only with no publish hold (the promotion would wait), and
-        // silently, since every slot asks
-        candidate = hold?.head;
-        accept = candidate && !env.PUBLISH_HOLD ? approvalOnMaster(candidate) : null;
-        if (!accept) {
-            output({ resume: "false", why: "no approved candidate is waiting" });
-            return;
-        }
+    const { candidate, accept } = approvalToCheck(env, hold);
+    if (!accept && env.MODE !== "promote-nightly") {
+        output({ resume: "false", why: "no approved candidate is waiting" });
+        return;
     }
     if (!/^[0-9a-f]{40}$/.test(candidate ?? "") || !/^[0-9a-f]{40}$/.test(accept ?? ""))
         throw new Error("CANDIDATE and ACCEPT must be full commit ids");
-    const hasNightly = gitOk("rev-parse", "--verify", "--quiet", NIGHTLY);
     const latest = (r.data.recent ?? []).find((v) => v.sha === candidate) ?? null;
-    const d = resumeDecision({
-        candidate,
-        accept,
-        acceptOnly: gitOk("cat-file", "-e", `${accept}^{commit}`) && acceptOnlyFrom(candidate, accept),
-        hold,
-        latest,
-        onMaster: gitOk("merge-base", "--is-ancestor", accept, "HEAD"),
-        promoted: hasNightly && gitOk("merge-base", "--is-ancestor", accept, NIGHTLY),
-        older: hasNightly && !gitOk("merge-base", "--is-ancestor", NIGHTLY, accept),
-    });
+    const d = resumeDecision({ candidate, accept, hold, latest, ...approvalFacts(candidate, accept) });
     if (!d.run) {
         console.log(`::notice::no promotion: ${d.why}`);
         // a full slot's catch-up never comments: it would repeat on every slot

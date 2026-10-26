@@ -683,7 +683,7 @@ A further model follows the same steps:
 - `stripInternal: true`: members tagged `@internal` (`GpuContext.residency`, the `loadModule` test seam and the other internal members the contract marks)
   are absent from the published d.ts; the strict-consumer compile proves the published surface under
   `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`.
-- `webgpu@0.6.1` is the devDependency pin and the `E_NO_WEBGPU` install hint; both move together, and the environment move that carried them from 0.4.0 is `docs/decisions/G-ENV.md`. The published peer range stays `>=0.4.0 <1.0.0`: it admits both builds on purpose, because 0.6.x needs Ubuntu 24.04 and a consumer below that line can only load 0.4.0.
+- `webgpu@0.6.2` is the devDependency pin and the `E_NO_WEBGPU` install hint; both move together, and the environment move that carried them from 0.4.0 is `docs/decisions/G-ENV.md`. The published peer range stays `>=0.4.0 <1.0.0`: it admits both builds on purpose, because 0.6.x needs Ubuntu 24.04 and a consumer below that line can only load 0.4.0.
 
 ## Rules that never bend
 

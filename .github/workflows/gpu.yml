@@ -135,7 +135,7 @@ jobs:
                   apt-get install -y --no-install-recommends \
                       ca-certificates curl git gnupg sudo xz-utils \
                       libvulkan1 libegl1 libgl1 libatomic1
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.ref }}" } # the release train's candidate; empty on a dispatch, which takes the dispatched ref
             # The workspace is owned by the runner's user, not the container's root, so git refuses it ("dubious
             # ownership", run 37247157286) once checkout's own temporary exception is gone.
@@ -305,7 +305,7 @@ jobs:
             actions: read
             id-token: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools

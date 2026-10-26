@@ -4572,6 +4572,7 @@ describe("release.yml", () => {
             newest = "abc1",
             order = "ahead",
             deployments = 1,
+            jobName = "check",
         } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
@@ -4597,7 +4598,7 @@ describe("release.yml", () => {
                     `*) ${compare === null ? "exit 1" : `echo ${compare}`};;\nesac\n`,
                 { mode: 0o755 },
             );
-            const step = /- id: live\n([\s\S]*)$/.exec(job(deploy, "check"))[1];
+            const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, jobName)}\n\n`)[1];
             const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
             const r = spawnSync("bash", ["-e", "-c", script], {
@@ -4610,7 +4611,7 @@ describe("release.yml", () => {
                     RUNNER_TEMP: dir,
                     GITHUB_RUN_ID: "7",
                     GITHUB_RUN_ATTEMPT: "2",
-                    GITHUB_JOB: "check",
+                    GITHUB_JOB: jobName,
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
@@ -4671,7 +4672,11 @@ describe("release.yml", () => {
         it("asks again in the deploy job, right before it deploys, with the same script", () => {
             const step = (name) =>
                 /- id: live\n[\s\S]*?echo "deploy=true" >> "\$GITHUB_OUTPUT"\n/.exec(job(deploy, name))[0];
-            assert.equal(step("deploy"), step("check"));
+            // the same script, plus the newest-green-build check, which only the deploy job makes
+            assert.equal(
+                step("deploy").replace(/ +# Only master's newest[\s\S]*?\n {18}fi\n(?= {18}echo "deploy=true")/, ""),
+                step("check"),
+            );
             assert.match(
                 job(deploy, "deploy"),
                 /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
@@ -4687,23 +4692,36 @@ describe("release.yml", () => {
             assert.equal(decide({ compare: "diverged" }).deploy, "deploy=true");
         });
 
-        it("deploys only master's newest green build, and hands a newer cancelled deploy back (#3618 review)", () => {
-            // a newer green build exists: this older one does not deploy, whatever canary serves, and names it
-            assert.deepEqual(decide({ newest: "abc9" }), { deploy: "deploy=false", newer: "abc9", curl: "" });
+        it("deploys only master's newest green build, and hands an ended newer deploy back (#3618 review)", () => {
+            const d = (o) => decide({ jobName: "deploy", ...o });
+            // a newer green build exists: this older one does not deploy, and names it for the hand-off
+            assert.deepEqual([d({ newest: "abc9" }).deploy, d({ newest: "abc9" }).newer], ["deploy=false", "abc9"]);
             // the newest green build is this one, or an older one (a re-run of an older CI run): canary decides
-            assert.equal(decide({ newest: "abc9", order: "behind" }).deploy, "deploy=true");
+            assert.equal(d({}).deploy, "deploy=true");
+            assert.equal(d({ newest: "abc9", order: "behind" }).deploy, "deploy=true");
             // the list or the compare cannot be read: a failed read deploys nothing and hands nothing off
-            assert.deepEqual(decide({ newest: null }), { deploy: "deploy=false", newer: "", curl: "" });
-            assert.deepEqual(decide({ newest: "" }), { deploy: "deploy=false", newer: "", curl: "" });
-            assert.deepEqual(decide({ newest: "abc9", order: null }), { deploy: "deploy=false", newer: "", curl: "" });
+            for (const o of [{ newest: null }, { newest: "" }, { newest: "abc9", order: null }]) {
+                assert.deepEqual([d(o).deploy, d(o).newer], ["deploy=false", ""]);
+            }
+            // a canary that already serves something newer hands nothing off either
+            assert.equal(d({ newest: "abc9", compare: "behind" }).newer, "");
+            // the check job does not ask, so every build ahead of canary reaches the deploy job and its hand-off
+            assert.equal(decide({ newest: "abc9" }).deploy, "deploy=true");
             assert.match(job(deploy, "deploy"), /actions: write/);
+            // a 404 is judged by the deployments list, which the token must be allowed to read in both jobs
+            assert.match(deploy, /^permissions:\n(?: {4}.*\n)*? {4}deployments: read/m);
+            assert.match(job(deploy, "deploy"), /permissions:\n(?: {12}.*\n)*? {12}deployments: read/);
+            // a deploy-pages run works on master's tip when it starts, so its run name names the commit it deploys
+            assert.match(deploy, /^run-name: Deploy \$\{\{ github\.event\.workflow_run\.head_sha \}\}$/m);
             const handoff = (runs) => {
                 const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
                 const bin = join(dir, "bin");
                 mkdirSync(bin);
+                // the runs list (or a failing API) through the step's own --jq expression, with the real jq
+                writeFileSync(join(dir, "runs.json"), JSON.stringify({ workflow_runs: runs ?? [] }));
                 writeFileSync(
                     join(bin, "gh"),
-                    `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\n[ "$1" = run ] && exit 0\n${runs === null ? "exit 1" : `echo "${runs}"`}\n`,
+                    `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\n[ "$1" = run ] && exit 0\n${runs === null ? "exit 1" : `jq -r "$4" "${dir}/runs.json"`}\n`,
                     { mode: 0o755 },
                 );
                 const step = /- name: Hand off to the newer build\n([\s\S]*?)\n\n/.exec(job(deploy, "deploy"))[1];
@@ -4722,12 +4740,22 @@ describe("release.yml", () => {
                 rmSync(dir, { recursive: true, force: true });
                 return { status: r.status, rerun: /^run rerun (\S+) --repo o\/r$/m.exec(log)?.[1] ?? "" };
             };
-            // the newer build's deploy was cancelled (this job replaced it in the group): re-run that run
-            assert.deepEqual(handoff("42 completed cancelled"), { status: 0, rerun: "42" });
-            // still going, or already deployed: it deploys itself
-            assert.deepEqual(handoff("42 in_progress "), { status: 0, rerun: "" });
-            assert.deepEqual(handoff("42 completed success"), { status: 0, rerun: "" });
-            // nothing found: fail loudly, master-guard reports a failed deploy
+            const run = (id, title, status, conclusion = null) => ({ id, display_title: title, status, conclusion });
+            // matched by run name, never by head_sha (master's tip when that run started)
+            const others = [run(7, "Deploy abc1", "in_progress"), run(8, "Deploy abc0", "completed", "success")];
+            // the newer build's run ended without deploying (its pending deploy replaced, or its read failed): re-run it
+            assert.deepEqual(handoff([...others, run(42, "Deploy abc9", "completed", "cancelled")]), {
+                status: 0,
+                rerun: "42",
+            });
+            assert.deepEqual(handoff([run(42, "Deploy abc9", "completed", "success"), ...others]), {
+                status: 0,
+                rerun: "42",
+            });
+            // still going: it deploys itself
+            assert.deepEqual(handoff([run(42, "Deploy abc9", "queued"), ...others]), { status: 0, rerun: "" });
+            // not found, or the list cannot be read: fail loudly, master-guard reports a failed deploy
+            assert.deepEqual(handoff(others), { status: 1, rerun: "" });
             assert.equal(handoff(null).status, 1);
         });
 

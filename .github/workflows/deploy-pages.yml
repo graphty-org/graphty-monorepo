@@ -6,6 +6,7 @@ name: Deploy to GitHub Pages
 # not a file in the site). Canary is the first channel (design/ci/channels-pipeline.md, section 3):
 # nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
 # (promote.yml, and the full run's nightly promotion). To redeploy, re-run this workflow's run for that commit.
+run-name: Deploy ${{ github.event.workflow_run.head_sha }}
 on:
     workflow_run:
         workflows: ["CI"]
@@ -23,6 +24,7 @@ permissions:
     pages: write
     id-token: write
     actions: read # Required to download artifacts from other workflow runs
+    deployments: read # a 404 from canary means 'no site yet' only while github-pages has no deployment
 
 jobs:
     # Only a green CI run of a push to master builds and deploys the site, and only while this repository's Pages
@@ -47,25 +49,6 @@ jobs:
                   if [ "$cname" != canary.graphty.app ]; then
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  # Only master's newest green build deploys. The deploy job's concurrency group keeps one pending
-                  # job, so an older build that queues later replaces a newer build's pending deploy; the older one
-                  # must then not deploy, and the deploy job hands the newer build's cancelled run back (newer=).
-                  # An API error or a failed compare is a failed read: nothing is deployed.
-                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
-                  if [ -z "$newest" ]; then
-                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  if [ "$newest" != "$SHA" ]; then
-                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
-                      case "$order" in
-                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
-                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                          behind | diverged) ;;
-                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
-                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                      esac
                   fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
                   # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
@@ -337,6 +320,7 @@ jobs:
             contents: read
             pages: write
             id-token: write
+            deployments: read
             actions: write # to re-run a newer build's deploy that this job's queueing cancelled
         runs-on: ubuntu-24.04
         environment:
@@ -354,25 +338,6 @@ jobs:
                   if [ "$cname" != canary.graphty.app ]; then
                       echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  # Only master's newest green build deploys. The deploy job's concurrency group keeps one pending
-                  # job, so an older build that queues later replaces a newer build's pending deploy; the older one
-                  # must then not deploy, and the deploy job hands the newer build's cancelled run back (newer=).
-                  # An API error or a failed compare is a failed read: nothing is deployed.
-                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
-                  if [ -z "$newest" ]; then
-                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  if [ "$newest" != "$SHA" ]; then
-                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
-                      case "$order" in
-                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
-                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                          behind | diverged) ;;
-                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
-                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                      esac
                   fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
                   # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
@@ -405,24 +370,46 @@ jobs:
                           echo "::notice::${SHA} is not ahead of canary's ${live_sha} (${status:-compare failed})"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                       fi
                   fi
+                  # Only master's newest green build deploys (checked here, after canary, and not in the check job,
+                  # so every build that is ahead of canary reaches this job). The concurrency group keeps one pending
+                  # job, so an older build that queues later replaces a newer build's pending deploy: the older one
+                  # does not deploy and names the newer one (newer=) for the hand-off step below. An API error or a
+                  # failed compare is a failed read: nothing is deployed.
+                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
+                  if [ -z "$newest" ]; then
+                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
+                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  if [ "$newest" != "$SHA" ]; then
+                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
+                      case "$order" in
+                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
+                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                          behind | diverged) ;;
+                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
+                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                      esac
+                  fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
 
-            # A newer green build exists. When this job's queueing replaced that build's pending deploy, its run
-            # ended cancelled and nothing else would deploy it: re-run it. A run still going deploys itself.
+            # A newer green build exists, and canary (older than this build) does not serve it. A deploy-pages run
+            # works on master's tip when it starts, so its run name (run-name above) names the commit it deploys.
+            # When that build's run has ended -- its pending deploy replaced by this job's, or its own read of
+            # canary failed -- nothing else would deploy it: re-run it. A run still going deploys itself.
             - name: Hand off to the newer build
               if: ${{ steps.live.outputs.newer != '' }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   NEWER: ${{ steps.live.outputs.newer }}
               run: |
-                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?head_sha=${NEWER}&per_page=1" --jq '.workflow_runs[0] | "\(.id) \(.status) \(.conclusion)"' || true)
+                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?event=workflow_run&per_page=50" --jq "[.workflow_runs[] | select(.display_title == \"Deploy ${NEWER}\")][0] // empty | \"\\(.id) \\(.status) \\(.conclusion)\"" || true)
                   read -r id status conclusion <<< "$run"
-                  case "${status:-} ${conclusion:-}" in
-                      "completed cancelled")
-                          gh run rerun "$id" --repo "$GITHUB_REPOSITORY" || { echo "::error::${NEWER}'s cancelled deploy run ${id} could not be re-run: canary stays behind master until the next build"; exit 1; }
-                          echo "::notice::re-ran ${NEWER}'s cancelled deploy run ${id}" ;;
-                      completed\ * | queued\ * | in_progress\ * | waiting\ * | pending\ * | requested\ *) echo "::notice::${NEWER}'s deploy run ${id} is ${status} ${conclusion}: it deploys itself, nothing to hand off" ;;
-                      *) echo "::error::${NEWER}'s deploy run could not be found: canary stays behind master until the next build"; exit 1 ;;
+                  case "${status:-}" in
+                      completed)
+                          gh run rerun "$id" --repo "$GITHUB_REPOSITORY" || { echo "::error::${NEWER}'s deploy run ${id} (${conclusion}) could not be re-run: canary stays behind master until the next build"; exit 1; }
+                          echo "::notice::re-ran ${NEWER}'s deploy run ${id}, which ended ${conclusion} without deploying" ;;
+                      "") echo "::error::${NEWER}'s deploy run could not be found: canary stays behind master until the next build"; exit 1 ;;
+                      *) echo "::notice::${NEWER}'s deploy run ${id} is ${status}: it deploys itself" ;;
                   esac
 
             - name: Deploy to GitHub Pages

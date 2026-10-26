@@ -886,6 +886,19 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Whether an operation is queued, about to be, or running: what
+     * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     *
+     * Not an operation held by an open `batchOperations()` callback: it runs only when the batch
+     * closes, so a settle wait made inside the batch that counted it would wait for ever, and
+     * `waitForCompletion` does not wait for it either.
+     * @returns True until the queue is idle.
+     */
+    get hasWork(): boolean {
+        return this.currentBatch.size > 0 || this.queue.size > 0 || this.queue.pending > 0;
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */

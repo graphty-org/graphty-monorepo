@@ -407,6 +407,8 @@ async function waitMain(env, now = Date.now) {
     }
 }
 
+const NIGHTLY_BLOCKED = "Nightly blocked:";
+
 function decideMain(env) {
     let hold = "";
     if (env.STATE === "green-clean") {
@@ -423,6 +425,19 @@ function decideMain(env) {
     }
     const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE });
     if (!p.promote && env.STATE === "green-clean") console.log(`::notice::${p.why}`);
+    if (!p.promote && env.STATE === "green-clean" && env.GATE !== "success" && env.FIRST === "true") {
+        // no channel/nightly yet, so no move and no age: without this issue the stall alarm never fires
+        const body = bodyFile(
+            [
+                `The first nightly promotion is blocked: the screenshot gate refused ${env.SHA} (${env.RUN_URL}).`,
+                "Before channel/nightly exists the gate compares visual-baselines/ with the last release, so nightly",
+                "starts only once the owner approves (signs) the candidate's visual-baselines/ tree on the review page.",
+            ].join("\n"),
+        );
+        execFileSync("tools/release-held.sh", ["open", `${NIGHTLY_BLOCKED} ${env.SHA}`, body, NIGHTLY_BLOCKED], {
+            stdio: "inherit",
+        });
+    }
     if (env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `Nightly promotion: ${p.promote ? "yes" : "no"} -- ${p.why}\n`);
     }

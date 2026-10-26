@@ -3638,7 +3638,7 @@ describe("release.yml", () => {
         const site = job(workflow("release.yml"), "site");
         assert.match(
             site,
-            /- name: Close the failed-deploy and failed-promotion issues\n[^\n]*\n\s+continue-on-error: true\n[\s\S]*release-held.sh close "[^"]*" "Nightly promotion failed:"/,
+            /- name: Close the failed-deploy and failed-promotion issues\n[^\n]*\n\s+continue-on-error: true\n[\s\S]*release-held.sh close "[^"]*" "Nightly promotion failed:" \|\| rc=\$\?\n\s+tools\/release-held.sh close "[^"]*" "Nightly blocked:" \|\| rc=\$\?\n\s+exit "\$rc"/,
         );
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
         assert.match(helper, /--search "in:title \\"\$\{1:-Release held:\}\\""/, "searches by the prefix");
@@ -6042,6 +6042,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.deepEqual(decide.env, {
             STATE: "${{ steps.verdict.outputs.state }}",
             GATE: "${{ steps.gate.outputs.outcome }}",
+            FIRST: "${{ steps.gate.outputs.first }}",
         });
         const order = steps.verdict.steps.map((st) => st.id ?? st.name);
         assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));
@@ -6109,6 +6110,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         const first = gateRun(2, 0, "ok");
         assert.equal(first.status, 0, "no channel/nightly yet: the last release is the base");
         assert.match(first.git, /^log -1 /m);
+        assert.match(first.out, /^first=true\n/, "decide files the Nightly blocked issue on a refusal");
         assert.doesNotMatch(first.git, /^fetch /m);
         const unreachable = gateRun(128, 0, "ok");
         assert.equal(unreachable.status, 128, "a failed ls-remote fails the step");
@@ -6119,10 +6121,14 @@ describe("release.yml's nightly promotion (#1020)", () => {
         const dir = mkdtempSync(join(TMP, "nightly-decide-"));
         mkdirSync(join(dir, "tools"));
         const held = join(dir, "tools", "release-held.sh");
-        const decide = (hold, gate = "success") => {
-            writeFileSync(held, `#!/bin/sh\n[ "$2" = "Release held: publish failed" ] && echo "${hold}"\nexit 0\n`, {
-                mode: 0o755,
-            });
+        const decide = (hold, gate = "success", first = "") => {
+            writeFileSync(
+                held,
+                `#!/bin/sh\necho "$1 $2" >> "${dir}/held.log"\n[ "$2" = "Release held: publish failed" ] && echo "${hold}"\nexit 0\n`,
+                {
+                    mode: 0o755,
+                },
+            );
             const out = join(dir, "out");
             writeFileSync(out, "");
             const r = spawnSync(
@@ -6131,7 +6137,15 @@ describe("release.yml's nightly promotion (#1020)", () => {
                 {
                     cwd: dir,
                     encoding: "utf8",
-                    env: { PATH: process.env.PATH, STATE: "green-clean", GATE: gate, GITHUB_OUTPUT: out },
+                    env: {
+                        PATH: process.env.PATH,
+                        STATE: "green-clean",
+                        GATE: gate,
+                        FIRST: first,
+                        SHA: "abc",
+                        RUNNER_TEMP: dir,
+                        GITHUB_OUTPUT: out,
+                    },
                 },
             );
             assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -6142,6 +6156,12 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.match(waiting.stdout, /::notice::the nightly promotion waits: publish hold #3500 is open/);
         assert.match(decide("").out, /^promote=true$/m);
         assert.match(decide("", "failure").out, /^promote=false$/m);
+        // the first promotion refused: no move means no stall alarm, so an issue says so
+        writeFileSync(join(dir, "held.log"), "");
+        decide("", "failure");
+        assert.doesNotMatch(readFileSync(join(dir, "held.log"), "utf8"), /^open /m);
+        assert.match(decide("", "failure", "true").out, /^promote=false$/m);
+        assert.match(readFileSync(join(dir, "held.log"), "utf8"), /^open Nightly blocked: abc$/m);
     });
 
     it("deploys the site from environment nightly, after npm next, with the site repository's key only", () => {
@@ -6190,7 +6210,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         // a deploy that worked closes the "Nightly site deploy failed" issue a failed one filed
         assert.match(
             steps.site.steps[at("Close the failed-deploy and failed-promotion issues")].run,
-            /^node tools\/channel\/nightly.mjs deployed\n/,
+            /^rc=0\nnode tools\/channel\/nightly.mjs deployed \|\| rc=\$\?\n/m,
         );
         // a nightly closes no legacy train hold
         const closeHeld = steps.land.steps.find((st) => st.name === "Close the held-release issue");

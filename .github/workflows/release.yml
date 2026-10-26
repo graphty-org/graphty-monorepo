@@ -680,6 +680,7 @@ jobs:
                       base=origin/channel/nightly
                   elif [ "$rc" = 2 ]; then
                       base=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H "$SHA")
+                      echo "first=true" >> "$GITHUB_OUTPUT"
                   else
                       echo "::error::git ls-remote of channel/nightly failed (exit $rc)"
                       exit "$rc"
@@ -714,6 +715,7 @@ jobs:
               env:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
+                  FIRST: ${{ steps.gate.outputs.first }}
               run: node tools/channel/nightly.mjs decide
 
             - name: Announce a red run or an owner item
@@ -1591,8 +1593,12 @@ jobs:
               if: ${{ steps.current.outputs.ours == 'true' }}
               continue-on-error: true
               run: |
-                  node tools/channel/nightly.mjs deployed
-                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly promotion failed:"
+                  # each runs even when the one before it failed; the step still reports a failure
+                  rc=0
+                  node tools/channel/nightly.mjs deployed || rc=$?
+                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly promotion failed:" || rc=$?
+                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly blocked:" || rc=$?
+                  exit "$rc"
 
             - name: Announce the promoted nightly
               if: ${{ steps.current.outputs.ours == 'true' }}

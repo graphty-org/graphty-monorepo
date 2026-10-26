@@ -362,9 +362,19 @@ describe("a merged pull request's last run", () => {
                 return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
             if (u.pathname.endsWith("/commits/5a2ebfac75cc6510846149d8cc07b65d83f0ba0b/pulls")) {
                 lookups.push(url);
-                return new Response(JSON.stringify([{ number: 3601, merged_at: "2026-10-26T00:20:00Z" }]), {
-                    status: 200,
-                });
+                return new Response(
+                    JSON.stringify([
+                        { number: 3599, merged_at: "2026-10-26T00:10:00Z", head: { ref: "stacked/on-top" } },
+                        {
+                            number: 3601,
+                            merged_at: "2026-10-26T00:20:00Z",
+                            head: { ref: "ci/3418-design-studio-master-wait" },
+                        },
+                    ]),
+                    {
+                        status: 200,
+                    },
+                );
             }
             return base(url, init);
         };
@@ -373,5 +383,27 @@ describe("a merged pull request's last run", () => {
         const rec = await store.get({ pk: "PRRUNS#graphty-org/graphty-monorepo#3601", sk: "-" });
         expect(Object.keys((rec?.runs as object | undefined) ?? {})).toEqual(["40238975833.1"]);
         expect(lookups).toHaveLength(1);
+    });
+
+    it("never fails the pull requests part on a failing commit lookup, and does not repeat a 422 (#3652)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        let lookups = 0;
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (u.searchParams.get("status") === "in_progress")
+                return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            if (u.pathname.endsWith("/pulls") && u.pathname.includes("/commits/")) {
+                lookups++;
+                return new Response(JSON.stringify({ message: "No commit found for SHA" }), { status: 422 });
+            }
+            return base(url, init);
+        };
+        await collect(deps(store, fake));
+        const second = await collect(deps(store, fake, NOW + 5 * MIN));
+        await collect(deps(store, fake, NOW + 10 * MIN));
+        expect(second.errors["pull requests"]).toBeUndefined();
+        expect(lookups).toBe(1);
     });
 });

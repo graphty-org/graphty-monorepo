@@ -9,7 +9,7 @@ import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
-import type { Fetch, GitHub } from "./github.js";
+import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
     classifyCancel,
     codeownerPatterns,
@@ -404,10 +404,12 @@ async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]) {
         let pr = prOfRun(p.run, prs);
         const late = pr === undefined && !p.looked;
         if (late) {
-            const found = await gh.rest<{ number: number; merged_at: string | null }[]>(
-                `repos/${c.d.repo}/commits/${p.run.head_sha}/pulls`,
-            );
-            pr = found?.find((x) => x.merged_at)?.number;
+            const got = await prOfCommit(c, gh, p);
+            if (got === "retry") {
+                if (c.now - p.r[2] < DAY) left.push(p);
+                continue;
+            }
+            pr = got;
         }
         if (pr === undefined) {
             if (c.now - p.r[2] < DAY) left.push({ ...p, looked: true });
@@ -417,6 +419,23 @@ async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]) {
         if (late) await restage(c, pr);
     }
     await c.setJson(PENDING_PR_RUNS, left);
+}
+
+/**
+ * The merged pull request whose head branch is the run's, among those GitHub lists for the run's commit (a stacked
+ * branch's pull request contains the commit too). "retry" on a server error or rate limit, so one failing lookup
+ * never stops the pull requests part; any other client error counts as found nothing.
+ */
+async function prOfCommit(c: Cycle, gh: GitHub, p: PendingPrRun): Promise<number | "retry" | undefined> {
+    try {
+        const found = await gh.rest<{ number: number; merged_at: string | null; head: { ref: string } }[]>(
+            `repos/${c.d.repo}/commits/${p.run.head_sha}/pulls`,
+        );
+        return found?.find((x) => x.merged_at && x.head.ref === p.run.head_branch)?.number;
+    } catch (e) {
+        const status = e instanceof HttpError ? e.status : 0;
+        return status >= 400 && status < 500 && status !== 403 && status !== 429 ? undefined : "retry";
+    }
 }
 
 /** Writes a stored merged pull request item again with the stages of its now complete runs. */

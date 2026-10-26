@@ -256,11 +256,19 @@ jobs:
 
             # The full run picks its candidate from the sites the results store lists (GET /v1/candidate). The token
             # is this run's OIDC token (audience graphty-results): only master's own deploy-pages.yml may record a
-            # site. Fails open, like every call to the store: a missed record only delays that commit's full run.
+            # site. Fails open, like every call to the store: a missed record only delays that commit's full run. The
+            # pipeline health API (HEALTH_API_URL) gets the same record with its own token (audience graphty-health).
             - name: Record the site in the results store
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
+                  if [ -n "$HEALTH_API_URL" ]; then
+                      htoken=$(curl -fsS --max-time 2 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=graphty-health" | jq -r '.value // empty') || true
+                      curl -fsS --max-time 2 -X POST "${HEALTH_API_URL%/}/v1/sites" -H "Authorization: Bearer $htoken" \
+                          -H "content-type: application/json" -H "X-Results-Schema: 1" -d "{\"sha\":\"${SHA}\"}" || true
+                  fi
                   if [ -z "$RESULTS_URL" ]; then echo "::notice::RESULTS_URL is not set; site-${SHA} is not recorded"; exit 0; fi
                   token=$(curl -fsS --max-time 5 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
                       "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=graphty-results" | jq -r .value) &&

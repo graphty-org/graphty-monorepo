@@ -143,16 +143,13 @@ jobs:
         steps:
             - env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   SITE: ${{ needs.check.outputs.site }}
                   TAG: ${{ needs.check.outputs.tag }}
                   STARTED: ${{ needs.check.outputs.started }}
                   CHECK: ${{ needs.check.result }}
                   DEPLOY: ${{ needs.deploy.result }}
               run: |
-                  if [ -z "$RESULTS_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
-                  token=$(curl -fsS --max-time 5 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r '.value // empty') || true
-                  if [ -z "$token" ]; then echo "::warning::no OIDC token; no deploy report"; exit 0; fi
                   body=$(jq -nc --arg site "$SITE" --arg tag "$TAG" --arg started "$STARTED" \
                       --arg check "$CHECK" --arg deploy "$DEPLOY" \
                       --argjson run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
@@ -161,6 +158,16 @@ jobs:
                        | { rows: map({ runId: $run, attempt: $attempt, workflow: "deploy.yml", job: .[0],
                            task: $site, sha: ($tag | ltrimstr("site-")), startedAt: $t,
                            ms: (if $t then $end - $t else 0 end), conclusion: .[1] }) }')
+                  if [ -n "$HEALTH_API_URL" ]; then
+                      htoken=$(curl -fsS --max-time 2 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-health" | jq -r '.value // empty') || true
+                      curl -fsS --max-time 2 -X POST -H "Authorization: Bearer $htoken" -H "Content-Type: application/json" \
+                          --data "$body" "${HEALTH_API_URL%/}/v1/durations" || true
+                  fi
+                  if [ -z "$RESULTS_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
+                  token=$(curl -fsS --max-time 5 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r '.value // empty') || true
+                  if [ -z "$token" ]; then echo "::warning::no OIDC token; no deploy report"; exit 0; fi
                   curl -fsS --max-time 5 -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
                       --data "$body" "$RESULTS_URL/v1/durations" \
                       || echo "::warning::the results store did not take the deploy report"

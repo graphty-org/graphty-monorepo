@@ -9,11 +9,16 @@
 //   GRAPHTY_RESULTS=0       turns it off
 //   GRAPHTY_RESULTS_TOKEN   a local token (kind `local`); in GitHub Actions the job's OIDC token is used instead
 //                           (audience `graphty-results`, ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN)
+//   HEALTH_API_URL          the pipeline health API (design/ci/health-dashboard.md); in GitHub Actions every POST is
+//                           also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
+//                           2 s at most, never awaited, never spooled, and it never keeps the process alive
 //
 // Bodies carry `X-Results-Schema: 1`. A batch of failure events is `{ invocation, failures: [...] }`; a single
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,12 +29,14 @@ export const RECORD_MS = 5000;
 export const EVENT_MS = 2000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const AUDIENCE = "graphty-results";
+export const HEALTH_AUDIENCE = "graphty-health";
+export const HEALTH_MS = 2000;
 
 /**
  * The client's settings, or null when the store is not configured or switched off.
  * @param [env] the environment
  * @param [root] the repository holding `.env`
- * @returns `{ url, token, oidc }` or null
+ * @returns `{ url, token, oidc }`, plus `health` (the health API's URL) when HEALTH_API_URL is set in Actions, or null
  */
 export function config(env = process.env, root = ROOT) {
     if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL) return null;
@@ -39,7 +46,9 @@ export function config(env = process.env, root = ROOT) {
         token = parseEnvFile(readFileSync(join(root, ".env"), "utf8"), "GRAPHTY_RESULTS_TOKEN");
     }
     if (!token && !oidc) return null;
-    return { url: env.RESULTS_URL.replace(/\/$/, ""), token, oidc };
+    const cfg = { url: env.RESULTS_URL.replace(/\/$/, ""), token, oidc };
+    if (env.HEALTH_API_URL && oidc) cfg.health = env.HEALTH_API_URL.replace(/\/$/, "");
+    return cfg;
 }
 
 const oidcCache = new Map();
@@ -60,6 +69,58 @@ async function bearer(cfg, signal) {
 }
 
 /**
+ * One HTTP request whose socket is unref'd, so a request still open never keeps the process alive.
+ * @param url the URL
+ * @param init the request
+ * @param [init.method] GET or POST
+ * @param [init.headers] the headers
+ * @param [init.body] the body
+ * @param init.signal the deadline
+ * @returns `{ status, text }`; rejects on a network error or the signal
+ */
+function unrefRequest(url, { method = "GET", headers = {}, body, signal }) {
+    return new Promise((resolve, reject) => {
+        const req = (url.startsWith("https:") ? httpsRequest : httpRequest)(url, { method, headers, signal }, (res) => {
+            let text = "";
+            res.setEncoding("utf8");
+            res.on("data", (d) => (text += d));
+            res.on("end", () => resolve({ status: res.statusCode, text }));
+            res.on("error", reject);
+        });
+        req.on("socket", (s) => s.unref());
+        req.on("error", reject);
+        req.end(body);
+    });
+}
+
+/**
+ * Sends one POST to the health API as well, fire and forget: its own OIDC token (audience graphty-health), 2 s in
+ * all, never awaited, never spooled, never throws.
+ * @param cfg config() with `health`
+ * @param path the route
+ * @param body the JSON body
+ */
+export function sendHealth(cfg, path, body) {
+    const signal = AbortSignal.timeout(HEALTH_MS);
+    const { ACTIONS_ID_TOKEN_REQUEST_URL: idUrl, ACTIONS_ID_TOKEN_REQUEST_TOKEN: idToken } = cfg.oidc;
+    unrefRequest(`${idUrl}&audience=${HEALTH_AUDIENCE}`, { headers: { authorization: `Bearer ${idToken}` }, signal })
+        .then(({ status, text }) => {
+            if (status !== 200) throw new Error(`OIDC token: HTTP ${status}`);
+            return unrefRequest(cfg.health + path, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${JSON.parse(text).value}`,
+                    "content-type": "application/json",
+                    "x-results-schema": `${SCHEMA}`,
+                },
+                body: body === undefined ? undefined : JSON.stringify(body),
+                signal,
+            });
+        })
+        .catch(() => {});
+}
+
+/**
  * One request to the store. Never throws.
  * @param cfg config()
  * @param method GET, POST or PUT
@@ -70,6 +131,7 @@ async function bearer(cfg, signal) {
  */
 export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) {
     if (!cfg) return { ok: false, why: "results store not configured" };
+    if (cfg.health && method === "POST") sendHealth(cfg, path, body);
     const deadline = AbortSignal.timeout(ms);
     try {
         const auth = await bearer(cfg, deadline);

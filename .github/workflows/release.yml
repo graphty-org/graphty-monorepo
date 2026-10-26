@@ -155,6 +155,7 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}
                   kind: full
 
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
@@ -262,6 +263,7 @@ jobs:
               env:
                   HEAD_SHA: ${{ github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   set -euo pipefail
                   node tools/full-run.mjs pick
@@ -606,6 +608,7 @@ jobs:
               id: verdict
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
                   VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}

@@ -121,7 +121,7 @@ describe("POST /v1/invocations", () => {
         const { call, rows } = service();
         assert.deepEqual(await call("POST", "/v1/invocations", { token: pr(), body: record() }), {
             status: 200,
-            body: { stored: true, kind: "pr" },
+            body: { stored: true, kind: "pr", flaky: [] },
         });
         const [inv] = rows("SELECT * FROM invocation");
         assert.equal(inv.kind, "pr");
@@ -136,7 +136,7 @@ describe("POST /v1/invocations", () => {
             [expected.key, expected.signature, "fail", expected.line],
         );
         const again = await call("POST", "/v1/invocations", { token: pr(), body: record() });
-        assert.deepEqual(again.body, { stored: false, kind: "pr" });
+        assert.deepEqual(again.body, { stored: false, kind: "pr", flaky: [] });
         assert.equal(rows("SELECT * FROM invocation").length, 1);
     });
 
@@ -156,7 +156,11 @@ describe("POST /v1/invocations", () => {
                 token: master(file),
                 body: record({ id: `4010.1.job.g.${n}`, kind: "local" }),
             });
-            assert.deepEqual(res.body, { stored: true, kind }, file);
+            assert.deepEqual(
+                res.body,
+                { stored: true, kind, flaky: [], ...(kind === "stress" ? {} : { tracked: [] }) },
+                file,
+            );
         }
         assert.equal(rows("SELECT * FROM invocation").length, 8);
     });
@@ -235,7 +239,7 @@ describe("POST /v1/invocations", () => {
                     body: record({ id: "local.1.host.2.layout" }),
                 })
             ).body,
-            { stored: true, kind: "local" },
+            { stored: true, kind: "local", flaky: [] },
         );
         assert.equal((await call("POST", "/v1/invocations", { token: LOCAL_TOKEN, body: record() })).status, 403);
     });
@@ -568,6 +572,210 @@ describe("POST /v1/sites", () => {
             403,
         );
         assert.deepEqual(rows("SELECT * FROM site"), []);
+    });
+});
+
+describe("flaky tests from master's records", () => {
+    const X = "graphty-element/test/browser/x.test.ts";
+    const passing = (id) => record({ id, sha: "base1", outcome: "passed", files: [[X, 42, 0, 0, 3000]], failures: [] });
+    const failing = (id) => record({ id, sha: "base1" });
+
+    it("quarantines a test two base runs on the same inputs disagree on, once, and takes its issue back", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        const first = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r1.1") });
+        assert.deepEqual(first.body.flaky, []);
+        const second = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.r2.1") });
+        assert.deepEqual(
+            second.body.flaky.map((t) => [t.family, t.file, t.name, t.had]),
+            [["graphty-element-browser", X, "camera > zooms", null]],
+        );
+        assert.match(second.body.flaky[0].proof, /4010\.1\.base\.r1\.1 failed it, 4010\.1\.base\.r2\.1 passed it/);
+        // a third repeat, before any issue was posted back, names the test again without a second entry
+        const third = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r3.1") });
+        assert.deepEqual(
+            third.body.flaky.map((t) => t.name),
+            ["camera > zooms"],
+        );
+        assert.equal(rows("SELECT * FROM quarantine").length, 1);
+
+        const { signature } = second.body.flaky[0];
+        const back = {
+            signature,
+            kind: "flaky",
+            number: 77,
+            family: "graphty-element-browser",
+            file: X,
+            name: "camera > zooms",
+        };
+        assert.equal((await call("POST", "/v1/issues", { token: pr(), body: back })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
+        assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
+        assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);
+        // with its issue filed, another failing repeat proves nothing new
+        const fourth = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r4.1") });
+        assert.deepEqual(fourth.body.flaky, []);
+        assert.equal(rows("SELECT * FROM quarantine").length, 1);
+        const res = await plan(call, { variants: BROWSER, inputs: "k1" });
+        assert.deepEqual(
+            res.body.quarantine.map((q) => [q.name, q.issue]),
+            [["camera > zooms", 77]],
+        );
+    });
+
+    it("names the issues in force to the master job, and a closed one ends its entry so the next proof files again", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.q1.1") });
+        const proved = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.q2.1") });
+        const [t] = proved.body.flaky;
+        const back = {
+            signature: t.signature,
+            kind: "flaky",
+            number: 78,
+            family: t.family,
+            file: t.file,
+            name: t.name,
+        };
+        await call("POST", "/v1/issues", { token, body: back });
+        const next = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.q3.1") });
+        assert.deepEqual(next.body.tracked, [78]);
+        const closed = { number: 78, state: "closed" };
+        assert.equal((await call("POST", "/v1/issues", { token: pr(), body: closed })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: closed })).status, 200);
+        assert.deepEqual(rows("SELECT left_why FROM quarantine"), [{ left_why: "issue #78 closed" }]);
+        assert.deepEqual(rows("SELECT state FROM tracked_issue"), [{ state: "closed" }]);
+        assert.deepEqual((await plan(call, { variants: BROWSER, inputs: "k1" })).body.quarantine, []);
+        rows("UPDATE quarantine SET since = since - 60000 RETURNING 1"); // the store's clock is fixed here
+        // the fix did not hold: the next flip is a new entry, named for an issue, with the closed one as `had`
+        const again = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.q4.1") });
+        assert.deepEqual(
+            again.body.flaky.map((f) => [f.name, f.had]),
+            [["camera > zooms", 78]],
+        );
+        assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
+    });
+
+    it("names a test again when it flips after 20 passes took it out of the quarantine", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.p1.1") });
+        const [t] = (await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.p2.1") })).body.flaky;
+        const back = {
+            signature: t.signature,
+            kind: "flaky",
+            number: 79,
+            family: t.family,
+            file: t.file,
+            name: t.name,
+        };
+        await call("POST", "/v1/issues", { token, body: back });
+        const at = (id, sha, startedAt, base) => ({ token, body: { ...base(id), sha, startedAt } });
+        const run = (id, sha, startedAt, outcome) =>
+            call("POST", "/v1/invocations", at(id, sha, startedAt, outcome === "passed" ? passing : failing));
+        for (let i = 1; i <= 20; i++) await run(`4010.1.base.pass${i}.1`, `pass${i}`, NOW + i, "passed");
+        assert.deepEqual((await plan(call, { variants: BROWSER, inputs: "k1" })).body.quarantine, []);
+        rows("UPDATE quarantine SET since = since - 60000 RETURNING 1"); // the store's clock is fixed here
+        await run("4010.1.base.f.1", "flip", NOW + 100, "failed");
+        const again = await run("4010.1.base.g.1", "flip", NOW + 101, "passed");
+        assert.deepEqual(
+            again.body.flaky.map((f) => [f.name, f.had]),
+            [["camera > zooms", 79]],
+        );
+        assert.deepEqual(rows("SELECT left_why FROM quarantine WHERE left_at IS NOT NULL"), [
+            { left_why: "20 passes since its last failure" },
+        ]);
+    });
+
+    it("files two timeouts in one file as two issues, so closing one leaves the other quarantined", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        const timeout = (name) => ({ file: X, name, message: "Error: Test timed out in 5000ms." });
+        const failures = [timeout("camera > zooms"), timeout("camera > pans")];
+        await call("POST", "/v1/invocations", {
+            token,
+            body: record({ id: "4010.1.base.t1.1", sha: "base1", failures }),
+        });
+        const proved = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.t2.1") });
+        const flaky = proved.body.flaky;
+        assert.equal(flaky.length, 2);
+        assert.notEqual(flaky[0].signature, flaky[1].signature);
+        for (const [i, t] of flaky.entries()) {
+            const back = {
+                signature: t.signature,
+                kind: "flaky",
+                number: 81 + i,
+                family: t.family,
+                file: t.file,
+                name: t.name,
+            };
+            assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
+        }
+        assert.equal(rows("SELECT * FROM tracked_issue").length, 2);
+        await call("POST", "/v1/issues", { token, body: { number: 81, state: "closed" } });
+        assert.deepEqual(rows("SELECT name, issue FROM quarantine WHERE left_at IS NULL"), [
+            { name: flaky[1].name, issue: 82 },
+        ]);
+    });
+
+    it("never quarantines from a pull request's records, other inputs, another skip count or a GPU family", async () => {
+        const { call, rows } = service();
+        const token = master("ci.yml");
+        await call("POST", "/v1/invocations", { token: pr(), body: record({ id: "4010.1.pr.1" }) });
+        const prPass = { ...passing("4010.1.pr.2"), sha: "merge7" };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token: pr(), body: prPass })).body.flaky, []);
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const other = { ...passing("4010.1.full.2"), inputs: "other" };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: other })).body.flaky, []);
+        const skipped = { ...passing("4010.1.full.3"), files: [[X, 41, 0, 1, 3000]] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: skipped })).body.flaky, []);
+        // a file that did not load (no test passed) is not a pass of the test
+        const unloaded = { ...passing("4010.1.full.4"), files: [[X, 0, 1, 0, 30]], failures: [] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: unloaded })).body.flaky, []);
+        // nor one cut short after some of its tests passed
+        const cut = { ...passing("4010.1.full.5"), files: [[X, 3, 0, 0, 300]], failures: [] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: cut })).body.flaky, []);
+        const gpu = { variant: "webgpu-graph-algorithms-node|flags=off|whole" };
+        await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.gpu.1"), ...gpu } });
+        const gpuPass = { ...passing("4010.1.gpu.2"), ...gpu };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: gpuPass })).body.flaky, []);
+        assert.equal(rows("SELECT * FROM quarantine").length, 0);
+    });
+
+    it("keeps the record's failure text over the live reporter's, so its key matches every other record's", async () => {
+        const { call, rows } = service();
+        const token = master("ci.yml");
+        const live = {
+            file: X,
+            name: "camera > zooms",
+            message: "expected 2 to be 3\nAssertionError: expected 2 to be 3",
+        };
+        await call("POST", "/v1/failures", { token, body: { invocation: "4010.1.full.1", failures: [live] } });
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const want = failureHashes("AssertionError: expected 2 to be 3", X);
+        assert.deepEqual(rows("SELECT key, signature FROM failure"), [{ key: want.key, signature: want.signature }]);
+    });
+
+    it("names a signature's earlier issue so the job comments on it instead of filing another", async () => {
+        const { call, env, rows } = service();
+        const token = master("release.yml");
+        const sig = failureHashes("AssertionError: expected 2 to be 3", X).signature;
+        env.DB.sqlite.prepare(`INSERT INTO tracked_issue VALUES ('${sig}', 'flaky', 12, 'closed', 0, 0)`).run();
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const res = await call("POST", "/v1/invocations", { token, body: passing("4010.1.full.2") });
+        assert.deepEqual(
+            res.body.flaky.map((t) => t.had),
+            [12],
+        );
+        assert.equal(
+            (await call("POST", "/v1/issues", { token, body: { signature: sig, kind: "x", number: 1 } })).status,
+            400,
+        );
+        // an issue of the other kind for the signature does not overwrite the tracked flaky one
+        await call("POST", "/v1/issues", { token, body: { signature: sig, kind: "failing-on-master", number: 20 } });
+        assert.deepEqual(rows(`SELECT kind, number FROM tracked_issue WHERE signature = '${sig}'`), [
+            { kind: "flaky", number: 12 },
+        ]);
     });
 });
 

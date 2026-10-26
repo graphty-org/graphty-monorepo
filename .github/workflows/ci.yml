@@ -50,11 +50,15 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A push to master never cancels (each master commit is deployed from its own run). The release train's
-# call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
+# A newer push to master cancels an unfinished older master push run (design/ci/channels-pipeline.md section
+# 7.1): only the newest build's site matters for canary, and the full run picks the newest commit with a kept
+# site, so a cancelled build only means it picks a newer one. tools/master-guard.mjs reads such a run as
+# superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
+# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A dispatch runs in its commit's
+# own group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && 'master-push' || github.sha }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref }}
 
 # The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
 # .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals

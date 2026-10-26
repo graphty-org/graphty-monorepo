@@ -11,7 +11,8 @@
 //   files the issue with the evidence.
 // - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
-//   failed step names a culprit. Not when a newer master run superseded it (superseded).
+//   failed step names a culprit. Not when a newer master push cancelled it (superseded): ci.yml cancels an
+//   unfinished master build when a newer one starts, which is expected and never a red master.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
 // - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
@@ -29,9 +30,6 @@ export const DEPLOY_PREFIX = "canary deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // A run that ended without a verdict: master has no green build, but nothing failed to point at.
 const STOPPED = new Set(["cancelled", "startup_failure"]);
-// A run superseded by a newer one is cancelled the moment the newer run is queued.
-// ponytail: a time window, not GitHub's cancel reason (the API has none); a push in the last minute of a timeout reads as superseded
-const SUPERSEDE_MS = 60 * 1000;
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
 // A log line naming an outside service's failure: an HTTP 5xx (lychee prints "[502] <url> | ..."), a network
@@ -130,7 +128,11 @@ export function decide(run) {
 }
 
 /**
- * Whether a stopped master CI run was superseded: a run for a later commit was queued just before it ended.
+ * Whether a stopped master CI run was superseded: a push run for another commit was queued while it was unfinished.
+ * Every master push run shares one concurrency group with cancel-in-progress (ci.yml), so such a run cancels it on
+ * the spot; the cancel's cleanup (post steps, `always()` jobs) can end it minutes later.
+ * ponytail: run times, not GitHub's cancel reason (the API has none); a run that also hit a timeout before the newer
+ * push reads as superseded, and the newer build, which runs the same jobs, alarms if the timeout is real.
  * @param gh - Calls the repository's REST API: gh(path, init).
  * @param run - The workflow_run payload's run.
  * @returns True when superseded.
@@ -141,7 +143,7 @@ export async function superseded(gh, run) {
     const end = Date.parse(run.updated_at);
     return runs.some((r) => {
         const at = Date.parse(r.created_at);
-        return r.head_sha !== run.head_sha && at > start && at <= end && end - at <= SUPERSEDE_MS;
+        return r.head_sha !== run.head_sha && at > start && at <= end;
     });
 }
 

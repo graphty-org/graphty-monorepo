@@ -262,7 +262,7 @@ describe("a restore that does not finish", () => {
         assert.deepStrictEqual(
             (await store.list(KEY)).map((each) => each.id),
             [own.id],
-            "the cancelled copy was left beside the entry it copied",
+            "the cancelled copy was not removed",
         );
         assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
     });

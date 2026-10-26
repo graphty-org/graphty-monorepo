@@ -234,6 +234,34 @@ describe("graphty-element.clearData", () => {
         });
     });
 
+    test("a pair waiting in line stays cleared by a session or graph clear (issue #3524)", async () => {
+        for (const clear of ["session", "graph"] as const) {
+            const element = await createGraphtyElement();
+            const started = new Promise<void>((done) => (heldReadStarts = done));
+            const reading = element.session.data.import({ source: "held-element-clear", config: {} });
+            reading.catch(() => undefined);
+            await started;
+            // Waits in line behind the read.
+            element.dataSource = "json";
+            element.dataSourceConfig = { data: FIRST_GRAPH };
+            await element.updateComplete;
+
+            if (clear === "session") {
+                await element.session.data.clear();
+            } else {
+                element.graph.clearData();
+            }
+            openHeldRead();
+            const line = loadLineOf(dispatcherOf(element.session));
+            await vi.waitFor(() => {
+                assert.strictEqual(line.size, 0, "the cancelled pair left the load line");
+            });
+
+            assert.strictEqual(element.graph.getDataManager().nodes.size, 0, `the ${clear} clear's pair came back`);
+            element.parentElement?.remove();
+        }
+    });
+
     test("a network pair a clearData cancelled reports no load failure (issue #3524)", async () => {
         const element = await createGraphtyElement();
         const failures: unknown[] = [];

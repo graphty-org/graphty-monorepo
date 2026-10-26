@@ -159,6 +159,8 @@ export class LoadLine {
     private readonly loads = new Map<LoadTurn, () => void>();
     /** How many project opens hold the head of the line while they write. */
     private holding = 0;
+    /** How many clears cancelled what waited, so a door can tell whether one came after it. */
+    private clearCount = 0;
 
     /**
      * Build a session's line.
@@ -339,7 +341,8 @@ export class LoadLine {
     }
 
     /** Cancel every load and edit waiting in line, as a clear does. */
-    supersede(): void {
+    private supersede(): void {
+        this.clearCount++;
         for (const cancel of [...this.loads.values()]) {
             cancel();
         }
@@ -381,6 +384,14 @@ export class LoadLine {
      */
     run<T>(send: () => Promise<T>): Promise<T> {
         return this.join().take(send);
+    }
+
+    /**
+     * How many clears (outside a transaction) have cancelled what waited in line so far.
+     * @returns The count.
+     */
+    get clears(): number {
+        return this.clearCount;
     }
 
     /**

@@ -1718,7 +1718,8 @@ export class Graphty extends LitElement {
             return Promise.resolve();
         }
 
-        this.#pairNext = { source, setup };
+        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
+        this.#pairNext = { source, setup, clears: line.clears };
         if (this.#pairWaiting !== undefined) {
             // A pair load still waits for its turn: it loads the pair as now assigned, as one load.
             return this.#pairWaiting;
@@ -1726,7 +1727,6 @@ export class Graphty extends LitElement {
 
         // Its place in the session's load line is taken now, so it lands after a load asked for
         // earlier, however long that one reads, and before one asked for later (issue #3382).
-        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
         const turn = line.join();
         const go = (): Promise<void> => {
             this.#pairWaiting = undefined;
@@ -1743,13 +1743,16 @@ export class Graphty extends LitElement {
         if (ahead === undefined) {
             run = go();
         } else {
-            // A clearData asked for while it waited cancelled its place. A pair assigned after the
-            // clear is still waiting to load: it takes a place of its own.
+            // A clear asked for while it waited cancelled its place. A pair assigned after the
+            // clear is still waiting to load: it takes a place of its own. One assigned before it
+            // is what the clear cancelled, whichever door the clear came through.
             run = ahead.then(go, () => {
                 this.#pairWaiting = undefined;
                 const next = this.#pairNext;
                 this.#pairNext = undefined;
-                return next === undefined ? undefined : this.#runImport(next.source, next.setup);
+                return next === undefined || next.clears !== line.clears
+                    ? undefined
+                    : this.#runImport(next.source, next.setup);
             });
             this.#pairWaiting = run;
         }
@@ -1766,7 +1769,13 @@ export class Graphty extends LitElement {
     #pairWaiting: Promise<void> | undefined;
 
     /** The pair, as last handed to {@link #runImport}: what a waiting pair load loads. */
-    #pairNext: { readonly source: ImportSource; readonly setup: boolean } | undefined;
+    #pairNext:
+        | {
+              readonly source: ImportSource;
+              readonly setup: boolean;
+              /** The line's clears when assigned. */ readonly clears: number;
+          }
+        | undefined;
 
     /**
      * The body of {@link #runImport}: start the pair's load.

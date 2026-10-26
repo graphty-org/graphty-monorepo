@@ -843,7 +843,7 @@ export class SessionData implements SessionDataApi {
         return this.inLine(
             undefined,
             (host) => sourceExpand.collapseNode(host, id),
-            true,
+            false,
             () => ({
                 removedNodes: [],
                 removedEdges: 0,
@@ -978,8 +978,9 @@ export class SessionData implements SessionDataApi {
      * @param run - The verb, given a host whose dispatch waits for the turn.
      * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
      *   once; otherwise it is given up at the first dispatch.
-     * @param skipped - Given for an edit: it takes an edit's place in line, and a clear asked for
-     *   while it waits cancels it, so it resolves with this instead of rejecting.
+     * @param skipped - Given for an edit: it takes an edit's place in line, reads the graph only
+     *   once the loads ahead of it have landed, and a clear asked for while it waits cancels it,
+     *   so it resolves with this instead of rejecting.
      * @returns What the verb returned.
      */
     private async inLine<T>(
@@ -990,6 +991,15 @@ export class SessionData implements SessionDataApi {
     ): Promise<T> {
         const turn = this.loadLine.join(signal, skipped === undefined ? "load" : "edit");
         try {
+            if (skipped !== undefined) {
+                // An edit works out what to change from the graph: it reads it once the loads
+                // ahead of it have landed. With none ahead it goes on at once, so a transaction
+                // still routes its dispatch.
+                const ahead = turn.wait();
+                if (ahead !== undefined) {
+                    await ahead;
+                }
+            }
             return await run(this.hostInTurn(turn, hold));
         } catch (error) {
             if (skipped !== undefined && turn.superseded) {

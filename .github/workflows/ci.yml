@@ -2188,6 +2188,15 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: visual-review
 
+            # parity decodes PNGs with pngjs (visual-review's only runtime dependency it needs); the
+            # sparse checkout has no lockfile, so install that one package, at visual-review's version.
+            - name: Install pngjs
+              run: |
+                  version=$(node -p 'require("./visual-review/package.json").dependencies.pngjs')
+                  npm install --prefix "$RUNNER_TEMP/deps" --no-save --no-package-lock "pngjs@$version"
+                  mkdir -p visual-review/node_modules
+                  ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
+
             - name: Download the old capture
               continue-on-error: true
               uses: actions/download-artifact@v4

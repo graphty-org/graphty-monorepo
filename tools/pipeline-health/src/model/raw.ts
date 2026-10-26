@@ -3,6 +3,7 @@
 
 import {
     copyKey,
+    type CursorItem,
     cursorKey,
     DAILY_ROW_LIMIT,
     DAY,
@@ -11,12 +12,11 @@ import {
     homeKey,
     KEEP_DAYS,
     quotaKey,
+    type RawItem,
+    type SourceItem,
     sourceKey,
     TIME_FIELDS,
     ttlAt,
-    type CursorItem,
-    type RawItem,
-    type SourceItem,
 } from "./items.js";
 import type { BatchOp, Item, Key, Store } from "./store.js";
 
@@ -30,6 +30,9 @@ const timesOf = (r: RawItem): [string, number][] =>
  * Stores raw items idempotently: the same id and attempt replaces what was there. Each item is written to its home
  * and copied into the 5-minute bucket of each of its times; every bucket touched (and any a changed time left) is
  * marked dirty. Returns the number of items written.
+ * @param store
+ * @param items
+ * @param nowMs
  */
 export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
     const ops: BatchOp[] = [];
@@ -39,17 +42,29 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
         const old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
         ops.push(...writesFor(r, old, nowMs, dirty));
     }
-    for (const start of dirty) ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
+    for (const start of dirty) {
+        ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
+    }
     await store.batch(ops);
     return items.length;
 }
 
 function check(r: RawItem): void {
-    if (!TIME_FIELDS[r.kind]) throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
-    if (typeof r.id !== "string" || !r.id || !Number.isInteger(r.attempt)) throw new Error("id and attempt required");
+    if (!TIME_FIELDS[r.kind]) {
+        throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
+    }
+    if (typeof r.id !== "string" || !r.id || !Number.isInteger(r.attempt)) {
+        throw new Error("id and attempt required");
+    }
 }
 
-/** The home item, a copy per time field, and the removal of copies a changed time left behind. */
+/**
+ * The home item, a copy per time field, and the removal of copies a changed time left behind.
+ * @param r
+ * @param old
+ * @param nowMs
+ * @param dirty
+ */
 function writesFor(r: RawItem, old: RawItem | undefined, nowMs: number, dirty: Set<number>): BatchOp[] {
     const keep = KEEP_DAYS[r.kind];
     const times = timesOf(r);
@@ -59,7 +74,9 @@ function writesFor(r: RawItem, old: RawItem | undefined, nowMs: number, dirty: S
     const now = new Map(times);
     for (const [f, t] of old ? timesOf(old) : []) {
         const moved = now.get(f);
-        if (moved !== undefined && floorTo(moved, "5m") === floorTo(t, "5m")) continue;
+        if (moved !== undefined && floorTo(moved, "5m") === floorTo(t, "5m")) {
+            continue;
+        }
         ops.push({ delete: copyKey(r, f, t) });
         dirty.add(floorTo(t, "5m"));
     }
@@ -73,9 +90,15 @@ function writesFor(r: RawItem, old: RawItem | undefined, nowMs: number, dirty: S
 /**
  * Adds `rows` to today's count under a condition, so the day never passes `limit` (10.5). False when it would: the
  * caller answers 429 and writes nothing.
+ * @param store
+ * @param rows
+ * @param nowMs
+ * @param limit
  */
 export async function takeQuota(store: Store, rows: number, nowMs: number, limit = DAILY_ROW_LIMIT): Promise<boolean> {
-    if (rows > limit) return false;
+    if (rows > limit) {
+        return false;
+    }
     const done = await store.update(
         quotaKey(nowMs),
         { add: { rows }, set: { ttl: ttlAt(nowMs + 8 * DAY) } },
@@ -84,19 +107,42 @@ export async function takeQuota(store: Store, rows: number, nowMs: number, limit
     return done !== undefined;
 }
 
+/**
+ *
+ * @param store
+ * @param nowMs
+ */
 export async function quotaUsed(store: Store, nowMs: number): Promise<number> {
     return ((await store.get(quotaKey(nowMs)))?.rows as number | undefined) ?? 0;
 }
 
+/**
+ *
+ * @param store
+ * @param name
+ */
 export async function getCursor(store: Store, name: string): Promise<string | undefined> {
     return ((await store.get(cursorKey(name))) as CursorItem | undefined)?.value;
 }
 
+/**
+ *
+ * @param store
+ * @param name
+ * @param value
+ * @param nowMs
+ */
 export async function setCursor(store: Store, name: string, value: string, nowMs: number): Promise<void> {
     await store.put({ ...cursorKey(name), value, at: nowMs });
 }
 
-/** Records one write (or failed attempt) of a source, for its age and error (section 9). */
+/**
+ * Records one write (or failed attempt) of a source, for its age and error (section 9).
+ * @param store
+ * @param source
+ * @param nowMs
+ * @param result
+ */
 export async function recordSource(
     store: Store,
     source: string,
@@ -112,8 +158,9 @@ export async function recordSource(
         lastAt: nowMs,
         ...(old?.lastOkAt === undefined ? {} : { lastOkAt: old.lastOkAt }),
     };
-    if (result.ok) item.lastOkAt = nowMs;
-    else {
+    if (result.ok) {
+        item.lastOkAt = nowMs;
+    } else {
         item.error = result.error;
         item.errorSince = old?.error ? (old.errorSince ?? nowMs) : nowMs;
     }

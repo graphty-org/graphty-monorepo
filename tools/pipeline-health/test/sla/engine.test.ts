@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DAY, floorTo, type CostItem, type RawItem } from "../../src/model/items.js";
+
+import { type CostItem, DAY, floorTo, type RawItem } from "../../src/model/items.js";
 import { putRaw, recordSource, takeQuota } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
-import { SLAS, type MemberConfig, type SlaConfig } from "../../src/sla/config.js";
+import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
@@ -32,10 +33,14 @@ describe("config", () => {
     it("names every member of sections 4.1 to 4.7 once, with known sources and one headline per category", () => {
         const ids = SLAS.members.map((m) => m.id);
         expect(new Set(ids).size).toBe(ids.length);
-        for (const c of SLAS.categories)
+        for (const c of SLAS.categories) {
             expect(SLAS.members.filter((m) => m.category === c.id && m.headline)).toHaveLength(1);
-        for (const m of SLAS.members)
-            for (const s of m.sources) expect(SLAS.sources[s], `${m.id} reads ${s}`).toBeDefined();
+        }
+        for (const m of SLAS.members) {
+            for (const s of m.sources) {
+                expect(SLAS.sources[s], `${m.id} reads ${s}`).toBeDefined();
+            }
+        }
         // The noisy rates are the "1 h, 6 h agrees" members of the design's tables.
         expect(
             SLAS.members
@@ -173,7 +178,9 @@ describe("data states", () => {
             T0,
             only("cost.cloudflare_usage", "release.canary_age", "ci.superseded_running"),
         );
-        for (const m of e.members) expect(m).toMatchObject({ state: "NOT SET UP", judged: false });
+        for (const m of e.members) {
+            expect(m).toMatchObject({ state: "NOT SET UP", judged: false });
+        }
         expect(e.members.find((m) => m.id === "cost.cloudflare_usage")?.reason).toMatchObject({
             code: "not_set_up",
             params: { source: "cloudflare-token" },
@@ -254,7 +261,9 @@ describe("episodes", () => {
                 peak: 2,
             },
         ]);
-        for (const s of ["collector"]) await recordSource(store, s, T0 + 10 * MIN, { ok: true });
+        for (const s of ["collector"]) {
+            await recordSource(store, s, T0 + 10 * MIN, { ok: true });
+        }
         const later = await evaluate(store, T0 + 10 * MIN, only("ci.hangs"));
         expect(later.members[0].state).toBe("OK");
         expect(later.episodes).toEqual([

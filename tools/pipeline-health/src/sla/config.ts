@@ -1,13 +1,15 @@
 // The shape of config/slas.json: every SLA member of design/ci/health-dashboard.md section 4, the sources of
 // section 9, and the limits the writers read. Labels are catalog data; the page writes every sentence.
 
-import slas from "../../config/slas.json";
+import slas from "../../config/slas.json" with { type: "json" };
 
 export type Op = "<" | "<=" | ">" | ">=" | "=";
 export type Threshold = [Op, number];
 
-/** 1h: judged on the last hour. 1h+6h: red only when the 6 h value is past red too. now: a state. slow: weeks,
- * never sets a state. info: shown, not judged until it has fired on real data. */
+/**
+ * 1h: judged on the last hour. 1h+6h: red only when the 6 h value is past red too. now: a state. slow: weeks,
+ * never sets a state. info: shown, not judged until it has fired on real data.
+ */
 export type MemberWindow = "1h" | "1h+6h" | "now" | "slow" | "info";
 
 export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" | "write_budget";

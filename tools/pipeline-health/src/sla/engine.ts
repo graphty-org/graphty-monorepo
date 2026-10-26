@@ -6,11 +6,11 @@
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
 import { quantile } from "../model/histogram.js";
-import { DAY, floorTo, sourceKey, STEP_MS, type Bucket, type SourceItem } from "../model/items.js";
+import { type Bucket, DAY, floorTo, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
-import { SLAS, type MemberConfig, type Measure, type SlaConfig, type SourceConfig, type Threshold } from "./config.js";
+import { type Measure, type MemberConfig, type SlaConfig, SLAS, type SourceConfig, type Threshold } from "./config.js";
 
 export type MemberState =
     "OK" | "WARNING" | "FAILING" | "NO DATA" | "NOT SET UP" | "TOO FEW SAMPLES" | "PARTIAL WINDOW" | "IDLE";
@@ -133,7 +133,13 @@ function hit(v: number, [op, x]: Threshold): boolean {
 
 function merged(series: Series | undefined, from: number, to: number): Bucket {
     const out: Bucket = emptyAgg();
-    if (series) for (const [s, b] of series) if (s >= from && s <= to) mergeBucket(out, b);
+    if (series) {
+        for (const [s, b] of series) {
+            if (s >= from && s <= to) {
+                mergeBucket(out, b);
+            }
+        }
+    }
     return out;
 }
 
@@ -148,7 +154,9 @@ function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: numbe
     const sumOf = (b: Bucket) => (m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0));
     const done = sumOf(merged(series, monthStart, today - 1));
     const all = sumOf(merged(series, monthStart, today));
-    if (!m.projected) return all;
+    if (!m.projected) {
+        return all;
+    }
     const elapsed = (today - monthStart) / DAY;
     // ponytail: on the 1st, before a whole day is billed, the month is today's partial lines, unprojected.
     return elapsed === 0 ? all : (done / elapsed) * monthDays;
@@ -195,13 +203,15 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     const m = c.measure;
     if (m.type === "dims_median_over") {
         const dims = new Map<string, Bucket>();
-        for (const [s, b] of ctx.daily.get(m.metric) ?? new Map<number, Bucket>())
-            if (s >= from && s <= today)
+        for (const [s, b] of ctx.daily.get(m.metric) ?? new Map<number, Bucket>()) {
+            if (s >= from && s <= today) {
                 for (const [d, a] of Object.entries(b.dims ?? {})) {
                     const into = dims.get(d) ?? emptyAgg();
                     dims.set(d, into);
                     mergeAgg(into, a);
                 }
+            }
+        }
         const judged = [...dims.values()].filter((a) => a.n >= m.minPerDim);
         return {
             value: judged.filter((a) => (a.hist ? (quantile(a.hist, 0.5) ?? 0) : 0) > m.over).length,
@@ -212,10 +222,15 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     return { value: measureValue(m, b, days * DAY), n: b.n };
 }
 
-/** Sources past their age limit or failing, and whether one is past twice it. */
+/**
+ * Sources past their age limit or failing, and whether one is past twice it.
+ * @param ctx
+ */
 function sourcesNotOk(ctx: Ctx): Computed {
     const bad = [...ctx.sources.values()].filter((s) => s.state === "stale" || s.state === "error");
-    if (!bad.length) return { value: 0 };
+    if (!bad.length) {
+        return { value: 0 };
+    }
     return {
         value: bad.length,
         failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
@@ -223,16 +238,23 @@ function sourcesNotOk(ctx: Ctx): Computed {
     };
 }
 
-/** The thinnest source with enough activity in the hour; too few when none has. */
+/**
+ * The thinnest source with enough activity in the hour; too few when none has.
+ * @param ctx
+ */
 function sourcesThin(ctx: Ctx): Computed {
     let best: Computed = { n: 0 };
     for (const s of Object.values(ctx.cfg.sources)) {
-        if (!s.thin) continue;
+        if (!s.thin) {
+            continue;
+        }
         const r = thinRatios(ctx, s.thin.metric, { t: floorTo(ctx.now, "5m"), end: ctx.now });
         const enough = r.n1 >= s.thin.minActivity;
-        if (!enough) best.n = Math.max(best.n ?? 0, r.n1);
-        else if (r.r1 !== undefined && (best.value === undefined || r.r1 < best.value))
+        if (!enough) {
+            best.n = Math.max(best.n ?? 0, r.n1);
+        } else if (r.r1 !== undefined && (best.value === undefined || r.r1 < best.value)) {
             best = { value: r.r1, n: r.n1, n6h: r.n6, ...(r.r6 === undefined ? {} : { value6h: r.r6 }) };
+        }
     }
     return best;
 }
@@ -252,7 +274,12 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
     }
 }
 
-/** Rows per unit of activity in the last 1 h and 6 h, against the last 7 d (section 9). */
+/**
+ * Rows per unit of activity in the last 1 h and 6 h, against the last 7 d (section 9).
+ * @param ctx
+ * @param metric
+ * @param p
+ */
 function thinRatios(ctx: Ctx, metric: string, p: Point) {
     const base = merged(ctx.daily.get(metric), floorTo(p.end, "1d") - 6 * DAY, floorTo(p.end, "1d"));
     const perRun = (b: Bucket) => (b.n > 0 ? b.sum / b.n : undefined);
@@ -266,13 +293,26 @@ function thinRatios(ctx: Ctx, metric: string, p: Point) {
     return { r1: ratio(b1), r6: ratio(b6), n1: b1.n, n6: b6.n };
 }
 
-/** The member's values at a point: 1 h and 6 h for windowed members, the newest value for states. */
+/**
+ * The member's values at a point: 1 h and 6 h for windowed members, the newest value for states.
+ * @param ctx
+ * @param c
+ * @param p
+ */
 function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     const m = c.measure;
-    if (c.window === "slow") return slowValue(ctx, c, p.end);
-    if (m.type === "engine") return p.end === ctx.now ? engineValue(ctx, m.name) : null;
-    if (m.type === "month") return { value: monthValue(ctx, m, p.end) };
-    if (m.type === "dims_median_over") return null;
+    if (c.window === "slow") {
+        return slowValue(ctx, c, p.end);
+    }
+    if (m.type === "engine") {
+        return p.end === ctx.now ? engineValue(ctx, m.name) : null;
+    }
+    if (m.type === "month") {
+        return { value: monthValue(ctx, m, p.end) };
+    }
+    if (m.type === "dims_median_over") {
+        return null;
+    }
     const series = ctx.five.get(m.metric);
     const b1 = merged(series, p.t - HOUR_SPAN + STEP, p.t);
     const span1 = p.end - (p.t - HOUR_SPAN + STEP);
@@ -288,22 +328,35 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
             merged(ctx.five.get(a.metric), p.t - HOUR_SPAN + STEP, p.t),
             0,
         );
-        if (v !== undefined && hit(v, a.fail)) out.failExtra = true;
+        if (v !== undefined && hit(v, a.fail)) {
+            out.failExtra = true;
+        }
     }
     return out;
 }
 
-/** The thresholds' verdict on computed values, or a gray reason. */
+/**
+ * The thresholds' verdict on computed values, or a gray reason.
+ * @param c
+ * @param v
+ */
 function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: number; reason?: Reason } {
-    if (c.minN !== undefined && (v.n ?? 0) < c.minN)
+    if (c.minN !== undefined && (v.n ?? 0) < c.minN) {
         return { state: "TOO FEW SAMPLES", reason: { code: "too_few", params: { n: v.n ?? 0, min: c.minN } } };
-    if (v.value === undefined)
+    }
+    if (v.value === undefined) {
         return { state: v.failExtra ? "FAILING" : "NO DATA", reason: { code: "no_value", params: {} } };
+    }
     const out = thresholds(c, v.value, v.value6h);
     return v.failExtra && out.state !== "FAILING" ? { state: "FAILING", excess: out.excess ?? 0 } : out;
 }
 
-/** Green at or better than the target, red past the red threshold, yellow between. */
+/**
+ * Green at or better than the target, red past the red threshold, yellow between.
+ * @param c
+ * @param value
+ * @param value6h
+ */
 function thresholds(
     c: MemberConfig,
     value: number,
@@ -315,7 +368,9 @@ function thresholds(
         const agrees = c.window !== "1h+6h" || (value6h !== undefined && hit(value6h, c.fail));
         return { state: agrees ? "FAILING" : "WARNING", excess: ex(c.fail) };
     }
-    if (c.ok && !hit(value, c.ok)) return { state: "WARNING", excess: ex(c.ok) };
+    if (c.ok && !hit(value, c.ok)) {
+        return { state: "WARNING", excess: ex(c.ok) };
+    }
     return { state: "OK" };
 }
 
@@ -329,8 +384,9 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
         ...(meta ? { firstAt: meta.firstAt } : {}),
         ...(meta?.lastOkAt === undefined ? {} : { lastOkAt: meta.lastOkAt }),
     };
-    if (!cfg || !meta || (cfg.idle && ctx.now - meta.lastAt > (cfg.yellowAfterMs ?? HOUR_SPAN)))
+    if (!cfg || !meta || (cfg.idle && ctx.now - meta.lastAt > (cfg.yellowAfterMs ?? HOUR_SPAN))) {
         return absentSource(id, cfg, base);
+    }
     if (meta.error) {
         const since = meta.errorSince ?? meta.lastAt;
         return {
@@ -343,20 +399,35 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
     return freshness(ctx, id, cfg, meta, base);
 }
 
-/** A source with no config, no write yet, or idle by design. */
+/**
+ * A source with no config, no write yet, or idle by design.
+ * @param id
+ * @param cfg
+ * @param base
+ */
 function absentSource(id: string, cfg: SourceConfig | undefined, base: SourceStatus): SourceStatus {
     // An idle source is judged again once it writes within its age limit (an hour when it has none).
-    if (cfg?.idle) return { ...base, state: "idle", reason: { code: "idle", params: { source: id, why: cfg.idle } } };
-    if (cfg?.notSetUp)
+    if (cfg?.idle) {
+        return { ...base, state: "idle", reason: { code: "idle", params: { source: id, why: cfg.idle } } };
+    }
+    if (cfg?.notSetUp) {
         return {
             ...base,
             state: "not set up",
             reason: { code: "not_set_up", params: { source: id, why: cfg.notSetUp } },
         };
+    }
     return { ...base, state: "stale", reason: { code: "stale", params: { source: id } } };
 }
 
-/** Past its age limit while it had activity, or thin for its activity (section 9). */
+/**
+ * Past its age limit while it had activity, or thin for its activity (section 9).
+ * @param ctx
+ * @param id
+ * @param cfg
+ * @param meta
+ * @param base
+ */
 function freshness(ctx: Ctx, id: string, cfg: SourceConfig, meta: SourceItem, base: SourceStatus): SourceStatus {
     const limit = cfg.yellowAfterMs;
     const age = ctx.now - (meta.lastOkAt ?? meta.firstAt);
@@ -376,37 +447,56 @@ function freshness(ctx: Ctx, id: string, cfg: SourceConfig, meta: SourceItem, ba
     }
     if (cfg.thin) {
         const r = thinRatios(ctx, cfg.thin.metric, { t: floorTo(ctx.now, "5m"), end: ctx.now });
-        if (r.n1 >= cfg.thin.minActivity && r.r1 !== undefined && r.r1 < 0.5)
+        if (r.n1 >= cfg.thin.minActivity && r.r1 !== undefined && r.r1 < 0.5) {
             return {
                 ...base,
                 state: "thin",
                 thinRatio: r.r1,
                 reason: { code: "thin", params: { source: id, ratio: r.r1 } },
             };
+        }
     }
     return base;
 }
 
-/** The gray state a member's sources impose, in order: not set up, informational, idle, NO DATA. */
+/**
+ * The gray state a member's sources impose, in order: not set up, informational, idle, NO DATA.
+ * @param c
+ * @param srcs
+ */
 function sourceGray(
     c: MemberConfig,
     srcs: SourceStatus[],
 ): { state: MemberState; reason: Reason; judged: boolean } | undefined {
     const first = (...states: SourceStatus["state"][]) => srcs.find((s) => states.includes(s.state))?.reason;
     const notSetUp = first("not set up");
-    if (notSetUp) return { state: "NOT SET UP", reason: notSetUp, judged: false };
-    if (c.window === "info")
+    if (notSetUp) {
+        return { state: "NOT SET UP", reason: notSetUp, judged: false };
+    }
+    if (c.window === "info") {
         return { state: "NOT SET UP", reason: { code: "informational", params: {} }, judged: false };
+    }
     const idle = first("idle");
-    if (idle) return { state: "IDLE", reason: idle, judged: false };
+    if (idle) {
+        return { state: "IDLE", reason: idle, judged: false };
+    }
     const broken = first("stale", "error", "thin");
-    if (broken) return { state: "NO DATA", reason: broken, judged: c.window !== "slow" };
+    if (broken) {
+        return { state: "NO DATA", reason: broken, judged: c.window !== "slow" };
+    }
     return undefined;
 }
 
-/** A windowed member whose sources began writing less than an hour ago. */
+/**
+ * A windowed member whose sources began writing less than an hour ago.
+ * @param ctx
+ * @param c
+ * @param srcs
+ */
 function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason | undefined {
-    if (c.window !== "1h" && c.window !== "1h+6h") return undefined;
+    if (c.window !== "1h" && c.window !== "1h+6h") {
+        return undefined;
+    }
     const covered = (ctx.now - Math.max(...srcs.map((s) => s.firstAt ?? -Infinity))) / HOUR_SPAN;
     return covered < 1 ? { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } } : undefined;
 }
@@ -427,7 +517,9 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     };
     const srcs = c.sources.map((s) => ctx.sources.get(s) ?? sourceStatus(ctx, s));
     const gray = sourceGray(c, srcs);
-    if (gray) return { ...status, ...gray };
+    if (gray) {
+        return { ...status, ...gray };
+    }
     const v = compute(ctx, c, { t: floorTo(ctx.now, "5m"), end: ctx.now }) ?? {};
     Object.assign(status, {
         ...(v.value === undefined ? {} : { value: v.value }),
@@ -436,7 +528,9 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
     });
     const partial = partialWindow(ctx, c, srcs);
-    if (partial) return { ...status, state: "PARTIAL WINDOW", reason: partial };
+    if (partial) {
+        return { ...status, state: "PARTIAL WINDOW", reason: partial };
+    }
     const out = verdict(c, v);
     const judged = c.window !== "slow" && ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
     return {
@@ -449,17 +543,28 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
 
 const BAD = (s: MemberState | null): s is "WARNING" | "FAILING" => s === "WARNING" || s === "FAILING";
 
-/** The member's state at a past 5-minute step, from buckets alone; null where it cannot be told (gray, engine). */
+/**
+ * The member's state at a past 5-minute step, from buckets alone; null where it cannot be told (gray, engine).
+ * @param ctx
+ * @param c
+ * @param p
+ */
 function historicState(
     ctx: Ctx,
     c: MemberConfig,
     p: Point,
 ): { state: MemberState | null; value?: number; excess?: number } {
-    if (c.window === "slow" || c.window === "info") return { state: null };
+    if (c.window === "slow" || c.window === "info") {
+        return { state: null };
+    }
     const v = compute(ctx, c, p);
-    if (!v) return { state: null };
+    if (!v) {
+        return { state: null };
+    }
     const out = verdict(c, v);
-    if (out.state !== "OK" && !BAD(out.state)) return { state: null };
+    if (out.state !== "OK" && !BAD(out.state)) {
+        return { state: null };
+    }
     return {
         state: out.state,
         ...(v.value === undefined ? {} : { value: v.value }),
@@ -467,13 +572,22 @@ function historicState(
     };
 }
 
-/** The newest 5-minute bucket alone is back within the target (section 3.1, "Clearing"). */
+/**
+ * The newest 5-minute bucket alone is back within the target (section 3.1, "Clearing").
+ * @param ctx
+ * @param c
+ * @param t
+ */
 function recovered(ctx: Ctx, c: MemberConfig, t: number): boolean {
     const m = c.measure;
     // A state has no hour to wait out: it recovers when it is OK again, which ends the episode.
-    if (!(c.window === "1h" || c.window === "1h+6h") || !("metric" in m)) return false;
+    if (!(c.window === "1h" || c.window === "1h+6h") || !("metric" in m)) {
+        return false;
+    }
     const b = ctx.five.get(m.metric)?.get(t);
-    if (!b || (b.n === 0 && b.sum === 0)) return true;
+    if (!b || (b.n === 0 && b.sum === 0)) {
+        return true;
+    }
     const v = measureValue(m, b, STEP);
     return v === undefined || !c.ok || hit(v, c.ok);
 }
@@ -481,11 +595,19 @@ function recovered(ctx: Ctx, c: MemberConfig, t: number): boolean {
 type StepState = { state: MemberState | null; value?: number; excess?: number };
 type OpenEpisode = Episode & { score: number };
 
-/** A bad step: opens the episode or extends it, keeping its worst state and peak, and its clearing. */
+/**
+ * A bad step: opens the episode or extends it, keeping its worst state and peak, and its clearing.
+ * @param open
+ * @param c
+ * @param h
+ * @param start
+ */
 function extend(open: OpenEpisode | undefined, c: MemberConfig, h: StepState, start: number): OpenEpisode {
     const state = h.state as Episode["worst"];
     const e: OpenEpisode = open ?? { member: c.id, category: c.category, worst: state, start, score: -1 };
-    if (state === "FAILING") e.worst = "FAILING";
+    if (state === "FAILING") {
+        e.worst = "FAILING";
+    }
     const score = (state === "FAILING" ? 1e6 : 0) + (h.excess ?? 0);
     if (score > e.score && h.value !== undefined) {
         e.score = score;
@@ -514,21 +636,34 @@ function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[]
             open = undefined;
         }
     }
-    if (open) out.push(closed(open));
+    if (open) {
+        out.push(closed(open));
+    }
     return out;
 }
 
-/** The state now as an episode step: gray states are unknown (null). */
+/**
+ * The state now as an episode step: gray states are unknown (null).
+ * @param m
+ */
 const currentStep = (m: MemberStatus): StepState => ({
     state: BAD(m.state) || m.state === "OK" ? m.state : null,
     ...(m.value === undefined ? {} : { value: m.value }),
     ...(m.excess === undefined ? {} : { excess: m.excess }),
 });
 
-/** Cleared from the first recovered bucket on; a relapse takes it back. */
+/**
+ * Cleared from the first recovered bucket on; a relapse takes it back.
+ * @param open
+ * @param isRecovered
+ * @param t
+ */
 function clearing(open: OpenEpisode, isRecovered: boolean, t: number): void {
-    if (!isRecovered) delete open.clearedAt;
-    else open.clearedAt ??= t;
+    if (!isRecovered) {
+        delete open.clearedAt;
+    } else {
+        open.clearedAt ??= t;
+    }
 }
 
 const RANK: Record<string, number> = { OK: 0, "NO DATA": 1, WARNING: 2, FAILING: 3 };
@@ -538,10 +673,14 @@ function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[])
     const judged = mine.filter((m) => m.judged);
     const headline = mine.find((m) => m.headline)?.id;
     const base = { id: cfg.id, label: cfg.label, others: [] as string[], ...(headline ? { headline } : {}) };
-    if (!judged.length) return { ...base, state: "IDLE" };
+    if (!judged.length) {
+        return { ...base, state: "IDLE" };
+    }
     const worst = Math.max(...judged.map((m) => RANK[m.state]));
     const state = (Object.keys(RANK).find((k) => RANK[k] === worst) ?? "OK") as CategoryState;
-    if (state === "OK") return { ...base, state };
+    if (state === "OK") {
+        return { ...base, state };
+    }
     const setBy = judged.filter((m) => RANK[m.state] === worst).sort((a, b) => (b.excess ?? 0) - (a.excess ?? 0))[0];
     return {
         ...base,
@@ -551,7 +690,12 @@ function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[])
     };
 }
 
-/** Every member's state now, the categories, the last 24 h of episodes and the sources. */
+/**
+ * Every member's state now, the categories, the last 24 h of episodes and the sources.
+ * @param store
+ * @param nowMs
+ * @param cfg
+ */
 export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLAS): Promise<Evaluation> {
     const ctx = await load(store, nowMs, cfg);
     const members: MemberStatus[] = [];
@@ -560,7 +704,9 @@ export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLA
         const status = currentStatus(ctx, c);
         const eps = episodesOf(ctx, c, status);
         const ongoing = eps.find((e) => e.endedAt === undefined);
-        if (ongoing?.clearedAt !== undefined && BAD(status.state)) status.clearedAt = ongoing.clearedAt;
+        if (ongoing?.clearedAt !== undefined && BAD(status.state)) {
+            status.clearedAt = ongoing.clearedAt;
+        }
         members.push(status);
         episodes.push(...eps);
     }
@@ -574,24 +720,42 @@ export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLA
     };
 }
 
-/** The metrics the members and sources read, at 5 minutes (windows, history) and by day (slow, costs, baselines). */
+/**
+ * The metrics the members and sources read, at 5 minutes (windows, history) and by day (slow, costs, baselines).
+ * @param cfg
+ */
 function metricsToLoad(cfg: SlaConfig): { five: Set<string>; daily: Set<string> } {
     const five = new Set<string>();
     const daily = new Set<string>();
     for (const c of cfg.members) {
         const byDay = c.window === "slow" || c.measure.type === "month";
-        for (const m of metricsOf(c.measure)) (byDay ? daily : five).add(m);
-        for (const a of c.also ?? []) five.add(a.metric);
+        for (const m of metricsOf(c.measure)) {
+            (byDay ? daily : five).add(m);
+        }
+        for (const a of c.also ?? []) {
+            five.add(a.metric);
+        }
     }
     for (const s of Object.values(cfg.sources)) {
-        if (s.activity) five.add(s.activity);
-        if (s.thin) five.add(s.thin.metric);
-        if (s.thin) daily.add(s.thin.metric);
+        if (s.activity) {
+            five.add(s.activity);
+        }
+        if (s.thin) {
+            five.add(s.thin.metric);
+        }
+        if (s.thin) {
+            daily.add(s.thin.metric);
+        }
     }
     return { five, daily };
 }
 
-/** Everything evaluate reads: two single-partition queries per metric, one get per source, the quota. */
+/**
+ * Everything evaluate reads: two single-partition queries per metric, one get per source, the quota.
+ * @param store
+ * @param nowMs
+ * @param cfg
+ */
 async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
     const now5 = floorTo(nowMs, "5m");
     const today = floorTo(nowMs, "1d");
@@ -607,13 +771,21 @@ async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
     };
     // The oldest step's 6 h window starts 24 h + 6 h back.
     const fiveFrom = now5 - (HISTORY_STEPS - 1) * STEP - SIX_SPAN;
-    for (const m of fiveMetrics) ctx.five.set(m, await loadSeries(store, m, "5m", fiveFrom, now5, nowMs));
-    for (const m of dailyMetrics) ctx.daily.set(m, await loadSeries(store, m, "1d", today - 31 * DAY, today, nowMs));
+    for (const m of fiveMetrics) {
+        ctx.five.set(m, await loadSeries(store, m, "5m", fiveFrom, now5, nowMs));
+    }
+    for (const m of dailyMetrics) {
+        ctx.daily.set(m, await loadSeries(store, m, "1d", today - 31 * DAY, today, nowMs));
+    }
     for (const id of Object.keys(cfg.sources)) {
         const meta = (await store.get(sourceKey(id))) as SourceItem | undefined;
-        if (meta) ctx.metas.set(id, meta);
+        if (meta) {
+            ctx.metas.set(id, meta);
+        }
     }
     ctx.quota = await quotaUsed(store, nowMs);
-    for (const id of Object.keys(cfg.sources)) ctx.sources.set(id, sourceStatus(ctx, id));
+    for (const id of Object.keys(cfg.sources)) {
+        ctx.sources.set(id, sourceStatus(ctx, id));
+    }
     return ctx;
 }

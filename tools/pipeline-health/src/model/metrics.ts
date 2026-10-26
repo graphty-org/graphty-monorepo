@@ -27,7 +27,7 @@ type Of<K extends RawKind> = Extract<RawItem, { kind: K }>;
 const src = <K extends RawKind>(kind: K, field: string, fold: (item: Of<K>) => Contribution | null): MetricSource => ({
     kind,
     field,
-    fold: fold as (item: never) => Contribution | null,
+    fold: fold,
 });
 
 /** PR check duration and full-run shard times are normalized to this budget, so a median compares to one value. */

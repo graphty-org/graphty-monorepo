@@ -4,6 +4,8 @@
 
 import { addValue, emptyHistogram, mergeInto } from "./histogram.js";
 import {
+    type Agg,
+    type Bucket,
     CHILD,
     DIRTY_PK,
     dirtyKey,
@@ -12,18 +14,16 @@ import {
     idxKey,
     KEEP_MS,
     PARENT,
+    type RawKind,
     rollKey,
+    type RollupItem,
     skTime,
+    type Step,
     STEP_MS,
     ttlAt,
-    type Agg,
-    type Bucket,
-    type RawKind,
-    type RollupItem,
-    type Step,
 } from "./items.js";
-import { METRICS, type Contribution, type MetricSource } from "./metrics.js";
-import { isLive, type BatchOp, type Item, type Store } from "./store.js";
+import { type Contribution, METRICS, type MetricSource } from "./metrics.js";
+import { type BatchOp, isLive, type Item, type Store } from "./store.js";
 
 export type Buckets = Map<string, Bucket>; // metric -> bucket
 
@@ -32,7 +32,9 @@ export const emptyAgg = (): Agg => ({ n: 0, sum: 0 });
 function addTo(agg: Agg, c: Contribution, at: number): void {
     agg.n += c.n ?? 1;
     agg.sum += c.sum ?? 0;
-    if (c.value === undefined) return;
+    if (c.value === undefined) {
+        return;
+    }
     agg.hist ??= emptyHistogram();
     addValue(agg.hist, c.value);
     agg.max = Math.max(agg.max ?? -Infinity, c.value);
@@ -42,6 +44,11 @@ function addTo(agg: Agg, c: Contribution, at: number): void {
     }
 }
 
+/**
+ *
+ * @param into
+ * @param from
+ */
 export function mergeAgg(into: Agg, from: Agg): void {
     into.n += from.n;
     into.sum += from.sum;
@@ -49,7 +56,9 @@ export function mergeAgg(into: Agg, from: Agg): void {
         into.hist ??= emptyHistogram();
         mergeInto(into.hist, from.hist);
     }
-    if (from.max !== undefined) into.max = Math.max(into.max ?? -Infinity, from.max);
+    if (from.max !== undefined) {
+        into.max = Math.max(into.max ?? -Infinity, from.max);
+    }
     if (from.lastAt !== undefined && (into.lastAt === undefined || from.lastAt >= into.lastAt)) {
         into.last = from.last;
         into.lastAt = from.lastAt;
@@ -62,9 +71,16 @@ function dimOf(b: Bucket, d: string): Agg {
     return b.dims[d];
 }
 
+/**
+ *
+ * @param into
+ * @param from
+ */
 export function mergeBucket(into: Bucket, from: Bucket): void {
     mergeAgg(into, from);
-    for (const [d, a] of Object.entries(from.dims ?? {})) mergeAgg(dimOf(into, d), a);
+    for (const [d, a] of Object.entries(from.dims ?? {})) {
+        mergeAgg(dimOf(into, d), a);
+    }
 }
 
 const pick = ({ n, sum, hist, max, last, lastAt, dims }: Bucket): Bucket => ({
@@ -77,25 +93,37 @@ const pick = ({ n, sum, hist, max, last, lastAt, dims }: Bucket): Bucket => ({
 });
 
 const SOURCES = new Map<string, { metric: string; source: MetricSource }[]>();
-for (const m of METRICS)
+for (const m of METRICS) {
     for (const s of m.from) {
         const k = `${s.kind}#${s.field}`;
         SOURCES.set(k, [...(SOURCES.get(k) ?? []), { metric: m.id, source: s }]);
     }
+}
 
 function contribute(out: Buckets, metric: string, c: Contribution | null, at: number): void {
-    if (!c) return;
+    if (!c) {
+        return;
+    }
     const b: Bucket = out.get(metric) ?? emptyAgg();
     out.set(metric, b);
     addTo(b, c, at);
-    if (c.dim !== undefined) addTo(dimOf(b, c.dim), c, at);
+    if (c.dim !== undefined) {
+        addTo(dimOf(b, c.dim), c, at);
+    }
 }
 
-/** One 5-minute bucket of every metric, from the raw items copied into it. */
+/**
+ * One 5-minute bucket of every metric, from the raw items copied into it.
+ * @param store
+ * @param start
+ * @param nowMs
+ */
 export async function fromRaw(store: Store, start: number, nowMs: number): Promise<Buckets> {
     const out: Buckets = new Map();
     for (const item of await store.query(`T#${skTime(start)}`)) {
-        if (!isLive(item, nowMs)) continue;
+        if (!isLive(item, nowMs)) {
+            continue;
+        }
         const kind = item.kind as RawKind;
         const field = item.field as string;
         const at = item[field] as number;
@@ -104,13 +132,21 @@ export async function fromRaw(store: Store, start: number, nowMs: number): Promi
             contribute(out, item.metric as string, { sum: v, value: v }, at);
             continue;
         }
-        for (const { metric, source } of SOURCES.get(`${kind}#${field}`) ?? [])
+        for (const { metric, source } of SOURCES.get(`${kind}#${field}`) ?? []) {
             contribute(out, metric, source.fold(item as never), at);
+        }
     }
     return out;
 }
 
-/** Stored buckets of `step` in [from, to], every metric the IDX items name: one query per metric. */
+/**
+ * Stored buckets of `step` in [from, to], every metric the IDX items name: one query per metric.
+ * @param store
+ * @param step
+ * @param from
+ * @param to
+ * @param nowMs
+ */
 export async function readStored(
     store: Store,
     step: Step,
@@ -120,23 +156,43 @@ export async function readStored(
 ): Promise<Map<number, Buckets>> {
     const range = { from: skTime(from), to: skTime(to) };
     const metrics = new Set<string>();
-    for (const i of await store.query(idxKey(step, 0).pk, range))
-        if (isLive(i, nowMs)) for (const m of i.metrics as string[]) metrics.add(m);
+    for (const i of await store.query(idxKey(step, 0).pk, range)) {
+        if (isLive(i, nowMs)) {
+            for (const m of i.metrics as string[]) {
+                metrics.add(m);
+            }
+        }
+    }
     const out = new Map<number, Buckets>();
-    for (const m of metrics)
+    for (const m of metrics) {
         for (const r of (await store.query(rollKey(m, step, 0).pk, range)) as RollupItem[]) {
-            if (!isLive(r, nowMs)) continue;
+            if (!isLive(r, nowMs)) {
+                continue;
+            }
             const b = out.get(r.start) ?? new Map();
             out.set(r.start, b);
             b.set(m, pick(r));
         }
+    }
     return out;
 }
 
-/** A bucket still kept for at least an hour, so it can be read instead of recomputed. */
+/**
+ * A bucket still kept for at least an hour, so it can be read instead of recomputed.
+ * @param step
+ * @param start
+ * @param nowMs
+ */
 const kept = (step: Step, start: number, nowMs: number) => start + KEEP_MS[step] > nowMs + HOUR;
 
-/** Every metric of one bucket of `step`, recomputed: from raw for 5 minutes, else from its children. */
+/**
+ * Every metric of one bucket of `step`, recomputed: from raw for 5 minutes, else from its children.
+ * @param store
+ * @param step
+ * @param start
+ * @param nowMs
+ * @param cache
+ */
 export async function computePeriod(
     store: Store,
     step: Step,
@@ -146,14 +202,19 @@ export async function computePeriod(
 ): Promise<Buckets> {
     const key = `${step}:${start}`;
     const hit = cache.get(key);
-    if (hit) return hit;
+    if (hit) {
+        return hit;
+    }
     let out: Buckets;
     const child = CHILD[step];
-    if (!child) out = await fromRaw(store, start, nowMs);
-    else {
+    if (!child) {
+        out = await fromRaw(store, start, nowMs);
+    } else {
         out = new Map();
         const starts: number[] = [];
-        for (let s = start; s < start + STEP_MS[step]; s += STEP_MS[child]) starts.push(s);
+        for (let s = start; s < start + STEP_MS[step]; s += STEP_MS[child]) {
+            starts.push(s);
+        }
         const needRead = starts.some((s) => !cache.has(`${child}:${s}`) && kept(child, s, nowMs));
         const stored = needRead ? await readStored(store, child, start, start + STEP_MS[step] - 1, nowMs) : new Map();
         for (const s of starts) {
@@ -173,15 +234,29 @@ export async function computePeriod(
     return out;
 }
 
-/** Writes one recomputed bucket of every metric, and empties the metrics it no longer holds. */
+/**
+ * Writes one recomputed bucket of every metric, and empties the metrics it no longer holds.
+ * @param store
+ * @param step
+ * @param start
+ * @param buckets
+ * @param nowMs
+ */
 async function writePeriod(store: Store, step: Step, start: number, buckets: Buckets, nowMs: number): Promise<number> {
-    if (!kept(step, start, nowMs)) return 0;
+    if (!kept(step, start, nowMs)) {
+        return 0;
+    }
     const ttl = ttlAt(start + KEEP_MS[step]);
     const prev = ((await store.get(idxKey(step, start)))?.metrics as string[] | undefined) ?? [];
     const ops: BatchOp[] = [];
-    for (const m of prev) if (!buckets.has(m)) ops.push({ delete: rollKey(m, step, start) });
-    for (const [m, b] of buckets)
+    for (const m of prev) {
+        if (!buckets.has(m)) {
+            ops.push({ delete: rollKey(m, step, start) });
+        }
+    }
+    for (const [m, b] of buckets) {
         ops.push({ put: { ...rollKey(m, step, start), metric: m, step, start, ttl, ...pick(b) } });
+    }
     ops.push({ put: { ...idxKey(step, start), metrics: [...buckets.keys()].sort(), ttl } });
     await store.batch(ops);
     return buckets.size;
@@ -190,6 +265,8 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
 /**
  * Recomputes every dirty 5-minute bucket and its parents, then clears the marks it consumed. The collector runs it
  * every cycle (reserved concurrency 1, so two never race each other).
+ * @param store
+ * @param nowMs
  */
 export async function recompute(store: Store, nowMs: number): Promise<{ buckets: number; items: number }> {
     const marks = await store.query(DIRTY_PK);
@@ -210,7 +287,9 @@ export async function recompute(store: Store, nowMs: number): Promise<{ buckets:
             buckets++;
         }
         const parent: Step | undefined = PARENT[step];
-        if (parent) level = new Set([...level].map((s) => floorTo(s, parent)));
+        if (parent) {
+            level = new Set([...level].map((s) => floorTo(s, parent)));
+        }
         step = parent;
     }
     // A mark re-set while we worked (a newer markedAt) stays for the next cycle.
@@ -218,8 +297,10 @@ export async function recompute(store: Store, nowMs: number): Promise<{ buckets:
     // a conditional delete in the adapter closes it if that ever shows.
     const clear: BatchOp[] = [];
     for (const m of marks) {
-        const cur = (await store.get(dirtyKey(m.start as number))) as Item | undefined;
-        if (cur && cur.markedAt === m.markedAt) clear.push({ delete: dirtyKey(m.start as number) });
+        const cur = await store.get(dirtyKey(m.start as number));
+        if (cur && cur.markedAt === m.markedAt) {
+            clear.push({ delete: dirtyKey(m.start as number) });
+        }
     }
     await store.batch(clear);
     return { buckets, items };
@@ -248,7 +329,15 @@ export interface MetricWindow {
     series: { start: number; bucket: Bucket }[];
 }
 
-/** One metric's buckets of `step` in [from, to], by start. */
+/**
+ * One metric's buckets of `step` in [from, to], by start.
+ * @param store
+ * @param metric
+ * @param step
+ * @param from
+ * @param to
+ * @param nowMs
+ */
 export async function loadSeries(
     store: Store,
     metric: string,
@@ -261,12 +350,21 @@ export async function loadSeries(
     for (const r of (await store.query(rollKey(metric, step, 0).pk, {
         from: skTime(from),
         to: skTime(to),
-    })) as RollupItem[])
-        if (isLive(r, nowMs)) out.set(r.start, pick(r));
+    })) as RollupItem[]) {
+        if (isLive(r, nowMs)) {
+            out.set(r.start, pick(r));
+        }
+    }
     return out;
 }
 
-/** A metric over one window, from its stored rollups: one single-partition query. */
+/**
+ * A metric over one window, from its stored rollups: one single-partition query.
+ * @param store
+ * @param metric
+ * @param window
+ * @param nowMs
+ */
 export async function windowValue(
     store: Store,
     metric: string,

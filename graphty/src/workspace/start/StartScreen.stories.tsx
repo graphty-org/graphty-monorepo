@@ -38,14 +38,26 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
  * @param canvasElement - the story's root.
  */
 async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
+    const started = performance.now();
     await waitFor(() => {
         expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
     }, storyWaitOptions(30_000));
+    const captionMs = Math.round(performance.now() - started);
     const element = canvasElement.querySelector("graphty-element");
     if (element === null) {
         throw new Error("the start page drew no <graphty-element>");
     }
-    await element.waitForStableFrame();
+    // Diagnosis for #3766 (cause not yet seen): the element's own deadline ends before the test's (30 s,
+    // graphty/vitest.config.ts), so a frame that never settles fails with the element's account of what is
+    // still owed and how long the caption took, not a bare test timeout. A bare timeout now means the caption
+    // (the sample load and Louvain) never appeared.
+    try {
+        await element.waitForStableFrame({ timeoutMs: Math.max(1_000, 25_000 - captionMs) });
+    } catch (error) {
+        throw new Error(
+            `hero caption shown after ${String(captionMs)} ms, then: ${error instanceof Error ? error.message : String(error)}`,
+        );
+    }
 }
 
 const meta: Meta<typeof Workspace> = {

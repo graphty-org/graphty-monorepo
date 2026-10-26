@@ -15,6 +15,7 @@ issue.
 | `POST /v1/durations`             | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`                                         |
 | `POST /v1/verdicts`              | master's release.yml  | stores the full run's verdict on its candidate (`{ sha, state, lane, issue }`; state `green-clean`, `green-images`, `red` or `owner-item`) |
 | `POST /v1/sites`                 | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run                                            |
+| `POST /v1/channel-moves`         | master's release.yml  | records a nightly promotion `{ channel: "nightly", sha, versionCommit, siteSha256, channelSha256 }`; a re-run replaces its run's row       |
 | `PUT /v1/durations/tests/<name>` | master's own runs     | replaces test shard `<name>`'s duration history (tools/vitest-time-budget.mjs; a JSON object, at most 1.9 MB)                              |
 
 A repeated post of the same record id stores nothing the second time (`"stored": false`).

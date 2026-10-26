@@ -4,7 +4,8 @@
 #
 # The calling job checks out tools/ and ci-budgets.json, runs last with `if: always()`, and needs
 # `actions: read` (the run's jobs), `id-token: write` (the store's credential) and `pull-requests: write`
-# (the comment). The Build job uploads its nx profile as the artifact `nx-profile`.
+# (the comment), and `issues: write` (the trend alarm issues of master's runs, kind full in the store).
+# The Build job uploads its nx profile as the artifact `nx-profile`.
 name: CI timings
 description: Report the run's durations against their budgets and send them to the results store
 inputs:
@@ -14,6 +15,10 @@ inputs:
         default: ""
     results-url:
         description: The results store's URL (the repository variable RESULTS_URL); empty sends nothing
+        required: false
+        default: ""
+    health-api-url:
+        description: The pipeline health API's URL (the repository variable HEALTH_API_URL); empty sends nothing there
         required: false
         default: ""
 runs:
@@ -36,6 +41,7 @@ runs:
           env:
               GITHUB_TOKEN: ${{ github.token }}
               RESULTS_URL: ${{ inputs.results-url }}
+              HEALTH_API_URL: ${{ inputs.health-api-url }}
               KIND: ${{ inputs.kind }}
               PROFILES: ${{ runner.temp }}/nx-profiles
           run: |

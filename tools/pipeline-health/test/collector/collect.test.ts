@@ -5,6 +5,7 @@ import { GitHub } from "../../src/collector/github.js";
 import type { Rates } from "../../src/collector/parse.js";
 import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
+import { readSnapshot } from "../../src/model/snapshots.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
@@ -72,6 +73,19 @@ describe("collector with the GitHub App", () => {
         // The 18:00 shadow attempt skipped every lane on 1fa254bf, a commit no attempt tested (design 4.5).
         expect(observed(store, "release.train_skipped")).toBe(1);
         expect(observed(store, "github.rate_remaining_share")).toBe(0.8);
+        // The "now" lists: quarantine and CODEOWNERS from master, release lanes per attempt, release workflows.
+        expect(await readSnapshot(store, "quarantine")).toEqual([
+            { file: "a/x.test.ts", name: "t1", family: "a", issue: 9, since: undefined, expires: undefined },
+        ]);
+        expect(await readSnapshot(store, "codeowners")).toEqual(["/.github/", "/visual-review/"]);
+        const rel = Object.values((await readSnapshot(store, "release")) ?? {});
+        expect(rel.some((a) => a.tested && a.lanes?.t4 === "failed" && a.jobs?.t4?.redAt)).toBe(true);
+        expect((await readSnapshot(store, "release-workflows"))?.map((w) => w.workflow)).toEqual([
+            "release.yml",
+            "promote.yml",
+            "release-watch.yml",
+        ]);
+        expect(Array.isArray(await readSnapshot(store, "owner-wait"))).toBe(true);
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);
@@ -146,5 +160,94 @@ describe("runner job counts", () => {
         await collect(deps(store, fake));
         expect(observed(store, "ci.jobs_running")).toBe(2);
         expect(observed(store, "ci.jobs_queued")).toBe(2);
+    });
+});
+
+describe("collector deploy trigger", () => {
+    const TREE = "a".repeat(40);
+    const HEAD = "b".repeat(40);
+    /** GitHub that answers only the deploy query, with master's tools/pipeline-health tree `tree()`. */
+    const gh = (tree: () => string) =>
+        new GitHub(
+            async () => "ghs_test",
+            async (url, init) => {
+                const body = String(init?.body ?? "");
+                if (url.endsWith("/graphql") && body.includes("master:tools/pipeline-health"))
+                    return Response.json({ data: { repository: { tree: { oid: tree() }, head: { oid: HEAD } } } });
+                return new Response("{}", { status: 500 });
+            },
+        );
+    const builds = (opts: { running?: boolean; fail?: boolean } = {}) => {
+        const started: string[] = [];
+        return {
+            started,
+            start: async (commit: string) => {
+                if (opts.fail) throw new Error("AccessDenied");
+                started.push(commit);
+                return `graphty-health-deploy:${started.length}`;
+            },
+            running: async () => opts.running ?? false,
+        };
+    };
+    const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
+        collect({ ...deps(store, fakeGitHub(), now, false), gh: g, deploy: b });
+
+    it("starts a build at master's head when the tree changed, and not again while it is unchanged", async () => {
+        const store = new MemoryStore();
+        let tree = TREE;
+        const b = builds();
+        const first = await run(
+            store,
+            gh(() => tree),
+            b,
+        );
+        expect(first.errors.deploy).toBeUndefined();
+        expect(b.started).toEqual([HEAD]);
+        expect(JSON.parse((await getCursor(store, "deploy")) ?? "{}")).toMatchObject({ tree: TREE });
+        await run(
+            store,
+            gh(() => tree),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([HEAD]);
+        tree = "c".repeat(40);
+        await run(
+            store,
+            gh(() => tree),
+            b,
+            NOW + 10 * MIN,
+        );
+        expect(b.started).toEqual([HEAD, HEAD]);
+        expect(await store.get(sourceKey("deploy"))).toMatchObject({ lastOkAt: NOW + 10 * MIN });
+    });
+
+    it("does not start while the last build is still in progress", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ running: true });
+        await run(
+            store,
+            gh(() => "d".repeat(40)),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([]);
+    });
+
+    it("records a StartBuild failure against the deploy source without failing the cycle", async () => {
+        const store = new MemoryStore();
+        const report = await run(
+            store,
+            gh(() => TREE),
+            builds({ fail: true }),
+        );
+        expect(report.errors.deploy).toContain("AccessDenied");
+        expect(await getCursor(store, "deploy")).toBeUndefined();
+        expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("AccessDenied");
     });
 });

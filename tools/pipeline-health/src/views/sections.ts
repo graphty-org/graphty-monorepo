@@ -597,11 +597,7 @@ export async function superseded(reads: Reads): Promise<Section> {
     return { kind: "table", id: "superseded", rows };
 }
 
-export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {
-    "pull-requests": ["time", "owner"],
-    flaky: ["quarantine"],
-    releases: ["lanes", "trains", "workflows"],
-};
+export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {};
 
 /**
  * Events (n) of one metric over the last `days` daily buckets.

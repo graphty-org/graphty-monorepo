@@ -25,6 +25,7 @@ import { SLAS, type SlaConfig } from "../sla/config.js";
 import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
+import { lanesTable, ownerTable, prTime, quarantineTable, trainsTable, workflowsTable } from "./snapshot-sections.js";
 import {
     causes,
     dimBars,
@@ -264,7 +265,16 @@ class Builder {
             case "runners":
                 return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];
             case "flaky":
-                return [await hotspots(this.reads, "7d"), ...empty];
+                return [await hotspots(this.reads, "7d"), await quarantineTable(this.reads), ...empty];
+            case "pull-requests":
+                return [await prTime(this.reads, range), await ownerTable(this.reads), ...empty];
+            case "releases":
+                return [
+                    await lanesTable(this.reads),
+                    await trainsTable(this.reads),
+                    await workflowsTable(this.reads),
+                    ...empty,
+                ];
             case "data-sources":
                 return [
                     ...empty,

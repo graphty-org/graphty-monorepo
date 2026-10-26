@@ -1,19 +1,11 @@
 import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import * as codebuild from "aws-cdk-lib/aws-codebuild";
-import { CfnConnection } from "aws-cdk-lib/aws-codeconnections";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
 import type { Construct } from "constructs";
 
-export interface DeployStackProps extends StackProps {
-    /**
-     * The owner approved the connection in the console (status AVAILABLE). CodeBuild refuses
-     * a project whose source auth is a PENDING connection, so until then the stack holds only
-     * the connection, the role and the log group; set the context `connectionApproved=true`
-     * (cdk.json) and deploy again to add the project and its webhook.
-     */
-    connectionApproved: boolean;
-}
+/** The CodeBuild project the collector starts when master's tools/pipeline-health changes. */
+export const DEPLOY_PROJECT = "graphty-health-deploy";
 
 /** The CDK bootstrap roles (default qualifier) the build may assume, and nothing else. */
 export function bootstrapRoleArns(account: string, region: string): string[] {
@@ -24,13 +16,26 @@ export function bootstrapRoleArns(account: string, region: string): string[] {
 
 const BUILDSPEC = {
     version: "0.2",
+    env: { variables: { GIT_LFS_SKIP_SMUDGE: "1" } },
     phases: {
         install: {
             "runtime-versions": { nodejs: "22" },
-            commands: ["cd tools/pipeline-health", "corepack enable", "pnpm install --frozen-lockfile"],
+            commands: [
+                'test -n "$COMMIT"',
+                'git init "$CODEBUILD_SRC_DIR/src" && cd "$CODEBUILD_SRC_DIR/src"',
+                "git remote add origin https://github.com/graphty-org/graphty-monorepo.git",
+                'git fetch --depth 1 origin "$COMMIT"',
+                "git checkout --detach FETCH_HEAD",
+                // tools/pipeline-health is a standalone pnpm workspace with its own lockfile.
+                "cd tools/pipeline-health",
+                "corepack enable",
+                "pnpm install --frozen-lockfile",
+            ],
         },
         build: {
             commands: [
+                // Absolute: whether a cd carries over between phases is not something to rely on.
+                'cd "$CODEBUILD_SRC_DIR/src/tools/pipeline-health"',
                 "npx tsc --noEmit -p .",
                 "npx vitest run",
                 "npx cdk deploy graphty-health --require-approval never",
@@ -40,19 +45,14 @@ const BUILDSPEC = {
 };
 
 /**
- * Deploys the graphty-health stack from CodeBuild on every master push that touches
- * tools/pipeline-health/. Source auth is a CodeConnections GitHub connection, which the
- * L2 GitHub source cannot express, so Source.Auth is set by a property override.
+ * Deploys the graphty-health stack from CodeBuild. The project has no source: the collector Lambda starts a build
+ * with COMMIT set to master's head when master's tools/pipeline-health tree changes, and the build clones the
+ * public repository at that commit. No GitHub connection or webhook is involved.
  */
 export class DeployStack extends Stack {
-    constructor(scope: Construct, id: string, props: DeployStackProps) {
+    constructor(scope: Construct, id: string, props: StackProps) {
         super(scope, id, props);
         const { account, region } = this;
-
-        const connection = new CfnConnection(this, "GitHubConnection", {
-            connectionName: "graphty-health-github",
-            providerType: "GitHub",
-        });
 
         const role = new iam.Role(this, "BuildRole", {
             assumedBy: new iam.ServicePrincipal("codebuild.amazonaws.com", {
@@ -63,18 +63,6 @@ export class DeployStack extends Stack {
         role.addToPolicy(
             new iam.PolicyStatement({ actions: ["sts:AssumeRole"], resources: bootstrapRoleArns(account, region) }),
         );
-        role.addToPolicy(
-            new iam.PolicyStatement({
-                actions: [
-                    "codeconnections:GetConnection",
-                    "codeconnections:GetConnectionToken",
-                    "codestar-connections:GetConnection",
-                    "codestar-connections:GetConnectionToken",
-                    "codestar-connections:UseConnection",
-                ],
-                resources: [connection.attrConnectionArn],
-            }),
-        );
 
         const logGroup = new logs.LogGroup(this, "BuildLogs", {
             logGroupName: "/graphty-health/deploy-build",
@@ -82,24 +70,9 @@ export class DeployStack extends Stack {
             removalPolicy: RemovalPolicy.DESTROY,
         });
 
-        if (!props.connectionApproved) return;
-
-        const project = new codebuild.Project(this, "Deploy", {
-            projectName: "graphty-health-deploy",
+        new codebuild.Project(this, "Deploy", {
+            projectName: DEPLOY_PROJECT,
             role,
-            source: codebuild.Source.gitHub({
-                owner: "graphty-org",
-                repo: "graphty-monorepo",
-                branchOrRef: "master",
-                webhook: true,
-                webhookFilters: [
-                    codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH)
-                        .andBranchIs("master")
-                        .andFilePathIs("^tools/pipeline-health/"),
-                ],
-                cloneDepth: 1,
-                reportBuildStatus: false,
-            }),
             buildSpec: codebuild.BuildSpec.fromObject(BUILDSPEC),
             environment: {
                 buildImage: codebuild.LinuxArmBuildImage.AMAZON_LINUX_2023_STANDARD_3_0,
@@ -108,10 +81,6 @@ export class DeployStack extends Stack {
             timeout: Duration.minutes(30),
             concurrentBuildLimit: 1,
             logging: { cloudWatch: { logGroup } },
-        });
-        (project.node.defaultChild as codebuild.CfnProject).addPropertyOverride("Source.Auth", {
-            Type: "CODECONNECTIONS",
-            Resource: connection.attrConnectionArn,
         });
     }
 }

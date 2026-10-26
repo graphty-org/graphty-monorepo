@@ -12,6 +12,7 @@
         "deploy": "cdk deploy --profile graphty --require-approval never"
     },
     "dependencies": {
+        "@aws-sdk/client-codebuild": "3.1149.0",
         "@aws-sdk/client-cost-explorer": "3.1149.0",
         "@aws-sdk/client-dynamodb": "3.1149.0",
         "@aws-sdk/client-ssm": "3.1149.0",

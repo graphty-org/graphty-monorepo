@@ -121,4 +121,19 @@ describe("health stack", () => {
         );
         expect(services).toEqual(expect.arrayContaining(["budgets.amazonaws.com", "cloudwatch.amazonaws.com"]));
     });
+
+    it("lets the collector start and read the deploy build, and names the project", () => {
+        t.hasResourceProperties("AWS::Lambda::Function", {
+            Environment: { Variables: Match.objectLike({ DEPLOY_PROJECT: "graphty-health-deploy" }) },
+        });
+        const statements = Object.values(t.findResources("AWS::IAM::Policy")).flatMap(
+            (p) => p.Properties.PolicyDocument.Statement as { Action: string | string[]; Resource: unknown }[],
+        );
+        const build = statements.filter((s) => [s.Action].flat().includes("codebuild:StartBuild"));
+        expect(build).toHaveLength(1);
+        expect([build[0].Action].flat().sort()).toEqual(["codebuild:BatchGetBuilds", "codebuild:StartBuild"]);
+        expect(JSON.stringify(build[0].Resource)).toMatch(
+            /:codebuild:us-east-2:494945606241:project\/graphty-health-deploy"/,
+        );
+    });
 });

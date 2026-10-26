@@ -3,18 +3,24 @@
 // the stress run, the host matrix, npm and coverage; daily the costs. Everything is written through the model's
 // raw writers (idempotent), with cursors in the table and each source's health for the Data sources page.
 
-import type { CostItem, ObservationItem, RawItem, RunItem } from "../model/items.js";
-import { DAY, HOUR, homeKey, MIN } from "../model/items.js";
+import type { CostItem, ObservationItem, PullRequestItem, RawItem, RunItem } from "../model/items.js";
+import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
+import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
+import type { DeployBuilds } from "./aws.js";
 import type { Fetch, GitHub } from "./github.js";
 import {
     classifyCancel,
-    failedInRow,
+    codeownerPatterns,
     fixedCosts,
     llmCost,
     masterState,
     npmName,
+    ownerWait,
+    ownerWaitOf,
+    prRunOf,
+    prStages,
     prStocks,
     releaseAttempt,
     releaseTags,
@@ -32,16 +38,17 @@ import {
     toRunItem,
     toStepItems,
     workflowFile,
+    workflowState,
     type GhJob,
     type GhRun,
     type GqlIssue,
     type GqlPr,
-    type Lane,
+    type PrRun,
     type Rates,
     type SuiteNode,
     type Tag,
 } from "./parse.js";
-import { ISSUE_QUERY, PR_QUERY, SUITE_QUERY, TAG_QUERY } from "./queries.js";
+import { ISSUE_QUERY, ownerFilesQuery, PR_QUERY, REPO_FILES_QUERY, SUITE_QUERY, TAG_QUERY } from "./queries.js";
 import {
     failureCause,
     nextHolders,
@@ -66,6 +73,8 @@ export interface Deps {
     org: string;
     /** owner/name of the monorepo: master, pull requests, issues, releases. */
     repo: string;
+    /** The health stack's deploy build. Undefined: the stack is not redeployed from master. */
+    deploy?: DeployBuilds;
 }
 
 export interface CycleReport {
@@ -340,6 +349,32 @@ async function flaky(c: Cycle, run: GhRun, repo: string) {
     }
 }
 
+const prRunsKey = (repo: string, pr: number) => ({ pk: `PRRUNS#${repo}#${pr}`, sk: "-" });
+
+/** Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). */
+async function prRuns(c: Cycle, xs: Collected[]) {
+    for (const { run, repo, jobs } of xs) {
+        const pr = run.pull_requests?.[0]?.number;
+        const r = pr === undefined ? undefined : prRunOf(run, jobs ?? []);
+        if (pr === undefined || !r) continue;
+        const key = prRunsKey(repo, pr);
+        const old = (await c.d.store.get(key))?.runs as Record<string, PrRun> | undefined;
+        await c.d.store.put({
+            ...key,
+            runs: { ...old, [`${run.id}.${run.run_attempt}`]: r },
+            ttl: ttlAt(c.now + 30 * DAY),
+        });
+    }
+}
+
+/** A merged pull request's stage times from its recorded runs. */
+async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestItem> {
+    if (item.mergedAt === undefined || item.ownerWait) return item;
+    const runs = (await c.d.store.get(prRunsKey(item.repo, item.number)))?.runs as Record<string, PrRun> | undefined;
+    const stages = runs && prStages(Object.values(runs), item.mergedAt);
+    return stages ? { ...item, stages } : item;
+}
+
 /** Runner use against the limits (4.3), counted in jobs of every unfinished run. */
 async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     const open = xs.filter((x) => x.run.status !== "completed");
@@ -401,12 +436,13 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         if (page === 0) open = data.repository.open.nodes;
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
-        for (const p of newer) c.items.push(toPrItem(p, c.d.repo));
+        for (const p of newer) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
         recentSeen.push(...newer);
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
+    await ownerWaits(c, gh, open);
     const s = prStocks(open, c.now);
     c.o("pr.open", s.open);
     c.o("pr.oldest_open_ms", s.oldestOpenMs);
@@ -421,6 +457,46 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         c.o("ci.superseded_running", sup.rows.length);
     }
     await setCursor(c.d.store, "prs", iso(c.now), c.now);
+}
+
+/** The open pull requests waiting on the owner, with the CODEOWNERS paths their files touch (one query). */
+async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
+    const waiting = open.filter((p) => p.state === "OPEN" && !p.isDraft && ownerWait(p));
+    const [owner, name] = c.d.repo.split("/");
+    const files = new Map<number, string[]>();
+    if (waiting.length) {
+        const data = await gh.graphql<{ repository: Record<string, { files: { nodes: { path: string }[] } } | null> }>(
+            ownerFilesQuery(waiting.map((p) => p.number)),
+            { owner, name },
+        );
+        for (const p of waiting)
+            files.set(p.number, data.repository[`p${p.number}`]?.files.nodes.map((f) => f.path) ?? []);
+    }
+    const codeowners = await c.json<string[]>("codeowners", []);
+    const list: OwnerWait[] = waiting.map((p) => ownerWaitOf(p, files.get(p.number) ?? [], codeowners));
+    await c.setJson("owner-wait", list);
+}
+
+/** The committed quarantine list and CODEOWNERS, from master (one query; hourly, and once before either exists). */
+async function repoFiles(c: Cycle, gh: GitHub) {
+    const [owner, name] = c.d.repo.split("/");
+    const data = await gh.graphql<{
+        repository: { quarantine: { text: string } | null; codeowners: { text: string } | null };
+    }>(REPO_FILES_QUERY, { owner, name });
+    const q = data.repository.quarantine?.text;
+    const list = q ? ((JSON.parse(q) as { quarantine?: QuarantineEntry[] }).quarantine ?? []) : [];
+    await c.setJson(
+        "quarantine",
+        list.map(({ file, name: test, family, issue, since, expires }) => ({
+            file,
+            name: test,
+            family,
+            issue,
+            since,
+            expires,
+        })),
+    );
+    await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
 }
 
 /** Issues updated since the cursor, and the open "Release held" issues (their age is a hold's age). */
@@ -454,21 +530,14 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
     return heldSince;
 }
 
-interface SeenAttempt {
-    sha: string;
-    at: number;
-    tested: boolean;
-    red: Lane[];
-    ciFailed: boolean;
-}
-
 /** Release lanes (4.5) from release.yml's job conclusions, the release workflows, untested master age. */
 async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     const repo = c.d.repo;
     const runs =
         (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=12`))?.workflow_runs ?? [];
-    const seen = await c.json<Record<string, SeenAttempt>>("release", {});
-    const todo = runs.filter((r) => r.status === "completed" && !seen[`${r.id}.${r.run_attempt}`]);
+    const seen = await c.json<Record<string, ReleaseSeen>>("release", {});
+    // An attempt seen before lanes were kept is read once more.
+    const todo = runs.filter((r) => r.status === "completed" && !seen[`${r.id}.${r.run_attempt}`]?.lanes);
     await mapPool(todo, 4, async (r) => {
         const a = releaseAttempt(r, await allJobs(gh, repo, r.id));
         seen[`${r.id}.${r.run_attempt}`] = {
@@ -477,6 +546,12 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
             tested: a.tested,
             red: a.red,
             ciFailed: a.lanes.ci === "failed",
+            run: r.id,
+            created: Date.parse(r.run_started_at ?? r.created_at),
+            ok: r.conclusion === "success",
+            lanes: a.lanes,
+            jobs: a.jobs,
+            ...(a.failedJob ? { failedJob: a.failedJob } : {}),
         };
         c.items.push(toRunItem(r, repo, { tested: a.tested }));
     });
@@ -499,16 +574,19 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
 
     let failing = 0;
     let maxInRow = 0;
+    const wfs: WorkflowState[] = [];
     for (const wf of ["release.yml", "promote.yml", "release-watch.yml"]) {
         const list =
             wf === "release.yml"
                 ? runs
                 : ((await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/${wf}/runs?per_page=10`))?.workflow_runs ??
                   []);
-        const n = failedInRow(list);
-        if (n > 0) failing++;
-        maxInRow = Math.max(maxInRow, n);
+        const w = workflowState(wf, list, c.now);
+        wfs.push(w);
+        if (w.inRow > 0) failing++;
+        maxInRow = Math.max(maxInRow, w.inRow);
     }
+    await c.setJson("release-workflows", wfs);
     c.o("release.workflows_failing", failing);
     c.o("release.max_failed_in_row", maxInRow);
 
@@ -603,6 +681,39 @@ async function npm(c: Cycle, gh: GitHub) {
     await recordSource(c.d.store, "npm", c.now, { ok: true });
 }
 
+export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    tree: object(expression: "master:tools/pipeline-health") { oid }
+    head: object(expression: "master") { oid }
+  }
+}`;
+
+/**
+ * Redeploys the health stack: when master's tools/pipeline-health tree differs from the one the last build was
+ * started for, starts the deploy build at master's head, unless the last build is still running.
+ * @param c - the cycle
+ * @param gh - the GitHub App client
+ * @param builds - the deploy build
+ */
+async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void> {
+    const [owner, name] = c.d.repo.split("/");
+    const data = await gh.graphql<{ repository: { tree: { oid: string } | null; head: { oid: string } | null } }>(
+        DEPLOY_QUERY,
+        { owner, name },
+    );
+    const tree = data.repository.tree?.oid;
+    const head = data.repository.head?.oid;
+    if (!tree || !head) {
+        throw new Error("master has no tools/pipeline-health");
+    }
+    const last = await c.json<{ tree?: string; buildId?: string }>("deploy", {});
+    if (last.tree !== tree && !(last.buildId && (await builds.running(last.buildId)))) {
+        const buildId = await builds.start(head);
+        await c.setJson("deploy", { tree, buildId, commit: head });
+    }
+    await recordSource(c.d.store, "deploy", c.now, { ok: true });
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parts that need no GitHub App.
 
@@ -677,9 +788,12 @@ export async function collect(d: Deps): Promise<CycleReport> {
             const xs = await collectRuns(c, gh, repos, []);
             const cancels = await classify(gh, [...xs, ...masterList]);
             await writeRuns(c, xs, cancels);
+            await prRuns(c, xs);
             await runners(c, xs, elapsed);
             await master(c, masterList, cancels, elapsed);
         });
+        if (hourly || (await c.cursor("quarantine")) === undefined)
+            await c.part("repo files", "collector", () => repoFiles(c, gh));
         ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
         let heldSince = 0;
         ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
@@ -689,6 +803,8 @@ export async function collect(d: Deps): Promise<CycleReport> {
             await c.part("hosts", "hosts", () => hosts(c, gh));
             await c.part("npm", "npm", () => npm(c, gh));
         }
+        const builds = d.deploy;
+        if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
         if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
         if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
     }

@@ -322,6 +322,16 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
             ["waiting", "waiting"],
         ],
     },
+    quarantine: {
+        cls: "t-quar",
+        cols: [
+            ["test", "file > test"],
+            ["family", "family"],
+            ["issue", "issue"],
+            ["since", "since"],
+            ["expires", "expires"],
+        ],
+    },
     superseded: {
         cls: "t-sup",
         cols: [

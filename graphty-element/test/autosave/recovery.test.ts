@@ -241,6 +241,33 @@ describe("a restore that does not finish", () => {
         );
     });
 
+    it("restore(id) a clear cancels rejects with E_SUPERSEDED and leaves the entry as it was", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Picked by hand" }));
+        const before = await raw(store, id);
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        const code = await restoring.then(
+            () => "restored",
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        assert.strictEqual(code, "E_SUPERSEDED");
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await raw(store, id))?.meta.restoreAttempts ?? 0),
+            Number(before?.meta.restoreAttempts ?? 0),
+        );
+    });
+
     it("a clear that cancels the restore of a copied entry removes the copy", async () => {
         const store = memoryAutosaveStore();
         const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));

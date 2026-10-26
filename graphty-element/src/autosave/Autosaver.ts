@@ -23,6 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
+import { supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -1024,7 +1025,8 @@ export class Autosaver {
      * @param discard - Open it over changes never saved to a file.
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or the code the entry could not be opened with.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
+     *     cancelled it (the entry is left as it was), or the code the entry could not be opened with.
      */
     async restore(id: string, discard = false): Promise<AutosaveRestored["report"]> {
         if (!discard && this.#session.project.dirty) {
@@ -1052,6 +1054,11 @@ export class Autosaver {
         if (restored === "next" && failed === null) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        if (restored === null && failed === null) {
+            // A clear cancelled the open: the entry is intact, and nothing failed.
+            throw supersededError();
         }
 
         if (restored === "next" || restored === null) {

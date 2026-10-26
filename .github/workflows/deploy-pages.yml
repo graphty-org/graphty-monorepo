@@ -42,12 +42,14 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   CANARY_URL: https://canary.graphty.app/
               run: |
-                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""')
+                  # an API error is an unknown domain: deploy nothing, but the build job still keeps the site
+                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""' || true)
                   if [ "$cname" != canary.graphty.app ]; then
-                      echo "::warning::this repository's Pages domain is '${cname}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
+                      echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
-                  live=$(curl -fsSL --max-time 30 "$CANARY_URL" | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page
+                  live=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_JOB}" | grep -o 'name="graphty-build" content="[^"]*"' || true)
                   echo "live stamp: ${live:-none}"
                   live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
                   case "$live" in
@@ -284,12 +286,14 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   CANARY_URL: https://canary.graphty.app/
               run: |
-                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""')
+                  # an API error is an unknown domain: deploy nothing, but the build job still keeps the site
+                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""' || true)
                   if [ "$cname" != canary.graphty.app ]; then
-                      echo "::warning::this repository's Pages domain is '${cname}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
+                      echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
-                  live=$(curl -fsSL --max-time 30 "$CANARY_URL" | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page
+                  live=$(curl -fsSL --max-time 30 "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_JOB}" | grep -o 'name="graphty-build" content="[^"]*"' || true)
                   echo "live stamp: ${live:-none}"
                   live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
                   case "$live" in

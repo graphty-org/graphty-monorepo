@@ -4508,7 +4508,12 @@ describe("release.yml", () => {
 
         // The check job's script, against a stub curl (canary's live stamp, or nothing when canary does not
         // answer) and a stub gh (this repository's Pages domain, and how this commit compares with the live one)
-        const decide = ({ live = "0ddba11", compare = "ahead", cname = "canary.graphty.app" } = {}) => {
+        const decide = ({
+            live = "0ddba11",
+            compare = "ahead",
+            cname = "canary.graphty.app",
+            pagesFails = false,
+        } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
@@ -4521,7 +4526,7 @@ describe("release.yml", () => {
             );
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) echo "${cname}";;\n*) echo ${compare};;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${pagesFails ? "exit 1" : `echo "${cname}"`};;\n*) echo ${compare};;\nesac\n`,
                 { mode: 0o755 },
             );
             const step = /- id: live\n([\s\S]*)$/.exec(job(deploy, "check"))[1];
@@ -4534,6 +4539,8 @@ describe("release.yml", () => {
                     SHA: "abc1",
                     CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
+                    GITHUB_RUN_ID: "7",
+                    GITHUB_JOB: "check",
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
@@ -4552,7 +4559,7 @@ describe("release.yml", () => {
             assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
             assert.deepEqual(decide(), {
                 deploy: "deploy=true",
-                curl: "-fsSL --max-time 30 https://canary.graphty.app/\n",
+                curl: "-fsSL --max-time 30 https://canary.graphty.app/?run=7-check\n",
             });
             // the stamp is read from canary, never from graphty.app, which graphty-site serves
             assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);
@@ -4571,6 +4578,9 @@ describe("release.yml", () => {
             // before the domain swap the domain is graphty.app, which only promotion may move
             assert.deepEqual(decide({ cname: "graphty.app" }), { deploy: "deploy=false", curl: "" });
             assert.equal(decide({ cname: "" }).deploy, "deploy=false");
+            // a Pages API error deploys nothing and does not fail the job, so the build job still keeps the site
+            assert.equal(decide({ pagesFails: true }).deploy, "deploy=false");
+            assert.match(job(deploy, "build"), /needs: check\n/);
         });
 
         it("asks again in the deploy job, right before it deploys, with the same script", () => {

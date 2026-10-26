@@ -10,6 +10,10 @@
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
 //           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
+//   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
+//                                     references it restarts the run without waiting for the other lanes
+//       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
+//           GH_TOKEN, GITHUB_REPOSITORY
 //
 // The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
 // not answer makes the slot test master's head and makes the verdict skip only its own record.
@@ -206,7 +210,7 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
         "",
         bisect,
         "",
-        "Nothing was published. Name this issue in the fix or the revert (`Refs #<this issue>`): its green master build restarts the full run on it, and a green verdict closes this issue.",
+        "Nothing was published. Name this issue in the fix or the revert. `Fixes #<this issue>` closes it, cancels this run if it is still going and restarts the full run on the fix once its master build is green. `Refs #<this issue>` restarts the full run after this run ends, keeping this run's verdict and bisect; a green verdict then closes this issue.",
     ].join("\n");
     return { title: `${RED_TITLE} ${names} on ${short(sha)}`, body };
 }
@@ -243,6 +247,22 @@ export function bisectPlan({ red, sha, good, run, failures }) {
             ),
         },
     };
+}
+
+/**
+ * The red issue for one lane that ended red while the others still run; the verdict later updates the same issue.
+ * @param o the facts
+ * @param o.lane the red lane (a LANES key)
+ * @param o.result its result
+ * @param o.sha the red commit
+ * @param o.run the run's URL
+ * @returns `{ title, body }`, as redIssue makes them
+ */
+export function laneRedIssue({ lane, result, sha, run }) {
+    const lanes = Object.fromEntries(Object.keys(LANES).map((l) => [l, l === lane ? result : "not finished"]));
+    lanes.pick = "success";
+    const bisect = "The other lanes are still running: the verdict updates this issue and starts any bisect.";
+    return redIssue({ sha, red: [lane], lanes, run, bisect });
 }
 
 const MAX_TARGETS = 100;
@@ -354,20 +374,31 @@ async function pickMain(env) {
     output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
 }
 
-// The open red issue's number and title ("<number> <title>"), or empty.
-const openRedIssue = () =>
+/**
+ * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
+ * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
+ * issue, and release-due on a quick fix that references it, must both find it.
+ * @param [state] open, closed or all
+ * @param [since] ISO time: only issues updated since then
+ * @returns the issues
+ */
+export const listRedIssues = (state = "open", since = "") =>
     sh("gh", [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--search",
-        `"${RED_TITLE}" in:title`,
-        "--json",
-        "number,title",
+        "api",
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
         "--jq",
-        String.raw`[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\(.number) \(.title)"`,
-    ]);
+        String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at, stateReason: .state_reason} | tojson`,
+        // every page: an issue left open for weeks must not drop out of the listing
+        "--paginate",
+    ])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+// The open red issue's number and title ("<number> <title>"), or empty. The oldest, the one duplicateOf keeps.
+const openRedIssue = () => {
+    const i = listRedIssues().at(-1);
+    return i ? `${i.number} ${i.title}` : "";
+};
 const openRed = () => openRedIssue().split(" ")[0];
 
 /**
@@ -390,6 +421,18 @@ const ancestor = (a, b) => {
         return false;
     }
 };
+
+/**
+ * The older red issue a just-created one duplicates: two lanes that end red together each find none open and each
+ * create one. The oldest stays, so both filers agree on it.
+ * @param created the issue just created
+ * @param open the open red issues' numbers
+ * @returns the number to keep, or null when `created` is the oldest
+ */
+export function duplicateOf(created, open) {
+    const first = Math.min(created, ...open);
+    return first < created ? first : null;
+}
 
 function fileRed(issue) {
     const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
@@ -414,7 +457,15 @@ function fileRed(issue) {
         "--body-file",
         file,
     ]);
-    return Number(url.split("/").pop());
+    const created = Number(url.split("/").pop());
+    const first = duplicateOf(
+        created,
+        listRedIssues().map((i) => i.number),
+    );
+    if (!first) return created;
+    sh("gh", ["issue", "comment", String(first), "--body-file", file]);
+    sh("gh", ["issue", "close", String(created), "--reason", "not planned", "--comment", `Duplicate of #${first}.`]);
+    return first;
 }
 
 function dispatchBisect(plan) {
@@ -497,12 +548,46 @@ async function verdictMain(env) {
     output({ state, issue: issue ? String(issue) : "", what, bisect });
 }
 
+/**
+ * A red issue on this commit that a fixing merge closed in the last hour: release-due is about to cancel this run, so
+ * a lane ending red now files nothing (the verdict still files, if the run is not cancelled after all).
+ * @param closed the closed red issues, as listRedIssues returns them
+ * @param sha the run's commit
+ * @param [now] milliseconds
+ * @returns its number, or null
+ */
+export function fixedRecently(closed, sha, now = Date.now()) {
+    const hit = closed.find(
+        (i) =>
+            i.title.endsWith(` on ${short(sha)}`) &&
+            i.stateReason === "completed" && // a duplicate fileRed closed is "not_planned"
+            i.closedAt &&
+            now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+    );
+    return hit ? hit.number : null;
+}
+
+function laneRedMain(env) {
+    if (env.OWNER_ITEM) {
+        console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
+        return;
+    }
+    const fixed = fixedRecently(listRedIssues("closed", new Date(Date.now() - 60 * 60 * 1000).toISOString()), env.SHA);
+    if (fixed) {
+        console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
+        return;
+    }
+    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));
+    output({ issue: String(issue) });
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const cmd = process.argv[2];
     if (cmd === "pick") await pickMain(process.env);
     else if (cmd === "verdict") await verdictMain(process.env);
+    else if (cmd === "lane-red") laneRedMain(process.env);
     else {
-        console.error("usage: node tools/full-run.mjs pick | verdict (see the head of the file)");
+        console.error("usage: node tools/full-run.mjs pick | verdict | lane-red (see the head of the file)");
         process.exit(2);
     }
 }

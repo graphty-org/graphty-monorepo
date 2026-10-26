@@ -10,6 +10,7 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme, ControlSection, PANEL_GRID } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
+import { TOOLTIP_WAIT } from "../waits";
 
 describe("ControlSection summary layout", () => {
     it("draws the summary after the name and cuts the summary before the name", () => {
@@ -60,7 +61,7 @@ describe("ControlSection title cut short", () => {
         expect(name.textContent).toBe(`${LONG} (Neighborhood)`);
         expect(screen.getByTestId("control-section")).toHaveAttribute("aria-labelledby", name.id);
         await userEvent.hover(name);
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(`${LONG} (Neighborhood)`);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(`${LONG} (Neighborhood)`);
     });
 
     it("shows no tooltip for a title drawn whole", async () => {

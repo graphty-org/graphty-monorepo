@@ -190,8 +190,10 @@ export default class TimeBudgetReporter {
         if (this.history) {
             const next = remember(history, this.tests);
             writeHistory(this.history, next);
-            // A store that did not answer the read is not asked again: one timeout at most.
-            if (read?.ok) await call(store.cfg, "PUT", store.path, next);
+            // A store that did not answer the read is not asked again: one timeout at most. A pull request's
+            // run never writes (the store refuses it), so it sends nothing.
+            if (read?.ok && process.env.GITHUB_EVENT_NAME !== "pull_request")
+                await call(store.cfg, "PUT", store.path, next);
         }
     }
 }

@@ -2,14 +2,18 @@ tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
 tools/channel/candidates.test.mjs
+tools/cache-hygiene.test.mjs
+tools/channel/promote.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs
+tools/check-features.test.mjs
 tools/check-figma-lock.test.mjs
 tools/check-owned-closure.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
 tools/ci-budgets.test.mjs
+tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs
 tools/claude-no-foreground-wait.test.mjs
@@ -37,6 +41,7 @@ tools/release-status.test.mjs
 tools/restricted-cpu-stress.test.mjs
 tools/results-service/test/index.test.mjs
 tools/results/results.test.mjs
+tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
 tools/test-history.test.mjs

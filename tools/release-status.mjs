@@ -58,7 +58,8 @@ export function statusComment(outcome, f, notify = "") {
             text = `**Publish failed**${rerun} on ${sha}: not every version is tagged and on npm. Details: ${ref(f.issue)}. Re-running the failed jobs of the run publishes what is missing.`;
             break;
         case "red":
-            text = `**Full run red**${rerun}: ${f.what || "a lane"} failed on ${sha}. Nothing was published; a bisect looks for the merge. Details: ${ref(f.issue)}.`;
+            // the bisect's own sentence: a lane with no bisect, no green run before, or a failed dispatch says so
+            text = `**Full run red**${rerun}: ${f.what || "a lane"} failed on ${sha}. Nothing was published. ${f.bisect || "See the issue for the bisect."} Details: ${ref(f.issue)}.`;
             break;
         case "owner-item":
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
@@ -260,7 +261,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),

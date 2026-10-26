@@ -46,8 +46,21 @@ const TIMEOUT = new RegExp(String.raw`\b(timeout|testTimeout|hookTimeout|teardow
 const RETRY = new RegExp(String.raw`\b(retry)\s*:\s*${NUMBER}`, "g");
 const THRESHOLD = new RegExp(String.raw`\b(lines|functions|statements|branches)\s*:\s*${NUMBER}`, "g");
 const ONLY = /(?<![\w$])(?:it|test|describe|suite|bench)\.only\b/g;
-// Scripts that run without being named: npm's lifecycle and pre/post hooks.
-const LIFECYCLE = /^(pre|post)|^(install|prepare|publish|pack)$/;
+// Scripts that run without being named: npm's lifecycle scripts, and a pre/post hook of a script or of an npm
+// command. `preview` or `postcss:build` hooks no such script, so it is an ordinary new script.
+const NPM_LIFECYCLE = ["install", "uninstall", "prepare", "publish", "publishOnly", "pack", "version", "dependencies"];
+const NPM_COMMANDS = new Set([...NPM_LIFECYCLE, "test", "start", "stop", "restart", "shrinkwrap"]);
+/**
+ * Whether npm runs a script without its being named.
+ * @param name the script's name
+ * @param scripts every script of the package
+ * @returns boolean
+ */
+function isLifecycle(name, scripts = {}) {
+    if (NPM_LIFECYCLE.includes(name)) return true;
+    const hooked = /^(?:pre|post)(.+)$/u.exec(name)?.[1];
+    return !!hooked && (NPM_COMMANDS.has(hooked) || Object.hasOwn(scripts, hooked));
+}
 
 const git = (args, cwd) =>
     execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] });
@@ -89,23 +102,36 @@ function values(re, lines) {
 }
 
 // Splits `git diff -U0` output into files: { oldPath, newPath, status, added, removed }.
+// git's C-style quoting of a path; an octal escape it cannot be read as JSON stays as written
+function unquote(quoted) {
+    try {
+        return JSON.parse(`"${quoted}"`);
+    } catch {
+        return quoted;
+    }
+}
+
 function parseDiff(text) {
     const files = [];
     let f = null;
     for (const line of text.split("\n")) {
         if (line.startsWith("diff --git ")) {
-            const m = /^diff --git a\/(.*) b\/(.*)$/.exec(line);
-            f = { oldPath: m[1], newPath: m[2], status: "M", added: [], removed: [] };
+            // a path with a quote, a backslash or a non-ASCII byte is quoted (core.quotePath)
+            const m = /^diff --git (?:"a\/(.*)"|a\/(.*)) (?:"b\/(.*)"|b\/(.*))$/.exec(line);
+            const path = (quoted, plain) => (quoted === undefined ? plain : unquote(quoted));
+            f = { oldPath: path(m[1], m[2]), newPath: path(m[3], m[4]), status: "M", added: [], removed: [] };
             files.push(f);
-        } else if (!f || line.startsWith("@@")) {
+        } else if (!f) {
             continue;
+        } else if (line.startsWith("@@")) {
+            f.inHunk = true; // past the header: a line starting "--- " or "+++ " is content now
+        } else if (f.inHunk) {
+            if (line.startsWith("+")) f.added.push(line.slice(1));
+            else if (line.startsWith("-")) f.removed.push(line.slice(1));
         } else if (line.startsWith("new file mode")) f.status = "A";
         else if (line.startsWith("deleted file mode")) f.status = "D";
         else if (line.startsWith("rename from ")) [f.status, f.oldPath] = ["R", line.slice(12)];
         else if (line.startsWith("rename to ")) f.newPath = line.slice(10);
-        else if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
-        else if (line.startsWith("+")) f.added.push(line.slice(1));
-        else if (line.startsWith("-")) f.removed.push(line.slice(1));
     }
     return files;
 }
@@ -239,7 +265,7 @@ function packageFindings(f, read) {
     const names = new Set([...Object.keys(was.scripts || {}), ...Object.keys(now.scripts || {})]);
     for (const n of names) {
         const [before, after] = [was.scripts?.[n], now.scripts?.[n]];
-        if (before === after || (before === undefined && !LIFECYCLE.test(n))) continue;
+        if (before === after || (before === undefined && !isLifecycle(n, now.scripts))) continue;
         let how = "changed";
         if (before === undefined) how = "added";
         else if (after === undefined) how = "removed";
@@ -311,7 +337,20 @@ function findings(files, read) {
 export function check({ base, head, cwd }) {
     const mergeBase = git(["merge-base", base, head], cwd).trim();
     const files = parseDiff(
-        git(["diff", "-M", "-l100000", "-U0", "--no-color", "--no-ext-diff", `${mergeBase}..${head}`], cwd),
+        git(
+            [
+                "-c",
+                "core.quotePath=false",
+                "diff",
+                "-M",
+                "-l100000",
+                "-U0",
+                "--no-color",
+                "--no-ext-diff",
+                `${mergeBase}..${head}`,
+            ],
+            cwd,
+        ),
     );
     const show = (rev) => (path) => {
         try {

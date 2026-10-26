@@ -21,7 +21,10 @@
  * `git revert -m 1 <m>` on the merge base, for a first-parent merge <m> of master the title, the
  * description or a commit names) skips Proof, review, test integrity and the baselines signature; an
  * accept-only pull request (only visual-baselines/ and visual-review-approvals/) skips Proof, review
- * and test integrity, and its signature is checked; dependabot[bot] skips Proof and review.
+ * and test integrity, and its signature is checked; dependabot[bot] skips Proof and review only while
+ * every commit on the pull request is Dependabot's own (GitHub's commit list: author dependabot[bot],
+ * committed and signed by GitHub, `onlyDependabot` below). A commit anyone else pushed to its branch (a
+ * merge of master included) makes it an agent pull request: Proof and the fresh review apply.
  *
  * Usage (in Actions, with GH_TOKEN, GITHUB_REPOSITORY and GITHUB_EVENT_PATH):
  *   node tools/pr-integrity.mjs [--base origin/master]
@@ -37,6 +40,11 @@ import { parseCodeowners, unownedClosure } from "./check-owned-closure.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
 
 export const AGENT = "graphty-agent";
+/**
+ * The repository owner: his approval counts whatever CODEOWNERS names (its owners may be a team, which
+ * ownerLogins() leaves out; while code-owner review is off they are a team that does not exist yet).
+ */
+export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
 const APPROVALS = "visual-review-approvals";
@@ -62,8 +70,22 @@ const tryGit = (cwd, args) => {
  * @returns the id, or null when the branch changes nothing
  */
 export function patchId(cwd, mergeBase, head) {
-    const diff = git(cwd, ["diff", "-U0", "--no-color", "--no-ext-diff", mergeBase, head]);
-    return diff ? git(cwd, ["patch-id", "--stable"], diff).split(" ")[0] || null : null;
+    // the same options as tools/pr-review.sh: --binary, so a changed PNG or .wasm moves the id; the algorithm and
+    // renames pinned, so a local diff setting never gives another id than CI's
+    // bytes, not text: a non-UTF-8 file decoded to U+FFFD would give another id than pr-review.sh's pipe
+    const bytes = (args, input) => execFileSync("git", args, { cwd, input, maxBuffer: 1 << 30, stdio: "pipe" });
+    const diff = bytes([
+        "diff",
+        "-U0",
+        "--binary",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-renames",
+        "--diff-algorithm=myers",
+        mergeBase,
+        head,
+    ]);
+    return diff.length ? bytes(["patch-id", "--stable"], diff).toString("utf8").split(" ")[0] || null : null;
 }
 
 /**
@@ -145,7 +167,8 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 /**
  * What kind of pull request this is, for the exemptions.
  * @param cwd the repository
- * @param pr `{ base, mergeBase, head, author, text, files }`
+ * @param pr `{ base, mergeBase, head, author, byDependabot, text, files }`; byDependabot false when a
+ *   commit on it is not Dependabot's own
  * @returns `{ revert, acceptOnly, dependabot, agent }`
  */
 export function classify(cwd, pr) {
@@ -153,8 +176,8 @@ export function classify(cwd, pr) {
     return {
         revert: revertedMerge(cwd, pr),
         acceptOnly: pr.files.length > 0 && pr.files.every(accept),
-        dependabot: pr.author === DEPENDABOT,
-        agent: pr.author === AGENT,
+        dependabot: pr.author === DEPENDABOT && pr.byDependabot !== false,
+        agent: pr.author === AGENT || (pr.author === DEPENDABOT && pr.byDependabot === false),
     };
 }
 
@@ -264,6 +287,21 @@ const describe = (kind) =>
         .filter(Boolean)
         .join(", ") || "an ordinary pull request";
 
+/**
+ * Whether every commit of a pull request is Dependabot's own, from GitHub's commit list (pulls/N/commits):
+ * the author account dependabot[bot], committed by GitHub (web-flow) with a verified signature. A git
+ * author name is free text; the account and GitHub's signature are not.
+ * ponytail: GitHub maps the author account from the commit's email; the web-flow signature is what an
+ * agent cannot produce for a commit it wrote locally.
+ * @param commits the API's commits
+ * @returns boolean
+ */
+export function onlyDependabot(commits) {
+    return commits.every(
+        (c) => c.author?.login === DEPENDABOT && c.committer?.login === "web-flow" && c.commit?.verification?.verified,
+    );
+}
+
 async function main(argv) {
     const i = argv.indexOf("--base");
     const base = i === -1 ? "origin/master" : argv[i + 1];
@@ -280,14 +318,32 @@ async function main(argv) {
         ? readFileSync(join(cwd, ".github/CODEOWNERS"), "utf8")
         : "";
     const head = event.head.sha;
+    const byDependabot =
+        event.user.login === DEPENDABOT
+            ? onlyDependabot(
+                  JSON.parse(
+                      execFileSync(
+                          "gh",
+                          [
+                              "api",
+                              "--paginate",
+                              "--slurp",
+                              `repos/${process.env.GITHUB_REPOSITORY}/pulls/${event.number}/commits`,
+                          ],
+                          { encoding: "utf8", maxBuffer: 1 << 28 },
+                      ),
+                  ).flat(),
+              )
+            : undefined;
     const { kind, problems } = prIntegrity(cwd, {
         base,
         head,
         title: event.title,
         body: event.body ?? "",
         author: event.user.login,
+        byDependabot,
         reviews,
-        owners: ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners),
+        owners: new Set([OWNER, ...ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners)]),
         codeowners,
         baselineProblems: await masterBaselineCheck(cwd, base, head),
     });

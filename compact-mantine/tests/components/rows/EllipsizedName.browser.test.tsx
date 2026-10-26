@@ -9,6 +9,7 @@ import { userEvent } from "vitest/browser";
 import { DataRow } from "../../../src/components/rows";
 import { Tree } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -22,7 +23,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
     });
 
     it("wraps a stat's long name onto more lines, never cutting it", async () => {
@@ -55,7 +56,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByText(LONG));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
     });
 
     it("keeps the name whole and shortens the count first, and shows both in the cut row's tooltip", async () => {
@@ -88,7 +89,7 @@ describe("a name that ellipsizes", () => {
         // The cut count still shows a stub with its ellipsis, not nothing.
         expect(count.clientWidth).toBeGreaterThan(20);
         await userEvent.hover(screen.getByText("friends-v2.csv"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(
             "friends-v2.csv20 nodes, 41 edges",
         );
     });
@@ -119,7 +120,7 @@ describe("a name that ellipsizes", () => {
         const name = screen.getByText("Node table");
         expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
         await userEvent.hover(screen.getByTestId("tree-count"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(`Node table${quiet}`);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(`Node table${quiet}`);
     });
 
     it("shuts the tooltip when the row is pressed, though the pointer stays on it", async () => {
@@ -130,7 +131,7 @@ describe("a name that ellipsizes", () => {
         );
         const name = screen.getByText(LONG);
         await userEvent.hover(name);
-        await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
         await userEvent.click(name);
         await expect.poll(() => screen.queryByRole("tooltip"), { timeout: 3000 }).toBeNull();
     });
@@ -156,7 +157,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByText("20 to 19 nodes"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(
             "shared_chapters is at least 5",
         );
     });
@@ -195,6 +196,6 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
     });
 });

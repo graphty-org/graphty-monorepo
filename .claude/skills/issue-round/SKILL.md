@@ -15,6 +15,12 @@ alarms and red pull requests whose session is gone. This skill **never** merges 
 the start of every round with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json`), the markers, the subagent rules, escalation and the
 failure classes.
 
+**Then call the `pipeline-health` MCP tool `health_status`** (`design/ci/health-dashboard.md` section 12): a red
+Master or saturated CI there is a reason to look closer at step 1. It is a guide, up to 5 minutes old: confirm a fact
+on GitHub or in the local file it came from before acting on it (starting, commenting, closing), never from the
+dashboard alone. A result with `stale: true` in its `freshness`, or an error, means fall back to this round's own
+checks.
+
 ## 1. Whether to start anything
 
 Start nothing, and end the round with one line, when:

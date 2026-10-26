@@ -87,6 +87,8 @@ jobs:
         needs: plan
         if: ${{ needs.plan.outputs.done != 'true' && (inputs.lane == 'ci' || inputs.lane == 'llm') }}
         runs-on: ubuntu-24.04 # the full run's test runner class
+        # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
+        environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
         timeout-minutes: 120
         strategy:
             fail-fast: false
@@ -100,22 +102,31 @@ jobs:
               with: { path: .bisect-tools, sparse-checkout: tools }
             - name: Move the tool out of the tree under test
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
-            - uses: pnpm/action-setup@v4
+            - uses: actions/download-artifact@v8
+              with: { name: bisect-state, path: "${{ runner.temp }}/state" }
+            - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v4
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
             - run: git lfs pull --include "visual-fonts/**" # run-tests.sh draws browser shards with the runner's fonts
+            # the oracle PNGs a graphty-element browser shard reads, as ci.yml's test job pulls them
+            - name: Pull the oracle images the browser shards read
+              run: |
+                  samples=graphty-element/test/browser/oracle-scorecard-samples.json
+                  if [ -f "$samples" ]; then
+                      git lfs pull --include "$(node -p "require('./$samples').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+                  fi
             - uses: ./.github/actions/drop-microsoft-apt-source
             - uses: ./.github/actions/playwright-system-deps
-            - run: pnpm exec playwright install chromium
+            # every browser a shard may launch (the lifecycle shard runs Firefox and WebKit too)
+            - run: pnpm exec playwright install chromium firefox webkit
             - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
             - name: Build every package
+              id: build
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
               run: pnpm exec nx run-many -t build
-            - uses: actions/download-artifact@v8
-              with: { name: bisect-state, path: "${{ runner.temp }}/state" }
             - name: Run the failing files
               env:
                   BISECT_ROOT: ${{ github.workspace }}
@@ -126,7 +137,20 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/result"
                   node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
                       --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
+            # a point whose build failed ran no test: it is a bad point, not a lost one to test again. Only the build
+            # step's own failure: an install, apt or download that failed (the network) leaves the point lost, so
+            # it runs again rather than being blamed
+            - name: Record a point that could not build
+              if: ${{ failure() && steps.build.outcome == 'failure' }}
+              env:
+                  SHA: ${{ matrix.sha }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/result"
+                  [ -f "$RUNNER_TEMP/result/$SHA.json" ] ||
+                      node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" setup-failed \
+                          --state "$RUNNER_TEMP/state/state.json" --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
             - uses: actions/upload-artifact@v7
+              if: ${{ always() }}
               with: { name: "bisect-result-${{ matrix.sha }}", path: "${{ runner.temp }}/result/", retention-days: 14 }
 
     # The lane workflows, one point a round, each in a concurrency group of its own (bisect-<bad>-<point>).

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { bisectPlan, differingImages, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
+import { bestEffort, bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
 
 // master's first parents, newest first: c3 <- c2 <- c1 <- c0
 const CHAIN = ["c3", "c2", "c1", "c0"];
@@ -50,6 +50,13 @@ describe("pick", () => {
         assert.deepEqual([p.run, p.sha, p.good], [true, "c3", "c0"]);
     });
 
+    it("takes the newest site by master's order from the head, not by when it was recorded", () => {
+        // c1's site was recorded last (a re-run of its build), so the store's own candidate is c1
+        const s = { candidate: { sha: "c1", builtAt: 9 }, sites: ["c1", "c2"], recent: [] };
+        const p = pick({ mode: "full", head: "c3", store: s, firstParents, stray: code });
+        assert.deepEqual([p.run, p.sha], [true, "c2"]);
+    });
+
     it("a restart tests the commit it was dispatched on, not the newest site", () => {
         const p = pick({ mode: "restart", head: "c2", store: store([]), firstParents, stray: code });
         assert.deepEqual([p.run, p.sha], [true, "c2"]);
@@ -92,6 +99,25 @@ describe("verdictOf", () => {
     });
 });
 
+describe("verdictOf: the pick and the version dry run", () => {
+    it("is red on a failed pick alone, whatever the skipped lanes say", () => {
+        const skipped = Object.fromEntries(Object.keys(LANES).map((l) => [l, "skipped"]));
+        assert.deepEqual(verdictOf({ ...skipped, pick: "failure" }, null), { state: "red", red: ["pick"] });
+        assert.equal(verdictOf({ ...ALL_GREEN, pick: "success" }, 0).state, "green-clean");
+    });
+
+    it("is an owner item when only the dry run failed on held projects", () => {
+        const lanes = { ...ALL_GREEN, version_dry_run: "failure" };
+        assert.equal(verdictOf(lanes, 0, "", "graphty-element").state, "owner-item");
+        assert.equal(verdictOf(lanes, 0, "", "").state, "red", "a dry run that failed otherwise is red");
+        assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "", "graphty-element").state, "red");
+    });
+
+    it("plans no bisect for a failed pick", () => {
+        assert.match(bisectPlan({ red: ["pick"], sha: "s", good: "g", run: 1, failures: null }).why, /candidate pick/);
+    });
+});
+
 describe("differingImages", () => {
     it("counts the items of every capture that are not unchanged or excluded", () => {
         const dir = mkdtempSync(join(tmpdir(), "full-run-"));
@@ -112,6 +138,15 @@ describe("differingImages", () => {
         );
         assert.equal(differingImages(dir), 1);
         assert.equal(differingImages(join(dir, "missing")), null);
+        // another file ending in results.json is not the capture's
+        writeFileSync(
+            join(dir, "visual-layout-2", "flaky-results.json"),
+            JSON.stringify({ items: [{ status: "new" }] }),
+        );
+        assert.equal(differingImages(dir), 1);
+        // a project whose capture wrote no results.json is not clean
+        assert.equal(differingImages(dir, ["layout", "graphty"]), 1);
+        assert.equal(differingImages(dir, ["layout", "graphty", "compact-mantine"]), null);
     });
 });
 
@@ -144,5 +179,48 @@ describe("the red issue and its bisect", () => {
         assert.deepEqual([t4.inputs.lane, t4.inputs.targets], ["gpu", "[]"], "a lane bisect runs the whole lane");
         assert.match(bisectPlan({ red: ["ci"], sha: "bad", good: "", run: 9, failures }).why, /no green full run/);
         assert.match(bisectPlan({ red: ["audit"], sha: "bad", good: "g", run: 9, failures }).why, /no bisect/);
+    });
+});
+
+describe("greenCloses", () => {
+    const history = { new: ["new", "abc1234", "old"], old: ["old"] };
+    const isAncestor = (a, b) => history[b].includes(a);
+    it("closes the red issue only from a green commit that contains the red one", () => {
+        assert.equal(greenCloses("Full run red: CI on abc1234", "new", isAncestor), true);
+        assert.equal(greenCloses("Full run red: CI on abc1234", "old", isAncestor), false);
+        assert.equal(greenCloses("Something else", "new", isAncestor), false);
+    });
+});
+
+describe("bisectPlan's targets", () => {
+    it("names at most 100 failing tests, so the dispatch input stays under GitHub's limit", () => {
+        const tests = Array.from({ length: 1000 }, (_, i) => ({ shard: "s", file: `f${i}.test.ts`, name: "t" }));
+        const plan = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore: [] } });
+        assert.equal(JSON.parse(plan.inputs.targets).length, 100);
+        assert.ok(plan.inputs.targets.length < 65_535);
+        const failedBefore = tests.map((t) => `${t.shard}: ${t.file} > ${t.name}`);
+        const both = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore } });
+        assert.equal(JSON.parse(both.inputs.failed_before).length, 100, "only the capped targets' ids");
+    });
+});
+
+describe("bestEffort", () => {
+    it("returns the side effect's value, or the fallback when it throws, so the verdict is still recorded", () => {
+        assert.equal(
+            bestEffort(
+                () => 7,
+                "x",
+                () => null,
+            ),
+            7,
+        );
+        const got = bestEffort(
+            () => {
+                throw new Error("HTTP 403: rate limit exceeded\nmore");
+            },
+            "filing the red issue",
+            (why) => `fallback: ${why}`,
+        );
+        assert.equal(got, "fallback: HTTP 403: rate limit exceeded");
     });
 });

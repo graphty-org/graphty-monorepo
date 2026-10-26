@@ -10,7 +10,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { judge, laneFiles, LANES, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
+import {
+    judge,
+    laneFiles,
+    LANES,
+    offMaster,
+    realGit,
+    runArgs,
+    runPoint,
+    setupFailed,
+    start,
+    T4_CAP_MINUTES,
+    unsafeTargets,
+} from "./bisect-ci.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -199,6 +211,33 @@ describe("the lane rules", () => {
         assert.equal(rounds, 3);
         assert.match(s.answer.noLanding, /T4 cap/);
     });
+
+    it("keeps to the T4 cap when the first bad landing's parent needs a point of its own", () => {
+        // m2's first parent p2 is not a landing of the range, so blaming m2 needs a run of p2
+        const git = { ...fakeGit(3), parent: (sha) => ({ m1: "g", m2: "p2", m3: "m2" })[sha] };
+        let s = start({ lane: "gpu", good: "g", bad: "m3", targets: [], afterLocalCard: true }, git);
+        const seen = [];
+        while (!s.answer && seen.length < 10) {
+            const sha = s.next.points[0];
+            seen.push(sha);
+            s = judge(s, [{ sha, status: sha === "m1" ? "success" : "failure", minutes: 120 }]);
+        }
+        assert.ok(!seen.includes("p2"), `ran ${seen.join(", ")}`);
+        assert.ok(s.t4Minutes <= T4_CAP_MINUTES, `${s.t4Minutes} paid minutes`);
+        assert.match(s.answer.noLanding, /T4 cap/);
+    });
+
+    it("counts the paid minutes of a lost T4 point toward the cap", () => {
+        let s = start({ lane: "gpu", good: "g", bad: "m40", targets: [], afterLocalCard: true }, fakeGit(40));
+        let rounds = 0;
+        while (!s.answer && rounds < 20) {
+            s = judge(s, [{ sha: s.next.points[0], status: "cancelled", minutes: 70 }]);
+            rounds++;
+        }
+        assert.ok(s.answer, "lost spot runners still end the bisect at the cap");
+        assert.ok(rounds <= 4, `${rounds} rounds`);
+        assert.match(s.answer.noLanding, /T4 cap/);
+    });
 });
 
 describe("bisect.yml", () => {
@@ -230,5 +269,84 @@ describe("bisect.yml", () => {
             3,
             "every lane call passes it",
         );
+    });
+});
+
+describe("offMaster", () => {
+    it("names every good, bad or point commit that is not on master's first-parent history", () => {
+        const master = new Set(["g", "m1", "m2", "b"]);
+        assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["m1", "m2"] } }, master), []);
+        assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["branch1"] } }, master), ["branch1"]);
+        assert.deepEqual(offMaster({ good: "x", bad: "b" }, master), ["x"]);
+    });
+});
+
+describe("what a dispatch may name", () => {
+    it("refuses a target whose file is not a plain path", () => {
+        const ok = { targets: [{ shard: "llm-regression", file: "test/ai/x.test.ts" }] };
+        assert.deepEqual(unsafeTargets(ok), []);
+        for (const file of ["x; curl evil", "$(id)", "../etc/passwd", "a b.test.ts", "'q'"]) {
+            assert.equal(unsafeTargets({ targets: [{ shard: "s", file }] }).length, 1, file);
+        }
+        assert.equal(unsafeTargets({ targets: [{ shard: "s;x", file: "a.test.ts" }] }).length, 1);
+        assert.equal(unsafeTargets({ targets: [{ shard: "s", file: "--reporter=x" }] }).length, 1, "an option");
+        assert.equal(unsafeTargets({ followed: [{ shard: "s", file: "x;y" }] }).length, 1, "a later round's list");
+    });
+
+    it("quotes each LLM file on the command line", async () => {
+        const [, , command] = await runArgs("llm-regression", ["test/ai/a.test.ts", "test/ai/b.test.ts"]);
+        assert.match(command, /--project llm-regression 'test\/ai\/a\.test\.ts' 'test\/ai\/b\.test\.ts'$/);
+    });
+});
+
+describe("setupFailed", () => {
+    it("fails every followed target on every run the round asked for", () => {
+        const s = { targets: [{ id: "a" }, { id: "b" }], followed: [{ id: "a" }], next: { runs: 5 } };
+        assert.deepEqual(setupFailed(s, "p"), { sha: "p", runs: 5, failed: { a: 5 } });
+    });
+});
+
+describe("runPoint", () => {
+    it("passes a target whose file does not exist at the point, and runs the rest", async () => {
+        const s = {
+            next: { confirm: false },
+            followed: [
+                { id: "a", shard: "graphty-element-default", file: "graphty-element/test/old.test.ts" },
+                { id: "b", shard: "graphty-element-default", file: "graphty-element/test/added-later.test.ts" },
+            ],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push(args.join(" ")), { status: 1 });
+        const r = await runPoint(s, "p", 1, spawn, (f) => f.endsWith("old.test.ts"));
+        assert.deepEqual(r.failed, { a: 1 });
+        assert.equal(calls.length, 1);
+        assert.doesNotMatch(calls[0], /added-later/);
+    });
+
+    it("passes a target whose shard does not exist at the point, instead of throwing and writing no result", async () => {
+        const s = {
+            next: { confirm: false },
+            followed: [
+                { id: "a", shard: "graphty-element-default", file: "graphty-element/test/x.test.ts" },
+                { id: "b", shard: "no-such-shard-at-this-point", file: "graphty/src/y.test.ts" },
+            ],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push(args.join(" ")), { status: 1 });
+        const r = await runPoint(s, "p", 2, spawn, () => true);
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
+        assert.equal(calls.length, 2);
+        assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
+    });
+});
+
+describe("the macOS lane's files", () => {
+    it("names only the files its jobs run, else the whole lane", () => {
+        const lane = (file) => laneFiles({ lane: "macos", targets: [{ file }] });
+        assert.equal(
+            lane("graphty-element/test/lifecycle/safari.test.ts"),
+            "graphty-element/test/lifecycle/safari.test.ts",
+        );
+        assert.equal(lane("graphty-element/test/lifecycle/other.test.ts"), "", "no job names it: run every job");
     });
 });

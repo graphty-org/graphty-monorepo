@@ -23,8 +23,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   Nothing announces it.
 # - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
 #   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
-#   (npm `latest`) run in environment `release`, as described below. graphty.app follows the version merge
-#   (deploy-pages.yml). Deleted once promote.yml exists.
+#   (npm `latest`) run in environment `release`, as described below. graphty.app does not follow it: graphty.app is
+#   graphty-site's and moves only by promote.yml, so a legacy run moves npm `latest` alone. Its removal is still open on issue #3467.
 #
 # No workflow_run trigger: a master push never starts or restarts a release.
 #
@@ -159,6 +159,7 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}
                   kind: full
 
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
@@ -266,6 +267,7 @@ jobs:
               env:
                   HEAD_SHA: ${{ github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   set -euo pipefail
                   node tools/full-run.mjs pick
@@ -329,7 +331,8 @@ jobs:
             # its release-due job (master pushes only) dispatches release.yml and reads the red issues; a
             # called workflow cannot ask for more than its caller grants, even for a job it skips
             actions: write
-            issues: read
+            # issues: write for its test job, which files the issue of a test the run proves flaky
+            issues: write
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write
@@ -500,7 +503,9 @@ jobs:
         needs: pick
         if: ${{ needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 15
+        # A runaway guard, not a budget: on 2026-10-26 nx release version spent 13 of its 15 minutes before
+        # printing its first project, and the lane was cancelled (#3630). Why it is that slow is #3631.
+        timeout-minutes: 40
         permissions:
             contents: read
         outputs:
@@ -511,7 +516,7 @@ jobs:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -563,13 +568,16 @@ jobs:
     # A full run's one ending (channels design, sections 5 and 6): every lane's result and the screenshot captures
     # make one state, written to the results store (tools/full-run.mjs verdict). Red files or updates the "Full run
     # red" issue, dispatches bisect.yml once (with GITHUB_TOKEN's actions: write), and is announced; green closes
-    # that issue. always(), so a cancelled or abandoned lane is judged too: anything but success is red.
+    # that issue, but only from a green commit whose history holds the red one. !cancelled(), so an abandoned or
+    # timed-out lane is judged too (anything but success is red), while a run someone cancelled records nothing:
+    # a red record would make the next slot skip that commit.
     # ponytail: one bisect dispatch here, after every lane; a ci-lane dispatch the moment ci.yml ends red would
     # start it about 45 minutes earlier.
     verdict:
         name: Verdict
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
-        if: ${{ always() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.pick.outputs.release == 'true' }}
+        # a pick that failed is judged too (red, its own lane), so a broken slot files the red issue
+        if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && (needs.pick.outputs.release == 'true' || (needs.pick.result != 'success' && needs.pick.result != 'skipped')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # Pushover
@@ -580,14 +588,17 @@ jobs:
             id-token: write # the results store
         env:
             GH_TOKEN: ${{ github.token }}
-            SHA: ${{ needs.pick.outputs.sha }}
+            SHA: ${{ needs.pick.outputs.sha || github.sha }}
             GOOD: ${{ needs.pick.outputs.good }}
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
+            # the history without file contents: a green verdict closes the red issue only from a later commit
             - uses: actions/checkout@v4
               with:
                   sparse-checkout: tools
+                  fetch-depth: 0
+                  filter: blob:none
 
             - uses: actions/setup-node@v4
               with:
@@ -604,10 +615,12 @@ jobs:
               id: verdict
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+                  VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}
                   LANES: >-
-                      {"ci": "${{ needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
+                      {"pick": "${{ needs.pick.result }}", "ci": "${{ needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
                       "hosts": "${{ needs.hosts.result }}", "autosave_macos": "${{ needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}"}
               run: node tools/full-run.mjs verdict
@@ -622,9 +635,10 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   WHAT: ${{ steps.verdict.outputs.what }}
                   ISSUE: ${{ steps.verdict.outputs.issue }}
+                  BISECT: ${{ steps.verdict.outputs.bisect }}
               run: |
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
-                      --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+                      --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
     # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed
@@ -790,7 +804,7 @@ jobs:
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
         if: ${{ (inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 40
         permissions:
             actions: read
             contents: read

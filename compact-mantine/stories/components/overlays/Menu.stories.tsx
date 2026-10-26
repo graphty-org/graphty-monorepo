@@ -1,7 +1,7 @@
 import { Box, Button, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ContextMenu as ContextMenuComponent, MenuCheckItem, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

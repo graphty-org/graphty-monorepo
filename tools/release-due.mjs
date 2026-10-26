@@ -7,7 +7,8 @@
  * (design/ci/channels-pipeline/channels.md section 5, "Restart on fix" and "Concurrency"):
  * while a "Full run red: <lane> on <sha>" issue is open, a merge whose commits reference it
  * (`Refs #N`, `Fixes #N`, `Closes #N`, `Resolves #N`, `Part of #N`) dispatches release.yml with
- * `mode: restart`. Every other merge waits for the next 6-hour slot. Until the full run files such
+ * `mode: restart`. A `Fixes` closes the issue as the merge lands, before this job runs, so an issue
+ * closed in the last hour counts as open. Every other merge waits for the next 6-hour slot. Until the full run files such
  * issues, it never dispatches.
  *
  * Not yet: resuming an approved awaiting candidate, which needs the results store.
@@ -20,19 +21,26 @@ import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const RED_TITLE = "Full run red:";
+import { RED_TITLE } from "./full-run.mjs";
+
+// how long after its close a red issue still restarts: the merge that closed it ran this job minutes later
+const CLOSED_WITHIN_MS = 60 * 60 * 1000;
 
 /**
- * The open red issue a merge references, if any.
- * @param redIssues the open issues, as `gh issue list --json number,title` prints them
+ * The red issue a merge references, if any: open, or closed in the last hour (by this merge's `Fixes`).
+ * @param redIssues the issues, as `gh issue list --json number,title,state,closedAt` prints them; one with no
+ *   state is open
  * @param messages the merge's commit messages, joined
+ * @param [now] milliseconds
  * @returns the dispatch to make ({ mode, issue }), or null when nothing is due
  */
-export function due(redIssues, messages) {
+export function due(redIssues, messages, now = Date.now()) {
     const referenced = new Set(
         [...messages.matchAll(/\b(?:refs|fixes|closes|resolves|part of)\s+#(\d+)/gi)].map((m) => Number(m[1])),
     );
-    const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && referenced.has(i.number));
+    const live = (i) =>
+        (i.state ?? "OPEN") === "OPEN" || (i.closedAt && now - Date.parse(i.closedAt) <= CLOSED_WITHIN_MS);
+    const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && referenced.has(i.number) && live(i));
     return red ? { mode: "restart", issue: red.number } : null;
 }
 
@@ -45,11 +53,13 @@ function main() {
             "issue",
             "list",
             "--state",
-            "open",
+            "all",
             "--search",
             `"${RED_TITLE}" in:title`,
             "--json",
-            "number,title",
+            "number,title,state,closedAt",
+            "--limit",
+            "30",
         ]),
     );
     // A merge commit brings in HEAD^1..HEAD; a plain commit is only itself.

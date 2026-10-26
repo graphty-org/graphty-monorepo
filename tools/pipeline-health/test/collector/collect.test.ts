@@ -192,6 +192,26 @@ describe("collector deploy trigger", () => {
     const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
         collect({ ...deps(store, fakeGitHub(), now, false), gh: g, deploy: b });
 
+    it("starts a build when only ci-budgets.json changed", async () => {
+        const store = new MemoryStore();
+        let budgets = "d".repeat(40);
+        const answer = () =>
+            new GitHub(
+                async () => "ghs_test",
+                async () =>
+                    Response.json({
+                        data: { repository: { tree: { oid: TREE }, budgets: { oid: budgets }, head: { oid: HEAD } } },
+                    }),
+            );
+        const b = builds();
+        await run(store, answer(), b);
+        await run(store, answer(), b, NOW + 5 * MIN);
+        expect(b.started).toEqual([HEAD]);
+        budgets = "e".repeat(40);
+        await run(store, answer(), b, NOW + 10 * MIN);
+        expect(b.started).toEqual([HEAD, HEAD]);
+    });
+
     it("starts a build at master's head when the tree changed, and not again while it is unchanged", async () => {
         const store = new MemoryStore();
         let tree = TREE;

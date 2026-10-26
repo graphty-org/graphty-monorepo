@@ -108,6 +108,7 @@ jobs:
         permissions:
             contents: read
             actions: read
+            checks: read
         steps:
             - uses: actions/checkout@v4
               if: github.event_name == 'pull_request'
@@ -1788,8 +1789,9 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of at most 8 minutes, each captured with the old visual-review capture exactly as the
-    # visual job captures, but only those stories (--stories). A broken story blocks its pull request: one that
+    # packed into bins of about 4 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
+    # each captured with the old visual-review capture exactly as the visual job captures, but only those stories
+    # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
     # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
     # capture that crashes fails the job, and "All Checks Pass" needs it (#3472). A changed picture never fails
@@ -2002,7 +2004,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -2027,6 +2029,9 @@ jobs:
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: cytoscape-extensions
+                      shard: cytoscape-extensions
+                      command: cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: layout
                       shard: layout
                       command: cd layout && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -2181,12 +2186,21 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, algorithms, layout, compact-mantine]
+                project: [graphty, graphty-element, algorithms, layout, compact-mantine, cytoscape-extensions]
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: visual-review
+
+            # parity decodes PNGs with pngjs (visual-review's only runtime dependency it needs); the
+            # sparse checkout has no lockfile, so install that one package, at visual-review's version.
+            - name: Install pngjs
+              run: |
+                  version=$(node -p 'require("./visual-review/package.json").dependencies.pngjs')
+                  npm install --prefix "$RUNNER_TEMP/deps" --no-save --no-package-lock "pngjs@$version"
+                  mkdir -p visual-review/node_modules
+                  ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
 
             - name: Download the old capture
               continue-on-error: true

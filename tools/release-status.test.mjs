@@ -73,6 +73,18 @@ describe("statusComment", () => {
         assert.equal(reportsFailure(owner, RUN, "1"), true);
         assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
         assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
+        const what = "10 screenshots differ from master's baselines: graphty 10";
+        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what });
+        assert.match(
+            images,
+            /^\*\*Screenshots changed\*\*: the full run on abcdef1 passed every lane, but 10 screenshots/,
+        );
+        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the full run on abcdef1\n/);
+        assert.equal(reportsFailure(images, RUN, "1"), false, "changed screenshots are not a failed run");
+        assert.equal(
+            pushMessage("green-images", { run: RUN, sha: "abcdef123", what }).title,
+            "Full run SCREENSHOTS CHANGED",
+        );
     });
 
     it("says a run ended badly without announcing, with its conclusion and attempt", () => {

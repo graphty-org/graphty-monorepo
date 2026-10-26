@@ -13,7 +13,17 @@ import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { call, config, EVENT_MS, flushHealth, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
+import {
+    call,
+    config,
+    EVENT_MS,
+    flushHealth,
+    postFailures,
+    postFlaky,
+    postInvocation,
+    readPlan,
+    RECORD_MS,
+} from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
@@ -292,6 +302,28 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+        // a retry that ran none of the failed files (an empty report under the wrong command) is no pass
+        const empty = recordsOf({
+            id: "9.1.job.pkg",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "pkg|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 1,
+            result: {
+                firstCode: 1,
+                firstOutcome: "failed",
+                retried: true,
+                retryCode: 0,
+                retryRan: false,
+                retryAt: 7000,
+            },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir,
+            runId: "run1",
+        });
+        assert.equal(empty[1].outcome, "error");
         // a first try that exited 0 and still failed the shard (its output over the budget) is no pass
         const flood = recordsOf({
             id: "9.1.job.pkg",
@@ -1002,6 +1034,31 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test", GITHUB_SHA: "abc" };
+        postFlaky(env, "x-2", "x", []);
+        postFlaky({ ...env, HEALTH_API_URL: "" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky({ ...env, GRAPHTY_RESULTS: "0" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky(env, "x-2", "x", [
+            { file: "a.ts", name: "t", text: "boom" },
+            { file: "b.ts", name: "u" },
+        ]);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/failures");
+        assert.deepEqual(post.body, {
+            invocation: "9.1.test.x-2.1",
+            flaky: true,
+            family: "x",
+            sha: "abc",
+            failures: [
+                { file: "a.ts", name: "t", message: "boom" },
+                { file: "b.ts", name: "u", message: "" },
+            ],
+        });
+        assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

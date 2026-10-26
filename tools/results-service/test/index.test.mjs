@@ -846,9 +846,15 @@ describe("POST /v1/verdicts", () => {
         for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
             assert.equal((await post(token)).status, 403);
         }
-        assert.equal((await post(master("release.yml"), { ...body, state: "approved" })).status, 400);
+        assert.equal((await post(master("release.yml"), { ...body, state: "maybe" })).status, 400);
+        // the promotion after the owner's screenshot approval records its outcome on the tested head
+        for (const state of ["approved", "rejected"]) {
+            assert.deepEqual((await post(master("release.yml"), { sha: `c-${state}`, state })).body, { stored: true });
+        }
         assert.equal((await post(master("release.yml"), { ...body, issue: "12" })).status, 400);
-        const [v] = env.DB.sqlite.prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict").all();
+        const [v] = env.DB.sqlite
+            .prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict WHERE sha = ?")
+            .all("c9");
         assert.deepEqual({ ...v }, { run_id: 4010, attempt: 1, sha: "c9", state: "red", lane: "ci", issue: 12 });
         const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
         assert.equal(judged, null, "a verdict without a site is no candidate");

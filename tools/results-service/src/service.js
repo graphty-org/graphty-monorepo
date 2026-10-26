@@ -412,7 +412,8 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected"]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {

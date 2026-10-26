@@ -39,7 +39,8 @@ import {
     selectStories,
     storyBins,
     STORY_BIN_LIMIT_MS,
-    STORY_FILE_MS,
+    STORY_MS,
+    storyCount,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -1927,20 +1928,33 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
     });
 
-    it("counts a file with no longer recorded time at its project's capture rate", () => {
-        const files = Array.from({ length: 7 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const bins = storyBins([entry("graph-io-fidelity", "files", files)], projects, list, {
-            "graph-io-storybook": { [files[0]]: 1_000 },
-        });
-        // 40 s a file: six fit in 4 minutes, the seventh starts a second bin
+    it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
+        const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
+        const perFile = 30 * STORY_MS["graph-io-fidelity"];
+        const bins = storyBins(
+            [entry("graph-io-fidelity", "files", files)],
+            projects,
+            list,
+            { "graph-io-storybook": { [files[0]]: 1_000 } },
+            () => 30,
+        );
+        // 30 stories a file: two files fit in 4 minutes, a third starts the next bin
+        assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),
             [
-                ["graph-io-fidelity-1", 6, 6 * STORY_FILE_MS["graph-io-fidelity"]],
-                ["graph-io-fidelity-2", 1, STORY_FILE_MS["graph-io-fidelity"]],
+                ["graph-io-fidelity-1", 2, 2 * perFile],
+                ["graph-io-fidelity-2", 2, 2 * perFile],
+                ["graph-io-fidelity-3", 1, perFile],
             ],
         );
-        assert.ok(6 * STORY_FILE_MS["graph-io-fidelity"] <= STORY_BIN_LIMIT_MS);
+    });
+
+    it("counts a story file's capitalized exports as its stories, at least one", () => {
+        const src =
+            "export default meta;\nexport const One = {};\nexport const Two: Story = {};\nexport const helper = 1;\n";
+        assert.equal(storyCount(src), 2);
+        assert.equal(storyCount("export default {};\n"), 1);
     });
 
     it("bins every story file of a project selected whole, and nothing for one selected none", () => {

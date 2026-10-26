@@ -24,7 +24,7 @@ import type { Store } from "../model/store.js";
 import { SLAS, type SlaConfig } from "../sla/config.js";
 import type { Evaluation, MemberStatus, SourceStatus } from "../sla/engine.js";
 import type { ViewRoute } from "./keys.js";
-import { CATEGORY, iso, memberAt, Reads, SPEC } from "./members.js";
+import { CATEGORY, iso, memberAt, Reads, sourceState, SPEC } from "./members.js";
 import {
     hotspots,
     jobs,
@@ -49,16 +49,25 @@ export const SLOW_RANGES: SlowRange[] = ["7d", "28d"];
 type CategoryPage = (typeof CATEGORY)[string];
 
 /** The members of Runners (section 2.6): the runner rows of CI. */
-const RUNNERS = [
+const RUNNERS = new Set([
     "ci.runner_wait",
     "ci.longest_queued",
     "ci.saturated_time",
     "ci.runners_not_assigned",
     "ci.superseded_running",
-];
+]);
 const LOCAL_IDS: MemberId[] = ["local-runs.local_vs_ci", "local-runs.shard_time", "local-runs.slot_waits"];
 /** The Data sources headline is "Sources past their age limit" under its own id. */
 const HEADLINE_ID: Record<string, MemberId> = { "data.sources_age": "data-sources.sources_not_ok" };
+
+const LOCAL_STATE: Record<SourceStatus["state"], Member["state"]> = {
+    ok: "info",
+    "not set up": "notsetup",
+    idle: "idle",
+    stale: "nodata",
+    error: "nodata",
+    thin: "nodata",
+};
 
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
 
@@ -75,7 +84,7 @@ function membersOf(ev: Evaluation, page: CategoryPage | "runners"): MemberStatus
     const seen = new Set<string>();
     return ev.members.filter((m) => {
         const spec = SPEC[m.id];
-        const mine = page === "runners" ? RUNNERS.includes(m.id) : CATEGORY[m.category] === page;
+        const mine = page === "runners" ? RUNNERS.has(m.id) : CATEGORY[m.category] === page;
         if (!spec || !mine || seen.has(spec.id)) {
             return false;
         }
@@ -207,14 +216,7 @@ class Builder {
      */
     local(): { state: PageResponse["state"]; members: Member[] } {
         const src = this.reads.ev.sources.find((s) => s.id === "local");
-        const state: Member["state"] =
-            !src || src.state === "not set up"
-                ? "notsetup"
-                : src.state === "idle"
-                  ? "idle"
-                  : src.state === "ok"
-                    ? "info"
-                    : "nodata";
+        const state: Member["state"] = src ? LOCAL_STATE[src.state] : "notsetup";
         const reason = src?.reason ? { code: `reason.${src.reason.code}`, params: { source: "local" } } : undefined;
         return {
             state: "idle",
@@ -302,23 +304,6 @@ class Builder {
                 notCollected("by-workflow"),
             ],
         };
-    }
-}
-
-function sourceState(s: SourceStatus): SourceAge["state"] {
-    switch (s.state) {
-        case "ok":
-            return "ok";
-        case "not set up":
-            return "notsetup";
-        case "idle":
-            return "idle";
-        case "thin":
-            return "warn";
-        case "error":
-            return "bad";
-        case "stale":
-            return s.lastOkAt === undefined ? "nodata" : (s.ageRatio ?? 0) > 2 ? "bad" : "warn";
     }
 }
 

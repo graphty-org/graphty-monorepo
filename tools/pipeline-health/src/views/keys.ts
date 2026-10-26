@@ -23,7 +23,9 @@ export function viewKey(r: ViewRoute): Key {
             return { pk: "PAGE#status#now", sk: "-" };
         case "page":
             return { pk: `PAGE#${r.page}#${r.range}`, sk: "-" };
-        case "section":
-            return { pk: `PAGE#${r.page}/${r.section}#${r.range}${r.runKind ? `#${r.runKind}` : ""}`, sk: "-" };
+        case "section": {
+            const kind = r.runKind ? "#" + r.runKind : "";
+            return { pk: `PAGE#${r.page}/${r.section}#${r.range}${kind}`, sk: "-" };
+        }
     }
 }

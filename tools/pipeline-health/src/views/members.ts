@@ -12,6 +12,7 @@ import type {
     Range,
     Route,
     Sla,
+    SourceAge,
     Spark,
     Unit,
     Value,
@@ -21,7 +22,14 @@ import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../mod
 import { loadSeries, type MetricWindow, windowValue, type WindowName } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
 import type { MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
-import { type Evaluation, measureValue, type MemberStatus, type Reason, thresholds } from "../sla/engine.js";
+import {
+    type Evaluation,
+    measureValue,
+    type MemberStatus,
+    type Reason,
+    type SourceStatus,
+    thresholds,
+} from "../sla/engine.js";
 
 /** How one engine member is shown: its contract id, the unit and multiplier of its values, its link. */
 interface Spec {
@@ -42,6 +50,8 @@ const PCT = 100;
 const toMin = 1 / MIN;
 const toH = 1 / HOUR;
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
+
+const STRESS_WORD: WordValue[] = [{ word: "passed" }, { word: "filed", n: 0 }, { word: "failed" }];
 
 /** Engine member id -> its row. The six channel members share one row (all not set up until #3418). */
 export const SPEC: Record<string, Spec> = {
@@ -119,7 +129,7 @@ export const SPEC: Record<string, Spec> = {
         id: "data-sources.stress_run",
         link: "/data-sources/stress",
         // stress.state: 0 passed and filed, 1 found nothing three weeks running, 2 filing failed or the run broke.
-        word: (v) => (v >= 2 ? { word: "failed" } : v >= 1 ? { word: "filed", n: 0 } : { word: "passed" }),
+        word: (v) => STRESS_WORD[Math.min(2, Math.max(0, Math.round(v)))],
         target: f("sla.passed_and_filed"),
         red: f("sla.filing_failed"),
     },
@@ -338,6 +348,7 @@ export function stateOf(s: MemberStatus, c: MemberConfig): MemberState {
     return c.window === "slow" && (st === "ok" || st === "warn" || st === "bad") ? "slow" : st;
 }
 
+const BREACH: Partial<Record<MemberStatus["state"], "warn" | "bad">> = { WARNING: "warn", FAILING: "bad" };
 const GRAY = new Set<MemberState>(["nodata", "notsetup", "idle", "info"]);
 const BUCKETED = new Set(["rate", "median", "p90", "sum", "share", "last"]);
 const windowed = (c: MemberConfig) => c.window === "1h" || c.window === "1h+6h";
@@ -375,8 +386,7 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
         if (v === undefined) {
             return null;
         }
-        const st = thresholds(c, v, v).state;
-        return st === "FAILING" ? "bad" : st === "WARNING" ? "warn" : null;
+        return BREACH[thresholds(c, v, v).state] ?? null;
     };
     const target = c.ok ? round(c.ok[1] * k) : undefined;
     const main = await reads.window(m.metric, range === "24h" ? "24h" : "6h");
@@ -466,4 +476,28 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         out.spark = spark;
     }
     return out;
+}
+
+/**
+ * A source's state as the page draws it: stale is yellow, red past twice its age limit (section 9).
+ * @param s
+ */
+export function sourceState(s: SourceStatus): SourceAge["state"] {
+    switch (s.state) {
+        case "ok":
+            return "ok";
+        case "not set up":
+            return "notsetup";
+        case "idle":
+            return "idle";
+        case "thin":
+            return "warn";
+        case "error":
+            return "bad";
+        case "stale":
+            if (s.lastOkAt === undefined) {
+                return "nodata";
+            }
+            return (s.ageRatio ?? 0) > 2 ? "bad" : "warn";
+    }
 }

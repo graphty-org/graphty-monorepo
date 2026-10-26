@@ -21,7 +21,7 @@ import { type Agg, type Bucket, DAY, floorTo, STEP_MS } from "../model/items.js"
 import { SHARD_BASE_MS } from "../model/metrics.js";
 import { emptyAgg, mergeAgg } from "../model/rollup.js";
 import { type MemberStatus } from "../sla/engine.js";
-import { iso, type Reads, reasonFact, SPEC } from "./members.js";
+import { iso, type Reads, reasonFact, sourceState, SPEC } from "./members.js";
 
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
 const none: Cell = { t: "none" };
@@ -47,7 +47,7 @@ export async function masterStrip(reads: Reads, range: Range): Promise<StripSect
     const spans: StripSection["spans"] = [];
     for (let s = from; s <= now5; s += STEP5) {
         const b = got.get(s);
-        if (!b || b.n === 0) {
+        if (!b?.n) {
             continue;
         }
         const state = b.sum >= STEP5 / 2 ? "red" : "green";
@@ -163,7 +163,10 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
         const q50 = a.hist && quantile(a.hist, 0.5);
         const q90 = a.hist && quantile(a.hist, 0.9);
         // A full-run value is normalized to a one-hour budget; the bucket's sum holds the budgets themselves.
-        const budgetMs = full ? (a.n > 0 && a.sum > 0 ? a.sum / a.n : undefined) : 480_000;
+        let budgetMs: number | undefined = 480_000;
+        if (full) {
+            budgetMs = a.n > 0 && a.sum > 0 ? a.sum / a.n : undefined;
+        }
         if (q50 === undefined || q90 === undefined || budgetMs === undefined) {
             continue;
         }
@@ -240,17 +243,17 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
             const events = children.reduce((s, c) => s + c.events, 0);
             fileNodes.push({
                 ...node("file", file, children.length, events, null),
-                children: children.sort(byDistinct),
+                children: children.toSorted(byDistinct),
             });
         }
         const r = rate.get(family);
         const events = fileNodes.reduce((s, c) => s + c.events, 0);
         const distinct = fileNodes.reduce((s, c) => s + c.distinct, 0);
         const per1000 = r && r.n > 0 ? round((r.sum / r.n) * 1000) : null;
-        nodes.push({ ...node("family", family, distinct, events, per1000), children: fileNodes.sort(byDistinct) });
+        nodes.push({ ...node("family", family, distinct, events, per1000), children: fileNodes.toSorted(byDistinct) });
     }
     const quiet = [...rate.keys()].filter((fam) => !fams.has(fam)).length;
-    return { kind: "tree", id: "hotspots", range, nodes: nodes.sort(byDistinct), quiet };
+    return { kind: "tree", id: "hotspots", range, nodes: nodes.toSorted(byDistinct), quiet };
 }
 
 /**
@@ -262,22 +265,7 @@ export function sourcesTable(reads: Reads): Section {
         .filter((s) => s.state !== "not set up")
         .map((s) => {
             const cfg = reads.cfg.sources[s.id];
-            const state: Cell =
-                s.state === "ok"
-                    ? none
-                    : {
-                          t: "state",
-                          state:
-                              s.state === "idle"
-                                  ? "idle"
-                                  : s.state === "thin"
-                                    ? "warn"
-                                    : (s.ageRatio ?? 0) > 2 || s.state === "error"
-                                      ? "bad"
-                                      : s.lastOkAt === undefined
-                                        ? "nodata"
-                                        : "warn",
-                      };
+            const state: Cell = s.state === "ok" ? none : { t: "state", state: sourceState(s) };
             const reason = reasonFact(s.reason, reads);
             return {
                 ...(s.state === "idle" ? { past: true } : {}),
@@ -347,8 +335,12 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
     const today = floorTo(reads.now, "1d");
     const from = Math.min(monthStart, today - (days - 1) * DAY);
     const daily = await reads.series("cost.usd", "1d", from, today);
-    const sumOf = (b: Bucket | undefined, line?: string) =>
-        !b ? 0 : line === undefined ? b.sum : (b.dims?.[line]?.sum ?? 0);
+    const sumOf = (b: Bucket | undefined, line?: string) => {
+        if (!b) {
+            return 0;
+        }
+        return line === undefined ? b.sum : (b.dims?.[line]?.sum ?? 0);
+    };
     const lineRow = (line: string | undefined, memberId: string | undefined): TableRow | undefined => {
         let soFar = 0;
         let done = 0;

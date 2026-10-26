@@ -323,7 +323,9 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.
     const items: RawItem[] = [run];
     for (const f of list(b.failures ?? [], "failures")) items.push(testItem(id, f, family, source, passed, endedAt));
-    if (passed && !(b.failures as unknown[] | undefined)?.length && source === "ci") {
+    if (passed && source === "ci") {
+        // This try's own failures are recorded above; the lookback marks only the earlier tries' other tests.
+        const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
         // The CI writers give each try its own id, `<base>.<try>` (tools/results/run-group.mjs): the failures
         // of the earlier tries are under their ids.
         const tryOf = /^(.*)\.(\d+)$/.exec(id);
@@ -334,6 +336,7 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
         for (const inv of invs)
             for (const t of await db.query(INV_TESTS(inv))) {
                 const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
+                if (own.has(`${String(test.file)}#${String(test.name)}`)) continue;
                 // The passing run's family: an early failure post only guessed it from the id.
                 items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
             }

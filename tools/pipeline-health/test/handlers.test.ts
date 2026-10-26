@@ -309,6 +309,27 @@ describe("ingest: what it stores", () => {
         expect(mem.items.get(id)?.outcome).toBe("flaky");
     });
 
+    it("marks an earlier try's failure flaky when the passing try lists another failure", async () => {
+        const h = await ingest();
+        const fail = {
+            invocation: "500.1.test.layout.1",
+            failures: [
+                { file: "a.ts", name: "flaky", message: "x" },
+                { file: "q.ts", name: "quarantined", message: "x" },
+            ],
+        };
+        await h(event("/v1/failures", fail));
+        const passed = invocation({
+            id: "500.1.test.layout.2",
+            try: 2,
+            variant: "layout",
+            outcome: "passed",
+        });
+        (passed as Record<string, unknown>).failures = [{ file: "q.ts", name: "quarantined", message: "x" }];
+        await h(event("/v1/invocations", passed));
+        expect(mem.items.get("R#test#500.1.test.layout.1#a.ts#flaky\u0000A#1")?.outcome).toBe("flaky");
+    });
+
     it("answers 429 past the daily write budget and writes nothing", async () => {
         const { quotaKey } = await import("../src/model/items.ts");
         mem.items.set(`${quotaKey(NOW).pk}\u0000-`, { ...quotaKey(NOW), rows: 300_000 });

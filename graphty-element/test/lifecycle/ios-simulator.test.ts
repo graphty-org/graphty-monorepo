@@ -274,7 +274,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const active = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`);
         const last = safariLog.lines.filter((line) => change.test(line)).at(-1);
         if (last === undefined || !active.test(last)) {
-            await safariLog.waitFor(active, from);
+            await safariLog.waitFor(active, last === undefined ? from : safariLog.lines.lastIndexOf(last) + 1);
         }
 
         simctl("openurl", udid, url);

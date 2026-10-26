@@ -687,12 +687,13 @@ const DEPLOY_ATTEMPTS = 3;
 export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     tree: object(expression: "master:tools/pipeline-health") { oid }
+    budgets: object(expression: "master:ci-budgets.json") { oid }
     head: object(expression: "master") { oid }
   }
 }`;
 
 /**
- * Redeploys the health stack: when master's tools/pipeline-health tree differs from the one the last build was
+ * Redeploys the health stack: when master's tools/pipeline-health tree (or ci-budgets.json) differs from the one the last build was
  * started for, starts the deploy build at master's head, unless the last build is still running. A failed build
  * is retried for the same tree up to DEPLOY_ATTEMPTS times and stays an error on the deploy source until one passes.
  * @param c - the cycle
@@ -701,11 +702,12 @@ export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
  */
 async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void> {
     const [owner, name] = c.d.repo.split("/");
-    const data = await gh.graphql<{ repository: { tree: { oid: string } | null; head: { oid: string } | null } }>(
-        DEPLOY_QUERY,
-        { owner, name },
-    );
-    const tree = data.repository.tree?.oid;
+    const data = await gh.graphql<{
+        repository: { tree: { oid: string } | null; budgets?: { oid: string } | null; head: { oid: string } | null };
+    }>(DEPLOY_QUERY, { owner, name });
+    // ci-budgets.json is bundled into the Lambda (metrics.ts), so a budget change redeploys like a folder change.
+    const folder = data.repository.tree?.oid;
+    const tree = folder && data.repository.budgets ? `${folder}+${data.repository.budgets.oid}` : folder;
     const head = data.repository.head?.oid;
     if (!tree || !head) {
         throw new Error("master has no tools/pipeline-health");

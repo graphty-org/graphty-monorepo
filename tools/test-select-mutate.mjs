@@ -391,6 +391,81 @@ export function storyFiles(index, dir) {
 }
 
 /**
+ * The files of a package that --stories may break: its source and story files, never its tests, docs or
+ * Storybook setup (the setup runs every story, stories.projectGlobal).
+ * @param wt the scratch worktree
+ * @param pkg the package
+ * @param dir the project's Storybook directory
+ * @returns repo-relative paths
+ */
+function storyCandidates(wt, pkg, dir) {
+    return execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
+        .split("\n")
+        .filter((f) => f && (CODE.test(f) || DATA.test(f)))
+        .filter(
+            (f) =>
+                !f.endsWith(".d.ts") && !/\.config\.[cm]?[jt]s$/u.test(f) && !/\.(test|spec)\.[cm]?[jt]sx?$/u.test(f),
+        )
+        .filter((f) => !/\/(\.storybook|test|tests|__tests__|docs|benchmarks?)\//u.test(f))
+        .filter((f) => buildInput(f.slice(pkg.length + 1)) || f.startsWith(`${dir}/`));
+}
+
+/**
+ * Breaks one file, captures the whole Storybook and checks that every changed story was selected.
+ * @param c storiesMain()'s context: wt, project, cfg, SHARDS, graphs, rules, build, capture, changedIds, ref, fileOf
+ * @param n the mutant's number
+ * @param f the repo-relative file
+ * @returns `{ misses, inconclusive }`
+ */
+async function storyMutant(c, n, f) {
+    const change = await selectChange(c.wt, [f], c.SHARDS, c.graphs);
+    const sel = selectStories({
+        projects: c.cfg,
+        changed: [f],
+        everything: change.everything,
+        shards: c.SHARDS,
+        selection: change.shards,
+        rules: c.rules,
+        lockMoved: false,
+    }).find((p) => p.project === c.project);
+    const what = sel.mode === "files" ? sel.files.length + " story file(s)" : sel.mode;
+    log(`Mutant ${n}: ${f}: ${what}`);
+    const original = readFileSync(join(c.wt, f));
+    writeFileSync(join(c.wt, f), mutant(f, original.toString("utf8")));
+    let broken;
+    try {
+        broken = c.build().status === 0 ? await c.capture(`mutant-${n}`, null) : "unbuilt";
+    } finally {
+        writeFileSync(join(c.wt, f), original);
+    }
+    if (broken === "unbuilt") {
+        log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
+        return { misses: 0, inconclusive: 0 };
+    }
+    // a capture that cannot run at all (the Storybook does not load) changes every story
+    const changed = broken ? c.changedIds(c.ref, broken) : [...c.fileOf.keys()].sort();
+    const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
+    let found = [];
+    if (missed.length > 0) {
+        c.build();
+        const again = await c.capture(`mutant-${n}-unbroken`, missed);
+        if (!again) {
+            return { misses: 0, inconclusive: 1 };
+        }
+        const mine = { ...c.ref, items: c.ref.items.filter((i) => missed.includes(i.id)) };
+        const flaky = new Set(c.changedIds(mine, again));
+        flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
+        found = missed.filter((id) => !flaky.has(id));
+    }
+    const list = found.map((id) => id + " (" + c.fileOf.get(id) + ")").join(", ");
+    log(
+        `  ${changed.length} stories changed, ${changed.length - missed.length} of them selected` +
+            (found.length > 0 ? ", MISSED: " + list : ""),
+    );
+    return { misses: found.length, inconclusive: 0 };
+}
+
+/**
  * Story selection's check for one visual-review project (--stories); see the file comment.
  * @param project the project id
  * @param opt (flag, default) => its value
@@ -443,13 +518,12 @@ async function storiesMain(project, opt) {
             { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 },
         );
         if (r.status !== 0 || !existsSync(join(out, "results.json"))) {
-            log(
-                `  capture ${name} failed (exit ${r.status}): ${`${r.stdout}\n${r.stderr}`
-                    .split("\n")
-                    .filter((l) => /error/iu.test(l) && !/^\s+at /u.test(l))
-                    .slice(0, 3)
-                    .join(" | ")}`,
-            );
+            const why = (r.stdout + "\n" + r.stderr)
+                .split("\n")
+                .filter((l) => /error/iu.test(l) && !/^\s+at /u.test(l))
+                .slice(0, 3)
+                .join(" | ");
+            log(`  capture ${name} failed (exit ${r.status}): ${why}`);
             return null;
         }
         return readResults(out);
@@ -471,66 +545,18 @@ async function storiesMain(project, opt) {
         return 2;
     }
     log(`${ref.items.length} captures of ${fileOf.size} stories`);
-    const candidates = execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
-        .split("\n")
-        .filter((f) => f && (CODE.test(f) || DATA.test(f)))
-        .filter(
-            (f) =>
-                !f.endsWith(".d.ts") && !/\.config\.[cm]?[jt]s$/u.test(f) && !/\.(test|spec)\.[cm]?[jt]sx?$/u.test(f),
-        )
-        // the Storybook setup runs every story (stories.projectGlobal); tests and docs draw no story
-        .filter((f) => !/\/(\.storybook|test|tests|__tests__|docs|benchmarks?)\//u.test(f))
-        .filter((f) => buildInput(f.slice(pkg.length + 1)) || f.startsWith(`${dir}/`));
+    const candidates = storyCandidates(wt, pkg, dir);
     const given = opt("--files", null);
     const picked = given
         ? given.split(",")
         : seededPick(candidates, Number(opt("--count", "5")), Number(opt("--seed", "1")));
+    const ctx = { wt, project, cfg, SHARDS, graphs, rules, build, capture, changedIds, ref, fileOf };
     let misses = 0;
     let inconclusive = 0;
     for (const [n, f] of picked.entries()) {
-        const change = await selectChange(wt, [f], SHARDS, graphs);
-        const sel = selectStories({
-            projects: cfg,
-            changed: [f],
-            everything: change.everything,
-            shards: SHARDS,
-            selection: change.shards,
-            rules,
-            lockMoved: false,
-        }).find((p) => p.project === project);
-        log(`Mutant ${n + 1}: ${f}: ${sel.mode === "files" ? `${sel.files.length} story file(s)` : sel.mode}`);
-        const original = readFileSync(join(wt, f));
-        writeFileSync(join(wt, f), mutant(f, original.toString("utf8")));
-        let broken;
-        try {
-            broken = build().status === 0 ? await capture(`mutant-${n + 1}`, null) : "unbuilt";
-        } finally {
-            writeFileSync(join(wt, f), original);
-        }
-        if (broken === "unbuilt") {
-            log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
-            continue;
-        }
-        // a capture that cannot run at all (the Storybook does not load) changes every story
-        const changed = broken ? changedIds(ref, broken) : [...fileOf.keys()].sort();
-        const missed = storiesMissed(changed, sel, (id) => fileOf.get(id));
-        let found = [];
-        if (missed.length > 0) {
-            build();
-            const again = await capture(`mutant-${n + 1}-unbroken`, missed);
-            if (!again) {
-                inconclusive++;
-                continue;
-            }
-            const flaky = new Set(changedIds({ ...ref, items: ref.items.filter((i) => missed.includes(i.id)) }, again));
-            flaky.forEach((id) => log(`  flaky ${id} (its unbroken capture differs too)`));
-            found = missed.filter((id) => !flaky.has(id));
-        }
-        misses += found.length;
-        log(
-            `  ${changed.length} stories changed, ${changed.length - missed.length} of them selected` +
-                (found.length > 0 ? `, MISSED: ${found.map((id) => `${id} (${fileOf.get(id)})`).join(", ")}` : ""),
-        );
+        const r = await storyMutant(ctx, n + 1, f);
+        misses += r.misses;
+        inconclusive += r.inconclusive;
     }
     build();
     log(

@@ -145,6 +145,9 @@ function followSafari(udid: string): SafariLog {
     );
     const lines: string[] = [];
     const waiters = new Set<() => void>();
+    const failures = new Set<(error: Error) => void>();
+    let ended: Error | undefined;
+    let stopped = false;
     let rest = "";
     child.stdout?.on("data", (chunk: Buffer) => {
         const text = rest + chunk.toString("utf8");
@@ -153,21 +156,42 @@ function followSafari(udid: string): SafariLog {
         lines.push(...parts);
         waiters.forEach((wake) => wake());
     });
+    // A wait on a stream that ended would never end: fail it, naming why. Not after stop(): a wait
+    // that lost a race (appSwitch) is still pending then, and must not turn into an unhandled rejection.
+    child.on("exit", (code, signal) => {
+        if (stopped) {
+            return;
+        }
+
+        ended = new Error(`Safari's log stream ended (code ${String(code)}, signal ${String(signal)})`);
+        failures.forEach((fail) => fail(ended as Error));
+    });
     return {
         lines,
         waitFor: (pattern, from) =>
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
+                const fail = (error: Error): void => {
+                    waiters.delete(check);
+                    failures.delete(fail);
+                    reject(new Error(`waiting for ${String(pattern)}: ${error.message}`));
+                };
                 const check = (): void => {
                     const index = lines.findIndex((line, i) => i >= from && pattern.test(line));
                     if (index >= 0) {
                         waiters.delete(check);
+                        failures.delete(fail);
                         resolve(index);
                     }
                 };
                 waiters.add(check);
+                failures.add(fail);
                 check();
+                if (ended !== undefined && waiters.has(check)) {
+                    fail(ended);
+                }
             }),
         stop: () => {
+            stopped = true;
             child.kill();
         },
     };
@@ -189,6 +213,9 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
 
         simctl("bootstatus", udid, "-b");
         safariLog = followSafari(udid);
+        // A Safari already running (a Simulator booted before this run) logged its activation before
+        // the stream started; terminated, every open below launches a process the stream sees whole.
+        terminateSafari(udid);
     });
 
     afterAll(async () => {
@@ -209,11 +236,11 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      * Safari's first launch after the Simulator booted, its code first ran 16 s after the process was
      * spawned and it became active 24 s after (issue #3654), so an openurl sent when launch returned
      * timed out. So wait until this Safari process logs that it became active; a process that was
-     * already running logged that earlier, and the wait ends at once.
+     * already running since an earlier open logged that then, and the wait ends at once.
      * @param url - The page.
      */
     async function openInSafari(url: string): Promise<void> {
-        const pid = /:\s*(\d+)/.exec(simctl("launch", udid, SAFARI))?.[1];
+        const pid = new RegExp(`${SAFARI}:\\s*(\\d+)`).exec(simctl("launch", udid, SAFARI))?.[1];
         assert.isDefined(pid, "simctl launch printed Safari's pid");
         await safariLog.waitFor(new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`), 0);
         simctl("openurl", udid, url);

@@ -1532,6 +1532,11 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         assert.match(md, /graphty-1: 2 files/u);
         assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
         assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /Everything runs: pnpm-lock.yaml/u);
+        assert.match(
+            planSummary({ ...out, everything: "a <details> tag" }),
+            /a &lt;details&gt; tag/u,
+            "reasons are escaped",
+        );
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {

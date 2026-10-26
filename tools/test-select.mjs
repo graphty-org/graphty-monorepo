@@ -1326,15 +1326,16 @@ export function lightPlan(root, shards, selection, durations = {}) {
  * @returns Markdown
  */
 export function planSummary(plan) {
+    const esc = (t) => String(t).replace(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
     const lines = [
         `### Light check: ${plan.bins.length} test bins, ${plan.whole.length} shards whole, ${plan.none.length} shards with nothing selected`,
         "",
     ];
     if (plan.everything) {
-        lines.push(`Everything runs: ${plan.everything}`, "");
+        lines.push(`Everything runs: ${esc(plan.everything)}`, "");
     }
     for (const [family, reasons] of Object.entries(plan.why ?? {})) {
-        lines.push(`- **${family}** runs whole: ${reasons.join("; ")}`);
+        lines.push(`- **${family}** runs whole: ${esc(reasons.join("; "))}`);
     }
     if (plan.none.length > 0) {
         lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
@@ -1342,7 +1343,7 @@ export function planSummary(plan) {
     for (const bin of plan.bins) {
         lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
         for (const f of bin.files) {
-            lines.push(`- \`${f}\`: ${bin.why?.[f] ?? "selected"}`);
+            lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);
         }
         lines.push("", "</details>");
     }

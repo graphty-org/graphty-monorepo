@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// CI time budgets: the only reader of ci-budgets.json (design/ci/channels-pipeline.md section 7).
+// CI time budgets: the reader of ci-budgets.json (design/ci/channels-pipeline.md section 7). The one other
+// reader is tools/pipeline-health/src/model/metrics.ts, which judges full-run shards by `job:ci.yml:Test (*)`.
 //
 //   node tools/ci-budgets.mjs lint
 //       every job of a budgeted workflow has timeout-minutes = max(hangRatio x budget, minHangMinutes),
@@ -25,6 +26,15 @@ export const COMMENT_MARKER = "<!-- ci-budgets -->";
 const ISSUE_LABELS = ["bug", "ci-budget", "priority:high", "effort:medium"];
 
 // ---------- the budgets file ----------
+
+/**
+ * The parsed budgets file.
+ * @param root the repository root
+ * @returns the parsed ci-budgets.json
+ */
+export function loadBudgets(root = ROOT) {
+    return JSON.parse(readFileSync(join(root, "ci-budgets.json"), "utf8"));
+}
 
 /**
  * The budget of a key: an exact entry, else one whose `*` matches (a specific key wins).
@@ -146,7 +156,7 @@ export function lintWorkflow(file, workflow, doc) {
 async function lint(root = ROOT) {
     // yaml only here: the timings job runs `report` from a checkout with no node_modules
     const { parse: parseYaml } = await import("yaml");
-    const file = JSON.parse(readFileSync(join(root, "ci-budgets.json"), "utf8"));
+    const file = loadBudgets(root);
     const errors = fileProblems(file);
     const warnings = [];
     const dir = join(root, ".github/workflows");
@@ -524,7 +534,7 @@ async function sendRows(run, rows) {
 const KIND_OF_EVENT = { pull_request: "pr", push: "master", workflow_dispatch: "dispatch" };
 
 async function report(v) {
-    const file = JSON.parse(readFileSync(join(ROOT, "ci-budgets.json"), "utf8"));
+    const file = loadBudgets();
     const gh = githubApi();
     const run = await gh(`/actions/runs/${v.run}`);
     const jobs = [];
@@ -554,7 +564,7 @@ async function report(v) {
 }
 
 async function trendCommand(v) {
-    const file = JSON.parse(readFileSync(join(ROOT, "ci-budgets.json"), "utf8"));
+    const file = loadBudgets();
     const verdicts = trend(JSON.parse(readFileSync(v.history, "utf8")), file);
     for (const x of verdicts.filter((y) => y.alarm))
         console.log(`alarm: ${x.key} (${x.kind}) ${fmt(x.earlier)} -> ${fmt(x.recent)}`);

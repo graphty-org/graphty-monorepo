@@ -4,6 +4,9 @@ import { gunzipSync } from "node:zlib";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import ciBudgets from "../../../ci-budgets.json" with { type: "json" };
+import { FOLD_VERSION, METRICS } from "../src/model/metrics.ts";
+import { setCursor } from "../src/model/raw.ts";
 import { MemoryStore } from "../src/model/store.ts";
 
 const ssmSend = vi.fn();
@@ -180,6 +183,26 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("judges a stored full-run shard by its ci-budgets.json budget, and a pull request bin not at all", async () => {
+        const h = await ingest();
+        const full = {
+            ...CI_CLAIMS,
+            event_name: "workflow_call",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/release.yml@refs/heads/master",
+        };
+        const passed = invocation({ outcome: "passed" });
+        delete (passed as Record<string, unknown>).failures;
+        expect((await h(event("/v1/invocations", passed, { claims: full }))).statusCode).toBe(200);
+        await h(event("/v1/invocations", invocation({ id: "500.1.x" })));
+        const fold = METRICS.find((m) => m.id === "ci.full_shard_time")!.from[0].fold as (i: unknown) => unknown;
+        const budgetMs = ciBudgets.budgets["job:ci.yml:Test (*)"].minutes * 60_000;
+        const stored = mem.items.get("R#shard_run#500.1.graphty-element-browser-3\u0000A#1");
+        expect(stored).toMatchObject({ full: true });
+        expect(fold(stored)).toMatchObject({ sum: budgetMs });
+        expect(fold(mem.items.get("R#shard_run#500.1.x\u0000A#1"))).toBeNull();
+    });
+
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
         const fail = { invocation: "500.1.compact-mantine", failures: [{ file: "b.ts", name: "t", message: "x" }] };
@@ -230,6 +253,8 @@ describe("recompute and read", () => {
         );
 
         const { recomputeAll } = await import("../src/recompute.ts");
+        // A table already folded at this version: the cycle's only marks are the post's.
+        await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
         const getSecret = vi.fn(async () => undefined);
         const done = await recomputeAll(mem, NOW, { getSecret, fetch: vi.fn() });
         expect(done.pages).toBeGreaterThan(30);

@@ -1275,7 +1275,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
@@ -1952,7 +1952,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
               if: steps.skip.outputs.skip != 'true'
@@ -2481,7 +2481,7 @@ jobs:
     release-due:
         name: Release due
         needs: all-checks
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
         # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
         continue-on-error: true
@@ -2505,6 +2505,40 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
               run: node tools/release-due.mjs
+
+    # Actions cache hygiene (#3431): deletes every cache of a closed pull request's ref, and on any other
+    # ref each key of a family (a key without its trailing hash, run id and versions) that is not the
+    # family's most recently read key there and that nothing has read for a day; then reports each
+    # family's size per ref against ci-budgets.json (tools/cache-hygiene.mjs). Green master pushes only;
+    # a failure must not turn master red. `!cancelled()`: without a status function the implicit success()
+    # also checks All Checks Pass's own needs, which are skipped on a master push, so the job never ran.
+    cache-hygiene:
+        name: Cache hygiene
+        needs: all-checks
+        if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        # actions: write to list and delete caches; pull-requests: read for the open ones; contents: read
+        # for the checkout.
+        permissions:
+            contents: read
+            actions: write
+            pull-requests: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
+                  # cone mode also checks out the root files, ci-budgets.json among them
+                  sparse-checkout: tools
+
+            - name: Delete superseded and closed pull requests' cache keys
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
+                  gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
+                  node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different

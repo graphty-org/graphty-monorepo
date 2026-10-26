@@ -770,7 +770,7 @@ describe("GET /v1/release-state", () => {
         assert.equal((await state(call)).ageNightlyMs, 0, "the inherited chain leads to nightly");
         s.site("z", NOW - 42 * HOUR);
         s.verdict("z", "green-clean", NOW - 41 * HOUR, { lane: "inherited from ccccccc" });
-        assert.equal((await state(call)).ageNightlyMs, 48 * HOUR, "a chain that does not reach nightly waits");
+        assert.equal((await state(call)).ageNightlyMs, 42 * HOUR, "a chain that does not reach nightly waits, from z");
     });
     it("counts nightly's age from the first site after it, so a quiet master is no stall", async () => {
         const { call, env } = service();
@@ -779,6 +779,17 @@ describe("GET /v1/release-state", () => {
         s.nightly("n", NOW - 72 * HOUR);
         s.site("c1", NOW - HOUR);
         assert.equal((await state(call)).ageNightlyMs, HOUR);
+    });
+    it("does not start nightly's clock at a promotion's own version merge", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "d".repeat(40);
+        s.site(n, NOW - 73 * HOUR);
+        s.nightly(n, NOW - 73 * HOUR);
+        s.site("m", NOW - 72 * HOUR);
+        s.verdict("m", "green-clean", NOW - 71 * HOUR, { lane: "inherited from ddddddd" });
+        s.site("x", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR, "a quiet weekend after a versioned promotion");
     });
     it("counts nightly's age from its move when nightly has no site row", async () => {
         const { call, env } = service();

@@ -1412,6 +1412,11 @@ jobs:
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
+            # The deploy wait's limit counts from here, not from the wait, so however long the steps before it take
+            # it fails by name before the job's timeout cancels the job (a cancel would skip the failure report).
+            - name: Note the job's start
+              run: echo "JOB_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
             # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
             - uses: actions/checkout@v4
               with:

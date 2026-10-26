@@ -324,10 +324,14 @@ export async function getReleaseState(q, who, db, now) {
     const canary = await newestSite(db);
     const canaryVerdict = states.find((s) => s.sha === canary?.sha);
     const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
-    // nightly is behind from the first site built after it, not from its own move: a quiet master is no stall
-    const start = (
-        await db.prepare("SELECT min(built_at) AS at FROM site WHERE built_at > ?").bind(nightlyBuilt).first()
-    )?.at;
+    // nightly is behind from the first site built after it that is not nightly's own (a promotion's version
+    // merge, an approvals-only merge), not from its own move: a quiet master is no stall
+    const after = await all(
+        db,
+        "SELECT sha, built_at AS at FROM site WHERE built_at > ? ORDER BY built_at",
+        nightlyBuilt,
+    );
+    const start = after.find((r) => !sameAsNightly(r.sha, nightly?.sha, states))?.at;
     const canaryState = canaryVerdict?.state;
     return {
         nightly,

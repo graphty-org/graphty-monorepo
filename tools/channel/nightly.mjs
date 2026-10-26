@@ -350,13 +350,24 @@ async function lookAtDeploy(env) {
 }
 
 // The deploy sends no event the job can wait on when it never starts (a disabled workflow, a refused runs read),
-// so the wait has its own limit, under the job's 20-minute hang guard: it fails by name and the job's failure
-// report runs, which a job timeout (cancelled) would skip.
-const WAIT_LIMIT_MS = 15 * 60_000;
+// so the wait has its own limit, counted from the job's start (JOB_STARTED_MS, the site job's first step) and
+// 4 minutes under its 20-minute hang guard: it fails by name and the job's failure report runs, which a job
+// timeout (cancelled) would skip, however long the download and pack before it took.
+export const WAIT_LIMIT_MS = 16 * 60_000;
+
+/**
+ * When the deploy wait gives up.
+ * @param env JOB_STARTED_MS (the job's start, else now) and WAIT_LIMIT_MS (a test's override)
+ * @param now milliseconds
+ * @returns milliseconds
+ */
+export function waitDeadline(env, now) {
+    return (Number(env.JOB_STARTED_MS) || now) + Number(env.WAIT_LIMIT_MS ?? WAIT_LIMIT_MS);
+}
 
 async function waitMain(env, now = Date.now) {
     need(env, ["SITE_REPO", "PUSHED", "SITE_URL", "SHA"]);
-    const limit = now() + Number(env.WAIT_LIMIT_MS ?? WAIT_LIMIT_MS);
+    const limit = waitDeadline(env, now());
     for (;;) {
         const s = await lookAtDeploy(env);
         if (s.done) {

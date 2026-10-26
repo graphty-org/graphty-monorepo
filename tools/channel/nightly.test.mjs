@@ -2,8 +2,11 @@
 // Run: node tools/channel/nightly.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { parse as parseYaml } from "yaml";
 
 import { parseDeployed } from "./site-deploy.mjs";
 import {
@@ -16,6 +19,8 @@ import {
     stampOf,
     STALL_TITLE,
     versionsAt,
+    WAIT_LIMIT_MS,
+    waitDeadline,
 } from "./nightly.mjs";
 
 const HOUR = 3_600_000;
@@ -173,5 +178,18 @@ describe("nightly.mjs as a command", () => {
         });
         assert.equal(r.status, 0);
         assert.match(r.stdout, /^promote=false$/m);
+    });
+});
+
+describe("the site job's hang guard", () => {
+    const release = parseYaml(readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const site = release.jobs.site;
+    it("counts the deploy wait from the job's start, not from the wait", () => {
+        assert.match(site.steps[0].run, /JOB_STARTED_MS=/, "the first step notes the start");
+        assert.equal(waitDeadline({ JOB_STARTED_MS: String(NOW - 6 * 60_000) }, NOW), NOW - 6 * 60_000 + WAIT_LIMIT_MS);
+        assert.equal(waitDeadline({}, NOW), NOW + WAIT_LIMIT_MS, "run by hand: from now");
+    });
+    it("gives up before the job's timeout, with room left for the failure report", () => {
+        assert.ok(site["timeout-minutes"] * 60_000 - WAIT_LIMIT_MS >= 3 * 60_000, `${site["timeout-minutes"]} min`);
     });
 });

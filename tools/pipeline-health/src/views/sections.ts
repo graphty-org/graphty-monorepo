@@ -210,8 +210,9 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
 }
 
 /**
- * Flake hotspots (section 5): family, file, test, ranked by distinct flaky tests. Quarantine and held pull
- * requests have no writer yet (the flaky feed), so they are null.
+ * Flake hotspots (section 5): family, file, test, ranked by distinct flaky tests, from CI's flaky detections
+ * (tools/test-quarantine.mjs through /v1/failures, and a passing retry's lookback). Quarantine and held pull
+ * requests have no writer yet, so they are null.
  * @param reads
  * @param range
  */

@@ -1760,11 +1760,12 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
         assert.match(
             job(ci, "story-tests-parity"),
-            /project: \[graphty, graphty-element, algorithms, layout, compact-mantine\]/,
+            /project: \[graphty, graphty-element, algorithms, layout, compact-mantine, cytoscape-extensions\]/,
         );
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
+        assert.match(job(ci, "story-tests"), /- project: cytoscape-extensions\n\s+shard: cytoscape-extensions\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
         // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
@@ -3538,7 +3539,8 @@ describe("release.yml", () => {
         assert.deepEqual(verdict.match(/\w+(-\w+)?: write/g), ["actions: write", "issues: write", "id-token: write"]);
         assert.match(
             verdict,
-            /if: \$\{\{ steps.verdict.outputs.state == 'red' \|\| steps.verdict.outputs.state == 'owner-item' \}\}/,
+            // green-images too: nothing else tells the owner that nightly waits on his screenshot review (#3698)
+            /if: \$\{\{ steps.verdict.outputs.state == 'red' \|\| steps.verdict.outputs.state == 'owner-item' \|\| steps.verdict.outputs.state == 'green-images' \}\}/,
         );
         assert.match(verdict, /node tools\/release-status.mjs "\$STATE" --sha "\$SHA"/);
         // a full run versions, lands and publishes nothing, and never opens a "Release held" issue

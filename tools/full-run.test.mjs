@@ -9,6 +9,8 @@ import { describe, it } from "node:test";
 import {
     bestEffort,
     bisectPlan,
+    captureLane,
+    changedSummary,
     differingImages,
     duplicateOf,
     fixedRecently,
@@ -163,7 +165,6 @@ describe("verdictOf", () => {
     it("is green-clean only when every lane passed and no screenshot differs", () => {
         assert.deepEqual(verdictOf(ALL_GREEN, 0), { state: "green-clean", red: [] });
         assert.equal(verdictOf(ALL_GREEN, 2).state, "green-images");
-        assert.equal(verdictOf(ALL_GREEN, null).state, "green-images", "no capture is not a clean capture");
         assert.equal(verdictOf({ ...ALL_GREEN, llm: "skipped" }, 0).state, "green-clean", "an LLM lane not due");
     });
 
@@ -184,6 +185,17 @@ describe("verdictOf", () => {
         assert.equal(verdictOf(lanes, 0, "Google refused the account").state, "owner-item");
         assert.equal(verdictOf(lanes, 0, "").state, "red");
         assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "refused").state, "red");
+    });
+
+    it("is red, never green-images, when an expected capture is missing (#3698)", () => {
+        const lanes = { ...ALL_GREEN, captures: captureLane(["graphty", "graphty-element"]) };
+        assert.equal(lanes.captures, "missing for graphty, graphty-element");
+        assert.deepEqual(verdictOf(lanes, 0), { state: "red", red: ["captures"] });
+        assert.deepEqual(verdictOf(lanes, 3), { state: "red", red: ["captures"] }, "changed images do not hide it");
+        assert.equal(captureLane([]), "success");
+        // captures come from the CI lane: a red CI explains a missing capture, so only CI is named
+        assert.deepEqual(verdictOf({ ...lanes, ci: "failure" }, 0).red, ["ci"]);
+        assert.match(bisectPlan({ red: ["captures"], sha: "s", good: "g", run: 1, failures: null }).why, /capture/);
     });
 });
 
@@ -207,34 +219,41 @@ describe("verdictOf: the pick and the version dry run", () => {
 });
 
 describe("differingImages", () => {
-    it("counts the items of every capture that are not unchanged or excluded", () => {
+    it("lists the items of every capture that are not unchanged or excluded, and the missing projects", () => {
         const dir = mkdtempSync(join(tmpdir(), "full-run-"));
-        assert.equal(differingImages(dir), null);
+        assert.deepEqual(differingImages(dir), { changed: [], missing: ["every project"] });
+        assert.deepEqual(differingImages(dir, ["layout"]), { changed: [], missing: ["layout"] });
+        assert.deepEqual(differingImages(join(dir, "absent"), ["layout"]).missing, ["layout"]);
         for (const [p, items] of [
-            ["visual-layout-1", [{ status: "unchanged" }, { status: "changed" }]],
-            ["visual-graphty-1", [{ status: "excluded" }, { status: "new" }, { status: "unchanged" }]],
+            ["visual-layout-1", [{ status: "unchanged" }, { status: "changed", file: "a.light.png" }]],
+            ["visual-graphty-1", [{ status: "excluded" }, { status: "new", id: "b" }, { status: "unchanged" }]],
         ]) {
             mkdirSync(join(dir, p));
             writeFileSync(join(dir, p, "results.json"), JSON.stringify({ items }));
         }
-        assert.equal(differingImages(dir), 2);
+        assert.deepEqual(differingImages(dir), { changed: ["graphty/b", "layout/a.light.png"], missing: [] });
         // a re-run's newer attempt replaces the older one's capture of the same project
         mkdirSync(join(dir, "visual-layout-2"));
         writeFileSync(
             join(dir, "visual-layout-2", "results.json"),
             JSON.stringify({ items: [{ status: "unchanged" }] }),
         );
-        assert.equal(differingImages(dir), 1);
-        assert.equal(differingImages(join(dir, "missing")), null);
+        assert.deepEqual(differingImages(dir).changed, ["graphty/b"]);
         // another file ending in results.json is not the capture's
         writeFileSync(
             join(dir, "visual-layout-2", "flaky-results.json"),
             JSON.stringify({ items: [{ status: "new" }] }),
         );
-        assert.equal(differingImages(dir), 1);
-        // a project whose capture wrote no results.json is not clean
-        assert.equal(differingImages(dir, ["layout", "graphty"]), 1);
-        assert.equal(differingImages(dir, ["layout", "graphty", "compact-mantine"]), null);
+        assert.deepEqual(differingImages(dir).changed, ["graphty/b"]);
+        // a project whose capture wrote no results.json is missing, and named
+        assert.deepEqual(differingImages(dir, ["layout", "graphty"]).missing, []);
+        assert.deepEqual(differingImages(dir, ["layout", "graphty", "compact-mantine"]).missing, ["compact-mantine"]);
+    });
+
+    it("summarizes the changed screenshots by project for the owner", () => {
+        const changed = Array.from({ length: 10 }, (_, i) => `graphty/t${i}.png`).concat(["layout/x.png"]);
+        assert.equal(changedSummary(changed), "11 screenshots differ from master's baselines: graphty 10, layout 1");
+        assert.equal(changedSummary(["layout/x.png"]), "1 screenshot differs from master's baselines: layout 1");
     });
 });
 

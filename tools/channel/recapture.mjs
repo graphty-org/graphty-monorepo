@@ -9,6 +9,10 @@
 //   node tools/channel/recapture.mjs merge --first <dir> --second <dir> --out <dir>
 //       the final capture: the first capture with each re-shot story's verdict replaced, and flaky.json listing the
 //       stories the two shots disagree on
+//   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha>
+//       release.yml's resume job: rewrites each capture's results.json in <dir> so a story whose captured PNG is the
+//       head's (the owner's accept-only pull request's) baseline byte for byte is unchanged; the gate then judges
+//       the approved head as a fresh capture of it would. Reads visual-review.config.json's baselines directory.
 //
 // A story stays changed (or new) only when the second shot draws the same picture as the first. One that matches
 // its baseline the second time was a flake and is unchanged; one that draws a third picture is `unstable`
@@ -23,6 +27,8 @@ import {
     readFileSync,
     writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
@@ -63,8 +69,12 @@ export const reshootIds = (results) =>
  *   first as the capture and the second as its other shot), and why it is flaky, or null
  */
 export function finalOf({ first, second, same }) {
-    if (!RESHOOT.has(first.status) || !second || second.status === "failed")
-        return { item: first, take: "first", flaky: null };
+    if (!RESHOOT.has(first.status)) return { item: first, take: "first", flaky: null };
+    // shot again, but no confirming second picture: never approvable as changed
+    if (!second || second.status === "failed") {
+        const why = second ? "its second shot failed" : "its second shot is missing";
+        return { item: { ...first, status: "failed", reason: `not confirmed: ${why}` }, take: "first", flaky: null };
+    }
     if (BASELINE_MATCH.has(second.status)) {
         return { item: second, take: "second", flaky: "matched its baseline when shot again on a fresh runner" };
     }
@@ -105,7 +115,8 @@ export async function merge({ first, second, out }) {
         const same = () =>
             compareImages(readFileSync(join(first, item.file)), readFileSync(join(second, other.file)), item).status ===
             "unchanged";
-        const f = finalOf({ first: item, second: other, same });
+        // no re-capture at all: nothing was found to shoot again
+        const f = second ? finalOf({ first: item, second: other, same }) : { item, take: "first", flaky: null };
         if (f.take === "second") {
             for (const sub of ["", "second", "baselines"])
                 copyIfThere(join(second, sub, item.file), join(out, sub, item.file));
@@ -120,12 +131,53 @@ export async function merge({ first, second, out }) {
     return flaky;
 }
 
+const APPROVABLE = new Set(["changed", "moved", "new", "unseeded"]);
+
+/**
+ * A judged capture read against the owner's approved baselines: each changed, moved, new or unseeded story whose captured
+ * PNG is byte for byte the head's baseline (the accept commit copies the captured bytes) becomes unchanged, as a
+ * capture of the head would find it, and a removed story whose baseline the head deleted is dropped. Anything else
+ * keeps its status, so the gate still refuses it.
+ * @param results a final capture's results.json
+ * @param oidOf (file) => the SHA-256 of the head's baseline of that file, or null when it has none
+ * @returns the number of stories now unchanged; results.items is rewritten in place
+ */
+export function acceptedBy(results, oidOf) {
+    const before = results.items.length;
+    let n = 0;
+    // a removed story whose baseline the owner deleted is gone, as from a fresh capture
+    results.items = results.items.filter((i) => i.status !== "removed" || oidOf(i.file) !== null);
+    results.items = results.items.map((i) => {
+        if (!APPROVABLE.has(i.status) || !i.capture || oidOf(i.file) !== i.capture) return i;
+        n++;
+        return { ...i, status: "unchanged", baseline: i.capture };
+    });
+    return n + before - results.items.length;
+}
+
+/**
+ * The SHA-256 of a baseline at a commit: the oid of its Git LFS pointer, or of its bytes when it is stored plain.
+ * @param head the commit
+ * @param path the baseline's path in the repository
+ * @returns the hash, or null when the commit has no such file
+ */
+function baselineOid(head, path) {
+    let bytes;
+    try {
+        bytes = execFileSync("git", ["cat-file", "blob", `${head}:${path}`], { stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+        return null;
+    }
+    const oid = /^oid sha256:([0-9a-f]{64})$/m.exec(bytes.subarray(0, 300).toString("latin1"))?.[1];
+    return oid ?? createHash("sha256").update(bytes).digest("hex");
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const [cmd, ...rest] = process.argv.slice(2);
     const { values } = parseArgs({
         args: rest,
         options: Object.fromEntries(
-            ["project", "captures", "first", "second", "out"].map((k) => [k, { type: "string" }]),
+            ["project", "captures", "first", "second", "out", "head"].map((k) => [k, { type: "string" }]),
         ),
     });
     if (cmd === "plan") {
@@ -138,8 +190,18 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     } else if (cmd === "merge") {
         const flaky = await merge({ first: values.first, second: values.second || null, out: values.out });
         for (const f of flaky) console.log(`::warning::flaky story ${f.file}: ${f.why}`);
+    } else if (cmd === "accepted") {
+        const root = JSON.parse(readFileSync("visual-review.config.json", "utf8")).baselines;
+        for (const name of readdirSync(values.captures)) {
+            const file = join(values.captures, name, "results.json");
+            if (!existsSync(file)) continue;
+            const results = JSON.parse(readFileSync(file, "utf8"));
+            const n = acceptedBy(results, (f) => baselineOid(values.head, `${root}/${results.project}/${f}`));
+            writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
+            console.log(`${name}: ${n} ${n === 1 ? "story matches" : "stories match"} the approved baselines`);
+        }
     } else {
-        console.error("usage: node tools/channel/recapture.mjs plan | merge (see the head of the file)");
+        console.error("usage: node tools/channel/recapture.mjs plan | merge | accepted (see the head of the file)");
         process.exit(2);
     }
 }

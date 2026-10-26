@@ -1333,9 +1333,11 @@ jobs:
             run_id: ${{ format('{0}', github.run_id) }}
 
     # Promote after approval (design/ci/channels-pipeline.md section 5): the pick found the owner's approval P (his
-    # accept-only pull request's head) of a green-images head H (tools/channel/resume.mjs). The unchanged screenshot
-    # gate runs on the captures of the run that judged H (its visual-final-*, kept 30 days) against P's baselines,
-    # which are byte copies of them, and P's signed approval; then the version, land, publish and site jobs promote P. A gate refusal promotes nothing and records `rejected` on H
+    # accept-only pull request's head) of a green-images head H (tools/channel/resume.mjs). The captures of the run
+    # that judged H (its visual-final-*, kept 30 days) are first read against P's baselines: a story whose captured PNG
+    # is P's baseline byte for byte (the accept commit copies it) is unchanged, as a capture of P would find it
+    # (tools/channel/recapture.mjs accepted). The unchanged screenshot gate then judges them with P's signed approval;
+    # then the version, land, publish and site jobs promote P. A gate refusal promotes nothing and records `rejected` on H
     # with a comment on the hold issue, so no later slot tries the same approval again; an open publish hold only
     # waits (a full slot catches up once it closes).
     resume:
@@ -1390,6 +1392,7 @@ jobs:
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
+                  node tools/channel/recapture.mjs accepted --captures "$CAPTURES" --head "$HEAD_SHA"
                   tools/channel/screenshot-gate.sh
 
             - name: Decide the nightly promotion
@@ -1450,6 +1453,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   WHY: abandoned by the owner
+                  ABANDONED: "true"
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}

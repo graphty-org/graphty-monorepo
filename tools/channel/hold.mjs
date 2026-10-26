@@ -8,8 +8,10 @@
 //       writes issue to GITHUB_OUTPUT
 //   node tools/channel/hold.mjs update   the verdict job, hold=update: a verdict on the held head, as a comment
 //       env SHA, STATE, WHAT, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL
+//       ONLY_IF_FREE=true (release-rerun.yml, a red run it could not re-run): only when nothing is held
 //   node tools/channel/hold.mjs end      the land job (promoted) or the abandon job: clear the hold, close its issue
-//       env WHY, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; writes base (the held commit, empty when none)
+//       env WHY, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; writes base (the held commit, empty when none);
+//       ABANDONED=true (the abandon job) first records `rejected` on the held head
 import { appendFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,7 +39,9 @@ export function holdIssue({ sha, state, what, run }) {
         "",
         "It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. Only the owner ends it without a promotion: `gh workflow run release.yml --ref master -f mode=abandon`.",
         "",
-        "To fix it forward, start the fix from the candidate's head, never from newer master: `./tools/worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>`, commit the fix with `Refs #<this issue>` in its message, and open it as usual (`tools/pr-open.sh --proof <file>`; the merge of master it adds on top never enters the candidate). When it merges into master, release.yml merges the fix into `channel/candidate` and re-tests the new head, only where the fix reaches. A further fix commit for the same pull request goes on a branch from its last fix commit, merged into the pull request's branch.",
+        "To fix it forward, start the fix from the candidate's head, never from newer master: `./tools/worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>` (or `" +
+            sha +
+            "` in place of `origin/channel/candidate` while that branch does not exist yet), commit the fix with `Refs #<this issue>` in its message, and open it as usual (`tools/pr-open.sh --proof <file>`; the merge of master it adds on top never enters the candidate). When it merges into master, release.yml merges the fix into `channel/candidate` and re-tests the new head, only where the fix reaches. A further fix commit for the same pull request goes on a branch from its last fix commit, merged into the pull request's branch.",
     ].join("\n");
     return { title: `${HOLD_TITLE} ${sha.slice(0, 12)}`, body };
 }
@@ -64,6 +68,12 @@ async function post(cfg, body) {
 }
 
 async function start(env) {
+    // release-rerun.yml starts a hold for a red run it could not re-run; a held candidate is never replaced
+    if (env.ONLY_IF_FREE && (await held(config(env)))) {
+        console.log("::notice::a candidate is held already: this red commit is not held");
+        output({ issue: "" });
+        return;
+    }
     const { title, body } = holdIssue({ sha: env.SHA, state: env.STATE, what: env.WHAT, run: env.RUN_URL });
     const labels = ["bug", "priority:high", "effort:medium"].flatMap((l) => ["--label", l]);
     let issue = null;
@@ -99,6 +109,11 @@ async function end(env) {
     if (!hold) {
         output({ base: "" });
         return;
+    }
+    // an abandoned head is rejected, so an approval of it that merges later promotes nothing (resume.mjs)
+    if (env.ABANDONED === "true") {
+        const r = await call(cfg, "POST", "/v1/verdicts", { sha: hold.head, state: "rejected", lane: "abandoned" });
+        if (!r.ok) throw new Error(`recording the abandoned head failed (${r.why})`);
     }
     await post(cfg, { clear: true });
     if (hold.issue)

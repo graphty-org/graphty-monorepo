@@ -199,7 +199,9 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does.
   `release-rerun.yml` is the one decider (`tools/release-rerun.mjs`, which `release-watch.yml` asks
   too, so the two never race): when it does not re-run an attempt that deferred, it files that
-  attempt's red issue and bisect itself. A
+  attempt's red issue and bisect itself, and holds its commit when nothing is held (a failed job it
+  does not re-run, or a `gh run rerun` that did not start). A re-shot story with no second shot, or
+  whose second shot failed, is `failed`, never `changed`: only two matching shots make a change. A
   test, lane or story that failed and then passed is filed "Flaky in full run: <name>" (bug,
   priority:critical, effort:medium; a comment when it recurs) and does not block. It is a
   confirmation, not a quarantine: nothing joins a quarantine list, so the screenshot gate and GPU
@@ -212,7 +214,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
-  only); newer master supersedes it only through that abandon.
+  only); newer master supersedes it only through that abandon, which records `rejected` on the held
+  head, so an approval of it that merges later promotes nothing.
 - **Fix forward into the candidate.** A fix never brings master into the candidate. Its branch
   starts from the candidate head (`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate
 --issue <n>`), a commit says `Refs #<hold issue>` (or the branch is named for the hold issue,
@@ -339,8 +342,10 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   second parent); an approval for a head no longer current dispatches nothing and comments on the
   hold issue. `promote-nightly` refuses unless P is H plus accept-only commits (no merge, nothing
   outside those two directories) and H's latest verdict is `green-images`; then the gate runs
-  unchanged on H's `visual-final-*` (30 days) against P's baselines (byte copies, so `capture_sha ==
-baseline_sha`) and P's signed approval, with `--base channel/nightly --head P`; then version,
+  unchanged on H's `visual-final-*` (30 days) against P's baselines and P's signed approval, after
+  `tools/channel/recapture.mjs accepted` marks each story whose captured PNG is P's baseline byte for
+  byte (its LFS oid equals the capture's SHA-256, as the accept commit writes it) unchanged, as a
+  capture of P would find it, and drops a removed story whose baseline P deleted, with `--base channel/nightly --head P`; then version,
   land, publish and site on P; the store records `approved`, the branch is deleted and
   the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. Every `full`
   slot first catches up on such an approval (a held head whose approval is on master, with no

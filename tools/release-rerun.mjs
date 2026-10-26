@@ -70,7 +70,8 @@ export function decide({ workflow, title, attempt, conclusion, record, failed, l
     return lostRunner() ? "rerun" : "none";
 }
 
-const gh = (args, opts = {}) => execFileSync("gh", args, { encoding: "utf8", ...opts }).trim();
+// stdio "ignore" returns null, not ""
+const gh = (args, opts = {}) => (execFileSync("gh", args, { encoding: "utf8", ...opts }) ?? "").trim();
 
 function facts(env) {
     const repo = env.GITHUB_REPOSITORY;
@@ -115,8 +116,9 @@ function main(env, dry) {
     if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `decision=${d}\n`);
     if (dry || d === "none") return;
     const release = env.WORKFLOW === "Release";
-    if (d === "rerun") {
-        gh(["run", "rerun", env.RUN, "--failed", "-R", env.GITHUB_REPOSITORY], { stdio: "inherit" });
+    if (d === "rerun" && !rerun(env, release && f.record?.deferred)) {
+        console.log("::warning::the re-run did not start: attempt 1 decides what it deferred");
+    } else if (d === "rerun") {
         if (!release) return;
         const what = f.record?.deferred
             ? `Re-run 2 on the same commit after ${f.record.red.join(", ")} failed`
@@ -144,6 +146,32 @@ function main(env, dry) {
         return;
     }
     // file: the run is not re-run after all, so attempt 1 decides what it deferred
+    fileDeferred(env, f);
+}
+
+/**
+ * Re-runs the run's failed jobs.
+ * @param env the environment
+ * @param fallback whether a failed re-run falls back to filing what attempt 1 deferred
+ * @returns whether it started; throws when it did not and there is nothing to fall back to
+ */
+function rerun(env, fallback) {
+    try {
+        gh(["run", "rerun", env.RUN, "--failed", "-R", env.GITHUB_REPOSITORY], { stdio: "inherit" });
+        return true;
+    } catch (error) {
+        if (!fallback) throw error;
+        return false;
+    }
+}
+
+/**
+ * Files what attempt 1's verdict deferred: the red issue and the bisect, the announcement, and the hold of its commit
+ * when nothing is held, as a red second attempt would have.
+ * @param env the environment
+ * @param f facts()
+ */
+function fileDeferred(env, f) {
     const out = execFileSync("node", ["tools/full-run.mjs", "file-deferred", f.file], {
         encoding: "utf8",
         env: { ...env, GITHUB_OUTPUT: "" },
@@ -169,6 +197,18 @@ function main(env, dry) {
         ],
         { stdio: "inherit" },
     );
+    if (f.record.forward) return; // a held head past its commit: the hold stands already
+    execFileSync("node", ["tools/channel/hold.mjs", "start"], {
+        stdio: "inherit",
+        env: {
+            ...env,
+            ONLY_IF_FREE: "true",
+            SHA: f.record.sha,
+            STATE: "red",
+            WHAT: f.record.red.join(", "),
+            RUN_URL: env.RUN_URL,
+        },
+    });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main(process.env, process.argv.includes("--dry"));

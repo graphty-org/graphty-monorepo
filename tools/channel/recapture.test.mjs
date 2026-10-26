@@ -1,13 +1,18 @@
 // Tests of the full run's same-commit re-capture (recapture.mjs) on small PNGs written to a temporary directory.
 // Run: node tools/channel/recapture.test.mjs
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { finalOf, merge, newestCapture, reshootIds } from "./recapture.mjs";
+import { isolateGit } from "../isolated-git-env.mjs";
+import { acceptedBy, finalOf, merge, newestCapture, reshootIds } from "./recapture.mjs";
+
+isolateGit();
 
 const { PNG } = createRequire(new URL("../../visual-review/package.json", import.meta.url))("pngjs");
 
@@ -61,9 +66,15 @@ describe("finalOf", () => {
         const f = finalOf({ first: changed, second: item("a", "unchanged"), same: () => false });
         assert.deepEqual([f.item.status, f.take, !!f.flaky], ["unchanged", "second", true]);
     });
-    it("keeps the first verdict for a story not shot again, or whose second shot failed", () => {
+    it("keeps the first verdict for a story not shot again", () => {
         assert.equal(finalOf({ first: item("a", "unchanged"), second: undefined }).item.status, "unchanged");
-        assert.equal(finalOf({ first: changed, second: item("a", "failed") }).item.status, "changed");
+    });
+    it("never counts a story changed without a confirming second shot: missing or failed, it is failed", () => {
+        for (const second of [undefined, item("a", "failed")]) {
+            const f = finalOf({ first: changed, second });
+            assert.deepEqual([f.item.status, f.flaky], ["failed", null]);
+            assert.match(f.item.reason, /^not confirmed: its second shot (is missing|failed)$/);
+        }
     });
 });
 
@@ -108,5 +119,83 @@ describe("merge", () => {
         assert.deepEqual(await merge({ first: join(root, "first"), second: null, out: join(root, "out") }), []);
         assert.ok(existsSync(join(root, "out", "a.png")));
         assert.equal(JSON.parse(readFileSync(join(root, "out", "results.json"), "utf8")).items[0].status, "changed");
+    });
+});
+
+describe("acceptedBy", () => {
+    const sha = (b) => createHash("sha256").update(b).digest("hex");
+    const shot = (id, status, bytes, baseline = null) => ({ ...item(id, status), capture: sha(bytes), baseline });
+
+    it("calls a story unchanged only when its captured PNG is the approved baseline byte for byte", () => {
+        const [a, b, c] = [png(10), png(20), png(30)];
+        const results = {
+            items: [
+                shot("approved", "changed", a, sha(png(1))),
+                shot("other", "changed", b, sha(png(2))),
+                shot("added", "new", c),
+                { ...shot("gone", "removed", a), capture: null },
+                { ...shot("kept", "removed", a), capture: null },
+                shot("odd", "unstable", a),
+            ],
+        };
+        const approved = { "approved.png": sha(a), "other.png": sha(png(99)), "added.png": sha(c), "kept.png": "x" };
+        assert.equal(
+            acceptedBy(results, (f) => approved[f] ?? null),
+            3,
+        );
+        assert.deepEqual(
+            results.items.map((i) => [i.id, i.status]),
+            [
+                ["approved", "unchanged"],
+                ["other", "changed"],
+                ["added", "unchanged"],
+                ["kept", "removed"],
+                ["odd", "unstable"],
+            ],
+        );
+        assert.equal(results.items[0].baseline, sha(a));
+    });
+
+    it("reads the approval's Git LFS pointers, and the gate then passes the approved stories", async () => {
+        const root = mkdtempSync(join(tmpdir(), "recapture-"));
+        const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8" }).trim();
+        git("init", "-q");
+        const [shotA, shotB] = [png(40), png(50)];
+        const pointer = (b) => `version https://git-lfs.github.com/spec/v1\noid sha256:${sha(b)}\nsize ${b.length}\n`;
+        mkdirSync(join(root, "visual-baselines", "app"), { recursive: true });
+        writeFileSync(join(root, "visual-review.config.json"), JSON.stringify({ baselines: "visual-baselines" }));
+        writeFileSync(join(root, "visual-baselines", "app", "a.png"), pointer(shotA));
+        writeFileSync(join(root, "visual-baselines", "app", "b.png"), pointer(png(1)));
+        git("add", ".");
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "approve");
+        const head = git("rev-parse", "HEAD");
+        const dir = join(root, "captures", "visual-app-1");
+        const results = {
+            version: 1,
+            project: "app",
+            complete: true,
+            expected: 2,
+            items: [shot("a", "changed", shotA, sha(png(2))), shot("b", "changed", shotB, sha(png(3)))],
+        };
+        capture(dir, []);
+        writeFileSync(join(dir, "results.json"), JSON.stringify(results));
+        execFileSync(
+            process.execPath,
+            [
+                new URL("./recapture.mjs", import.meta.url).pathname,
+                "accepted",
+                "--captures",
+                join(root, "captures"),
+                "--head",
+                head,
+            ],
+            { cwd: root, stdio: "ignore" },
+        );
+        const after = JSON.parse(readFileSync(join(dir, "results.json"), "utf8"));
+        assert.deepEqual(
+            after.items.map((i) => i.status),
+            ["unchanged", "changed"],
+            "b's capture is not the approved baseline: the gate still refuses it",
+        );
     });
 });

@@ -2927,7 +2927,7 @@ describe("gpu.yml", () => {
         // the T4 tests the commit the train selected, not the train's own checkout
         assert.match(
             job(gpu, "test-gpu"),
-            /- uses: actions\/checkout@v4\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
+            /- uses: actions\/checkout@v\d+\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
@@ -6574,7 +6574,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         const at = (n) => names.findIndex((x) => x.startsWith(n));
         for (const [a, b] of [
             // the checkout first, so a missing key still reaches the failure report (node tools/channel/...)
-            ["actions/checkout@v4", "Check the site's deploy key"],
+            ["actions/checkout@", "Check the site's deploy key"],
             ["Check the site's deploy key", "Download the candidate's built site"],
             // a re-run of an older run deploys nothing once channel/nightly moved on
             ["Check that nightly is still this run's", "Download the candidate's built site"],

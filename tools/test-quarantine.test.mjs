@@ -17,6 +17,7 @@ import {
     blameChange,
     closeFinished,
     decide,
+    failedFirst,
     emptyState,
     PASSES_TO_LEAVE,
     quarantineEnabled,
@@ -51,6 +52,23 @@ const entry = (t, extra = {}) => ({
     since: DAY,
     expires: LATER,
     ...extra,
+});
+
+describe("failedFirst", () => {
+    it("keeps only the flaky tests that failed on the first run", () => {
+        const first = { failures: [{ file: "a.ts", name: "t1" }] };
+        const second = { failures: [{ file: "a.ts", name: "t2" }] };
+        const d = decide({ family: "graphty", first, firstOutcome: "failed", second, list: [] });
+        assert.deepEqual(
+            d.flaky.map((f) => f.name),
+            ["t1", "t2"],
+        );
+        assert.deepEqual(
+            failedFirst(d.flaky, first).map((f) => f.name),
+            ["t1"],
+        );
+        assert.deepEqual(failedFirst(d.flaky, undefined), []);
+    });
 });
 
 describe("decide", () => {

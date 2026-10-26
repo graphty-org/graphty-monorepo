@@ -1515,9 +1515,32 @@ export function selectStories({ projects, changed, everything, shards, selection
 const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 
 /**
+ * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
+ * top, so a bin's job ends about 5.5 min after the Storybooks job (#3418, step 5).
+ */
+export const STORY_BIN_LIMIT_MS = 4 * 60_000;
+
+/**
+ * A story file's capture time, per project, for a file with no longer recorded time: the visual job's whole
+ * capture of the project (its configured browsers in parallel) divided by its story files, PR run 40364181619
+ * (2026-10-26). A project not listed counts NO_HISTORY_MS a file.
+ */
+// ponytail: measured once; re-measure when a project's Stories jobs drift from 4 min, or record capture time per file in the results store
+export const STORY_FILE_MS = {
+    "graph-io-fidelity": 40_000,
+    graphty: 35_000,
+    "cytoscape-extensions": 16_000,
+    "graphty-element": 8_000,
+    "compact-mantine": 4_000,
+    algorithms: 2_000,
+    layout: 2_000,
+};
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
- * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
+ * project's STORY_FILE_MS. A project selected whole bins every story file under its Storybook directory; a
+ * changed baseline's story id goes into the project's first bin.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
@@ -1533,9 +1556,11 @@ export function storyBins(stories, projects, listFiles, durations = {}) {
         if (files.length === 0 && s.baselines.length === 0) {
             continue;
         }
-        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
-        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
-        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        // a recorded play-test time marks a heavy file; the project's capture rate is the floor
+        const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
+        const rate = STORY_FILE_MS[s.project] ?? NO_HISTORY_MS;
+        const fileMs = new Map(files.map((f) => [f, Math.max(recorded[f] ?? 0, rate)]));
+        const bins = files.length > 0 ? packBins(files, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,

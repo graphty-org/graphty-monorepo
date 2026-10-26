@@ -7,7 +7,7 @@
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
     copyFileSync,
@@ -1338,7 +1338,7 @@ describe("ci.yml", () => {
         const dir = mkdtempSync(join(TMP, "reuse-build-"));
         const g = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" }).stdout.trim();
         g("init", "-q");
-        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "c");
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "c");
         const head = g("rev-parse", "HEAD");
         const bin = join(dir, "bin");
         mkdirSync(bin);
@@ -1389,12 +1389,32 @@ describe("ci.yml", () => {
         assert.match(due, /\n {8}needs: all-checks\n/);
         assert.match(
             due,
-            /\n {8}if: github.event_name == 'push' && github.ref == 'refs\/heads\/master' && !inputs.ref\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && !inputs\.ref \}\}\n/,
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
         // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
         assert.match(due, /\n {8}continue-on-error: true\n/);
+    });
+
+    it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
+        const hygiene = job(ci, "cache-hygiene");
+        assert.match(
+            hygiene,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' \}\}\n/,
+        );
+        const doc = parseYaml(ci).jobs["cache-hygiene"];
+        assert.deepEqual(doc.permissions, { contents: "read", actions: "write", "pull-requests": "read" });
+        // a failed cleanup must not turn master red
+        assert.equal(doc["continue-on-error"], true);
+        // the script deletes, so its summary is written after the deletes and counts the failed ones
+        assert.match(
+            hygiene,
+            /node tools\/cache-hygiene\.mjs "\$RUNNER_TEMP\/caches\.ndjson" "\$RUNNER_TEMP\/open-prs\.txt" --apply/,
+        );
+        assert.match(hygiene, /gh pr list --repo "\$GITHUB_REPOSITORY" --state open/);
+        // no pull-request run reaches it: All Checks Pass does not wait on it
+        assert.ok(!(parseYaml(ci).jobs["all-checks"].needs ?? []).includes("cache-hygiene"));
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
@@ -1427,7 +1447,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1445,7 +1465,7 @@ describe("ci.yml", () => {
         for (const name of ["build", "lint", "checks", "docs"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''\n)? {8}runs-on:/,
+                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''(?: && needs.packages.outputs.docs == 'true')?\n)? {8}runs-on:/,
                 `${name} runs on master too`,
             );
         }
@@ -1675,7 +1695,8 @@ describe("verification runs of ci.yml", () => {
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
+        assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms, layout\]/);
+        assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
@@ -1693,6 +1714,22 @@ describe("verification runs of ci.yml", () => {
             }
             // The job's own condition names every leg's shard, or a leg alone in a run is never started.
             assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
+        }
+    });
+
+    it("finds every story-tests leg's shard in the planned matrix, alone or folded into a group", () => {
+        // The job's `if` and its skip step look for `"<shard>"` in the test-matrix JSON. A shard folded into a
+        // group (layout in small-node, algorithms-browser in small-browser) is there only as a group member.
+        const legs = [...job(ci, "story-tests").matchAll(/- project: (\S+)\n\s+shard: (\S+)\n/g)].map((m) => m[2]);
+        assert.ok(legs.length >= 4, "the legs were read");
+        const each = (affected) => JSON.stringify({ include: plan(affected) });
+        const runs = [PACKAGES, ["graph-format", "layout", "algorithms"], ["layout"], ["algorithms"]];
+        for (const affected of runs) {
+            const matrix = each(affected);
+            for (const shard of legs) {
+                const pkg = SHARDS.find((s) => s.shard === shard).package;
+                assert.equal(matrix.includes(`"${shard}"`), affected.includes(pkg), `${shard} with ${affected}`);
+            }
         }
     });
 
@@ -1887,7 +1924,7 @@ describe("the Sentry source map upload", () => {
         );
     });
 
-    it("runs right after the build, only on a push to master, the build graphty.app deploys", () => {
+    it("runs right after the build, only on a push to master, the build canary.graphty.app deploys", () => {
         assert.ok(upload);
         assert.equal(
             upload.if,
@@ -2408,6 +2445,46 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.ok(visual.includes(`"$RUNNER_TEMP/visual/${SKIPPED_FILE}"`));
         const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(visual)[1];
         assert.ok(isSkipMarker(JSON.parse(printf.replace("%s", "layout")), "layout"));
+    });
+});
+
+describe("base-check.yml", () => {
+    const steps = () => parseYaml(workflow("base-check.yml")).jobs.check.steps;
+
+    it("runs master's own copy of the tools against the base's tests", () => {
+        const all = steps();
+        const take = all.findIndex((s) => s.name === "Take the tools from master");
+        const run = all.findIndex((s) => s.name === "Run the file");
+        assert.ok(take > 0 && take < run, "the tools are taken from master before the file runs");
+        assert.match(all[run].run, /^node "\$RUNNER_TEMP\/trusted\/tools\/results\/cli\.mjs" base-check /);
+        for (const s of all) assert.doesNotMatch(s.run ?? "", /^node tools\//m, `${s.name} runs the base's own tools`);
+    });
+
+    it("takes the tools of this run's commit, not the base's, against a throwaway repository", () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-check-"));
+        const git = (...a) => execFileSync("git", a, { cwd: join(dir, "base"), encoding: "utf8" });
+        mkdirSync(join(dir, "base/tools/results"), { recursive: true });
+        execFileSync("git", ["init", "-q", "-b", "master"], { cwd: join(dir, "base") });
+        git("config", "user.email", "t@t");
+        git("config", "user.name", "t");
+        git("config", "commit.gpgsign", "false");
+        writeFileSync(join(dir, "base/tools/results/cli.mjs"), "old\n");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        const base = git("rev-parse", "HEAD").trim();
+        writeFileSync(join(dir, "base/tools/results/cli.mjs"), "new\n");
+        git("commit", "-qam", "master");
+        const master = git("rev-parse", "HEAD").trim();
+        git("checkout", "-q", base);
+        git("remote", "add", "origin", join(dir, "base"));
+        const script = steps().find((s) => s.name === "Take the tools from master").run;
+        execFileSync("bash", ["-euo", "pipefail", "-c", script], {
+            cwd: join(dir, "base"),
+            env: { ...process.env, GITHUB_SHA: master, RUNNER_TEMP: dir },
+        });
+        assert.equal(readFileSync(join(dir, "trusted/tools/results/cli.mjs"), "utf8"), "new\n");
+        assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
+        rmSync(dir, { recursive: true, force: true });
     });
 });
 
@@ -2995,7 +3072,7 @@ describe("master-guard", () => {
         assert.equal(fake.calls.length, 1);
     });
 
-    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+    it("reports a failed canary deploy, which runs on CI's workflow_run event", () => {
         assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
@@ -3482,7 +3559,7 @@ describe("release.yml", () => {
 
     it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
         const due = llm.indexOf("run: node tools/llm-due.mjs");
-        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@v6"), "decides before installing anything");
+        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@"), "decides before installing anything");
         assert.match(llm, /id: due\n/);
         assert.match(llm, /actions: read/);
         // every step after the decision is skipped when the lane is not due, so the job passes without paying
@@ -4521,85 +4598,198 @@ describe("release.yml", () => {
 
         it("keeps the site of every green CI run of a push to master as site-<sha>", () => {
             assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
-            assert.match(
-                job(deploy, "check"),
-                /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
-            );
             const build = job(deploy, "build");
-            assert.doesNotMatch(build, /\n {8}if:/, "the site is assembled on every green master build");
+            assert.match(
+                build,
+                /if: \$\{\{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' \}\}/,
+            );
             assert.match(
                 build,
                 /name: site-\$\{\{ env.SHA \}\}\n\s+path: site-\$\{\{ env.SHA \}\}.tar\n\s+retention-days: 14/,
             );
-            assert.match(
-                build,
-                /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n\s+uses: actions\/upload-pages-artifact/,
-            );
-            assert.match(job(deploy, "deploy"), /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}/);
+            // the build job never deploys: the deploy job publishes master's newest site, whichever run it is in
+            assert.doesNotMatch(build, /upload-pages-artifact|site\.json/);
+            assert.match(job(deploy, "deploy"), /needs: build\n/);
             assert.doesNotMatch(
                 deploy,
                 /^concurrency:/m,
-                "an ordinary build must not replace a pending release deploy",
+                "every build keeps its own site-<sha>; only the deploy job is serialized",
             );
         });
 
-        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's second
-        // parent, the first tag's annotated tag object and the commit that tag points at)
-        const decide = (message, { parents = 2, live = "0ld", tagged = "v1" } = {}) => {
+        // The deploy job's decision, against a stub curl (canary's page, or nothing when canary does not answer)
+        // and a stub gh (the Pages domain, master's newest green build, the compare and the
+        // newest build's site-<sha> artifact; null makes that call fail). Run as GitHub runs a step: bash -e -o pipefail.
+        const decide = ({
+            sha = "abc1111",
+            newest = "abc9999",
+            live = "0ddba11",
+            compare = "ahead",
+            order = "behind",
+            cname = "canary.graphty.app",
+            code = 200,
+            cut = false,
+            artifact = "42",
+        } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
+            const page =
+                live === ""
+                    ? "<html></html>"
+                    : `<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">`;
             writeFileSync(
                 join(bin, "curl"),
-                `#!/bin/bash\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n` +
+                    (live === null
+                        ? `printf 000\nexit 6\n`
+                        : cut
+                          ? `echo '<html><head>' > "$out"\nprintf ${code}\nexit 28\n`
+                          : `echo '${page}' > "$out"\nprintf ${code}\n`),
                 { mode: 0o755 },
             );
+            const answer = (v) => (v === null ? "exit 1" : `echo "${v}"`);
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents === 2 ? "v1" : ""};;\n*/git/ref/tags/graphty%401.2.0) echo "tag t1";;\n*/git/ref/tags/*) exit 1;;\n*/git/tags/t1) echo ${tagged};;\n*/compare/*) echo ahead;;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${answer(cname)};;\n` +
+                    `*/workflows/ci.yml/runs*) ${answer(newest)};;\n` +
+                    `*/compare/abc9999...abc1111) ${answer(order)};;\n*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
                 { mode: 0o755 },
             );
-            const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
+            const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, "deploy")}\n\n`)[1];
+            const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
-            const r = spawnSync("bash", ["-e", "-c", script], {
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
                 encoding: "utf8",
                 env: {
                     ...process.env,
-                    MESSAGE: message,
-                    SHA: "abc1",
+                    SHA: sha,
+                    CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
+                    RUNNER_TEMP: dir,
+                    GITHUB_RUN_ID: "7",
+                    GITHUB_RUN_ATTEMPT: "2",
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
             });
-            assert.equal(r.status, 0, r.stderr);
-            const result = { deploy: readFileSync(out, "utf8").trim(), gh: existsSync(join(dir, "gh.log")) };
+            const output = readFileSync(out, "utf8");
+            const result = {
+                status: r.status,
+                deploy: /deploy=(\w+)/.exec(output)?.[1] ?? "",
+                sha: /sha=(\w+)/.exec(output)?.[1] ?? "",
+                run: /run=(\w+)/.exec(output)?.[1] ?? "",
+                curl: existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "",
+                gh: existsSync(join(dir, "gh.log")) ? readFileSync(join(dir, "gh.log"), "utf8") : "",
+            };
             rmSync(dir, { recursive: true, force: true });
             return result;
         };
-        const RELEASE = "chore(release): publish graphty@1.2.0, layout@1.10.6 onto master";
+        const deploys = (o) => {
+            const r = decide(o);
+            return [r.status, r.deploy, r.sha, r.run];
+        };
 
-        it("deploys graphty.app only for the version merge release.yml's land job pushes", () => {
-            assert.deepEqual(decide(`${RELEASE}\n\nbody`), { deploy: "deploy=true", gh: true });
-            assert.equal(decide("Merge pull request #3500 from graphty-org/golden-cut\n\nship").deploy, "deploy=false");
-            assert.equal(decide("Merge pull request #3500").gh, false, "an ordinary merge asks GitHub nothing");
-            assert.equal(
-                decide("chore(release): publish graphty@1.2.0").deploy,
-                "deploy=false",
-                "the version commit itself",
+        it("deploys master's newest green build's site from that build's own run, whichever run gets here (#3618 review)", () => {
+            // no commit-message rule: an ordinary merge deploys
+            assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
+            // this run is for abc1111, master's newest green build is abc9999: abc9999's site is deployed, from its run 42
+            assert.deepEqual(deploys(), [0, "true", "abc9999", "42"]);
+            const r = decide();
+            assert.match(r.gh, /workflows\/ci\.yml\/runs\?branch=master&event=push&status=success&per_page=1/);
+            assert.match(r.gh, /compare\/0ddba11\.\.\.abc9999/);
+            assert.match(r.gh, /actions\/artifacts\?name=site-abc9999/);
+            assert.match(
+                r.curl,
+                /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2\n$/,
             );
-            assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+            // the runs list lags and still names an older build than the one that started this run: this run's
+            // build is the newest, and it deploys its own site (#3618 review)
+            assert.deepEqual(deploys({ order: "ahead", artifact: "" }), [0, "true", "abc1111", "7"]);
+            // this run's own build is the newest: it deploys its own site, from this run, without asking the
+            // artifacts list, which may not show an upload made moments ago yet (#3618 review)
+            assert.deepEqual(deploys({ sha: "abc9999", artifact: "" }), [0, "true", "abc9999", "7"]);
+            assert.doesNotMatch(decide({ sha: "abc9999" }).gh, /actions\/artifacts/);
+            // canary's site.json comes from master's tip, like promote.yml's: an older deployed commit may not have it
+            assert.match(
+                job(deploy, "deploy"),
+                /- name: Check out canary's site.json\n(?:.*\n){3}\s+sparse-checkout: graphty\/sites\n/,
+            );
+            assert.doesNotMatch(job(deploy, "deploy"), /ref: \$\{\{ steps.live/);
+            // the download, the site.json and the Pages upload all take the chosen build's site
+            const job_ = job(deploy, "deploy");
+            assert.match(
+                job_,
+                /name: site-\$\{\{ steps.live.outputs.sha \}\}\n\s+path: \.\/site\/\n\s+run-id: \$\{\{ steps.live.outputs.run \}\}/,
+            );
+            assert.ok(job_.indexOf("tar -xf") < job_.indexOf("canary.json > public/site.json"));
+            assert.ok(job_.indexOf("canary.json > public/site.json") < job_.indexOf("upload-pages-artifact"));
+            assert.match(
+                job_,
+                /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
+            );
+            // no hand-off to another run: nothing re-runs a run, finds one by name, or needs actions: write
+            assert.doesNotMatch(deploy, /Hand off|gh run rerun|display_title|actions: write/);
+            assert.equal(
+                JSON.parse(readFileSync(new URL("../graphty/sites/canary.json", import.meta.url), "utf8")).site,
+                "canary",
+            );
+            // the custom domain is this repository's Pages setting; the site carries no CNAME file
+            assert.doesNotMatch(
+                deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),
+                /CNAME/,
+            );
         });
 
-        it("does not deploy a merge that only borrows the release subject", () => {
-            // a pull request merged with the release's subject: its second parent is not the tagged commit
-            assert.equal(decide(RELEASE, { tagged: "old" }).deploy, "deploy=false");
-            // a subject naming a tag that does not exist
-            assert.equal(decide("chore(release): publish nope@9.9.9 onto master").deploy, "deploy=false");
+        it("deploys nothing when canary already serves the newest build, or something newer", () => {
+            assert.deepEqual(deploys({ live: "abc9999" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "behind" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "identical" }), [0, "false", "", ""]);
+            // a canary on a commit off master's line is replaced
+            assert.deepEqual(deploys({ compare: "diverged" }), [0, "true", "abc9999", "42"]);
+            // the newest build's site is not assembled yet: that build's own run deploys it
+            assert.deepEqual(deploys({ artifact: "" }), [0, "false", "", ""]);
+            // before the domain swap the domain is graphty.app, which only promotion may move: canary is not read
+            assert.deepEqual(
+                [decide({ cname: "graphty.app" }).deploy, decide({ cname: "graphty.app" }).curl],
+                ["false", ""],
+            );
         });
 
-        it("does not deploy a release that is live already", () => {
-            assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        it("fails the job, deploying nothing, on every read that fails, so master-guard reports it (#3618 review)", () => {
+            for (const o of [
+                { cname: null }, // the Pages settings
+                { cname: "" }, // a Pages domain that is neither graphty.app (before the swap) nor canary
+                { cname: "canary.graphty.ap" },
+                { order: null }, // this run's build cannot be compared with the runs list's newest
+                { newest: null }, // the CI runs list
+                { newest: "" },
+                { live: null }, // canary does not answer
+                { code: 503 },
+                { code: 429 },
+                { cut: true }, // a body that breaks off after a 200
+                { live: "" }, // a 200 with no build stamp
+                { code: 404 }, // this repository's Pages always serves a site (the deploy job's environment alone
+                // records a github-pages deployment), so a 404 is never "no site yet" (#3618 review)
+                { compare: null }, // a stamp commit the compare API cannot resolve
+                { compare: "" },
+                { artifact: null }, // the artifacts list
+                { artifact: "expired" },
+            ]) {
+                const r = decide(o);
+                assert.notEqual(r.status, 0, JSON.stringify(o));
+                assert.notEqual(r.deploy, "true", JSON.stringify(o));
+            }
+        });
+
+        it("reuses the hosted datasets canary publishes, not graphty.app's, which moves only by promotion (#3618 review)", () => {
+            const hosted = readFileSync(new URL("../graph-samples/scripts/build-hosted.mjs", import.meta.url), "utf8");
+            assert.match(hosted, /^const REUSE_URL = "https:\/\/canary\.graphty\.app\/data\/graph-samples\/v1\/";$/m);
+            assert.match(hosted, /publishedCopy\(`\$\{REUSE_URL\}/);
+            // graphty.app only after canary, while canary does not serve the data yet or cannot be read
+            assert.ok(hosted.indexOf("publishedCopy(`${REUSE_URL}") < hosted.indexOf("publishedCopy(`${BASE_URL}"));
+            assert.match(job(deploy, "build"), /node graph-samples\/scripts\/build-hosted\.mjs --reuse-published/);
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told
@@ -5946,6 +6136,9 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     it("plans inside Build after the builds: one results-store read, then the selector's bins, pull requests only", () => {
         const bins = stepOf("Plan the light check's test bins");
         assert.match(bins, /\n {14}id: bins\n/);
+        // the base is the master commit the merge ref was built on, never master's tip at fetch time
+        assert.doesNotMatch(bins, /rev-parse "origin\/\$BASE_REF"/);
+        assert.match(bins, /--arg base "\$\(git rev-parse HEAD\^1\)"/);
         assert.match(
             bins,
             /\n {14}if: steps\.plan\.outputs\.full == 'false' && steps\.reuse\.outputs\.reuse-run == ''\n/,
@@ -6182,5 +6375,153 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
             ids: [],
         });
         assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
+    });
+});
+
+describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const jobs = parseYaml(ci).jobs;
+    const step = (jobId, name) => {
+        const s = jobs[jobId].steps.find((x) => x.name === name);
+        assert.ok(s, `${jobId} has the step ${name}`);
+        return s;
+    };
+
+    // Runs the Build job's "Plan the optional jobs" script in a throwaway repository whose origin/master holds
+    // this checkout's package.json and tools/copy-docs-content.js, on a pull request changing `files`.
+    const optional = (files, { event = "pull_request", affected = [] } = {}) => {
+        const dir = mkdtempSync(join(TMP, "optional-"));
+        const git = (...a) => {
+            const r = spawnSync("git", a, { cwd: dir, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+        };
+        mkdirSync(join(dir, "tools"));
+        copyFileSync("package.json", join(dir, "package.json"));
+        copyFileSync("tools/copy-docs-content.js", join(dir, "tools/copy-docs-content.js"));
+        mkdirSync(join(dir, "visual-review/docs"), { recursive: true });
+        copyFileSync("visual-review/docs/index.md", join(dir, "visual-review/docs/index.md"));
+        git("init", "-q", "-b", "master");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        git("update-ref", "refs/remotes/origin/master", "HEAD");
+        for (const f of files) {
+            mkdirSync(join(dir, f, ".."), { recursive: true });
+            writeFileSync(join(dir, f), "x\n");
+        }
+        git("add", ".");
+        git("commit", "-qm", "change", "--allow-empty");
+        const out = join(dir, "out");
+        writeFileSync(out, "");
+        const r = spawnSync("bash", ["-e", "-c", step("packages", "Plan the optional jobs").run], {
+            cwd: dir,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                EVENT: event,
+                BASE_REF: "master",
+                AFFECTED: JSON.stringify(affected),
+                GITHUB_OUTPUT: out,
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        return Object.fromEntries(
+            readFileSync(out, "utf8")
+                .trim()
+                .split("\n")
+                .map((l) => l.split("=")),
+        );
+    };
+
+    it("plans them in Build and hands them to the other jobs", () => {
+        const build = job(ci, "packages");
+        for (const o of ["docs", "cost-accuracy"]) {
+            assert.match(build, new RegExp(`\\n {12}${o}: \\$\\{\\{ steps\\.optional\\.outputs\\.${o} \\}\\}\\n`));
+        }
+    });
+
+    it("runs every optional job on any run but a pull request", () => {
+        for (const event of ["push", "workflow_dispatch", "workflow_call"]) {
+            assert.deepEqual(optional([], { event }), { docs: "true", "cost-accuracy": "true" });
+        }
+    });
+
+    it("a pull request touching no docs or cost files runs neither", () => {
+        assert.deepEqual(optional(["graph-samples/src/a.ts"], { affected: ["graph-samples"] }), {
+            docs: "false",
+            "cost-accuracy": "false",
+        });
+    });
+
+    it("runs Docs on a docs input: docs/, a package's docs/, the copy script, or an affected package with API docs", () => {
+        for (const f of ["docs/index.md", "graph-io/docs/guide.md", "tools/copy-docs-content.js"]) {
+            assert.equal(optional([f]).docs, "true", f);
+        }
+        assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
+        assert.equal(optional(["graph-format/README.md"], { affected: ["graph-format"] }).docs, "false");
+    });
+
+    it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {
+        assert.equal(optional(["visual-review/README.md"]).docs, "true");
+    });
+
+    it("runs Docs when what builds the docs changed: root package.json, the lockfile, ci.yml", () => {
+        for (const f of ["package.json", "pnpm-lock.yaml", ".github/workflows/ci.yml"]) {
+            assert.equal(optional([f]).docs, "true", f);
+        }
+    });
+
+    it("runs Cost Estimate Accuracy on a pull request only when its files changed", () => {
+        assert.equal(optional(["graphty-element/src/session/cost/estimate.ts"])["cost-accuracy"], "true");
+        for (const f of [
+            "graphty-element/src/catalog/algorithms.ts",
+            "algorithms/src/shortest-path/dijkstra.ts",
+            "graph-format/src/a.ts",
+            "graphty-element/package.json",
+            ".github/workflows/ci.yml",
+        ]) {
+            assert.equal(optional([f])["cost-accuracy"], "true", f);
+        }
+        assert.equal(optional(["graphty-element/src/Graph.ts"])["cost-accuracy"], "false");
+        assert.match(jobs["cost-accuracy"].if, /&& needs\.packages\.outputs\.cost-accuracy == 'true'$/);
+    });
+
+    it("gates Docs on the plan and runs the tool tests on every pull request, and All Checks Pass accepts a skipped Docs", () => {
+        assert.match(jobs.docs.if, /&& needs\.packages\.outputs\.docs == 'true'$/);
+        assert.equal(step("checks", "CI workflow tests").if, "needs.packages.outputs.light != 'true'");
+        const summary = step("all-checks", "Check all jobs passed");
+        assert.equal(summary.env.DOCS, "${{ needs.packages.outputs.docs }}");
+        assert.match(summary.run, /\[\[ "\$DOCS" == "false" \]\] && strict='\["packages","build","lint","checks"\]'/);
+    });
+
+    it("adds the budgets lint, the offline links and the signing-bypass check to Checks", () => {
+        assert.equal(step("checks", "CI budgets").run, "node tools/ci-budgets.mjs lint");
+        assert.equal(step("checks", "Links (offline)").run, "./tools/check-links.sh --offline");
+        assert.match(
+            step("checks", "No signing bypass in tools/ and .husky/").run,
+            /^! git grep -niE .*-- tools\/ \.husky\/$/,
+        );
+    });
+
+    it("moves the network links, the coverage uploads and the lifecycle shard to the full run", () => {
+        assert.match(jobs.links.if, /^needs\.packages\.outputs\.full == 'true' && /);
+        const uploads = jobs.test.steps.filter((s) => /coverage/i.test(s.name ?? ""));
+        assert.equal(uploads.length, 5);
+        for (const s of uploads) assert.match(s.if, /needs\.packages\.outputs\.full == 'true'/, s.name);
+        const lifecycle = "graphty-element-lifecycle";
+        assert.ok(
+            plan(PACKAGES).some((e) => e.shard === lifecycle),
+            "a full run has it",
+        );
+        assert.ok(
+            !plan(PACKAGES, undefined, undefined, true).some((e) => e.shard === lifecycle),
+            "a pull request does not",
+        );
+        const bin = { name: `${lifecycle}-1`, shard: lifecycle, family: lifecycle, files: ["a"], command: "x" };
+        assert.ok(!plan(PACKAGES, undefined, { bins: [bin] }, true).some((e) => e.shard === bin.name), "nor its bin");
+        assert.match(step("packages", "Plan affected projects and test shards").run, /pr=\(--pull-request\)/);
+        assert.match(
+            step("packages", "Plan the light check's test bins").run,
+            /--plan "\$plan\/light-plan\.json" --pull-request/,
+        );
     });
 });

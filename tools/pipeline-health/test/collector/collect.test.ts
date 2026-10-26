@@ -192,6 +192,26 @@ describe("collector deploy trigger", () => {
     const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
         collect({ ...deps(store, fakeGitHub(), now, false), gh: g, deploy: b });
 
+    it("starts a build when only ci-budgets.json changed", async () => {
+        const store = new MemoryStore();
+        let budgets = "d".repeat(40);
+        const answer = () =>
+            new GitHub(
+                async () => "ghs_test",
+                async () =>
+                    Response.json({
+                        data: { repository: { tree: { oid: TREE }, budgets: { oid: budgets }, head: { oid: HEAD } } },
+                    }),
+            );
+        const b = builds();
+        await run(store, answer(), b);
+        await run(store, answer(), b, NOW + 5 * MIN);
+        expect(b.started).toEqual([HEAD]);
+        budgets = "e".repeat(40);
+        await run(store, answer(), b, NOW + 10 * MIN);
+        expect(b.started).toEqual([HEAD, HEAD]);
+    });
+
     it("starts a build at master's head when the tree changed, and not again while it is unchanged", async () => {
         const store = new MemoryStore();
         let tree = TREE;
@@ -275,5 +295,23 @@ describe("collector deploy trigger", () => {
         expect(errors[0]).toContain("attempt 2 started");
         expect(errors[2]).toContain("after 3 attempts");
         expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("FAILED");
+    });
+
+    it("never starts again a build someone stopped, and reports the deploy source as failed", async () => {
+        const store = new MemoryStore();
+        await run(
+            store,
+            gh(() => TREE),
+            builds(),
+        );
+        const b = builds({ status: "STOPPED" });
+        const r = await run(
+            store,
+            gh(() => TREE),
+            b,
+            NOW + 5 * MIN,
+        );
+        expect(b.started).toEqual([]);
+        expect(r.errors.deploy).toContain("STOPPED");
     });
 });

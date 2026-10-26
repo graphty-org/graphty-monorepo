@@ -989,7 +989,8 @@ export function wholePackageRule(rel, rules) {
  * File-level selection is adopted package by package (design/ci/fast-pipeline.md section 5.1, item 2):
  * a shard whose package is not in `allowed`, or whose runs include a browser project (browsers are a lane,
  * not file selection), runs whole wherever its package was judged file by file. Its file-level answer is
- * kept as `measured`, so the replay can show it before it is allowed.
+ * kept as `measured` (with `untrusted`, as a smoke shard's: the shard runs whole because that answer is not
+ * relied on), so the replay can show it before it is allowed.
  * @param shards SHARDS entries (the gate's or CI's)
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
@@ -1001,22 +1002,22 @@ export function wholePackageRule(rel, rules) {
  */
 export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
-        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
-            return {
-                shard: shard.shard,
-                package: shard.package,
-                total: null,
-                mode: "all",
-                files: [],
-                reasons: [smoke.get(shard.shard)],
-            };
-        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
         const sel = measuredShard(p, own);
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                ...base,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+                measured: { mode: sel.mode, files: sel.files, untrusted: true },
+            };
+        }
         if (!p.fileLevel || sel.mode === "all") {
             return { ...base, ...sel };
         }
@@ -1024,7 +1025,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         if (!why) {
             return { ...base, ...sel };
         }
-        return { ...base, mode: "all", files: [], reasons: [why], measured: { mode: sel.mode, files: sel.files } };
+        const measured = { mode: sel.mode, files: sel.files, untrusted: true };
+        return { ...base, mode: "all", files: [], reasons: [why], measured };
     });
 }
 
@@ -1206,7 +1208,8 @@ export function planRuns(root, shards, selection) {
         const command = s.mode === "files" ? selectedCommand(root, shard, files) : null;
         if (s.mode === "files" && !command) {
             const why = "its command is not a plain vitest run, so it runs whole";
-            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard] });
+            const measured = { mode: s.mode, files: s.files ?? [] };
+            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard], measured });
             continue;
         }
         const same = command && plan.find((p) => p.command === command);
@@ -1231,6 +1234,12 @@ export function planRuns(root, shards, selection) {
 export const BIN_LIMIT_MS = 8 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
+/**
+ * Milliseconds added to every file in a bin for Vitest's per-file setup and import, which a recorded duration
+ * (the file's own test time) leaves out. Evidence (#3645): graphty-element's browser slice on master reports
+ * `Duration 692s (setup 84s, import 367s, tests 222s)`, 4 to 5 s of setup and import per file.
+ */
+export const FILE_OVERHEAD_MS = 5_000;
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1239,12 +1248,13 @@ const NO_HISTORY_MS = 30_000;
  * @param files the selected test files (repository paths)
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
+ * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {
@@ -1275,15 +1285,27 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why }`;
- *   `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of its files
- *   to its reason; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why,
+ *   touched }`; `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of
+ *   its files to its reason; `touched` is every test file the import graphs selected, also in a shard that runs
+ *   whole (the pull request rules read it: a test outside it was not changed by the pull request, nor anything it
+ *   imports) and `unknown` every family with a shard that has no file-level answer the selector relies on, all of
+ *   whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
     const out = { bins: [], whole: [], none: [], why: {} };
-    const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
+    const runsPlanned = planRuns(root, shards, selection);
+    const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
+    out.touched = [...touched].sort();
+    // a whole run with no file-level answer, or one the selector does not rely on (a smoke shard, a package or a
+    // browser project not allowed file by file), says nothing about which files the change reached
+    const unknown = runsPlanned.filter(
+        (r) => r.mode === "all" && (!r.measured || r.measured.untrusted || r.measured.mode === "all"),
+    );
+    out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
+    const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));

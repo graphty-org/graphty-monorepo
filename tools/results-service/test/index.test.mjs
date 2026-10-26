@@ -363,6 +363,27 @@ describe("POST /v1/durations", () => {
         );
         assert.equal((await call("POST", "/v1/durations", { token: LOCAL_TOKEN, body: { rows: [] } })).status, 403);
     });
+
+    it("stores a build-only master push of ci.yml as master, and ci.yml called by release.yml as full", async () => {
+        const { call } = service();
+        const ci = `${REPO}/.github/workflows/ci.yml@refs/heads/master`;
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", job: "Build", ms: 61000, conclusion: "success" };
+        const push = oidc({ event_name: "push", ref: "refs/heads/master", workflow_ref: ci, job_workflow_ref: ci });
+        assert.equal((await call("POST", "/v1/durations", { token: push, body: { rows: [row] } })).body.kind, "master");
+        assert.equal((await call("POST", "/v1/invocations", { token: push, body: record({}) })).status, 403);
+        const called = oidc({
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            workflow_ref: `${REPO}/.github/workflows/release.yml@refs/heads/master`,
+            job_workflow_ref: ci,
+            run_id: "4011",
+        });
+        const fullRow = { ...row, runId: 4011 };
+        assert.equal(
+            (await call("POST", "/v1/durations", { token: called, body: { rows: [fullRow] } })).body.kind,
+            "full",
+        );
+    });
 });
 
 // ---------- the read side, against seeded records ----------

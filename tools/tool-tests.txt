@@ -11,6 +11,7 @@ tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
 tools/ci-budgets.test.mjs
+tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs
 tools/claude-no-foreground-wait.test.mjs

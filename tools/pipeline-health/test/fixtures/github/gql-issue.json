@@ -1,0 +1,830 @@
+{
+    "data": {
+        "repository": {
+            "recent": {
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yNVQxNzo0NTo0MFrPAAAAAWdCsBg="
+                },
+                "nodes": [
+                    {
+                        "number": 3602,
+                        "title": "Pipeline health dashboard: implement and deploy at health.graphty.app",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-25T23:54:24Z",
+                        "updatedAt": "2026-10-26T00:37:27Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:high"
+                                },
+                                {
+                                    "name": "effort:high"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3472,
+                        "title": "Switch each Storybook project to story tests for screenshots",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-25T03:26:47Z",
+                        "updatedAt": "2026-10-26T00:35:56Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3315,
+                        "title": "Data management feedback of 2026-10-23: integrate the build packages",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-23T22:50:53Z",
+                        "updatedAt": "2026-10-26T00:35:54Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3612,
+                        "title": "graphty-element: two loads of the same file draw a few label and outline pixels differently",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:35:40Z",
+                        "updatedAt": "2026-10-26T00:35:40Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 1020,
+                        "title": "Nightly (beta) site and npm next releases, with hand-picked graduation to graphty.app",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-05T01:25:09Z",
+                        "updatedAt": "2026-10-26T00:30:32Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "infrastructure"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:high"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3476,
+                        "title": "Test configuration with every feature on",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-25T03:27:00Z",
+                        "updatedAt": "2026-10-26T00:30:05Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:low"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3388,
+                        "title": "fix(ci): record CI's flaky and failed tests in the test ledger and file their issues",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-24T18:07:10Z",
+                        "updatedAt": "2026-10-26T00:27:40Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:high"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3611,
+                        "title": "T4 GPU lane fails at pnpm setup: pnpm/action-setup v6 needs libatomic.so.1 in the ubuntu:24.04 container",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:26:51Z",
+                        "updatedAt": "2026-10-26T00:27:34Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3547,
+                        "title": "Load order and load options are applied by hand at each graphty-element load door; every load should go through one internal entry",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-25T19:33:37Z",
+                        "updatedAt": "2026-10-26T00:27:13Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:critical"
+                                },
+                                {
+                                    "name": "effort:high"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3528,
+                        "title": "waitForStableFrame checks the operation queue only once, so an operation queued after that check is not waited for",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-25T19:32:32Z",
+                        "updatedAt": "2026-10-26T00:25:18Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:critical"
+                                },
+                                {
+                                    "name": "effort:low"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3610,
+                        "title": "ci: feed CI's flaky test detections to the pipeline health API",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:25:15Z",
+                        "updatedAt": "2026-10-26T00:25:15Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3609,
+                        "title": "ci: measure nx remote cache egress, then decide on moving it from R2 to S3",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:25:13Z",
+                        "updatedAt": "2026-10-26T00:25:13Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:low"
+                                },
+                                {
+                                    "name": "effort:low"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3608,
+                        "title": "ci: move the release scheduler from Cloudflare Worker crons to EventBridge Scheduler",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:25:12Z",
+                        "updatedAt": "2026-10-26T00:25:12Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3607,
+                        "title": "ci: move the results service from Cloudflare (Worker and D1) to the AWS health API",
+                        "state": "OPEN",
+                        "stateReason": null,
+                        "createdAt": "2026-10-26T00:25:10Z",
+                        "updatedAt": "2026-10-26T00:25:10Z",
+                        "closedAt": null,
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "enhancement"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "number": 3580,
+                        "title": "Figma lock fails pushes whose locked files equal master's",
+                        "state": "CLOSED",
+                        "stateReason": "COMPLETED",
+                        "createdAt": "2026-10-25T22:55:54Z",
+                        "updatedAt": "2026-10-26T00:20:28Z",
+                        "closedAt": "2026-10-26T00:20:28Z",
+                        "labels": {
+                            "nodes": [
+                                {
+                                    "name": "bug"
+                                },
+                                {
+                                    "name": "priority:medium"
+                                },
+                                {
+                                    "name": "effort:medium"
+                                },
+                                {
+                                    "name": "in-progress"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "held": {
+            "nodes": [
+                {
+                    "number": 3188,
+                    "title": "Release held: T4 GPU failed on 5e41d0a",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-18T00:47:50Z",
+                    "updatedAt": "2026-10-18T05:26:15Z",
+                    "closedAt": "2026-10-18T05:26:15Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 3181,
+                    "title": "Release held: LLM regression failed on 4537722",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-17T18:53:21Z",
+                    "updatedAt": "2026-10-17T19:44:57Z",
+                    "closedAt": "2026-10-17T19:44:57Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 3318,
+                    "title": "Release held: T4 GPU, security audit failed on a870943",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-24T00:01:37Z",
+                    "updatedAt": "2026-10-25T18:58:02Z",
+                    "closedAt": "2026-10-25T18:58:02Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            },
+                            {
+                                "name": "in-progress"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2189,
+                    "title": "Release held: publish failed on 7a2ca69",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-12T17:41:41Z",
+                    "updatedAt": "2026-10-12T17:50:30Z",
+                    "closedAt": "2026-10-12T17:50:30Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2129,
+                    "title": "Release held: CI failed on 54e1ce7",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-12T06:54:54Z",
+                    "updatedAt": "2026-10-12T07:46:11Z",
+                    "closedAt": "2026-10-12T07:46:11Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 3237,
+                    "title": "Release held: CI, work protection (macOS) failed on 56bf7ad",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-20T12:53:50Z",
+                    "updatedAt": "2026-10-21T04:46:07Z",
+                    "closedAt": "2026-10-21T04:46:07Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            },
+                            {
+                                "name": "in-progress"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2384,
+                    "title": "Release held: LLM regression failed on 597dfc3",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-13T12:53:03Z",
+                    "updatedAt": "2026-10-13T13:46:33Z",
+                    "closedAt": "2026-10-13T13:46:33Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2327,
+                    "title": "Release held: LLM regression failed on 0c313f9",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-13T06:49:40Z",
+                    "updatedAt": "2026-10-13T08:39:15Z",
+                    "closedAt": "2026-10-13T08:39:15Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "needs-decision"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2158,
+                    "title": "Release held: T4 GPU failed on e330726",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-12T12:44:03Z",
+                    "updatedAt": "2026-10-12T17:06:35Z",
+                    "closedAt": "2026-10-12T17:06:35Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1989,
+                    "title": "Release held: LLM regression failed on aae435a",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-11T06:52:55Z",
+                    "updatedAt": "2026-10-11T07:45:22Z",
+                    "closedAt": "2026-10-11T07:45:22Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1872,
+                    "title": "Release held: T4 GPU failed on fddc404",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-10T06:50:43Z",
+                    "updatedAt": "2026-10-10T08:22:29Z",
+                    "closedAt": "2026-10-10T08:22:29Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1799,
+                    "title": "Release held: LLM regression failed on 136e887",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-09T18:52:33Z",
+                    "updatedAt": "2026-10-10T00:05:15Z",
+                    "closedAt": "2026-10-10T00:05:15Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1748,
+                    "title": "Release held: LLM regression failed on 38a7282",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-09T12:53:35Z",
+                    "updatedAt": "2026-10-09T13:46:05Z",
+                    "closedAt": "2026-10-09T13:46:05Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1440,
+                    "title": "Release held: T4 GPU failed on 719db7f",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-07T21:56:17Z",
+                    "updatedAt": "2026-10-08T08:52:58Z",
+                    "closedAt": "2026-10-08T08:52:58Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1420,
+                    "title": "Release held: T4 GPU failed on a445a5a",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-07T19:09:40Z",
+                    "updatedAt": "2026-10-07T20:23:11Z",
+                    "closedAt": "2026-10-07T20:23:11Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1624,
+                    "title": "Release held: CI, T4 GPU failed on 35c4422",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-08T18:42:44Z",
+                    "updatedAt": "2026-10-08T20:24:23Z",
+                    "closedAt": "2026-10-08T20:24:23Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 3206,
+                    "title": "Release held: publish failed on c15781a: npm has not listed @graphty/graphty-element@3.29.0 yet",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-18T13:08:48Z",
+                    "updatedAt": "2026-10-18T13:24:54Z",
+                    "closedAt": "2026-10-18T13:24:54Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2449,
+                    "title": "Release held: publish failed on 211c0e7: npm has not listed @graphty/graphty-element@3.25.6 yet",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-13T19:08:57Z",
+                    "updatedAt": "2026-10-13T19:09:20Z",
+                    "closedAt": "2026-10-13T19:09:20Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:medium"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 1768,
+                    "title": "ci: release.yml reports a held release when a step after the release pull request opens fails",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-09T15:19:54Z",
+                    "updatedAt": "2026-10-09T17:44:13Z",
+                    "closedAt": "2026-10-09T17:44:13Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "infrastructure"
+                            },
+                            {
+                                "name": "priority:medium"
+                            },
+                            {
+                                "name": "effort:low"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 2202,
+                    "title": "release: a publish npm accepted is held as failed when npm is slow to list it",
+                    "state": "CLOSED",
+                    "stateReason": "COMPLETED",
+                    "createdAt": "2026-10-12T19:06:31Z",
+                    "updatedAt": "2026-10-12T21:20:38Z",
+                    "closedAt": "2026-10-12T21:20:38Z",
+                    "labels": {
+                        "nodes": [
+                            {
+                                "name": "bug"
+                            },
+                            {
+                                "name": "priority:high"
+                            },
+                            {
+                                "name": "effort:low"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

@@ -1234,6 +1234,12 @@ export function planRuns(root, shards, selection) {
 export const BIN_LIMIT_MS = 8 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
+/**
+ * Milliseconds added to every file in a bin for Vitest's per-file setup and import, which a recorded duration
+ * (the file's own test time) leaves out. Evidence (#3645): graphty-element's browser slice on master reports
+ * `Duration 692s (setup 84s, import 367s, tests 222s)`, 4 to 5 s of setup and import per file.
+ */
+export const FILE_OVERHEAD_MS = 5_000;
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1242,12 +1248,13 @@ const NO_HISTORY_MS = 30_000;
  * @param files the selected test files (repository paths)
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
+ * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {

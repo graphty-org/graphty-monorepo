@@ -27,6 +27,9 @@
  *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
+ *   node tools/test-select.mjs --summary <plan.json>
+ *       the light check's plan as Markdown for a CI job summary (planSummary()): each bin's files and why, the
+ *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
  *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
@@ -1272,16 +1275,19 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why }`;
+ *   `why` maps each family that runs whole to its reasons and a bin's `why` each of its files to its reason; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
-    const out = { bins: [], whole: [], none: [] };
+    const out = { bins: [], whole: [], none: [], why: {} };
     const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
+            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+            out.why[family] = reasons.length > 0 ? reasons : ["the selector gave no reason"];
             continue;
         }
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
@@ -1291,6 +1297,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 out.none.push(...run.covers);
                 continue;
             }
+            const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
@@ -1304,11 +1311,42 @@ export function lightPlan(root, shards, selection, durations = {}) {
                     covers: run.covers,
                     ...bin,
                     command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, fileWhy.get(f) ?? "selected"])),
                 });
             }
         }
     }
     return out;
+}
+
+/**
+ * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
+ * whole and why, and which run nothing.
+ * @param plan lightPlan() output (or the `--plan` JSON)
+ * @returns Markdown
+ */
+export function planSummary(plan) {
+    const lines = [
+        `### Light check: ${plan.bins.length} test bins, ${plan.whole.length} shards whole, ${plan.none.length} shards with nothing selected`,
+        "",
+    ];
+    if (plan.everything) {
+        lines.push(`Everything runs: ${plan.everything}`, "");
+    }
+    for (const [family, reasons] of Object.entries(plan.why ?? {})) {
+        lines.push(`- **${family}** runs whole: ${reasons.join("; ")}`);
+    }
+    if (plan.none.length > 0) {
+        lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
+    }
+    for (const bin of plan.bins) {
+        lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
+        for (const f of bin.files) {
+            lines.push(`- \`${f}\`: ${bin.why?.[f] ?? "selected"}`);
+        }
+        lines.push("", "</details>");
+    }
+    return `${lines.join("\n")}\n`;
 }
 
 // --- which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5) ------------
@@ -2571,6 +2609,10 @@ async function main(argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const root = resolve(arg("--root") ?? join(HERE, ".."));
+    if (arg("--summary")) {
+        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8"))));
+        return;
+    }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
         const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));

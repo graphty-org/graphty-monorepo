@@ -19,6 +19,7 @@ import {
     globToRe,
     graphCacheKey,
     lightPlan,
+    planSummary,
     lockMoves,
     literalPaths,
     loadRules,
@@ -1499,8 +1500,38 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 
     it("runs a family whole when one of its shards runs whole", () => {
         const shards = ["graphty-1", "graphty-2"].map(byName);
-        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), sel("graphty-2", "all")]);
-        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [] });
+        const whole = { ...sel("graphty-2", "all"), reasons: ["graphty/vite.config.ts changed"] };
+        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), whole]);
+        assert.deepEqual(out, {
+            bins: [],
+            whole: ["graphty-1", "graphty-2"],
+            none: [],
+            why: { graphty: ["graphty/vite.config.ts changed"] },
+        });
+    });
+
+    it("says in the job summary what each bin runs and why, what runs whole and why, and what runs nothing", () => {
+        const files = [
+            { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
+            { file: "graphty/src/b.test.tsx", why: "changed" },
+        ];
+        const shards = ["graphty-1", "layout", "githerd"].map(byName);
+        const out = lightPlan(ROOT, shards, [
+            { shard: "graphty-1", mode: "files", files, reasons: [] },
+            sel("layout", "none"),
+            { ...sel("githerd", "all"), reasons: ["githerd/package.json changed"] },
+        ]);
+        assert.deepEqual(out.bins[0].why, {
+            "graphty/src/a.test.tsx": "imports graphty/src/a.ts",
+            "graphty/src/b.test.tsx": "changed",
+        });
+        const md = planSummary(out);
+        assert.match(md, /^### Light check: 1 test bins, 1 shards whole, 1 shards with nothing selected/u);
+        assert.match(md, /\*\*githerd\*\* runs whole: githerd\/package.json changed/u);
+        assert.match(md, /nothing selected, not run: layout/u);
+        assert.match(md, /graphty-1: 2 files/u);
+        assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
+        assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /Everything runs: pnpm-lock.yaml/u);
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {

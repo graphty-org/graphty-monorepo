@@ -391,8 +391,9 @@ jobs:
                       echo "::warning::the test selector failed; every affected shard runs whole"
                       exit 0
                   fi
+                  node tools/test-select.mjs --summary "$plan/light-plan.json" >> "$GITHUB_STEP_SUMMARY"
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
-                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                      "$plan/light-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
 

@@ -180,6 +180,19 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("answers 400 when DynamoDB refuses a row's content, so the local collector splits and skips it", async () => {
+        const h = await ingest();
+        const refused = Object.assign(new Error("Item size has exceeded the maximum allowed size"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(refused);
+        const res = await h(event("/v1/invocations", invocation()));
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(String(res.body)).code).toBe("row_refused");
+        vi.spyOn(mem, "get").mockRejectedValue(new Error("ProvisionedThroughputExceededException"));
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+    });
+
     it("takes durations from the site repositories and only durations", async () => {
         const h = await ingest();
         const site = {
@@ -196,6 +209,10 @@ describe("ingest: what it stores", () => {
         const res = await h(event("/v1/durations", { rows }, { claims: site }));
         expect(res.statusCode).toBe(200);
         expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        // A site deploy's timings never make ci-results look fresh.
+        const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
+        expect(sources).toContain("site");
+        expect(sources).not.toContain("ci-results");
         expect((await h(event("/v1/invocations", invocation(), { claims: site }))).statusCode).toBe(403);
         // A repository claiming a site repository's id under another name is refused.
         const fake = { ...site, repository: "graphty-org/evil" };

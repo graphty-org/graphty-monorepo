@@ -95,6 +95,10 @@ export async function handler(
         return json(200, await ingest(event, Date.now()));
     } catch (error) {
         if (error instanceof Refused) return json(error.status, { code: error.code, params: error.params });
+        // DynamoDB refused a row's content (a key or an item over its size limit): the body's fault, not an
+        // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
+        if ((error as { name?: unknown } | null)?.name === "ValidationException")
+            return json(400, { code: "row_refused" });
         console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));
         return json(500, { code: "internal" });
     }
@@ -206,7 +210,12 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "failures":
             return { ...(await failureItems(body, who, db, now)), source: "ci-results" };
         case "durations":
-            return { items: durationItems(body, who, now), extra: [], source: "ci-results" };
+            // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
+            return {
+                items: durationItems(body, who, now),
+                extra: [],
+                source: who.kind === "deploy" || who.kind === "site" ? "site" : "ci-results",
+            };
         default:
             return { items: [verdictItem(body, who, now)], extra: [], source: "release" };
     }

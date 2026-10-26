@@ -26,18 +26,15 @@
 //
 // The cursor is <root>/tmp/pipeline-health-local/cursor.json. A failed post logs one line and leaves
 // the cursor where it was, so the next pass sends the same rows again; a post the API refuses for its
-// content (400, 413) is split, and a single refused row is logged and skipped. A body that gets 500 or
-// 504 on SERVER_TRIES passes in a row (a sort key over DynamoDB's limit, a body slower than the API's
-// timeout) is treated the same way. Delete the cursor to post everything again.
+// content (400, 413; ingest answers 400 for a row DynamoDB refuses) is split, and a single refused row is
+// logged and skipped. Any other failure (500, 502, 503, 504, network) skips nothing. Delete the cursor to
+// post everything again.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Passes a body may get 500 or 504 before it is split and its failing row skipped like a refused one. */
-export const SERVER_TRIES = 3;
-const serverFailures = new Map();
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 
@@ -264,9 +261,7 @@ export function sources(root) {
  * @param o the pass
  * @param o.root the checkout whose tmp/ is read
  * @param o.post (kind, body) resolving true when the API took the body, "refused" when it refused the body's
- *   content (the body is split and a refused single row skipped), "server" for a 500 or 504 (refused once
- *   the same first row got it SERVER_TRIES times), false for any other failure
- * @param o.failures 500 and 504 counts per first row, kept across passes
+ *   content (the body is split and a refused single row skipped), false for any other failure
  * @param o.dryRun count and keep the first row per kind, post nothing, move no cursor
  * @param o.cursorFile where the cursor is kept
  * @returns rows, posts, posted and one example per kind
@@ -276,7 +271,6 @@ export async function collect({
     post,
     dryRun = false,
     cursorFile = join(root, "tmp/pipeline-health-local/cursor.json"),
-    failures = serverFailures,
 }) {
     let cursor = readCursor(cursorFile);
     const counts = {};
@@ -294,17 +288,10 @@ export async function collect({
             writeCursor(cursorFile, cursor);
         };
         // A body the API refuses for its content (400, 413) is split until the refused row is alone; that
-        // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here.
-        // A 500 or 504 on the same first row SERVER_TRIES times counts as refused; 502, 503 and network
-        // errors never do, so an outage never skips rows.
+        // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here,
+        // so an outage (ingest answers 500 for DynamoDB throttling, SSM, a deny action) never skips rows.
         const send = async (body) => {
-            let r = await post(kind, { rows: body.map((i) => i.row) });
-            const key = `${kind}:${body[0].row.id}`;
-            if (r === "server") {
-                const n = (failures.get(key) ?? 0) + 1;
-                failures.set(key, n);
-                r = n >= SERVER_TRIES ? "refused" : false;
-            } else failures.delete(key);
+            const r = await post(kind, { rows: body.map((i) => i.row) });
             if (r === true) {
                 counts[kind].posted += body.length;
                 save(body.at(-1));
@@ -362,10 +349,6 @@ function httpPost(url, token) {
             });
             if (res.ok) return true;
             if (res.status === 400 || res.status === 413) return "refused";
-            if (res.status === 500 || res.status === 504) {
-                log(`POST /v1/local/${kind}: HTTP ${res.status} on ${body.rows.length} rows from ${body.rows[0]?.id}`);
-                return "server";
-            }
             log(`POST /v1/local/${kind}: HTTP ${res.status}, ${body.rows.length} rows kept for the next pass`);
             return false;
         } catch (error) {

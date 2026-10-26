@@ -1,6 +1,8 @@
 // Writing raw items, the daily write budget, cursors and source health. Ingest and the collector call these; the
 // rollups are recomputed from what they stored (rollup.ts), so nothing here counts anything.
 
+import { randomUUID } from "node:crypto";
+
 import {
     copyKey,
     type CursorItem,
@@ -19,7 +21,30 @@ import {
     TIME_FIELDS,
     ttlAt,
 } from "./items.js";
-import type { BatchOp, Item, Key, Store } from "./store.js";
+import type { BatchOp, Condition, Item, Key, Store } from "./store.js";
+
+/**
+ * A test's rows, written in one transaction on the condition that its home row is still what `old` was (its write id
+ * `wid`), re-read and retried when another post changed it in between. Two tries of one shard posting at once
+ * therefore never mix their rows, and a failed result never replaces a flaky one (failed, then passed on its retry).
+ */
+async function putTest(store: Store, r: RawItem, old: (Item & RawItem) | undefined, nowMs: number, dirty: Set<number>) {
+    for (let tries = 0; tries < 8; tries++) {
+        if (tries) old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
+        if (r.kind === "test" && r.outcome === "failed" && old?.kind === "test" && old.outcome === "flaky") return;
+        const [home, ...rest] = writesFor(r, old, nowMs, dirty) as [{ put: Item }, ...BatchOp[]];
+        const condition = unchanged(old);
+        if (await store.transact([{ put: { ...home.put, wid: randomUUID() }, condition }, ...rest])) return;
+    }
+    throw new Error(`test ${r.id}: its row kept changing under 8 tries`);
+}
+
+/** The home row is still `old`: its write id, or its outcome for a row written before write ids. */
+function unchanged(old: Item | undefined): Condition {
+    if (!old) return { notExists: true };
+    if (typeof old.wid === "string") return { field: "wid", op: "=", value: old.wid };
+    return { field: "outcome", op: "=", value: typeof old.outcome === "string" ? old.outcome : "" };
+}
 
 const timesOf = (r: RawItem): [string, number][] =>
     TIME_FIELDS[r.kind].flatMap((f) => {
@@ -35,7 +60,12 @@ const timesOf = (r: RawItem): [string, number][] =>
  * @param items
  * @param nowMs
  */
-export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
+export async function putRaw(
+    store: Store,
+    items: RawItem[],
+    nowMs: number,
+    opts: { merge?: boolean } = {},
+): Promise<number> {
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
     items.forEach(check);
@@ -45,15 +75,52 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    items.forEach((r, i) => ops.push(...writesFor(r, olds[i], nowMs, dirty)));
+    // One write per test: a post can hold one id twice (identical test.each titles), and as in batch() the last wins.
+    const tests = new Map<string, () => Promise<void>>();
+    items.forEach((r, i) => {
+        const merged = opts.merge ? mergeOld(r, olds[i]) : r;
+        const home = homeKey(r);
+        if (r.kind === "test")
+            tests.set(`${home.pk}\u0000${home.sk}`, () => putTest(store, merged, olds[i], nowMs, dirty));
+        else ops.push(...writesFor(merged, olds[i], nowMs, dirty));
+    });
+    // Before the batch, which holds the dirty marks: a recompute never runs on a bucket before its rows are in.
+    // Twenty-five transactions at a time; a failed one still lets the rest, the other rows and the marks be written.
+    let failure: unknown;
+    const writes = [...tests.values()];
+    for (let i = 0; i < writes.length; i += 25) {
+        for (const r of await Promise.allSettled(writes.slice(i, i + 25).map((t) => t())))
+            if (r.status === "rejected") failure ??= r.reason;
+    }
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }
     await store.batch(ops);
+    if (failure) throw failure;
     return items.length;
 }
 
-function check(r: RawItem): void {
+/**
+ * `r` over what is stored, keeping only the fields the live collector alone writes (LIVE_ONLY: cause, cancelClass,
+ * hang, stages, tested) when `r` leaves them out, so a writer that knows less (the backfill) never erases them. Every
+ * other field `r` leaves out stays unset.
+ * @param r
+ * @param old
+ */
+function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
+    if (!old) return r;
+    // Only what the live collector alone knows survives; every other field the new record leaves out means
+    // "unset" (a skipped job's startedAt, a null conclusion) and must not come back from the old copy.
+    const live = Object.fromEntries(
+        LIVE_ONLY.filter((k) => old[k] !== undefined && (r as unknown as Record<string, unknown>)[k] === undefined).map(
+            (k) => [k, old[k]],
+        ),
+    );
+    return { ...r, ...live } as RawItem;
+}
+const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages", "tested"] as const;
+
+export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {
         throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
     }

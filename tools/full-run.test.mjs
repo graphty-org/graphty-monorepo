@@ -1,6 +1,6 @@
 // Tests of tools/full-run.mjs: the full run's candidate pick and its verdict (channels design, sections 5 and 6).
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ import {
     duplicateOf,
     fixedRecently,
     greenCloses,
+    isOnNightly,
     LANES,
     laneRedIssue,
     pick,
@@ -25,6 +26,39 @@ const CHAIN = ["c3", "c2", "c1", "c0"];
 const firstParents = (sha) => CHAIN.slice(CHAIN.indexOf(sha));
 const code = () => ["tools/x.mjs: not a package.json or a CHANGELOG.md"];
 const store = (recent, sha = "c3") => ({ candidate: { sha, builtAt: 1 }, recent });
+
+describe("isOnNightly", () => {
+    it("counts a versions-only difference as on nightly, but not a screenshot baselines change", () => {
+        const dir = mkdtempSync(join(tmpdir(), "on-nightly-"));
+        const git = (...a) =>
+            execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
+            }).trim();
+        const commit = (path, text) => {
+            mkdirSync(join(dir, path, ".."), { recursive: true });
+            writeFileSync(join(dir, path), text);
+            git("add", "-A");
+            git("commit", "-q", "-m", path);
+            return git("rev-parse", "HEAD");
+        };
+        git("init", "-q", "-b", "main");
+        git("config", "commit.gpgsign", "false");
+        commit("p/package.json", JSON.stringify({ name: "p", version: "1.0.0" }));
+        const nightly = commit("p/src.js", "1");
+        git("checkout", "-q", "-b", "side", "HEAD~1");
+        const versions = commit("p/package.json", JSON.stringify({ name: "p", version: "1.1.0" }));
+        assert.equal(isOnNightly(nightly, nightly, dir), true, "in its history");
+        git("checkout", "-q", nightly);
+        const baselines = commit("visual-baselines/p/a.png", "new picture");
+        assert.equal(isOnNightly(baselines, nightly, dir), false, "a screenshot change nightly does not serve");
+        git("checkout", "-q", nightly);
+        git("merge", "-q", "--no-edit", versions);
+        assert.equal(isOnNightly(git("rev-parse", "HEAD"), nightly, dir), true, "only versions differ");
+        assert.equal(isOnNightly(baselines, "refs/heads/none", dir), false, "no channel/nightly yet");
+    });
+});
 
 describe("pick", () => {
     it("tests the newest commit with a site when nothing judged it", () => {
@@ -52,6 +86,47 @@ describe("pick", () => {
         assert.deepEqual([p.run, p.inherit.sha, p.good], [false, "c1", "c1"]);
         assert.deepEqual(seen, [["c1", "c3"]], "one diff from the judged commit to the candidate");
         assert.equal(pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: code }).run, true);
+    });
+
+    it("does not inherit across a change of the visual-baselines tree: the owner's approved baselines are tested", () => {
+        const recent = [{ sha: "c1", state: "green-clean" }];
+        const seen = [];
+        const sameBaselines = (from, to) => (seen.push([from, to]), false);
+        const p = pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: () => [], sameBaselines });
+        assert.deepEqual([p.run, p.sha, p.inherit], [true, "c3", undefined]);
+        assert.deepEqual(seen, [["c1", "c3"]]);
+    });
+
+    it("tests an unpromoted green-clean commit again only once a publish hold closed after its verdict", () => {
+        const own = store([{ sha: "c3", state: "green-clean", at: 100 }]);
+        const off = () => false;
+        const run = (hold) =>
+            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hold });
+        const open = run({ open: "42", closedAt: 0 });
+        assert.deepEqual([open.run, /publish hold #42/.test(open.why)], [false, true], "the hold still open");
+        assert.equal(run({ open: "", closedAt: 0 }).run, false, "a screenshot refusal or refused push: no re-test");
+        assert.equal(run({ open: "", closedAt: 50 }).run, false, "a hold that closed before the verdict");
+        assert.equal(run({ open: "", closedAt: 200 }).run, true, "the hold that blocked it closed");
+        assert.equal(pick({ mode: "full", head: "h", store: own, firstParents, stray: code }).run, false);
+        // nor does an unpromoted green-clean commit pass its verdict on
+        const inherited = store([{ sha: "c1", state: "green-clean" }]);
+        const p = pick({ mode: "full", head: "h", store: inherited, firstParents, stray: () => [], onNightly: off });
+        assert.deepEqual([p.run, p.inherit], [true, undefined]);
+    });
+
+    it("skips a candidate whose history lacks channel/nightly, before testing anything", () => {
+        const seen = [];
+        const hasNightly = (sha) => (seen.push(sha), false);
+        const p = pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code, hasNightly });
+        assert.deepEqual([p.run, p.sha, seen], [false, "c3", ["c3"]]);
+        assert.match(p.why, /c3 lacks channel\/nightly: it is older than nightly/);
+        // even a green-clean one nightly lacks: its promotion would be refused at land
+        const own = store([{ sha: "c3", state: "green-clean" }]);
+        const off = () => false;
+        assert.equal(
+            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hasNightly }).run,
+            false,
+        );
     });
 
     it("finds the last green commit for the bisect, past a red one", () => {

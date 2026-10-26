@@ -19,6 +19,7 @@ import {
     npmName,
     ownerWait,
     ownerWaitOf,
+    prOfRun,
     prRunOf,
     prStages,
     prStocks,
@@ -119,6 +120,8 @@ class Cycle {
     readonly errors: Record<string, string> = {};
     /** Unfinished runs of this cycle, for the superseded list (pull requests part). */
     openRuns?: GhRun[];
+    /** This cycle's collected runs, recorded per pull request once the pull requests are known (prRuns). */
+    runs?: Collected[];
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -352,10 +355,10 @@ async function flaky(c: Cycle, run: GhRun, repo: string) {
 const prRunsKey = (repo: string, pr: number) => ({ pk: `PRRUNS#${repo}#${pr}`, sk: "-" });
 
 /** Each finished ci.yml pull request run attempt, kept per pull request until it merges (prStages). */
-async function prRuns(c: Cycle, xs: Collected[]) {
+async function prRuns(c: Cycle, xs: Collected[], prs: GqlPr[]) {
     for (const { run, repo, jobs } of xs) {
-        const pr = run.pull_requests?.[0]?.number;
-        const r = pr === undefined ? undefined : prRunOf(run, jobs ?? []);
+        const r = prRunOf(run, jobs ?? []);
+        const pr = r && prOfRun(run, repo === c.d.repo ? prs : []);
         if (pr === undefined || !r) continue;
         const key = prRunsKey(repo, pr);
         const old = (await c.d.store.get(key))?.runs as Record<string, PrRun> | undefined;
@@ -436,11 +439,12 @@ async function pullRequests(c: Cycle, gh: GitHub) {
         if (page === 0) open = data.repository.open.nodes;
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
-        for (const p of newer) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
         recentSeen.push(...newer);
         if (newer.length < recent.nodes.length || !recent.pageInfo.hasNextPage) break;
         cursor = recent.pageInfo.endCursor;
     }
+    await prRuns(c, c.runs ?? [], [...open, ...recentSeen]);
+    for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     await ownerWaits(c, gh, open);
     const s = prStocks(open, c.now);
@@ -718,7 +722,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
         await recordSource(c.d.store, "deploy", c.now, { ok: true });
         return;
     }
-    const failed = status !== undefined && status !== "SUCCEEDED";
+    // STOPPED is someone stopping the build on purpose: never started again for the same tree.
+    const failed = status !== undefined && status !== "SUCCEEDED" && status !== "STOPPED";
     const attempt = last.tree === tree ? (last.attempt ?? 1) : 0;
     // A new tree starts a build; a failed build of the same tree is retried up to DEPLOY_ATTEMPTS times in all.
     if (last.tree !== tree || (failed && attempt < DEPLOY_ATTEMPTS)) {
@@ -728,6 +733,9 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
             throw new Error(`deploy build ${last.buildId} ${status}; attempt ${attempt + 1} started`);
     } else if (failed) {
         throw new Error(`deploy build ${last.buildId} ${status} after ${attempt} attempts`);
+    } else if (status === "STOPPED") {
+        // Not restarted, but not healthy either: the stack runs older code than master until a new tree deploys.
+        throw new Error(`deploy build ${last.buildId} STOPPED; not restarted for the same tree`);
     }
     await recordSource(c.d.store, "deploy", c.now, { ok: true });
 }
@@ -781,6 +789,48 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
     return items.filter((_, i) => keep[i]);
 }
 
+/** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
+async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
+    const d = c.d;
+    let ok = true;
+    ok &&= await c.part("github", "collector", async () => {
+        const repos = await activeRepos(c, gh);
+        const masterList = (
+            (
+                await gh.rest<RunsPage>(
+                    `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
+                )
+            )?.workflow_runs ?? []
+        ).map((run) => ({ run, repo: d.repo }));
+        const xs = await collectRuns(c, gh, repos, []);
+        const cancels = await classify(gh, [...xs, ...masterList]);
+        await writeRuns(c, xs, cancels);
+        // Runs GitHub names a pull request for are recorded now; the rest (merged) wait for the pull requests part.
+        await prRuns(c, xs, []);
+        c.runs = xs.filter((x) => !x.run.pull_requests?.length);
+        await runners(c, xs, elapsed);
+        await master(c, masterList, cancels, elapsed);
+    });
+    if (hourly || (await c.cursor("quarantine")) === undefined)
+        await c.part("repo files", "collector", () => repoFiles(c, gh));
+    ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+    let heldSince = 0;
+    const readIssues = async () => {
+        heldSince = await issues(c, gh);
+    };
+    ok = (await c.part("issues", "collector", readIssues)) && ok;
+    await c.part("releases", "release", () => releases(c, gh, heldSince));
+    if (hourly) {
+        await c.part("stress", "stress", () => stress(c, gh));
+        await c.part("hosts", "hosts", () => hosts(c, gh));
+        await c.part("npm", "npm", () => npm(c, gh));
+    }
+    const builds = d.deploy;
+    if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
+    if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
+    if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
+}
+
 export async function collect(d: Deps): Promise<CycleReport> {
     const c = new Cycle(d);
     const prev = Number((await c.cursor("cycle")) ?? 0);
@@ -792,40 +842,7 @@ export async function collect(d: Deps): Promise<CycleReport> {
     if (daily) await c.part("costs", "billing", () => costs(c));
 
     const gh = d.gh;
-    if (gh) {
-        let ok = true;
-        ok &&= await c.part("github", "collector", async () => {
-            const repos = await activeRepos(c, gh);
-            const masterList = (
-                (
-                    await gh.rest<RunsPage>(
-                        `repos/${d.repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20`,
-                    )
-                )?.workflow_runs ?? []
-            ).map((run) => ({ run, repo: d.repo }));
-            const xs = await collectRuns(c, gh, repos, []);
-            const cancels = await classify(gh, [...xs, ...masterList]);
-            await writeRuns(c, xs, cancels);
-            await prRuns(c, xs);
-            await runners(c, xs, elapsed);
-            await master(c, masterList, cancels, elapsed);
-        });
-        if (hourly || (await c.cursor("quarantine")) === undefined)
-            await c.part("repo files", "collector", () => repoFiles(c, gh));
-        ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
-        let heldSince = 0;
-        ok = (await c.part("issues", "collector", async () => void (heldSince = await issues(c, gh)))) && ok;
-        await c.part("releases", "release", () => releases(c, gh, heldSince));
-        if (hourly) {
-            await c.part("stress", "stress", () => stress(c, gh));
-            await c.part("hosts", "hosts", () => hosts(c, gh));
-            await c.part("npm", "npm", () => npm(c, gh));
-        }
-        const builds = d.deploy;
-        if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
-        if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
-        if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
-    }
+    if (gh) await collectGitHub(c, gh, elapsed, hourly);
 
     const items = await changed(d.store, c.items);
     await putRaw(d.store, items, d.now);

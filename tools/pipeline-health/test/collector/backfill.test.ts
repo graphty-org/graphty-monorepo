@@ -1,7 +1,7 @@
 // The four-week backfill against recorded GitHub responses (no network): paging, the cursor, the throttle, the
 // stops, the needs: wait rule, and the run and test-history indexes it and ingest write.
 import { describe, expect, it } from "vitest";
-import { backfill, PRS_CURSOR, type BackfillOptions } from "../../src/collector/backfill.js";
+import { backfill, FLAKY_CURSOR, PRS_CURSOR, runsCursor, type BackfillOptions } from "../../src/collector/backfill.js";
 import { GitHub } from "../../src/collector/github.js";
 import { toJobItem, toRunItem, workflowFile, type GhJob, type GhRun } from "../../src/collector/parse.js";
 import { runDrill, testHistory } from "../../src/model/drill.js";
@@ -14,7 +14,7 @@ import {
     type SourceItem,
     type TestItem,
 } from "../../src/model/items.js";
-import { getCursor, putRaw, recordSource } from "../../src/model/raw.js";
+import { getCursor, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
@@ -31,10 +31,24 @@ function history(): GhRun[] {
     ];
 }
 
-/** The collector's fake, with the runs list answered by day and page, and jobs renumbered per run. */
-function fake(opts: { remaining?: number } = {}) {
+/** A check suite's check runs and annotations, as FLAKY_SUITE_QUERY answers them. */
+type Suite = {
+    checkRuns: {
+        nodes: {
+            databaseId: number;
+            name: string;
+            completedAt: string;
+            annotations: { nodes: { message: string }[] };
+        }[];
+    };
+};
+
+/** The collector's fake, with the runs list answered by day and page, jobs renumbered per run, and `suites` by node id. */
+function fake(
+    opts: { remaining?: number; runs?: GhRun[]; suites?: Record<string, Suite>; jobs?: Record<number, GhJob[]> } = {},
+) {
     const base = fakeGitHub();
-    const runs = history();
+    const runs = opts.runs ?? history();
     const f = {
         urls: [] as string[],
         fetch: async (url: string, init?: RequestInit): Promise<Response> => {
@@ -52,7 +66,12 @@ function fake(opts: { remaining?: number } = {}) {
                 const page = Number(u.searchParams.get("page"));
                 return reply({ total_count: day.length, workflow_runs: day.slice((page - 1) * per, page * per) });
             }
+            if (u.pathname === "/graphql" && opts.suites) {
+                const ids = (JSON.parse(String(init?.body)) as { variables: { ids: string[] } }).variables.ids;
+                return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
+            }
             const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
+            if (jobs && opts.jobs?.[Number(jobs[1])]) return reply({ jobs: opts.jobs[Number(jobs[1])] });
             if (jobs && Number(jobs[1]) < 40_000) {
                 const id = Number(jobs[1]);
                 const list = masterJobs.map((j, k) => ({ ...j, id: id * 100 + k, run_id: id }));
@@ -87,35 +106,64 @@ function options(store: MemoryStore, f: ReturnType<typeof fake>, c = clock()): B
 
 const homes = (store: MemoryStore, kind: string) =>
     [...store.items.values()].filter((i) => i.pk.startsWith(`R#${kind}#`));
-const listCalls = (urls: string[]) => urls.filter((u) => /actions\/runs\?created=/.test(u));
+// The runs phase's list calls (pages of 3); the flaky phase lists pages of 100.
+const listCalls = (urls: string[]) => urls.filter((u) => /actions\/runs\?created=.*per_page=3&/.test(u));
 
 describe("backfill", () => {
-    it("pages each day, records the next page of closed days only, and loads pull requests and issues once", async () => {
+    it("pages each day from yesterday back, records the next older page, and loads pull requests and issues once", async () => {
         const store = new MemoryStore();
         const f = fake();
         const r = await backfill(options(store, f));
-        expect(r).toMatchObject({ done: true, runs: 9 });
-        expect(homes(store, "run")).toHaveLength(9);
-        expect(homes(store, "job")).toHaveLength(9 * masterJobs.length);
+        // Today's two runs are the live collector's: the backfill starts at yesterday.
+        expect(r).toMatchObject({ done: true, runs: 7 });
+        expect(homes(store, "run")).toHaveLength(7);
+        expect(homes(store, "job")).toHaveLength(7 * masterJobs.length);
         expect(homes(store, "pr").length).toBeGreaterThan(0);
         expect(homes(store, "issue").length).toBeGreaterThan(0);
-        // 2026-10-24: one empty page. 2026-10-25: 7 runs in pages of 3 (3, 3, 1). 2026-10-26: 2 runs, one page.
+        // 2026-10-25: 7 runs in pages of 3 (3, 3, 1). 2026-10-24: one empty page.
         expect(
             listCalls(f.urls).map(
                 (u) => new URL(u).searchParams.get("created") + "/" + new URL(u).searchParams.get("page"),
             ),
-        ).toEqual(["2026-10-24/1", "2026-10-25/1", "2026-10-25/2", "2026-10-25/3", "2026-10-26/1"]);
-        // Today is never recorded as done, so the cursor stops at it.
-        expect(JSON.parse((await getCursor(store, `backfill#${REPO}`))!)).toEqual({ day: "2026-10-26", page: 1 });
+        ).toEqual(["2026-10-25/1", "2026-10-25/2", "2026-10-25/3", "2026-10-24/1"]);
+        // Past the range's first day: done.
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-23", page: 1 });
+        expect(await getCursor(store, FLAKY_CURSOR)).toBe("2026-10-23");
         expect(await getCursor(store, PRS_CURSOR)).toBe("done");
         expect([...store.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
 
-        // A second run reloads only today and skips the pull requests and issues.
+        // A second run loads nothing.
         const g = fake();
         await backfill({ ...options(store, g), gh: new GitHub(async () => "t", g.fetch) });
-        expect(listCalls(g.urls).every((u) => u.includes("created=2026-10-26"))).toBe(true);
-        expect(g.urls.some((u) => u.endsWith("/graphql"))).toBe(false);
-        expect(homes(store, "run")).toHaveLength(9);
+        expect(g.urls.filter((u) => !u.endsWith("/access_tokens"))).toEqual([]);
+        expect(homes(store, "run")).toHaveLength(7);
+    });
+
+    it("stops at the days the earlier oldest-first backfill loaded (its cursor's day, reloaded whole)", async () => {
+        const store = new MemoryStore();
+        await setCursor(store, `backfill#${REPO}`, JSON.stringify({ day: "2026-10-25", page: 2 }), NOW);
+        const f = fake();
+        expect((await backfill({ ...options(store, f), days: 5 })).done).toBe(true);
+        expect(listCalls(f.urls).map((u) => new URL(u).searchParams.get("created"))).toEqual([
+            "2026-10-25",
+            "2026-10-25",
+            "2026-10-25",
+        ]);
+    });
+
+    it("a write budget stop after one day has loaded the most recent day, not the oldest", async () => {
+        const at = (day: string, i: number) => `${day}T${String(10 + i).padStart(2, "0")}:00:00Z`;
+        const runs = [
+            ...history(),
+            ...Array.from({ length: 3 }, (_, i) => ({ ...master, id: 3000 + i, created_at: at("2026-10-24", i) })),
+        ];
+        const store = new MemoryStore();
+        const perRun = 1 + masterJobs.length;
+        const r = await backfill({ ...options(store, fake({ runs })), perPage: 25, rowLimit: 7 * perRun });
+        expect(r).toMatchObject({ done: false, stopped: "write_budget", runs: 7 });
+        const ids = homes(store, "run").map((i) => Number(/(\d+)$/.exec(i.pk)![1]));
+        expect(ids.sort()).toEqual([1000, 1001, 1002, 1003, 1004, 1005, 1006]);
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-24", page: 1 });
     });
 
     it("keeps what the live collector stored on a run or job it re-reads (cause, cancelClass, hang)", async () => {
@@ -138,7 +186,7 @@ describe("backfill", () => {
         const store = new MemoryStore();
         await recordSource(store, "collector", NOW, { ok: true });
         const c = clock();
-        const stopped = await backfill({ ...options(store, fake(), c), perHour: 3600, deadline: NOW + 7_000 });
+        const stopped = await backfill({ ...options(store, fake(), c), perHour: 3600, deadline: NOW + 11_000 });
         expect(stopped.done).toBe(false);
         expect(await firstAt(store)).toBe(NOW);
         expect((await backfill(options(store, fake()))).done).toBe(true);
@@ -157,11 +205,13 @@ describe("backfill", () => {
         const store = new MemoryStore();
         const c = clock();
         const f = fake();
-        // Each call costs 1 s on this clock (perHour 3600); the deadline falls inside 2026-10-25's second page.
-        const o = { ...options(store, f, c), perHour: 3600, deadline: NOW + 7_000 };
+        // Each call costs 1 s on this clock (perHour 3600). The flaky phase makes 5 (a list and a query for each of
+        // 2026-10-26 and 2026-10-25, a list for 2026-10-24); 2026-10-25's first page of runs 4; the deadline falls in
+        // its second page.
+        const o = { ...options(store, f, c), perHour: 3600, deadline: NOW + 11_000 };
         const first = await backfill(o);
         expect(first).toMatchObject({ done: false, stopped: "deadline" });
-        expect(JSON.parse((await getCursor(store, `backfill#${REPO}`))!)).toEqual({ day: "2026-10-25", page: 2 });
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-25", page: 2 });
 
         const g = fake();
         const second = await backfill({ ...o, gh: new GitHub(async () => "t", g.fetch), deadline: undefined });
@@ -190,7 +240,7 @@ describe("backfill", () => {
         const r = await backfill({ ...options(store, fake()), rowLimit: 10 });
         expect(r).toMatchObject({ done: false, stopped: "write_budget", items: 0 });
         expect(homes(store, "run")).toHaveLength(0);
-        expect(await getCursor(store, `backfill#${REPO}`)).toBe(JSON.stringify({ day: "2026-10-25", page: 1 }));
+        expect(await getCursor(store, runsCursor(REPO))).toBeUndefined();
     });
 });
 

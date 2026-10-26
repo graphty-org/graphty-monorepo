@@ -1,7 +1,14 @@
-// The four-week backfill (design section 10.4): 28 days of runs and jobs, pull requests and issues, written
-// through the same raw writers as the collector, so the range's 5-minute buckets are marked dirty and recompute
-// rebuilds their rollups. Throttled under the GitHub App's hourly budget and a share of the daily write budget, and
-// resumable: a cursor per repository holds the next day and page, so a timeout or a second run continues there.
+// The four-week backfill (design section 10.4): 28 days of flaky tests, runs and jobs, pull requests and issues,
+// written through the same raw writers as the collector, so the range's 5-minute buckets are marked dirty and
+// recompute rebuilds their rollups. Throttled under the GitHub App's hourly budget and a share of the daily write
+// budget, and resumable: each phase has a cursor holding the next (older) day, so a timeout or a second run continues
+// there. Every phase loads newest first, so a stop leaves the most recent days loaded.
+//
+// The phases, in order:
+//   1. flaky tests: the warning annotations tools/test-quarantine.mjs leaves on each test shard's check run, written
+//      as the rows the live feed (ingest /v1/failures with flaky: true) writes, from today back (cursor backfill#flaky)
+//   2. runs and jobs, from yesterday back (cursor backfill#<repo>#newest; today is the live collector's)
+//   3. pull requests and issues updated in the range (cursor backfill#prs-issues)
 //
 //   aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
 //       --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
@@ -13,11 +20,12 @@
 // created_at for every job with no dependency arithmetic.
 
 import rates from "../../config/rates.json" with { type: "json" };
-import { DAILY_ROW_LIMIT, DAY, MIN, type RawItem } from "../model/items.js";
+import { DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, type TestItem } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor, takeQuota } from "../model/raw.js";
 import type { Store } from "../model/store.js";
 import type { GitHub } from "./github.js";
 import {
+    flakyTestItem,
     llmCost,
     t4Cost,
     toIssueItem,
@@ -32,7 +40,7 @@ import {
     type GqlPr,
     type Rates,
 } from "./parse.js";
-import { ISSUE_QUERY, PR_QUERY } from "./queries.js";
+import { FLAKY_SUITE_QUERY, ISSUE_QUERY, PR_QUERY } from "./queries.js";
 
 export interface BackfillOptions {
     store: Store;
@@ -59,6 +67,8 @@ export interface BackfillOptions {
 }
 
 export interface BackfillReport {
+    /** Flaky test detections written (new ones only). */
+    flaky: number;
     runs: number;
     items: number;
     calls: number;
@@ -70,6 +80,11 @@ export interface BackfillReport {
 const STEP_WORKFLOWS = new Set(["release.yml", "restricted-cpu-stress.yml"]);
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 export const PRS_CURSOR = "backfill#prs-issues";
+export const FLAKY_CURSOR = "backfill#flaky";
+/** A repository's runs cursor: the next older day and page to load. */
+export const runsCursor = (repo: string) => `backfill#${repo}#newest`;
+/** The workflows whose jobs run test shards through tools/test-quarantine.mjs (release.yml and golden-verify.yml call ci.yml). */
+const SHARD_WORKFLOWS = new Set(["ci.yml", "golden-verify.yml", "release.yml", "restricted-cpu-stress.yml"]);
 
 class Stop extends Error {
     readonly why: NonNullable<BackfillReport["stopped"]>;
@@ -79,16 +94,16 @@ class Stop extends Error {
     }
 }
 
-/** The next day and page to load, from the repository's cursor; a missing cursor starts at the range's first day. */
-async function position(store: Store, repo: string, first: number): Promise<{ day: number; page: number }> {
-    const raw = await getCursor(store, `backfill#${repo}`);
+/** A cursor's `{ day, page }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent). */
+async function readCursor(store: Store, name: string): Promise<{ day: number; page: number } | undefined> {
     try {
+        const raw = await getCursor(store, name);
         const c = raw ? (JSON.parse(raw) as { day: string; page: number }) : undefined;
-        if (c) return { day: Math.max(first, Date.parse(c.day)), page: c.page };
+        if (c && Number.isFinite(Date.parse(c.day))) return { day: Date.parse(c.day), page: c.page };
     } catch {
-        // an unreadable cursor: start over (every write is idempotent)
+        // unreadable
     }
-    return { day: first, page: 1 };
+    return undefined;
 }
 
 export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
@@ -98,7 +113,7 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const perPage = o.perPage ?? 25;
     const started = clock();
     const calls0 = o.gh.calls;
-    const r: BackfillReport = { runs: 0, items: 0, calls: 0, done: false };
+    const r: BackfillReport = { flaky: 0, runs: 0, items: 0, calls: 0, done: false };
     // Before each call: the deadline, the App's hour, then a wait until the request budget so far allows it.
     const gate = async () => {
         if (o.deadline !== undefined && clock() >= o.deadline) throw new Stop("deadline");
@@ -119,7 +134,8 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const first = Math.floor((o.now - o.days * DAY) / DAY) * DAY;
 
     try {
-        const ctx: Ctx = { o, perPage, get, write, r, log };
+        const ctx: Ctx = { o, perPage, gate, get, write, r, log };
+        await flakyTests(ctx, first);
         for (const repo of o.repos) await repoRuns(ctx, repo, first);
         if ((await getCursor(o.store, PRS_CURSOR)) !== "done") {
             await pullRequestsAndIssues(o, gate, write, first);
@@ -140,22 +156,30 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
 interface Ctx {
     o: BackfillOptions;
     perPage: number;
+    gate: () => Promise<void>;
     get: <T>(path: string) => Promise<T | undefined>;
     write: (out: RawItem[]) => Promise<void>;
     r: BackfillReport;
     log: (line: string) => void;
 }
 
-/** One repository's runs, day by day from its cursor. */
+/**
+ * One repository's runs, day by day from yesterday back to the range's first day. A cursor written by the earlier
+ * oldest-first backfill (`backfill#<repo>`, its next day) means every day before that day is loaded: the walk stops
+ * there.
+ */
 async function repoRuns(c: Ctx, repo: string, first: number): Promise<void> {
-    const at = await position(c.o.store, repo, first);
-    for (let day = at.day; day < c.o.now; day += DAY) await dayRuns(c, repo, day, day === at.day ? at.page : 1);
+    const older = await readCursor(c.o.store, `backfill#${repo}`);
+    const floor = Math.max(first, older?.day ?? first);
+    const at = (await readCursor(c.o.store, runsCursor(repo))) ?? {
+        day: Math.floor(c.o.now / DAY) * DAY - DAY,
+        page: 1,
+    };
+    for (let day = at.day; day >= floor; day -= DAY) await dayRuns(c, repo, day, day === at.day ? at.page : 1);
 }
 
-/** One day's runs, a page at a time from `fromPage`; the cursor moves after each page of a day that is over. */
+/** One day's runs (a day already over: no page shifts), a page at a time from `fromPage`; the cursor moves after each. */
 async function dayRuns(c: Ctx, repo: string, day: number, fromPage: number): Promise<void> {
-    // A day not yet over gains runs, which shifts its pages: it is never recorded as done.
-    const closed = day + DAY <= c.o.now - 30 * MIN;
     // ponytail: GitHub answers at most 1,000 runs per query; a day past that loses its tail.
     for (let page = fromPage; page <= Math.ceil(1000 / c.perPage); page++) {
         const res = await c.get<{ total_count: number; workflow_runs: GhRun[] }>(
@@ -168,10 +192,81 @@ async function dayRuns(c: Ctx, repo: string, day: number, fromPage: number): Pro
         c.r.runs += list.length;
         c.log(`${repo} ${isoDay(day)} page ${page}: ${out.length} items, ${c.o.gh.calls} calls`);
         const last = list.length < c.perPage;
-        const next = last ? { day: isoDay(day + DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
-        if (closed) await setCursor(c.o.store, `backfill#${repo}`, JSON.stringify(next), c.o.now);
+        const next = last ? { day: isoDay(day - DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
+        await setCursor(c.o.store, runsCursor(repo), JSON.stringify(next), c.o.now);
         if (last) return;
     }
+}
+
+interface FlakySuite {
+    checkRuns: {
+        nodes: {
+            databaseId: number;
+            name: string;
+            completedAt: string | null;
+            annotations: { nodes: { message: string }[] };
+        }[];
+    };
+}
+
+/**
+ * The flaky tests of the range, day by day from today back: each day's test-shard runs (`o.repo` only), their check
+ * suites' annotations ten suites a query, each detection the live feed's row. A row already stored (the live feed's,
+ * or an earlier invocation's) is left as it is. The cursor holds the next older day; a stop mid-day redoes that day.
+ */
+async function flakyTests(c: Ctx, first: number): Promise<void> {
+    const repo = c.o.repo;
+    const at = await getCursor(c.o.store, FLAKY_CURSOR);
+    for (let day = at ? Date.parse(at) : Math.floor(c.o.now / DAY) * DAY; day >= first; day -= DAY) {
+        const runs: GhRun[] = [];
+        for (let page = 1; page <= 10; page++) {
+            const res = await c.get<{ workflow_runs: GhRun[] }>(
+                `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=100&page=${page}`,
+            );
+            const list = res?.workflow_runs ?? [];
+            runs.push(...list.filter((x) => SHARD_WORKFLOWS.has(workflowFile(x.path)) && x.check_suite_node_id));
+            if (list.length < 100) break;
+        }
+        const found = new Map<string, TestItem>();
+        for (let i = 0; i < runs.length; i += 10) {
+            const batch = runs.slice(i, i + 10);
+            await c.gate();
+            const data = await c.o.gh.graphql<{ nodes: (FlakySuite | null)[] }>(FLAKY_SUITE_QUERY, {
+                ids: batch.map((x) => x.check_suite_node_id),
+            });
+            for (const [k, suite] of data.nodes.entries())
+                for (const t of await suiteFlaky(c, repo, batch[k], suite)) found.set(t.id, t);
+        }
+        const fresh: TestItem[] = [];
+        for (const t of found.values()) if (!(await c.o.store.get(homeKey(t)))) fresh.push(t);
+        await c.write(fresh);
+        c.r.flaky += fresh.length;
+        c.log(`flaky ${isoDay(day)}: ${runs.length} runs, ${found.size} detections, ${fresh.length} new`);
+        await setCursor(c.o.store, FLAKY_CURSOR, isoDay(day - DAY), c.o.now);
+    }
+}
+
+/** One check suite's flaky detections; a re-run's check runs get their attempt from the run's jobs (job id = check run id). */
+async function suiteFlaky(c: Ctx, repo: string, run: GhRun, suite: FlakySuite | null): Promise<TestItem[]> {
+    const hits = (suite?.checkRuns.nodes ?? []).flatMap((cr) =>
+        cr.annotations.nodes.map((a) => ({ cr, message: a.message })),
+    );
+    let attempts: Map<number, number> | undefined;
+    const out: TestItem[] = [];
+    for (const { cr, message } of hits) {
+        const probe = flakyTestItem(message, cr.name, run.id, 1, 0);
+        if (!probe) continue;
+        if (run.run_attempt > 1 && !attempts) {
+            const jobs = await c.get<{ jobs: GhJob[] }>(
+                `repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`,
+            );
+            attempts = new Map((jobs?.jobs ?? []).map((j) => [j.id, j.run_attempt]));
+        }
+        const attempt = attempts?.get(cr.databaseId) ?? 1;
+        const seenAt = cr.completedAt ? Date.parse(cr.completedAt) : Date.parse(run.updated_at);
+        out.push(flakyTestItem(message, cr.name, run.id, attempt, seenAt)!);
+    }
+    return out;
 }
 
 /** One run's items: every attempt (filter=all), its jobs, release and stress steps, T4 and LLM costs. */

@@ -162,6 +162,8 @@ jobs:
             stories-count: ${{ steps.bins.outputs.stories-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            docs: ${{ steps.optional.outputs.docs }}
+            cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
@@ -280,9 +282,53 @@ jobs:
                       echo "light=true" >> "$GITHUB_OUTPUT"
                       only=(--only "$SHARDS")
                   fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
+                  pr=()
+                  [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && pr=(--pull-request)
+                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" "${pr[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+
+            # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
+            # only when a docs input changed (the pre-push gate's rule: docs/, a package's docs/ that
+            # tools/copy-docs-content.js copies in, that script, tools/sanitize-api-docs.js, or an affected package
+            # with a root `docs:api:<package>` script, or a file a docs page pulls in with `<!--@include: ...-->`);
+            # (the CI workflow tests run on every pull request: they read files all over the repository);
+            # Cost Estimate Accuracy only when the estimator or what it reads and times changed. Every other run (the full run, a dispatch, a
+            # master push) runs them all, so nothing runs nowhere.
+            - name: Plan the optional jobs
+              id: optional
+              env:
+                  EVENT: ${{ github.event_name }}
+                  BASE_REF: ${{ github.base_ref }}
+                  AFFECTED: ${{ steps.plan.outputs.affected }}
+              run: |
+                  if [[ "$EVENT" != "pull_request" || "$MERGE_QUEUE" == "true" ]]; then
+                      printf 'docs=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  # --no-renames: a file moved out of a watched folder counts by its old path too
+                  changed=$(git diff --name-only --no-renames "origin/$BASE_REF" HEAD)
+                  has() { grep -qE "$1" <<<"$changed" && echo true || echo false; }
+                  # the base's list: a pull request that changes the script runs Docs anyway
+                  pkg_docs=$(git show "origin/$BASE_REF:tools/copy-docs-content.js" | sed -nE 's#^ *src: "([^"]+)".*#\1/#p' | paste -sd'|')
+                  # an empty list would make the pattern below match every path; fail loudly instead
+                  : "${pkg_docs:?found no package docs in tools/copy-docs-content.js}"
+                  # the content, and what builds it: the root scripts and versions, the lockfile, typedoc configs, ci.yml
+                  docs=$(has "^(docs/|$pkg_docs|tools/copy-docs-content\.js$|tools/sanitize-api-docs\.js$|package\.json$|pnpm-lock\.yaml$|typedoc[^/]*$|\.github/workflows/ci\.yml$)")
+                  for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
+                      jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
+                  done
+                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
+                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                  done || true)
+                  [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
+                  {
+                      echo "docs=$docs"
+                      # the estimator, the catalog it reads costs from, the session and algorithm code it times, algorithms and
+                      # graph-format, and what runs the job: graphty-element's test:cost script and vitest config, the lockfile, ci.yml
+                      echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)/|test/session/cost/|package\.json$|vitest\.config\.ts$)|^(algorithms|graph-format)/src/|^pnpm-lock\.yaml$|^\.github/workflows/ci\.yml$')"
+                  } | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
             # the accepted baselines and the signed approval to the branch) needs no new test run. When
@@ -392,9 +438,9 @@ jobs:
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
-                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
 
             # The light check's test bins (merging.md 4.1), a pull request's own run only: the run's one read of the
             # results store (the file durations the bins are packed by), then the selector's plan, whose bins
@@ -425,7 +471,7 @@ jobs:
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
                       "$plan/light-plan.json"
-                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
+                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" --pull-request \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
                   # the summary describes the bins only when their matrix was written (else every shard runs whole)
                   if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
@@ -465,9 +511,9 @@ jobs:
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
-                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
 
             # graphty's source maps to Sentry, only on a push to master, the one build deploy-pages.yml
@@ -489,8 +535,8 @@ jobs:
               timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-                  SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
                   warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
@@ -896,6 +942,21 @@ jobs:
               if: needs.packages.outputs.light != 'true'
               run: pnpm run test:ci-workflows
 
+            # Every job that has a budget in ci-budgets.json has the timeout it asks for (a job with none is a
+            # warning), and no build step reads a secret or depends on the event (tools/ci-budgets.mjs).
+            - name: CI budgets
+              run: node tools/ci-budgets.mjs lint
+
+            # Relative links, anchors and links to this repository's own files, against this checkout, with no
+            # network (about a second). The network half runs in the full run's Links job.
+            - name: Links (offline)
+              run: ./tools/check-links.sh --offline
+
+            # No checked-in commit tooling may turn GPG signing off (also in tools/prepush-source-checks.sh until that script
+            # is deleted).
+            - name: No signing bypass in tools/ and .husky/
+              run: "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
+
             # Every package's dist is downloaded above (the packages job builds every project on both
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
             # check packs each package and compares what it ships with what it declares, so it
@@ -989,7 +1050,7 @@ jobs:
     docs:
         name: Docs
         needs: packages
-        if: needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.reuse-run == '' && needs.packages.outputs.docs == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
@@ -1018,9 +1079,9 @@ jobs:
                   name: build-packages
                   path: .
 
-            # Build unified documentation on every run, so a pull request that breaks the docs
-            # (a dead link included: VitePress fails the build on one) fails here rather than on
-            # master. The docs and both gh-pages builds are uploaded on every run because the
+            # Build unified documentation on every run that has a Docs job (a pull request only on a docs input,
+            # the Build job's "Plan the optional jobs"), so one that breaks the docs (a dead link included:
+            # VitePress fails the build on one) fails here rather than on master. The docs and both gh-pages builds are uploaded on every run because the
             # "Links" job checks every link to graphty.app against the site they assemble into.
             - name: Build docs
               run: npm run docs:build
@@ -1072,7 +1133,7 @@ jobs:
         needs: packages
         if: github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == ''
         runs-on: ubuntu-24.04
-        timeout-minutes: 15
+        timeout-minutes: 20
         continue-on-error: true
         steps:
             - uses: actions/checkout@v4
@@ -1318,7 +1379,7 @@ jobs:
                   if-no-files-found: ignore
 
             - name: Upload coverage (graphty-element)
-              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && startsWith(matrix.shard, 'graphty-element') }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
@@ -1330,7 +1391,7 @@ jobs:
             # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
             # coverage.yml lifts them back out before tools/merge-coverage.sh reads them.
             - name: Collect the shard group's coverage
-              if: ${{ !cancelled() && matrix.coverage }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.coverage }}
               env:
                   COVERAGE: ${{ matrix.coverage }}
               run: |
@@ -1342,7 +1403,7 @@ jobs:
                   done
 
             - name: Upload coverage (shard group)
-              if: ${{ !cancelled() && matrix.coverage }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.coverage }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-group-${{ matrix.shard }}
@@ -1353,7 +1414,7 @@ jobs:
             # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.shard == 'webgpu-graph-algorithms-node' }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
@@ -1367,7 +1428,7 @@ jobs:
             # above before rewriting the paths (it already does this for the graphty-element shards). Its
             # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
+              if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
               uses: actions/upload-artifact@v7
               with:
                   name: coverage-webgpu-graph-algorithms-node-device-errors
@@ -1394,7 +1455,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.full == 'true' && needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -1564,14 +1625,14 @@ jobs:
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
-    # same on this runner as on a workstation. It runs on every pull request that affects
-    # graphty-element and on every full run, and "All Checks Pass" needs it: a check that ran only on
-    # master could only ever turn master red (design/ci/ci-cd-plan.md, section 3). Each failure names
+    # same on this runner as on a workstation. A pull request runs it only when it changes the cost model or
+    # its test (the Build job's "Plan the optional jobs"), and then "All Checks Pass" needs it; every full run
+    # runs it, which catches a change elsewhere that moves the estimates. Each failure names
     # the row, the graph, n, m, both times and the ratio; every row's ratio also lands in the job summary.
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: packages
-        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.cost-accuracy == 'true'
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -2203,6 +2264,7 @@ jobs:
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
                   TEST_COUNT: ${{ needs.packages.outputs.test-count }}
+                  DOCS: ${{ needs.packages.outputs.docs }}
               run: |
                   # The tests set NEEDS themselves; in CI it is built from the results above.
                   [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
@@ -2222,6 +2284,8 @@ jobs:
                   # tests equals that run's apart from the screenshot records) skips the jobs that run
                   # passed; skipped then passes for them, and Build and Storybooks must still succeed.
                   strict='["packages","build","lint","checks","docs"]'
+                  # a pull request that changed no docs input skips Docs (the Build job's "Plan the optional jobs")
+                  [[ "$DOCS" == "false" ]] && strict='["packages","build","lint","checks"]'
                   if [[ -n "$REUSE_RUN" ]]; then
                       strict='["packages","build"]'
                       echo "::notice title=Results reused::Lint, Checks, Docs, Test, Links and Cost Estimate Accuracy are reused from $REUSE_URL, which tested the same tree apart from the screenshot records"

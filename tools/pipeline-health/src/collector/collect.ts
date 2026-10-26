@@ -582,6 +582,19 @@ async function costs(c: Cycle) {
 
 // ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Items whose stored home differs from them. The npm tags and the month's cost lines are read again every hour or
+ * day; rewriting unchanged ones would mark a month of buckets dirty for nothing.
+ */
+async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
+    const keep = await mapPool(items, 16, async (r) => {
+        if (r.kind === "obs") return true;
+        const old = await store.get(homeKey(r));
+        return !old || Object.entries(r).some(([k, v]) => JSON.stringify(old[k]) !== JSON.stringify(v));
+    });
+    return items.filter((_, i) => keep[i]);
+}
+
 export async function collect(d: Deps): Promise<CycleReport> {
     const c = new Cycle(d);
     const prev = Number((await c.cursor("cycle")) ?? 0);
@@ -623,9 +636,10 @@ export async function collect(d: Deps): Promise<CycleReport> {
         if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
     }
 
-    await putRaw(d.store, c.items, d.now);
+    const items = await changed(d.store, c.items);
+    await putRaw(d.store, items, d.now);
     await setCursor(d.store, "cycle", String(d.now), d.now);
     if (hourly) await setCursor(d.store, "hourly", String(d.now), d.now);
     if (daily && !c.errors.costs) await setCursor(d.store, "daily", String(d.now), d.now);
-    return { github: gh ? "collected" : "not set up", items: c.items.length, calls: gh?.calls ?? 0, errors: c.errors };
+    return { github: gh ? "collected" : "not set up", items: items.length, calls: gh?.calls ?? 0, errors: c.errors };
 }

@@ -100,6 +100,20 @@ describe("collector with the GitHub App", () => {
         expect(await getCursor(store, "runs#graphty-org/graphty-monorepo")).toBe("2026-10-26T00:40:00Z");
     });
 
+    it("does not rewrite unchanged items, so an hourly or daily reread marks no buckets dirty", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        await collect(deps(store, fake));
+        for (const k of [...store.items.keys()])
+            if (k.startsWith("DIRTY") || k.startsWith("CURSOR#hourly") || k.startsWith("CURSOR#daily"))
+                store.items.delete(k);
+        const again = await collect(deps(store, fake, NOW + 5 * MIN));
+        const obsOnly = [...store.items.values()].filter((i) => i.pk === "DIRTY");
+        // Only this cycle's observations (one 5-minute bucket) are new.
+        expect(new Set(obsOnly.map((i) => i.sk)).size).toBe(1);
+        expect(again.items).toBeLessThan(60);
+    });
+
     it("records a failing part against its source and still finishes the cycle", async () => {
         const store = new MemoryStore();
         const fake = fakeGitHub();

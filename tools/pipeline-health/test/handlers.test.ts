@@ -4,6 +4,8 @@ import { gunzipSync } from "node:zlib";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import ciBudgets from "../../../ci-budgets.json" with { type: "json" };
+import { METRICS } from "../src/model/metrics.ts";
 import { MemoryStore } from "../src/model/store.ts";
 
 const ssmSend = vi.fn();
@@ -180,7 +182,7 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
-    it("stamps a full-run shard with its ci-budgets.json budget, and a pull request bin with none", async () => {
+    it("judges a stored full-run shard by its ci-budgets.json budget, and a pull request bin not at all", async () => {
         const h = await ingest();
         const full = {
             ...CI_CLAIMS,
@@ -191,12 +193,13 @@ describe("ingest: what it stores", () => {
         const passed = invocation({ outcome: "passed" });
         delete (passed as Record<string, unknown>).failures;
         expect((await h(event("/v1/invocations", passed, { claims: full }))).statusCode).toBe(200);
-        expect(mem.items.get("R#shard_run#500.1.graphty-element-browser-3\u0000A#1")).toMatchObject({
-            full: true,
-            budgetMs: 15 * 60_000,
-        });
         await h(event("/v1/invocations", invocation({ id: "500.1.x" })));
-        expect(mem.items.get("R#shard_run#500.1.x\u0000A#1")?.budgetMs).toBeUndefined();
+        const fold = METRICS.find((m) => m.id === "ci.full_shard_time")!.from[0].fold as (i: unknown) => unknown;
+        const budgetMs = ciBudgets.budgets["job:ci.yml:Test (*)"].minutes * 60_000;
+        const stored = mem.items.get("R#shard_run#500.1.graphty-element-browser-3\u0000A#1");
+        expect(stored).toMatchObject({ full: true });
+        expect(fold(stored)).toMatchObject({ sum: budgetMs });
+        expect(fold(mem.items.get("R#shard_run#500.1.x\u0000A#1"))).toBeNull();
     });
 
     it("marks failures flaky when their shard passed", async () => {

@@ -3,6 +3,8 @@
 // histogram, max and last, and an optional dimension. Every collector observation (kind obs) is its own metric,
 // named by the observation, so a new stock or age needs no code here.
 
+// The repository's CI budgets; the deploy builds from a full checkout, so the root file is bundled in.
+import budgets from "../../../../ci-budgets.json" with { type: "json" };
 import { HOUR, MIN, type RawItem, type RawKind } from "./items.js";
 
 export interface Contribution {
@@ -33,6 +35,8 @@ const src = <K extends RawKind>(kind: K, field: string, fold: (item: Of<K>) => C
 /** PR check duration and full-run shard times are normalized to this budget, so a median compares to one value. */
 export const PR_BASE_MS = 20 * MIN;
 export const SHARD_BASE_MS = HOUR;
+/** A full-run test shard's budget (ci-budgets.json `job:ci.yml:Test (*)`), applied on recompute so old records count. */
+export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string) => base === "master" || base === "main";
@@ -134,11 +138,12 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.full_shard_time",
         from: [
-            src("shard_run", "endedAt", (s) =>
-                s.source === "ci" && s.full && s.attempt === 1 && s.outcome === "passed" && s.budgetMs
-                    ? { value: (s.secs * 1000 * SHARD_BASE_MS) / s.budgetMs, sum: s.budgetMs, dim: s.variant }
-                    : null,
-            ),
+            src("shard_run", "endedAt", (s) => {
+                const budgetMs = s.budgetMs ?? (s.full ? FULL_SHARD_BUDGET_MS : undefined);
+                return s.source === "ci" && s.full && s.attempt === 1 && s.outcome === "passed" && budgetMs
+                    ? { value: (s.secs * 1000 * SHARD_BASE_MS) / budgetMs, sum: budgetMs, dim: s.variant }
+                    : null;
+            }),
         ],
     },
     // The Shard times section's pull request bins view: bin time per family, against the 8-minute packing target.

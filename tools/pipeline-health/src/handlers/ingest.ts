@@ -28,13 +28,8 @@ import {
     type TestItem,
 } from "../model/index.js";
 import type { Store } from "../model/store.js";
-// The repository's budgets; the deploy builds from a full checkout, so the root file is bundled in.
-import budgets from "../../../../ci-budgets.json" with { type: "json" };
 
 export const MAX_BODY_BYTES = 1_000_000;
-
-/** A full-run test shard's budget (ci-budgets.json `job:ci.yml:Test (*)`), the line its Shard times row is judged by. */
-const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * 60_000;
 export const MAX_ROWS = 5000;
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
@@ -261,7 +256,6 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
         startedAt,
         endedAt,
         secs: b.secs as number,
-        ...(who.kind === "full" ? { budgetMs: FULL_SHARD_BUDGET_MS } : {}),
         files: files as ShardRunItem["files"],
     };
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.

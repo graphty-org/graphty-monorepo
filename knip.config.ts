@@ -270,8 +270,6 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
-                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
-                ".storybook/vitest.setup.visual.ts",
             ],
             project: [
                 "*.ts!",

@@ -196,8 +196,10 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   on attempt 1 of a `full`, `restart` or `candidate` run whose failed jobs are all lanes or the
   verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
   `release-train` group like any run (every run catches up first, so a pending run it replaces
-  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does,
-  and `release-watch.yml` files the red issue when attempt 1 ended red and no attempt 2 started. A
+  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does.
+  `release-rerun.yml` is the one decider (`tools/release-rerun.mjs`, which `release-watch.yml` asks
+  too, so the two never race): when it does not re-run an attempt that deferred, it files that
+  attempt's red issue and bisect itself. A
   test, lane or story that failed and then passed is filed "Flaky in full run: <name>" (bug,
   priority:critical, effort:medium; a comment when it recurs) and does not block. It is a
   confirmation, not a quarantine: nothing joins a quarantine list, so the screenshot gate and GPU

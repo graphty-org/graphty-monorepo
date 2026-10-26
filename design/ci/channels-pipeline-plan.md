@@ -557,7 +557,7 @@ second dispatch, or one for a red run, does nothing. Undo: revert; candidates wa
 
 **same-commit-rerun** (#3741) -- agent, M. The `recapture` job and `visual-final-*`,
 `release-rerun.yml` (absorbing `gpu-rerun-on-runner-loss.yml`; modes and jobs as design section 3),
-no red issue or bisect on attempt 1, `release-watch.yml` filing when no attempt 2 started, "Flaky in
+no red issue or bisect on attempt 1, `release-rerun.yml` filing when it starts no attempt 2, "Flaky in
 full run" filing in `full-run.mjs verdict`. First check on a scratch run that `--failed` re-runs a
 failed job inside the called ci.yml and its dependents. Needs: none. Done: a seeded one-time lane
 failure and a seeded one-time story difference each end green with one flaky issue; a consistent

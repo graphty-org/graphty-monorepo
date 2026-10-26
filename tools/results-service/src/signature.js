@@ -48,3 +48,13 @@ export function failureHashes(text, file, main = "/nonexistent") {
     const signature = timeout ? h16(`timeout\0${file}`) : h16([mask(first), ...frames].join("\n"));
     return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status: timeout ? "timeout" : "fail" };
 }
+
+/**
+ * The key a flaky test's issue is filed and tracked under: its failure signature, except for a timeout, whose
+ * signature names only its file, so two timeouts in one file would share one issue; that key adds the test name.
+ * @param signature the failure signature
+ * @param status the failure's status, `timeout` or `fail`
+ * @param name the test name
+ * @returns the issue key
+ */
+export const issueKey = (signature, status, name) => (status === "timeout" ? h16(`${signature}\0${name}`) : signature);

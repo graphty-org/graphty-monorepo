@@ -27,6 +27,9 @@
  *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
+ *   node tools/test-select.mjs --summary <plan.json> [--affected <JSON list of affected packages>]
+ *       the light check's plan as Markdown for a CI job summary (planSummary()): each bin's files and why, the
+ *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
  *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
@@ -986,7 +989,8 @@ export function wholePackageRule(rel, rules) {
  * File-level selection is adopted package by package (design/ci/fast-pipeline.md section 5.1, item 2):
  * a shard whose package is not in `allowed`, or whose runs include a browser project (browsers are a lane,
  * not file selection), runs whole wherever its package was judged file by file. Its file-level answer is
- * kept as `measured`, so the replay can show it before it is allowed.
+ * kept as `measured` (with `untrusted`, as a smoke shard's: the shard runs whole because that answer is not
+ * relied on), so the replay can show it before it is allowed.
  * @param shards SHARDS entries (the gate's or CI's)
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
@@ -998,22 +1002,22 @@ export function wholePackageRule(rel, rules) {
  */
 export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
-        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
-            return {
-                shard: shard.shard,
-                package: shard.package,
-                total: null,
-                mode: "all",
-                files: [],
-                reasons: [smoke.get(shard.shard)],
-            };
-        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
         const sel = measuredShard(p, own);
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                ...base,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+                measured: { mode: sel.mode, files: sel.files, untrusted: true },
+            };
+        }
         if (!p.fileLevel || sel.mode === "all") {
             return { ...base, ...sel };
         }
@@ -1021,7 +1025,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         if (!why) {
             return { ...base, ...sel };
         }
-        return { ...base, mode: "all", files: [], reasons: [why], measured: { mode: sel.mode, files: sel.files } };
+        const measured = { mode: sel.mode, files: sel.files, untrusted: true };
+        return { ...base, mode: "all", files: [], reasons: [why], measured };
     });
 }
 
@@ -1203,7 +1208,8 @@ export function planRuns(root, shards, selection) {
         const command = s.mode === "files" ? selectedCommand(root, shard, files) : null;
         if (s.mode === "files" && !command) {
             const why = "its command is not a plain vitest run, so it runs whole";
-            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard] });
+            const measured = { mode: s.mode, files: s.files ?? [] };
+            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard], measured });
             continue;
         }
         const same = command && plan.find((p) => p.command === command);
@@ -1272,16 +1278,36 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why,
+ *   touched }`; `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of
+ *   its files to its reason; `touched` is every test file the import graphs selected, also in a shard that runs
+ *   whole (the pull request rules read it: a test outside it was not changed by the pull request, nor anything it
+ *   imports) and `unknown` every family with a shard that has no file-level answer the selector relies on, all of
+ *   whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
-    const out = { bins: [], whole: [], none: [] };
-    const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
+    const out = { bins: [], whole: [], none: [], why: {} };
+    const runsPlanned = planRuns(root, shards, selection);
+    const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
+    out.touched = [...touched].sort();
+    // a whole run with no file-level answer, or one the selector does not rely on (a smoke shard, a package or a
+    // browser project not allowed file by file), says nothing about which files the change reached
+    const unknown = runsPlanned.filter(
+        (r) => r.mode === "all" && (!r.measured || r.measured.untrusted || r.measured.mode === "all"),
+    );
+    out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
+    const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
+            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+            out.why[family] = {
+                package: runs[0].shard.package,
+                shards: runs.flatMap((r) => r.covers),
+                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+            };
             continue;
         }
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
@@ -1291,6 +1317,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 out.none.push(...run.covers);
                 continue;
             }
+            const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
@@ -1304,11 +1331,47 @@ export function lightPlan(root, shards, selection, durations = {}) {
                     covers: run.covers,
                     ...bin,
                     command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, fileWhy.get(f) ?? "selected"])),
                 });
             }
         }
     }
     return out;
+}
+
+/**
+ * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
+ * whole and why, and which run nothing.
+ * @param plan lightPlan() output (or the `--plan` JSON)
+ * @param [affected] the package directories nx calls affected: a whole family of another package is not in the
+ *   run's matrix (tools/ci-test-matrix.mjs plan()), so it is left out of the summary
+ * @returns Markdown
+ */
+export function planSummary(plan, affected) {
+    const esc = (t) => String(t).replaceAll(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const whole = Object.entries(plan.why ?? {}).filter(([, w]) => !affected || affected.includes(w.package));
+    const shardCount = whole.reduce((n, [, w]) => n + w.shards.length, 0);
+    const lines = [
+        `### Light check: ${plan.bins.length} test bins, ${shardCount} shards whole, ${plan.none.length} shards with nothing selected`,
+        "",
+    ];
+    if (plan.everything && whole.length > 0) {
+        lines.push(`Every affected shard runs whole: ${esc(plan.everything)}`, "");
+    }
+    for (const [family, w] of whole) {
+        lines.push(`- **${family}** runs whole: ${esc(w.reasons.join("; "))}`);
+    }
+    if (plan.none.length > 0) {
+        lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
+    }
+    for (const bin of plan.bins) {
+        lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
+        for (const f of bin.files) {
+            lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);
+        }
+        lines.push("", "</details>");
+    }
+    return `${lines.join("\n")}\n`;
 }
 
 // --- which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5) ------------
@@ -1424,6 +1487,44 @@ export function selectStories({ projects, changed, everything, shards, selection
             : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
         return { project, ...sel, baselines };
     });
+}
+
+const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
+
+/**
+ * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
+ * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
+ * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * @param stories selectStories()
+ * @param projects visual-review.config.json `projects`
+ * @param listFiles (dir) => the repository paths under dir
+ * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ */
+export function storyBins(stories, projects, listFiles, durations = {}) {
+    const out = [];
+    for (const s of stories) {
+        const { storybook } = projects[s.project];
+        const dir = storybook.replace(/\/storybook-static$/u, "");
+        const files = s.mode === "all" ? listFiles(dir).filter((f) => STORY_FILE.test(f)) : s.files;
+        if (files.length === 0 && s.baselines.length === 0) {
+            continue;
+        }
+        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
+        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
+        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        bins.forEach((bin, i) =>
+            out.push({
+                name: `${s.project}-${i + 1}`,
+                project: s.project,
+                storybook,
+                files: bin.files,
+                ids: i === 0 ? s.baselines : [],
+                ms: bin.ms,
+            }),
+        );
+    }
+    return out;
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------
@@ -2303,7 +2404,7 @@ const indexCache = new Map();
  * @param root the checkout
  * @returns `{ files: Set, has(path): boolean }`
  */
-function pathIndex(root) {
+export function pathIndex(root) {
     if (!indexCache.has(root)) {
         let files = [];
         try {
@@ -2493,7 +2594,7 @@ export function describe(selection) {
  * @param input.base the base ref
  * @param input.head the head ref
  * @param input.durations lightPlan()'s durations
- * @returns `{ changed, everything, bins, whole, none, stories }`
+ * @returns `{ changed, everything, bins, whole, none, stories, storyBins }`
  */
 function planOf(root, { changed, selection, shards, base, head, durations }) {
     const show = (rev) => {
@@ -2507,19 +2608,23 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
     const mb = execFileSync("git", ["merge-base", base, head], { cwd: root, encoding: "utf8" }).trim();
     const lockMoved = changed.includes(LOCK) && lockMoves(show(mb), show(head), rules.lockfile);
     const projects = JSON.parse(readFileSync(join(root, "visual-review.config.json"), "utf8")).projects;
+    const stories = selectStories({
+        projects,
+        changed,
+        everything: selection.everything,
+        shards,
+        selection: selection.shards,
+        rules,
+        lockMoved,
+    });
+    const listFiles = (dir) =>
+        execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
     return {
         changed: changed.length,
         everything: selection.everything,
         ...lightPlan(root, shards, selection.shards, durations),
-        stories: selectStories({
-            projects,
-            changed,
-            everything: selection.everything,
-            shards,
-            selection: selection.shards,
-            rules,
-            lockMoved,
-        }),
+        stories,
+        storyBins: storyBins(stories, projects, listFiles, durations),
     };
 }
 
@@ -2529,6 +2634,14 @@ async function main(argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const root = resolve(arg("--root") ?? join(HERE, ".."));
+    if (argv.includes("--summary")) {
+        if (!arg("--summary")) {
+            throw new Error("--summary needs the plan JSON file");
+        }
+        const affected = arg("--affected") && JSON.parse(arg("--affected")).map((p) => p.replace(/^@graphty\//u, ""));
+        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8")), affected || undefined));
+        return;
+    }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
         const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));

@@ -11,7 +11,7 @@
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { config, postFailures } from "./client.mjs";
+import { config, flushHealth, postFailures } from "./client.mjs";
 
 export const IMMEDIATE = 20;
 export const BATCH_MS = 5000;
@@ -93,5 +93,6 @@ export default class ResultsReporter {
     async onTestRunEnd() {
         this.flush();
         await Promise.allSettled(this.pending);
+        await flushHealth();
     }
 }

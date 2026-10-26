@@ -1,0 +1,143 @@
+{
+    "total_count": 1836,
+    "workflow_runs": [
+        {
+            "id": 40247287810,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "6e5546dd1f1b92b3cb3838f2bf8aa9712b13e522",
+            "event": "workflow_dispatch",
+            "status": "queued",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:00:46Z",
+            "run_started_at": "2026-10-26T00:00:46Z",
+            "updated_at": "2026-10-26T00:28:07Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZb-4Yg",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40219199147,
+            "name": "Release (shadow)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "1fa254bf396f585ceaac0c0c4e61763c16c378ab",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T18:00:45Z",
+            "run_started_at": "2026-10-25T18:00:45Z",
+            "updated_at": "2026-10-25T18:02:27Z",
+            "display_title": "Release (shadow)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZYViR5Q",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40191260152,
+            "name": "Release",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T12:00:46Z",
+            "run_started_at": "2026-10-25T12:00:46Z",
+            "updated_at": "2026-10-25T12:01:13Z",
+            "display_title": "Release",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZXOYJsQ",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40167547801,
+            "name": "Release",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T06:00:24Z",
+            "run_started_at": "2026-10-25T06:00:24Z",
+            "updated_at": "2026-10-25T06:00:52Z",
+            "display_title": "Release",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZWSmtLg",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40144982225,
+            "name": "Release",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T00:00:25Z",
+            "run_started_at": "2026-10-25T00:00:25Z",
+            "updated_at": "2026-10-25T00:00:50Z",
+            "display_title": "Release",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZVaSYLA",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40119894804,
+            "name": "Release",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+            "event": "workflow_run",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-24T18:15:49Z",
+            "run_started_at": "2026-10-24T18:15:49Z",
+            "updated_at": "2026-10-24T19:48:34Z",
+            "display_title": "Release",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZUbZrdg",
+            "triggering_actor": {
+                "login": "apowers313"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        }
+    ]
+}

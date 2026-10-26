@@ -1,15 +1,26 @@
 // The test results store: a Cloudflare Worker over D1 that CI jobs and local runs write test-group records,
-// failure events and durations to. It stores and answers; it dispatches nothing and files no issue.
+// failure events and durations to. It stores and answers; it dispatches nothing and files no issue (the job whose
+// record proves a test flaky files it and posts its number back).
 // Design: design/ci/channels-pipeline/results-service.md (sections 4 and 5). Setup: README.md.
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
-//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
+//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, deploy-pages.yml `site` (the site-<sha> it
+//   kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
+import {
+    concludeFlaky,
+    getCandidate,
+    getFailures,
+    getMedians,
+    getPlan,
+    getReleaseState,
+    trackedIssues,
+    trendFor,
+} from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -24,8 +35,16 @@ const MASTER_KINDS = {
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
+    "deploy-pages.yml": "site",
+};
+// Kinds that write no test records, and why.
+const NO_TESTS = {
+    deploy: "a site repository writes only durations",
+    site: "deploy-pages.yml writes only its site and durations",
 };
 const MASTER = "refs/heads/master";
+const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
+const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
 
@@ -146,13 +165,13 @@ function need(body, fields) {
 }
 
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
-function inserts(db, table, columns, rows) {
+function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
     for (let i = 0; i < rows.length; i += per) {
         const chunk = rows.slice(i, i + per);
-        const sql = `INSERT OR IGNORE INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
+        const sql = `${verb} INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
         out.push(db.prepare(sql).bind(...chunk.flat().map((v) => v ?? null)));
     }
     return out;
@@ -180,7 +199,7 @@ const FAILURE_COLUMNS = [
 ];
 
 async function postInvocation(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
@@ -244,13 +263,78 @@ async function postInvocation(body, who, db, nowMs) {
             ["invocation", "file", "passed", "failed", "skipped", "ms"],
             files.map((f) => [body.id, ...f]),
         ),
-        ...inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.id, body.failures ?? [], body.root, nowMs)),
+        // the record's text (its JUnit report) replaces what the live reporter sent for the same test, so every
+        // key and signature a pull request, a base check or an issue compares comes from the same text
+        ...inserts(
+            db,
+            "failure",
+            FAILURE_COLUMNS,
+            failureRows(body.id, body.failures ?? [], body.root, nowMs),
+            "INSERT OR REPLACE",
+        ),
     ]);
-    return { stored: first.meta.changes === 1, kind: who.kind };
+    const stored = first.meta.changes === 1;
+    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    if (!judged) return { stored, kind: who.kind, flaky: [] };
+    const flaky = await concludeFlakySafely(db, body.id, nowMs);
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
+    return { stored, kind: who.kind, flaky, tracked };
+}
+
+// The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
+// make the client spool and re-post a record the store already has, whose re-post is never judged).
+async function concludeFlakySafely(db, id, nowMs) {
+    try {
+        return await concludeFlaky(db, id, nowMs);
+    } catch (e) {
+        console.log(`concludeFlaky ${id}: ${e.message}`);
+        return [];
+    }
+}
+
+// The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names. A
+// signature holds one tracked row; an issue of the other kind never overwrites it (the job finds that one by its
+// kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
+async function postIssue(body, who, db, nowMs) {
+    if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
+    if (body.state === "closed") return closeIssue(body, db, nowMs);
+    need(body, { signature: "string", number: "number" });
+    if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
+    await db.batch([
+        db
+            .prepare(
+                `INSERT INTO tracked_issue (signature, kind, number, state, opened_at, last_seen) VALUES (?, ?, ?, 'open', ?, ?)
+                 ON CONFLICT(signature) DO UPDATE SET number = excluded.number, state = 'open', last_seen = excluded.last_seen
+                 WHERE tracked_issue.kind = excluded.kind`,
+            )
+            .bind(body.signature, body.kind, body.number, nowMs, nowMs),
+        db
+            .prepare(
+                "UPDATE quarantine SET issue = ? WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND issue IS NULL",
+            )
+            .bind(body.number, body.family ?? "", body.file ?? "", body.name ?? ""),
+    ]);
+    return { stored: true };
+}
+
+// A tracked issue a master job found closed: its quarantine entries leave now (6.5), so the next proof of the same
+// test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
+// not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
+async function closeIssue(body, db, nowMs) {
+    need(body, { number: "number" });
+    await db.batch([
+        db
+            .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
+            .bind(nowMs, body.number),
+        db
+            .prepare("UPDATE quarantine SET left_at = ?, left_why = ? WHERE issue = ? AND left_at IS NULL")
+            .bind(nowMs, `issue #${body.number} closed`, body.number),
+    ]);
+    return { stored: true };
 }
 
 async function postFailures(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.invocation, who);
     const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
     // D1 refuses an empty batch
@@ -299,15 +383,92 @@ async function postDurations(body, who, db, nowMs) {
     return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
 }
 
+// A test shard's duration history (tools/vitest-time-budget.mjs). Any credential reads; only master's own runs
+// write, so a pull request's slow test never moves the medians master is judged by.
+const TESTS_PATH = "/v1/durations/tests/";
+const HISTORY_WRITERS = new Set(["full", "bisect", "base"]);
+const HISTORY_MAX = 1_900_000; // D1 keeps a value up to 2 MB
+
+async function getTestDurations(_query, _who, db, _nowMs, name) {
+    const row = await db.prepare("SELECT body FROM test_durations WHERE name = ?").bind(name).first();
+    return row ? JSON.parse(row.body) : {};
+}
+
+async function putTestDurations(body, who, db, nowMs, name) {
+    if (!HISTORY_WRITERS.has(who.kind)) refuse(403, "only master's own runs write a test duration history");
+    if (!body || typeof body !== "object" || Array.isArray(body)) refuse(400, "the history must be an object");
+    const text = JSON.stringify(body);
+    if (text.length > HISTORY_MAX) refuse(413, `a history holds at most ${HISTORY_MAX} bytes`);
+    await db
+        .prepare("INSERT OR REPLACE INTO test_durations (name, body, updated_at, run_id) VALUES (?, ?, ?, ?)")
+        .bind(name, text, nowMs, Number(who.claims.run_id))
+        .run();
+    return { stored: true };
+}
+
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+
+// The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
+async function postVerdict(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml records a verdict");
+    }
+    need(body, { sha: "string", state: "string" });
+    if (!VERDICTS.has(body.state)) refuse(400, `state must be one of ${[...VERDICTS].join(", ")}`);
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const { meta } = await db
+        .prepare(
+            "INSERT OR IGNORE INTO verdict (run_id, attempt, sha, state, lane, issue, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+            Number(who.claims.run_id),
+            Number(who.claims.run_attempt),
+            body.sha,
+            body.state,
+            body.lane ?? null,
+            body.issue ?? null,
+            nowMs,
+        )
+        .run();
+    return { stored: meta.changes === 1 };
+}
+
+// A master build kept its site as artifact site-<sha> in this run: the full run's candidate pick reads it.
+async function postSite(body, who, db, nowMs) {
+    if (who.kind !== "site") refuse(403, "only master's own deploy-pages.yml records a site");
+    if (!/^[0-9a-f]{40}$/.test(body?.sha ?? "")) refuse(400, "sha must be a full commit id");
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO site (sha, built_at, run_id) VALUES (?, ?, ?)")
+        .bind(body.sha, nowMs, Number(who.claims.run_id))
+        .run();
+    return { stored: meta.changes === 1, sha: body.sha };
+}
+
 const ROUTES = {
+    "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
+    "POST /v1/issues": postIssue,
+    "POST /v1/sites": postSite,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/failures": getFailures,
+    "GET /v1/durations/medians": getMedians,
+    [`GET ${TESTS_PATH}:name`]: getTestDurations,
+    [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };
+
+// The route key and its one path parameter: `/v1/durations/tests/<name>` names a history.
+function routeOf(method, pathname) {
+    if (!pathname.startsWith(TESTS_PATH)) return [`${method} ${pathname}`, undefined];
+    const raw = pathname.slice(TESTS_PATH.length);
+    const name = /^[\w.-]{1,128}$/.test(raw) ? raw : "";
+    if (!name) refuse(400, "a history name is 1 to 128 letters, digits, '.', '_' or '-'");
+    return [`${method} ${TESTS_PATH}:name`, name];
+}
 
 /**
  * Answers one request.
@@ -325,13 +486,14 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
             await env.DB.prepare("SELECT 1").first();
             return json({ ok: true, schema: 1 });
         }
-        const route = ROUTES[`${request.method} ${pathname}`] ?? refuse(404, `no ${request.method} ${pathname}`);
+        const [key, name] = routeOf(request.method, pathname);
+        const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
         const who = await authenticate(request, env, doFetch, now);
         const body =
             request.method === "GET"
                 ? searchParams
                 : await request.json().catch(() => refuse(400, "the body is not JSON"));
-        return json(await route(body, who, env.DB, now));
+        return json(await route(body, who, env.DB, now, name));
     } catch (error) {
         if (error instanceof Refused) return json({ error: error.message }, error.status);
         console.error(`${request.method} ${pathname} failed: ${error.stack ?? error}`);

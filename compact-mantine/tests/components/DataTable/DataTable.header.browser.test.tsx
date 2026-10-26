@@ -10,6 +10,7 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
+import { TOOLTIP_WAIT } from "../../waits";
 
 interface Node {
     id: string;
@@ -105,12 +106,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(button).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
+        }, TOOLTIP_WAIT);
         expect(button).toHaveAccessibleDescription("20 values, 0 to 19");
     });
 
@@ -149,12 +147,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}{ArrowRight}");
         expect(header).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
+        }, TOOLTIP_WAIT);
     });
 
     it("opens the header menu from its caret, and from the keyboard on the header", async () => {

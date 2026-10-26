@@ -19,6 +19,7 @@ import {
     globToRe,
     graphCacheKey,
     lightPlan,
+    planSummary,
     lockMoves,
     literalPaths,
     loadRules,
@@ -34,6 +35,7 @@ import {
     selectPackages,
     selectShards,
     selectStories,
+    storyBins,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -408,6 +410,17 @@ describe("file-level selection, allowed and measured", () => {
         const [browser] = selectShards([shard], pkgs, graphs, new Set(["pa"]));
         assert.equal(browser.mode, "all", "a project without the browser flag counts as a browser project");
         assert.match(browser.reasons[0], /browser/u);
+        assert.ok(s.measured.untrusted && browser.measured.untrusted, "the light check does not rely on either answer");
+        const [smoked] = selectShards(
+            [shard],
+            pkgs,
+            g,
+            new Set(["pa"]),
+            new Set(),
+            new Map([["pa-unit", "a smoke pattern"]]),
+        );
+        assert.equal(smoked.mode, "all");
+        assert.equal(smoked.measured.untrusted, true);
     });
 
     it("selects a browser shard file by file only where fileLevelBrowser allows it", () => {
@@ -1498,8 +1511,76 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 
     it("runs a family whole when one of its shards runs whole", () => {
         const shards = ["graphty-1", "graphty-2"].map(byName);
-        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), sel("graphty-2", "all")]);
-        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [] });
+        const whole = { ...sel("graphty-2", "all"), reasons: ["graphty/vite.config.ts changed"] };
+        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), whole]);
+        // the files the import graphs selected stay touched for the pull request rules, though the family runs whole
+        // graphty-2 has no file-level answer, so every graphty file counts as touched
+        assert.deepEqual(out, {
+            bins: [],
+            whole: ["graphty-1", "graphty-2"],
+            none: [],
+            touched: [...many(2)].sort(),
+            unknown: ["graphty"],
+            why: {
+                graphty: {
+                    package: "graphty",
+                    shards: ["graphty-1", "graphty-2"],
+                    reasons: ["graphty/vite.config.ts changed"],
+                },
+            },
+        });
+    });
+
+    it("counts every file of a family touched when a shard runs whole on a file-level answer it does not rely on", () => {
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const measured = (shard, why) => ({
+            ...sel(shard, "all"),
+            reasons: [why],
+            measured: { mode: "none", files: [], untrusted: true },
+        });
+        for (const why of ["a smoke pattern", "it runs a browser project, which runs whole (measured only)"]) {
+            const out = lightPlan(ROOT, shards, [measured("graphty-1", why), measured("graphty-2", why)]);
+            assert.deepEqual(out.unknown, ["graphty"], why);
+        }
+        // a trusted answer whose command only cannot be narrowed keeps its files
+        const trusted = { ...sel("graphty-1", "all"), measured: { mode: "none", files: [] } };
+        assert.deepEqual(lightPlan(ROOT, [byName("graphty-1")], [trusted]).unknown, []);
+    });
+
+    it("says in the job summary what each bin runs and why, what runs whole and why, and what runs nothing", () => {
+        const files = [
+            { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
+            { file: "graphty/src/b.test.tsx", why: "changed" },
+        ];
+        const shards = ["graphty-1", "layout", "githerd"].map(byName);
+        const out = lightPlan(ROOT, shards, [
+            { shard: "graphty-1", mode: "files", files, reasons: [] },
+            sel("layout", "none"),
+            { ...sel("githerd", "all"), reasons: ["githerd/package.json changed"] },
+        ]);
+        assert.deepEqual(out.bins[0].why, {
+            "graphty/src/a.test.tsx": "imports graphty/src/a.ts",
+            "graphty/src/b.test.tsx": "changed",
+        });
+        const md = planSummary(out);
+        assert.match(md, /^### Light check: 1 test bins, 1 shards whole, 1 shards with nothing selected/u);
+        assert.match(md, /\*\*githerd\*\* runs whole: githerd\/package.json changed/u);
+        assert.match(md, /nothing selected, not run: layout/u);
+        assert.match(md, /graphty-1: 2 files/u);
+        assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
+        assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /runs whole: pnpm-lock.yaml/u);
+        const scoped = planSummary(out, ["graphty"]);
+        assert.match(
+            scoped,
+            /1 test bins, 0 shards whole/u,
+            "a whole shard of an unaffected package is not in the matrix",
+        );
+        assert.doesNotMatch(scoped, /githerd/u);
+        assert.match(
+            planSummary({ ...out, everything: "a <details> tag" }),
+            /a &lt;details&gt; tag/u,
+            "reasons are escaped",
+        );
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {
@@ -1668,5 +1749,67 @@ describe("the import graphs' cache key", () => {
         } finally {
             rmSync(repo, { recursive: true, force: true });
         }
+    });
+});
+
+describe("the light check's story bins (merging.md section 4.1, #3443 part b)", () => {
+    const projects = {
+        "graphty-element": { storybook: "graphty-element/storybook-static" },
+        layout: { storybook: "layout/storybook-static" },
+        "graph-io-fidelity": { storybook: "graph-io/fidelity-stories/storybook-static" },
+    };
+    const entry = (project, mode, files = [], baselines = []) => ({ project, mode, files, baselines, reasons: [] });
+    const list = (dir) =>
+        ({
+            layout: ["layout/stories/A.stories.ts", "layout/stories/helpers.ts", "layout/src/x.ts"],
+            "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
+        })[dir] ?? [];
+
+    it("packs selected story files into bins of at most 8 minutes by their storybook family's times", () => {
+        const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
+        const durations = {
+            "graphty-element-storybook": {
+                "graphty-element/stories/A.stories.ts": 300_000,
+                "graphty-element/stories/B.stories.ts": 300_000,
+            },
+        };
+        const bins = storyBins([entry("graphty-element", "files", files)], projects, list, durations);
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files, b.ms]),
+            [
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
+            ],
+        );
+        assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("bins every story file of a project selected whole, and nothing for one selected none", () => {
+        const bins = storyBins(
+            [entry("layout", "all"), entry("graph-io-fidelity", "all"), entry("graphty-element", "none")],
+            projects,
+            list,
+        );
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files]),
+            [
+                ["layout-1", ["layout/stories/A.stories.ts"]],
+                ["graph-io-fidelity-1", ["graph-io/fidelity-stories/F.stories.tsx"]],
+            ],
+        );
+    });
+
+    it("captures a story whose baseline changed even when no file selects it", () => {
+        const bins = storyBins([entry("graphty-element", "none", [], ["a--one"])], projects, list);
+        assert.deepEqual(bins, [
+            {
+                name: "graphty-element-1",
+                project: "graphty-element",
+                storybook: "graphty-element/storybook-static",
+                files: [],
+                ids: ["a--one"],
+                ms: 0,
+            },
+        ]);
     });
 });

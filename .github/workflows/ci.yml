@@ -1986,7 +1986,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -2020,12 +2020,19 @@ jobs:
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: graph-io-fidelity
+                      shard: graph-io-browser
+                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                      # so a graphty-element change runs them too (the capture plan's rule for this project).
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
             # every step below but the summary is.
             - name: Skip a project this run does not test
               id: skip
-              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4
@@ -2046,7 +2053,7 @@ jobs:
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**${{ matrix.lfs }}"
 
             - uses: pnpm/action-setup@v4
               if: steps.skip.outputs.skip != 'true'
@@ -2168,7 +2175,16 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, algorithms, layout, compact-mantine, cytoscape-extensions]
+                project:
+                    [
+                        graphty,
+                        graphty-element,
+                        algorithms,
+                        layout,
+                        compact-mantine,
+                        cytoscape-extensions,
+                        graph-io-fidelity,
+                    ]
         steps:
             - uses: actions/checkout@v4
               with:

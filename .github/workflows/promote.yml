@@ -92,6 +92,7 @@ jobs:
             - name: Gather the nightly, the store's record, npm and what the channel serves
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   NIGHTLY: ${{ inputs.nightly }}
               run: |
                   node tools/channel/promote.mjs gather --nightly "$NIGHTLY" --channel "$CHANNEL" \

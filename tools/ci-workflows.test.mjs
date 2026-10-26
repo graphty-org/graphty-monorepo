@@ -6032,7 +6032,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const gate = steps.verdict.steps.find((st) => st.id === "gate");
         assert.equal(gate.if, "${{ steps.verdict.outputs.state == 'green-clean' }}");
-        assert.equal(gate["continue-on-error"], true, "a refusal is a decision, read by the next step");
+        assert.equal(gate["continue-on-error"], undefined, "an error fails the job; only a refusal is a decision");
         // master's tip's gate, unchanged, against channel/nightly (or the last release before nightly exists)
         assert.match(gate.run, /git archive HEAD visual-review\/trusted \| tar -x -C "\$gate"/);
         assert.match(gate.run, /gate --captures "\$RUNNER_TEMP\/visual" --base "\$base" --head "\$SHA"/);
@@ -6041,10 +6041,78 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.equal(decide.run, "node tools/channel/nightly.mjs decide");
         assert.deepEqual(decide.env, {
             STATE: "${{ steps.verdict.outputs.state }}",
-            GATE: "${{ steps.gate.outcome }}",
+            GATE: "${{ steps.gate.outputs.outcome }}",
         });
         const order = steps.verdict.steps.map((st) => st.id ?? st.name);
         assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));
+    });
+
+    it("tells a screenshot gate refusal from an error, and a missing channel/nightly from a failed ls-remote", () => {
+        const run = steps.verdict.steps.find((st) => st.id === "gate").run;
+        // the refusal line the step looks for is the one the gate prints
+        assert.match(readFileSync("visual-review/trusted/gate.mjs", "utf8"), /"Review them with `visual-review serve`/);
+        const gateRun = (lsRemote, gateExit, gateOut) => {
+            const dir = mkdtempSync(join(TMP, "nightly-gate-"));
+            const bin = join(dir, "bin");
+            const src = join(dir, "src", "visual-review", "trusted");
+            mkdirSync(bin, { recursive: true });
+            mkdirSync(src, { recursive: true });
+            writeFileSync(
+                join(src, "cli.mjs"),
+                `console.log(${JSON.stringify(gateOut)}); process.exit(${gateExit});\n`,
+            );
+            writeFileSync(
+                join(bin, "git"),
+                [
+                    "#!/bin/sh",
+                    `echo "$*" >> "${dir}/git.log"`,
+                    'case "$1" in',
+                    `ls-remote) exit ${lsRemote} ;;`,
+                    "log) echo releasesha ;;",
+                    `archive) tar -c -C "${join(dir, "src")}" visual-review ;;`,
+                    "rev-parse) echo tree-$2 ;;",
+                    "esac",
+                    "",
+                ].join("\n"),
+                { mode: 0o755 },
+            );
+            const out = join(dir, "out");
+            writeFileSync(out, "");
+            mkdirSync(join(dir, "tmp"));
+            const r = spawnSync("bash", ["-c", run], {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${bin}:${process.env.PATH}`,
+                    SHA: "abc",
+                    RUNNER_TEMP: join(dir, "tmp"),
+                    GITHUB_OUTPUT: out,
+                },
+            });
+            return {
+                status: r.status,
+                out: readFileSync(out, "utf8"),
+                git: readFileSync(join(dir, "git.log"), "utf8"),
+            };
+        };
+        const passed = gateRun(0, 0, "No unaccepted visual changes");
+        assert.equal(passed.status, 0);
+        assert.match(passed.out, /^outcome=success\nscreenshots=approved:tree-abc:visual-baselines\n$/);
+        assert.match(passed.git, /--base origin\/channel\/nightly|fetch .*channel\/nightly/);
+        const refused = gateRun(0, 1, "Review them with `visual-review serve` (the README).");
+        assert.equal(refused.status, 0, "a refusal is a decision");
+        assert.equal(refused.out, "outcome=failure\n");
+        const crashed = gateRun(0, 1, "TypeError: boom");
+        assert.equal(crashed.status, 1, "an error fails the job, so re-running it retries the gate");
+        assert.equal(crashed.out, "");
+        const first = gateRun(2, 0, "ok");
+        assert.equal(first.status, 0, "no channel/nightly yet: the last release is the base");
+        assert.match(first.git, /^log -1 /m);
+        assert.doesNotMatch(first.git, /^fetch /m);
+        const unreachable = gateRun(128, 0, "ok");
+        assert.equal(unreachable.status, 128, "a failed ls-remote fails the step");
+        assert.equal(unreachable.out, "");
     });
 
     it("waits while a publish hold is open", () => {

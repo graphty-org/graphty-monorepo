@@ -663,22 +663,41 @@ jobs:
             # carries the owner's passkey-signed approval of exactly that tree (channels section 7), so a baseline
             # committed without the owner never reaches nightly as "unchanged". The gate is master's tip's copy (this
             # run's checkout), run unchanged on this run's captures; before channel/nightly exists the base is the
-            # last version commit, which the owner released.
+            # last version commit, which the owner released. A refusal (the gate's exit 1 with its "Review them"
+            # line) is a decision: outcome=failure, read by the next step. Anything else (a failed fetch, a gate
+            # that crashed) fails the job, so re-running its failed jobs retries the gate instead of leaving a
+            # judged green-clean commit unpromoted for good.
             - name: Check the candidate's screenshots against nightly's
               id: gate
               if: ${{ steps.verdict.outputs.state == 'green-clean' }}
-              continue-on-error: true
               run: |
                   set -euo pipefail
-                  if git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly; then
+                  # exit 2: no channel/nightly yet; any other failure stops here
+                  rc=0
+                  git ls-remote --exit-code --heads origin refs/heads/channel/nightly > /dev/null || rc=$?
+                  if [ "$rc" = 0 ]; then
+                      git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
                       base=origin/channel/nightly
-                  else
+                  elif [ "$rc" = 2 ]; then
                       base=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H "$SHA")
+                  else
+                      echo "::error::git ls-remote of channel/nightly failed (exit $rc)"
+                      exit "$rc"
                   fi
                   gate="$RUNNER_TEMP/gate"
                   mkdir -p "$gate"
                   git archive HEAD visual-review/trusted | tar -x -C "$gate"
-                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" --base "$base" --head "$SHA"
+                  rc=0
+                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" --base "$base" --head "$SHA" \
+                      | tee "$gate/out.txt" || rc=$?
+                  if [ "$rc" = 1 ] && grep -q '^Review them with `visual-review serve`' "$gate/out.txt"; then
+                      echo "outcome=failure" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  elif [ "$rc" != 0 ]; then
+                      echo "::error::the screenshot gate failed with an error (exit $rc), not a refusal: re-run the failed jobs"
+                      exit "$rc"
+                  fi
+                  echo "outcome=success" >> "$GITHUB_OUTPUT"
                   # channel.json's screenshots: "unchanged", or the owner-approved visual-baselines/ tree it carries
                   tree=$(git rev-parse "$SHA:visual-baselines")
                   if [ "$(git rev-parse "$base:visual-baselines")" = "$tree" ]; then
@@ -694,7 +713,7 @@ jobs:
               id: promote
               env:
                   STATE: ${{ steps.verdict.outputs.state }}
-                  GATE: ${{ steps.gate.outcome }}
+                  GATE: ${{ steps.gate.outputs.outcome }}
               run: node tools/channel/nightly.mjs decide
 
             - name: Announce a red run or an owner item

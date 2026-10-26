@@ -20,9 +20,8 @@ let ssm: SSMClient | undefined;
  */
 export async function ssmSecret(name: string): Promise<string | undefined> {
     try {
-        const out = await (ssm ??= new SSMClient({})).send(
-            new GetParameterCommand({ Name: name, WithDecryption: true }),
-        );
+        ssm ??= new SSMClient({});
+        const out = await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: true }));
         return out.Parameter?.Value;
     } catch (err) {
         if ((err as Error)?.name === "ParameterNotFound") {

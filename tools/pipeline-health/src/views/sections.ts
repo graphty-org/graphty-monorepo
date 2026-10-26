@@ -411,6 +411,8 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
 }
 
 /** The page each section list belongs to, with the ids the page draws (web/src/render.ts). */
+const median = (a: Agg) => (a.hist && quantile(a.hist, 0.5)) ?? 0;
+
 /**
  * Sorted bars of one metric's dimensions over the range: the median (ms -> min) or the count of events.
  * @param reads
@@ -430,7 +432,7 @@ export async function dimBars(
     const items = Object.entries(total.dims ?? {})
         .map(([dim, a]) => ({
             label: { t: "name", v: dim } as Cell,
-            n: round(as === "n" ? a.n : (a.hist ? (quantile(a.hist, 0.5) ?? 0) : 0) / MIN),
+            n: round(as === "n" ? a.n : median(a) / MIN),
             unit: as === "n" ? ("count" as const) : ("min" as const),
         }))
         .filter((i) => i.n > 0)

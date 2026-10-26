@@ -430,14 +430,21 @@ export function plan(affected, only, light) {
  * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
  * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
  * @param bin a lightPlan() bin
- * @returns a matrix entry with a `files` field
+ * @returns a matrix entry with `files` and `members` fields
  */
 export function binEntry(bin) {
     const shard = SHARDS.find((s) => s.shard === bin.shard);
     if (!shard || !bin.command) {
         throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
     }
-    const e = { ...shard, shard: bin.name, files: bin.files, "test-command": bin.command };
+    // `members`: the shards it stands in for, as a group entry names its own (see groupEntry()).
+    const e = {
+        ...shard,
+        shard: bin.name,
+        members: bin.covers ?? [bin.shard],
+        files: bin.files,
+        "test-command": bin.command,
+    };
     delete e["coverage-file"];
     return { ...e, "test-command": ciCommand(e) };
 }

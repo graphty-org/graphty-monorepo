@@ -1678,11 +1678,17 @@ describe("verification runs of ci.yml", () => {
         // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
         const legs = [...job(ci, "story-tests").matchAll(/^\s+shard: (\S+)$/gm)].map((m) => m[1]);
         assert.ok(legs.includes("algorithms-browser"));
+        const jobIf = job(ci, "story-tests").match(/^\s+if: (.*)$/m)[1];
         for (const shard of legs) {
             const own = SHARDS.find((s) => s.shard === shard);
-            for (const affected of [PACKAGES, [own.package]]) {
-                assert.ok(JSON.stringify(plan(affected)).includes(`"${shard}"`), `${shard} for ${affected.join(",")}`);
+            // A pull request's light check runs it as a file-level bin named after it, not as itself.
+            const bins = { bins: [{ name: `${shard}-1`, shard, covers: [shard], command: "true", files: ["x"] }] };
+            for (const [affected, light] of [[PACKAGES], [[own.package]], [[own.package], bins]]) {
+                const matrix = JSON.stringify(plan(affected, undefined, light));
+                assert.ok(matrix.includes(`"${shard}"`), `${shard} for ${affected.join(",")} ${light ? "binned" : ""}`);
             }
+            // The job's own condition names every leg's shard, or a leg alone in a run is never started.
+            assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
         }
     });
 

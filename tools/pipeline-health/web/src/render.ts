@@ -510,6 +510,10 @@ function sectionHead(s: Section): string {
                 "Where the time goes",
                 `${widened || `pull requests merged in the ${last}; `}median minutes per stage; owner waits left out`,
             );
+        case "runs":
+            return h("Local runs", `by kind, ${last}`);
+        case "shard-time":
+            return h("Local shard time", `median minutes per shard, ${last}`);
         case "owner":
             return h("Waiting on the owner", "auto-merge is off by rule");
         case "causes":

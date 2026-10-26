@@ -556,6 +556,7 @@ const S: Record<string, (p: P) => string> = {
     "reason.thin": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} sends less than usual for its activity`,
     "reason.no_value": () => "no value in the window",
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
+    "section.no_events": () => "Nothing recorded in this range.",
     "master.no_red_span": () => "No red span in the range.",
     "data.all_set_up": () => "Every member has a writer.",
     "ep.past_threshold": (p) =>

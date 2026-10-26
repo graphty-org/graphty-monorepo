@@ -24,8 +24,9 @@ import type { Store } from "../model/store.js";
 import { SLAS, type SlaConfig } from "../sla/config.js";
 import type { Evaluation, MemberStatus, SourceStatus } from "../sla/engine.js";
 import type { ViewRoute } from "./keys.js";
-import { CATEGORY, iso, memberAt, Reads, sourceState, SPEC } from "./members.js";
+import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
 import {
+    dimBars,
     hotspots,
     jobs,
     masterStrip,
@@ -56,13 +57,23 @@ const RUNNERS = new Set([
     "ci.runners_not_assigned",
     "ci.superseded_running",
 ]);
-const LOCAL_IDS: MemberId[] = ["local-runs.local_vs_ci", "local-runs.shard_time", "local-runs.slot_waits"];
 /** The Data sources headline is "Sources past their age limit" under its own id. */
 const HEADLINE_ID: Record<string, MemberId> = { "data.sources_age": "data-sources.sources_not_ok" };
 
+/** A Local runs member's state from the local source's: a writing source is informational. */
 const LOCAL_STATE: Record<SourceStatus["state"], Member["state"]> = {
     ok: "info",
     "not set up": "notsetup",
+    idle: "idle",
+    stale: "nodata",
+    error: "nodata",
+    thin: "nodata",
+};
+
+/** The Local runs page's state from the local source's. */
+const LOCAL_PAGE: Record<SourceStatus["state"], PageResponse["state"]> = {
+    ok: "ok",
+    "not set up": "idle",
     idle: "idle",
     stale: "nodata",
     error: "nodata",
@@ -212,23 +223,18 @@ class Builder {
     }
 
     /**
-     * The three Local runs members: no SLA member feeds them yet, so their state is the local source's.
+     * The three Local runs members: informational, read from the local writer's rollups (members.ts, LOCAL).
+     * @param range
      */
-    local(): { state: PageResponse["state"]; members: Member[] } {
+    async local(range: Range): Promise<{ state: PageResponse["state"]; members: Member[] }> {
         const src = this.reads.ev.sources.find((s) => s.id === "local");
         const state: Member["state"] = src ? LOCAL_STATE[src.state] : "notsetup";
         const reason = src?.reason ? { code: `reason.${src.reason.code}`, params: { source: "local" } } : undefined;
         return {
-            state: "idle",
-            members: LOCAL_IDS.map((id) => ({
-                id,
-                window: "1h",
-                state,
-                value: null,
-                sla: null,
-                link: "/ci/local-runs",
-                ...(reason ? { reason } : {}),
-            })),
+            state: src ? LOCAL_PAGE[src.state] : "idle",
+            members: await Promise.all(
+                Object.keys(LOCAL).map((id) => localMember(this.reads, id, range, state, reason)),
+            ),
         };
     }
 
@@ -252,7 +258,10 @@ class Builder {
             case "data-sources":
                 return [...empty, sourcesTable(this.reads), notSetUpTable(this.reads, this.reads.ev.members)];
             case "local-runs":
-                return [];
+                return [
+                    await dimBars(this.reads, "runs", "local.runs", range, "n"),
+                    await dimBars(this.reads, "shard-time", "local.shard_time", range, "median"),
+                ];
             default:
                 return empty;
         }
@@ -265,8 +274,14 @@ class Builder {
     async page(page: Exclude<PageId, "overview" | "costs">, range: Range): Promise<PageResponse> {
         const base = { page, range, generated: iso(this.reads.now), notes: [] as Fact[] };
         if (page === "local-runs") {
-            const l = this.local();
-            return { ...base, state: l.state, others: [], members: l.members, sections: [] };
+            const l = await this.local(range);
+            return {
+                ...base,
+                state: l.state,
+                others: [],
+                members: l.members,
+                sections: await this.sections(page, range),
+            };
         }
         const cat = (await this.categories(range)).find((c) => c.id === (page === "runners" ? "ci" : page));
         const members = await Promise.all(membersOf(this.reads.ev, page).map((m) => this.member(m.id, range)));

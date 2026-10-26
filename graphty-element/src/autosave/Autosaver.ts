@@ -7,8 +7,9 @@
  *   fails puts every part it carried back.
  * - **Schedule.** While visible, a 500 ms trailing debounce, at most 2000 ms after the first
  *   unwritten change. A write that carries the `data` part waits for an idle moment, at most
- *   `dataMaxWaitMs`; other changes join it. A finished run is written at once, and so is
- *   everything when `flush()` is called. One write at a time.
+ *   `dataMaxWaitMs`; other changes join it. While hidden (`hidden`), every change is written at
+ *   once, since the browser throttles or stops timers then. A finished run is written at once,
+ *   and so is everything when `flush()` is called. One write at a time.
  * - **Boundaries.** When the project is about to be replaced, what this entry has not committed is
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
@@ -150,6 +151,8 @@ export interface AutosaverOptions {
     readonly keep?: number;
     readonly clock?: AutosaveClock;
     readonly locks?: AutosaveLocks;
+    /** Whether the page is hidden now: a change made then is written at once, with no timer. */
+    readonly hidden?: () => boolean;
 }
 
 /** What the restore at the start is told. */
@@ -377,6 +380,7 @@ export class Autosaver {
     readonly #delayMs: number;
     readonly #maxWaitMs: number;
     readonly #dataMaxWaitMs: number;
+    readonly #hidden: () => boolean;
     readonly #keep: number;
     readonly #clock: AutosaveClock;
     readonly #locks: AutosaveLocks;
@@ -441,6 +445,7 @@ export class Autosaver {
         this.#delayMs = options.delayMs ?? 500;
         this.#maxWaitMs = options.maxWaitMs ?? 2000;
         this.#dataMaxWaitMs = options.dataMaxWaitMs ?? 10_000;
+        this.#hidden = options.hidden ?? (() => false);
         this.#keep = options.keep ?? 10;
         this.#clock = options.clock ?? realClock;
         this.#locks = options.locks ?? noLocks;
@@ -1471,7 +1476,10 @@ export class Autosaver {
         }
 
         tags.forEach((tag) => entry.unwritten.add(tag));
-        if (now) {
+        // Hidden, a timer may fire late or never (issue #3485): write it right after the write in
+        // flight instead. Not left to the status listener, which hears nothing when the change
+        // leaves the status as it was, as a change made during a write does.
+        if (now || this.#hidden()) {
             this.#kick();
         } else {
             this.#schedule();

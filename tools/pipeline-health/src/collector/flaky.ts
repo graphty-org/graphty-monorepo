@@ -117,8 +117,9 @@ export function netChange(history: Map<string, FlakySeen>, fixedAt: Map<string, 
         if (s.days[0] >= windowStart) net++;
         const quietSince = today - last;
         const fixed = fixedAt.get(k);
-        if (quietSince >= QUIET_DAYS * DAY && quietSince < (QUIET_DAYS + 7) * DAY) net--;
-        else if (last >= windowStart && fixed !== undefined && fixed >= last) net--;
+        const wentQuiet = quietSince >= QUIET_DAYS * DAY && quietSince < (QUIET_DAYS + 7) * DAY;
+        const fixedSince = last >= windowStart && fixed !== undefined && fixed >= last;
+        if (wentQuiet || fixedSince) net--;
     }
     return net;
 }
@@ -133,6 +134,19 @@ export interface BlockCandidate {
     since: number;
 }
 
+/** The runs of a pull request's head checks with these names, from each check's details URL. */
+function runsOf(p: GqlPr, names: Set<string>): number[] {
+    const ctx = (p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) as (GqlCheck & {
+        detailsUrl?: string | null;
+    })[];
+    const runs = new Set<number>();
+    for (const c of ctx) {
+        const run = c.name && names.has(c.name) ? RUN_OF.exec(c.detailsUrl ?? "")?.[1] : undefined;
+        if (run) runs.add(Number(run));
+    }
+    return [...runs];
+}
+
 /**
  * Open, ready pull requests whose every failing check (bins folded, aggregators aside) is a test check, with the
  * runs those checks belong to (read from the check's details URL).
@@ -145,17 +159,9 @@ export function blockCandidates(open: GqlPr[], now: number): BlockCandidate[] {
         if (p.state !== "OPEN" || p.isDraft) continue;
         const failing = failingChecks(p).filter((f) => !f.alone);
         if (!failing.length || !failing.every((f) => family(f.name) !== undefined)) continue;
-        const names = new Set(failing.map((f) => f.name));
-        const ctx = (p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) as (GqlCheck & {
-            detailsUrl?: string | null;
-        })[];
-        const runs = new Set<number>();
-        for (const c of ctx) {
-            const run = c.name && names.has(c.name) ? RUN_OF.exec(c.detailsUrl ?? "")?.[1] : undefined;
-            if (run) runs.add(Number(run));
-        }
-        if (!runs.size) continue;
-        out.push({ pr: p.number, runs: [...runs], since: Math.min(now, ...failing.map((f) => f.startedAt ?? now)) });
+        const runs = runsOf(p, new Set(failing.map((f) => f.name)));
+        if (!runs.length) continue;
+        out.push({ pr: p.number, runs, since: Math.min(now, ...failing.map((f) => f.startedAt ?? now)) });
     }
     return out;
 }

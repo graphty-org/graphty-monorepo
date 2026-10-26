@@ -341,7 +341,7 @@ The `tools/` directory contains build scripts:
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
-| `tool-tests.txt` | The tool tests `pnpm run test:ci-workflows` runs (ci.yml's Checks job), one path per line, sorted, run in order by `run-ci-workflow-tests.mjs`, which names the failed files. A new tool test is added here, not to package.json; the file merges with `merge=union` (`.gitattributes`), so two branches that each add a line never conflict. Not code-owned, so adding a tool test leaves auto-merge on; PR Integrity (`check-test-integrity.mjs`) flags a line removed while its file still exists |
+| `tool-tests.txt` | The tool tests `pnpm run test:ci-workflows` runs (ci.yml's Checks job), one path per line, sorted, run in order by `run-ci-workflow-tests.mjs`, which names the failed files. A new tool test is added here, not to package.json; the file merges with `merge=union` (`.gitattributes`), so two branches that each add a line never conflict. PR Integrity (`check-test-integrity.mjs`) flags a line removed while its file still exists |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it and caps a Node run at its share of the cores (`workerShare()`, cores / slots), and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard); `--gpu <command>` holds the one machine-wide GPU slot instead (the gate's NVIDIA step, which runs beside the shards). Three lanes: a gate's shards (`TEST_SLOT_GATE`, set by `prepush-tests.mjs`) go ahead of every waiting run; `GRAPHTY_SLOT_PRIORITY=low` (the branch sync, `low-priority.sh`) queues behind every other run, and so does EVERY run outside a gate while a gate runs its test shards (its mark, `tmp/test-slots/.gate-<pid>`); a run that holds a slot keeps it. `node tools/test-slots.mjs status` lists the running gates and every holder and waiter. Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `vitest-time-budget.mjs` | A Vitest reporter that reports, and never fails a run for, every passing test over 10 s or over 3 times its median over its last 9 runs (a log block, and a GitHub Actions warning in CI). The history is the JSON file `VITEST_DURATION_HISTORY` names, which ci.yml's test job keeps per shard in the Actions cache. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A slow test is a defect to find; a timeout is never raised for one |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
@@ -563,19 +563,20 @@ opened by `tools/pr-open.sh` with auto-merge on. The release train follows `desi
 mode for now (see "Release versioning"). In short:
 
 - A pull request runs the affected build, lint, checks and test shards, and the screenshots; green merges it.
-- Master runs no tests: a push to master only builds what graphty.app deploys. A red master build
-  opens a `priority:critical` revert automatically.
+- Master runs no tests: a push to master builds the site, and every green master build deploys it to
+  canary.graphty.app. A red master build opens a `priority:critical` revert automatically.
 - A release train runs at 00:00, 06:00, 12:00 and 18:00 UTC: the full suite, the T4 GPU lane, Hosts and the
-  security audit on master's newest commit, publishing nothing (shadow); only the owner's `mode=legacy`
-  dispatch releases.
+  security audit on master's newest commit, publishing nothing (the full run). graphty.app (served by
+  graphty-site) moves only by production promotion, `promote.yml`, on the owner's go.
 
 **Live today:** every pull request into master runs the affected suite with the screenshots and the visual
-gate; `Cost Estimate Accuracy` runs on every pull request that affects graphty-element and gates it; the short
+gate; `Cost Estimate Accuracy` runs on a pull request only when what the estimates read, time or run with changed
+(ci.yml's "Plan the optional jobs" step lists the paths), and gates it; Docs runs only on a docs input; the short
 test shards run as two grouped jobs. ci.yml still holds the handling for the retired Mergify merge-queue runs
 (`Queue Checks Pass`), which no longer happen. A push to master runs no tests: ci.yml builds every package,
-Storybook and docs site and skips every test, link, cost and screenshot job; every green master build keeps its
-site as artifact `site-<sha>`, and graphty.app deploys only from a release's version merge, so it moves with npm's
-`latest`. A red master build opens a revert (`master-guard.yml`). The release train runs the full suite, the T4 GPU
+Storybook and docs site and skips every test, link, cost and screenshot job; every green master build deploys its
+site to canary.graphty.app (this repository's GitHub Pages) and keeps it as artifact `site-<sha>`. nightly.graphty.app
+(graphty-nightly) and graphty.app (graphty-site) move only by promotion. A red master build opens a revert (`master-guard.yml`). The release train runs the full suite, the T4 GPU
 lane, Hosts and the security audit on the exact commit it tests. The paid T4 GPU lane runs only there, never on a
 pull request or a master push.
 
@@ -591,23 +592,24 @@ writes `Fixes #N` (or `Refs #N`) from the branch's issue number.
 | `ci.yml` | Pull requests into master, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (25 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` summarizes (`Queue Checks Pass` belongs to the retired Mergify queue: its handling is still in the file but no longer used). The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `golden-verify.yml` | Retired with golden (nothing pushes its branches now). Push to `golden-candidate`, `golden-cut-candidate`, `golden-bisect-1` or `golden-bisect-2` (moved only by `tools/verify.mjs`); dispatch with `ref` and `shards` | CI verification of golden: one job, `Verify`, that calls `ci.yml` as a full run (every shard, Lint, Checks, Docs, Links, cost accuracy, the captures; no Performance), so every check is named `Verify / ...` and none can satisfy master's required `All Checks Pass`. It gates no merge: `verify.mjs` reads the result and moves `golden-verified` |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it. Never on a master push | The full run (`mode: full`, every scheduled run): full CI, T4, Hosts, audit and LLM regression on the newest green master build, publishing nothing; a red one files `Full run red: <lane> on <sha>` and dispatches `bisect.yml`. `mode=legacy` (owner only) still lands and publishes npm `latest`, never graphty.app. Production goes through `promote.yml` |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
-| `deploy-pages.yml` | After every green CI run (the build) on master | Assemble graphty.app (app, docs, Storybooks, hosted data) and keep it as artifact `site-<sha>` (14 days), recorded in the results store (`POST /v1/sites`); deploy it to GitHub Pages only when the commit is the version merge release.yml's land job pushed |
+| `deploy-pages.yml` | After every green CI run (the build) on master | Assemble the site (app, docs, Storybooks, hosted data), keep it as artifact `site-<sha>` (14 days), recorded in the results store (`POST /v1/sites`), and deploy it to this repository's GitHub Pages, canary.graphty.app (the custom domain is a Pages setting), unless canary already serves that commit or a newer one |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch, called by `release.yml`; never on a push to master or a schedule | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
 | `work-protection-macos.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | graphty-element's autosave on Apple's engines (macos-26, a time limit on every job): Playwright's WebKit killed and relaunched on a persistent profile, real Safari through safaridriver (the hide transition, stall detection, `persist()`, and a probe of whether IndexedDB survives between safaridriver sessions), and Safari on iOS in the Simulator (Xcode 26: app switch, then Safari terminated). A red run holds the release |
-| `master-guard.yml` | After CI (the build) or the graphty.app deploy on master | CI red on master: opens a revert of the commit when its parent was green, and a `priority:critical` issue; a failure that looks external (an outside service's 5xx or network error, a lost runner, the same job red on an earlier commit) gets no revert, a re-run, and the evidence in the issue (the script still sets and lifts a Mergify queue freeze, which no longer stops anything). The next green master CI closes the guard's revert pull requests it shows are not needed. A failed graphty.app deploy: one `priority:critical` issue (`tools/master-guard.mjs`) |
+| `master-guard.yml` | After CI (the build) or the canary deploy on master | CI red on master: opens a revert of the commit when its parent was green, and a `priority:critical` issue; a failure that looks external (an outside service's 5xx or network error, a lost runner, the same job red on an earlier commit) gets no revert, a re-run, and the evidence in the issue (the script still sets and lifts a Mergify queue freeze, which no longer stops anything). The next green master CI closes the guard's revert pull requests it shows are not needed. A failed canary deploy: one `priority:critical` issue (`tools/master-guard.mjs`) |
 
 ### Dead Links
 
 Configured by `lychee.toml` and `.lycheeignore` (URL patterns never worth checking, each with its
 reason); run by `tools/check-links.sh`:
 
-- **Every pull request** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
+- **Every pull request** runs the offline half (`tools/check-links.sh --offline`, in the Checks job).
+- **The full run** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
   the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
   and package.json; `github.com/graphty-org/graphty-monorepo/(blob|tree)/master/...` links resolved
   against the checkout; every other `github.com/graphty-org` link over the network; and every
@@ -642,7 +644,8 @@ in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the
 lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
 trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
-(production)` job in GitHub, then land and publish run in environment `release` as described below. The
+(production)` job in GitHub, then land and publish run in environment `release` as described below; a legacy run
+moves npm `latest` only, never graphty.app, which moves only by `promote.yml`. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
 Every run also has a `Version dry run` lane (`tools/release-approvals.mjs`): it versions the candidate and
 fails when a project would publish a major (below 1.0.0, a minor: nx's breaking bump there) or its first version without an entry in the code-owned
@@ -772,7 +775,7 @@ shard. The shards:
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-5`
 - `graphty-element-lifecycle` (autosave across reloads, closes, discards, crashes and kills in Chromium,
-  Firefox and WebKit; never in the pre-push gate)
+  Firefox and WebKit; never in the pre-push gate, and only in the full run, never on a pull request)
 
 A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
@@ -1231,11 +1234,12 @@ rollout: issue #3418.
    pull request this way and stops.
 4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch; each
    push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
-5. `pr-open.sh` leaves auto-merge off, and the owner merges, for a breaking (`!` or `BREAKING CHANGE`)
-   commit, for a change to what judges a pull request or guards the owner (`.github/`, `.claude/`,
-   `tools/ci-*`, `tools/test-select*`, `tools/test-quarantine.json`, visual-review, the release files,
-   the credential guard, `pr-open.sh` itself; the same list as `.github/CODEOWNERS`), and for a pull
-   request someone else opened. `Lint PR Title` also fails any pull request holding a breaking commit
+5. `pr-open.sh` leaves auto-merge off, and the owner merges, only for a breaking (`!` or `BREAKING CHANGE`)
+   commit, for a change to a file that guards the owner (`GUARD_PATHS` in `pr-open.sh`: the screenshot
+   approval keys and trusted gate, `release-*.json`, the credential guard, `.claude/settings.json`, the
+   quarantine list, `pr-open.sh` and `pr-title.yml`), and for a pull request someone else opened. A change to CI or to what guards the owner
+   (the rest of `.github/`, `tools/ci-*`, `tools/test-select*`, the rest of visual-review) merges like any
+   other once green (owner, 2026-10-25). `Lint PR Title` also fails any pull request holding a breaking commit
    until the owner adds the label `breaking-go`, so a breaking commit pushed later cannot merge on its own.
 
 Rules:
@@ -1263,9 +1267,9 @@ Rules:
 
 **Interim rules, until the rest of the channels pipeline is built:**
 
-- **Production is frozen.** graphty.app deploys only from a release's version merge, and the scheduled
-  release trains run in shadow: they test and publish nothing. Only the owner releases
-  (`gh workflow run release.yml --ref master -f mode=legacy`, then his approval in GitHub).
+- **Production moves only on the owner's go.** Every green master build deploys to canary.graphty.app;
+  graphty.app moves only by `promote.yml`, which the owner dispatches and approves in GitHub. The scheduled
+  release trains run the full run: they test and publish nothing. Never dispatch a release or a promotion yourself.
 - **Screenshots still gate a pull request.** A pull request whose capture changes a picture (or adds a
   story) waits in `All Checks Pass` until the owner accepts it on the review page. Say so with an
   `ACTION NEEDED` line when it blocks your work.

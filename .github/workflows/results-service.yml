@@ -69,6 +69,7 @@ jobs:
             - name: Check /v1/health
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   url="$RESULTS_URL"
                   if [ -z "$url" ]; then

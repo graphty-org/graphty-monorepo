@@ -1,0 +1,41 @@
+{
+    "v": 1,
+    "id": "1792826226852-3959103-githerd.retry",
+    "kind": "land-check",
+    "commit": "c883cf6ae99e6fc446700e2ced594d25195e6ef9",
+    "tree": "7d2e2cb160f86effa1d21450b8a9d42161bb7a1b",
+    "base": "4b4b04624e548a320b07ae2a76f08f4fed53e9f7",
+    "branch": "fix/autosave-ephemeral-quota",
+    "dirty": false,
+    "shard": "githerd",
+    "family": "githerd",
+    "variant": "githerd+files",
+    "selected": ["githerd/test/owners.test.mjs"],
+    "outcome": "failed",
+    "reused_from": null,
+    "started_at": "2026-10-24T07:17:06.852Z",
+    "secs": 0,
+    "log": "/home/someone/Projects/graphty-monorepo/.worktrees/land-check-1/tmp/prepush-tests/githerd.log",
+    "files": [["githerd/test/owners.test.mjs", 17, 3, 0, 2588, 0]],
+    "failures": [
+        {
+            "file": "githerd/test/owners.test.mjs",
+            "name": "the push log of tools/push-queue.sh > names the branch, the commit and the session found up the process chain",
+            "line": "Error: Command failed: bash tools/push-queue.sh git push -q origin HEAD:feat/x",
+            "key": "a5d3075b5ef81d29",
+            "signature": "c670d627be7a53a5",
+            "status": "fail",
+            "message": "Error: Command failed: bash /home/someone/Projects/graphty-monorepo/.worktrees/land-check-1/tools/push-queue.sh git push -q origin HEAD:feat/x\nnode_modules is out of date with pnpm-lock.yaml; run pnpm install\n\n pushWithEntry test/owners.test.mjs:450:21"
+        },
+        {
+            "file": "githerd/test/owners.test.mjs",
+            "name": "a test in a temp dir",
+            "line": "Error: ENOENT",
+            "key": "b5d3075b5ef81d29",
+            "signature": "d670d627be7a53a5",
+            "status": "fail",
+            "message": "Error: ENOENT: no such file '/tmp/vitest-x/a.json' under /home/someone/elsewhere/file.txt"
+        }
+    ],
+    "exonerations": []
+}

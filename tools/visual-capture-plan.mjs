@@ -51,6 +51,7 @@ const DRAWN_ROOT = new Set([
     ".github/workflows/ci.yml",
     "tools/storybook-brand-theme.mjs",
     "tools/visual-capture-plan.mjs",
+    "tools/ci-reuse-plan.mjs",
 ]);
 const NOT_DRAWN = (f) => (f.startsWith(".github/workflows/") || f.startsWith("tools/")) && !DRAWN_ROOT.has(f);
 

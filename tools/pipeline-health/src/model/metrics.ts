@@ -178,6 +178,12 @@ export const METRICS: MetricDef[] = [
         id: "local.runs",
         from: [src("local_run", "endedAt", (l) => ({ sum: l.outcome === "passed" ? 0 : 1, dim: l.what }))],
     },
+    {
+        id: "local.shard_time",
+        from: [
+            src("shard_run", "endedAt", (s) => (s.source === "local" ? { value: s.secs * 1000, dim: s.family } : null)),
+        ],
+    },
 ];
 
 export const METRIC_IDS = new Set(METRICS.map((m) => m.id));

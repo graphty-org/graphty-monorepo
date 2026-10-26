@@ -1,6 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
+import { dynamoStore } from "../dynamo.js";
+import { recomputeAll } from "../recompute.js";
+
 const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 /**
@@ -16,5 +19,6 @@ export async function handler(): Promise<{ lastRun: string }> {
             Item: { pk: "META", sk: "collector", lastRun },
         }),
     );
+    await recomputeAll(dynamoStore(process.env.TABLE_NAME ?? "graphty-health"), Date.now());
     return { lastRun };
 }

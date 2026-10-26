@@ -4664,8 +4664,15 @@ describe("release.yml", () => {
                 r.curl,
                 /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2\n$/,
             );
-            // this run's own build is the newest: it deploys its own site
-            assert.deepEqual(deploys({ sha: "abc9999" }), [0, "true", "abc9999", "42"]);
+            // this run's own build is the newest: it deploys its own site, from this run, without asking the
+            // artifacts list, which may not show an upload made moments ago yet (#3618 review)
+            assert.deepEqual(deploys({ sha: "abc9999", artifact: "" }), [0, "true", "abc9999", "7"]);
+            assert.doesNotMatch(decide({ sha: "abc9999" }).gh, /actions\/artifacts/);
+            // canary's site.json comes from the deployed build's own commit
+            assert.match(
+                job(deploy, "deploy"),
+                /ref: \$\{\{ steps.live.outputs.sha \}\}\n\s+sparse-checkout: graphty\/sites/,
+            );
             // the download, the site.json and the Pages upload all take the chosen build's site
             const job_ = job(deploy, "deploy");
             assert.match(
@@ -4724,7 +4731,6 @@ describe("release.yml", () => {
                 { compare: "" },
                 { artifact: null }, // the artifacts list
                 { artifact: "expired" },
-                { sha: "abc9999", artifact: "" }, // this run's own site is missing
             ]) {
                 const r = decide(o);
                 assert.notEqual(r.status, 0, JSON.stringify(o));
@@ -4736,7 +4742,8 @@ describe("release.yml", () => {
             const hosted = readFileSync(new URL("../graph-samples/scripts/build-hosted.mjs", import.meta.url), "utf8");
             assert.match(hosted, /^const REUSE_URL = "https:\/\/canary\.graphty\.app\/data\/graph-samples\/v1\/";$/m);
             assert.match(hosted, /publishedCopy\(`\$\{REUSE_URL\}/);
-            assert.doesNotMatch(hosted, /publishedCopy\(`\$\{BASE_URL\}/);
+            // graphty.app only after canary, while canary does not serve the data yet or cannot be read
+            assert.ok(hosted.indexOf("publishedCopy(`${REUSE_URL}") < hosted.indexOf("publishedCopy(`${BASE_URL}"));
             assert.match(job(deploy, "build"), /node graph-samples\/scripts\/build-hosted\.mjs --reuse-published/);
         });
 

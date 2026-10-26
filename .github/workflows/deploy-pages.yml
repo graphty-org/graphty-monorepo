@@ -132,7 +132,7 @@ jobs:
             # needs only Node and the builds of graph-format, graph-io (the Cytoscape and ontology datasets are
             # read by graph-io's own importers) and graph-samples (whose dist/data/v1/ holds the small datasets,
             # packed from the repository's data/, which the script copies beside the large ones it builds). With
-            # --reuse-published it takes each large dataset already on canary.graphty.app whose SHA-256 is the one
+            # --reuse-published it takes each large dataset already on canary.graphty.app (or else graphty.app) whose SHA-256 is the one
             # src/datasets/hosted.ts records, so a deploy never depends on the third-party source hosts (#3302);
             # only a dataset whose recorded checksum changed is built from its sources. The script records every
             # source's URL and SHA-256, so its hash keys the download cache for those builds.
@@ -296,12 +296,13 @@ jobs:
                           *) fail "canary's ${live} could not be compared with ${newest}" ;;
                       esac
                   fi
+                  # this run's own site was uploaded by its build job moments ago: no list, which may not show it yet
+                  if [ "$newest" = "$SHA" ]; then
+                      { echo "sha=${newest}"; echo "run=${GITHUB_RUN_ID}"; echo "deploy=true"; } >> "$GITHUB_OUTPUT"; exit 0
+                  fi
                   run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=site-${newest}&per_page=1" --jq '.artifacts[0] // {} | if .expired then "expired" else (.workflow_run.id // "" | tostring) end') || fail "the artifacts of ${newest} could not be listed"
                   [ "$run" != expired ] || fail "site-${newest} has expired"
-                  if [ -z "$run" ]; then
-                      [ "$newest" != "$SHA" ] || fail "this run's own site-${SHA} could not be found"
-                      skip "site-${newest} is not assembled yet: that build's own run deploys it"
-                  fi
+                  [ -n "$run" ] || skip "site-${newest} is not assembled yet: that build's own run deploys it"
                   { echo "sha=${newest}"; echo "run=${run}"; echo "deploy=true"; } >> "$GITHUB_OUTPUT"
 
             - name: Download the newest site
@@ -317,6 +318,7 @@ jobs:
               if: ${{ steps.live.outputs.deploy == 'true' }}
               uses: actions/checkout@v4
               with:
+                  ref: ${{ steps.live.outputs.sha }}
                   sparse-checkout: graphty/sites
                   path: ./repo/
 

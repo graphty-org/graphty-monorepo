@@ -68,6 +68,17 @@ export function initSentry(config?: SentryConfig): void {
         // default, streaming each span on its own, skips that hook and would send span attributes
         // (a request URL with its query, anything a caller set) unfiltered.
         traceLifecycle: "static",
+        // Sentry 11 collects these by default, and some (the reader's IP address, inferred by Sentry's
+        // server from the request) are added after the event leaves the page, past every hook above.
+        dataCollection: {
+            userInfo: false,
+            cookies: false,
+            httpHeaders: false,
+            httpBodies: [],
+            urlQueryParams: false,
+            graphQL: { document: false, variables: false },
+            genAI: { inputs: false, outputs: false },
+        },
         transport: effectiveConfig.transport,
     });
     if (restart) {

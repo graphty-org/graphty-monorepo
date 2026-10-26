@@ -81,5 +81,8 @@ describe("what error reporting sends", () => {
         assert.include(all, '"category":"console"');
         assert.include(all, '"url":"https://api.example.com/v1/messages"');
         assert.include(all, '"type":"transaction"');
+        // Sentry's server must not fill in the reader's IP address.
+        assert.include(all, '"infer_ip":"never"');
+        assert.notInclude(all, "{{auto}}");
     });
 });

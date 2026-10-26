@@ -9,7 +9,7 @@
  * queued each other. A push to master and a manual dispatch pass the full project list as the
  * affected list, so they still run every shard.
  *
- * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>]
+ * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>] [--pull-request]
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  *   --only keeps just the named shards (a JSON array of shard names, never empty; a group's member
  *   runs in its group's job); it refuses a name that is not a shard. ci.yml passes its `shards`
@@ -18,6 +18,7 @@
  *   matrix entry of its own, named `<family>-<n>`, with a `files` field and the command that runs only those
  *   files without coverage, replacing the shard it came from; a shard the plan selects nothing for is left
  *   out; a shard it runs whole stays as it is.
+ *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -278,6 +279,9 @@ export const SHARDS = [
             "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}",
         "needs-browser": true,
         browsers: "chromium firefox webkit",
+        // Minutes of three engines for a change a pull request rarely makes: the 6-hour full run tests it
+        // (design/ci/channels-pipeline/merging.md 4.1), never a pull request.
+        "full-run-only": true,
         // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
@@ -362,13 +366,16 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  * The matrix entry of one group, holding only the members a run must test.
  * @param name the group's name
  * @param members the SHARDS entries to run, in order
- * @returns a matrix entry; "coverage" lists "<shard>=<lcov path>" pairs, space separated
+ * @returns a matrix entry; "members" names its shards; "coverage" lists "<shard>=<lcov path>" pairs, space separated
  */
 export function groupEntry(name, members) {
     const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
     return {
         shard: name,
         package: members.map((m) => m.package).join(" "),
+        // Each member by name, so a job that runs beside one shard (ci.yml's story-tests legs) finds
+        // it in the matrix as '"<shard>"' whether it runs alone or in its group.
+        members: members.map((m) => m.shard),
         "test-command": `failed=""; ${steps.join("; ")}; if [ -n "$failed" ]; then echo "::error::failed:$failed"; exit 1; fi`,
         "needs-browser": members.some((m) => m["needs-browser"]),
         coverage: members
@@ -398,14 +405,19 @@ export function ciCommand(shard) {
  * @param affected package directory names
  * @param [only] shard names: when given, every other shard is left out
  * @param [light] tools/test-select.mjs --plan output: its bins replace their shards, its `none` shards are left out
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins
  * @returns the matrix's include list
  */
-export function plan(affected, only, light) {
+export function plan(affected, only, light, pullRequest = false) {
+    const fullRunOnly = new Set(pullRequest ? SHARDS.filter((s) => s["full-run-only"]).map((s) => s.shard) : []);
     const grouped = new Set(Object.values(GROUPS).flat());
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
     const wanted = (s) =>
-        affected.includes(s.package) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard);
+        affected.includes(s.package) &&
+        (only === undefined || only.includes(s.shard)) &&
+        !replaced.has(s.shard) &&
+        !fullRunOnly.has(s.shard);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = SHARDS.filter((s) => !grouped.has(s.shard) && wanted(s)).map((s) => {
@@ -420,21 +432,28 @@ export function plan(affected, only, light) {
             include.push(groupEntry(name, members));
         }
     }
-    return [...include, ...(light?.bins ?? []).map(binEntry)];
+    return [...include, ...(light?.bins ?? []).filter((b) => !fullRunOnly.has(b.shard)).map(binEntry)];
 }
 
 /**
  * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
  * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
  * @param bin a lightPlan() bin
- * @returns a matrix entry with a `files` field
+ * @returns a matrix entry with `files` and `members` fields
  */
 export function binEntry(bin) {
     const shard = SHARDS.find((s) => s.shard === bin.shard);
     if (!shard || !bin.command) {
         throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
     }
-    const e = { ...shard, shard: bin.name, files: bin.files, "test-command": bin.command };
+    // `members`: the shards it stands in for, as a group entry names its own (see groupEntry()).
+    const e = {
+        ...shard,
+        shard: bin.name,
+        members: bin.covers ?? [bin.shard],
+        files: bin.files,
+        "test-command": bin.command,
+    };
     delete e["coverage-file"];
     return { ...e, "test-command": ciCommand(e) };
 }
@@ -484,13 +503,13 @@ export function parseOnly(arg) {
 
 function main() {
     const { values, positionals } = parseArgs({
-        options: { only: { type: "string" }, plan: { type: "string" } },
+        options: { only: { type: "string" }, plan: { type: "string" }, "pull-request": { type: "boolean" } },
         allowPositionals: true,
     });
     const [allArg, affectedArg] = positionals;
     if (allArg === undefined || affectedArg === undefined) {
         console.error(
-            "usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>]",
+            "usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>] [--pull-request]",
         );
         process.exit(2);
     }
@@ -519,7 +538,7 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
-    const include = plan(affected, only, light);
+    const include = plan(affected, only, light, values["pull-request"] === true);
     console.log(`affected=${JSON.stringify(affected)}`);
     console.log(`test-matrix=${JSON.stringify({ include })}`);
     console.log(`test-count=${include.length}`);

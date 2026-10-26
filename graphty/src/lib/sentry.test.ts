@@ -105,6 +105,8 @@ describe("Sentry initialization", () => {
                 dsn: "https://test@test.ingest.sentry.io/123",
                 environment: "test",
                 replaysSessionSampleRate: 1.0,
+                traceLifecycle: "static",
+                dataCollection: expect.objectContaining({ userInfo: false }),
             }),
         );
     });

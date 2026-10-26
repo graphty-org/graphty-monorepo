@@ -65,8 +65,8 @@ if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V 
     echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
 fi
 
-# The gate runs at normal priority: other work yields to it (tools/low-priority.sh, and the low lanes of the
-# test and browser slots while it runs its shards), never the other way round. A gate started from a niced
+# The gate runs at normal priority: other work yields to it (tools/low-priority.sh), never the other way
+# round. A gate started from a niced
 # shell inherits the niceness and cannot lower it again without privilege, so say so.
 if [ "$(nice)" != 0 ]; then
     echo "WARNING: the gate runs at niceness $(nice), not 0: it was started from a lowered shell (tools/low-priority.sh?), so other work gets the CPU first"

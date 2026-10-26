@@ -2545,8 +2545,8 @@ export function context(cwd, overrides = {}) {
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> --reason <issue>|run:<id> [--dry-run] | ship | auto-ship | status | prune-branches [--yes] |" +
-    " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
+    " cut-fix <branch> --reason <issue>|run:<id> [--dry-run] | ship | auto-ship | status | prune-branches [--yes]" +
+    " (land, revert, cut and cut-fix also take --priority)";
 
 /**
  * Runs one command under the lock.

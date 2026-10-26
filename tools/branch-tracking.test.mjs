@@ -231,36 +231,37 @@ describe("the post-commit push", () => {
         assert.equal(gh().calls.length, calls, "no GitHub call");
     });
 
-    it("never merges a branch that moved on GitHub: the push fails, is logged, and the branch is unchanged", async () => {
+    it("merges the branch's newer commits on GitHub (the owner's Finish, a merge of master) before it pushes", async () => {
         const other = join(dir, "push-other");
         git(dir, "clone", "-q", "-b", "feat/512-thing", join(dir, "push.git"), other);
-        writeFileSync(join(other, "theirs.txt"), "from elsewhere\n");
-        git(other, "add", "theirs.txt");
-        git(other, "commit", "-q", "-m", "feat: theirs");
+        writeFileSync(join(other, "synced.txt"), "from golden\n");
+        git(other, "add", "synced.txt");
+        git(other, "commit", "-q", "-m", "Merge golden");
         git(other, "push", "-q", "origin", "feat/512-thing");
         const theirs = git(other, "rev-parse", "HEAD");
         const n = (logText().match(/^finished /gm) ?? []).length;
+        // The merge is made in the hook, before the commit command returns.
         const head = commit("c3.txt");
         await until(dirname(log), finished(n + 1));
-        assert.match(logText(), /push of feat\/512-thing failed/);
-        assert.equal(git(repo, "rev-parse", "HEAD"), head, "nothing merged");
-        assert.ok(!existsSync(join(repo, "theirs.txt")));
-        // A merge in the worktree (git pull) brings them in; the next commit's push goes through.
-        git(
-            repo,
-            "-c",
-            "core.hooksPath=/dev/null",
-            "pull",
-            "-q",
-            "--no-rebase",
-            "--no-edit",
-            "origin",
-            "feat/512-thing",
-        );
+        assert.match(logText(), /feat\/512-thing: merged origin\/feat\/512-thing/);
         assert.equal(git(repo, "rev-parse", "HEAD^2"), theirs, "a merge, not a rebase");
+        assert.equal(git(repo, "log", "-1", "--format=%s", "HEAD^1"), "feat: c3.txt");
+        assert.equal(git(repo, "rev-parse", "origin/feat/512-thing"), head, "the merge is pushed");
+        assert.ok(existsSync(join(repo, "synced.txt")));
+
+        // With uncommitted changes nothing is merged: the push fails and says why.
+        writeFileSync(join(other, "synced2.txt"), "again\n");
+        git(other, "add", "synced2.txt");
+        git(other, "commit", "-q", "-m", "Merge golden again");
+        git(other, "pull", "-q", "--no-rebase", "--no-edit", "origin", "feat/512-thing");
+        git(other, "push", "-q", "origin", "feat/512-thing");
+        writeFileSync(join(repo, "a.txt"), "edited, not committed\n");
         const sha4 = commit("c4.txt");
         await until(dirname(log), finished(n + 2));
-        assert.equal(git(repo, "rev-parse", "origin/feat/512-thing"), sha4);
+        assert.match(logText(), /not merged \(uncommitted changes or a merge in progress\)/);
+        assert.match(logText(), /push of feat\/512-thing failed/);
+        assert.equal(git(repo, "rev-parse", "HEAD"), sha4, "nothing merged");
+        writeFileSync(join(repo, "a.txt"), "one\n");
     });
 
     it("never pushes golden, golden-cut, golden-verified, master or a detached HEAD", () => {

@@ -124,8 +124,17 @@ export const METRICS: MetricDef[] = [
         from: [
             src("shard_run", "endedAt", (s) =>
                 s.source === "ci" && s.full && s.attempt === 1 && s.outcome === "passed" && s.budgetMs
-                    ? { value: (s.secs * 1000 * SHARD_BASE_MS) / s.budgetMs, dim: s.variant }
+                    ? { value: (s.secs * 1000 * SHARD_BASE_MS) / s.budgetMs, sum: s.budgetMs, dim: s.variant }
                     : null,
+            ),
+        ],
+    },
+    // The Shard times section's pull request bins view: bin time per family, against the 8-minute packing target.
+    {
+        id: "ci.bin_time",
+        from: [
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.bin && s.outcome === "passed" ? { value: s.secs * 1000, dim: s.family } : null,
             ),
         ],
     },
@@ -139,6 +148,17 @@ export const METRICS: MetricDef[] = [
             // ponytail: counts flaky tests, not distinct flaky files per run; a file with two flaky tests counts twice.
             src("test", "seenAt", (t) =>
                 t.source === "ci" && t.outcome === "flaky" ? { n: 0, sum: 1, dim: t.family } : null,
+            ),
+        ],
+    },
+    // Flake hotspots (section 5): flaky events per distinct test, the dimension a JSON [family, file, test].
+    {
+        id: "flaky.tests",
+        from: [
+            src("test", "seenAt", (t) =>
+                t.source === "ci" && t.outcome === "flaky"
+                    ? { sum: 1, dim: JSON.stringify([t.family, t.file, t.name]) }
+                    : null,
             ),
         ],
     },

@@ -471,9 +471,12 @@ export interface TreeNode {
     tags?: Fact[];
     distinct: number;
     events: number;
-    per1000: number;
-    quarantined: number;
-    prsHeld: number;
+    /** `null` where runs are not counted at that level. */
+    per1000: number | null;
+    /** `null` until a writer reports it (the flaky feed): never drawn as 0. */
+    quarantined: number | null;
+    /** `null` until a writer reports it (the flaky feed): never drawn as 0. */
+    prsHeld: number | null;
     /** A test's history: `/flaky/test?file=...&test=...`. */
     link?: Route;
     children?: TreeNode[];

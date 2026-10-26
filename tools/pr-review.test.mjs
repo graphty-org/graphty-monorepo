@@ -198,6 +198,25 @@ describe("pr-review.sh", () => {
         assert.ok(!prompt.includes("SECRET-MOCKUP"));
     });
 
+    it("reviews the whole repository's change when run from a subdirectory", () => {
+        mkdirSync(join(work, "pkg"));
+        mkdirSync(join(work, "design"));
+        writeFileSync(join(work, "pkg/b.txt"), "b\n");
+        writeFileSync(join(work, "design/m.html"), "<p>m</p>\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "feat(tools): two places");
+        const r = spawnSync("bash", [script, "--proof", proof], {
+            cwd: join(work, "pkg"),
+            env: { ...env, FAKE_OUT: "Blocking findings: 0" },
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /^\+TWO$/m, "a.txt at the root is in the diff");
+        assert.match(prompt, /^\+b$/m);
+        assert.match(prompt, /^design\/m\.html$/m);
+    });
+
     it("refuses without a Proof file, calling nothing", () => {
         for (const args of [[], ["--proof", join(dir, "missing.md")]]) {
             const r = run(args);

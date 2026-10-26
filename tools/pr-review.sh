@@ -121,19 +121,19 @@ EOF
     # Data and generated files (design records, sample datasets, lockfiles) are named, never inlined; a diff
     # still larger than PR_REVIEW_INLINE_MAX bytes goes in as its --stat, and the reviewer reads each file's
     # diff itself with git diff. claude -p refuses stdin over 10 MB, and a few MB already overflow its context.
-    skip=(':(glob,exclude)design/**' ':(glob,exclude)graphty/public/samples/*.json'
-        ':(glob,exclude)**/pnpm-lock.yaml' ':(glob,exclude)**/package-lock.json' ':(glob,exclude)**/yarn.lock')
-    git diff --no-color --no-ext-diff "$base...HEAD" -- . "${skip[@]}" >"$out"
+    skip=(':(top,glob,exclude)design/**' ':(top,glob,exclude)graphty/public/samples/*.json'
+        ':(top,glob,exclude)**/pnpm-lock.yaml' ':(top,glob,exclude)**/package-lock.json' ':(top,glob,exclude)**/yarn.lock')
+    git diff --no-color --no-ext-diff "$base...HEAD" -- ':(top)' "${skip[@]}" >"$out"
     if [ "$(wc -c <"$out")" -le "${PR_REVIEW_INLINE_MAX:-400000}" ]; then
         cat "$out"
     else
         echo "This diff is too large to include. Its summary follows; read each file's change yourself with"
         echo "git diff $base...HEAD -- <file>."
         echo
-        git diff --no-color --stat=200 "$base...HEAD" -- . "${skip[@]}"
+        git diff --no-color --stat=200 "$base...HEAD" -- ':(top)' "${skip[@]}"
     fi
-    named=$(git diff --name-only "$base...HEAD" -- design ':(glob)graphty/public/samples/*.json' ':(glob)**/pnpm-lock.yaml' \
-        ':(glob)**/package-lock.json' ':(glob)**/yarn.lock')
+    named=$(git diff --name-only "$base...HEAD" -- ':(top)design' ':(top,glob)graphty/public/samples/*.json' ':(top,glob)**/pnpm-lock.yaml' \
+        ':(top,glob)**/package-lock.json' ':(top,glob)**/yarn.lock')
     if [ -n "$named" ]; then
         echo
         echo "Data and generated files also changed (not shown; read one with git diff if it matters):"

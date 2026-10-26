@@ -658,8 +658,10 @@ and a "Nightly held on <sha12>" issue. Master keeps merging and its slots still 
 the held commit. Fix it forward from the candidate's head, never from newer master:
 `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`, `Refs #<hold issue>` in the commit
 message, then `tools/pr-open.sh` as usual. When it merges, release.yml (`mode: candidate`, which `release-due`
-dispatches; every full and restart run does it too) merges the fix commit, never master, into `channel/candidate`
-and re-tests the new head only where the fix reaches. A fix made from newer master, or a fix commit made after
+dispatches with `fix_pr`; every full and restart run does it too) merges the fix commit, never master, into
+`channel/candidate` and re-tests the new head as a whole full run, every lane and the whole screenshot capture
+(about 1 to 1.5 hours; the narrower re-test waits behind the repository variable `CANDIDATE_RETEST=affected`).
+A fix made from newer master, or a fix commit made after
 pr-open's master merge, is refused on the hold issue. A green-clean head promotes to nightly; a green-images one
 when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by the
 owner's `gh workflow run release.yml --ref master -f mode=abandon`.

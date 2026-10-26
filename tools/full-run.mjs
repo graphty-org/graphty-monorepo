@@ -727,6 +727,27 @@ const readJson = (file) => {
     }
 };
 
+/**
+ * What a verdict found, in one line: the red lanes, the owner's item or the changed screenshots.
+ * @param o the facts
+ * @param o.state the verdict
+ * @param o.red the red lanes
+ * @param o.lanes every lane's result
+ * @param o.changed differingImages' changed
+ * @param o.env LLM_OWNER_ITEM and VERSION_HELD
+ * @returns the line
+ */
+function whatOf({ state, red, lanes, changed, env }) {
+    if (state === "owner-item") {
+        return red[0] === "llm"
+            ? env.LLM_OWNER_ITEM
+            : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
+    }
+    if (state === "red")
+        return red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
+    return state === "green-images" ? changedSummary(changed) : state;
+}
+
 async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
@@ -739,13 +760,7 @@ async function verdictMain(env) {
     const wait = deferred({ attempt, mode: env.MODE, state, red, lanes });
     let issue = null;
     let bisect = "";
-    let what = state;
-    if (state === "owner-item") {
-        what =
-            red[0] === "llm"
-                ? env.LLM_OWNER_ITEM
-                : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
-    }
+    const what = whatOf({ state, red, lanes, changed, env });
     // a held head past its commit (FORWARD) is the hold issue's to report, never a "Full run red" one: master
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
@@ -754,7 +769,6 @@ async function verdictMain(env) {
         console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
     } else if (state === "red") {
         if (!forward) ({ issue, bisect } = await fileRedVerdict(cfg, facts));
-        what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
     } else if (state !== "owner-item") {
         bestEffort(
             () => closeRedOnGreen(state, env),
@@ -765,12 +779,9 @@ async function verdictMain(env) {
     // a lane red on the attempt before and green now, and a story the re-capture found flaky: filed, not blocking
     const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
     if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
-    // a failed pick judged no commit: recording red on one would make the next slot skip it
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
-    if (state === "green-images") {
-        what = changedSummary(changed);
-        console.log(`::notice::${what}\n${changed.join("\n")}`);
-    }
+    if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
+    // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
     const hold = wait || red[0] === "pick" ? "none" : holdAction({ held: env.HELD ?? "unknown", sha: env.SHA, state });

@@ -58,7 +58,7 @@ export function referencesHold(merge, issue) {
     if (!issue) return false;
     const branch = /^Merge pull request #\d+ from [^/\s]+\/(?:[\w.-]+\/)?(\d+)-/.exec(merge.subject ?? "");
     if (branch && Number(branch[1]) === Number(issue)) return true;
-    return new RegExp(`(^|[^\\w/])#${issue}\\b|graphty-monorepo/issues/${issue}\\b`).test(merge.messages ?? "");
+    return new RegExp(String.raw`(^|[^\w/])#${issue}\b|graphty-monorepo/issues/${issue}\b`).test(merge.messages ?? "");
 }
 
 /**
@@ -184,6 +184,45 @@ function mergesSince(base) {
     );
 }
 
+// channel/candidate may be ahead of the store after a store write that failed: start from it then
+function startOf(hold) {
+    if (gitOk(["fetch", "--quiet", "origin", "+refs/heads/channel/candidate:refs/remotes/origin/channel/candidate"])) {
+        const branch = git(["rev-parse", "refs/remotes/origin/channel/candidate"]);
+        return gitOk(["merge-base", "--is-ancestor", hold.head, branch]) ? branch : hold.head;
+    }
+    gitOk(["fetch", "--quiet", "origin", hold.head]); // master's checkout holds C; a later head is on the branch
+    return hold.head;
+}
+
+// one fix merge into HEAD: the fix commit merged, or why it cannot enter; null when HEAD holds it already
+function mergeFix(m, pr) {
+    const d = fixCommit({ commits: m.commits, rangeOf: (sha) => lines(git(["rev-list", sha, "^HEAD"])) });
+    if (d.done) return null;
+    if (d.refuse) return { why: d.refuse };
+    if (gitOk(["merge", "--no-edit", "-m", `Merge fix #${pr} into channel/candidate`, d.f])) return { f: d.f };
+    gitOk(["merge", "--abort"]);
+    const head = git(["rev-parse", "HEAD"]).slice(0, 12);
+    return {
+        why: `${d.f.slice(0, 12)} conflicts with the candidate's head ${head}: make the fix again on a branch from that head`,
+    };
+}
+
+// merges every waiting fix into HEAD, telling the hold issue once about each that cannot enter
+function mergeFixes(hold, merges, said, runUrl) {
+    const merged = [];
+    for (const m of merges) {
+        if (!referencesHold(m, hold.issue) || acceptsIn(m.commits).length || said.includes(REFUSED(m.sha))) continue;
+        const pr = /#(\d+)/.exec(m.subject)?.[1] ?? m.sha.slice(0, 12);
+        const r = mergeFix(m, pr);
+        if (r?.f) merged.push(`#${pr} (${r.f.slice(0, 12)})`);
+        if (!r?.why) continue;
+        console.log(`::warning::fix #${pr} does not enter the candidate: ${r.why}`);
+        const text = `${REFUSED(m.sha)}\nThe fix in pull request #${pr} (merged as ${m.sha}) did not enter the held candidate: ${r.why}. ${runUrl}`;
+        if (hold.issue) comment(hold.issue, text.trim());
+    }
+    return merged;
+}
+
 async function advance(env) {
     const cfg = config(env);
     const { hold } = await storeHold(cfg);
@@ -192,42 +231,14 @@ async function advance(env) {
         console.log("::notice::nothing is held: no fix forward");
         return;
     }
-    // channel/candidate may be ahead of the store after a store write that failed: start from it then
-    let start = hold.head;
-    if (gitOk(["fetch", "--quiet", "origin", "+refs/heads/channel/candidate:refs/remotes/origin/channel/candidate"])) {
-        const branch = git(["rev-parse", "refs/remotes/origin/channel/candidate"]);
-        if (gitOk(["merge-base", "--is-ancestor", hold.head, branch])) start = branch;
-    } else {
-        gitOk(["fetch", "--quiet", "origin", hold.head]); // master's checkout holds C; a later head is on the branch
-    }
+    const start = startOf(hold);
     const said = hold.issue
         ? gh("api", `repos/{owner}/{repo}/issues/${hold.issue}/comments`, "--paginate", "--jq", ".[].body")
         : "";
     // master's merges first: the checkout leaves master's tip
     const merges = mergesSince(hold.base);
     git(["checkout", "--quiet", "--detach", start]);
-    const merged = [];
-    for (const m of merges) {
-        if (!referencesHold(m, hold.issue) || acceptsIn(m.commits).length || said.includes(REFUSED(m.sha))) continue;
-        const pr = /#(\d+)/.exec(m.subject)?.[1] ?? m.sha.slice(0, 12);
-        const d = fixCommit({ commits: m.commits, rangeOf: (sha) => lines(git(["rev-list", sha, "^HEAD"])) });
-        if (d.done) continue;
-        let why = d.refuse;
-        if (!why && !gitOk(["merge", "--no-edit", "-m", `Merge fix #${pr} into channel/candidate`, d.f])) {
-            gitOk(["merge", "--abort"]);
-            why = `${d.f.slice(0, 12)} conflicts with the candidate's head ${git(["rev-parse", "HEAD"]).slice(0, 12)}: make the fix again on a branch from that head`;
-        }
-        if (why) {
-            console.log(`::warning::fix #${pr} does not enter the candidate: ${why}`);
-            if (hold.issue)
-                comment(
-                    hold.issue,
-                    `${REFUSED(m.sha)}\nThe fix in pull request #${pr} (merged as ${m.sha}) did not enter the held candidate: ${why}. ${env.RUN_URL ?? ""}`.trim(),
-                );
-            continue;
-        }
-        merged.push(`#${pr} (${d.f.slice(0, 12)})`);
-    }
+    const merged = mergeFixes(hold, merges, said, env.RUN_URL ?? "");
     const head = git(["rev-parse", "HEAD"]);
     if (head === hold.head) {
         output({ head, moved: "false" });
@@ -242,11 +253,8 @@ async function advance(env) {
     const r = await call(cfg, "POST", "/v1/hold", { base: hold.base, head, issue: hold.issue ?? null });
     if (!r.ok) throw new Error(`POST /v1/hold failed (${r.why}); channel/candidate is at ${head}`);
     const into = merged.length ? `Merged ${merged.join(", ")} into it. ` : "";
-    if (hold.issue)
-        comment(
-            hold.issue,
-            `Fix forward: the held candidate's head is now ${head}. ${into}The next run re-tests it. ${env.RUN_URL ?? ""}`.trim(),
-        );
+    const text = `Fix forward: the held candidate's head is now ${head}. ${into}The next run re-tests it. ${env.RUN_URL ?? ""}`;
+    if (hold.issue) comment(hold.issue, text.trim());
     output({ head, moved: "true" });
 }
 
@@ -279,9 +287,9 @@ async function plan(env) {
     if (lines(git(["diff", "--name-only", base, sha])).includes("pnpm-lock.yaml")) affected.push("*lockfile*");
     const visual = visualProjects(JSON.parse(readFileSync("visual-review.config.json", "utf8")));
     const p = planOf({ prior, affected, shards: shardsOf, visual });
-    console.log(
-        `::notice::re-test of ${sha.slice(0, 12)}: ${p.shards ? `shards ${p.shards}` : "the whole suite"}; screenshots shot whole: ${p.capture.join(", ") || (p.shards ? "none" : "every project")}`,
-    );
+    const tests = p.shards ? "shards " + p.shards : "the whole suite";
+    const whole = p.capture.join(", ") || (p.shards ? "none" : "every project");
+    console.log(`::notice::re-test of ${sha.slice(0, 12)}: ${tests}; screenshots shot whole: ${whole}`);
     output({
         shards: p.shards,
         hosts: String(p.hosts),

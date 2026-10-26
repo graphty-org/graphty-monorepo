@@ -1,6 +1,8 @@
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/channel/nightly.test.mjs
+tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs
@@ -11,6 +13,7 @@ tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
 tools/ci-budgets.test.mjs
+tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs
 tools/claude-no-foreground-wait.test.mjs

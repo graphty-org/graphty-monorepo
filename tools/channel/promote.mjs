@@ -70,8 +70,10 @@ function nightlyRefusals(facts) {
     const { target, tag, nightly, store, current, ancestry, publishHoldOpen } = facts;
     const refusals = [];
     const verdict = store?.verdict;
-    const clean = verdict === "green-clean" && nightly.screenshots === "unchanged";
-    const approved = verdict === "approved" && /^approved:[0-9a-f]{40}$/.test(nightly.screenshots ?? "");
+    // green-clean with an owner-signed baselines tree records approved:<tree> (release.yml's screenshot gate)
+    const approvedTree = /^approved:[0-9a-f]{40}$/.test(nightly.screenshots ?? "");
+    const clean = verdict === "green-clean" && (nightly.screenshots === "unchanged" || approvedTree);
+    const approved = verdict === "approved" && approvedTree;
     if (!clean && !approved)
         refusals.push(
             `${tag} was not a clean or approved nightly (verdict ${verdict ?? "none"}, screenshots ${nightly.screenshots ?? "none"})`,

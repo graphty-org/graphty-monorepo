@@ -137,7 +137,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
@@ -197,6 +197,7 @@ jobs:
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
 
             - name: Upload the junit reports
               if: always()

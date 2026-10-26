@@ -137,7 +137,7 @@ jobs:
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 

@@ -191,6 +191,19 @@ describe("ingest: what it stores", () => {
         expect(JSON.parse(String(res.body)).code).toBe("row_refused");
         vi.spyOn(mem, "get").mockRejectedValue(new Error("ProvisionedThroughputExceededException"));
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+        // Our own bug (a key that does not match the schema) is not the row's fault: 500, retried.
+        const schema = Object.assign(new Error("The provided key element does not match the schema"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(schema);
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+    });
+
+    it("refuses a row with a fractional try as content (400), not as an outage", async () => {
+        const h = await ingest();
+        const res = await h(event("/v1/invocations", { ...invocation(), try: 1.5 }));
+        expect(res.statusCode).toBe(400);
+        expect(mem.items.size).toBe(0);
     });
 
     it("takes durations from the site repositories and only durations", async () => {
@@ -217,6 +230,11 @@ describe("ingest: what it stores", () => {
         // A repository claiming a site repository's id under another name is refused.
         const fake = { ...site, repository: "graphty-org/evil" };
         expect((await h(event("/v1/durations", { rows }, { claims: fake }))).statusCode).toBe(403);
+        // Only the default branch deploys: a pull request's or another branch's workflow is refused.
+        const pr = { ...site, event_name: "pull_request", ref: "refs/pull/3/merge" };
+        expect((await h(event("/v1/durations", { rows }, { claims: pr }))).statusCode).toBe(403);
+        const branch = { ...site, ref: "refs/heads/feature" };
+        expect((await h(event("/v1/durations", { rows }, { claims: branch }))).statusCode).toBe(403);
     });
 
     it("records the site deploy-pages.yml built, from that workflow on master only", async () => {

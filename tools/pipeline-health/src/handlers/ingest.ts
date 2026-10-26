@@ -16,6 +16,7 @@ import { dynamoStore } from "../dynamo.js";
 import {
     DAY,
     oldestAt,
+    check,
     putRaw,
     recordSource,
     takeQuota,
@@ -97,8 +98,12 @@ export async function handler(
         if (error instanceof Refused) return json(error.status, { code: error.code, params: error.params });
         // DynamoDB refused a row's content (a key or an item over its size limit): the body's fault, not an
         // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
-        if ((error as { name?: unknown } | null)?.name === "ValidationException")
+        // Only DynamoDB's size limits: any other ValidationException is our own bug and must stay a 500.
+        const e = error as { name?: unknown; message?: unknown } | null;
+        if (e?.name === "ValidationException" && /size/i.test(String(e.message))) {
+            console.error(JSON.stringify({ route: event.rawPath, refused: String(error) }));
             return json(400, { code: "row_refused" });
+        }
         console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));
         return json(500, { code: "internal" });
     }
@@ -127,6 +132,13 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!body || typeof body !== "object") refuse(400, "bad_body");
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
+    for (const item of items) {
+        try {
+            check(item);
+        } catch (error) {
+            refuse(400, "bad_row", { error: String(error).slice(0, 200) });
+        }
+    }
     if (items.length + extra.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
     await putRaw(db, items, now);
@@ -140,7 +152,12 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
 export function whoOf(claims: Claims): Who {
     if (claims.repository_owner !== "graphty-org") refuse(403, "wrong_owner");
     const site = DEPLOY_REPOSITORIES[String(claims.repository_id)];
-    if (site && claims.repository === site) return { kind: "deploy", claims };
+    if (site && claims.repository === site) {
+        // Only a deploy from the default branch, never a pull request's or another branch's workflow.
+        if (claims.event_name === "pull_request" || !/^refs\/heads\/(main|master)$/.test(String(claims.ref)))
+            refuse(403, "deploy_from_default_branch_only");
+        return { kind: "deploy", claims };
+    }
     if (claims.repository !== REPOSITORY || String(claims.repository_id) !== REPOSITORY_ID)
         refuse(403, "wrong_repository");
     if (claims.event_name === "pull_request") return { kind: "pr", claims };
@@ -257,6 +274,7 @@ function testItem(
 async function invocationItems(b: Record<string, unknown>, who: Who, db: Store): Promise<RawItem[]> {
     const id = ownId(b.id, who);
     need(b, { sha: "string", variant: "string", try: "number", startedAt: "number", secs: "number" });
+    if (!Number.isInteger(b.try)) refuse(400, "bad_field", { field: "try", type: "integer" });
     if (!OUTCOMES.has(b.outcome as string)) refuse(400, "bad_field", { field: "outcome", type: "outcome" });
     if (who.kind === "pr" && b.sha !== who.claims.sha) refuse(403, "foreign_sha");
     const files = b.files ?? [];

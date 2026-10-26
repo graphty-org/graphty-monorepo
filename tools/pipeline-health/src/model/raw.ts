@@ -66,12 +66,18 @@ export async function putRaw(
  */
 function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
     if (!old) return r;
-    const { pk: _pk, sk: _sk, ttl: _ttl, field: _field, ...kept } = old;
-    const known = Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined));
-    return { ...kept, ...known } as RawItem;
+    // Only what the live collector alone knows survives; every other field the new record leaves out means
+    // "unset" (a skipped job's startedAt, a null conclusion) and must not come back from the old copy.
+    const live = Object.fromEntries(
+        LIVE_ONLY.filter((k) => old[k] !== undefined && (r as unknown as Record<string, unknown>)[k] === undefined).map(
+            (k) => [k, old[k]],
+        ),
+    );
+    return { ...r, ...live } as RawItem;
 }
+const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages"] as const;
 
-function check(r: RawItem): void {
+export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {
         throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
     }

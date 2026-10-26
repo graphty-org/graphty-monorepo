@@ -265,18 +265,23 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
 /**
  * Recomputes every dirty 5-minute bucket and its parents, then clears the marks it consumed. The collector and the
  * backfill both run it, so it first takes a lease item under a condition: while another holds it, it does nothing
- * and answers `busy`. A holder that died leaves the lease to expire after LEASE_MS (the longest a Lambda runs).
+ * and answers `busy`. A holder that died leaves the lease to expire after `leaseMs`: LEASE_MS (the scheduled
+ * collector's 240 s timeout plus a margin) unless the caller, such as the 15-minute backfill, passes its own.
  * @param store
  * @param nowMs
  */
 export const MAX_MARKS = 200;
 export const LEASE_KEY = { pk: "LEASE", sk: "recompute" };
-export const LEASE_MS = 15 * 60_000;
+export const LEASE_MS = 5 * 60_000;
 
-export async function recompute(store: Store, nowMs: number): Promise<{ buckets: number; items: number; busy?: true }> {
+export async function recompute(
+    store: Store,
+    nowMs: number,
+    leaseMs = LEASE_MS,
+): Promise<{ buckets: number; items: number; busy?: true }> {
     const token = `${nowMs}-${Math.random()}`;
     const taken = await store.put(
-        { ...LEASE_KEY, token, until: nowMs + LEASE_MS, ttl: Math.ceil((nowMs + LEASE_MS) / 1000) + 3600 },
+        { ...LEASE_KEY, token, until: nowMs + leaseMs, ttl: Math.ceil((nowMs + leaseMs) / 1000) + 3600 },
         { field: "until", op: "<", value: nowMs, orNotExists: true },
     );
     if (!taken) {

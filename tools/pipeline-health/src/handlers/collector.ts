@@ -3,7 +3,7 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import rates from "../../config/rates.json" with { type: "json" };
 import slas from "../../config/slas.json" with { type: "json" };
-import { costExplorerDaily, ssmGetParams } from "../collector/aws.js";
+import { codeBuildDeploy, costExplorerDaily, ssmGetParams } from "../collector/aws.js";
 import { backfill, backfillRepos, type BackfillReport } from "../collector/backfill.js";
 import { collect, type CycleReport } from "../collector/collect.js";
 import { GitHub, installationToken, readAppConfig } from "../collector/github.js";
@@ -15,6 +15,7 @@ import { recomputeAll } from "../recompute.js";
 const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const getParams = ssmGetParams();
 const awsCosts = costExplorerDaily();
+const deploy = process.env.DEPLOY_PROJECT ? codeBuildDeploy(process.env.DEPLOY_PROJECT) : undefined;
 
 /**
  * Runs every 5 minutes (EventBridge Scheduler). Records that it ran (the /v1/health heartbeat), runs one collector
@@ -53,6 +54,7 @@ export async function handler(
         limits: slas.runnerLimits,
         org: "graphty-org",
         repo: "graphty-org/graphty-monorepo",
+        deploy,
     });
     const rolled = await recomputeAll(store, Date.now());
     console.log(JSON.stringify({ lastRun, ...report, ...rolled }));

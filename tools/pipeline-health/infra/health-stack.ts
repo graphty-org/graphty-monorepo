@@ -17,6 +17,8 @@ import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
 import * as sns from "aws-cdk-lib/aws-sns";
 import type { Construct } from "constructs";
 
+import { DEPLOY_PROJECT } from "./deploy-stack.ts";
+
 export const PAGE_ORIGIN = "https://health.graphty.app";
 export const CI_ISSUER = "https://token.actions.githubusercontent.com";
 export const CI_AUDIENCE = "graphty-health";
@@ -105,6 +107,17 @@ export class HealthStack extends Stack {
         const collector = fn("Collector", 1, 240, 512);
         // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
         collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
+        // The collector starts the deploy build (deploy-stack.ts) when master's tools/pipeline-health changes. The
+        // project lives in the other stack: an ARN string, no cross-stack reference.
+        collector.addEnvironment("DEPLOY_PROJECT", DEPLOY_PROJECT);
+        collector.addToRolePolicy(
+            new iam.PolicyStatement({
+                actions: ["codebuild:StartBuild", "codebuild:BatchGetBuilds"],
+                resources: [
+                    this.formatArn({ service: "codebuild", resource: "project", resourceName: DEPLOY_PROJECT }),
+                ],
+            }),
+        );
         table.grantReadWriteData(ingest);
         table.grantReadData(read);
         table.grantReadWriteData(collector);

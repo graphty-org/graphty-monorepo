@@ -9,7 +9,4 @@ export const healthStack = new HealthStack(app, "graphty-health", {
     env,
     devOrigin: (app.node.tryGetContext("devOrigin") as string | undefined) || undefined,
 });
-export const deployStack = new DeployStack(app, "graphty-health-deploy", {
-    env,
-    connectionApproved: String(app.node.tryGetContext("connectionApproved")) === "true",
-});
+export const deployStack = new DeployStack(app, "graphty-health-deploy", { env });

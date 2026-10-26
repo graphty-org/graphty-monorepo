@@ -8,6 +8,7 @@ import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
+import type { DeployBuilds } from "./aws.js";
 import type { Fetch, GitHub } from "./github.js";
 import {
     classifyCancel,
@@ -72,6 +73,8 @@ export interface Deps {
     org: string;
     /** owner/name of the monorepo: master, pull requests, issues, releases. */
     repo: string;
+    /** The health stack's deploy build. Undefined: the stack is not redeployed from master. */
+    deploy?: DeployBuilds;
 }
 
 export interface CycleReport {
@@ -678,6 +681,39 @@ async function npm(c: Cycle, gh: GitHub) {
     await recordSource(c.d.store, "npm", c.now, { ok: true });
 }
 
+export const DEPLOY_QUERY = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    tree: object(expression: "master:tools/pipeline-health") { oid }
+    head: object(expression: "master") { oid }
+  }
+}`;
+
+/**
+ * Redeploys the health stack: when master's tools/pipeline-health tree differs from the one the last build was
+ * started for, starts the deploy build at master's head, unless the last build is still running.
+ * @param c - the cycle
+ * @param gh - the GitHub App client
+ * @param builds - the deploy build
+ */
+async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void> {
+    const [owner, name] = c.d.repo.split("/");
+    const data = await gh.graphql<{ repository: { tree: { oid: string } | null; head: { oid: string } | null } }>(
+        DEPLOY_QUERY,
+        { owner, name },
+    );
+    const tree = data.repository.tree?.oid;
+    const head = data.repository.head?.oid;
+    if (!tree || !head) {
+        throw new Error("master has no tools/pipeline-health");
+    }
+    const last = await c.json<{ tree?: string; buildId?: string }>("deploy", {});
+    if (last.tree !== tree && !(last.buildId && (await builds.running(last.buildId)))) {
+        const buildId = await builds.start(head);
+        await c.setJson("deploy", { tree, buildId, commit: head });
+    }
+    await recordSource(c.d.store, "deploy", c.now, { ok: true });
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parts that need no GitHub App.
 
@@ -767,6 +803,8 @@ export async function collect(d: Deps): Promise<CycleReport> {
             await c.part("hosts", "hosts", () => hosts(c, gh));
             await c.part("npm", "npm", () => npm(c, gh));
         }
+        const builds = d.deploy;
+        if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
         if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
         if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
     }

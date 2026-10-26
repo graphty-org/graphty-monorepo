@@ -66,6 +66,8 @@ const firstOutcome = (code, result) => {
     return OUTCOMES.has(result.firstOutcome) ? result.firstOutcome : "infra";
 };
 const retryOutcome = (result, junit) => {
+    // A retry whose reports show none of the failed files run ran nothing: never a pass.
+    if (result.retryRan === false) return "error";
     if (result.retryCode === 0) return "passed";
     return junit?.failures.length ? "failed" : "error";
 };

@@ -858,7 +858,8 @@ async function main() {
                 // The ledger records the first run and the retry as two runs, each with its own exit status.
                 const parts = splitLog(text);
                 const facts = { code: q?.firstCode ?? code, log: parts.first, runId, startedAt: t0, logFile: log };
-                if (q?.retryRunId) {
+                // A retry that ran none of the failed files (test-quarantine's retryRan) is no run of them.
+                if (q?.retryRunId && q.retryRan !== false) {
                     const retried = { ...shard, selected: q.retryFiles };
                     ledgerRecord(retried, main, {
                         code: q.retryCode,

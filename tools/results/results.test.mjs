@@ -253,6 +253,28 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+        // a retry that ran none of the failed files (an empty report under the wrong command) is no pass
+        const empty = recordsOf({
+            id: "9.1.job.pkg",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "pkg|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 1,
+            result: {
+                firstCode: 1,
+                firstOutcome: "failed",
+                retried: true,
+                retryCode: 0,
+                retryRan: false,
+                retryAt: 7000,
+            },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir,
+            runId: "run1",
+        });
+        assert.equal(empty[1].outcome, "error");
         // a first try that exited 0 and still failed the shard (its output over the budget) is no pass
         const flood = recordsOf({
             id: "9.1.job.pkg",

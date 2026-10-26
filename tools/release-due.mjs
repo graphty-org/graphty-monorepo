@@ -42,7 +42,9 @@ const CLOSED_WITHIN_MS = 60 * 60 * 1000;
  */
 export function due(redIssues, messages, now = Date.now()) {
     const keywords = new Map();
-    for (const m of messages.matchAll(/\b(refs|fix(?:es|ed)?|close[sd]?|resolve[sd]?|part of)\s+#(\d+)/gi)) {
+    for (const m of messages.matchAll(
+        /\b(refs|fix(?:es|ed)?|close[sd]?|resolve[sd]?|part of):?\s+(?:(?:https:\/\/github\.com\/)?graphty-org\/graphty-monorepo(?:\/issues\/|#)|#)(\d+)/gi,
+    )) {
         const n = Number(m[2]);
         keywords.set(n, [...(keywords.get(n) ?? []), m[1].toLowerCase()]);
     }
@@ -154,7 +156,14 @@ function main() {
     } catch {
         // not a merge
     }
-    const plan = due(issues, run("git", ["log", "--format=%B", ...range]));
+    // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
+    let bodies = "";
+    try {
+        bodies = run("gh", ["api", "repos/{owner}/{repo}/commits/HEAD/pulls", "--jq", ".[].body // empty"]);
+    } catch (error) {
+        console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+    }
+    const plan = due(issues, `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`);
     if (!plan) {
         console.log("release-due: nothing due (no open red issue referenced by this merge)");
         return;

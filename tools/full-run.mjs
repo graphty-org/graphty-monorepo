@@ -256,9 +256,9 @@ export const listRedIssues = (state = "open", since = "") =>
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line));
-// The open red issue's number and title ("<number> <title>"), or empty.
+// The open red issue's number and title ("<number> <title>"), or empty. The oldest, the one duplicateOf keeps.
 const openRedIssue = () => {
-    const [i] = listRedIssues();
+    const i = listRedIssues().at(-1);
     return i ? `${i.number} ${i.title}` : "";
 };
 const openRed = () => openRedIssue().split(" ")[0];

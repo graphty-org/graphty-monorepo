@@ -1397,6 +1397,19 @@ describe("ci.yml", () => {
             cancel: true,
         });
         assert.equal(releaseDue(closed("2026-10-24T11:55:00Z"), "Refs #9001", now), null, "closed long ago");
+        // every form GitHub closes an issue from
+        for (const form of [
+            "Fixes: #9001",
+            "Fixes graphty-org/graphty-monorepo#9001",
+            "Resolves https://github.com/graphty-org/graphty-monorepo/issues/9001",
+        ]) {
+            assert.equal(releaseDue(closed("2026-10-25T11:55:00Z"), form, now)?.cancel, true, form);
+        }
+        assert.equal(
+            releaseDue(closed("2026-10-25T11:55:00Z"), "Fixes other-org/other#9001", now),
+            null,
+            "another repository",
+        );
         // the restart cancels the full runs in progress first, which hold it pending in release.yml's group
         const runs = [
             { databaseId: 1, displayTitle: "Release (full)" },

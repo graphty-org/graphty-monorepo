@@ -38,7 +38,8 @@ export const PUBLISH_HOLD = "Release held: publish failed";
 /**
  * Whether a full run's verdict promotes its candidate to nightly now (channels 7 and 11).
  * @param o the inputs
- * @param o.state the verdict: green-clean, green-images, red or owner-item
+ * @param o.state the verdict: green-clean, green-images, red or owner-item; approved for the promotion after the
+ *   owner's screenshot approval
  * @param o.publishHold the open publish hold's issue number, or empty
  * @param o.gate the screenshot gate's outcome on the candidate against channel/nightly: success, or anything else
  * @param [o.held] the held candidate's head (channels-pipeline.md section 3): "" for none, "unknown" when the store did
@@ -47,7 +48,8 @@ export const PUBLISH_HOLD = "Release held: publish failed";
  * @returns `{ promote, why }`
  */
 export function promotion({ state, publishHold, gate, held = "", sha = "" }) {
-    if (state !== "green-clean")
+    // approved: a green-images head the owner approved (tools/channel/resume.mjs), gated against its accept commit
+    if (state !== "green-clean" && state !== "approved")
         return { promote: false, why: `the verdict is ${state || "missing"}, not green-clean` };
     if (held && held !== sha) {
         const on = held === "unknown" ? "the results store did not say what is held" : `nightly is held on ${held}`;
@@ -231,6 +233,7 @@ export function stall({ state, publishHold, now }) {
         rejected: "the owner rejected the candidate's screenshots: fix forward",
         promotable: "the verdict is green-clean but nothing promoted it: read the newest release.yml run",
         unjudged: `${canary} has no verdict yet: no full run judged it`,
+        held: heldBlock(state),
     };
     const what = [blocks[state.blocking] ?? `blocked: ${state.blocking}`];
     if (publishHold)
@@ -246,6 +249,16 @@ export function stall({ state, publishHold, now }) {
     ];
     if (urgent) body.push("", `ACTION NEEDED: nightly stalled ${hours} h; ${what[0]}`);
     return { title: `${STALL_TITLE} ${since}`, body: body.join("\n"), urgent };
+}
+
+// What a held candidate (channels-pipeline.md section 3) waits for: the owner's screenshot review once its head is
+// green-images, else a fix forward
+function heldBlock(state) {
+    const head = state.hold?.head?.slice(0, 7) ?? "the held candidate";
+    const issue = state.hold?.issue ? ` (#${state.hold.issue})` : "";
+    if (state.offered && state.offered.sha === state.hold?.head)
+        return `nightly is held on ${head}${issue}, waiting for the owner's screenshot review of it`;
+    return `nightly is held on ${head}${issue}: fix it forward from its head, or the owner abandons it (mode=abandon)`;
 }
 
 const gh = (...args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
@@ -419,7 +432,7 @@ const NIGHTLY_BLOCKED = "Nightly blocked:";
 
 function decideMain(env) {
     let hold = "";
-    if (env.STATE === "green-clean") {
+    if (env.STATE === "green-clean" || env.STATE === "approved") {
         try {
             hold = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
         } catch (error) {
@@ -432,7 +445,7 @@ function decideMain(env) {
         }
     }
     const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE, held: env.HELD ?? "", sha: env.SHA });
-    if (!p.promote && env.STATE === "green-clean") console.log(`::notice::${p.why}`);
+    if (!p.promote && env.STATE !== "green-images") console.log(`::notice::${p.why}`);
     if (!p.promote && env.STATE === "green-clean" && env.GATE !== "success" && env.FIRST === "true") {
         // no channel/nightly yet, so no move and no age: without this issue the stall alarm never fires
         const body = bodyFile(

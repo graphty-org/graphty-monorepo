@@ -29,8 +29,12 @@ const SHA = "a".repeat(40);
 const script = fileURLToPath(new URL("nightly.mjs", import.meta.url));
 
 describe("promotion", () => {
-    it("promotes only a green-clean candidate whose screenshot gate passed", () => {
+    it("promotes only a green-clean candidate, or one the owner approved, whose screenshot gate passed", () => {
         assert.equal(promotion({ state: "green-clean", publishHold: "", gate: "success" }).promote, true);
+        // the promotion after the owner's approval of a green-images head (tools/channel/resume.mjs)
+        assert.equal(promotion({ state: "approved", publishHold: "", gate: "success" }).promote, true);
+        assert.equal(promotion({ state: "approved", publishHold: "", gate: "failure" }).promote, false);
+        assert.equal(promotion({ state: "approved", publishHold: "1", gate: "success" }).promote, false);
         for (const state of ["green-images", "red", "owner-item", ""]) {
             assert.equal(promotion({ state, publishHold: "", gate: "success" }).promote, false, state);
         }
@@ -184,6 +188,18 @@ describe("the stall alarm", () => {
             now: NOW,
         });
         assert.match(w.body, /screenshot review of ddddddd/);
+    });
+
+    it("says what a held candidate waits for: the owner's review once offered, else a fix forward", () => {
+        const hold = { head: "e".repeat(40), issue: 3800 };
+        const review = stall({
+            state: state(30 * HOUR, "held", { hold, offered: { sha: hold.head } }),
+            publishHold: "",
+            now: NOW,
+        });
+        assert.match(review.body, /held on eeeeeee \(#3800\), waiting for the owner's screenshot review/);
+        const fix = stall({ state: state(30 * HOUR, "held", { hold, offered: null }), publishHold: "", now: NOW });
+        assert.match(fix.body, /held on eeeeeee \(#3800\): fix it forward/);
     });
 
     it("names an open publish hold first, and asks the owner past 48 hours", () => {

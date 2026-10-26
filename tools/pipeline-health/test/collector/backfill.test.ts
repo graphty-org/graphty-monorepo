@@ -5,8 +5,8 @@ import { backfill, PRS_CURSOR, type BackfillOptions } from "../../src/collector/
 import { GitHub } from "../../src/collector/github.js";
 import { toJobItem, type GhJob, type GhRun } from "../../src/collector/parse.js";
 import { runDrill, testHistory } from "../../src/model/drill.js";
-import { DAY, MIN, type ShardRunItem, type TestItem } from "../../src/model/items.js";
-import { getCursor, putRaw } from "../../src/model/raw.js";
+import { DAY, MIN, sourceKey, type ShardRunItem, type SourceItem, type TestItem } from "../../src/model/items.js";
+import { getCursor, putRaw, recordSource } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
@@ -108,6 +108,24 @@ describe("backfill", () => {
         expect(listCalls(g.urls).every((u) => u.includes("created=2026-10-26"))).toBe(true);
         expect(g.urls.some((u) => u.endsWith("/graphql"))).toBe(false);
         expect(homes(store, "run")).toHaveLength(9);
+    });
+
+    it("moves the collector's history start back to its first day once done, also when re-run after finishing", async () => {
+        const firstAt = async (s: MemoryStore) => ((await s.get(sourceKey("collector"))) as SourceItem).firstAt;
+        const start = Math.floor((NOW - 2 * DAY) / DAY) * DAY;
+        const store = new MemoryStore();
+        await recordSource(store, "collector", NOW, { ok: true });
+        const c = clock();
+        const stopped = await backfill({ ...options(store, fake(), c), perHour: 3600, deadline: NOW + 7_000 });
+        expect(stopped.done).toBe(false);
+        expect(await firstAt(store)).toBe(NOW);
+        expect((await backfill(options(store, fake()))).done).toBe(true);
+        expect(await firstAt(store)).toBe(start);
+
+        // A backfill that finished before this rule existed: cursors at done, firstAt still the first live write.
+        await store.put({ ...sourceKey("collector"), source: "collector", firstAt: NOW, lastAt: NOW });
+        expect((await backfill(options(store, fake()))).done).toBe(true);
+        expect(await firstAt(store)).toBe(start);
     });
 
     it("stops at its deadline and a second invocation continues from the cursor to the same result", async () => {

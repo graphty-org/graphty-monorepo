@@ -14,7 +14,7 @@
 
 import rates from "../../config/rates.json" with { type: "json" };
 import { DAILY_ROW_LIMIT, DAY, MIN, type RawItem } from "../model/items.js";
-import { getCursor, putRaw, setCursor, takeQuota } from "../model/raw.js";
+import { getCursor, putRaw, recordSource, setCursor, takeQuota } from "../model/raw.js";
 import type { Store } from "../model/store.js";
 import type { GitHub } from "./github.js";
 import {
@@ -125,6 +125,9 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
             await pullRequestsAndIssues(o, gate, write, first);
             await setCursor(o.store, PRS_CURSOR, "done", o.now);
         }
+        // The collector's history now starts at the range's first day, not its first live write. Every finished
+        // invocation does it (min() keeps it idempotent), so re-invoking a backfill that already finished sets it too.
+        await recordSource(o.store, "collector", o.now, { ok: true }, first);
         r.done = true;
     } catch (e) {
         if (!(e instanceof Stop)) throw e;

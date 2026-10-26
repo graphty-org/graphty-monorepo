@@ -291,5 +291,76 @@ describe("recompute and read", () => {
     });
 });
 
-// The collector handler's tests are in test/collector/handler.test.ts.
+describe("drill-down routes", () => {
+    it("answers /v1/test-history from what ingest stored, and /v1/run/<id> from the run index", async () => {
+        const h = await ingest();
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(200);
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const get = async (rawPath: string, q: Record<string, string>) =>
+            read({ ...event(rawPath, "", {}), queryStringParameters: q } as never);
+        const res = await get("/v1/test-history", { file: "a.test.ts", test: "draws", range: "7d" });
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body as string)).toMatchObject({
+            file: "a.test.ts",
+            family: "graphty-element-browser",
+            events: [{ kind: "pr", run: 500, attempt: 1, sha: "abc", outcome: "failed" }],
+        });
+        expect((await get("/v1/test-history", {})).statusCode).toBe(400);
+        expect((await get("/v1/test-history", { file: "a.test.ts", range: "1h" })).statusCode).toBe(400);
+        expect((await get("/v1/test-history", { file: "none.test.ts" })).statusCode).toBe(503);
 
+        expect((await get("/v1/run/123", {})).statusCode).toBe(503);
+        const { putRaw } = await import("../src/model/raw.ts");
+        const at = NOW - 600_000;
+        await putRaw(
+            mem,
+            [
+                {
+                    kind: "run",
+                    id: "o/r/123",
+                    attempt: 1,
+                    repo: "o/r",
+                    runId: 123,
+                    workflow: "ci.yml",
+                    event: "push",
+                    branch: "master",
+                    sha: "abc",
+                    status: "completed",
+                    conclusion: "failure",
+                    createdAt: at,
+                },
+                {
+                    kind: "job",
+                    id: "o/r/9",
+                    attempt: 1,
+                    repo: "o/r",
+                    runId: 123,
+                    workflow: "ci.yml",
+                    name: "Build",
+                    pool: "linux_windows",
+                    status: "completed",
+                    conclusion: "failure",
+                    createdAt: at,
+                    startedAt: at + 1000,
+                    completedAt: at + 2000,
+                },
+            ],
+            NOW,
+        );
+        const run = await get("/v1/run/123", {});
+        expect(run.statusCode).toBe(200);
+        expect(JSON.parse(run.body as string)).toMatchObject({
+            id: 123,
+            conclusion: "failure",
+            jobs: [
+                {
+                    name: "Build",
+                    conclusion: "failure",
+                    started: new Date(at + 1000).toISOString().replace(".000", ""),
+                },
+            ],
+        });
+    });
+});
+
+// The collector handler's tests are in test/collector/handler.test.ts.

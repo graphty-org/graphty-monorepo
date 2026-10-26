@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import rates from "../../config/rates.json" with { type: "json" };
-import { backfill } from "../../src/collector/backfill.js";
 import { collect, type Deps } from "../../src/collector/collect.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { Rates } from "../../src/collector/parse.js";
@@ -74,7 +73,8 @@ describe("collector with the GitHub App", () => {
         expect(observed(store, "release.train_skipped")).toBe(1);
         expect(observed(store, "github.rate_remaining_share")).toBe(0.8);
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
-        expect(observed(store, "ci.running")).toBeGreaterThanOrEqual(0);
+        expect(observed(store, "ci.jobs_running")).toBe(0);
+        expect(observed(store, "ci.jobs_queued")).toBe(0);
 
         for (const s of ["collector", "release", "npm", "coverage", "billing"])
             expect((await store.get(sourceKey(s)))?.error, s).toBeUndefined();
@@ -124,37 +124,27 @@ describe("collector with the GitHub App", () => {
     });
 });
 
-describe("backfill", () => {
-    it("loads each day's runs and jobs once, resumes from its cursor, and stays under its request budget", async () => {
+describe("runner job counts", () => {
+    it("writes ci.jobs_running and ci.jobs_queued from the jobs of unfinished runs", async () => {
         const store = new MemoryStore();
-        const fake = fakeGitHub();
-        const gh = new GitHub(async () => "t", fake.fetch);
-        const waits: number[] = [];
-        const o = {
-            store,
-            gh,
-            repos: ["graphty-org/graphty-monorepo"],
-            repo: "graphty-org/graphty-monorepo",
-            days: 2,
-            perHour: 1_000_000,
-            now: NOW,
-            sleep: async (ms: number) => void waits.push(ms),
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const recorded = fake.fetch;
+        // The in-progress pull request run with two jobs running and three queued (one on machine.dev, which is
+        // outside GitHub's limit and so not counted).
+        fake.fetch = async (url, init) => {
+            const res = await recorded(url, init);
+            if (!/\/actions\/runs\/40238975833\/jobs$/.test(new URL(url).pathname)) return res;
+            const body = (await res.json()) as { total_count: number; jobs: Record<string, unknown>[] };
+            const status = ["in_progress", "in_progress", "queued", "queued", "queued"];
+            body.jobs = body.jobs.map((j, i) => ({
+                ...j,
+                ...(i < status.length ? { status: status[i], conclusion: null, completed_at: null } : {}),
+                ...(i < status.length ? { labels: [i === 4 ? "machine.dev" : "ubuntu-latest"] } : {}),
+            }));
+            return new Response(JSON.stringify(body), { headers: res.headers });
         };
-        const r = await backfill(o);
-        expect(r.runs).toBeGreaterThan(0);
-        expect(homes(store, "job").length).toBeGreaterThan(0);
-        expect(homes(store, "pr").length).toBeGreaterThan(0);
-        expect([...store.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
-        // Days before today are done; a second run starts after them.
-        expect(await getCursor(store, "backfill#graphty-org/graphty-monorepo")).toBe("2026-10-25");
-        const calls = gh.calls;
-        await backfill(o);
-        const dayCalls = fake.urls.slice(-(gh.calls - calls)).filter((u) => /actions\/runs\?created=/.test(u));
-        expect(dayCalls.every((u) => u.includes("created=2026-10-26"))).toBe(true);
-
-        // A tight budget waits before calls instead of exceeding it.
-        const slow = new GitHub(async () => "t", fakeGitHub().fetch);
-        await backfill({ ...o, store: new MemoryStore(), gh: slow, perHour: 10 });
-        expect(waits.length).toBeGreaterThan(0);
+        await collect(deps(store, fake));
+        expect(observed(store, "ci.jobs_running")).toBe(2);
+        expect(observed(store, "ci.jobs_queued")).toBe(2);
     });
 });

@@ -45,11 +45,9 @@ describe("collector handler", () => {
             .mockReset()
             .mockResolvedValue({ Parameters: [], InvalidParameters: ["/graphty-health/github-app/app-id"] });
         docSend.mockReset().mockResolvedValue({});
-        ceSend
-            .mockReset()
-            .mockResolvedValue({
-                ResultsByTime: [{ TimePeriod: { Start: "2026-10-01" }, Total: { UnblendedCost: { Amount: "0.5" } } }],
-            });
+        ceSend.mockReset().mockResolvedValue({
+            ResultsByTime: [{ TimePeriod: { Start: "2026-10-01" }, Total: { UnblendedCost: { Amount: "0.5" } } }],
+        });
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => new Response(JSON.stringify({ created_at: "2026-10-25T23:00:00Z" }), { status: 200 })),
@@ -74,5 +72,13 @@ describe("collector handler", () => {
         expect(mem.items.has("META#source#collector\u0000-")).toBe(false);
         // Then the rollups and page items are recomputed.
         expect([...mem.items.keys()].some((k) => k.startsWith("PAGE#status"))).toBe(true);
+    });
+
+    it("answers a backfill invocation without the App by saying so, and writes nothing", async () => {
+        const { handler } = await import("../../src/handlers/collector.ts");
+        const r = await handler({ mode: "backfill", days: 28 }, { getRemainingTimeInMillis: () => 900_000 });
+        expect(r).toEqual({ mode: "backfill", error: "github_app_not_set_up" });
+        expect(mem.items.size).toBe(0);
+        expect(docSend).not.toHaveBeenCalled();
     });
 });

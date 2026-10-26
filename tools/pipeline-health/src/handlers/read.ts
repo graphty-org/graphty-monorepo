@@ -8,6 +8,7 @@ import { gunzipSync } from "node:zlib";
 
 import type { PageId, Range, SlowRange } from "../../web/src/contract.js";
 import { dynamoStore } from "../dynamo.js";
+import { runDrill, testHistory } from "../model/drill.js";
 import type { Store } from "../model/store.js";
 import { type ViewItem, viewKey, type ViewRoute } from "../views/index.js";
 
@@ -65,8 +66,8 @@ export function routeOf(
  */
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
     if (event.rawPath === "/v1/health") return json(200, { ok: true, time: new Date().toISOString() }, "no-store");
-    // ponytail: /v1/run/<id> and /v1/test-history need a per-run and per-test index the collector does not write
-    // yet; they answer no_data until it does.
+    const drill = await drillDown(event);
+    if (drill) return drill;
     const route = routeOf(event.rawPath, event.queryStringParameters ?? {});
     if ("status" in route) return json(route.status, { code: route.code }, "max-age=300");
     try {
@@ -87,6 +88,26 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
             body: gzip ? gz.toString("base64") : gunzipSync(gz).toString("utf8"),
             isBase64Encoded: gzip,
         };
+    } catch (error) {
+        console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));
+        return json(503, { code: "no_data" }, "no-store");
+    }
+}
+
+/** GET /v1/run/<id> and /v1/test-history, read from their index items; undefined for every other route. */
+async function drillDown(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2 | undefined> {
+    const run = /^\/v1\/run\/(\d+)$/.exec(event.rawPath);
+    if (!run && event.rawPath !== "/v1/test-history") return undefined;
+    const q = event.queryStringParameters ?? {};
+    const range = q.range ?? "7d";
+    if (!run && !q.file) return json(400, { code: "missing_file" }, "max-age=300");
+    if (!run && range !== "7d" && range !== "28d") return json(400, { code: "bad_range" }, "max-age=300");
+    try {
+        const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
+        const body = run
+            ? await runDrill(db, Number(run[1]), Date.now())
+            : await testHistory(db, { file: q.file!, test: q.test, range: range as "7d" | "28d" }, Date.now());
+        return body ? json(200, body, "public, max-age=60") : json(503, { code: "no_data" }, "max-age=60");
     } catch (error) {
         console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));
         return json(503, { code: "no_data" }, "no-store");

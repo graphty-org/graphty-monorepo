@@ -5,6 +5,7 @@ tools/channel/candidates.test.mjs
 tools/channel/nightly.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
+tools/channel/recapture.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs

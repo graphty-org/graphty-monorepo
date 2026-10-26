@@ -33,14 +33,17 @@ async function putTest(store: Store, r: RawItem, old: (Item & RawItem) | undefin
         if (tries) old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
         if (r.kind === "test" && r.outcome === "failed" && old?.kind === "test" && old.outcome === "flaky") return;
         const [home, ...rest] = writesFor(r, old, nowMs, dirty) as [{ put: Item }, ...BatchOp[]];
-        const condition: Condition = !old
-            ? { notExists: true }
-            : old.wid === undefined
-              ? { field: "outcome", op: "=", value: String((old as Item).outcome) }
-              : { field: "wid", op: "=", value: String(old.wid) };
+        const condition = unchanged(old);
         if (await store.transact([{ put: { ...home.put, wid: randomUUID() }, condition }, ...rest])) return;
     }
     throw new Error(`test ${r.id}: its row kept changing under 8 tries`);
+}
+
+/** The home row is still `old`: its write id, or its outcome for a row written before write ids. */
+function unchanged(old: Item | undefined): Condition {
+    if (!old) return { notExists: true };
+    if (typeof old.wid === "string") return { field: "wid", op: "=", value: old.wid };
+    return { field: "outcome", op: "=", value: typeof old.outcome === "string" ? old.outcome : "" };
 }
 
 const timesOf = (r: RawItem): [string, number][] =>

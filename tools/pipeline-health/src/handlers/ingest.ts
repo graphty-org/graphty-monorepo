@@ -215,18 +215,20 @@ interface Built {
     source: string;
 }
 
-async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
-    if (who.kind === "local") {
-        const rows = list(body.rows, "rows");
-        if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
-        const items: RawItem[] = [];
-        for (const r of rows) {
-            if (route === "invocations") items.push(...(await invocationItems(r, who, db, now)).items);
-            else if (route === "push-runs") items.push(pushRun(r));
-            else items.push(slotWait(r));
-        }
-        return { items, extra: [], source: "local" };
+async function localItems(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number) {
+    const rows = list(body.rows, "rows");
+    if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    const items: RawItem[] = [];
+    for (const r of rows) {
+        if (route === "invocations") items.push(...(await invocationItems(r, who, db, now)).items);
+        else if (route === "push-runs") items.push(pushRun(r));
+        else items.push(slotWait(r));
     }
+    return items;
+}
+
+async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
+    if (who.kind === "local") return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
     // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
     if (
         (who.kind === "deploy" || who.kind === "site") &&

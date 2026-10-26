@@ -4507,8 +4507,8 @@ describe("release.yml", () => {
         });
 
         // The check job's script, against a stub curl (canary's live stamp, or nothing when canary does not
-        // answer) and a stub gh (how this commit compares with the live one)
-        const decide = ({ live = "0ddba11", compare = "ahead" } = {}) => {
+        // answer) and a stub gh (this repository's Pages domain, and how this commit compares with the live one)
+        const decide = ({ live = "0ddba11", compare = "ahead", cname = "canary.graphty.app" } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
@@ -4519,9 +4519,11 @@ describe("release.yml", () => {
                     : `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
                 { mode: 0o755 },
             );
-            writeFileSync(join(bin, "gh"), `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\necho ${compare}\n`, {
-                mode: 0o755,
-            });
+            writeFileSync(
+                join(bin, "gh"),
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) echo "${cname}";;\n*) echo ${compare};;\nesac\n`,
+                { mode: 0o755 },
+            );
             const step = /- id: live\n([\s\S]*)$/.exec(job(deploy, "check"))[1];
             const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
@@ -4539,7 +4541,7 @@ describe("release.yml", () => {
             assert.equal(r.status, 0, r.stderr);
             const result = {
                 deploy: readFileSync(out, "utf8").trim(),
-                curl: readFileSync(join(dir, "curl.log"), "utf8"),
+                curl: existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "",
             };
             rmSync(dir, { recursive: true, force: true });
             return result;
@@ -4563,6 +4565,22 @@ describe("release.yml", () => {
                 /CNAME/,
             );
             assert.match(job(deploy, "deploy"), /uses: actions\/deploy-pages@/);
+        });
+
+        it("deploys nothing while this repository's Pages domain is not canary.graphty.app", () => {
+            // before the domain swap the domain is graphty.app, which only promotion may move
+            assert.deepEqual(decide({ cname: "graphty.app" }), { deploy: "deploy=false", curl: "" });
+            assert.equal(decide({ cname: "" }).deploy, "deploy=false");
+        });
+
+        it("asks again in the deploy job, right before it deploys, with the same script", () => {
+            const step = (name) =>
+                /- id: live\n[\s\S]*?echo "deploy=true" >> "\$GITHUB_OUTPUT"\n/.exec(job(deploy, name))[0];
+            assert.equal(step("deploy"), step("check"));
+            assert.match(
+                job(deploy, "deploy"),
+                /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
+            );
         });
 
         it("does not deploy a commit canary already serves, or one older than canary's", () => {

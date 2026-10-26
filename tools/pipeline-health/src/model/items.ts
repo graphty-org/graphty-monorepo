@@ -316,7 +316,8 @@ export const dirtyKey = (start5m: number) => ({ pk: DIRTY_PK, sk: skTime(start5m
 // ---------------------------------------------------------------------------------------------------------------
 // Bookkeeping.
 
-export const DAILY_ROW_LIMIT = 300_000;
+// Raised from 300_000 for the 28-day history backfill; set it back on 2026-11-02 (#3746).
+export const DAILY_ROW_LIMIT = 1_000_000;
 export const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 export const quotaKey = (ms: number) => ({ pk: `QUOTA#${utcDay(ms)}`, sk: "-" });
 export interface QuotaItem extends Item {

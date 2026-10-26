@@ -28,6 +28,7 @@ import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
@@ -563,6 +564,43 @@ describe("the pull request rules", () => {
         // a plan with no `affected` (the everything plan) counts every test as touched
         const everything = { quarantine: [], failingOnBase: [] };
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+    });
+
+    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const out = join(dir, "checks");
+        const plan = { quarantine: [], failingOnBase: [], affected: [] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("flips"), fail("broken", "b.test.ts")),
+            firstOutcome: "failed",
+            second: report(fail("broken", "b.test.ts")),
+            list: storeList(plan),
+        });
+        prJudge(plan, { ...o, base: "abc1234", out })(d, { firstOutcome: "failed" });
+        const variant = o.variant;
+        // a line from the pull request's code that would inject an argument, and a duplicate, are dropped
+        writeFileSync(
+            join(dir, "checks", "evil.jsonl"),
+            `${JSON.stringify({ base: "abc1234", file: "a.test.ts' -f x='1", variant, repeat: 5 })}\nnot json\n` +
+                `${JSON.stringify({ base: "abc1234", file: "a.test.ts", variant, repeat: 1 })}\n`,
+        );
+        const checks = readChecks(join(dir, "checks"));
+        assert.deepEqual(checks, [
+            { base: "abc1234", file: "a.test.ts", variant, repeat: 5 },
+            { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
+        ]);
+        const calls = [];
+        assert.equal(
+            dispatchChecks(checks, (args) => calls.push(args.join(" "))),
+            2,
+        );
+        assert.equal(
+            calls[0],
+            `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5`,
+        );
+        assert.deepEqual(readChecks(join(dir, "none")), []);
+        rmSync(dir, { recursive: true, force: true });
     });
 
     it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {

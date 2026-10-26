@@ -26,7 +26,7 @@
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -67,16 +67,19 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
  * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
  * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else fails as
- * `[KNOWN?]`. Each untouched case names the base-check.yml dispatch the pipeline round makes.
+ * `[KNOWN?]`. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
+ * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
+ * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
  * @param plan the plan file (no `affected`: every test touched)
  * @param o the group
  * @param o.shard the shard
  * @param o.family its family
  * @param o.variant its variant
  * @param o.base the pull request's base commit
+ * @param [o.out] the directory the base checks to dispatch are written to
  * @returns the judge
  */
-export function prJudge(plan, { shard, family, variant, base }) {
+export function prJudge(plan, { shard, family, variant, base, out }) {
     const affected = plan?.affected ? new Set(plan.affected) : null;
     const unknown = (plan?.unknownFamilies ?? []).includes(family);
     const touched = (f) => !affected || unknown || affected.has(f.file);
@@ -87,8 +90,13 @@ export function prJudge(plan, { shard, family, variant, base }) {
     );
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
-    const check = (f, repeat) =>
-        `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
+    const check = (f, repeat) => {
+        if (out) {
+            mkdirSync(out, { recursive: true });
+            appendFileSync(join(out, `${shard}.jsonl`), `${JSON.stringify({ base, file: f.file, variant, repeat })}\n`);
+        }
+        return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
+    };
     return (d, { firstOutcome }) => {
         if (firstOutcome !== "failed" || d.flaky.length + d.excused.length + d.failing.length === 0) return d;
         const lines = [];
@@ -491,7 +499,13 @@ export async function runGroup(
         env.GITHUB_EVENT_NAME === "pull_request" && plan
             ? {
                   list: storeList(plan),
-                  judge: prJudge(plan, { shard: shardName, family, variant, base: plan.base ?? head.base }),
+                  judge: prJudge(plan, {
+                      shard: shardName,
+                      family,
+                      variant,
+                      base: plan.base ?? head.base,
+                      out: env.RESULTS_BASE_CHECKS_OUT,
+                  }),
               }
             : {};
     rules.family = family;

@@ -80,13 +80,9 @@ PREPUSH_ROOT="$ROOT_DIR" source "$SCRIPT_DIR/prepush-source-checks.sh"
 # The whole gate already passed on exactly these inputs (GATE_KEY, from the source-only checks: every
 # file git does not ignore, the installed lockfile, the gate's scripts, the Node version and the lane
 # environment; tools/prepush-inputs.mjs), on any branch: nothing below can come out differently, so it
-# does not run again. This is what lets golden's land commit of a branch that merged golden first push
-# in seconds. PREPUSH_RERUN_ALL=1 runs it all. A land check's pass with a shard excused as failing on golden's
-# tip (gate-known, below) counts only for a push of the same landing, never for any other push.
+# does not run again. PREPUSH_RERUN_ALL=1 runs it all.
 if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
-    { GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)" ||
-        { [ "${TEST_LEDGER_KIND:-}" = land-check ] &&
-            GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate-known "$GATE_KEY" 2>/dev/null)"; }; }; then
+    GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)"; then
     echo -e "${GREEN}[SKIP] The whole gate: it already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$GATE_PASS" 2>/dev/null); key ${GATE_KEY:0:12}; PREPUSH_RERUN_ALL=1 runs it)${NC}"
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
@@ -281,9 +277,8 @@ fi
 # clock around the shard (owner rule: no arbitrary timeouts). A stage clock counted other gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
 # 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
 # prepush-tests.mjs stops every shard's process group itself.
-# Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
-# step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
-# The light gate runs no shard (so it never records gate-known): CI's verification of golden runs them all.
+# Exit 3: every shard passed, but some only with flaky or quarantined failures let through
+# (tools/test-quarantine.mjs); the step passes and no gate pass is recorded, so the next push runs again.
 # The shards start as soon as the build is done, in the background beside the static checks below (Knip, Lint,
 # the docs, the bundle sizes, the public API report: 1-2% of gates fail on each), which held them back about
 # 10 minutes; the first failure of either stops the other (bg_step). Their output is printed when the
@@ -409,7 +404,7 @@ sonar_reminder
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
-    [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
+    [ -n "$GATE_KEY" ] && [ -z "${KNOWN_FAILURES:-}" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
     if remote_moved; then
         echo -e "${RED}[STOP] Every check passed, but $PUSH_REMOTE's ${PUSH_REMOTE_REF#refs/heads/} moved while the gate ran (${PUSH_REMOTE_SHA:0:12} -> ${REMOTE_NOW:0:12}), so git would reject this push.${NC}"
         echo "Run git fetch $PUSH_REMOTE && git merge $PUSH_REMOTE/${PUSH_REMOTE_REF#refs/heads/}, then push again: this gate's passes are recorded, so only what the merge changes runs again."

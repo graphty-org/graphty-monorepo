@@ -725,18 +725,18 @@ describe("running a selection", () => {
         assert.match(notes.join("\n"), /\[NONE\] layout/u);
     });
 
-    it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for the cut", () => {
-        assert.equal(selectionOn({}, "origin/golden"), true, "on by default for landing checks");
+    it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for master", () => {
+        assert.equal(selectionOn({}, "origin/master"), true, "on by default for a branch push");
         assert.equal(
-            selectionOn({ PREPUSH_SELECT_BASE: "origin/golden-cut" }, "origin/master"),
+            selectionOn({ PREPUSH_SELECT_BASE: "origin/master" }, "origin/master"),
             false,
-            "never on the cut",
+            "never on a push to master",
         );
-        assert.equal(selectionOn({ PREPUSH_SELECT_BASE: "origin/golden" }, "origin/master"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/golden"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
+        assert.equal(selectionOn({ PREPUSH_SELECT_BASE: "origin/feat/x" }, "origin/master"), true);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/master"), true);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/master"), false);
         assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/golden"), false);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/master"), false);
     });
 
     it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {
@@ -751,8 +751,8 @@ describe("running a selection", () => {
             rmSync(main, { recursive: true, force: true });
         }
         assert.deepEqual(laneEnv({ PREPUSH_SELECT: "1", PATH: "/bin" }), [["PREPUSH_SELECT", "1"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden-cut" }), [["PREPUSH_SELECT_BASE", "cut"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden" }), []);
+        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/master" }), [["PREPUSH_SELECT_BASE", "cut"]]);
+        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/feat/x" }), []);
     });
 
     it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {

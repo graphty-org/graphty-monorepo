@@ -95,15 +95,14 @@ describe("the gate key", () => {
         mkdirSync(join(r.dir, "dist"));
         writeFileSync(join(r.dir, "dist/out.js"), "x\n");
         assert.equal(r.key(), before, "an ignored build output");
-        assert.equal(r.key({ GRAPHTY_TEST_SLOTS: "8", PUSH_BASE_REF: "origin/golden" }), before, "slots and base");
+        assert.equal(r.key({ GRAPHTY_TEST_SLOTS: "8", PUSH_BASE_REF: "origin/master" }), before, "slots and base");
     });
 
-    it("never lets a branch stacked on an unlanded branch stand for a push measured from master or golden", () => {
+    it("never lets a branch stacked on an unlanded branch stand for a push measured from master", () => {
         const r = repo();
         const checked = r.key({ PUSH_BASE_REF: "origin/master" });
-        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden" }), checked, "golden, like master, was gated");
-        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden-cut" }), checked);
-        // The stacked branch S tests only its commits since its parent F; golden's land commit of S,
+        assert.equal(r.key({}), checked, "no base is master");
+        // The stacked branch S tests only its commits since its parent F; the merge of S into master,
         // with the same files, must still run the gate over F's commits.
         r.git("update-ref", "refs/remotes/origin/fix/parent", "HEAD");
         const stacked = r.key({ PUSH_BASE_REF: "origin/fix/parent" });

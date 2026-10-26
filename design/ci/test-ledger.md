@@ -178,16 +178,15 @@ per transaction so no gate waits long. Steady size is under 1 GB.
 
 All columns are plain SQL types; the module creates them with `CREATE ... IF NOT EXISTS`.
 
-| Table          | One row per                         | Columns beyond the keys                                                                                                                             |
-| -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `meta`         | setting                             | `schema_version`, `min_reader_version`, `complete`, `ingested_through`, `last_prune`                                                                |
-| `invocation`   | invocation (`<ms>-<pid>-<shard>`)   | kind, branch, commit, tree, base, dirty, shard, family, selected, outcome, reused_from, started_at, secs, log; indexed by family+time, commit, tree |
-| `test`         | test, or file (name `''`)           | file (`<package>/<path>`), name (`suite > test`)                                                                                                    |
-| `file_run`     | invocation and file                 | passed, failed, skipped, ms, `dup_names` (testcases sharing a name)                                                                                 |
-| `failure`      | invocation and test                 | status (fail, timeout), signature, key, masked first line, first 2,000 characters of the message                                                    |
-| `exoneration`  | invocation and test                 | reason (`fails-on-golden`), the evidence invocation on golden's tip, issue                                                                          |
-| `golden_issue` | signature                           | issue, culprit, opened_at                                                                                                                           |
-| `miss`         | culprit, test file and changed file | dropped, found_at                                                                                                                                   |
+| Table         | One row per                         | Columns beyond the keys                                                                                                                             |
+| ------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `meta`        | setting                             | `schema_version`, `min_reader_version`, `complete`, `ingested_through`, `last_prune`                                                                |
+| `invocation`  | invocation (`<ms>-<pid>-<shard>`)   | kind, branch, commit, tree, base, dirty, shard, family, selected, outcome, reused_from, started_at, secs, log; indexed by family+time, commit, tree |
+| `test`        | test, or file (name `''`)           | file (`<package>/<path>`), name (`suite > test`)                                                                                                    |
+| `file_run`    | invocation and file                 | passed, failed, skipped, ms, `dup_names` (testcases sharing a name)                                                                                 |
+| `failure`     | invocation and test                 | status (fail, timeout), signature, key, masked first line, first 2,000 characters of the message                                                    |
+| `exoneration` | invocation and test                 | reason (`fails-on-golden`), the evidence invocation on golden's tip, issue                                                                          |
+| `miss`        | culprit, test file and changed file | dropped, found_at                                                                                                                                   |
 
 Child rows cascade on delete. Every table is filled from files, so `rebuild` replays all of it.
 Schema changes are additive only. Older code reads a newer database and ignores unknown columns; it

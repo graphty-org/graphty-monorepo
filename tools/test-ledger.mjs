@@ -7,7 +7,7 @@
 // Nothing here may block or fail a push: callers import this module and call it inside try/catch, and a
 // ledger that is missing, locked or broken prints `ledger: unavailable (<why>); deciding as before`.
 //
-//   node tools/test-ledger.mjs status                  golden failures, flaky / broken tests, health
+//   node tools/test-ledger.mjs status                  flaky / broken tests, health
 //   node tools/test-ledger.mjs why <file>[ > <test>]   the rows behind a decision about a test or a file
 //   node tools/test-ledger.mjs sql "<select>"          a read-only query
 //   node tools/test-ledger.mjs rebuild | prune
@@ -62,13 +62,6 @@ const list = (d) => (existsSync(d) ? readdirSync(d) : []);
 const inList = (n) => `(${Array.from({ length: n }, () => "?").join(",")})`;
 export const familyOf = (shard) => shard.replace(/-\d+$/, "");
 const dayOf = (id) => new Date(Number(id.split("-")[0])).toISOString().slice(0, 10);
-const readJson = (p) => {
-    try {
-        return JSON.parse(readFileSync(p, "utf8"));
-    } catch {
-        return null;
-    }
-};
 
 /**
  * The ledger's directory: TEST_LEDGER_DIR, else tmp/test-ledger in the main checkout of `cwd`'s repository.
@@ -345,8 +338,7 @@ CREATE TABLE IF NOT EXISTS failure (inv TEXT REFERENCES invocation (id) ON DELET
   signature TEXT, key TEXT, line TEXT, message TEXT, PRIMARY KEY (inv, test));
 CREATE INDEX IF NOT EXISTS failure_test ON failure (test);
 CREATE TABLE IF NOT EXISTS exoneration (inv TEXT REFERENCES invocation (id) ON DELETE CASCADE, test INTEGER,
-  reason TEXT, evidence TEXT, issue INTEGER, PRIMARY KEY (inv, test));
-CREATE TABLE IF NOT EXISTS golden_issue (signature TEXT PRIMARY KEY, issue INTEGER, culprit TEXT, opened_at TEXT);`;
+  reason TEXT, evidence TEXT, issue INTEGER, PRIMARY KEY (inv, test));`;
 
 function prepare(db) {
     db.q ??= {
@@ -356,7 +348,6 @@ function prepare(db) {
         fileRun: db.prepare("INSERT OR IGNORE INTO file_run VALUES (?, ?, ?, ?, ?, ?, ?)"),
         failure: db.prepare("INSERT OR IGNORE INTO failure VALUES (?, ?, ?, ?, ?, ?, ?)"),
         exon: db.prepare("INSERT OR IGNORE INTO exoneration VALUES (?, ?, ?, ?, ?)"),
-        issue: db.prepare("INSERT OR REPLACE INTO golden_issue VALUES (?, ?, ?, ?)"),
     };
     return db.q;
 }
@@ -395,21 +386,12 @@ function ingest(db, dir, from) {
             .filter((n) => n.endsWith(".json.gz") && !have.get(n.slice(0, -8)))
             .map((n) => n.slice(0, -8)),
     );
-    const known = db.prepare("SELECT issue, culprit FROM golden_issue WHERE signature = ?");
-    const issues = list(join(dir, "issues"))
-        .filter((n) => n.endsWith(".json"))
-        .map((f) => readJson(join(dir, "issues", f)))
-        .filter((i) => {
-            const k = i && known.get(i.signature);
-            return i && (!k || k.issue !== (i.issue ?? 0) || k.culprit !== (i.culprit ?? null));
-        });
     // A writer that began a record before midnight may rename it into yesterday's directory after this.
     const through = days.length ? new Date(Date.parse(days.at(-1)) - DAY).toISOString().slice(0, 10) : since;
-    if (!fresh.length && !issues.length && through === meta("ingested_through")) return;
+    if (!fresh.length && through === meta("ingested_through")) return;
     db.exec("BEGIN IMMEDIATE");
     try {
         fresh.forEach((id) => ingestOne(db, dir, id));
-        issues.forEach((i) => prepare(db).issue.run(i.signature, i.issue ?? 0, i.culprit ?? null, i.opened_at ?? null));
         db.prepare("INSERT OR REPLACE INTO meta VALUES ('ingested_through', ?)").run(through);
         db.exec("COMMIT");
     } catch (e) {
@@ -663,142 +645,6 @@ export function badThreshold(rate, n = 10) {
     return n;
 }
 
-// Golden's newest word on a file in a family (by chain position, then time): the run `status` reads.
-function newestWord(db, file, family, chain) {
-    const at = new Map(chain.map((c, i) => [c, i]));
-    const rows = db
-        .prepare(
-            `SELECT i.id, i.commit_sha c, i.started_at s FROM file_run fr JOIN test t ON t.id = fr.test
-             JOIN invocation i ON i.id = fr.inv WHERE t.file = ? AND t.name = '' AND i.family = ? AND i.dirty = 0
-             AND i.outcome IN ('passed', 'failed') AND i.kind IN ${inList(OWNED.length)}
-             AND i.commit_sha IN (SELECT value FROM json_each(?))`,
-        )
-        .all(file, family, ...OWNED, JSON.stringify(chain));
-    return rows.sort((a, b) => at.get(a.c) - at.get(b.c) || (a.s < b.s ? 1 : -1))[0];
-}
-
-/**
- * The tests whose newest word on golden (origin/golden's chain, any tool-owned kind) is a failure.
- * @param db the database
- * @param chain the chain
- * @returns `[{ file, name, family, signature, line, issue, commit }]`
- */
-export function goldenFailures(db, chain) {
-    const cands = db
-        .prepare(
-            `SELECT DISTINCT t.file, t.name, i.family FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv
-             WHERE i.commit_sha IN (SELECT value FROM json_each(?)) AND i.kind IN ${inList(OWNED.length)}`,
-        )
-        .all(JSON.stringify(chain), ...OWNED);
-    const out = [];
-    for (const c of cands) {
-        const ev = newestWord(db, c.file, c.family, chain);
-        const sql =
-            "SELECT f.* FROM failure f JOIN test t ON t.id = f.test WHERE f.inv = ? AND t.file = ? AND t.name = ?";
-        const f = ev && db.prepare(sql).get(ev.id, c.file, c.name);
-        const issue = f && db.prepare("SELECT issue FROM golden_issue WHERE signature = ?").get(f.signature)?.issue;
-        if (f) out.push({ ...c, signature: f.signature, key: f.key, line: f.line, issue: issue || null, commit: ev.c });
-    }
-    return out;
-}
-
-// ---------------------------------------------------------------- issues for failures on golden
-
-const pidAlive = (pid) => {
-    try {
-        return Boolean(pid) && process.kill(pid, 0);
-    } catch {
-        return false;
-    }
-};
-
-/**
- * Makes sure each signature has an issue: claims issues/<signature>.json with the exclusive flag, so two
- * processes file one, and files `Failing on golden: <line>`. A claim another live process made in the last 10
- * minutes is left to it; an older one, or one whose filing failed, is taken over.
- * @param dir the ledger directory
- * @param failures `[{ signature, line, file, name, key }]`
- * @param info `{ commit, log }`
- * @param gh `(args) => stdout`
- * @returns `{ signature: issue }` for the signatures that have one
- */
-export function fileIssues(dir, failures, info, gh) {
-    mkdirSync(join(dir, "issues"), { recursive: true });
-    const out = {};
-    for (const sig of new Set(failures.map((f) => f.signature))) {
-        const path = join(dir, "issues", `${sig}.json`);
-        const had = claimIssue(path, sig);
-        const issue = had === MINE ? fileIssue(path, sig, failures, info, gh) : had;
-        if (issue > 0) out[sig] = issue;
-    }
-    return out;
-}
-
-const MINE = "mine";
-
-// The signature's issue number; 0 when another live process claimed it in the last 10 minutes (it files it); MINE
-// when this process now holds the claim and files it.
-function claimIssue(path, sig) {
-    const claim = { signature: sig, issue: 0, opened_at: new Date().toISOString(), pid: process.pid };
-    try {
-        writeFileSync(path, JSON.stringify(claim), { flag: "wx" });
-        return MINE;
-    } catch {
-        const had = readJson(path);
-        if (had?.issue > 0) return had.issue;
-        if (Date.now() - Date.parse(had?.opened_at) < 600_000 && pidAlive(had.pid)) return 0;
-        writeFileSync(path, JSON.stringify({ ...had, ...claim }));
-        return MINE;
-    }
-}
-
-function fileIssue(path, sig, failures, info, gh) {
-    const tests = failures.filter((f) => f.signature === sig);
-    try {
-        const body = [
-            `Golden at ${info.commit} fails this way (\`node tools/test-ledger.mjs why '${tests[0].file}'\`):`,
-            "",
-            ...tests.map((t) => `- \`${t.file} > ${t.name}\` (key ${t.key}): ${t.line}`),
-            "",
-            `Log: ${info.log ?? "-"}`,
-            "",
-            `<!-- test-ledger signature=${sig} -->`,
-        ].join("\n");
-        const title = `Failing on golden: ${tests[0].line}`.slice(0, 200);
-        const labels = ["--label", "bug", "--label", "priority:high", "--label", "effort:medium"];
-        const url = gh(["issue", "create", "--title", title, ...labels, "--body", body]);
-        const issue = Math.max(Number(/\/issues\/(\d+)/.exec(url)?.[1] ?? 0), 0);
-        writeFileSync(path, JSON.stringify({ ...readJson(path), issue, pid: null }));
-        return issue;
-    } catch (e) {
-        writeFileSync(path, JSON.stringify({ ...readJson(path), pid: null }));
-        console.error(`ledger: could not file the issue for ${sig}: ${e.message.split("\n")[0]}; the next run retries`);
-        return 0;
-    }
-}
-
-/**
- * Records the culprit verification named on each issue file of these signatures, and says so on the issue.
- * @param dir the ledger directory
- * @param signatures the signatures
- * @param culprit `{ sha, subject }`
- * @param gh `(args) => stdout`
- */
-export function noteCulprit(dir, signatures, culprit, gh) {
-    for (const sig of new Set(signatures)) {
-        const path = join(dir, "issues", `${sig}.json`);
-        const i = readJson(path);
-        if (!i?.issue || i.culprit === culprit.sha) continue;
-        writeFileSync(path, JSON.stringify({ ...i, culprit: culprit.sha }));
-        try {
-            const body = `Verification's bisect names the culprit: ${culprit.sha} ${culprit.subject}`;
-            gh(["issue", "comment", String(i.issue), "--body", body]);
-        } catch {
-            // the issue file holds it; the comment is a courtesy
-        }
-    }
-}
-
 // ---------------------------------------------------------------- the command line
 
 function status(l, cwd) {
@@ -816,12 +662,6 @@ function status(l, cwd) {
     );
     const totals = `${count("SELECT COUNT(*) n FROM invocation")} invocations, ${count("SELECT COUNT(*) n FROM failure")} failures`;
     console.log(`ledger: ${totals}; this week ${excused} excused, ${unattributed} unattributed`);
-    const failing = goldenFailures(db, chain);
-    console.log(`failing on golden (${failing.length}):`);
-    for (const f of failing) {
-        const issue = f.issue ? "#" + f.issue : "none";
-        console.log(`  ${f.family}  ${f.file} > ${f.name}  issue ${issue}  at ${f.commit.slice(0, 10)}: ${f.line}`);
-    }
     const recent = new Date(Date.now() - 30 * DAY).toISOString();
     const tests = db
         .prepare(

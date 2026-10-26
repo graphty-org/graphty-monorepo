@@ -280,31 +280,6 @@ describe("flaky, broken and the flaky bisect", () => {
 });
 
 describe("storage", () => {
-    it("files one issue per signature however many verifications ask, and retries a failed filing", () => {
-        const calls = [];
-        const gh = (args) => (calls.push(args), "https://github.com/o/r/issues/77");
-        const fl = [{ ...failure("Error: once", "graphty/src/i.test.ts"), file: "graphty/src/i.test.ts" }];
-        const broken = () => {
-            throw new Error("offline");
-        };
-        assert.deepEqual(L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, broken), {});
-        assert.deepEqual(L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, gh), { [fl[0].signature]: 77 });
-        L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, gh);
-        assert.equal(calls.length, 1);
-        // a claim another live process made a minute ago is its to file
-        const other = [{ ...failure("Error: twice", "graphty/src/j.test.ts"), file: "graphty/src/j.test.ts" }];
-        const claim = {
-            signature: other[0].signature,
-            issue: 0,
-            opened_at: new Date().toISOString(),
-            pid: process.ppid,
-        };
-        writeFileSync(join(ledgerHome, "issues", `${other[0].signature}.json`), JSON.stringify(claim));
-        assert.deepEqual(L.fileIssues(ledgerHome, other, { commit: g0, log: "l" }, gh), {});
-        assert.equal(calls.length, 1);
-        assert.match(calls[0].join(" "), /Failing on golden: Error: once .*priority:high.*test-ledger signature=/s);
-    });
-
     it("loses no record when two processes record 200 runs each while reading", async () => {
         const template = {
             kind: "push",

@@ -452,10 +452,10 @@ describe("the pre-push gate matches CI", () => {
         assert.equal(same.status, 1, same.stdout + same.stderr);
     });
 
-    it("records an excused gate as gate-known, which only a land check's push accepts", () => {
+    it("records no gate pass when a shard passed only with failures let through", () => {
         const prepush = code(tool("prepush.sh"));
-        assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
-        assert.match(prepush, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
+        assert.match(prepush, /\[ -z "\$\{KNOWN_FAILURES:-\}" \] && node \S+ record gate "\$GATE_KEY"/);
+        assert.doesNotMatch(prepush, /gate-known/);
     });
 
     it("fails a shard that exits 0 with no vitest run summary in its log", () => {

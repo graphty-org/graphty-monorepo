@@ -304,14 +304,14 @@ const SELECT_DEFAULT = "1";
 /**
  * Whether the gate runs only the selected tests: PREPUSH_SELECT=1 (default SELECT_DEFAULT), a base to
  * measure the change from, and never under PREPUSH_ALL=1, which verification sets to run everything, nor
- * for a push to golden-cut or master.
+ * for a push to master.
  * @param env the environment
  * @param base the gate's base, or undefined
  * @returns boolean
  */
 export function selectionOn(env, base) {
-    // a push measured from golden-cut or master runs whole
-    const cut = /(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "");
+    // a push measured from master runs whole
+    const cut = /(^|\/)master$/u.test(env.PREPUSH_SELECT_BASE ?? "");
     return Boolean(base) && !cut && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
 }
 

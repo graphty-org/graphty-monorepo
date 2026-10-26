@@ -4,7 +4,7 @@
  * has already done on byte-identical inputs.
  *
  * Every key is made of what a check reads, never of the branch name or the commit: a clean merge of a
- * branch into golden has exactly the files the branch tested, so the landing push reuses the branch's
+ * branch into master has exactly the files the branch tested, so the merge reuses the branch's
  * passes instead of running them again (design/ci/fast-pipeline.md, section 5.3).
  *
  * - The fingerprint of the whole checkout: HEAD and the content of every file git does not ignore
@@ -37,7 +37,7 @@
  *   node tools/prepush-inputs.mjs record <kind> <key>
  *       records a pass when the checkout's gate key is still <key>, else says so and exits 1. Only the
  *       gate's scripts record, at the end of a run that passed; never record a pass by hand: every
- *       push of those files, golden's included, would then skip the checks it names.
+ *       push of those files would then skip the checks it names.
  */
 
 import { execFileSync } from "node:child_process";
@@ -170,8 +170,8 @@ export function laneEnv(env = process.env) {
         .map((k) => [k, env[k]]);
     // the light gate (no shard, no screenshot) is never the full one; unset and 0 are both the full gate
     if (env.PREPUSH_LIGHT === "1") pairs.push(["PREPUSH_LIGHT", "1"]);
-    // a push to the cut or master never selects (prepush-tests.mjs selectionOn), so its gate is not one that did
-    if (/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")) {
+    // a push to master never selects (prepush-tests.mjs selectionOn), so its gate is not one that did
+    if (/(^|\/)master$/u.test(env.PREPUSH_SELECT_BASE ?? "")) {
         pairs.push(["PREPUSH_SELECT_BASE", "cut"]);
     }
     return pairs;
@@ -199,13 +199,13 @@ export function gateContext(root, gateRoot = GATE_ROOT) {
  * them covers everything the push changes since that branch, and what the branch holds was gated when
  * it got there.
  */
-const CHECKED_BASES = new Set(["origin/master", "origin/golden", "origin/golden-cut"]);
+const CHECKED_BASES = new Set(["origin/master"]);
 
 /**
  * What a gate run measures "this push's changes" from (the affected packages, SonarQube's changed
  * lines): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
  * merge base with HEAD. A branch stacked on an unlanded branch tests only its own commits, so its pass
- * must not cover a push measured from master or golden, which also holds the parent's commits.
+ * must not cover a push measured from master, which also holds the parent's commits.
  * @param root the checkout
  * @param env the environment (PUSH_BASE_REF, which the push queue and the gate export once asked)
  * @returns "checked", or "<ref>@<merge base>"

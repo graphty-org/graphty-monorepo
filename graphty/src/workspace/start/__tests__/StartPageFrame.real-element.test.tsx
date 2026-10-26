@@ -74,16 +74,31 @@ function atSamples(samples: HTMLElement): boolean {
 }
 
 /**
- * Opens the start page and presses Samples, which scrolls the page down to them.
+ * Opens the start page and presses Samples, which scrolls the page down to them, and waits for the
+ * page to come to rest there (its scrollend). Being at the samples is not enough: the smooth scroll
+ * can reach them before its last frame (in 1 of 12 runs on a busy machine it ended after the
+ * position check passed, and a frame on the CI runner's software GPU is long), so the keyboard test
+ * pressed Home while that scroll was still running, and once the page stayed at the samples until
+ * the test timed out (issue #3679). A reader presses the next key on a page that has stopped.
  * @returns the samples section.
  */
 async function showSamples(): Promise<HTMLElement> {
     await startPage();
     const samples = screen.getByRole("region", { name: "Sample library" });
-    await userEvent.click(screen.getByRole("button", { name: "Samples" }));
-    await waitFor(() => {
-        assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
-    }, SCROLL);
+    let ended = false;
+    const onEnd = (): void => {
+        ended = true;
+    };
+    document.addEventListener("scrollend", onEnd);
+    try {
+        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await waitFor(() => {
+            assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
+            assert.isTrue(ended, "the page came to rest");
+        }, SCROLL);
+    } finally {
+        document.removeEventListener("scrollend", onEnd);
+    }
     return samples;
 }
 

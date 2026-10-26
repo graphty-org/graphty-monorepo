@@ -131,6 +131,12 @@ jobs:
                   name: stress-build-packages
                   path: .
 
+            # The style fidelity scorecard compares the canvas with oracle PNGs held in Git LFS; without them every
+            # one of its tests fails and the run's cap files nothing (#3539). Same files ci.yml's test job pulls.
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v4

@@ -1534,7 +1534,7 @@ describe("ci.yml", () => {
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
         assert.match(ci, /workflow_call:\n\s+inputs:\n\s+ref:\n(?:.*\n){1,2}\s+type: string\n\s+required: true/);
-        const checkouts = ci.match(/- uses: actions\/checkout@v4\n(?:\s+.*\n){0,3}/g);
+        const checkouts = ci.match(/- uses: actions\/checkout@v\d+\n(?:\s+.*\n){0,3}/g);
         assert.ok(checkouts.length >= 10);
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
@@ -1696,7 +1696,12 @@ describe("verification runs of ci.yml", () => {
         // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
         // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
-        const sha = (t) => createHash("sha256").update(t).digest("hex");
+        // A version bump of an action from GitHub's own `actions/` organization (Dependabot's, `@v4` to `@v7`) is
+        // not a change to the owner's steps; any other edit, another action or a ref that is not a version, is.
+        const sha = (t) =>
+            createHash("sha256")
+                .update(t.replace(/(uses: actions\/[\w-]+)@v\d+(?:\.\d+)*$/gm, "$1@v4"))
+                .digest("hex");
         // The gate steps moved, unchanged, from "All Checks Pass" to the Visual report job (#3443).
         const report = job(ci, "visual-report");
         const from = report.indexOf("            - name: Check out the gate");
@@ -1760,12 +1765,13 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
         assert.match(
             job(ci, "story-tests-parity"),
-            /project: \[graphty, graphty-element, algorithms, layout, compact-mantine, cytoscape-extensions\]/,
+            /project:\s*\[\s*graphty,\s*graphty-element,\s*algorithms,\s*layout,\s*compact-mantine,\s*cytoscape-extensions,\s*graph-io-fidelity,?\s*\]/,
         );
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
         assert.match(job(ci, "story-tests"), /- project: cytoscape-extensions\n\s+shard: cytoscape-extensions\n/);
+        assert.match(job(ci, "story-tests"), /- project: graph-io-fidelity\n\s+shard: graph-io-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
         // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
@@ -6169,7 +6175,14 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         ]);
         assert.deepEqual(Object.fromEntries(uploads), STORYBOOKS);
         // every step that builds is skipped when the builds are downloaded instead
-        for (const step of build.split(/\n {12}- /).filter((s) => /nx run .*:build-storybook|pnpm install/.test(s))) {
+        const building = build
+            .split(/\n {12}- /)
+            .filter((s) => /nx run(-many)? .*build-storybook|pnpm install/.test(s));
+        assert.ok(
+            building.some((s) => /build-storybook/.test(s)),
+            "no step builds the Storybooks",
+        );
+        for (const step of building) {
             assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
         }
     });

@@ -738,30 +738,6 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Build Storybook (graphty-element)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty-element:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (graphty)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (compact-mantine)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run compact-mantine:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (algorithms)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run algorithms:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (layout)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run layout:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (cytoscape-extensions)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
@@ -773,9 +749,15 @@ jobs:
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
                   restore-keys: lfs-fidelity-references-
 
-            - name: Build Storybook (graph-io-fidelity)
+            # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
+            # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
+            # four 49 s together), and every Stories and visual job waits for this job. Each build reads only
+            # the package builds downloaded above, so none waits on another.
+            - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
+              run: >-
+                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the visual job
@@ -2004,7 +1986,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -2038,12 +2020,19 @@ jobs:
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: graph-io-fidelity
+                      shard: graph-io-browser
+                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                      # so a graphty-element change runs them too (the capture plan's rule for this project).
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
             # every step below but the summary is.
             - name: Skip a project this run does not test
               id: skip
-              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4
@@ -2064,7 +2053,7 @@ jobs:
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**${{ matrix.lfs }}"
 
             - uses: pnpm/action-setup@v4
               if: steps.skip.outputs.skip != 'true'
@@ -2186,7 +2175,16 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, algorithms, layout, compact-mantine, cytoscape-extensions]
+                project:
+                    [
+                        graphty,
+                        graphty-element,
+                        algorithms,
+                        layout,
+                        compact-mantine,
+                        cytoscape-extensions,
+                        graph-io-fidelity,
+                    ]
         steps:
             - uses: actions/checkout@v4
               with:

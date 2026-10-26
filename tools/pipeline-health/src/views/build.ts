@@ -58,6 +58,12 @@ export const SLOW_RANGES: SlowRange[] = ["7d", "28d"];
 type CategoryPage = (typeof CATEGORY)[string];
 
 /** The members of Runners (section 2.6): the runner rows of CI. */
+/**
+ * Members another category judges, also shown on a page because they are one of its sources: the Flaky page
+ * names every flaky source (4.4), so it shows CI's rerun rate and the stress run. They never set its state.
+ */
+const ALSO_SHOWN: Partial<Record<PageId, string[]>> = { flaky: ["ci.reruns", "data.stress_run"] };
+
 const RUNNERS = new Set([
     "ci.runner_wait",
     "ci.longest_queued",
@@ -264,7 +270,13 @@ class Builder {
             case "runners":
                 return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];
             case "flaky":
-                return [await hotspots(this.reads, "7d"), await quarantineTable(this.reads), ...empty];
+                // Every flaky source (4.4): CI's detections (hotspots), the committed quarantine list, the stress run.
+                return [
+                    await hotspots(this.reads, "7d"),
+                    await quarantineTable(this.reads),
+                    await stressTable(this.reads),
+                    ...empty,
+                ];
             case "pull-requests":
                 return [await prTime(this.reads, range), await ownerTable(this.reads), ...empty];
             case "releases":
@@ -318,7 +330,8 @@ class Builder {
                       range,
                   )
                 : (await this.categories(range)).find((c) => c.id === page);
-        const members = await Promise.all(membersOf(this.reads.ev, page).map((m) => this.member(m.id, range)));
+        const ids = [...membersOf(this.reads.ev, page).map((m) => m.id), ...(ALSO_SHOWN[page] ?? [])];
+        const members = await Promise.all(ids.map((id) => this.member(id, range)));
         return {
             ...base,
             state: cat?.state ?? "idle",

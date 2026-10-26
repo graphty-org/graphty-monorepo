@@ -46,6 +46,7 @@ import {
     readdirSync,
     readFileSync,
     realpathSync,
+    statSync,
     writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -435,7 +436,7 @@ export function storyCandidates(wt, pkg, drawnBy = []) {
     }
     const deps = [...seen].filter((d) => d !== pkg);
     const story = (f) => STORY_SIDE.test(f) && !/\/\.storybook\//u.test(f) && !/\.(test|spec)\./u.test(f);
-    return execFileSync("git", ["ls-files", "--", pkg, ...deps], { cwd: wt, encoding: "utf8" })
+    const files = execFileSync("git", ["ls-files", "--", pkg, ...deps], { cwd: wt, encoding: "utf8" })
         .split("\n")
         .filter((f) => f && (CODE.test(f) || DATA.test(f)) && !f.endsWith(".d.ts"))
         .filter((f) => {
@@ -443,6 +444,50 @@ export function storyCandidates(wt, pkg, drawnBy = []) {
             const src = f.startsWith(`${f.split("/")[0]}/src/`) && buildInput(f.slice(f.indexOf("/") + 1));
             return src || (own && story(f));
         });
+    return [...files, ...storySideImports(wt, files.filter(story), new Set(files))];
+}
+
+/**
+ * The files outside every package's source that the story files import by relative path, directly or through
+ * another such file: test-side helpers and data a story draws with (graph-io-fidelity's stories load
+ * graphty-element/test/fidelity/ and graph-io/test/corpus/). Never a test file or the Storybook setup.
+ * @param wt the scratch worktree
+ * @param stories repo-relative story files
+ * @param known files already candidates (never returned, never walked)
+ * @returns repo-relative paths
+ */
+export function storySideImports(wt, stories, known) {
+    const out = [];
+    const seen = new Set(known);
+    const queue = [...stories];
+    // for-of visits what the loop pushes, so this walks the whole closure
+    for (const f of queue) {
+        const text = readFileSync(join(wt, f), "utf8");
+        // `from "..."`, `import("...")` and a bare `import "..."`
+        for (const m of text.matchAll(/(?:from|import\s*\(?)\s*["'](\.{1,2}\/[^"'?]+)/gu)) {
+            const base = join(dirname(f), m[1]);
+            // a "./x.js" specifier names x.ts, as TypeScript resolves it
+            const hit = ["", ".ts", ".tsx", ".js", ".mjs", "/index.ts", "/index.js"]
+                .flatMap((e) => [base + e, base.replace(/\.js$/u, ".ts") + e])
+                .find((c) => existsSync(join(wt, c)) && statSync(join(wt, c)).isFile());
+            const ok =
+                hit &&
+                !hit.startsWith("..") &&
+                !seen.has(hit) &&
+                (CODE.test(hit) || DATA.test(hit)) &&
+                !hit.endsWith(".d.ts") &&
+                !/\.(test|spec)\./u.test(hit) &&
+                !/\/\.storybook\//u.test(hit);
+            if (ok) {
+                seen.add(hit);
+                out.push(hit);
+                if (CODE.test(hit)) {
+                    queue.push(hit);
+                }
+            }
+        }
+    }
+    return out;
 }
 
 /**

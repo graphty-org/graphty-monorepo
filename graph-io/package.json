@@ -130,6 +130,7 @@
         "test": "vitest",
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
+        "test:storybook": "vitest run --config vitest.storybook.config.ts",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "benchmark": "tsx benchmarks/run.ts",
@@ -181,6 +182,7 @@
     "devDependencies": {
         "@resvg/resvg-js": "2.6.2",
         "@sigma/export-image": "4.0.0",
+        "@storybook/addon-vitest": "^9.1.21",
         "@storybook/web-components-vite": "^9.0.11",
         "@vitest/browser-playwright": "catalog:",
         "@vitest/coverage-v8": "catalog:",

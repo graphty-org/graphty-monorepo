@@ -11,14 +11,12 @@
 //                           (audience `graphty-results`, ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN)
 //   HEALTH_API_URL          the pipeline health API (design/ci/health-dashboard.md); in GitHub Actions every POST is
 //                           also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
-//                           2 s at most, never awaited, never spooled, and it never keeps the process alive
+//                           2 s at most, never awaited by the caller, never spooled; flushHealth() settles them
 //
 // Bodies carry `X-Results-Schema: 1`. A batch of failure events is `{ invocation, failures: [...] }`; a single
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,71 +51,59 @@ export function config(env = process.env, root = ROOT) {
 
 const oidcCache = new Map();
 
-async function bearer(cfg, signal) {
+async function bearer(cfg, signal, audience = AUDIENCE) {
     if (cfg.token) return cfg.token;
-    const hit = oidcCache.get(cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL);
+    const key = `${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}|${audience}`;
+    const hit = oidcCache.get(key);
     if (hit && hit.exp - 60 > Date.now() / 1000) return hit.value;
-    const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}`, {
+    const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}`, {
         headers: { authorization: `Bearer ${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
         signal,
     });
     if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
     const { value } = await res.json();
     const exp = JSON.parse(Buffer.from(value.split(".")[1], "base64url").toString()).exp ?? 0;
-    oidcCache.set(cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL, { value, exp });
+    oidcCache.set(key, { value, exp });
     return value;
 }
 
-/**
- * One HTTP request whose socket is unref'd, so a request still open never keeps the process alive.
- * @param url the URL
- * @param init the request
- * @param [init.method] GET or POST
- * @param [init.headers] the headers
- * @param [init.body] the body
- * @param init.signal the deadline
- * @returns `{ status, text }`; rejects on a network error or the signal
- */
-function unrefRequest(url, { method = "GET", headers = {}, body, signal }) {
-    return new Promise((resolve, reject) => {
-        const req = (url.startsWith("https:") ? httpsRequest : httpRequest)(url, { method, headers, signal }, (res) => {
-            let text = "";
-            res.setEncoding("utf8");
-            res.on("data", (d) => (text += d));
-            res.on("end", () => resolve({ status: res.statusCode, text }));
-            res.on("error", reject);
-        });
-        req.on("socket", (s) => s.unref());
-        req.on("error", reject);
-        req.end(body);
-    });
-}
+const healthPending = new Set();
 
 /**
  * Sends one POST to the health API as well, fire and forget: its own OIDC token (audience graphty-health), 2 s in
- * all, never awaited, never spooled, never throws.
+ * all, never awaited by call(), never spooled, never throws. A CLI that ends with process.exit() awaits
+ * flushHealth() first; one that ends on its own waits at most the 2 s.
  * @param cfg config() with `health`
  * @param path the route
  * @param body the JSON body
  */
 export function sendHealth(cfg, path, body) {
     const signal = AbortSignal.timeout(HEALTH_MS);
-    const { ACTIONS_ID_TOKEN_REQUEST_URL: idUrl, ACTIONS_ID_TOKEN_REQUEST_TOKEN: idToken } = cfg.oidc;
-    unrefRequest(`${idUrl}&audience=${HEALTH_AUDIENCE}`, { headers: { authorization: `Bearer ${idToken}` }, signal })
-        .then(({ status, text }) => {
-            if (status !== 200) throw new Error(`OIDC token: HTTP ${status}`);
-            return unrefRequest(cfg.health + path, {
+    const p = bearer({ oidc: cfg.oidc }, signal, HEALTH_AUDIENCE)
+        .then((auth) =>
+            fetch(cfg.health + path, {
                 method: "POST",
                 headers: {
-                    authorization: `Bearer ${JSON.parse(text).value}`,
+                    authorization: `Bearer ${auth}`,
                     "content-type": "application/json",
                     "x-results-schema": `${SCHEMA}`,
                 },
                 body: body === undefined ? undefined : JSON.stringify(body),
                 signal,
-            });
-        })
-        .catch(() => {});
+            }),
+        )
+        .then((res) => res.body?.cancel())
+        .catch(() => {})
+        .finally(() => healthPending.delete(p));
+    healthPending.add(p);
+}
+
+/**
+ * Settles every health POST still open, each within its own 2 s. Never throws.
+ * @returns a promise that resolves when they have
+ */
+export function flushHealth() {
+    return Promise.allSettled([...healthPending]);
 }
 
 /**

@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
+import { call, config, EVENT_MS, flushHealth, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -463,25 +463,56 @@ describe("health API fan-out", () => {
         assert.deepEqual(readdirSync(spool), ["9.1.a.json"]);
         assert.equal(r.ok, false);
     });
-    it("never keeps the process alive while the health API holds its request open", async () => {
+    it("delivers before process.exit() with flushHealth(), and gives up after its own 2 s", async () => {
         const s = await serve();
-        const h = await serveHealth(null);
         const client = new URL("./client.mjs", import.meta.url).href;
-        // Counts the aborts of every timeout signal: an exit that waited for the 2 s abort would count one.
-        const code = `let aborted = 0; const t = AbortSignal.timeout;
-            AbortSignal.timeout = (ms) => { const s = t(ms); s.addEventListener("abort", () => aborted++); return s; };
-            const { call, config } = await import(${JSON.stringify(client)});
-            const r = await call(config(), "POST", "/v1/failures", {});
-            process.on("exit", () => console.log(JSON.stringify({ ok: r.ok, aborted })));`;
-        const out = await new Promise((resolve, reject) =>
-            execFile(
-                process.execPath,
-                ["--input-type=module", "-e", code],
-                { env: { PATH: process.env.PATH, ...healthEnv(s.url, h.url) } },
-                (e, stdout) => (e ? reject(e) : resolve(stdout)),
-            ),
+        // Counts the aborts of every timeout signal: the store's call answers, so only the health deadline can fire.
+        const child = (env, tail) =>
+            new Promise((resolve, reject) => {
+                const code = `let aborted = 0; const t = AbortSignal.timeout;
+                    AbortSignal.timeout = (ms) => { const s = t(ms); s.addEventListener("abort", () => aborted++); return s; };
+                    const { call, config, flushHealth } = await import(${JSON.stringify(client)});
+                    const r = await call(config(), "POST", "/v1/failures", { n: 1 });
+                    process.on("exit", () => console.log(JSON.stringify({ ok: r.ok, aborted })));
+                    ${tail}`;
+                execFile(
+                    process.execPath,
+                    ["--input-type=module", "-e", code],
+                    { env: { PATH: process.env.PATH, ...env } },
+                    (e, stdout) => (e ? reject(e) : resolve(JSON.parse(stdout))),
+                );
+            });
+        const h = await serveHealth();
+        assert.deepEqual(await child(healthEnv(s.url, h.url), "await flushHealth(); process.exit(0);"), {
+            ok: true,
+            aborted: 0,
+        });
+        assert.deepEqual(
+            h.seen.filter((r) => r.method === "POST").map((r) => [r.url, r.body]),
+            [["/v1/failures", { n: 1 }]],
         );
-        assert.deepEqual(JSON.parse(out), { ok: true, aborted: 0 });
-        assert.equal((await h.posted).url, "/v1/failures");
+        const silent = await serveHealth(null);
+        assert.deepEqual(await child(healthEnv(s.url, silent.url), ""), { ok: true, aborted: 1 });
+        assert.equal((await silent.posted).url, "/v1/failures");
+    });
+    it("still sends a group's records to the health API when the store stops answering", async () => {
+        const down = await serve(false);
+        const h = await serveHealth();
+        const spool = join(TMP, "health-group-spool");
+        const recs = [{ id: "7.1.a" }, { id: "7.1.b" }];
+        const out = await postRecords(config(healthEnv(down.url, h.url)), recs, spool, 50);
+        assert.deepEqual(
+            out.map((r) => r.ok),
+            [false, false],
+        );
+        await flushHealth();
+        assert.deepEqual(
+            h.seen
+                .filter((r) => r.method === "POST")
+                .map((r) => r.body.id)
+                .sort(),
+            ["7.1.a", "7.1.b"],
+        );
+        assert.equal(h.seen.filter((r) => r.url.startsWith("/token")).length, 1, "the health token is reused");
     });
 });

@@ -4642,16 +4642,23 @@ describe("the pipeline health API", () => {
     ];
     it("gets HEALTH_API_URL beside every RESULTS_URL and health-api-url beside every results-url", () => {
         for (const [name, text] of files) {
-            for (const [, indent] of text.matchAll(/^( *)RESULTS_URL: \$\{\{ vars\.RESULTS_URL \}\}$/gm)) {
-                assert.match(
-                    text,
-                    new RegExp(`^${indent}HEALTH_API_URL: \\$\\{\\{ vars\\.HEALTH_API_URL \\}\\}$`, "m"),
-                    name,
-                );
-            }
-            const results = text.match(/^ *results-url: \$\{\{ vars\.RESULTS_URL \}\}$/gm) ?? [];
-            const health = text.match(/^ *health-api-url: \$\{\{ vars\.HEALTH_API_URL \}\}$/gm) ?? [];
-            assert.equal(health.length, results.length, name);
+            const lines = text.split("\n");
+            lines.forEach((line, i) => {
+                const m = /^( *)RESULTS_URL: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (m)
+                    assert.equal(
+                        lines[i + 1],
+                        `${m[1]}HEALTH_API_URL: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+                const r = /^( *)results-url: \$\{\{ vars\.RESULTS_URL \}\}$/.exec(line);
+                if (r)
+                    assert.equal(
+                        lines[i + 1],
+                        `${r[1]}health-api-url: \${{ vars.HEALTH_API_URL }}`,
+                        `${name}:${i + 1}`,
+                    );
+            });
         }
         const action = readFileSync(new URL("../.github/actions/timings/action.yml", import.meta.url), "utf8");
         assert.match(action, /^ {4}health-api-url:\n/m);

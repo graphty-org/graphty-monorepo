@@ -263,6 +263,10 @@ describe("shards", () => {
         assert.ok(projectSelected("browser (chromium)", ["browser"]));
         assert.ok(!projectSelected("storybook (chromium)", ["!storybook"]));
         assert.ok(projectSelected("real-element (chromium)", ["!storybook"]));
+        // an On twin only by its own name (it exists only under GRAPHTY_FEATURES_ON=1)
+        assert.ok(!projectSelected("storybook-features-on (chromium)", ["!storybook"]));
+        assert.ok(!projectSelected("default-features-on", []));
+        assert.ok(projectSelected("storybook-features-on (chromium)", ["storybook-features-on"]));
         assert.ok(projectSelected("", []));
     });
 

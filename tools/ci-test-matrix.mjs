@@ -53,6 +53,10 @@ import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
 
+// The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
+const ELEMENT_REPORTERS =
+    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+
 const OFF_SHARDS = [
     // graph-format - single shard (Node.js, no browser)
     {
@@ -251,8 +255,7 @@ const OFF_SHARDS = [
     {
         shard: "graphty-element-default",
         package: "graphty-element",
-        "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -260,7 +263,7 @@ const OFF_SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -278,8 +281,7 @@ const OFF_SHARDS = [
     {
         shard: "graphty-element-lifecycle",
         package: "graphty-element",
-        "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         browsers: "chromium firefox webkit",
         // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
@@ -299,7 +301,7 @@ const OFF_SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.
@@ -307,9 +309,6 @@ const OFF_SHARDS = [
     })),
 ];
 
-// The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
-const ELEMENT_REPORTERS =
-    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
 const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).join(" ");
 
 /**

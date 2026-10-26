@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
 import { FEATURES_ON_SHARDS, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { FEATURES_DECLARED, ON_ENV, withFeaturesOn } from "./features-on.mjs";
+import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX, withFeaturesOn } from "./features-on.mjs";
 import { candidateShards } from "./test-changed.mjs";
 import { quarantined } from "./test-quarantine.mjs";
 import { selectedCommand } from "./test-select.mjs";
@@ -153,6 +153,16 @@ describe("the On shards", () => {
         assert.equal(test.with["restore-keys"], "test-durations-${{ matrix.shard }}--");
         assert.ok(test.with.key.startsWith("test-durations-${{ matrix.shard }}--"));
         assert.ok(!shards.some((s) => s.shard.includes("--")), "no shard name holds the separator");
+    });
+
+    it("are named the same in the selector and the quarantine, which copy ON_SUFFIX and ON_ENV", () => {
+        // test-select.mjs and test-quarantine.mjs run in sandboxed copies of tools/ that hold no graphty-element
+        // source, so they cannot import tools/features-on.mjs (it reads the registry); this keeps the copies true
+        assert.equal(ON_ENV, "GRAPHTY_FEATURES_ON");
+        assert.equal(ON_SUFFIX, "features-on");
+        const select = readFileSync("tools/test-select.mjs", "utf8");
+        assert.ok(select.includes('"GRAPHTY_FEATURES_ON=1"') && select.includes('"-features-on"'));
+        assert.ok(readFileSync("tools/test-quarantine.mjs", "utf8").includes("/-features-on$/u"));
     });
 
     it("are excused by their Off family's quarantine entries", () => {

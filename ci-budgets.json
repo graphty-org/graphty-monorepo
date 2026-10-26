@@ -15,8 +15,14 @@
             "minutes": 10,
             "why": "master only: a cold walk of every package's Vite import graph, off the critical path"
         },
-        "job:release.yml:version-dry-run": { "minutes": 5 },
-        "job:release.yml:version": { "minutes": 5 },
+        "job:release.yml:Version dry run": {
+            "minutes": 20,
+            "why": "nx release version took 13 min on 2026-10-26 (#3631)"
+        },
+        "job:release.yml:Version the release": {
+            "minutes": 20,
+            "why": "the same nx release version as the dry run (#3631)"
+        },
         "job:release.yml:publish": { "minutes": 8 },
         "job:release.yml:site": { "minutes": 10 },
         "task:graphty:build": {

@@ -26,6 +26,8 @@ import {
     measuredOf,
     outsideOf,
     packBins,
+    BIN_LIMIT_MS,
+    FILE_OVERHEAD_MS,
     rootImportGraph,
     sameOutside,
     planRuns,
@@ -1330,7 +1332,7 @@ describe("packBins", () => {
     ]);
 
     it("packs the longest files first into bins of at most 8 minutes", () => {
-        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms);
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, BIN_LIMIT_MS, 0);
         assert.deepEqual(bins, [
             { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
             { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
@@ -1338,17 +1340,34 @@ describe("packBins", () => {
     });
 
     it("counts a file with no recorded time as the family's longest", () => {
-        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms);
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, BIN_LIMIT_MS, 0);
         assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
     });
 
     it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
-        assert.deepEqual(packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]])), [
-            { files: ["p/x.test.ts"], ms: 9 * MIN },
-            { files: ["p/y.test.ts"], ms: 9 * MIN },
+        assert.deepEqual(
+            packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), BIN_LIMIT_MS, 0),
+            [
+                { files: ["p/x.test.ts"], ms: 9 * MIN },
+                { files: ["p/y.test.ts"], ms: 9 * MIN },
+            ],
+        );
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), BIN_LIMIT_MS, 0), [
+            { files: ["p/x.test.ts"], ms: 30_000 },
         ]);
-        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map()), [{ files: ["p/x.test.ts"], ms: 30_000 }]);
         assert.deepEqual(packBins([], ms), []);
+    });
+
+    it("counts Vitest's per-file setup and import, so many short files are split (#3645)", () => {
+        const files = Array.from({ length: 300 }, (_, i) => `p/f${i}.test.ts`);
+        const short = new Map(files.map((f) => [f, 300]));
+        const bins = packBins(files, short);
+        assert.ok(bins.length > 1);
+        for (const b of bins) {
+            assert.ok(b.ms <= BIN_LIMIT_MS);
+            assert.equal(b.ms, b.files.length * (300 + FILE_OVERHEAD_MS));
+        }
+        assert.equal(bins.flatMap((b) => b.files).length, 300);
     });
 });
 
@@ -1388,8 +1407,8 @@ describe("light-check-replay", () => {
             key: "run:ci.yml:pr",
             at: record.at,
             bins: 2,
-            testMs: 6 * MIN,
-            runMs: SETUP_MS + 6 * MIN,
+            testMs: 6 * MIN + FILE_OVERHEAD_MS,
+            runMs: SETUP_MS + 6 * MIN + FILE_OVERHEAD_MS,
             overLimit: false,
         });
     });
@@ -1398,8 +1417,8 @@ describe("light-check-replay", () => {
         const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
         const r = replayRecord(record, durations, fileLevel);
         assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
-        assert.equal(r.bins, 2, "five 2-minute files make bins of 8 and 2 minutes");
-        assert.equal(r.testMs, 8 * MIN);
+        assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
+        assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
     });
 
     it("keys a global input or a graphty-element build change as pr-wide", () => {
@@ -1746,8 +1765,8 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.deepEqual(
             bins.map((b) => [b.name, b.files, b.ms]),
             [
-                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
-                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));

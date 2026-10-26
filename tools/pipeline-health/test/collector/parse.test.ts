@@ -280,6 +280,9 @@ describe("release lanes", () => {
         expect(a.red).toEqual([]);
         const red = releaseAttempt(run, [j("CI / Build", "failure"), j("Red early (CI)", "success")]);
         expect(red.lanes.ci).toBe("failed");
+        const skippedEarly = [j("CI / Build", "cancelled"), j("Red early (CI)", "skipped")];
+        expect(releaseAttempt({ ...run, conclusion: "cancelled" }, skippedEarly).lanes.ci).toBe("failed");
+        expect(releaseAttempt(run, skippedEarly).lanes.ci).toBe("failed");
     });
 
     it("ages untested master by its first-parent line, not a branch's own merge of master", () => {

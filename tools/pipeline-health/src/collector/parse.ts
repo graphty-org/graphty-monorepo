@@ -596,10 +596,20 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         lanes.publish = "not in this mode";
         // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
         // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
-        // so a lane whose Red early job skipped passed, whatever its jobs show.
+        // so a lane whose Red early job skipped passed. Not in a cancelled run (!cancelled() skips every Red early
+        // job) and not over a cancelled or timed-out job, which continue-on-error does not cover.
         for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
             const early = jobs.find((j) => j.name === `Red early (${name})`);
-            if (lanes[lane] === "failed" && early?.status === "completed" && early.conclusion === "skipped") {
+            const onlyFailures = jobsOf(jobs, name).every(
+                (j) => !BAD.has(j.conclusion ?? "") || j.conclusion === "failure",
+            );
+            if (
+                lanes[lane] === "failed" &&
+                run.conclusion !== "cancelled" &&
+                onlyFailures &&
+                early?.status === "completed" &&
+                early.conclusion === "skipped"
+            ) {
                 lanes[lane] = "passed";
             }
         }

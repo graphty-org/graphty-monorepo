@@ -1677,6 +1677,22 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
     });
 
+    it("finds every story-tests leg's shard in the planned matrix, alone or folded into a group", () => {
+        // The job's `if` and its skip step look for `"<shard>"` in the test-matrix JSON. A shard folded into a
+        // group (layout in small-node, algorithms-browser in small-browser) is there only as a group member.
+        const legs = [...job(ci, "story-tests").matchAll(/- project: (\S+)\n\s+shard: (\S+)\n/g)].map((m) => m[2]);
+        assert.ok(legs.length >= 4, "the legs were read");
+        const each = (affected) => JSON.stringify({ include: plan(affected) });
+        const runs = [PACKAGES, ["graph-format", "layout", "algorithms"], ["layout"], ["algorithms"]];
+        for (const affected of runs) {
+            const matrix = each(affected);
+            for (const shard of legs) {
+                const pkg = SHARDS.find((s) => s.shard === shard).package;
+                assert.equal(matrix.includes(`"${shard}"`), affected.includes(pkg), `${shard} with ${affected}`);
+            }
+        }
+    });
+
     it("is not seen by the workflows that react to master's CI", () => {
         for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
             const on = workflow(name);

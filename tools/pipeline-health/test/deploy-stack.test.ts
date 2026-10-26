@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { bootstrapRoleArns, DeployStack } from "../infra/deploy-stack.ts";
 
 const env = { account: "494945606241", region: "us-east-2" };
-const synth = (webhook: boolean) => Template.fromStack(new DeployStack(new App(), "deploy", { env, webhook }));
+const synth = (connectionApproved: boolean) =>
+    Template.fromStack(new DeployStack(new App(), "deploy", { env, connectionApproved }));
 
 describe("deploy stack", () => {
     const t = synth(true);
@@ -47,9 +48,11 @@ describe("deploy stack", () => {
         });
     });
 
-    it("has no webhook while the connection is not approved", () => {
-        const project = Object.values(synth(false).findResources("AWS::CodeBuild::Project"))[0];
-        expect(project.Properties.Triggers ?? { Webhook: false }).toEqual({ Webhook: false });
+    it("holds only the connection, role and logs until the connection is approved", () => {
+        const pending = synth(false);
+        pending.resourceCountIs("AWS::CodeBuild::Project", 0);
+        pending.resourceCountIs("AWS::CodeConnections::Connection", 1);
+        pending.resourceCountIs("AWS::IAM::Role", 1);
     });
 
     it("lets the build role assume only the CDK bootstrap roles", () => {

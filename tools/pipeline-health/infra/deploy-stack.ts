@@ -7,10 +7,12 @@ import type { Construct } from "constructs";
 
 export interface DeployStackProps extends StackProps {
     /**
-     * Create the CodeBuild webhook. CodeBuild refuses a webhook while the connection is
-     * PENDING, so this stays false until the owner approves the connection in the console.
+     * The owner approved the connection in the console (status AVAILABLE). CodeBuild refuses
+     * a project whose source auth is a PENDING connection, so until then the stack holds only
+     * the connection, the role and the log group; set the context `connectionApproved=true`
+     * (cdk.json) and deploy again to add the project and its webhook.
      */
-    webhook: boolean;
+    connectionApproved: boolean;
 }
 
 /** The CDK bootstrap roles (default qualifier) the build may assume, and nothing else. */
@@ -80,6 +82,8 @@ export class DeployStack extends Stack {
             removalPolicy: RemovalPolicy.DESTROY,
         });
 
+        if (!props.connectionApproved) return;
+
         const project = new codebuild.Project(this, "Deploy", {
             projectName: "graphty-health-deploy",
             role,
@@ -87,14 +91,12 @@ export class DeployStack extends Stack {
                 owner: "graphty-org",
                 repo: "graphty-monorepo",
                 branchOrRef: "master",
-                webhook: props.webhook,
-                webhookFilters: props.webhook
-                    ? [
-                          codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH)
-                              .andBranchIs("master")
-                              .andFilePathIs("^tools/pipeline-health/"),
-                      ]
-                    : undefined,
+                webhook: true,
+                webhookFilters: [
+                    codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH)
+                        .andBranchIs("master")
+                        .andFilePathIs("^tools/pipeline-health/"),
+                ],
                 cloneDepth: 1,
                 reportBuildStatus: false,
             }),

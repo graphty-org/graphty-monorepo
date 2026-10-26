@@ -15,8 +15,8 @@
  * - the pull request does not carry the `dequeued` label: one ejected from the queue captures
  *   everything on its next run. The label is read from the event payload, so it takes a new push
  *   (not a re-run, which replays the old payload) to start that run
- * - every changed file is inside an nx project's directory, or is a workflow or a tool no Storybook reads
- *   (NOT_DRAWN): any other root file (lockfile, visual-baselines/, visual-fonts/, root configs, docs)
+ * - every changed file is inside an nx project's directory, or is a workflow, a tool or a design document no
+ *   Storybook reads (NOT_DRAWN): any other root file (lockfile, visual-baselines/, visual-fonts/, root configs, docs/)
  *   counts as affecting every project
  * - nx does not call the project affected
  *
@@ -53,7 +53,9 @@ const DRAWN_ROOT = new Set([
     "tools/visual-capture-plan.mjs",
     "tools/ci-reuse-plan.mjs",
 ]);
-const NOT_DRAWN = (f) => (f.startsWith(".github/workflows/") || f.startsWith("tools/")) && !DRAWN_ROOT.has(f);
+// design/ holds design documents and studio files; only test files read them (no Storybook, story or source module).
+const NOT_DRAWN = (f) =>
+    ((f.startsWith(".github/workflows/") || f.startsWith("tools/")) && !DRAWN_ROOT.has(f)) || f.startsWith("design/");
 
 /**
  * The visual-review projects a run may leave uncaptured.

@@ -8,6 +8,7 @@ import {
     fixedCosts,
     llmCost,
     masterState,
+    oldestUntested,
     pool,
     prOfRun,
     prStocks,
@@ -261,6 +262,43 @@ describe("release lanes", () => {
             version: "skipped",
         });
         expect(a.red.sort()).toEqual(["audit", "ci", "t4"]);
+    });
+
+    it("passes a full-run lane whose Red early job skipped, though a non-gating job in it failed", () => {
+        const run = { ...runs[0], display_title: "Release (full)" };
+        const j = (name: string, conclusion: string) =>
+            ({ name, status: "completed", conclusion, completed_at: "2026-10-26T16:00:00Z" }) as GhJob;
+        const a = releaseAttempt(run, [
+            j("CI / Build", "success"),
+            j("CI / Performance Benchmarks", "failure"),
+            j("CI / Story tests parity (graphty)", "failure"),
+            j("Red early (CI)", "skipped"),
+            j("T4 GPU / Test", "success"),
+            j("Red early (T4 GPU)", "skipped"),
+        ]);
+        expect(a.lanes.ci).toBe("passed");
+        expect(a.red).toEqual([]);
+        const red = releaseAttempt(run, [j("CI / Build", "failure"), j("Red early (CI)", "success")]);
+        expect(red.lanes.ci).toBe("failed");
+        const skippedEarly = [j("CI / Build", "cancelled"), j("Red early (CI)", "skipped")];
+        expect(releaseAttempt({ ...run, conclusion: "cancelled" }, skippedEarly).lanes.ci).toBe("failed");
+        expect(releaseAttempt(run, skippedEarly).lanes.ci).toBe("failed");
+    });
+
+    it("ages untested master by its first-parent line, not a branch's own merge of master", () => {
+        const c = (sha: string, date: string, ...parents: string[]) => ({
+            sha,
+            parents: parents.map((p) => ({ sha: p })),
+            commit: { committer: { date } },
+        });
+        // base <- m1 (landed 17:00) <- m2 (landed 18:00); m2's branch side holds b1, its merge of master a day ago.
+        const commits = [
+            c("b1", "2026-10-25T20:00:00Z", "old", "base"),
+            c("m1", "2026-10-26T17:00:00Z", "base", "x"),
+            c("m2", "2026-10-26T18:00:00Z", "m1", "b1"),
+        ];
+        expect(oldestUntested(commits)).toBe(Date.parse("2026-10-26T17:00:00Z"));
+        expect(oldestUntested([])).toBeUndefined();
     });
 
     it("counts failures in a row, newest first", () => {

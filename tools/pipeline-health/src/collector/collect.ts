@@ -22,6 +22,7 @@ import {
     prOfRun,
     prRunOf,
     prStages,
+    oldestUntested,
     prStocks,
     releaseAttempt,
     releaseTags,
@@ -40,6 +41,7 @@ import {
     toStepItems,
     workflowFile,
     workflowState,
+    type CompareCommit,
     type GhJob,
     type GhRun,
     type GqlIssue,
@@ -673,11 +675,9 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
 
     // Untested master age: the oldest master commit after the newest tested candidate.
     if (candidate) {
-        type Compare = { commits: { parents: unknown[]; commit: { committer: { date: string } } }[] };
-        const cmp = await gh.rest<Compare>(`repos/${repo}/compare/${candidate.sha}...master`);
-        const merges = (cmp?.commits ?? []).filter((x) => x.parents.length > 1);
-        const dates = (merges.length ? merges : (cmp?.commits ?? [])).map((x) => Date.parse(x.commit.committer.date));
-        c.o("master.untested_age_ms", dates.length ? c.now - Math.min(...dates) : 0);
+        const cmp = await gh.rest<{ commits: CompareCommit[] }>(`repos/${repo}/compare/${candidate.sha}...master`);
+        const oldest = oldestUntested(cmp?.commits ?? []);
+        c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
     }
     if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
 }

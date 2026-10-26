@@ -4,7 +4,8 @@
 //
 // It waits while CAP or more other pull request runs of ci.yml created before this one are still active
 // (queued or running), and while a release.yml run waits for a GitHub-hosted runner (the full run goes
-// first; GitHub Actions has no job priority). Only earlier runs count, so the oldest waiting run always
+// first; GitHub Actions has no job priority). A run whose "All Checks Pass" job has already completed (only its
+// screenshot tail is left) does not count; one GraphQL query asks that of every counted run. Only earlier runs count, so the oldest waiting run always
 // proceeds: no deadlock. A cancelled or superseded run is completed and frees its place at once.
 //
 // It never fails the pull request: an API error, or waiting longer than MAX_WAIT_MINUTES, lets the run
@@ -15,7 +16,7 @@
 // CAP is the repository variable CI_PR_RUN_CAP (default 2), read in ci.yml's "Run cap" job:
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body 3    (raise it)
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body off  (no cap)
-// Environment: GITHUB_TOKEN (actions: read), GITHUB_REPOSITORY, GITHUB_RUN_ID, CAP, GITHUB_STEP_SUMMARY.
+// Environment: GITHUB_TOKEN (actions: read, checks: read), GITHUB_REPOSITORY, GITHUB_RUN_ID, CAP, GITHUB_STEP_SUMMARY.
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -25,6 +26,7 @@ export const MIN_RATE_LEFT = 300;
 export const MAX_WAIT_MINUTES = 25;
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
 const HOSTED = /^(ubuntu|windows|macos)-/;
+const SUMMARY_CHECK = "All Checks Pass";
 
 /**
  * The parsed cap.
@@ -53,6 +55,30 @@ export function earlierActive(me, runs) {
 }
 
 /**
+ * The runs whose "All Checks Pass" check has not completed yet, asked in one GraphQL query over their check
+ * suites. A run with no such check yet, or any error, counts as not finished, so the cap never loosens by mistake.
+ * @param runs workflow_runs entries (with check_suite_node_id)
+ * @param api path, body -> parsed JSON; a body means a POST to the GraphQL endpoint
+ * @returns the runs still before their summary check
+ */
+export async function unfinished(runs, api) {
+    const ids = runs.map((r) => r.check_suite_node_id).filter(Boolean);
+    if (ids.length === 0) return runs;
+    let done;
+    try {
+        const query = `query($ids: [ID!]!) { nodes(ids: $ids) { ... on CheckSuite { id
+            checkRuns(first: 10, filterBy: { checkName: "${SUMMARY_CHECK}" }) { nodes { status } } } } }`;
+        const res = await api("graphql", { query, variables: { ids } });
+        const finished = (n) =>
+            n?.checkRuns?.nodes?.length > 0 && n.checkRuns.nodes.every((c) => c.status === "COMPLETED");
+        done = new Set((res.data?.nodes ?? []).filter(finished).map((n) => n.id));
+    } catch {
+        return runs;
+    }
+    return runs.filter((r) => !done.has(r.check_suite_node_id));
+}
+
+/**
  * Whether a release run is waiting for a GitHub-hosted runner.
  * @param runs workflow_runs of a release.yml runs listing
  * @param jobsOf run id -> jobs of that run (only asked for a running run)
@@ -73,7 +99,7 @@ export async function releaseWaiting(runs, jobsOf) {
  * @param ctx the check's inputs
  * @param ctx.me this run ({ id, run_started_at })
  * @param ctx.cap the cap
- * @param ctx.api path -> parsed JSON of a GET under the repository
+ * @param ctx.api path -> parsed JSON of a GET under the repository (path, body: a GraphQL POST)
  * @returns null to proceed, else why it waits and how many places it is from its turn
  */
 export async function check({ me, cap, api }) {
@@ -81,6 +107,7 @@ export async function check({ me, cap, api }) {
     const list = async (status) =>
         (await api(`actions/workflows/ci.yml/runs?event=pull_request&status=${status}&per_page=100`)).workflow_runs;
     let ahead = earlierActive(me, await list("in_progress"));
+    if (ahead.length >= cap) ahead = await unfinished(ahead, api);
     if (ahead.length < cap) ahead = ahead.concat(earlierActive(me, await list("queued")));
     if (ahead.length >= cap)
         return { why: `${ahead.length} earlier pull request runs active (cap ${cap})`, places: ahead.length - cap + 1 };
@@ -135,15 +162,15 @@ export async function waitTurn({ cap, api, runId, sleep, now = Date.now, log = c
 
 async function main() {
     const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY } = process.env;
-    const api = async (path) => {
-        const res = await fetch(
-            `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${GITHUB_REPOSITORY}/${path}`,
-            {
-                headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" },
-                signal: AbortSignal.timeout(30_000),
-            },
-        );
-        if (!res.ok) throw new Error(`GET ${path}: HTTP ${res.status}`);
+    const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
+    const api = async (path, body) => {
+        const res = await fetch(body ? `${base}/graphql` : `${base}/repos/${GITHUB_REPOSITORY}/${path}`, {
+            method: body ? "POST" : "GET",
+            body: body && JSON.stringify(body),
+            headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" },
+            signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) throw new Error(`${body ? "POST" : "GET"} ${path}: HTTP ${res.status}`);
         const left = Number(res.headers.get("x-ratelimit-remaining") ?? Infinity);
         if (left < MIN_RATE_LEFT) throw new Error(`only ${left} API requests left this hour`);
         return res.json();

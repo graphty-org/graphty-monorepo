@@ -2668,6 +2668,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
             setPixelRatio: RENDER,
+            resize: RENDER,
             drawHeld: RENDER,
             drawNow: RENDER,
             requestFrame: RENDER,

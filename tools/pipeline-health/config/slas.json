@@ -79,7 +79,7 @@
         },
         "flaky-feed": {
             "label": "Feed of CI's flaky detections",
-            "notSetUp": "no writer yet; tracked in its own issue (design section 14)"
+            "idle": "writes only when a CI shard's retry proves a test flaky (tools/test-quarantine.mjs)"
         },
         "local": {
             "label": "Local writer (test ledger, push log)",
@@ -106,7 +106,7 @@
         "pr": 20,
         "pr-wide": 35
     },
-    "dailyRowLimit": 300000,
+    "dailyRowLimit": 1000000,
     "members": [
         {
             "id": "master.red_now",

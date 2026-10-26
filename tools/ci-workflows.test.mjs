@@ -1534,7 +1534,7 @@ describe("ci.yml", () => {
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
         assert.match(ci, /workflow_call:\n\s+inputs:\n\s+ref:\n(?:.*\n){1,2}\s+type: string\n\s+required: true/);
-        const checkouts = ci.match(/- uses: actions\/checkout@v4\n(?:\s+.*\n){0,3}/g);
+        const checkouts = ci.match(/- uses: actions\/checkout@v\d+\n(?:\s+.*\n){0,3}/g);
         assert.ok(checkouts.length >= 10);
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
@@ -1696,7 +1696,12 @@ describe("verification runs of ci.yml", () => {
         // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
         // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
-        const sha = (t) => createHash("sha256").update(t).digest("hex");
+        // A version bump of an action from GitHub's own `actions/` organization (Dependabot's, `@v4` to `@v7`) is
+        // not a change to the owner's steps; any other edit, another action or a ref that is not a version, is.
+        const sha = (t) =>
+            createHash("sha256")
+                .update(t.replace(/(uses: actions\/[\w-]+)@v\d+(?:\.\d+)*$/gm, "$1@v4"))
+                .digest("hex");
         // The gate steps moved, unchanged, from "All Checks Pass" to the Visual report job (#3443).
         const report = job(ci, "visual-report");
         const from = report.indexOf("            - name: Check out the gate");
@@ -1760,11 +1765,13 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
         assert.match(
             job(ci, "story-tests-parity"),
-            /project: \[graphty, graphty-element, algorithms, layout, compact-mantine\]/,
+            /project:\s*\[\s*graphty,\s*graphty-element,\s*algorithms,\s*layout,\s*compact-mantine,\s*cytoscape-extensions,\s*graph-io-fidelity,?\s*\]/,
         );
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
+        assert.match(job(ci, "story-tests"), /- project: cytoscape-extensions\n\s+shard: cytoscape-extensions\n/);
+        assert.match(job(ci, "story-tests"), /- project: graph-io-fidelity\n\s+shard: graph-io-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
         // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
@@ -2477,14 +2484,14 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
             ".github/actions/playwright-system-deps/install.sh",
             "visual-baselines/layout/a.png",
             "visual-fonts/fonts.conf",
-            "design/x.md",
+            "docs/x.md",
         ]) {
             assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
         }
     });
 
-    it("judges a change to workflows and tools no Storybook reads by its packages alone", () => {
-        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs"];
+    it("judges a change to workflows, tools and design documents no Storybook reads by its packages alone", () => {
+        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs", "design/x.md"];
         assert.deepEqual(
             skippedProjects({ ...base, changed }),
             skippedProjects({ ...base, changed: changed.slice(0, 1) }),
@@ -2920,7 +2927,7 @@ describe("gpu.yml", () => {
         // the T4 tests the commit the train selected, not the train's own checkout
         assert.match(
             job(gpu, "test-gpu"),
-            /- uses: actions\/checkout@v4\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
+            /- uses: actions\/checkout@v\d+\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
@@ -3538,7 +3545,8 @@ describe("release.yml", () => {
         assert.deepEqual(verdict.match(/\w+(-\w+)?: write/g), ["actions: write", "issues: write", "id-token: write"]);
         assert.match(
             verdict,
-            /if: \$\{\{ steps.verdict.outputs.state == 'red' \|\| steps.verdict.outputs.state == 'owner-item' \}\}/,
+            // green-images too: nothing else tells the owner that nightly waits on his screenshot review (#3698)
+            /if: \$\{\{ steps.verdict.outputs.state == 'red' \|\| steps.verdict.outputs.state == 'owner-item' \|\| steps.verdict.outputs.state == 'green-images' \}\}/,
         );
         assert.match(verdict, /node tools\/release-status.mjs "\$STATE" --sha "\$SHA"/);
         // a full run versions, lands and publishes nothing, and never opens a "Release held" issue
@@ -6167,7 +6175,14 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         ]);
         assert.deepEqual(Object.fromEntries(uploads), STORYBOOKS);
         // every step that builds is skipped when the builds are downloaded instead
-        for (const step of build.split(/\n {12}- /).filter((s) => /nx run .*:build-storybook|pnpm install/.test(s))) {
+        const building = build
+            .split(/\n {12}- /)
+            .filter((s) => /nx run(-many)? .*build-storybook|pnpm install/.test(s));
+        assert.ok(
+            building.some((s) => /build-storybook/.test(s)),
+            "no step builds the Storybooks",
+        );
+        for (const step of building) {
             assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
         }
     });
@@ -6559,7 +6574,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
         const at = (n) => names.findIndex((x) => x.startsWith(n));
         for (const [a, b] of [
             // the checkout first, so a missing key still reaches the failure report (node tools/channel/...)
-            ["actions/checkout@v4", "Check the site's deploy key"],
+            ["actions/checkout@", "Check the site's deploy key"],
             ["Check the site's deploy key", "Download the candidate's built site"],
             // a re-run of an older run deploys nothing once channel/nightly moved on
             ["Check that nightly is still this run's", "Download the candidate's built site"],
@@ -6785,7 +6800,18 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         // the import graphs resolve the other packages through their dist folders
         for (const b of ["Build affected (PR)", "Build the rest (PR), so every shard finds its artifact"]) {
             assert.ok(index(b) > 0 && index(b) < index("Plan the light check's test bins"), `${b} runs first`);
+            // the app is off the test jobs' critical path: no PR job reads graphty/dist, Lint builds it
+            assert.match(
+                build.slice(index(b)),
+                /^[^\n]*\n[^\n]*\n {14}run: [^\n]*--exclude=graphty\b/u,
+                `${b} skips the app`,
+            );
         }
+        const lint = job(ci, "lint");
+        assert.match(
+            lint,
+            /- name: Build the graphty app \(PR, when affected\)\n {14}if: needs\.packages\.outputs\.full == 'false' && contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty'\)\n {14}run: pnpm exec nx run graphty:build --exclude-task-dependencies\n/u,
+        );
         assert.ok(
             index("Plan the light check's test bins") < index("Upload all package builds"),
             "planned before the uploads",

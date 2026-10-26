@@ -127,6 +127,42 @@ export function sendHealth(cfg, path, body) {
 }
 
 /**
+ * Sends a CI shard's flaky tests -- failed on try 1, passed on its retry (tools/test-quarantine.mjs) -- to the health
+ * API as try 1's failures with `flaky: true`, through sendHealth(). Needs no results store: only HEALTH_API_URL and
+ * an OIDC token in GitHub Actions (the job's `id-token: write`); anything else sends nothing. Never throws.
+ * @param env the environment
+ * @param shard the shard
+ * @param family the shard's family (the dashboard's grouping; the id alone does not give it)
+ * @param flaky the tests `{ file, name, text?, message? }`
+ */
+export function postFlaky(env, shard, family, flaky) {
+    if (
+        !flaky.length ||
+        env.GRAPHTY_RESULTS === "0" ||
+        !env.HEALTH_API_URL ||
+        !env.ACTIONS_ID_TOKEN_REQUEST_URL ||
+        !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    )
+        return;
+    // try 1 of the group's invocation, as tools/results/run-group.mjs names it (baseId()) when it runs the shard
+    const id =
+        env.GRAPHTY_RESULTS_INVOCATION ??
+        `${env.GITHUB_RUN_ID}.${env.GITHUB_RUN_ATTEMPT ?? 1}.${env.GITHUB_JOB ?? "job"}.${shard}`;
+    const failures = flaky.map((f) => ({
+        file: f.file,
+        name: f.name,
+        message: (f.text ?? f.message ?? "").slice(0, 2000),
+    }));
+    sendHealth({ oidc: env, health: env.HEALTH_API_URL.replace(/\/$/, "") }, "/v1/failures", {
+        invocation: `${id}.1`,
+        flaky: true,
+        family,
+        ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        failures,
+    });
+}
+
+/**
  * Settles every health POST still open, each within its own 2 s. Never throws.
  * @returns a promise that resolves when they have
  */

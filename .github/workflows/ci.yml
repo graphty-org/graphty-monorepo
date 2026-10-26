@@ -108,6 +108,7 @@ jobs:
         permissions:
             contents: read
             actions: read
+            checks: read
         steps:
             - uses: actions/checkout@v4
               if: github.event_name == 'pull_request'
@@ -202,7 +203,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -422,7 +423,7 @@ jobs:
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
-              run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
+              run: pnpm exec nx affected -t build --parallel=3 --exclude=graphty --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Every test shard downloads every package's dist, so every package must be built even when the
             # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
@@ -433,9 +434,13 @@ jobs:
             # and compact-mantine unbuilt and failed all twenty shards (run 35668273734). Building every
             # project is what master already does, and the Nx cache makes it a no-op for whatever the
             # affected build above produced.
+            # Both PR builds leave out the graphty app: no pull-request job reads graphty/dist (only Links, a full
+            # run's job), and its build has `git rev-parse HEAD` as an input, so it missed the cache on every commit
+            # and added about 84 s to this job, which every test job waits on. The Lint job builds it instead, when
+            # it is affected, so a pull request that breaks the app's build still fails.
             - name: Build the rest (PR), so every shard finds its artifact
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
-              run: pnpm exec nx run-many -t build --parallel=3
+              run: pnpm exec nx run-many -t build --parallel=3 --exclude=graphty
               env:
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
@@ -652,6 +657,8 @@ jobs:
                   name: build-graphty
                   path: graphty/dist/
                   retention-days: 1
+                  # a light pull request does not build the app here (see "Build the rest (PR)")
+                  if-no-files-found: ignore
 
             - name: Upload graphty-element build
               uses: actions/upload-artifact@v7
@@ -718,7 +725,7 @@ jobs:
 
             - name: Setup Node.js
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -737,30 +744,6 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Build Storybook (graphty-element)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty-element:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (graphty)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graphty:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (compact-mantine)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run compact-mantine:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (algorithms)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run algorithms:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (layout)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run layout:build-storybook --exclude-task-dependencies
-
-            - name: Build Storybook (cytoscape-extensions)
-              if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
@@ -772,9 +755,15 @@ jobs:
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
                   restore-keys: lfs-fidelity-references-
 
-            - name: Build Storybook (graph-io-fidelity)
+            # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
+            # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
+            # four 49 s together), and every Stories and visual job waits for this job. Each build reads only
+            # the package builds downloaded above, so none waits on another.
+            - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
-              run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
+              run: >-
+                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the visual job
@@ -871,7 +860,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -916,6 +905,15 @@ jobs:
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
+            # The graphty app's build check on a light pull request: the Build job leaves the app out (nothing it
+            # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
+            # package builds, and only when the pull request affects it.
+            - name: Build the graphty app (PR, when affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -943,7 +941,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1125,7 +1123,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1207,7 +1205,7 @@ jobs:
             - uses: pnpm/action-setup@v4
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1286,7 +1284,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1435,8 +1433,20 @@ jobs:
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
+                  # the base checks its [FLAKY-UNRELATED] and [KNOWN?] tests need; the base-checks job dispatches them
+                  RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
+
+            - name: Upload the base checks to dispatch
+              if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v7
+              with:
+                  name: base-checks-${{ matrix.shard }}
+                  path: ${{ runner.temp }}/base-checks/
+                  retention-days: 1
+                  if-no-files-found: ignore
 
             # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
             # failing test files and run only those on this machine. continue-on-error: a report that did
@@ -1547,7 +1557,7 @@ jobs:
                   ref: ${{ inputs.ref }}
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -1656,7 +1666,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1744,7 +1754,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1788,8 +1798,9 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of at most 8 minutes, each captured with the old visual-review capture exactly as the
-    # visual job captures, but only those stories (--stories). A broken story blocks its pull request: one that
+    # packed into bins of about 4 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
+    # each captured with the old visual-review capture exactly as the visual job captures, but only those stories
+    # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
     # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
     # capture that crashes fails the job, and "All Checks Pass" needs it (#3472). A changed picture never fails
@@ -1838,7 +1849,7 @@ jobs:
             - uses: pnpm/action-setup@v4
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -2002,7 +2013,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -2027,18 +2038,28 @@ jobs:
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: cytoscape-extensions
+                      shard: cytoscape-extensions
+                      command: cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: layout
                       shard: layout
                       command: cd layout && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
+                    - project: graph-io-fidelity
+                      shard: graph-io-browser
+                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                      # so a graphty-element change runs them too (the capture plan's rule for this project).
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
             # every step below but the summary is.
             - name: Skip a project this run does not test
               id: skip
-              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4
@@ -2059,14 +2080,14 @@ jobs:
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**${{ matrix.lfs }}"
 
             - uses: pnpm/action-setup@v4
               if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -2136,8 +2157,19 @@ jobs:
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
+                  RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
               run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
+
+            - name: Upload the base checks to dispatch
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && github.event_name == 'pull_request' }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v7
+              with:
+                  name: base-checks-stories-${{ matrix.project }}
+                  path: ${{ runner.temp }}/base-checks/
+                  retention-days: 1
+                  if-no-files-found: ignore
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
@@ -2181,12 +2213,30 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, algorithms, layout, compact-mantine]
+                project:
+                    [
+                        graphty,
+                        graphty-element,
+                        algorithms,
+                        layout,
+                        compact-mantine,
+                        cytoscape-extensions,
+                        graph-io-fidelity,
+                    ]
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: visual-review
+
+            # parity decodes PNGs with pngjs (visual-review's only runtime dependency it needs); the
+            # sparse checkout has no lockfile, so install that one package, at visual-review's version.
+            - name: Install pngjs
+              run: |
+                  version=$(node -p 'require("./visual-review/package.json").dependencies.pngjs')
+                  npm install --prefix "$RUNNER_TEMP/deps" --no-save --no-package-lock "pngjs@$version"
+                  mkdir -p visual-review/node_modules
+                  ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
 
             - name: Download the old capture
               continue-on-error: true
@@ -2311,7 +2361,7 @@ jobs:
 
             - name: Setup Node.js
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -2719,6 +2769,40 @@ jobs:
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
     # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
     # not need it.
+    # A pull request's [FLAKY-UNRELATED] and [KNOWN?] tests name a base check (tools/results/run-group.mjs prJudge);
+    # this dispatches them, so base-check.yml's master records quarantine a flaky test and file its one issue, or
+    # file `Failing on master`, with nobody reading the warnings. The script checks each line against a strict
+    # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
+    base-checks:
+        name: Dispatch base checks
+        needs: [test, story-tests]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 5
+        permissions:
+            contents: read
+            actions: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools/results
+
+            - name: Download the base checks
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: base-checks-*
+                  path: ${{ runner.temp }}/base-checks
+                  merge-multiple: true
+
+            - name: Dispatch them
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: node tools/results/dispatch-base-checks.mjs "$RUNNER_TEMP/base-checks"
+
     visual-flaky:
         name: Flaky screenshots
         needs: visual
@@ -2733,7 +2817,7 @@ jobs:
                   sparse-checkout: tools
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

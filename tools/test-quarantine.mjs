@@ -185,6 +185,16 @@ export function decide({ family, first, firstOutcome, second, list }) {
     };
 }
 
+/**
+ * The flaky tests that failed on the first run and passed on the retry: decide()'s flaky list also holds tests
+ * that passed first and failed only on the retry, which are not that run's failures.
+ * @param flaky decide()'s flaky tests
+ * @param first the first run's reports (readReports())
+ * @returns the flaky tests among the first run's failures
+ */
+export const failedFirst = (flaky, first) =>
+    flaky.filter((f) => (first?.failures ?? []).some((g) => g.file === f.file && g.name === f.name));
+
 const ESCAPED_QUOTE = String.raw`'\''`;
 /**
  * A word for sh, single-quoted.
@@ -296,6 +306,13 @@ export async function runShard(
                 : null;
         if (retry) result = { ...result, ...retry.facts };
         const raw = decide({ family, first, firstOutcome, second: retry?.second, list });
+        // every detection, before a judge moves the change's own into failing
+        // imported only when it can post: the gate's tests run this file from a scratch tools/ without results/
+        if (env.HEALTH_API_URL) {
+            const { flushHealth, postFlaky } = await import("./results/client.mjs");
+            postFlaky(env, shardName, family, failedFirst(raw.flaky, first));
+            await flushHealth();
+        }
         const d = judge ? judge(raw, { firstOutcome }) : blameChange(raw, root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;
@@ -422,8 +439,23 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const run = viaRunTests ? `bash tools/run-tests.sh --command ${shard.shard} ${shQuote(cmd)}` : cmd;
     const retryAt = Date.now();
     const r2 = await sh(run, retryEnv, root);
-    const second = newReports(reports, ".retry");
-    return { second, facts: { retried: true, retryCode: r2.code, retryRunId: retryId, retryFiles: files, retryAt } };
+    const read = newReports(reports, ".retry");
+    // A retry that wrote no report, or one without the failed files (they matched no test file under its
+    // command), ran nothing: it cannot excuse a failure, so the first run's failures stand.
+    const ranThem = read && files.every((f) => read.files.has(f));
+    if (!ranThem) console.log(`${RETRY_MARK} the retry reported no run of the failed file(s): its failures stand`);
+    const second = ranThem ? read : null;
+    return {
+        second,
+        facts: {
+            retried: true,
+            retryCode: r2.code,
+            retryRunId: retryId,
+            retryFiles: files,
+            retryAt,
+            retryRan: !!ranThem,
+        },
+    };
 }
 
 // A judge's own lines (runShard()'s `judge`), warnings as annotations in GitHub Actions.

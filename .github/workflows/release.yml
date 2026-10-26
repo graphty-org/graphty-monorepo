@@ -18,7 +18,7 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   publish job publishes npm `next`, and the site job (environment `nightly`) hangs the commit's built site on the
 #   site-<sha> prerelease, pushes deployed.json to graphty-org/graphty-nightly and ends on that deploy. A candidate
 #   with nothing to version still moves the site and channel/nightly; npm `next` stays. green-images waits for the
-#   owner (nightly-approval, #3463). Every run's timings job also raises the age:nightly stall alarm.
+#   owner (nightly-approval, #3463) and is announced like a red run, once a week per set of changed screenshots. Every run's timings job also raises the age:nightly stall alarm.
 # - restart: dispatched by ci.yml's release-due job when a green master build references the open red issue
 #   (tools/release-due.mjs); the same run on the commit it was dispatched on.
 #
@@ -276,7 +276,7 @@ jobs:
             - uses: pnpm/action-setup@v6
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               if: ${{ steps.pending.outputs.pending == 'false' }}
               with:
                   node-version: 22.x
@@ -434,7 +434,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -481,7 +481,7 @@ jobs:
             - uses: pnpm/action-setup@v6
               if: steps.due.outputs.due == 'true'
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               if: steps.due.outputs.due == 'true'
               with:
                   node-version: 22.x
@@ -545,7 +545,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -612,7 +612,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -639,7 +639,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -666,7 +666,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -693,7 +693,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -720,7 +720,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -747,7 +747,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -775,7 +775,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -849,7 +849,7 @@ jobs:
                   fetch-depth: 0
                   filter: blob:none
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -951,8 +951,10 @@ jobs:
                   FIRST: ${{ steps.gate.outputs.first }}
               run: node tools/channel/nightly.mjs decide
 
-            - name: Announce a red run or an owner item
-              if: ${{ steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' }}
+            # green-images too: it waits for the owner's screenshot review, and without this the run ends green
+            # while nightly silently stays put (#3698)
+            - name: Announce a red run, an owner item or changed screenshots
+              if: ${{ steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' || steps.verdict.outputs.state == 'green-images' }}
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
@@ -1177,7 +1179,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1477,7 +1479,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1707,7 +1709,7 @@ jobs:
                       tools
                       graphty/sites
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

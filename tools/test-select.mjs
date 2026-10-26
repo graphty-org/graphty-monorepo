@@ -1515,16 +1515,53 @@ export function selectStories({ projects, changed, everything, shards, selection
 const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 
 /**
+ * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
+ * top, so a bin's job ends about 5.5 min after the Storybooks job (#3418, step 5).
+ */
+export const STORY_BIN_LIMIT_MS = 4 * 60_000;
+
+/**
+ * A story's capture time, per project (all of its modes, the job's browsers): the light check's own Stories jobs'
+ * capture seconds divided by the stories (`export const` of a capitalized name) in their files, PR runs
+ * 40388949450, 40390361128 and 40394323379 (2026-10-26), rounded up. A project not listed counts NO_HISTORY_MS a
+ * story. Counted per file, one story per file left graphty's workspace bin (82 stories in 6 files) at 16 to 19
+ * minutes, the pull request's critical path, against a 20-minute job limit.
+ */
+// ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
+export const STORY_MS = {
+    "graph-io-fidelity": 2_800,
+    graphty: 6_000,
+    "cytoscape-extensions": 1_600,
+    "graphty-element": 1_400,
+    "compact-mantine": 1_000,
+    algorithms: 1_200,
+    layout: 900,
+};
+
+const STORY_EXPORT = /^export const [A-Z]/gmu;
+
+/**
+ * The stories a story file declares: its `export const` statements of a capitalized name, at least one.
+ * @param source the file's text
+ * @returns the count
+ */
+export function storyCount(source) {
+    return Math.max(1, (source.match(STORY_EXPORT) ?? []).length);
+}
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
- * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
+ * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
+ * changed baseline's story id goes into the project's first bin.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
  * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
-export function storyBins(stories, projects, listFiles, durations = {}) {
+export function storyBins(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
     const out = [];
     for (const s of stories) {
         const { storybook } = projects[s.project];
@@ -1533,9 +1570,11 @@ export function storyBins(stories, projects, listFiles, durations = {}) {
         if (files.length === 0 && s.baselines.length === 0) {
             continue;
         }
-        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
-        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
-        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        // a recorded play-test time marks a heavy file; the project's capture rate is the floor
+        const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
+        const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
+        const fileMs = new Map(files.map((f) => [f, Math.max(recorded[f] ?? 0, rate * storiesIn(f))]));
+        const bins = files.length > 0 ? packBins(files, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,
@@ -2647,7 +2686,13 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
         everything: selection.everything,
         ...lightPlan(root, shards, selection.shards, durations),
         stories,
-        storyBins: storyBins(stories, projects, listFiles, durations),
+        storyBins: storyBins(stories, projects, listFiles, durations, (f) => {
+            try {
+                return storyCount(readFileSync(join(root, f), "utf8"));
+            } catch {
+                return 1;
+            }
+        }),
     };
 }
 

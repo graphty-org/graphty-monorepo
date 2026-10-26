@@ -13,7 +13,7 @@ import {
 } from "../../src/model/items.js";
 import { FULL_SHARD_BUDGET_MS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
-import { loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
+import { LEASE_KEY, LEASE_MS, loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { refold } from "../../src/recompute.js";
 import { job, MIN, obs, T0 } from "./helpers.js";
@@ -130,6 +130,20 @@ describe("rollups", () => {
         // startedAt and completedAt (28 and 20 min back) dirty two 5m buckets, sharing one 15m, 1h and 1d parent.
         expect(r.buckets).toBe(5);
         expect((await recompute(store, T0)).buckets).toBe(0);
+    });
+
+    it("never runs two recomputes at once: the second waits for the lease and keeps the marks", async () => {
+        const store = new MemoryStore();
+        await putRaw(store, [job(1)], T0);
+        // The backfill holds the lease mid-recompute; the collector's cycle must not build parents or clear marks.
+        await store.put({ ...LEASE_KEY, token: "backfill", until: T0 + LEASE_MS });
+        expect(await recompute(store, T0)).toEqual({ buckets: 0, items: 0, busy: true });
+        expect((await store.query(DIRTY_PK)).length).toBe(2);
+        // A holder that died: the lease expires and the next cycle takes it, then releases it.
+        const r = await recompute(store, T0 + LEASE_MS + 1);
+        expect(r.buckets).toBe(5);
+        expect((await store.get(LEASE_KEY))?.until).toBe(0);
+        expect((await recompute(store, T0 + LEASE_MS + 2)).busy).toBeUndefined();
     });
 });
 

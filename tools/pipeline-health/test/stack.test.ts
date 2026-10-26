@@ -103,7 +103,14 @@ describe("health stack", () => {
 
     it("budgets 10 USD and denies the Lambda roles at 100% actual", () => {
         t.hasResourceProperties("AWS::Budgets::Budget", {
-            Budget: Match.objectLike({ BudgetLimit: { Amount: 10, Unit: "USD" }, TimeUnit: "MONTHLY" }),
+            Budget: Match.objectLike({
+                BudgetLimit: { Amount: 10, Unit: "USD" },
+                TimeUnit: "MONTHLY",
+                CostTypes: Match.objectLike({ IncludeCredit: false }),
+            }),
+        });
+        t.hasResourceProperties("AWS::DynamoDB::GlobalTable", {
+            Replicas: [Match.objectLike({ Tags: Match.arrayWith([{ Key: "graphty-cost", Value: "graphty-health" }]) })],
         });
         const action = Object.values(t.findResources("AWS::Budgets::BudgetsAction"))[0].Properties;
         expect(action.ActionType).toBe("APPLY_IAM_POLICY");

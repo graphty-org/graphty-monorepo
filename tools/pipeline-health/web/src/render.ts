@@ -30,6 +30,7 @@ import {
     STATE_WORD,
     bigValue,
     capital,
+    showsRangeValue,
     clock,
     esc,
     fmtAgo,
@@ -235,7 +236,7 @@ export function cellHtml(c: Cell): string {
 // ---------------------------------------------------------------- members
 
 function memberRow(m: Member): string {
-    const dim = isMuted(m.state) ? " dim" : "";
+    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
     const sp = m.spark
         ? sparkline(
               m.spark,
@@ -247,7 +248,7 @@ function memberRow(m: Member): string {
     return (
         `<a class="row${dim}" href="${href(m.link)}"><span class="nm">${esc(MEMBER[m.id].name)}<small>${unlinked(memberLine(m))}</small></span>` +
         `<span class="val">${val}<small class="v6">${windowLabel(m, here.range)}</small></span>` +
-        `<span class="tg">${unlinked(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m)}</span>${chev()}</a>`
+        `<span class="tg">${unlinked(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m, here.range)}</span>${chev()}</a>`
     );
 }
 
@@ -659,15 +660,21 @@ function block(c: CategoryStatus): string {
     );
 }
 
-function headline(m: Member): string {
+/** The headline's big value, or the gray word that stands in for it. */
+function headlineValue(m: Member): string {
+    if (m.state === "few" && !showsRangeValue(m, here.range))
+        return `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
+    if (m.state === "partial")
+        return `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
+    if (m.state === "nodata") return `<span class="kvl">NO DATA</span>`;
+    if (m.state === "notsetup") return `<span class="kvl">not set up</span>`;
+    return bigValue(m.value);
+}
+
+export function headline(m: Member): string {
     const t = MEMBER[m.id];
     const win = m.window === "now" ? "now" : here.range === "1h" ? "last 1 h" : `last ${rangeLabel(here.range)}`;
-    let kv = bigValue(m.value);
-    if (m.state === "few") kv = `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
-    else if (m.state === "partial")
-        kv = `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
-    else if (m.state === "nodata") kv = `<span class="kvl">NO DATA</span>`;
-    else if (m.state === "notsetup") kv = `<span class="kvl">not set up</span>`;
+    const kv = headlineValue(m);
     const kt: string[] = [];
     if (m.state === "nodata" && m.reason) kt.push(sentence(m.reason));
     else if (m.value6h && here.range === "1h")

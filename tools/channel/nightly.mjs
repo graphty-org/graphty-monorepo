@@ -191,6 +191,7 @@ export function deployState({ runs, stamp, sha }) {
  * @param o.state GET /v1/release-state's answer
  * @param o.publishHold the open publish hold's number, or empty
  * @param o.now milliseconds
+ * A null age means nightly has never moved: not started, no alarm.
  * @returns null when nightly is not stalled, else `{ title, body, urgent }`
  */
 export function stall({ state, publishHold, now }) {

@@ -142,6 +142,8 @@ describe("the stall alarm", () => {
     it("stays quiet up to 24 hours", () => {
         assert.equal(stall({ state: state(24 * HOUR, "unjudged"), publishHold: "", now: NOW }), null);
         assert.equal(stall({ state: null, publishHold: "", now: NOW }), null);
+        const never = { ...state(0, "unjudged"), nightly: null, ageNightlyMs: null };
+        assert.equal(stall({ state: never, publishHold: "", now: NOW }), null, "nightly never moved: no alarm");
     });
 
     it("names the blocking state and the date nightly last moved", () => {

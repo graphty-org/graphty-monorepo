@@ -808,13 +808,13 @@ describe("GET /v1/release-state", () => {
         const st = await state(call);
         assert.equal(st.ageNightlyMs, 30 * HOUR, "a commit merged during the promotion is one nightly lacks");
     });
-    it("counts nightly's age from the first site when nightly never moved", async () => {
+    it("gives no nightly age while nightly has never moved", async () => {
         const { call, env } = service();
         const s = seed(env);
         s.site("c1", NOW - 30 * HOUR);
         s.site("c2", NOW - HOUR);
         const st = await state(call);
-        assert.deepEqual([st.nightly, st.ageNightlyMs, st.blocking], [null, 30 * HOUR, "unjudged"]);
+        assert.deepEqual([st.nightly, st.ageNightlyMs, st.blocking], [null, null, "unjudged"]);
     });
 });
 

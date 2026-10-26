@@ -4129,8 +4129,10 @@ describe("release.yml", () => {
         // a next release is a GitHub prerelease, never "Latest"
         assert.match(publish, /\[ "\$DIST_TAG" = latest \] \|\| flags=\(--prerelease --latest=false\)/);
         assert.match(publish, /gh release create "\$tag" --verify-tag "\$\{flags\[@\]\}" /);
-        // no dependency's install script runs beside npm's OIDC
-        assert.deepEqual(publish.match(/pnpm install[^\n]*/g), ["pnpm install --frozen-lockfile --ignore-scripts"]);
+        // no dependency's install script runs beside npm's OIDC in a nightly publish; legacy installs as before
+        assert.deepEqual(publish.match(/pnpm install[^\n]*/g), [
+            "pnpm install --frozen-lockfile ${{ inputs.mode != 'legacy' && '--ignore-scripts' || '' }}",
+        ]);
         // legacy still lands and publishes only behind the owner's production approval; a nightly promotion lands
         // once its version job passed (the verdict decided to promote)
         assert.match(

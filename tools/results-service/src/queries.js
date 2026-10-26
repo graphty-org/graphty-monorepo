@@ -345,7 +345,8 @@ export async function getReleaseState(q, who, db, now) {
         // the frozen candidate: the oldest still waiting for the owner
         offered: states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0] ?? null,
         canary,
-        ageNightlyMs: unpromoted ? now - start : 0,
+        // null while nightly has never moved: not started, so the stall alarm has nothing to count from
+        ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
         blocking: unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
     };
 }

@@ -1232,10 +1232,10 @@ jobs:
                   npm install -g npm@11
                   npm --version
 
-            # --ignore-scripts: this job holds npm's OIDC, so no dependency's install script runs beside it (the
-            # tarballs come from CI's build, which held no secret). nx release publish needs none of them.
+            # --ignore-scripts (nightly only): this job holds npm's OIDC, so no dependency's install script runs
+            # beside it (the tarballs come from CI's build, which held no secret). A legacy release installs as before.
             - name: Install dependencies
-              run: pnpm install --frozen-lockfile --ignore-scripts
+              run: pnpm install --frozen-lockfile ${{ inputs.mode != 'legacy' && '--ignore-scripts' || '' }}
               env:
                   HUSKY: "0"
 

@@ -228,7 +228,7 @@ jobs:
                   CALLED_REF: ${{ inputs.ref }}
                   SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
-                  SKIP_UNAFFECTED_CAPTURES: "false"
+                  SKIP_UNAFFECTED_CAPTURES: "true"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
@@ -380,6 +380,7 @@ jobs:
                   HEAD_SHA: ${{ github.sha }}
                   AFFECTED: ${{ steps.plan.outputs.affected }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
@@ -1251,6 +1252,7 @@ jobs:
               run: ${{ matrix.test-command }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -1594,7 +1596,10 @@ jobs:
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        if: ${{ !cancelled() && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
+        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
+        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -2464,3 +2469,4 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}

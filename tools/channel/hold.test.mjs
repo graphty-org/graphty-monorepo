@@ -14,7 +14,10 @@ describe("holdIssue", () => {
         const { title, body } = holdIssue({ sha: "a".repeat(40), state: "red", what: "T4 GPU", run: "https://run" });
         assert.equal(title, `${HOLD_TITLE} ${"a".repeat(12)}`);
         assert.match(body, /ended red \(T4 GPU\) after its one same-commit re-run: https:\/\/run/);
-        assert.match(body, /fixed forward on a branch made from the candidate's head/);
+        assert.match(
+            body,
+            /start the fix from the candidate's head, never from newer master: `.\/tools\/worktree-new.sh fix\/<issue>-<topic> origin\/channel\/candidate/,
+        );
         assert.match(body, /-f mode=abandon/);
     });
 });

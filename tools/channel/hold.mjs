@@ -35,7 +35,9 @@ export function holdIssue({ sha, state, what, run }) {
         "",
         "Master keeps merging, and newer commits' full runs still run and file their red issues, but none of them is promoted to nightly or replaces this candidate. Branch `channel/candidate` holds it.",
         "",
-        "It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward on a branch made from the candidate's head (`Refs #<this issue>`, never a branch that contains newer master), and changed screenshots are approved on the review page. Only the owner ends it without a promotion: `gh workflow run release.yml --ref master -f mode=abandon`.",
+        "It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. Only the owner ends it without a promotion: `gh workflow run release.yml --ref master -f mode=abandon`.",
+        "",
+        "To fix it forward, start the fix from the candidate's head, never from newer master: `./tools/worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>`, commit the fix with `Refs #<this issue>` in its message, and open it as usual (`tools/pr-open.sh --proof <file>`; the merge of master it adds on top never enters the candidate). When it merges into master, release.yml merges the fix into `channel/candidate` and re-tests the new head, only where the fix reaches. A further fix commit for the same pull request goes on a branch from its last fix commit, merged into the pull request's branch.",
     ].join("\n");
     return { title: `${HOLD_TITLE} ${sha.slice(0, 12)}`, body };
 }

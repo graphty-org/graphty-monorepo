@@ -157,8 +157,6 @@ jobs:
             contents: read
             actions: read
             id-token: write
-            # the trend alarm issues of master's runs (tools/ci-budgets.mjs report)
-            issues: write
             issues: write # the age:nightly stall alarm
         steps:
             - uses: actions/checkout@v4

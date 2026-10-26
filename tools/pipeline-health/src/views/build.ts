@@ -70,9 +70,12 @@ const LOCAL_STATE: Record<SourceStatus["state"], Member["state"]> = {
     thin: "nodata",
 };
 
-/** The Local runs page's state from the local source's. */
+/**
+ * The Local runs page's state from the local source's. Its members are informational and out of the rollup, so a
+ * writing source gives a gray IDLE, never OK (3.2: OK names only an SLA state); a broken source is NO DATA.
+ */
 const LOCAL_PAGE: Record<SourceStatus["state"], PageResponse["state"]> = {
-    ok: "ok",
+    ok: "idle",
     "not set up": "idle",
     idle: "idle",
     stale: "nodata",

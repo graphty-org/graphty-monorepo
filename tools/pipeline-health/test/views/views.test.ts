@@ -11,7 +11,7 @@ import type {
     StatusResponse,
 } from "../../web/src/contract.js";
 import { DAY, type RawItem, type ShardRunItem, type TestItem } from "../../src/model/items.js";
-import { putRaw, recordSource } from "../../src/model/raw.js";
+import { oldestAt, putRaw, recordSource } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { evaluate } from "../../src/sla/engine.js";
@@ -220,5 +220,29 @@ describe("views", () => {
         expect(flaky.section.kind).toBe("tree");
         const runners = (await readViewJson(store, { kind: "page", page: "runners", range: "24h" })) as PageResponse;
         expect(runners.sections[0]).toMatchObject({ kind: "jobs", step: "1h" });
+    });
+
+    it("Local runs: an informational page is IDLE, and a posted backlog fills the 24 h trend", async () => {
+        const run = (id: string, at: number): RawItem => ({
+            kind: "local_run",
+            id,
+            attempt: 1,
+            what: "gate",
+            outcome: "passed",
+            startedAt: at - 10 * MIN,
+            endedAt: at,
+        });
+        const items = [run("a", T0 - 20 * HOUR), run("b", T0 - 10 * HOUR), run("c", T0 - 30 * MIN)];
+        const store = await world([]);
+        await putRaw(store, items, T0);
+        await recordSource(store, "local", T0, { ok: true }, oldestAt(items));
+        await recompute(store, T0);
+        const page = pages(await views(store)).find((p) => p.page === "local-runs" && p.range === "24h");
+        expect(page?.state).toBe("idle");
+        const m = page?.members.find((x) => x.id === "local-runs.local_vs_ci");
+        expect(m?.state).toBe("info");
+        // One point per hour with a run: the backlog's hours (20 h and 10 h ago) are history, not "no history".
+        const points = (m?.spark?.trend ?? []).flatMap((v, i) => (v === null ? [] : [i]));
+        expect(points).toEqual([3, 13, 22]);
     });
 });

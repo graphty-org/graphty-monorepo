@@ -1,0 +1,733 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "1h",
+    "page": "master",
+    "state": "bad",
+    "setBy": {
+        "member": "master.same_check",
+        "state": "bad",
+        "value": {
+            "n": 5
+        },
+        "fact": {
+            "code": "short.same_check",
+            "params": {
+                "prs": 5,
+                "check": "Test (graphty-*)"
+            }
+        }
+    },
+    "others": [
+        {
+            "member": "master.green_time",
+            "state": "bad",
+            "value": {
+                "n": 40,
+                "unit": "pct"
+            }
+        }
+    ],
+    "notes": [
+        {
+            "code": "master.note.queued",
+            "params": {
+                "builds": 5,
+                "oldest_min": 68
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.red_now"
+                }
+            },
+            "link": "/master/red",
+            "id": "master.red_now",
+            "value": {
+                "n": 0,
+                "unit": "min"
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "trend": [0, 0, 0, 0, 0, 0, 0, 0, 5, 15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 85, 50, 20, 0],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    null
+                ],
+                "target": 0
+            },
+            "note": {
+                "code": "master.red_now.note",
+                "params": {
+                    "green_since": "2026-10-25T23:06:00Z",
+                    "queued_min": 68
+                }
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 92,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 75,
+                    "unit": "pct"
+                }
+            },
+            "link": "/master/red",
+            "id": "master.green_time",
+            "value": {
+                "n": 40,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 49,
+                "unit": "pct"
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+                "trend": [
+                    100, 100, 100, 100, 100, 100, 100, 100, 92, 72, 52, 33, 22, 21, 21, 20, 20, 20, 20, 20, 25, 35, 45,
+                    55
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 92
+            },
+            "note": {
+                "code": "master.green_time.def"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 1
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/master/shared",
+            "id": "master.same_check",
+            "value": {
+                "n": 5
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "trend": [
+                    0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.4, 2.83, 3.27, 3.7, 4.13, 4.57, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 1
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.word",
+                    "params": {
+                        "word": "passed"
+                    }
+                }
+            },
+            "link": "/releases/lanes",
+            "id": "master.full_run_verdict",
+            "value": {
+                "word": "passed"
+            },
+            "note": {
+                "code": "master.verdict.note",
+                "params": {
+                    "lane": "ci",
+                    "sha": "a870943ef",
+                    "at": "2026-10-24T18:15:00Z"
+                }
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 7,
+                    "unit": "h"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 13,
+                    "unit": "h"
+                }
+            },
+            "link": "/releases/trains",
+            "id": "master.untested_age",
+            "value": {
+                "n": 6.8,
+                "unit": "h"
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4, 1.7],
+                "trend": [
+                    1.9, 2.11, 2.33, 2.54, 2.75, 2.97, 3.18, 3.39, 3.6, 3.82, 4.03, 4.24, 4.46, 4.67, 4.88, 5.1, 5.31,
+                    5.52, 5.73, 5.95, 6.16, 6.37, 6.59, 6.8
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 7
+            },
+            "note": {
+                "code": "master.untested.note",
+                "params": {
+                    "attempt": "2026-10-25T18:00:00Z",
+                    "sha": "1fa254bf3"
+                }
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 10,
+                    "unit": "pct"
+                }
+            },
+            "link": "/master",
+            "id": "master.reverts",
+            "value": {
+                "n": 0,
+                "of": 41
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "strip",
+            "id": "red",
+            "from": "2026-10-25T17:30:00Z",
+            "to": "2026-10-25T23:30:00Z",
+            "spans": [
+                {
+                    "start": "2026-10-25T17:30:00Z",
+                    "end": "2026-10-25T18:02:00Z",
+                    "state": "green"
+                },
+                {
+                    "start": "2026-10-25T18:02:00Z",
+                    "end": "2026-10-25T18:54:00Z",
+                    "state": "gray"
+                },
+                {
+                    "start": "2026-10-25T18:54:00Z",
+                    "end": "2026-10-25T20:01:00Z",
+                    "state": "green"
+                },
+                {
+                    "start": "2026-10-25T20:01:00Z",
+                    "end": "2026-10-25T23:06:00Z",
+                    "state": "red"
+                },
+                {
+                    "start": "2026-10-25T23:06:00Z",
+                    "end": "2026-10-25T23:30:00Z",
+                    "state": "green"
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "red-spans",
+            "rows": [
+                {
+                    "cells": {
+                        "span": {
+                            "t": "sub",
+                            "main": {
+                                "t": "mark",
+                                "state": "bad",
+                                "cell": {
+                                    "t": "span",
+                                    "start": "2026-10-25T20:01:00Z",
+                                    "end": "2026-10-25T23:06:00Z"
+                                }
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "master.span.cleared",
+                                    "params": {
+                                        "h": 3.1,
+                                        "cleared": "2026-10-25T23:06:00Z"
+                                    }
+                                }
+                            }
+                        },
+                        "builds": {
+                            "t": "sub",
+                            "main": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "master.builds.cancelled",
+                                    "params": {
+                                        "n": 11
+                                    }
+                                }
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "master.builds.passed",
+                                    "params": {
+                                        "sha": "bfc880719",
+                                        "at": "2026-10-25T23:06:00Z"
+                                    }
+                                }
+                            }
+                        },
+                        "cause": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cause.step_hang",
+                                "params": {
+                                    "job": "Build",
+                                    "step": "Upload source maps to Sentry",
+                                    "from": "2026-10-25T19:47:00Z",
+                                    "to": "2026-10-25T21:50:00Z",
+                                    "timeouts": 6,
+                                    "timeout_min": 12,
+                                    "guard_pr": 3561,
+                                    "guard_at": "2026-10-25T21:14:00Z"
+                                }
+                            }
+                        },
+                        "fix": {
+                            "t": "list",
+                            "sep": "line",
+                            "items": [
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.merged",
+                                        "params": {
+                                            "pr": 3559,
+                                            "at": "2026-10-25T21:08:00Z"
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.open",
+                                        "params": {
+                                            "pr": 3570
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "span": {
+                            "t": "sub",
+                            "main": {
+                                "t": "span",
+                                "start": "2026-10-25T18:02:00Z",
+                                "end": "2026-10-25T18:54:00Z"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "master.span.gray"
+                                }
+                            }
+                        },
+                        "builds": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "master.builds.by_hand",
+                                "params": {
+                                    "n": 10
+                                }
+                            }
+                        },
+                        "cause": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cause.cancelled_by_hand",
+                                "params": {
+                                    "at": "2026-10-25T18:54:00Z"
+                                }
+                            }
+                        },
+                        "fix": {
+                            "t": "none"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "shared",
+            "rows": [
+                {
+                    "cells": {
+                        "check": {
+                            "t": "sub",
+                            "main": {
+                                "t": "mark",
+                                "state": "bad",
+                                "cell": {
+                                    "t": "name",
+                                    "v": "Test (graphty-*)",
+                                    "bold": true
+                                }
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "check.family",
+                                    "params": {
+                                        "bins": 5
+                                    }
+                                }
+                            }
+                        },
+                        "prs": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3567
+                                },
+                                {
+                                    "t": "pr",
+                                    "n": 3500
+                                },
+                                {
+                                    "t": "pr",
+                                    "n": 3498
+                                },
+                                {
+                                    "t": "pr",
+                                    "n": 3550
+                                },
+                                {
+                                    "t": "pr",
+                                    "n": 3511
+                                }
+                            ],
+                            "sep": "space"
+                        },
+                        "since": {
+                            "t": "time",
+                            "at": "2026-10-25T18:03:00Z"
+                        },
+                        "suspects": {
+                            "t": "list",
+                            "sep": "line",
+                            "items": [
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "suspect",
+                                        "params": {
+                                            "pr": 3495,
+                                            "title": "draw on demand in test browsers"
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "list",
+                                    "items": [
+                                        {
+                                            "t": "pr",
+                                            "n": 3496
+                                        },
+                                        {
+                                            "t": "pr",
+                                            "n": 3497
+                                        }
+                                    ],
+                                    "sep": "space"
+                                }
+                            ]
+                        },
+                        "issue": {
+                            "t": "list",
+                            "sep": "line",
+                            "items": [
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.issue_open",
+                                        "params": {
+                                            "issue": 3572
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.open",
+                                        "params": {
+                                            "pr": 3573
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "check": {
+                            "t": "sub",
+                            "main": {
+                                "t": "name",
+                                "v": "All Checks Pass",
+                                "bold": true
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "check.failed_alone"
+                                }
+                            }
+                        },
+                        "prs": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3514
+                                },
+                                {
+                                    "t": "pr",
+                                    "n": 3508
+                                }
+                            ],
+                            "sep": "space"
+                        },
+                        "since": {
+                            "t": "span",
+                            "start": "2026-10-25T19:48:00Z",
+                            "end": "2026-10-25T20:20:00Z"
+                        },
+                        "suspects": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cause.signature",
+                                "params": {
+                                    "signature": "Argument list too long"
+                                }
+                            }
+                        },
+                        "issue": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "fix.merged",
+                                "params": {
+                                    "pr": 3552,
+                                    "at": "2026-10-25T20:20:00Z"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "check": {
+                            "t": "sub",
+                            "main": {
+                                "t": "name",
+                                "v": "Checks",
+                                "bold": true
+                            },
+                            "sub": {
+                                "t": "name",
+                                "v": "Figma lock"
+                            }
+                        },
+                        "prs": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3550
+                                }
+                            ],
+                            "sep": "space"
+                        },
+                        "since": {
+                            "t": "span",
+                            "start": "2026-10-25T20:15:00Z",
+                            "end": "2026-10-25T20:52:00Z"
+                        },
+                        "suspects": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cause.unknown"
+                            }
+                        },
+                        "issue": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.merged",
+                                        "params": {
+                                            "pr": 3556,
+                                            "at": "2026-10-25T20:52:00Z"
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "fix.merged",
+                                        "params": {
+                                            "pr": 3557,
+                                            "at": "2026-10-25T20:52:00Z"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

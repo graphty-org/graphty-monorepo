@@ -15,8 +15,9 @@
  * - the pull request does not carry the `dequeued` label: one ejected from the queue captures
  *   everything on its next run. The label is read from the event payload, so it takes a new push
  *   (not a re-run, which replays the old payload) to start that run
- * - every changed file is inside an nx project's directory: a root file (workflows, lockfile,
- *   visual-baselines/, visual-fonts/, root configs, docs) counts as affecting every project
+ * - every changed file is inside an nx project's directory, or is a workflow or a tool no Storybook reads
+ *   (NOT_DRAWN): any other root file (lockfile, visual-baselines/, visual-fonts/, root configs, docs)
+ *   counts as affecting every project
  * - nx does not call the project affected
  *
  * Usage: node tools/visual-capture-plan.mjs <all-projects-json> <affected-projects-json>
@@ -40,6 +41,20 @@ const dirName = (project) => project.replace(/^@graphty\//, "");
 // graphty-element's source.
 const DRAWN_BY = { "graph-io-fidelity": ["graph-io", "graphty-element"] };
 
+// Root files no Storybook build or capture reads: the workflows other than ci.yml (which sets up the
+// capture browser, its fonts and this plan step) and the repository's tools, except the brand theme a
+// Storybook's manager imports and this planner itself. .github/actions/ (the capture browser's system
+// packages and fonts) still counts as a root file. A pull request that changes only these and package files
+// is judged by its packages alone. The full run captures every project on master every 6 hours, which is
+// the backstop now that no merge queue captures before a merge.
+const DRAWN_ROOT = new Set([
+    ".github/workflows/ci.yml",
+    "tools/storybook-brand-theme.mjs",
+    "tools/visual-capture-plan.mjs",
+    "tools/ci-reuse-plan.mjs",
+]);
+const NOT_DRAWN = (f) => (f.startsWith(".github/workflows/") || f.startsWith("tools/")) && !DRAWN_ROOT.has(f);
+
 /**
  * The visual-review projects a run may leave uncaptured.
  * @param input what the run knows
@@ -57,7 +72,7 @@ export function skippedProjects({ on, pullRequest, labels, visual, all, affected
         return [];
     }
     const dirs = new Set(all.map(dirName));
-    if (changed.some((f) => !dirs.has(f.split("/")[0]))) {
+    if (changed.some((f) => !NOT_DRAWN(f) && !dirs.has(f.split("/")[0]))) {
         return [];
     }
     const captured = affectedVisual(visual, affected);

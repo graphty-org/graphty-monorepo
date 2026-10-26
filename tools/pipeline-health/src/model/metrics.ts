@@ -185,6 +185,32 @@ export const METRICS: MetricDef[] = [
     },
     // 4.6 Costs
     { id: "cost.usd", from: [src("cost", "day", (c) => ({ sum: c.usd, dim: c.line }))] },
+    // Section 7, money by workflow: job-priced lines (T4, the LLM step) by the workflow that ran them.
+    {
+        id: "cost.by_workflow",
+        from: [
+            src("cost", "day", (c) =>
+                c.workflow ? { sum: c.usd, dim: c.line === "llm" ? `${c.workflow}, LLM step` : c.workflow } : null,
+            ),
+        ],
+    },
+    // Section 7, list-price value: GitHub-hosted job minutes (each job rounded up, as GitHub bills), by
+    // [workflow, os]; the view prices them from rates.json, so a rate change needs no recompute.
+    {
+        id: "ci.job_minutes",
+        from: [
+            src("job", "completedAt", (j) =>
+                j.os && j.startedAt !== undefined && j.completedAt !== undefined
+                    ? { sum: Math.ceil((j.completedAt - j.startedAt) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
+                    : null,
+            ),
+        ],
+    },
+    // Section 7, unit costs: release train attempts that tested a candidate.
+    {
+        id: "release.trains",
+        from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
+    },
     // 4.7 Data sources: rows of CI results per CI run, for "thin for its activity" (section 9).
     {
         id: "source.ci_results_per_run",

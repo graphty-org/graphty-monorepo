@@ -20,6 +20,7 @@ import {
     releaseTags,
     runnerFlags,
     runnerUse,
+    type StressCursorRun,
     stressRunState,
     suiteNotes,
     t4Cost,
@@ -296,8 +297,8 @@ function writeRuns(
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
                 c.items.push(...toStepItems(j, repo, workflow));
             if (j.status === "completed") {
-                const t4 = t4Cost(j, repo, c.d.rates);
-                const llm = llmCost(j, repo, c.d.rates);
+                const t4 = t4Cost(j, repo, c.d.rates, workflow);
+                const llm = llmCost(j, repo, c.d.rates, workflow);
                 if (t4) c.items.push(t4);
                 if (llm) c.items.push(llm);
             }
@@ -484,8 +485,17 @@ async function stress(c: Cycle, gh: GitHub) {
             ?.workflow_runs ?? []
     ).filter((r) => r.status === "completed");
     if (!runs.length) return;
-    const cache = await c.json<Record<string, { state: 0 | 2; foundFailures: boolean }>>("stress", {});
-    for (const r of runs) if (!cache[r.id]) cache[r.id] = stressRunState(await allJobs(gh, repo, r.id));
+    // The Data sources page's stress table (views/sections.ts `stressTable`) reads this cursor: newest first.
+    const cache = await c.json<Record<string, StressCursorRun>>("stress", {});
+    for (const r of runs) {
+        if (cache[r.id]?.at === undefined) {
+            cache[r.id] = {
+                ...stressRunState(await allJobs(gh, repo, r.id)),
+                at: Date.parse(r.created_at),
+                runId: r.id,
+            };
+        }
+    }
     await c.setJson("stress", Object.fromEntries(runs.map((r) => [r.id, cache[r.id]])));
     const newest = cache[runs[0].id];
     const quiet = runs.length === 3 && runs.every((r) => !cache[r.id].foundFailures);

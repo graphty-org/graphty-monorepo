@@ -425,11 +425,12 @@ function table(s: TableSection): string {
 function bars(s: BarsSection): string {
     const caption = s.id;
     if (s.groups.length === 1) return sortedBars(s.groups[0].items, cellHtml, caption);
+    const list = (g: BarsSection["groups"][number]): string =>
+        g.items.length
+            ? sortedBars(g.items, cellHtml, g.head ? sentence(g.head) : caption)
+            : `<p class="empty">none in this range</p>`;
     return `<div class="two">${s.groups
-        .map(
-            (g) =>
-                `<div>${g.head ? `<h3>${sentence(g.head)}</h3>` : ""}${sortedBars(g.items, cellHtml, g.head ? sentence(g.head) : caption)}</div>`,
-        )
+        .map((g) => `<div>${g.head ? `<h3>${sentence(g.head)}</h3>` : ""}${list(g)}</div>`)
         .join("")}</div>`;
 }
 
@@ -654,7 +655,7 @@ function headline(m: Member): string {
     let kv = bigValue(m.value);
     if (m.state === "few") kv = `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
     else if (m.state === "partial")
-        kv = `<span class="kvl">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
+        kv = `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
     else if (m.state === "nodata") kv = `<span class="kvl">NO DATA</span>`;
     else if (m.state === "notsetup") kv = `<span class="kvl">not set up</span>`;
     const kt: string[] = [];
@@ -682,6 +683,9 @@ function episode(e: Episode): string {
     );
 }
 
+/** Episodes listed open on the overview before the cleared rest fold away. */
+const EPISODES_SHOWN = 6;
+
 export function overviewView(o: OverviewResponse): string {
     const trend =
         here.range === "24h"
@@ -690,8 +694,14 @@ export function overviewView(o: OverviewResponse): string {
     const cols = o.categories.map((c) => `<li class="col">${block(c)}${headline(c.headline)}</li>`).join("");
     const ongoing = o.episodes.filter((e) => e.end === null);
     const cleared = o.episodes.filter((e) => e.end !== null);
+    // The overview fits 1440 x 900 (2.1): every ongoing episode shows, cleared ones up to the cap, the rest folded.
+    const shown = Math.max(0, EPISODES_SHOWN - ongoing.length);
+    const folded = cleared.slice(shown);
+    const more = folded.length
+        ? `<details class="epm"><summary>${fmtN(folded.length)} more cleared${chev()}</summary>${folded.map(episode).join("")}</details>`
+        : "";
     const eps = o.episodes.length
-        ? [...ongoing, ...cleared].map(episode).join("")
+        ? [...ongoing, ...cleared.slice(0, shown)].map(episode).join("") + more
         : `<p class="empty">No member went past its target in the last 24 h.</p>`;
     return (
         header("Pipeline health", [], o.generated) +

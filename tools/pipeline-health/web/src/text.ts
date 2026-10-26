@@ -388,7 +388,11 @@ export const MEMBER: Record<MemberId, MemberText> = {
         short: "local vs CI disagreement",
         def: "same shard and inputs, different outcome",
     },
-    "local-runs.shard_time": { name: "Local shard time vs CI", short: "local shard time vs CI", def: "median ratio" },
+    "local-runs.shard_time": {
+        name: "Local shard time",
+        short: "local shard time",
+        def: "median of local shard runs, minutes",
+    },
     "local-runs.slot_waits": { name: "Slot waits", short: "slot waits", def: "p90 wait for a test slot" },
 };
 
@@ -571,8 +575,9 @@ const S: Record<string, (p: P) => string> = {
     "section.no_events": () => "Nothing recorded in this range.",
     "master.no_red_span": () => "No red span in the range.",
     "data.all_set_up": () => "Every member has a writer.",
+    // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>
-        `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} past its threshold` +
+        `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} out of target` +
         (p.peak === undefined ? "" : `, peak ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`) +
         (typeof p.cleared === "string" ? `, cleared ${at(p, "cleared")}` : ""),
 
@@ -680,6 +685,8 @@ const S: Record<string, (p: P) => string> = {
     "cost.usage.events": () => "events / quota",
     "cost.usage.requests": () => "requests / allowance",
     "unit.train.note": (p) => `median of ${fmtN(num(p, "days"))} d, T4 only: the LLM suite runs once a day`,
+    "unit.train.mean": (p) =>
+        `mean of ${fmtN(num(p, "days"))} d over ${plural(num(p, "trains"), "tested train")}; T4 and the LLM step`,
     "unit.pr_value.note": () => "not money: Actions minutes are free for this public repository",
 
     // data sources
@@ -687,6 +694,9 @@ const S: Record<string, (p: P) => string> = {
     "stress.filing_failed": (p) =>
         `failed in ${str(p, "step")}: ${fmtN(num(p, "failures"))} failures over the cap of ${fmtN(num(p, "cap"))} (all in ${str(p, "file")}, ${str(p, "cause")})`,
     "stress.found_nothing": () => "passed, found nothing",
+    "stress.found_filed": () => "passed, found failures and filed them",
+    "stress.failed_in": (p) => `failed in ${str(p, "job")}`,
+    "stress.no_runs": () => "No completed stress run recorded yet.",
     "stress.filed_tracked": (p) => `${fmtN(num(p, "filed"))}; ${issueLink(num(p, "issue"))} tracks it`,
     "source.collector.what": () => "GitHub runs, jobs, pull requests, issues",
     "source.ci-results.what": () => "per file, failed and retried tests",

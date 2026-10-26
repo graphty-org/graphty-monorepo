@@ -198,8 +198,8 @@ async function runItems(
         out.push(toJobItem(j, repo, workflow));
         if (j.status !== "completed") continue;
         if (STEP_WORKFLOWS.has(workflow)) out.push(...toStepItems(j, repo, workflow));
-        const t4 = t4Cost(j, repo, rates as unknown as Rates);
-        const llm = llmCost(j, repo, rates as unknown as Rates);
+        const t4 = t4Cost(j, repo, rates as unknown as Rates, workflow);
+        const llm = llmCost(j, repo, rates as unknown as Rates, workflow);
         if (t4) out.push(t4);
         if (llm) out.push(llm);
     }

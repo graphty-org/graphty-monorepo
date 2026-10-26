@@ -101,6 +101,20 @@ export function pool(labels: string[]): JobItem["pool"] {
     return "other";
 }
 
+/**
+ * A GitHub-hosted job's OS (its list-price rate, section 7).
+ * @param labels the job's runner labels
+ * @returns the OS, or undefined for self-hosted and machine.dev runners
+ */
+export function runnerOs(labels: string[]): JobItem["os"] {
+    const OS: [RegExp, NonNullable<JobItem["os"]>][] = [
+        [/^macos-/i, "macos"],
+        [/^windows-/i, "windows"],
+        [/^ubuntu-/i, "linux"],
+    ];
+    return OS.find(([re]) => labels.some((l) => re.test(l)))?.[1];
+}
+
 /** A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration. */
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
@@ -117,6 +131,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         name: j.name,
         ...opt("family", fam),
         pool: pool(j.labels),
+        ...opt("os", runnerOs(j.labels)),
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
@@ -477,13 +492,33 @@ export function failedInRow(runs: GhRun[]): number {
 // ---------------------------------------------------------------------------------------------------------------
 // The weekly stress run (4.7): 0 ok, 1 found nothing three weeks running, 2 filing failed or the run broke.
 
-export function stressRunState(jobs: GhJob[]): { state: 0 | 2; foundFailures: boolean } {
-    const report = jobs.find((j) => j.name === "File the load-sensitive tests");
+export interface StressRun {
+    state: 0 | 2;
+    foundFailures: boolean;
+    /** The job that broke the run (Build, or the filing job), or "File the load-sensitive tests" when it never ran. */
+    failedJob?: string;
+}
+
+/** One stress run as the collector's `stress` cursor keeps it (the Data sources page reads it). */
+export type StressCursorRun = StressRun & { at: number; runId: number };
+
+/**
+ * One stress run's state from its jobs.
+ * @param jobs the run's jobs
+ * @returns its state, whether it found failures, and the job that broke it
+ */
+export function stressRunState(jobs: GhJob[]): StressRun {
+    const REPORT = "File the load-sensitive tests";
+    const report = jobs.find((j) => j.name === REPORT);
     const build = jobs.find((j) => j.name === "Build");
     const stress = jobs.filter((j) => j.name.startsWith("Restricted CPU"));
     const foundFailures = stress.some((j) => j.conclusion === "failure");
-    const broke = BAD.has(build?.conclusion ?? "") || !report || BAD.has(report.conclusion ?? "");
-    return { state: broke ? 2 : 0, foundFailures };
+    const buildBroke = BAD.has(build?.conclusion ?? "");
+    const broke = buildBroke || !report || BAD.has(report.conclusion ?? "");
+    if (!broke) {
+        return { state: 0, foundFailures };
+    }
+    return { state: 2, foundFailures, failedJob: buildBroke ? "Build" : REPORT };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -498,7 +533,7 @@ export interface Rates {
 const dayOf = (msTime: number) => Math.floor(msTime / DAY) * DAY;
 
 /** One machine.dev T4 job: minutes rounded up, plus boot, times the tenancy's rate. */
-export function t4Cost(j: GhJob, repo: string, rates: Rates): CostItem | undefined {
+export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
     const label = j.labels.find((l) => l.startsWith("machine/gpu=t4"));
     if (!label || !j.started_at || !j.completed_at || isSkipped(j)) return undefined;
     const tenancy = /tenancy=(\w+)/.exec(label)?.[1] ?? "on_demand";
@@ -511,13 +546,14 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates): CostItem | undefin
         id: `t4#${repo}/${j.id}`,
         attempt: j.run_attempt,
         line: "t4",
+        ...opt("workflow", workflow),
         day: dayOf(end),
         usd: min * rate,
     };
 }
 
 /** Paid LLM test steps (as tools/llm-due.mjs counts them) times the per-run cost. */
-export function llmCost(j: GhJob, repo: string, rates: Rates): CostItem | undefined {
+export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
     const paid = (j.steps ?? []).filter(
         (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
@@ -528,6 +564,7 @@ export function llmCost(j: GhJob, repo: string, rates: Rates): CostItem | undefi
         id: `llm#${repo}/${j.id}`,
         attempt: j.run_attempt,
         line: "llm",
+        ...opt("workflow", workflow),
         day: dayOf(end),
         usd: paid.length * rates.llm.usdPerPaidStep,
     };

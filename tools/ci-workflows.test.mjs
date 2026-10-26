@@ -1488,7 +1488,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1707,7 +1707,9 @@ describe("verification runs of ci.yml", () => {
         const from = report.indexOf("            - name: Check out the gate");
         const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
         assert.ok(gate.length > 1000, "found the gate steps");
-        assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
+        // The owner approved on 2026-10-26 (design/ci/channels-pipeline.md section 7.1, #3850) changing the visual job's
+        // scheduling: it no longer runs on a pull request (its `if`).
+        assert.equal(sha(job(ci, "visual")), "fc7d852512fd60414701e4c69df5e87f671de01124524b07ab74c655ac92b16f");
         assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
     });
 
@@ -1718,7 +1720,10 @@ describe("verification runs of ci.yml", () => {
         const report = job(ci, "visual-report");
         assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
         assert.match(report, /\n {8}name: Visual report\n/);
-        assert.match(report, /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' \}\}\n/);
+        assert.match(
+            report,
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' && needs.visual.result != 'skipped' \}\}\n/,
+        );
         assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
         assert.match(
             report,
@@ -1726,6 +1731,31 @@ describe("verification runs of ci.yml", () => {
         );
         assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
+    });
+
+    // On a pull request the old full capture ran 15 to 25 minutes past All Checks Pass, holding runners, and nothing
+    // that read it decided anything there (#3850): the full run, a dispatch and a bisect point still capture.
+    it("runs the old full capture, its parity and its report on no pull request", () => {
+        const jobs = parseJobs(ci);
+        assert.match(
+            job(ci, "visual"),
+            /\n {8}if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'\n/,
+        );
+        assert.match(
+            job(ci, "story-tests-parity"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name != 'pull_request' \}\}\n/,
+        );
+        // the report and the flaky-screenshot report read only that capture, so they skip with it
+        assert.match(job(ci, "visual-report"), /&& needs.visual.result != 'skipped' \}\}\n/);
+        assert.match(
+            job(ci, "visual-flaky"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs.visual.result != 'skipped' \}\}\n/,
+        );
+        // what a pull request's All Checks Pass needs still runs: its own stories, captured by the Stories jobs
+        assert.ok(jobs["all-checks"].needs.includes("stories"));
+        assert.match(job(ci, "stories"), /github.event_name == 'pull_request'/);
+        // the story tests feed the results store's flaky-story detection on a pull request too
+        assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
     });
 
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {

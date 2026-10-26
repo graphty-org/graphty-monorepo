@@ -759,10 +759,14 @@ export interface StylesApi {
      * what a consumer should never have to write against this element. So the element answers the
      * question instead.
      *
-     * Every style edit is queued on the session's own queue, so this is the queue being empty
-     * rather than a per-run promise: after it resolves there is no element-initiated painting
-     * outstanding, whoever started it.
-     * @returns A promise that resolves when nothing the element started is still in flight.
+     * It waits for the runs on the session's queue, the repaint of every style edit written so
+     * far, and the repaint passes asked for by the time those are done, such as the one a
+     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). Passes
+     * asked for later are not waited for, so steady pointer input cannot keep it from resolving.
+     * A layer that selects the members of a live set may still be repainting when it resolves:
+     * after the graph changes its new membership arrives on a later rendered frame, and its
+     * whole-graph passes are merged and started one after another.
+     * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
     /**
@@ -1380,6 +1384,11 @@ export interface StylesSources {
      * paints nothing, which is exactly right for a headless session.
      */
     readonly repaint?: LayerRepaint;
+    /**
+     * Resolves once every repaint pass asked for so far has ended, which `settled()` waits on: a
+     * selection or pointer change starts a pass without awaiting it. Absent, nothing is waited.
+     */
+    readonly idle?: () => Promise<void>;
     /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
@@ -4594,8 +4603,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         async settled(): Promise<void> {
             // What the element starts for itself (a run's suggested layers) waits on the queue;
             // the repaint of every edit written so far waits on the derivation lane.
+            // The passes nobody awaits (a selection or pointer change asks for one), read before and
+            // again after the queue and lane: a finishing run may ask for one. Each read is bounded
+            // by the passes asked for by then, so steady pointer input cannot extend the wait.
+            const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
+            await passes;
+            await sources.idle?.();
         },
 
         explain(target: ExplainTarget): StyleExplanation {

@@ -8,7 +8,8 @@
 #                                         graphty-monorepo/(blob|tree)/master/<path> resolved
 #                                         against this checkout. No network. About a second.
 #   tools/check-links.sh                  the above, plus every other github.com/graphty-org link
-#                                         over the network (set GITHUB_TOKEN to avoid rate limits)
+#                                         over the network (set GITHUB_TOKEN to avoid rate limits),
+#                                         and every https://graphty.app link against canary.graphty.app
 #   tools/check-links.sh --site <dir>     the above, plus links to https://graphty.app checked
 #                                         against <dir>, the site tools/assemble-pages-site.sh
 #                                         builds -- so a link is judged against what the next
@@ -19,6 +20,7 @@
 #   tools/check-links.sh --external <report.md>
 #                                         every link in those files, external ones included, over
 #                                         the network; writes a Markdown report of the dead ones.
+#                                         graphty.app links are checked against canary.graphty.app.
 #                                         For the weekly workflow, not for a gate: another site's
 #                                         outage is not a reason to fail anyone's pull request
 #
@@ -83,9 +85,13 @@ git ls-files \
     | grep -vE '^[^/]+/index\.html$' \
     > "$INPUTS"
 
+# graphty.app is production, which moves only on promotion; canary serves master's newest build,
+# so a link to a page master already publishes is judged against canary.
+CANARY_REMAP='^https://graphty\.app(.*)$ https://canary.graphty.app$1'
+
 if [ -n "$REPORT" ]; then
-    echo "Checking every link in $(wc -l < "$INPUTS") files"
-    "$LYCHEE" --format markdown --output "$REPORT" --files-from "$INPUTS"
+    echo "Checking every link in $(wc -l < "$INPUTS") files (graphty.app against canary)"
+    "$LYCHEE" --format markdown --output "$REPORT" --remap "$CANARY_REMAP" --files-from "$INPUTS"
     exit $?
 fi
 
@@ -118,6 +124,12 @@ if [ $OFFLINE -eq 0 ]; then
         --include '^https://github\.com/graphty-org/' --exclude '.*' \
         --remap '^https://github\.com/graphty-org/[^/]+/actions/runs/.* https://actions-run.invalid/' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
+    if [ -z "$SITE" ]; then
+        # The include sees the remapped URL, so it names canary.
+        echo "Checking graphty.app links against canary.graphty.app"
+        "$LYCHEE" --remap "$CANARY_REMAP" --include '^https://canary\.graphty\.app' --exclude '.*' \
+            --files-from "$INPUTS" || FAILED=1
+    fi
 fi
 
 if [ -n "$SITE" ]; then

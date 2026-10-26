@@ -9,7 +9,7 @@ import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
-import { failureHashes } from "../src/signature.js";
+import { failureHashes, issueKey } from "../src/signature.js";
 import { AUDIENCE, handle } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
@@ -1108,6 +1108,9 @@ describe("/v1/durations/tests/<name>", () => {
     });
 });
 
+const UNSTABLE =
+    "Error: visual-review: app--default is unstable (two renders drew different pictures): dark\n \u276F g/x.ts:1:1";
+
 describe("failureHashes", () => {
     it("hashes every failure exactly as the test ledger does", () => {
         const samples = [
@@ -1119,9 +1122,26 @@ describe("failureHashes", () => {
             ],
             ["boom 0123456789abcdef in /tmp/x/y\n<div>", "p/c.test.ts", undefined],
             ["Error: frame\n \u276F p/d.test.ts:3:7\n \u276F node_modules/x.js:1:1", "p/d.test.ts", undefined],
+            [UNSTABLE, "g/src/A.stories.tsx", undefined],
+            [UNSTABLE.replace(": dark", ": light"), "g/src/A.stories.tsx", undefined],
         ];
         for (const [text, file, main] of samples)
             assert.deepEqual(failureHashes(text, file, main), ledgerHashes(text, file, main));
+    });
+
+    it("records a story whose two renders disagreed as unstable, not as an ordinary failure", () => {
+        assert.equal(failureHashes(UNSTABLE, "g/src/A.stories.tsx").status, "unstable");
+        assert.equal(failureHashes("Error: visual-review: play threw", "g/src/A.stories.tsx").status, "fail");
+    });
+
+    it("files one issue for an unstable story whichever modes differed, one per story in a file", () => {
+        const file = "g/src/A.stories.tsx";
+        const dark = failureHashes(UNSTABLE, file);
+        const light = failureHashes(UNSTABLE.replace(": dark", ": light"), file);
+        assert.equal(dark.signature, light.signature);
+        const key = (h, name) => issueKey(h.signature, h.status, name);
+        assert.equal(key(dark, "Default"), key(light, "Default"));
+        assert.notEqual(key(dark, "Default"), key(dark, "Other"));
     });
 });
 

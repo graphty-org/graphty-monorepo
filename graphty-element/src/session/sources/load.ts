@@ -28,6 +28,7 @@ import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
+import { historyMark } from "../loadLine";
 import { resolve } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
@@ -222,7 +223,7 @@ function dispatchRows(
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
-        ...(options.history === "start" ? { startsHistory: true } : {}),
+        ...historyMark(options),
     };
     return host.dispatch(command);
 }

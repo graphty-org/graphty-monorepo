@@ -50,15 +50,18 @@ export function config(env = process.env, root = ROOT) {
     return cfg;
 }
 
-// One entry per request URL and audience: the token's promise, shared by requests made while it is in flight, and
-// its expiry once it has arrived. A request that fails leaves the cache, so the next call asks again.
+// One entry per request URL and audience: the token's promise and, once it has arrived, its expiry. The health
+// copies (one fixed 2 s deadline each) also share a request still in flight, so a burst of failure events asks
+// for one token; the store's callers, whose deadlines differ, only reuse a token that has arrived. A request that
+// fails leaves the cache, so the next call asks again.
 const oidcCache = new Map();
 
-function bearer(cfg, signal, audience = AUDIENCE) {
+function bearer(cfg, signal, audience = AUDIENCE, shareInFlight = false) {
     if (cfg.token) return Promise.resolve(cfg.token);
     const key = `${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}|${audience}`;
     const hit = oidcCache.get(key);
-    if (hit && (hit.exp === undefined || hit.exp - 60 > Date.now() / 1000)) return hit.value;
+    if (hit?.exp !== undefined && hit.exp - 60 > Date.now() / 1000) return hit.value;
+    if (hit && hit.exp === undefined && shareInFlight) return hit.value;
     const entry = {};
     entry.value = (async () => {
         const res = await fetch(`${cfg.oidc.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}`, {
@@ -68,10 +71,13 @@ function bearer(cfg, signal, audience = AUDIENCE) {
         if (!res.ok) throw new Error(`OIDC token: HTTP ${res.status}`);
         const { value } = await res.json();
         entry.exp = JSON.parse(Buffer.from(value.split(".")[1], "base64url").toString()).exp ?? 0;
+        oidcCache.set(key, entry);
         return value;
     })();
-    entry.value.catch(() => oidcCache.get(key) === entry && oidcCache.delete(key));
-    oidcCache.set(key, entry);
+    if (shareInFlight) {
+        oidcCache.set(key, entry);
+        entry.value.catch(() => oidcCache.get(key) === entry && oidcCache.delete(key));
+    }
     return entry.value;
 }
 
@@ -87,7 +93,7 @@ const healthPending = new Set();
  */
 export function sendHealth(cfg, path, body) {
     const signal = AbortSignal.timeout(HEALTH_MS);
-    const p = bearer({ oidc: cfg.oidc }, signal, HEALTH_AUDIENCE)
+    const p = bearer({ oidc: cfg.oidc }, signal, HEALTH_AUDIENCE, true)
         .then((auth) =>
             fetch(cfg.health + path, {
                 method: "POST",

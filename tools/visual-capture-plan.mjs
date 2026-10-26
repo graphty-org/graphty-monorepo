@@ -23,7 +23,8 @@
  * Usage: node tools/visual-capture-plan.mjs <all-projects-json> <affected-projects-json>
  *   env SKIP_UNAFFECTED_CAPTURES ("true" turns it on), PULL_REQUEST ("true" on a pull request's
  *   own run), LABELS (JSON array of the pull request's label names), BASE_REF (the base branch)
- * Prints one GITHUB_OUTPUT line: visual-skip=<JSON array of visual-review project ids>
+ * Prints two GITHUB_OUTPUT lines: visual-skip=<JSON array of visual-review project ids>, and
+ * visual-on=<JSON array>, the projects captured a second time in the On configuration (onCaptureProjects)
  *
  *        node tools/visual-capture-plan.mjs --affected <affected-projects-json>
  * Prints the visual-review projects those nx projects can change, one per line (tools/visual-preview.sh).
@@ -115,6 +116,25 @@ const isMain = (() => {
 const visualProjects = () =>
     Object.keys(JSON.parse(readFileSync(new URL("../visual-review.config.json", import.meta.url), "utf8")).projects);
 
+/** The story URL query that switches every declared experiment on (graphty-element/.storybook/preview.ts). */
+export const ON_CAPTURE_QUERY = "features=all";
+
+/**
+ * The visual-review projects captured a second time in the "On" configuration
+ * (design/ci/channels-pipeline/features.md, section 7.3), with VISUAL_REVIEW_STORY_QUERY=ON_CAPTURE_QUERY:
+ * graphty-element's Storybook, the only one whose preview reads `?features=`. Like the On test shards, a full
+ * run only, never a pull request, and only while graphty-element declares an experiment (with none, On equals
+ * Off). ci.yml's features-on-visual job uploads it as features-on-visual-<project>, never visual-*, so pull request captures, the gate
+ * and the baselines are unchanged.
+ * @param run the run
+ * @param run.pullRequest a pull request's own run
+ * @param run.declared graphty-element declares an experiment (features-on.mjs FEATURES_DECLARED)
+ * @returns visual-review project ids
+ */
+export function onCaptureProjects({ pullRequest, declared }) {
+    return declared && !pullRequest ? ["graphty-element"] : [];
+}
+
 if (isMain && process.argv[2] === "--affected") {
     for (const p of affectedVisual(visualProjects(), JSON.parse(process.argv[3]))) console.log(p);
 } else if (isMain) {
@@ -133,4 +153,7 @@ if (isMain && process.argv[2] === "--affected") {
         changed,
     });
     console.log(`visual-skip=${JSON.stringify(skip)}`);
+    // imported here only: tools/visual-preview.sh runs --affected from a copy of this file alone
+    const { FEATURES_DECLARED: declared } = await import("./features-on.mjs");
+    console.log(`visual-on=${JSON.stringify(onCaptureProjects({ pullRequest, declared }))}`);
 }

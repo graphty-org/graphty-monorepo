@@ -14,6 +14,7 @@ import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX, withFeaturesOn } from "./features
 import { candidateShards } from "./test-changed.mjs";
 import { quarantined } from "./test-quarantine.mjs";
 import { selectedCommand } from "./test-select.mjs";
+import { ON_CAPTURE_QUERY, onCaptureProjects } from "./visual-capture-plan.mjs";
 import { storyUrl } from "../visual-review/capture/capture.mjs";
 
 const SETUP = "./test/setup-features-on.ts";
@@ -217,5 +218,24 @@ describe("with an empty FEATURES table", { skip: FEATURES_DECLARED && "an experi
             if (saved === undefined) delete process.env.VISUAL_REVIEW_STORY_QUERY;
             else process.env.VISUAL_REVIEW_STORY_QUERY = saved;
         }
+    });
+});
+
+describe("the On screenshot capture", () => {
+    it("is planned in a full run only, and only while an experiment is declared", () => {
+        assert.deepEqual(onCaptureProjects({ pullRequest: false, declared: true }), ["graphty-element"]);
+        assert.deepEqual(onCaptureProjects({ pullRequest: true, declared: true }), []);
+        assert.deepEqual(onCaptureProjects({ pullRequest: false, declared: false }), []);
+    });
+
+    it("runs in a job of its own with the On query, under an artifact name the gate never reads", () => {
+        const ci = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
+        const on = ci.jobs["features-on-visual"];
+        assert.match(on.if, /needs\.build\.outputs\.visual-on/);
+        const capture = on.steps.find((s) => s.name === "Capture the On configuration");
+        assert.equal(capture.env.VISUAL_REVIEW_STORY_QUERY, ON_CAPTURE_QUERY);
+        assert.match(on.steps.find((s) => s.name === "Upload the On captures").with.name, /^features-on-visual-/);
+        // the owner's visual job, which pull requests run, never gets the query
+        assert.ok(!JSON.stringify(ci.jobs.visual).includes("VISUAL_REVIEW_STORY_QUERY"));
     });
 });

@@ -9,7 +9,9 @@
  * (`Refs #N`, `Fixes #N`, `Closes #N`, `Resolves #N`, `Part of #N`) dispatches release.yml with
  * `mode: restart`. A `Fixes` closes the issue as the merge lands, before this job runs, so an issue
  * closed in the last hour counts as open. Every other merge waits for the next 6-hour slot. Until the full run files such
- * issues, it never dispatches.
+ * issues, it never dispatches. Before the dispatch it cancels every full or restart run still in progress: the full
+ * run files the red issue the moment a lane ends red, while its other lanes may run for hours, and release.yml's
+ * concurrency group would keep the restart pending behind it. Each such run tests a commit without this fix.
  *
  * Not yet: resuming an approved awaiting candidate, which needs the results store.
  *
@@ -44,6 +46,16 @@ export function due(redIssues, messages, now = Date.now()) {
     return red ? { mode: "restart", issue: red.number } : null;
 }
 
+/**
+ * The release.yml runs a restart cancels: full and restart runs (run-name `Release (full)`, `Release (restart)`),
+ * never a shadow or legacy release.
+ * @param runs `gh run list --json databaseId,displayTitle` of the in-progress runs
+ * @returns their ids
+ */
+export function toCancel(runs) {
+    return runs.filter((r) => /^Release \((full|restart)\)$/.test(r.displayTitle)).map((r) => r.databaseId);
+}
+
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
 
 function main() {
@@ -76,6 +88,28 @@ function main() {
         return;
     }
     console.log(`release-due: this merge references red issue #${plan.issue}: release.yml mode=${plan.mode}`);
+    const inProgress = JSON.parse(
+        run("gh", [
+            "run",
+            "list",
+            "--workflow",
+            "release.yml",
+            "--status",
+            "in_progress",
+            "--json",
+            "databaseId,displayTitle",
+        ]),
+    );
+    for (const id of toCancel(inProgress)) {
+        console.log(`release-due: cancelling release.yml run ${id}, which tests a commit without this fix`);
+        if (dryRun) continue;
+        try {
+            run("gh", ["run", "cancel", String(id)]);
+        } catch (error) {
+            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
+        }
+    }
     if (!dryRun) {
         run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", `mode=${plan.mode}`]);
     }

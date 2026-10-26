@@ -556,6 +556,222 @@ jobs:
             ref: ${{ needs.pick.outputs.sha }}
         secrets: inherit
 
+    # A lane that ends red files (or updates) the "Full run red" issue at once (tools/full-run.mjs lane-red), not at
+    # the verdict hours later, so a fix that references it restarts the run at once (tools/release-due.mjs cancels
+    # this run first). One small job per lane, because a job starts only when all it needs have ended. One at a
+    # time per run, so two lanes ending red together find one issue; the verdict needs them all for the same reason.
+    ci_red:
+        name: Red early (CI)
+        needs: [pick, ci]
+        if: ${{ !cancelled() && needs.ci.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: ci
+                  RESULT: ${{ needs.ci.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    t4_red:
+        name: Red early (T4 GPU)
+        needs: [pick, t4]
+        if: ${{ !cancelled() && needs.t4.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: t4
+                  RESULT: ${{ needs.t4.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    hosts_red:
+        name: Red early (Hosts)
+        needs: [pick, hosts]
+        if: ${{ !cancelled() && needs.hosts.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: hosts
+                  RESULT: ${{ needs.hosts.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    autosave_macos_red:
+        name: Red early (Work protection (macOS))
+        needs: [pick, autosave_macos]
+        if: ${{ !cancelled() && needs.autosave_macos.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: autosave_macos
+                  RESULT: ${{ needs.autosave_macos.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    audit_red:
+        name: Red early (Security audit)
+        needs: [pick, audit]
+        if: ${{ !cancelled() && needs.audit.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: audit
+                  RESULT: ${{ needs.audit.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    llm_red:
+        name: Red early (LLM regression)
+        needs: [pick, llm]
+        if: ${{ !cancelled() && needs.llm.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: llm
+                  RESULT: ${{ needs.llm.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
+    version_dry_run_red:
+        name: Red early (Version dry run)
+        needs: [pick, version_dry_run]
+        if: ${{ !cancelled() && needs.version_dry_run.result == 'failure' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: full-run-red-${{ github.run_id }}
+            cancel-in-progress: false
+        permissions:
+            contents: read
+            issues: write # the red issue
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: File the red issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: version_dry_run
+                  RESULT: ${{ needs.version_dry_run.result }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  OWNER_ITEM: ${{ needs.version_dry_run.outputs.held }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/full-run.mjs lane-red
+
     # A full run's one ending (channels design, sections 5 and 6): every lane's result and the screenshot captures
     # make one state, written to the results store (tools/full-run.mjs verdict). Red files or updates the "Full run
     # red" issue, dispatches bisect.yml once (with GITHUB_TOKEN's actions: write), and is announced; green closes
@@ -566,7 +782,24 @@ jobs:
     # start it about 45 minutes earlier.
     verdict:
         name: Verdict
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
+        needs:
+            [
+                pick,
+                ci,
+                t4,
+                hosts,
+                autosave_macos,
+                audit,
+                llm,
+                version_dry_run,
+                ci_red,
+                t4_red,
+                hosts_red,
+                autosave_macos_red,
+                audit_red,
+                llm_red,
+                version_dry_run_red,
+            ]
         # a pick that failed is judged too (red, its own lane), so a broken slot files the red issue
         if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && (needs.pick.outputs.release == 'true' || (needs.pick.result != 'success' && needs.pick.result != 'skipped')) }}
         runs-on: ubuntu-24.04

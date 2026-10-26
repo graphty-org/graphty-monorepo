@@ -1,11 +1,22 @@
 // Tests of tools/full-run.mjs: the full run's candidate pick and its verdict (channels design, sections 5 and 6).
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { bestEffort, bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
+import {
+    bestEffort,
+    bisectPlan,
+    differingImages,
+    greenCloses,
+    LANES,
+    laneRedIssue,
+    pick,
+    redIssue,
+    verdictOf,
+} from "./full-run.mjs";
 
 // master's first parents, newest first: c3 <- c2 <- c1 <- c0
 const CHAIN = ["c3", "c2", "c1", "c0"];
@@ -222,5 +233,71 @@ describe("bestEffort", () => {
             (why) => `fallback: ${why}`,
         );
         assert.equal(got, "fallback: HTTP 403: rate limit exceeded");
+    });
+});
+
+describe("lane-red: the red issue the moment one lane ends red", () => {
+    it("names only that lane, in the title release-due matches, and leaves the bisect to the verdict", () => {
+        const { title, body } = laneRedIssue({ lane: "t4", result: "failure", sha: "abcdef1234", run: "https://run" });
+        assert.equal(title, "Full run red: T4 GPU on abcdef1");
+        assert.match(body, /candidate pick success, CI not finished, LLM regression not finished, T4 GPU failure/);
+        assert.match(body, /the verdict updates this issue and starts any bisect/);
+        assert.match(body, /Refs #<this issue>/);
+    });
+
+    // a fake gh on PATH: `api` lists the open issues it is given, every call is logged
+    const runLaneRed = (openIssues, env = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), "lane-red-"));
+        const log = join(dir, "calls.log");
+        writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+                `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/77; fi\n`,
+            { mode: 0o755 },
+        );
+        const r = spawnSync(process.execPath, ["tools/full-run.mjs", "lane-red"], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                GITHUB_OUTPUT: "",
+                LANE: "t4",
+                RESULT: "failure",
+                SHA: "abcdef1234",
+                RUN_URL: "https://run",
+                ...env,
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        let calls = "";
+        try {
+            calls = readFileSync(log, "utf8");
+        } catch {
+            // no gh call at all
+        }
+        return { calls, stdout: r.stdout };
+    };
+
+    it("updates the open red issue, found by a plain listing GitHub search does not lag behind, and opens none", () => {
+        const { calls, stdout } = runLaneRed([
+            { number: 5, title: "Release held: x" },
+            { number: 9, title: "Full run red: CI on 1234567" },
+        ]);
+        assert.match(calls, /^api repos\/\{owner\}\/\{repo\}\/issues\?state=open&labels=priority:critical/m);
+        assert.doesNotMatch(calls, /--search|issue create/);
+        assert.match(calls, /^issue edit 9 --title Full run red: T4 GPU on abcdef1$/m);
+        assert.match(calls, /^issue comment 9 --body-file /m);
+        assert.match(stdout, /^issue=9$/m);
+    });
+
+    it("opens the issue when none is open, and leaves a lane with an owner item to the verdict", () => {
+        const opened = runLaneRed([]);
+        assert.match(
+            opened.calls,
+            /^issue create --title Full run red: T4 GPU on abcdef1 --label bug --label priority:critical/m,
+        );
+        assert.match(opened.stdout, /^issue=77$/m);
+        assert.equal(runLaneRed([], { LANE: "llm", OWNER_ITEM: "the key was refused" }).calls, "");
     });
 });

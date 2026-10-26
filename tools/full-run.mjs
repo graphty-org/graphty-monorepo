@@ -10,6 +10,10 @@
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
 //           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
+//   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
+//                                     references it restarts the run without waiting for the other lanes
+//       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
+//           GH_TOKEN, GITHUB_REPOSITORY
 //
 // The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
 // not answer makes the slot test master's head and makes the verdict skip only its own record.
@@ -182,6 +186,22 @@ export function bisectPlan({ red, sha, good, run, failures }) {
     };
 }
 
+/**
+ * The red issue for one lane that ended red while the others still run; the verdict later updates the same issue.
+ * @param o the facts
+ * @param o.lane the red lane (a LANES key)
+ * @param o.result its result
+ * @param o.sha the red commit
+ * @param o.run the run's URL
+ * @returns `{ title, body }`, as redIssue makes them
+ */
+export function laneRedIssue({ lane, result, sha, run }) {
+    const lanes = Object.fromEntries(Object.keys(LANES).map((l) => [l, l === lane ? result : "not finished"]));
+    lanes.pick = "success";
+    const bisect = "The other lanes are still running: the verdict updates this issue and starts any bisect.";
+    return redIssue({ sha, red: [lane], lanes, run, bisect });
+}
+
 const MAX_TARGETS = 100;
 const short = (sha) => (sha ?? "").slice(0, 7);
 const sh = (cmd, args, input) =>
@@ -216,17 +236,12 @@ async function pickMain(env) {
     output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
 }
 
-// The open red issue's number and title ("<number> <title>"), or empty.
+// The open red issue's number and title ("<number> <title>"), or empty. A plain listing, not GitHub search, which
+// indexes a new issue a while later: the verdict that follows a lane's early red issue must find it.
 const openRedIssue = () =>
     sh("gh", [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--search",
-        `"${RED_TITLE}" in:title`,
-        "--json",
-        "number,title",
+        "api",
+        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
         "--jq",
         String.raw`[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\(.number) \(.title)"`,
     ]);
@@ -359,12 +374,22 @@ async function verdictMain(env) {
     output({ state, issue: issue ? String(issue) : "", what, bisect });
 }
 
+function laneRedMain(env) {
+    if (env.OWNER_ITEM) {
+        console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
+        return;
+    }
+    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));
+    output({ issue: String(issue) });
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const cmd = process.argv[2];
     if (cmd === "pick") await pickMain(process.env);
     else if (cmd === "verdict") await verdictMain(process.env);
+    else if (cmd === "lane-red") laneRedMain(process.env);
     else {
-        console.error("usage: node tools/full-run.mjs pick | verdict (see the head of the file)");
+        console.error("usage: node tools/full-run.mjs pick | verdict | lane-red (see the head of the file)");
         process.exit(2);
     }
 }

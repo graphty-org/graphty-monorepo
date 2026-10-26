@@ -277,16 +277,5 @@ describe("recompute and read", () => {
     });
 });
 
-describe("collector", () => {
-    it("writes the heartbeat and recomputes", async () => {
-        process.env.TABLE_NAME = "graphty-health";
-        docSend.mockResolvedValue({});
-        const { handler } = await import("../src/handlers/collector.ts");
-        const { lastRun } = await handler();
-        expect(docSend.mock.calls[0][0].input).toEqual({
-            TableName: "graphty-health",
-            Item: { pk: "META", sk: "collector", lastRun },
-        });
-        expect([...mem.items.keys()].some((k) => k.startsWith("PAGE#status"))).toBe(true);
-    });
-});
+// The collector handler's tests are in test/collector/handler.test.ts.
+

@@ -33,7 +33,8 @@
     "sources": {
         "collector": {
             "label": "Collector: GitHub runs, jobs, pull requests, issues",
-            "yellowAfterMs": 900000
+            "yellowAfterMs": 900000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
         "ci-results": {
             "label": "CI test results and timings",
@@ -46,19 +47,27 @@
         },
         "release": {
             "label": "Release records (from release.yml jobs)",
-            "yellowAfterMs": 25200000
+            "yellowAfterMs": 25200000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
         "npm": {
             "label": "npm publishes",
-            "yellowAfterMs": 10800000
+            "yellowAfterMs": 10800000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
         "stress": {
             "label": "Weekly stress run (from GitHub)",
-            "yellowAfterMs": 691200000
+            "yellowAfterMs": 691200000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
         "hosts": {
             "label": "Host matrix",
-            "yellowAfterMs": 108000000
+            "yellowAfterMs": 108000000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
+        },
+        "coverage": {
+            "label": "Coverage published (Coveralls, master)",
+            "yellowAfterMs": 86400000
         },
         "billing": {
             "label": "Billing (Cost Explorer, Cloudflare, Sentry)",

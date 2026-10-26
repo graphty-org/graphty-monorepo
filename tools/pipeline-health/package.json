@@ -8,9 +8,11 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "synth": "cdk synth --quiet",
+        "backfill": "esbuild src/collector/backfill.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/backfill.mjs && node dist/backfill.mjs",
         "deploy": "cdk deploy --profile graphty --require-approval never"
     },
     "dependencies": {
+        "@aws-sdk/client-cost-explorer": "3.1149.0",
         "@aws-sdk/client-dynamodb": "3.1149.0",
         "@aws-sdk/client-ssm": "3.1149.0",
         "@aws-sdk/lib-dynamodb": "3.1149.0",

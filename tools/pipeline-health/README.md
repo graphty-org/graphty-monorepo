@@ -256,3 +256,45 @@ servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
 ```
 
 `VITE_HEALTH_API_URL` at build or dev time sets the API base (empty or unset means the live API above); add `?fixtures` to the URL to draw the sample data instead.
+The first deploy into an account needs `pnpm exec cdk bootstrap aws://494945606241/us-east-2 --profile graphty`.
+
+## The collector
+
+Every 5 minutes the `Collector` Lambda reads GitHub as the collector's GitHub App: workflow runs, jobs
+and steps since its cursor across the organization's repositories with Actions activity, the jobs of every
+unfinished run (runner use against the limits in `config/slas.json`), pull requests and issues in one
+GraphQL query each, master's state (a cancelled build is classified from its check-run annotations as
+superseded, by hand or red), and the release lanes from `release.yml`'s job conclusions. Hourly it reads
+the weekly stress run, the host matrix, npm (tagged versions npm does not list) and Coveralls' newest
+master build; daily the money lines (AWS Cost Explorer, plus the rates in `config/rates.json`, which also
+price T4 jobs and paid LLM runs). Everything is written through the model's raw writers, so a cycle that
+runs twice writes the same items.
+
+The App is read from the SSM SecureStrings `/graphty-health/github-app/app-id`, `installation-id` and
+`private-key`. Until they exist the collector collects nothing from GitHub, and the GitHub sources show
+"not set up" on the Data sources page; coverage and billing are collected either way.
+
+The App needs read-only access, installed on the graphty-org organization (all repositories):
+
+| Permission          | Level | For                                                    |
+| ------------------- | ----- | ------------------------------------------------------ |
+| Actions             | Read  | runs, jobs, steps, attempts                            |
+| Checks              | Read  | check-run annotations (cancel class, hangs)            |
+| Contents            | Read  | tags and the master compare (untested master age)      |
+| Issues              | Read  | issues, "Release held" issues                          |
+| Pull requests       | Read  | pull requests, their checks and ready events           |
+| Metadata            | Read  | (always on) the organization's repositories            |
+| Self-hosted runners | Read  | (organization) the runner groups, for the Runners page |
+
+No webhooks and no write permission.
+
+### Backfill
+
+`pnpm run backfill` loads the last 28 days of runs and jobs (every attempt), pull requests and issues into
+the table, at most 3,000 GitHub requests an hour, and marks the range's buckets for recompute. It is
+resumable: a cursor per repository holds the last finished day, so running it again continues. It needs
+the App's parameters in SSM and the AWS profile `graphty`:
+
+```bash
+AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill -- --days 28 --per-hour 3000
+```

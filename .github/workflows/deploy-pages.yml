@@ -50,10 +50,11 @@ jobs:
                   fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
                   # Only a 200 (a page that may hold a stamp) and a 404 (no site yet: no stamp, so a deploy heals it)
-                  # are answers. Any other status (a 5xx, a 429) or no answer at all is a failed read, and a failed
+                  # are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
+                  # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
                   # read or a failed compare deploys nothing, so it never moves canary back.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
-                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" || true)
+                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}") || code=000
                   if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
                       echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
@@ -325,10 +326,11 @@ jobs:
                   fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
                   # Only a 200 (a page that may hold a stamp) and a 404 (no site yet: no stamp, so a deploy heals it)
-                  # are answers. Any other status (a 5xx, a 429) or no answer at all is a failed read, and a failed
+                  # are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
+                  # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
                   # read or a failed compare deploys nothing, so it never moves canary back.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
-                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" || true)
+                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}") || code=000
                   if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
                       echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0

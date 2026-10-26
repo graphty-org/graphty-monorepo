@@ -4551,6 +4551,7 @@ describe("release.yml", () => {
             cname = "canary.graphty.app",
             pagesFails = false,
             code = 200,
+            cut = false,
         } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
@@ -4561,7 +4562,10 @@ describe("release.yml", () => {
                 `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n` +
                     (live === null
                         ? `printf 000\nexit 6\n`
-                        : `echo '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">' > "$out"\nprintf ${code}\n`),
+                        : cut
+                          ? // the headers arrived, then the body broke off: curl still prints the status, and fails
+                            `echo '<html><head>' > "$out"\nprintf ${code}\nexit 28\n`
+                          : `echo '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">' > "$out"\nprintf ${code}\n`),
                 { mode: 0o755 },
             );
             writeFileSync(
@@ -4617,6 +4621,8 @@ describe("release.yml", () => {
             // any other status is a failed read, not "no stamp": a 503 or a 429 must never move canary back
             assert.equal(decide({ live: "abc0", code: 503 }).deploy, "deploy=false");
             assert.equal(decide({ live: "abc0", code: 429 }).deploy, "deploy=false");
+            // a body that breaks off after a 200 (curl exits 28 or 56) is a failed read too, not "no stamp"
+            assert.equal(decide({ live: "abc0", cut: true }).deploy, "deploy=false");
             // the custom domain is this repository's Pages setting; the site carries no CNAME file
             assert.doesNotMatch(
                 deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),

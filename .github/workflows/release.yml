@@ -726,8 +726,9 @@ jobs:
         if: ${{ always() && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true'))))) || ((inputs.mode == 'full' || inputs.mode == 'restart') && needs.verdict.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true'))) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        # Pushover for a legacy hold's announcement; a shadow run announces nothing, so it takes no environment
-        environment: ${{ inputs.mode == 'legacy' && 'release' || '' }}
+        # Pushover for a legacy hold's or a failed nightly promotion's announcement; a shadow run announces nothing,
+        # so it takes no environment
+        environment: ${{ inputs.mode != 'shadow' && 'release' || '' }}
         permissions:
             actions: read
             contents: read
@@ -865,7 +866,9 @@ jobs:
                   WHAT: ${{ steps.hold.outputs.what }}
                   ISSUE: ${{ steps.hold.outputs.issue }}
               run: |
-                  node tools/release-status.mjs held --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
+                  outcome=held
+                  [ "$MODE" != full ] && [ "$MODE" != restart ] || outcome=nightly-held
+                  node tools/release-status.mjs "$outcome" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # Versions the tested commit, only after the full suite, the T4, Hosts, work protection on macOS, the audit and the LLM regression tests
@@ -1555,9 +1558,13 @@ jobs:
                   CHANNEL_SHA256: ${{ steps.pack.outputs.channel_sha256 }}
               run: node tools/channel/nightly.mjs record
 
-            - name: Close the failed-deploy issue
+            # a gh error here (a rate limit, a 5xx) must not turn a deploy that worked into a failed one
+            - name: Close the failed-deploy and failed-promotion issues
               if: ${{ steps.current.outputs.ours == 'true' }}
-              run: node tools/channel/nightly.mjs deployed
+              continue-on-error: true
+              run: |
+                  node tools/channel/nightly.mjs deployed
+                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly promotion failed:"
 
             - name: Announce the promoted nightly
               if: ${{ steps.current.outputs.ours == 'true' }}

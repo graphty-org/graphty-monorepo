@@ -3308,7 +3308,7 @@ describe("release.yml", () => {
         assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
         // pick and held read Pushover only for a legacy run's announcements
         assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
-        assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        assert.match(held, /\n {8}environment: \$\{\{ inputs.mode != 'shadow' && 'release' \|\| '' \}\}\n/);
         // the full run's verdict announces a red run or an owner item
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
         // the nightly site's deploy key and its announcements
@@ -3592,6 +3592,17 @@ describe("release.yml", () => {
         assert.match(held, /title="Nightly promotion failed: \$\{what\} on \$\{SHA:0:7\}"/);
         assert.match(held, /release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md" "Nightly promotion failed:"/);
         assert.match(held, /reclaimed != 'true' && inputs.mode != 'shadow'/, "announced too");
+        assert.match(
+            held,
+            /environment: \$\{\{ inputs.mode != 'shadow' && 'release' \|\| '' \}\}/,
+            "Pushover's secrets",
+        );
+        assert.match(held, /\[ "\$MODE" != full \] && \[ "\$MODE" != restart \] \|\| outcome=nightly-held/);
+        const site = job(workflow("release.yml"), "site");
+        assert.match(
+            site,
+            /- name: Close the failed-deploy and failed-promotion issues\n[^\n]*\n\s+continue-on-error: true\n[\s\S]*release-held.sh close "[^"]*" "Nightly promotion failed:"/,
+        );
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
         assert.match(helper, /--search "in:title \\"\$\{1:-Release held:\}\\""/, "searches by the prefix");
         assert.match(helper, /startswith\(\\"\$\{1:-Release held: \}\\"\)/);
@@ -4311,7 +4322,8 @@ describe("release.yml", () => {
 
     it("announces every outcome on the Release status issue: held, published or failed", () => {
         // tools/release-status.mjs mentions RELEASE_NOTIFY; a run the owner did not start notifies nobody otherwise
-        assert.match(held, /node tools\/release-status.mjs held /);
+        assert.match(held, /node tools\/release-status.mjs "\$outcome" /);
+        assert.match(held, /outcome=held\n/);
         assert.match(held, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
         assert.doesNotMatch(release, /release-status.mjs (opened|dequeued)/);
         assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
@@ -6044,14 +6056,14 @@ describe("release.yml's nightly promotion (#1020)", () => {
             ["Push deployed.json and channel.json to the site repository", "Wait for the site's deploy"],
             ["Wait for the site's deploy", "Record the promotion in the results store"],
             ["Record the promotion in the results store", "Announce the promoted nightly"],
-            ["Wait for the site's deploy", "Close the failed-deploy issue"],
+            ["Wait for the site's deploy", "Close the failed-deploy and failed-promotion issues"],
         ]) {
             assert.ok(at(a) >= 0 && at(a) < at(b), `${a} before ${b}`);
         }
         // a deploy that worked closes the "Nightly site deploy failed" issue a failed one filed
-        assert.equal(
-            steps.site.steps[at("Close the failed-deploy issue")].run,
-            "node tools/channel/nightly.mjs deployed",
+        assert.match(
+            steps.site.steps[at("Close the failed-deploy and failed-promotion issues")].run,
+            /^node tools\/channel\/nightly.mjs deployed\n/,
         );
         // a nightly closes no legacy train hold
         const closeHeld = steps.land.steps.find((st) => st.name === "Close the held-release issue");

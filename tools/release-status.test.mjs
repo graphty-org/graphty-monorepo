@@ -100,6 +100,20 @@ describe("statusComment", () => {
         assert.equal(reportsFailure(failed, RUN, "1"), true, "the release-watch backstop does not report it twice");
         assert.equal(pushMessage("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0" }).title, "Nightly PROMOTED");
         assert.equal(pushMessage("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" }).priority, "1");
+        const held = statusComment("nightly-held", {
+            run: RUN,
+            sha: "abcdef123",
+            issue: "78",
+            what: "landing on master",
+        });
+        assert.match(
+            held,
+            /\*\*Nightly promotion failed\*\* on abcdef1: landing on master did not finish[^\n]*Details: #78\./,
+        );
+        assert.doesNotMatch(held, /Release held/);
+        assert.equal(reportsFailure(held, RUN, "1"), true, "the backstop does not report it twice");
+        const push = pushMessage("nightly-held", { run: RUN, sha: "abcdef123", issue: "78" });
+        assert.deepEqual([push.title, push.priority], ["Nightly PROMOTION FAILED", "1"]);
     });
 
     it("refuses an unknown outcome", () => {

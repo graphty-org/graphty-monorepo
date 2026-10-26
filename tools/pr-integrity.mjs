@@ -40,6 +40,11 @@ import { parseCodeowners, unownedClosure } from "./check-owned-closure.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
 
 export const AGENT = "graphty-agent";
+/**
+ * The repository owner: his approval counts whatever CODEOWNERS names (its owners may be a team, which
+ * ownerLogins() leaves out; while code-owner review is off they are a team that does not exist yet).
+ */
+export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
 const APPROVALS = "visual-review-approvals";
@@ -338,7 +343,7 @@ async function main(argv) {
         author: event.user.login,
         byDependabot,
         reviews,
-        owners: ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners),
+        owners: new Set([OWNER, ...ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners)]),
         codeowners,
         baselineProblems: await masterBaselineCheck(cwd, base, head),
     });

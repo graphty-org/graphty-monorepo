@@ -91,6 +91,37 @@ env:
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
+    # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
+    # runner, while CI_PR_RUN_CAP (a repository variable, default 2) or more earlier pull request runs are
+    # active, or while a release.yml run waits for a runner, so the full run goes first. Every other job needs
+    # the Build job, which needs this one, so a waiting run holds nothing else. It never fails the run: an API
+    # error or 25 minutes of waiting proceeds. A push to master, a dispatch and the release train's call skip
+    # the wait. Change the cap with `gh variable set CI_PR_RUN_CAP --body <n|off>`.
+    run-cap:
+        name: Run cap
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        # the job runs on every event (a skipped job would skip every job below Build); only its steps are
+        # limited to a pull request, so elsewhere it is a few seconds on one runner
+        # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
+        continue-on-error: true
+        permissions:
+            contents: read
+            actions: read
+        steps:
+            - uses: actions/checkout@v4
+              if: github.event_name == 'pull_request'
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools/ci-run-cap.mjs
+                  sparse-checkout-cone-mode: false
+            - name: Wait for a turn
+              if: github.event_name == 'pull_request'
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  CAP: ${{ vars.CI_PR_RUN_CAP || '2' }}
+              run: node tools/ci-run-cap.mjs
+
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
@@ -99,6 +130,7 @@ jobs:
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
     packages:
         name: Build
+        needs: run-cap
         runs-on: ubuntu-24.04
         timeout-minutes: 12
         # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)
@@ -228,7 +260,7 @@ jobs:
                   CALLED_REF: ${{ inputs.ref }}
                   SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
-                  SKIP_UNAFFECTED_CAPTURES: "false"
+                  SKIP_UNAFFECTED_CAPTURES: "true"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
@@ -380,6 +412,7 @@ jobs:
                   HEAD_SHA: ${{ github.sha }}
                   AFFECTED: ${{ steps.plan.outputs.affected }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
@@ -391,9 +424,15 @@ jobs:
                       exit 0
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
-                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                      "$plan/light-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+                  # the summary describes the bins only when their matrix was written (else every shard runs whole)
+                  if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
+                      node tools/test-select.mjs --summary "$plan/light-plan.json" --affected "$AFFECTED" \
+                          >> "$GITHUB_STEP_SUMMARY" \
+                          || echo "::warning::could not write the light check's job summary"
+                  fi
 
             # The run's one read of the results store and the light plan it fed, for every later job (quarantine
             # and the master excuse read it from store-reads-live on). Absent when the run made no plan.
@@ -1251,6 +1290,7 @@ jobs:
               run: ${{ matrix.test-command }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -1594,7 +1634,10 @@ jobs:
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        if: ${{ !cancelled() && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
+        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
+        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -2498,3 +2541,4 @@ jobs:
             - uses: ./.github/actions/timings
               with:
                   results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}

@@ -64,6 +64,22 @@ export function initSentry(config?: SentryConfig): void {
         integrations: [replay],
         // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
         ...privacyFilters,
+        // Spans go out inside their transaction, through beforeSendTransaction above. Sentry 11's
+        // default, streaming each span on its own, skips that hook and would send span attributes
+        // (a request URL with its query, anything a caller set) unfiltered.
+        traceLifecycle: "static",
+        // Sentry 11 collects these by default, and some (the reader's IP address, inferred by Sentry's
+        // server from the request) are added after the event leaves the page, past every hook above.
+        dataCollection: {
+            userInfo: false,
+            cookies: false,
+            // the browser string, which privacyFilters keeps; every other header stays on the page
+            httpHeaders: { allow: ["User-Agent"] },
+            httpBodies: [],
+            urlQueryParams: false,
+            graphQL: { document: false, variables: false },
+            genAI: { inputs: false, outputs: false },
+        },
         transport: effectiveConfig.transport,
     });
     if (restart) {

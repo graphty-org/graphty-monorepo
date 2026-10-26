@@ -197,6 +197,7 @@ jobs:
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
 
             - name: Upload the junit reports
               if: always()

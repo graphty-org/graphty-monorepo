@@ -5,6 +5,6 @@
 
 import { setProjectAnnotations } from "@storybook/web-components-vite";
 
-import * as projectAnnotations from "./preview";
+import * as projectAnnotations from "./preview.js";
 
 setProjectAnnotations([projectAnnotations]);

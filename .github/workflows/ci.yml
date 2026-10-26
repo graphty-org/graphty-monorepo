@@ -1925,6 +1925,9 @@ jobs:
                       command: cd layout && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: graph-io-fidelity
                       shard: graph-io-browser
+                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                      # so a graphty-element change runs them too (the capture plan's rule for this project).
+                      also: graphty-element-storybook-1
                       command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
                       lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
@@ -1932,7 +1935,7 @@ jobs:
             # every step below but the summary is.
             - name: Skip a project this run does not test
               id: skip
-              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4

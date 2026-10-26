@@ -39,7 +39,7 @@ export function holdIssue({ sha, state, what, run }) {
         "",
         "It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. Only the owner ends it without a promotion: `gh workflow run release.yml --ref master -f mode=abandon`.",
         "",
-        "To fix it forward, start the fix from the candidate's head, never from newer master: `./tools/worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>` (or `" +
+        "To fix it forward, start the fix from the candidate's head, never from newer master: `worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>` (the script in tools/; or `" +
             sha +
             "` in place of `origin/channel/candidate` while that branch does not exist yet), commit the fix with `Refs #<this issue>` in its message, and open it as usual (`tools/pr-open.sh --proof <file>`; the merge of master it adds on top never enters the candidate). When it merges into master, release.yml merges the fix into `channel/candidate` and re-tests the new head, only where the fix reaches. A further fix commit for the same pull request goes on a branch from its last fix commit, merged into the pull request's branch.",
     ].join("\n");

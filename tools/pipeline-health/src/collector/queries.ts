@@ -12,7 +12,7 @@ const PR_BASE = `
 const PR_CHECKS = `
   commits(last: 1) { nodes { commit { oid committedDate statusCheckRollup { state
     contexts(first: 100) { nodes { __typename
-      ... on CheckRun { name status conclusion startedAt }
+      ... on CheckRun { name status conclusion startedAt detailsUrl }
       ... on StatusContext { context state createdAt } } } } } } }`;
 
 /**

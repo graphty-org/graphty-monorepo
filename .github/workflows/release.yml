@@ -1030,9 +1030,11 @@ jobs:
               if: ${{ env.WHOLE != 'true' }}
               run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
 
+            # Restore only, in this job and every cache step below: it runs code checked out at the picked commit
+            # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
             - name: Restore this project's baseline images
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache@v4
+              uses: actions/cache/restore@v4
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -1056,9 +1058,9 @@ jobs:
               id: playwright
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
-            - name: Cache Playwright browsers
+            - name: Restore the cached Playwright browsers
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache@v4
+              uses: actions/cache/restore@v4
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -1066,16 +1068,11 @@ jobs:
             - uses: ./.github/actions/drop-microsoft-apt-source
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
 
-            - name: Install Playwright system packages
-              if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: ./.github/actions/playwright-system-deps
-              with:
-                  working-directory: visual-review
-
-            - name: Install Chromium
+            # apt, not ./.github/actions/playwright-system-deps, whose .deb cache would be saved from this job
+            - name: Install Chromium and its system packages
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
               working-directory: visual-review
-              run: pnpm exec playwright install chromium
+              run: pnpm exec playwright install --with-deps chromium
 
             - name: Download Storybook build
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}

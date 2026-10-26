@@ -89,6 +89,9 @@ describe("collector with the GitHub App", () => {
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);
+        // Flaky tests (4.4): nothing seen flaky yet, so every "now" member reads 0 rather than no value.
+        for (const m of ["flaky.no_issue", "flaky.blocked_prs", "flaky.blocked_oldest_ms", "flaky.net_change"])
+            expect(observed(store, m), m).toBe(0);
 
         for (const s of ["collector", "release", "npm", "coverage", "billing"])
             expect((await store.get(sourceKey(s)))?.error, s).toBeUndefined();

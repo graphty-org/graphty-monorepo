@@ -7,7 +7,8 @@
 // `stale: true` past its limit (15 minutes when the source gives none). A route that does not
 // answer is an error result naming the route; the server never throws.
 //
-// HEALTH_API_URL sets the API base (default: the deployed us-east-2 HTTP API).
+// HEALTH_API_URL sets the API base (default: the deployed us-east-2 HTTP API); only its origin is
+// used (ponytail: the HTTP API has no stage path; keep the path if one is ever added).
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -15,10 +16,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 
 import { apiPath, CATEGORY_IDS } from "../web/src/contract.ts";
 
-const BASE = (process.env.HEALTH_API_URL ?? "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com").replace(
-    /\/+$/,
-    "",
-);
+const BASE = new URL(process.env.HEALTH_API_URL ?? "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com").origin;
 const MAX_ROWS = 50;
 const DEFAULT_LIMIT_S = 15 * 60;
 const TIMEOUT_MS = 15_000;
@@ -288,7 +286,7 @@ const TOOLS = [
         name: "costs",
         description:
             "Costs: spend so far against budget, unit costs, spend by workflow. month (YYYY-MM): only the current month is served.",
-        inputSchema: schema({ month: { type: "string", pattern: "^\\d{4}-\\d{2}$" } }),
+        inputSchema: schema({ month: { type: "string", pattern: String.raw`^\d{4}-\d{2}$` } }),
         run: async (a) => {
             const p = await page("costs", "28d");
             if (a.month && a.month !== p.generated?.slice(0, 7)) {

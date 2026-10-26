@@ -55,6 +55,21 @@ describe("pick", () => {
         assert.deepEqual([p.run, p.inherit], [true, undefined]);
     });
 
+    it("skips a candidate whose history lacks channel/nightly, before testing anything", () => {
+        const seen = [];
+        const hasNightly = (sha) => (seen.push(sha), false);
+        const p = pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code, hasNightly });
+        assert.deepEqual([p.run, p.sha, seen], [false, "c3", ["c3"]]);
+        assert.match(p.why, /c3 lacks channel\/nightly: it is older than nightly/);
+        // even a green-clean one nightly lacks: its promotion would be refused at land
+        const own = store([{ sha: "c3", state: "green-clean" }]);
+        const off = () => false;
+        assert.equal(
+            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hasNightly }).run,
+            false,
+        );
+    });
+
     it("finds the last green commit for the bisect, past a red one", () => {
         const recent = [
             { sha: "c2", state: "red" },

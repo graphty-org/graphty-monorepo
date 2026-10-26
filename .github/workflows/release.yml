@@ -290,6 +290,10 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
               run: |
                   set -euo pipefail
+                  # the pick compares the candidate with channel/nightly (tools/full-run.mjs onNightly, hasNightly)
+                  if git ls-remote --exit-code --heads origin refs/heads/channel/nightly >/dev/null; then
+                      git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
+                  fi
                   node tools/full-run.mjs pick
                   sha=$(sed -n 's/^sha=//p' "$GITHUB_OUTPUT" | tail -1)
                   build=$(gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 1 \
@@ -1108,6 +1112,13 @@ jobs:
                           echo "pushed=true" >> "$GITHUB_OUTPUT"
                           exit 0
                       fi
+                      # a nightly ref the push could not fast-forward is no master race: say so, not "master kept moving"
+                      if [ "$DIST_TAG" = next ] &&
+                          git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly 2>/dev/null &&
+                          ! git merge-base --is-ancestor origin/channel/nightly "$COMMIT"; then
+                          echo "::error::channel/nightly moved to $(git rev-parse --short origin/channel/nightly) during the push, and ${COMMIT} lacks it: another promotion won. Nothing was pushed or published."
+                          exit 1
+                      fi
                       echo "try ${try}: master moved during the push; merging again on its new tip"
                   done
                   echo "::error::could not land ${COMMIT} on master in five tries: master kept moving or the push was refused"
@@ -1428,17 +1439,22 @@ jobs:
 
             # A re-run of an older run's site job must not roll nightly.graphty.app back: deploy only while
             # channel/nightly is still this run's commit (the land job moved it; a later promotion moves it on).
+            # Moved on is a skip, not a failure: every later step is skipped and no failed deploy is reported.
             - name: Check that nightly is still this run's
+              id: current
               run: |
                   set -euo pipefail
                   git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
                   at=$(git rev-parse refs/remotes/origin/channel/nightly)
-                  [ "$at" = "${COMMIT:-$SHA}" ] || {
-                      echo "::error::channel/nightly is at ${at} now, not this run's ${COMMIT:-$SHA}: a later promotion moved it, so this run deploys nothing"
-                      exit 1
-                  }
+                  if [ "$at" = "${COMMIT:-$SHA}" ]; then
+                      echo "ours=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "::notice::channel/nightly is at ${at} now, not this run's ${COMMIT:-$SHA}: a later promotion moved it, so this run deploys nothing"
+                      echo "ours=false" >> "$GITHUB_OUTPUT"
+                  fi
 
             - name: Download the candidate's built site
+              if: ${{ steps.current.outputs.ours == 'true' }}
               run: |
                   set -euo pipefail
                   mkdir -p "$RUNNER_TEMP/site" "$RUNNER_TEMP/out"
@@ -1452,6 +1468,7 @@ jobs:
                   exit 1
 
             - name: Pack the site and write channel.json
+              if: ${{ steps.current.outputs.ours == 'true' }}
               id: pack
               run: |
                   set -euo pipefail
@@ -1464,6 +1481,7 @@ jobs:
 
             # A public prerelease on the tag the land job pushed: never "Latest", which stays production's.
             - name: Hang the site on the site-<sha> prerelease
+              if: ${{ steps.current.outputs.ours == 'true' }}
               run: |
                   set -euo pipefail
                   tag="site-${SHA}"
@@ -1473,13 +1491,15 @@ jobs:
                   gh release upload "$tag" "$RUNNER_TEMP/out/site.tar.zst" "$RUNNER_TEMP/out/channel.json" --clobber
 
             - uses: actions/checkout@v4
+              if: ${{ steps.current.outputs.ours == 'true' }}
               with:
                   repository: ${{ env.SITE_REPO }}
                   path: nightly-site
                   ssh-key: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
 
             # deployed.json's history in graphty-nightly is the audit log of every nightly deploy.
-            - name: Push deployed.json to the site repository
+            - name: Push deployed.json and channel.json to the site repository
+              if: ${{ steps.current.outputs.ours == 'true' }}
               id: deployed
               env:
                   SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
@@ -1491,20 +1511,24 @@ jobs:
                       exit 1
                   }
                   node tools/channel/nightly.mjs deployed-json > nightly-site/deployed.json
+                  # what nightly serves, read by promote.mjs (--config-only, the rollback check), as promote-push.sh writes it
+                  cp "$RUNNER_TEMP/out/channel.json" nightly-site/channel.json
                   cd nightly-site
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add deployed.json
+                  git add deployed.json channel.json
                   git commit --quiet -m "deploy: nightly site-${SHA}" -m "${RUN_URL}"
                   git push --quiet origin HEAD
                   echo "pushed=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
             - name: Wait for the site's deploy
+              if: ${{ steps.current.outputs.ours == 'true' }}
               env:
                   PUSHED: ${{ steps.deployed.outputs.pushed }}
               run: node tools/channel/nightly.mjs wait
 
             - name: Record the promotion in the results store
+              if: ${{ steps.current.outputs.ours == 'true' }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
@@ -1512,9 +1536,11 @@ jobs:
               run: node tools/channel/nightly.mjs record
 
             - name: Close the failed-deploy issue
+              if: ${{ steps.current.outputs.ours == 'true' }}
               run: node tools/channel/nightly.mjs deployed
 
             - name: Announce the promoted nightly
+              if: ${{ steps.current.outputs.ours == 'true' }}
               continue-on-error: true
               env:
                   GITHUB_TOKEN: ${{ github.token }}

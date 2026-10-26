@@ -780,6 +780,15 @@ describe("GET /v1/release-state", () => {
         s.site("c1", NOW - HOUR);
         assert.equal((await state(call)).ageNightlyMs, HOUR);
     });
+    it("counts nightly's age from its move when nightly has no site row", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("old", NOW - 30 * DAY);
+        s.nightly("x", NOW - 2 * HOUR);
+        assert.equal((await state(call)).ageNightlyMs, 0, "nothing built since the move");
+        s.site("y", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR, "from the first site after the move");
+    });
     it("counts nightly's age from the first site when nightly never moved", async () => {
         const { call, env } = service();
         const s = seed(env);

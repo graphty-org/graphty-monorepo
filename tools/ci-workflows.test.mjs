@@ -5919,8 +5919,11 @@ describe("release.yml's nightly promotion (#1020)", () => {
             // a re-run of an older run deploys nothing once channel/nightly moved on
             ["Check that nightly is still this run's", "Download the candidate's built site"],
             ["Pack the site and write channel.json", "Hang the site on the site-<sha> prerelease"],
-            ["Hang the site on the site-<sha> prerelease", "Push deployed.json to the site repository"],
-            ["Push deployed.json to the site repository", "Wait for the site's deploy"],
+            [
+                "Hang the site on the site-<sha> prerelease",
+                "Push deployed.json and channel.json to the site repository",
+            ],
+            ["Push deployed.json and channel.json to the site repository", "Wait for the site's deploy"],
             ["Wait for the site's deploy", "Record the promotion in the results store"],
             ["Record the promotion in the results store", "Announce the promoted nightly"],
             ["Wait for the site's deploy", "Close the failed-deploy issue"],
@@ -5957,8 +5960,32 @@ describe("release.yml's nightly promotion (#1020)", () => {
     });
 
     it("refuses a site repository without its deploy workflow before it pushes", () => {
-        const push = steps.site.steps.find((st) => st.name === "Push deployed.json to the site repository");
+        const push = steps.site.steps.find(
+            (st) => st.name === "Push deployed.json and channel.json to the site repository",
+        );
         assert.ok(push.run.indexOf("nightly-site/.github/workflows/deploy.yml") < push.run.indexOf("git push"));
+    });
+
+    it("pushes channel.json beside deployed.json, as promote-push.sh does, for promote.mjs to read", () => {
+        const push = steps.site.steps.find(
+            (st) => st.name === "Push deployed.json and channel.json to the site repository",
+        );
+        assert.match(push.run, /cp "\$RUNNER_TEMP\/out\/channel.json" nightly-site\/channel.json\n/);
+        assert.match(push.run, /\ngit add deployed.json channel.json\n/);
+    });
+
+    it("skips, never fails, a re-run whose channel/nightly moved on", () => {
+        const all = steps.site.steps;
+        const guard = all.findIndex((st) => st.name === "Check that nightly is still this run's");
+        assert.equal(all[guard].id, "current");
+        assert.doesNotMatch(all[guard].run, /exit 1|::error::/, "a moved nightly is not a failure");
+        assert.match(all[guard].run, /echo "ours=true" >> "\$GITHUB_OUTPUT"/);
+        assert.match(all[guard].run, /echo "ours=false" >> "\$GITHUB_OUTPUT"/);
+        for (const st of all.slice(guard + 1)) {
+            const name = st.name ?? st.uses;
+            if (name === "Report a failed nightly deploy") assert.equal(st.if, "${{ failure() }}");
+            else assert.equal(st.if, "${{ steps.current.outputs.ours == 'true' }}", name);
+        }
     });
 
     it("checks age:nightly in every run's timings job, on master, without failing it", () => {

@@ -50,9 +50,11 @@ export const LANES = {
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
  * @param o.onNightly (sha) => whether channel/nightly holds that commit; a green-clean commit it lacks was not
  *     promoted (a publish hold, the screenshot gate, a refused push) and is tested again, so it can promote
+ * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
+ *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
  * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
  */
-export function pick({ mode, head, store, firstParents, stray, onNightly = () => true }) {
+export function pick({ mode, head, store, firstParents, stray, onNightly = () => true, hasNightly = () => true }) {
     if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
@@ -61,6 +63,15 @@ export function pick({ mode, head, store, firstParents, stray, onNightly = () =>
     const byOrder = sites.size ? firstParents(head).find((s) => sites.has(s)) : undefined;
     const sha = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
     if (!sha) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    // a promotion's version merge onto a newer master leaves that master's site the newest until the merge's own
+    // is recorded: testing it would spend a whole run on a commit nightly cannot move to
+    if (!hasNightly(sha)) {
+        return {
+            run: false,
+            sha,
+            why: `${short(sha)} lacks channel/nightly: it is older than nightly, nothing to promote`,
+        };
+    }
     const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
     const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
@@ -230,7 +241,20 @@ async function pickMain(env) {
             }
         }
     };
-    const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray, onNightly });
+    const hasNightly = (sha) => {
+        try {
+            execFileSync("git", ["rev-parse", "-q", "--verify", NIGHTLY], { stdio: "ignore" });
+        } catch {
+            return true; // no channel/nightly yet
+        }
+        try {
+            execFileSync("git", ["merge-base", "--is-ancestor", NIGHTLY, sha], { stdio: "ignore" });
+            return true;
+        } catch {
+            return false;
+        }
+    };
+    const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray, onNightly, hasNightly });
     console.log(`::notice::${p.why}`);
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });

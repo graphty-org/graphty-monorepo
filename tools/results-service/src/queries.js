@@ -315,8 +315,10 @@ export async function getReleaseState(q, who, db, now) {
          WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at`,
         now - 30 * DAY,
     );
+    // a nightly with no site row (a lost POST /v1/sites) counts from its move, never from the oldest site
     const nightlyBuilt = nightly
-        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ?? 0)
+        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
+          nightly.movedAt)
         : 0;
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);

@@ -1118,48 +1118,61 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether an operation is queued or running, so the graph is about to change (issue #3528). Null
-     * when nothing queues operations.
+     * when nothing queues operations. Asked only by {@link UpdateManager.nothingIsOwed}: the frame
+     * on screen is final about the graph it shows, so {@link UpdateManager.frameIsStable}, the
+     * `graph-frame-stable` event and the on-demand loop's rest do not ask it.
      */
     operationsPending: (() => boolean) | null = null;
 
-    /** Callers of {@link UpdateManager.onceFrameIsStable} still waiting. */
-    private readonly stableWaiters = new Set<() => void>();
+    /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
+    private readonly owedWaiters = new Set<() => void>();
 
     /**
-     * Call back once {@link UpdateManager.frameIsStable} is true: at once when it already is, else
+     * Whether nothing is still owed to the picture: no operation is queued or running, and the
+     * frame drawn is the finished one. The one question `waitForStableFrame()` asks; the pending-work
+     * record of issue #3546 replaces this body and {@link UpdateManager.pictureIsFinished}'s.
+     * @returns True when the picture on screen is final and nothing queued will change it.
+     */
+    nothingIsOwed(): boolean {
+        return this.operationsPending?.() !== true && this.frameIsStable;
+    }
+
+    /**
+     * Call back once {@link UpdateManager.nothingIsOwed} is true: at once when it already is, else
      * on the first pass or drawn frame that finds it so.
      *
      * Level-triggered, unlike `graph-frame-stable`, which fires only when a drawn frame turns the
      * picture final. Work that starts and ends between two frames without changing the picture --
      * a derivation pass that paints nothing -- turns nothing final, so a waiter that attached while
      * it ran heard no event and waited out its timeout (issue #3527). Asked again after every
-     * pass, a waiter wakes on the first one that finds nothing owed, drawn or rested.
-     * @param callback - Called once.
+     * pass, which the render loop runs on every tick it does not hold, drawn or rested, a waiter
+     * wakes on the first one that finds nothing owed.
+     * @param callback - Called once, in a microtask of its own, so one that throws stops no pass and
+     *   no other waiter.
      * @returns Stops waiting; a no-op once called back.
      */
-    onceFrameIsStable(callback: () => void): () => void {
-        if (this.frameIsStable) {
-            callback();
+    onceNothingIsOwed(callback: () => void): () => void {
+        if (this.nothingIsOwed()) {
+            queueMicrotask(callback);
             return () => undefined;
         }
 
-        this.stableWaiters.add(callback);
+        this.owedWaiters.add(callback);
         return () => {
-            this.stableWaiters.delete(callback);
+            this.owedWaiters.delete(callback);
         };
     }
 
-    /** Calls back every {@link UpdateManager.onceFrameIsStable} waiter when the frame is stable now. */
-    private wakeStableWaiters(): void {
-        if (this.stableWaiters.size === 0 || !this.frameIsStable) {
+    /** Calls back every {@link UpdateManager.onceNothingIsOwed} waiter when nothing is owed now. */
+    private wakeOwedWaiters(): void {
+        if (this.owedWaiters.size === 0 || !this.nothingIsOwed()) {
             return;
         }
 
-        const waiters = [...this.stableWaiters];
-        this.stableWaiters.clear();
-        for (const callback of waiters) {
-            callback();
+        for (const callback of this.owedWaiters) {
+            queueMicrotask(callback);
         }
+        this.owedWaiters.clear();
     }
 
     /**
@@ -1170,10 +1183,6 @@ export class UpdateManager implements Manager {
      * @returns One phrase naming the thing that is still moving.
      */
     whyFrameIsNotStable(): string {
-        if (this.operationsPending?.() === true) {
-            return "a queued operation has not finished";
-        }
-
         if (this.layoutIsMoving()) {
             return "the layout is still running";
         }
@@ -1236,17 +1245,12 @@ export class UpdateManager implements Manager {
     /**
      * Whether the state this pass leaves behind is a picture that will not change again.
      *
-     * The one "is anything still owed?" question: {@link UpdateManager.frameIsStable}, the frame
-     * announcement and `waitForStableFrame()` all ask it here, so the pending-work record of
-     * issue #3546 replaces this body and nothing else.
+     * What the picture still owes: {@link UpdateManager.frameIsStable}, the frame announcement and,
+     * through {@link UpdateManager.nothingIsOwed}, `waitForStableFrame()` all ask it here, so the
+     * pending-work record of issue #3546 replaces this body.
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        // A queued operation -- a load, a layout, a view switch -- is going to change the picture.
-        if (this.operationsPending?.() === true) {
-            return false;
-        }
-
         if (this.layoutIsMoving()) {
             return false;
         }
@@ -1381,7 +1385,7 @@ export class UpdateManager implements Manager {
 
         this.drawnFrameIsFinished = true;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
-        this.wakeStableWaiters();
+        this.wakeOwedWaiters();
     }
 
     /**
@@ -1431,7 +1435,7 @@ export class UpdateManager implements Manager {
 
         // A pass that finds the drawn frame still final wakes its waiters even when it draws
         // nothing new: work that came and went since the last frame owes nothing (issue #3527).
-        this.wakeStableWaiters();
+        this.wakeOwedWaiters();
     }
 
     /**

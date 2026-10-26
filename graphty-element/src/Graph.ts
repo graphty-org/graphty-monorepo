@@ -35,6 +35,12 @@ import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
+/** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+interface StableFrameWait {
+    gaveUp: boolean;
+    stop: (() => void) | undefined;
+}
+
 /**
  * How long {@link Graph.waitForStableFrame} waits before it gives up and says so.
  *
@@ -5243,14 +5249,12 @@ export class Graph implements GraphContext {
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
         const firstFrame = this.scene.getRenderId();
-        let stopWaiting: (() => void) | undefined;
+        const wait: StableFrameWait = { gaveUp: false, stop: undefined };
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         try {
             await Promise.race([
-                this.untilFrameIsStable((stop) => {
-                    stopWaiting = stop;
-                }),
+                this.untilFrameIsStable(wait),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
                         const frames = this.scene.getRenderId() - firstFrame;
@@ -5269,16 +5273,18 @@ export class Graph implements GraphContext {
                 clearTimeout(timer);
             }
 
-            stopWaiting?.();
+            // A timed-out wait stops at once and starts no further round (issue #3528).
+            wait.gaveUp = true;
+            wait.stop?.();
         }
     }
 
     /**
      * The unbounded half of {@link Graph.waitForStableFrame}.
-     * @param track - Told how to stop waiting, so the caller can stop if it gives up.
+     * @param wait - Whether the caller gave up, and how to stop the round waiting now.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      */
-    private async untilFrameIsStable(track: (stop: () => void) => void): Promise<void> {
+    private async untilFrameIsStable(wait: StableFrameWait): Promise<void> {
         // Until one round finds nothing owed: an operation queued while a round waited -- after its
         // queue drain, or while the label counts were announced -- is waited for by the next one
         // (issue #3528).
@@ -5291,7 +5297,7 @@ export class Graph implements GraphContext {
             await loadsAhead.get(this)?.();
             await this.#suggestionsStacked;
             await this.untilQueueDrained();
-            await this.untilFrameStableNow(track);
+            await this.untilNothingIsOwed(wait);
 
             // The picture is final, but the label counts it drew are announced a few frames later
             // (`graphty-label-change`); a page that shows them is not final until they are.
@@ -5299,7 +5305,7 @@ export class Graph implements GraphContext {
             if (declutter instanceof LabelDeclutter) {
                 await declutter.whenPublished();
             }
-        } while (!this.updateManager.frameIsStable);
+        } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
@@ -5314,14 +5320,18 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Wait until the frame is stable, asked after every pass rather than on the edge the
-     * `graph-frame-stable` event marks; see `UpdateManager.onceFrameIsStable`.
-     * @param track - Told how to stop waiting, so the caller can stop if it gives up.
-     * @returns Promise that resolves once the frame is stable, at once when it already is.
+     * Wait until nothing is owed to the picture, asked after every pass rather than on the edge the
+     * `graph-frame-stable` event marks; see `UpdateManager.onceNothingIsOwed`.
+     * @param wait - Whether the caller gave up, and where to leave how to stop waiting.
+     * @returns Promise that resolves once nothing is owed, soon when nothing already is.
      */
-    private async untilFrameStableNow(track: (stop: () => void) => void): Promise<void> {
+    private async untilNothingIsOwed(wait: StableFrameWait): Promise<void> {
+        if (wait.gaveUp) {
+            return;
+        }
+
         await new Promise<void>((resolve) => {
-            track(this.updateManager.onceFrameIsStable(resolve));
+            wait.stop = this.updateManager.onceNothingIsOwed(resolve);
         });
     }
 
@@ -5330,10 +5340,12 @@ export class Graph implements GraphContext {
      * @returns One phrase naming what has not finished.
      */
     private whyTheFrameIsNotStable(): string {
-        const queue = this.operationQueue.getStats();
-
-        if (queue.pending > 0 || queue.size > 0) {
-            return `${String(queue.pending + queue.size)} queued operations have not finished`;
+        if (this.updateManager.operationsPending?.() === true) {
+            const queue = this.operationQueue.getStats();
+            const count = queue.pending + queue.size;
+            return count > 0
+                ? `${String(count)} queued operations have not finished`
+                : "a queued operation has not finished";
         }
 
         if (this.updateManager.frameIsStable) {

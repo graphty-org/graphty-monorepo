@@ -888,6 +888,10 @@ export class OperationQueueManager implements Manager {
     /**
      * Whether an operation is queued, about to be, or running: what
      * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     *
+     * Not an operation held by an open `batchOperations()` callback: it runs only when the batch
+     * closes, so a settle wait made inside the batch that counted it would wait for ever, and
+     * `waitForCompletion` does not wait for it either.
      * @returns True until the queue is idle.
      */
     get hasWork(): boolean {

@@ -35,6 +35,7 @@ import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { ensureGraphSamplesSource } from "./data/graphSamplesSource";
+import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -1742,9 +1743,13 @@ export class Graphty extends LitElement {
         if (ahead === undefined) {
             run = go();
         } else {
-            // A clearData asked for while it waited cancelled it: nothing to load.
+            // A clearData asked for while it waited cancelled its place. A pair assigned after the
+            // clear is still waiting to load: it takes a place of its own.
             run = ahead.then(go, () => {
                 this.#pairWaiting = undefined;
+                const next = this.#pairNext;
+                this.#pairNext = undefined;
+                return next === undefined ? undefined : this.#runImport(next.source, next.setup);
             });
             this.#pairWaiting = run;
         }
@@ -1888,6 +1893,10 @@ export class Graphty extends LitElement {
      * @param error - whatever the load rejected with
      */
     #reportLoadFailure(error: unknown): void {
+        // A load a clearData cancelled did what the caller asked for: it is no failure.
+        if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
+            return;
+        }
         this.#graph.eventManager.emitDataLoadingError(
             error instanceof Error ? error : new Error(String(error)),
             "validation",

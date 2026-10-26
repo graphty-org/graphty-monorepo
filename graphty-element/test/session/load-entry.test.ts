@@ -172,12 +172,24 @@ async function triangleProject(): Promise<string> {
     return (await saved.project.save()).text;
 }
 
-/** Every session row, labelled `Root.member`. */
-function sessionRows(): [string, Door][] {
-    return DOOR_ROOTS.filter((root) => root.half === "session").flatMap((root) =>
+/**
+ * Every row, labelled `Root.member`.
+ * @param half - Only the rows of this half, when given.
+ * @returns The rows.
+ */
+function rowsOf(half?: "session" | "renderer"): [string, Door][] {
+    return DOOR_ROOTS.filter((root) => half === undefined || root.half === half).flatMap((root) =>
         Object.entries(root.doors ?? {}).map(([member, door]): [string, Door] => [`${root.name}.${member}`, door]),
     );
 }
+
+/** The session's ordered rows, which this file calls; the renderer's are checked in the browser. */
+const SESSION_ORDER: readonly [string, "load" | "edit" | "clear"][] = (() => {
+    const session = new Set(rowsOf("session").map(([label]) => label));
+    return Object.entries(LOAD_ORDER).flatMap(([label, order]): [string, "load" | "edit" | "clear"][] =>
+        session.has(label) && typeof order === "string" ? [[label, order]] : [],
+    );
+})();
 
 /**
  * The ops a row dispatches, or will.
@@ -193,8 +205,8 @@ function opsOf(door: Door): string[] {
 }
 
 describe("the load entry's ratchet", () => {
-    it("orders every session door that dispatches a graph op", () => {
-        const unordered = sessionRows()
+    it("orders every door, of either half, that dispatches a graph op", () => {
+        const unordered = rowsOf()
             .filter(([label, door]) => opsOf(door).some((op) => GRAPH_OPS.has(op)) && !(label in LOAD_ORDER))
             .map(([label]) => label);
 
@@ -202,15 +214,24 @@ describe("the load entry's ratchet", () => {
     });
 
     it("orders only doors the door list holds", () => {
-        const labels = new Set(sessionRows().map(([label]) => label));
+        const labels = new Set(rowsOf().map(([label]) => label));
         const stray = Object.keys(LOAD_ORDER).filter((label) => !labels.has(label));
 
         assert.deepEqual(stray, []);
     });
 
+    it("routes every session door through the entry, and names the issue of every renderer door that is not", () => {
+        const session = new Set(rowsOf("session").map(([label]) => label));
+        const wrong = Object.entries(LOAD_ORDER)
+            .filter(([label, order]) => typeof order !== "string" && (session.has(label) || !(order.direct > 0)))
+            .map(([label]) => label);
+
+        assert.deepEqual(wrong, []);
+    });
+
     it("calls every ordered door here, or names the test that checks it", () => {
-        const doors = new Map(sessionRows());
-        const uncalled = Object.keys(LOAD_ORDER).filter(
+        const doors = new Map(rowsOf("session"));
+        const uncalled = SESSION_ORDER.map(([label]) => label).filter(
             (label) => callOf(doors.get(label) as Door) === undefined && !(label in EXTRA_CALLS),
         );
 
@@ -231,8 +252,8 @@ const REACH: Readonly<Record<string, (session: GraphSession) => object | Promise
 };
 
 describe("every ordered door, called while a load is held in line", () => {
-    const doors = new Map(sessionRows());
-    for (const [label, order] of Object.entries(LOAD_ORDER)) {
+    const doors = new Map(rowsOf("session"));
+    for (const [label, order] of SESSION_ORDER) {
         if (label in CHECKED_ELSEWHERE) {
             continue;
         }
@@ -492,5 +513,49 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             await edited.catch(() => undefined);
             assert.deepEqual(ops, ["data.import-source", "data.apply"], `${verb} dispatched under the load`);
         }
+    });
+});
+
+describe("the entry's edges", () => {
+    it("an open that refuses its document gives its place up, so a later load lands", async () => {
+        const session = fresh();
+        const document = JSON.parse(await triangleProject()) as { version: number };
+        const refused = session.project.open(JSON.stringify({ ...document, version: document.version + 1 }));
+        const later = session.data.import({ type: "json", config: { data: TRIANGLE } });
+
+        const outcome = await refused.then(
+            () => "opened",
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        await later;
+
+        assert.strictEqual(outcome, "E_UNSUPPORTED_VERSION");
+        assert.strictEqual(session.data.snapshot().nodeCount, 3);
+    });
+
+    it("an edit inside a transaction dispatches into it at once, even while a load reads", async () => {
+        const session = fresh();
+        const older = await heldLoad(session, 5);
+        await session.transaction("edit while a load reads", (tx) => tx.data.addNodes([{ id: "inside" }]));
+
+        assert.isDefined(session.data.node("inside"), "the transaction's edit waited for the load");
+        older.read.open();
+        await older.load;
+    });
+
+    it("a clear asked for while an open writes lands after the open, not under it", async () => {
+        const text = await triangleProject();
+        const session = fresh();
+        const dispatcher = dispatcherOf(session);
+        let cleared: Promise<void> | undefined;
+        dispatcher.events.dispatched = () => {
+            // Asked for at the open's first write, from outside its transaction.
+            cleared ??= Promise.resolve().then(() => session.data.clear());
+        };
+        await session.project.open(text, { discard: true });
+        await cleared;
+
+        assert.isDefined(cleared, "the open wrote nothing");
+        assert.strictEqual(session.data.snapshot().nodeCount, 0, "the opened graph came back after the clear");
     });
 });

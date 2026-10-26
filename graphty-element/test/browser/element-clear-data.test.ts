@@ -11,6 +11,28 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { defineSource, registerSource } from "../../session";
+import { dispatcherOf } from "../../src/session/GraphSession";
+import { loadLineOf } from "../../src/session/loadLine";
+
+/** Lets the held source's read go on; set by each read. */
+let openHeldRead = (): void => undefined;
+/** Called by the held source once its read has started. */
+let heldReadStarts = (): void => undefined;
+
+// A network source whose read waits until the test lets it go.
+registerSource(
+    defineSource({
+        id: "held-element-clear",
+        descriptor: { plainName: "Held", params: [] },
+        async records() {
+            const gate = new Promise<void>((done) => (openHeldRead = done));
+            heldReadStarts();
+            await gate;
+            return { nodes: [{ id: "s1" }, { id: "s2" }] };
+        },
+    }),
+);
 
 /** Two nodes and one edge, as an inline JSON data source. */
 const FIRST_GRAPH = JSON.stringify({
@@ -190,5 +212,47 @@ describe("graphty-element.clearData", () => {
         // loading the same data again on top of the first.
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 2);
         assert.strictEqual(element.graph?.getDataManager().edges.size, 1);
+    });
+
+    test("a pair assigned right after a clearData that cancelled a waiting pair still loads (issue #3524)", async () => {
+        const element = await createGraphtyElement();
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        const reading = element.session.data.import({ source: "held-element-clear", config: {} });
+        reading.catch(() => undefined);
+        await started;
+        // Waits in line behind the read.
+        element.dataSource = "json";
+        element.dataSourceConfig = { data: FIRST_GRAPH };
+
+        element.clearData();
+        element.dataSource = "json";
+        element.dataSourceConfig = { data: SECOND_GRAPH };
+        openHeldRead();
+
+        await vi.waitFor(() => {
+            assert.strictEqual(element.graph?.getDataManager().nodes.size, 3, "the pair assigned after the clear");
+        });
+    });
+
+    test("a network pair a clearData cancelled reports no load failure (issue #3524)", async () => {
+        const element = await createGraphtyElement();
+        const failures: unknown[] = [];
+        element.graph.on("data-loading-error", (event) => {
+            failures.push(event);
+        });
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        element.dataSource = "source:held-element-clear";
+        element.dataSourceConfig = {};
+        await started;
+
+        element.clearData();
+        openHeldRead();
+        const line = loadLineOf(dispatcherOf(element.session));
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 0, "the cancelled pair left the load line");
+        });
+
+        assert.deepEqual(failures, []);
+        assert.strictEqual(element.graph.getDataManager().nodes.size, 0);
     });
 });

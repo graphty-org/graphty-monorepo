@@ -55,14 +55,17 @@ interface LineOwner {
 type PlaceKind = "load" | "edit";
 
 /**
- * The refusal of a load a clear overtook while it was still reading.
+ * The refusal of a load a newer replacing load, or a clear, overtook: every door that cancels a
+ * load rejects it with this one shape.
+ * @param type - The load's format, for the message.
  * @returns The error.
  */
-function supersededError(): GraphtyError {
+export function supersededError(type = "data"): GraphtyError {
     return new GraphtyError({
         code: "E_SUPERSEDED",
         source: "data",
-        message: "The load was overtaken by a clear asked for after it, so it added nothing.",
+        message: `The ${type} load was overtaken by a newer replacing load or a clear, so the graph was left to it.`,
+        details: { format: type },
     });
 }
 
@@ -210,8 +213,8 @@ export class LoadLine {
         this.tail = ahead === undefined ? own : Promise.all([ahead, own]).then(() => undefined);
         let left = false;
         let superseded = false;
-        // Rejects the wait a clear overtook, however long the load ahead of it still reads.
-        let cancelWait = (): void => undefined;
+        // Rejects every wait a clear overtook, however long the load ahead of it still reads.
+        const cancelWaits = new Set<() => void>();
         const leave = (): void => {
             if (!left) {
                 left = true;
@@ -236,10 +239,12 @@ export class LoadLine {
                 return undefined;
             }
             return new Promise<void>((resolve, reject) => {
-                cancelWait = () => {
+                const cancel = (): void => {
                     reject(supersededError());
                 };
+                cancelWaits.add(cancel);
                 before.then(() => {
+                    cancelWaits.delete(cancel);
                     if (superseded) {
                         reject(supersededError());
                     } else {
@@ -265,7 +270,9 @@ export class LoadLine {
             this.loads.set(turn, () => {
                 superseded = true;
                 leave();
-                cancelWait();
+                for (const cancel of cancelWaits) {
+                    cancel();
+                }
             });
         }
         return turn;
@@ -279,13 +286,19 @@ export class LoadLine {
      * @returns What it returned.
      */
     edit<T>(send: () => Promise<T>): Promise<T> {
+        // Inside a transaction or a running command the edit is part of it and dispatches at once,
+        // as it always did: waiting there for a load whose own step queues behind that command
+        // would never end.
+        if (this.owner.routing) {
+            return send();
+        }
         return this.join(undefined, "edit").take(send);
     }
 
     /**
      * Dispatch a clear: every load asked for before it that has not dispatched is cancelled (it
      * rejects with `E_SUPERSEDED` and adds nothing), then the clear goes in line behind the edits
-     * still waiting, at once when none is.
+     * still waiting, at once when none is (and at once inside a transaction, as an edit is).
      * @param send - The dispatch, taken when the clear was asked for.
      * @returns What it returned.
      */
@@ -315,6 +328,8 @@ export class LoadLine {
     async opening<T>(turn: LoadTurn, write: () => Promise<T>): Promise<T> {
         try {
             await turn.wait();
+            // It writes now: a clear asked for from here on lands after the open, not under it.
+            this.loads.delete(turn);
             this.holding++;
             try {
                 return await write();

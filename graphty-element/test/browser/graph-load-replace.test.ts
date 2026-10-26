@@ -236,4 +236,19 @@ describe("the load CALLED last wins", () => {
         assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
         assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
     });
+
+    test("clearData lands after an edit asked for before it, as session.data.clear does", async () => {
+        const graph = await graphWith(GOOD);
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        const sessionLoad = graph.getSession().data.import({ source: "held-clear", config: {} });
+        sessionLoad.catch(() => undefined);
+        await started;
+        const edit = graph.getSession().data.addNodes([{ id: "edited" }]);
+        graph.clearData();
+        openHeldRead();
+
+        await edit;
+
+        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+    });
 });

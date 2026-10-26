@@ -3731,10 +3731,13 @@ export class Graph implements GraphContext {
      */
     clearData(): void {
         // A load still in flight would otherwise put its data back after the graph was closed:
-        // the graph's own, dispatched or not, and a session load still reading (issue #3524).
-        loadLineOf(dispatcherOf(this.session)).supersede();
+        // the graph's own, dispatched or not, and a session load still reading (issue #3524). The
+        // clear itself lands after the edits asked for before it, at once when none waits.
         this.dataManager.supersedeLoads();
-        this.dataManager.clear();
+        void loadLineOf(dispatcherOf(this.session)).clear(() => {
+            this.dataManager.clear();
+            return Promise.resolve();
+        });
     }
 
     /**

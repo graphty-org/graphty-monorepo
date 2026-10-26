@@ -167,6 +167,69 @@ describe("check-figma-lock", () => {
         );
     });
 
+    // `base` and `work` each change a different line of the Figma test; work's change is approved.
+    function bothSidesEdit() {
+        const r = repo();
+        r.git("checkout", "-q", "base");
+        r.write(FIGMA_TEST, "a\nb\nc\nd\ne\n");
+        r.commit("test: lines");
+        r.git("checkout", "-q", "work");
+        r.git("merge", "-q", "base");
+        r.write(FIGMA_TEST, "a\nb\nc\nd\nwork\n");
+        r.commit("test: work's line\n\nFigma-Approved: owner");
+        r.git("checkout", "-q", "base");
+        r.write(FIGMA_TEST, "base\nb\nc\nd\ne\n");
+        r.commit("test: base's line\n\nFigma-Approved: owner");
+        r.git("checkout", "-q", "work");
+        return r;
+    }
+
+    it("passes a merge whose locked file is git's own conflict-free merge of its parents", () => {
+        const r = bothSidesEdit();
+        r.git("merge", "-q", "--no-ff", "-m", "Merge base into work", "base");
+        assert.equal(r.git("show", `HEAD:${FIGMA_TEST}`), "base\nb\nc\nd\nwork\n");
+        // judged from before base's approved commit, as a branch that merged master is judged
+        const from = r.git("rev-parse", "HEAD^2^").trim();
+        assert.deepEqual(unapprovedChanges({ cwd: r.dir, base: from, approvedBase: "0000000", env }), []);
+    });
+
+    it("fails a merge that changes a locked file beyond git's own merge of its parents", () => {
+        const r = bothSidesEdit();
+        r.git("merge", "-q", "--no-ff", "--no-commit", "base");
+        r.write(FIGMA_TEST, "base\nb\nsneaked\nd\nwork\n");
+        r.commit("Merge base into work");
+        const from = r.git("rev-parse", "HEAD^2^").trim();
+        assert.deepEqual(
+            unapprovedChanges({ cwd: r.dir, base: from, approvedBase: "0000000", env }).map((b) => b.subject),
+            ["Merge base into work"],
+        );
+    });
+
+    it("judges a conflict resolution that matches neither parent, and passes one that takes a parent's side", () => {
+        const r = repo();
+        r.git("checkout", "-q", "base");
+        r.write(TOKENS, "base\n");
+        r.commit("fix: base accent\n\nFigma-Approved: owner");
+        r.git("checkout", "-q", "work");
+        r.write(TOKENS, "work\n");
+        r.commit("fix: work accent\n\nFigma-Approved: owner");
+        const tip = r.git("rev-parse", "HEAD").trim();
+        const from = r.git("rev-parse", "base^").trim();
+        const check = () => unapprovedChanges({ cwd: r.dir, base: from, approvedBase: "0000000", env });
+        assert.throws(() => r.git("merge", "-q", "base"));
+        r.write(TOKENS, "both\n");
+        r.commit("Merge base into work");
+        assert.deepEqual(
+            check().map((b) => b.subject),
+            ["Merge base into work"],
+        );
+        r.git("checkout", "-q", "-b", "theirs", tip);
+        assert.throws(() => r.git("merge", "-q", "base"));
+        r.write(TOKENS, "base\n");
+        r.commit("Merge base into theirs");
+        assert.deepEqual(check(), []);
+    });
+
     it("passes a push that touches no locked file", () => {
         const r = repo();
         r.write("compact-mantine/src/Button.tsx", "v2\n");

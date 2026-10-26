@@ -16,7 +16,8 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
+    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
+    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
     # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
@@ -34,7 +35,18 @@ on:
                 type: string
                 required: false
                 default: ""
+            reuse_build_run:
+                description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
+                type: string
+                required: false
+                default: ""
     workflow_dispatch:
+        inputs:
+            reuse_build_run:
+                description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
+                type: string
+                required: false
+                default: ""
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
@@ -120,7 +132,7 @@ jobs:
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
-            artifacts-run: ${{ steps.reuse.outputs.artifacts-run }}
+            artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -277,13 +289,26 @@ jobs:
                   path: ${{ runner.temp }}/ci-tested/
                   retention-days: 30
 
+            # The full run and the bisect name the master push run that built the commit they test
+            # (input reuse_build_run, design/ci/channels-pipeline/channels.md section 5, "Build reuse"):
+            # this run downloads that run's package and Storybook builds instead of building, when it
+            # built this same commit and they have not expired. Anything unknown is a build.
+            - name: Reuse the builds of the run named by reuse_build_run
+              id: reuse-build
+              if: inputs.reuse_build_run != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.reuse_build_run }}
+              run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
+
             - name: Download the package builds of the run whose results are reused
-              if: steps.reuse.outputs.artifacts-run != ''
+              if: (steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run) != ''
               uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
-                  run-id: ${{ steps.reuse.outputs.artifacts-run }}
+                  run-id: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
                   github-token: ${{ github.token }}
 
             # No security audit here: a new advisory is published against code a pull request did not
@@ -397,7 +422,7 @@ jobs:
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
             - name: Build all (master, a manual dispatch or the merge queue)
-              if: steps.plan.outputs.full == 'true'
+              if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
@@ -414,21 +439,27 @@ jobs:
             # place, so the deployed files carry them), then the upload under the release the build
             # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
+            # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
+            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
               working-directory: graphty
+              continue-on-error: true
+              timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  pnpm exec sentry-cli sourcemaps inject dist
-                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
-                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
-                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
-                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
-                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -452,13 +483,14 @@ jobs:
                       graphty-element/dist/
                       remote-logger/dist/
                       compact-mantine/dist/
-                  retention-days: 1
+                  # 14 days on a master push: the full run and the bisect reuse it (reuse_build_run).
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             # The nx task timings of the build steps (NX_PROFILE), for the timings job.
             - name: Upload the nx profile
               if: ${{ !cancelled() }}
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: nx-profile
                   path: nx-profile.json
@@ -662,49 +694,49 @@ jobs:
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (graphty)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (compact-mantine)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (algorithms)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (layout)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (cytoscape-extensions)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (graph-io-fidelity)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
@@ -1420,14 +1452,15 @@ jobs:
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # The algorithms benchmark table and graphty-element's timing benchmarks (a manual dispatch and
-    # the release train): measurements, gating nothing. A push to master runs no test job, so this
-    # one is skipped with it.
+    # the release train): measurements, gating nothing. A light run (a push to master, a run of named
+    # shards) skips them. They need only the build, not the tests, so they run beside the shards and
+    # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them.
     performance:
         name: Performance Benchmarks
-        needs: test
-        if: github.event_name != 'pull_request' && !inputs.verify
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -1715,14 +1748,14 @@ jobs:
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
     # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
-    # (two full runs whose Stories parity shows zero differences); until then the plain story tests in the
+    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
     # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
     # different pictures fail its test) is retried once and reported flaky when the retry passes.
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1738,6 +1771,9 @@ jobs:
                     - project: graphty-element
                       shard: graphty-element-storybook-1
                       command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: algorithms
+                      shard: algorithms-browser
+                      command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: cytoscape-extensions
                       shard: cytoscape-extensions
                       command: cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -1859,11 +1895,11 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # Stories parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
+    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
     # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
     # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
-    stories-parity:
-        name: Stories parity (${{ matrix.project }})
+    story-tests-parity:
+        name: Story tests parity (${{ matrix.project }})
         needs: [story-tests, visual]
         if: ${{ !cancelled() }}
         runs-on: ubuntu-24.04
@@ -1872,7 +1908,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, cytoscape-extensions]
+                project: [graphty, graphty-element, algorithms, cytoscape-extensions]
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1910,7 +1946,7 @@ jobs:
                   PROJECT: ${{ matrix.project }}
               run: |
                   {
-                      echo "### Stories parity ($PROJECT)"
+                      echo "### Story tests parity ($PROJECT)"
                       echo '```'
                       tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
                       echo '```'
@@ -2109,7 +2145,17 @@ jobs:
         steps:
             - name: Check all jobs passed
               env:
-                  NEEDS: ${{ toJSON(needs) }}
+                  # Only the results, never toJSON(needs): that holds every job's outputs, and the light
+                  # check's bins (a file list per bin) make it longer than one environment variable may be
+                  # ("Argument list too long", the job then fails before its first line).
+                  R_PACKAGES: ${{ needs.packages.result }}
+                  R_BUILD: ${{ needs.build.result }}
+                  R_LINT: ${{ needs.lint.result }}
+                  R_CHECKS: ${{ needs.checks.result }}
+                  R_DOCS: ${{ needs.docs.result }}
+                  R_TEST: ${{ needs.test.result }}
+                  R_LINKS: ${{ needs.links.result }}
+                  R_COST: ${{ needs.cost-accuracy.result }}
                   BUILD: ${{ needs.packages.result }}
                   FULL: ${{ needs.packages.outputs.full }}
                   ADVISORY: ${{ needs.packages.outputs.advisory-checks }}
@@ -2118,6 +2164,13 @@ jobs:
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
                   TEST_COUNT: ${{ needs.packages.outputs.test-count }}
               run: |
+                  # The tests set NEEDS themselves; in CI it is built from the results above.
+                  [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
+                      --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
+                      --arg links "$R_LINKS" --arg cost "$R_COST" \
+                      '{packages: {result: $packages}, build: {result: $build}, lint: {result: $lint},
+                        checks: {result: $checks}, docs: {result: $docs}, test: {result: $test},
+                        links: {result: $links}, "cost-accuracy": {result: $cost}}')
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
                       exit 1
@@ -2228,6 +2281,7 @@ jobs:
         needs: [packages, visual]
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         continue-on-error: true
         steps:
             # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
@@ -2304,6 +2358,39 @@ jobs:
                       echo "::warning title=Visual gate (report only)::$msg"
                       echo "$msg" >> "$GITHUB_STEP_SUMMARY"
                   fi
+
+    # The last job of a green master push run: whether release.yml should run now (tools/release-due.mjs).
+    # release.yml has no workflow_run trigger, so this is how a merge that references an open "Full run red:"
+    # issue restarts the full run at once (mode restart); every other merge waits for the next 6-hour slot
+    # (design/ci/channels-pipeline/channels.md section 5). No concurrency group: release.yml's own group
+    # keeps one running and one pending run. Until the full run files red issues it dispatches nothing.
+    release-due:
+        name: Release due
+        needs: all-checks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        # A failure here is not the merge's: it must not turn the master build red, which would skip the
+        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        # actions: write to dispatch release.yml; issues: read for the open red issues.
+        permissions:
+            contents: read
+            actions: write
+            issues: read
+        steps:
+            # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+                  filter: blob:none
+                  sparse-checkout: tools
+
+            - name: Dispatch release.yml when a restart is due
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node tools/release-due.mjs
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different

@@ -1,0 +1,44 @@
+name: Pipeline health
+
+# Type-checks, tests and synthesizes the pipeline health backend (tools/pipeline-health/: the CDK stack
+# and its Lambda handlers). It needs no AWS credentials: the stack is deployed from this machine
+# (`pnpm run deploy` there). Design: design/ci/health-dashboard.md, section 10.
+
+on:
+    pull_request:
+        paths:
+            - "tools/pipeline-health/**"
+            - ".github/workflows/pipeline-health.yml"
+    push:
+        branches: [master]
+        paths:
+            - "tools/pipeline-health/**"
+            - ".github/workflows/pipeline-health.yml"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: pipeline-health-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    check:
+        name: Test the pipeline health stack
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        defaults:
+            run:
+                working-directory: tools/pipeline-health
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x }
+            - name: Install
+              run: npx --yes pnpm@10.34.5 install --frozen-lockfile
+            - name: Type-check
+              run: npx --yes pnpm@10.34.5 run typecheck
+            - name: Test
+              run: npx --yes pnpm@10.34.5 run test
+            - name: Synthesize
+              run: npx --yes pnpm@10.34.5 run synth

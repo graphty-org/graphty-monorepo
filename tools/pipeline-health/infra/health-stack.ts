@@ -1,0 +1,240 @@
+import { fileURLToPath } from "node:url";
+
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import * as budgets from "aws-cdk-lib/aws-budgets";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
+import * as scheduler from "aws-cdk-lib/aws-scheduler";
+import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
+import * as sns from "aws-cdk-lib/aws-sns";
+import type { Construct } from "constructs";
+
+export const PAGE_ORIGIN = "https://health.graphty.app";
+export const CI_ISSUER = "https://token.actions.githubusercontent.com";
+export const CI_AUDIENCE = "graphty-health";
+export const READ_THROTTLE = { rate: 20, burst: 40 };
+export const WRITE_THROTTLE = { rate: 50, burst: 100 };
+export const MONTHLY_BUDGET_USD = 10;
+
+export interface HealthStackProps extends StackProps {
+    /** An extra CORS origin for a local dev server of the page (cdk context `devOrigin`). */
+    devOrigin?: string;
+}
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+
+/** The pipeline health backend (design/ci/health-dashboard.md, sections 10 and 13). */
+export class HealthStack extends Stack {
+    /**
+     * Defines the whole backend.
+     * @param scope - the CDK app
+     * @param id - the stack name
+     * @param props - stack properties and the optional dev origin
+     */
+    constructor(scope: Construct, id: string, props: HealthStackProps = {}) {
+        super(scope, id, props);
+
+        const table = new dynamodb.TableV2(this, "Table", {
+            tableName: "graphty-health",
+            partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
+            billing: dynamodb.Billing.onDemand(),
+            timeToLiveAttribute: "ttl",
+            deletionProtection: true,
+            removalPolicy: RemovalPolicy.RETAIN,
+        });
+
+        const fn = (name: string, reserved: number, timeout: number): NodejsFunction => {
+            const logGroup = new logs.LogGroup(this, `${name}Logs`, {
+                retention: logs.RetentionDays.TWO_WEEKS,
+                removalPolicy: RemovalPolicy.DESTROY,
+            });
+            const f = new NodejsFunction(this, name, {
+                entry: `${root}src/handlers/${name.toLowerCase()}.ts`,
+                projectRoot: root,
+                depsLockFilePath: `${root}pnpm-lock.yaml`,
+                runtime: lambda.Runtime.NODEJS_22_X,
+                architecture: lambda.Architecture.ARM_64,
+                memorySize: 256,
+                timeout: Duration.seconds(timeout),
+                reservedConcurrentExecutions: reserved,
+                logGroup,
+                environment: { TABLE_NAME: table.tableName },
+                bundling: { minify: true },
+            });
+            f.addToRolePolicy(
+                new iam.PolicyStatement({
+                    actions: ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+                    resources: [
+                        this.formatArn({ service: "ssm", resource: "parameter", resourceName: "graphty-health/*" }),
+                    ],
+                }),
+            );
+            f.addToRolePolicy(
+                new iam.PolicyStatement({
+                    actions: ["kms:Decrypt"],
+                    resources: ["*"],
+                    conditions: { StringEquals: { "kms:ViaService": `ssm.${this.region}.amazonaws.com` } },
+                }),
+            );
+            return f;
+        };
+        const ingest = fn("Ingest", 20, 10);
+        const read = fn("Read", 5, 10);
+        const collector = fn("Collector", 1, 60);
+        table.grantReadWriteData(ingest);
+        table.grantReadData(read);
+        table.grantReadWriteData(collector);
+
+        // HTTP API: public reads, CI writes behind the GitHub OIDC JWT authorizer, local writes
+        // checked by the ingest Lambda's own token comparison.
+        const api = new apigw.HttpApi(this, "Api", {
+            apiName: "graphty-health",
+            corsPreflight: {
+                allowOrigins: [PAGE_ORIGIN, ...(props.devOrigin ? [props.devOrigin] : [])],
+                allowMethods: [apigw.CorsHttpMethod.GET],
+                maxAge: Duration.hours(1),
+            },
+        });
+        const readTarget = new HttpLambdaIntegration("ReadTarget", read);
+        const ingestTarget = new HttpLambdaIntegration("IngestTarget", ingest);
+        const jwt = new HttpJwtAuthorizer("GitHubOidc", CI_ISSUER, { jwtAudience: [CI_AUDIENCE] });
+        const readPaths = ["/v1/health", "/v1/status", "/v1/page/{page}", "/v1/{proxy+}"];
+        const routes = [
+            ...readPaths.flatMap((path) =>
+                api.addRoutes({ path, methods: [apigw.HttpMethod.GET], integration: readTarget }),
+            ),
+            ...api.addRoutes({
+                path: "/v1/ingest/{kind}",
+                methods: [apigw.HttpMethod.POST],
+                integration: ingestTarget,
+                authorizer: jwt,
+            }),
+            ...api.addRoutes({ path: "/v1/local/{kind}", methods: [apigw.HttpMethod.POST], integration: ingestTarget }),
+        ];
+        const stage = (api.defaultStage as apigw.HttpStage).node.defaultChild as apigw.CfnStage;
+        const throttle = (t: { rate: number; burst: number }): apigw.CfnStage.RouteSettingsProperty => ({
+            throttlingRateLimit: t.rate,
+            throttlingBurstLimit: t.burst,
+        });
+        stage.defaultRouteSettings = throttle(READ_THROTTLE);
+        // routeSettings is untyped JSON, so CloudFormation's own (PascalCase) keys go in as is.
+        const write = { ThrottlingRateLimit: WRITE_THROTTLE.rate, ThrottlingBurstLimit: WRITE_THROTTLE.burst };
+        stage.routeSettings = { "POST /v1/ingest/{kind}": write, "POST /v1/local/{kind}": write };
+        for (const route of routes) {
+            stage.node.addDependency(route);
+        }
+
+        new scheduler.Schedule(this, "CollectorSchedule", {
+            schedule: scheduler.ScheduleExpression.rate(Duration.minutes(5)),
+            target: new LambdaInvoke(collector, { retryAttempts: 0 }),
+            description: "Run the pipeline health collector",
+        });
+
+        // Alarms reach the owner through SNS email, subscribed outside the code
+        // (tmp/health-alarm-email.sh), so no address sits in the repository.
+        const topic = new sns.Topic(this, "Alarms", { topicName: "graphty-health-alarms" });
+        for (const service of ["budgets.amazonaws.com", "cloudwatch.amazonaws.com"]) {
+            topic.addToResourcePolicy(
+                new iam.PolicyStatement({
+                    actions: ["sns:Publish"],
+                    principals: [new iam.ServicePrincipal(service)],
+                    resources: [topic.topicArn],
+                    conditions: { StringEquals: { "aws:SourceAccount": this.account } },
+                }),
+            );
+        }
+
+        // Dead-man switch: no successful collector run in 20 minutes (section 13).
+        const period = Duration.minutes(5);
+        const deadMan = new cloudwatch.Alarm(this, "CollectorDeadMan", {
+            alarmName: "graphty-health-collector-dead-man",
+            alarmDescription: "No successful pipeline health collector run in 20 minutes",
+            metric: new cloudwatch.MathExpression({
+                expression: "inv - FILL(err, 0)",
+                label: "successful runs",
+                period,
+                usingMetrics: {
+                    inv: collector.metricInvocations({ period, statistic: "Sum" }),
+                    err: collector.metricErrors({ period, statistic: "Sum" }),
+                },
+            }),
+            threshold: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+            evaluationPeriods: 4,
+            datapointsToAlarm: 4,
+            treatMissingData: cloudwatch.TreatMissingData.BREACHING,
+        });
+        deadMan.addAlarmAction(new SnsAction(topic));
+        deadMan.addOkAction(new SnsAction(topic));
+
+        // Spend protection, layer 2 (section 10.5): a monthly Budget that emails and, at 100%
+        // actual, attaches a deny-all policy to the three Lambda roles.
+        const budgetName = "graphty-health";
+        const notify = (
+            notificationType: string,
+            threshold: number,
+        ): budgets.CfnBudget.NotificationWithSubscribersProperty => ({
+            notification: {
+                notificationType,
+                comparisonOperator: "GREATER_THAN",
+                threshold,
+                thresholdType: "PERCENTAGE",
+            },
+            subscribers: [{ subscriptionType: "SNS", address: topic.topicArn }],
+        });
+        const budget = new budgets.CfnBudget(this, "Budget", {
+            budget: {
+                budgetName,
+                budgetType: "COST",
+                timeUnit: "MONTHLY",
+                budgetLimit: { amount: MONTHLY_BUDGET_USD, unit: "USD" },
+            },
+            notificationsWithSubscribers: [notify("ACTUAL", 50), notify("FORECASTED", 100)],
+        });
+        budget.node.addDependency(topic);
+
+        const denyAll = new iam.ManagedPolicy(this, "DenyAll", {
+            description: "Attached by the graphty-health Budget action at 100% of the monthly budget",
+            statements: [new iam.PolicyStatement({ effect: iam.Effect.DENY, actions: ["*"], resources: ["*"] })],
+        });
+        const roles = [ingest, read, collector].map((f) => f.role as iam.IRole);
+        const actionRole = new iam.Role(this, "BudgetActionRole", {
+            assumedBy: new iam.ServicePrincipal("budgets.amazonaws.com", {
+                conditions: { StringEquals: { "aws:SourceAccount": this.account } },
+            }),
+        });
+        actionRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ["iam:AttachRolePolicy", "iam:DetachRolePolicy"],
+                resources: roles.map((r) => r.roleArn),
+                conditions: { ArnEquals: { "iam:PolicyARN": denyAll.managedPolicyArn } },
+            }),
+        );
+        const action = new budgets.CfnBudgetsAction(this, "BudgetDenyAction", {
+            budgetName,
+            notificationType: "ACTUAL",
+            actionType: "APPLY_IAM_POLICY",
+            actionThreshold: { type: "PERCENTAGE", value: 100 },
+            approvalModel: "AUTOMATIC",
+            executionRoleArn: actionRole.roleArn,
+            definition: {
+                iamActionDefinition: { policyArn: denyAll.managedPolicyArn, roles: roles.map((r) => r.roleName) },
+            },
+            subscribers: [{ type: "SNS", address: topic.topicArn }],
+        });
+        action.node.addDependency(budget);
+
+        new CfnOutput(this, "ApiUrl", { value: api.apiEndpoint });
+        new CfnOutput(this, "TableName", { value: table.tableName });
+        new CfnOutput(this, "TopicArn", { value: topic.topicArn });
+    }
+}

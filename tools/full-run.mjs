@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { PUBLISH_HOLD } from "./channel/nightly.mjs";
 import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
@@ -49,12 +50,25 @@ export const LANES = {
  * @param o.firstParents (sha) => that commit and its first parents, newest first
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
  * @param o.onNightly (sha) => whether channel/nightly holds that commit; a green-clean commit it lacks was not
- *     promoted (a publish hold, the screenshot gate, a refused push) and is tested again, so it can promote
+ *     promoted (a publish hold, the screenshot gate, a refused push)
+ * @param o.hold `{ open, closedAt }`: the open publish hold's number (or empty) and when the newest closed one
+ *     closed (ms, 0 for none). An unpromoted green-clean commit is tested again only once a publish hold closed
+ *     after its verdict: the same commit meets the same screenshot gate, and a refused push ends when master moves,
+ *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
  * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
  * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
  */
-export function pick({ mode, head, store, firstParents, stray, onNightly = () => true, hasNightly = () => true }) {
+export function pick({
+    mode,
+    head,
+    store,
+    firstParents,
+    stray,
+    onNightly = () => true,
+    hasNightly = () => true,
+    hold = { open: "", closedAt: 0 },
+}) {
     if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
@@ -75,11 +89,33 @@ export function pick({ mode, head, store, firstParents, stray, onNightly = () =>
     const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
     const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
-    // ponytail: an unpromoted green-clean commit re-runs the whole suite; a promote-only run if slots get scarce
+    // ponytail: a cleared hold re-runs the whole suite; a promote-only run from the stored verdict if slots get scarce
     const unpromoted = (v) => v.state === "green-clean" && !onNightly(v.sha);
     const own = judged.get(sha);
     if (own && unpromoted(own)) {
-        return { run: true, sha, good, why: `${short(sha)} is judged green-clean but nightly lacks it: testing again` };
+        const s = short(sha);
+        if (hold.open) {
+            return {
+                run: false,
+                sha,
+                good,
+                why: `${s} is judged green-clean; its promotion waits for publish hold #${hold.open}`,
+            };
+        }
+        if (hold.closedAt > (own.at ?? 0)) {
+            return {
+                run: true,
+                sha,
+                good,
+                why: `${s} is judged green-clean and the publish hold that kept it off nightly closed: testing again`,
+            };
+        }
+        return {
+            run: false,
+            sha,
+            good,
+            why: `${s} is judged green-clean but was not promoted (the screenshot gate or a refused push): testing it again changes nothing, a newer commit promotes`,
+        };
     }
     if (own) return { run: false, sha, good, why: `${short(sha)} is already judged ${own.state}` };
     const at = chain.findIndex((s) => judged.has(s));
@@ -221,26 +257,61 @@ const record = async (cfg, verdict) => {
     );
 };
 
+/**
+ * Whether channel/nightly holds a commit: in its history, or differing from it only in versions (the version merge
+ * a promotion pushes to master, whose second parent is nightly's version commit). Not acceptMerges: a commit whose
+ * visual-baselines/ differ from nightly's has screenshots nightly does not serve.
+ * @param sha the commit
+ * @param nightly channel/nightly's ref
+ * @param [cwd] the repository
+ * @returns a boolean; false when there is no channel/nightly yet
+ */
+export function isOnNightly(sha, nightly, cwd) {
+    try {
+        execFileSync("git", ["merge-base", "--is-ancestor", sha, nightly], { stdio: "ignore", cwd });
+        return true;
+    } catch {
+        try {
+            return diffCommits(nightly, sha, { cwd }).stray.length === 0;
+        } catch {
+            return false;
+        }
+    }
+}
+
+// The publish hold's state for the pick; an unreadable one counts as open, so the pick spends nothing on a guess
+function publishHold() {
+    try {
+        const open = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
+        const closed = sh("gh", [
+            "issue",
+            "list",
+            "-R",
+            process.env.GITHUB_REPOSITORY,
+            "--state",
+            "closed",
+            "--limit",
+            "20",
+            "--search",
+            `in:title "${PUBLISH_HOLD}"`,
+            "--json",
+            "closedAt",
+            "-q",
+            '[.[].closedAt] | max // ""',
+        ]);
+        return { open, closedAt: closed ? Date.parse(closed) : 0 };
+    } catch (error) {
+        return { open: `(unknown: ${error.message.split("\n")[0]})`, closedAt: 0 };
+    }
+}
+
 async function pickMain(env) {
     const cfg = config(env);
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
     const firstParents = (sha) => sh("git", ["rev-list", "--first-parent", "-n", "200", sha]).split("\n");
     const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
-    // On nightly: in channel/nightly's history, or differing from it only in versions and screenshot approvals
-    // (the version merge a promotion pushes to master, whose second parent is nightly's version commit).
     const NIGHTLY = "refs/remotes/origin/channel/nightly";
-    const onNightly = (sha) => {
-        try {
-            execFileSync("git", ["merge-base", "--is-ancestor", sha, NIGHTLY], { stdio: "ignore" });
-            return true;
-        } catch {
-            try {
-                return stray(NIGHTLY, sha).length === 0;
-            } catch {
-                return false; // no channel/nightly yet
-            }
-        }
-    };
+    const onNightly = (sha) => isOnNightly(sha, NIGHTLY);
     const hasNightly = (sha) => {
         try {
             execFileSync("git", ["rev-parse", "-q", "--verify", NIGHTLY], { stdio: "ignore" });
@@ -254,7 +325,16 @@ async function pickMain(env) {
             return false;
         }
     };
-    const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray, onNightly, hasNightly });
+    const p = pick({
+        mode: env.MODE,
+        head: env.HEAD_SHA,
+        store,
+        firstParents,
+        stray,
+        onNightly,
+        hasNightly,
+        hold: publishHold(),
+    });
     console.log(`::notice::${p.why}`);
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });

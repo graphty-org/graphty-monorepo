@@ -2841,7 +2841,7 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
         // and announces nothing: the re-run attempt announces its own outcome
         assert.match(
             held,
-            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' && inputs.mode == 'legacy' \}\}/,
+            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' && inputs.mode != 'shadow' \}\}/,
         );
         assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
         // versioning still requires a green T4: the re-run attempt must pass it
@@ -3532,7 +3532,7 @@ describe("release.yml", () => {
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
         assert.match(
             held,
-            /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, version, approve, land\]/,
+            /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, version, approve, land\]/,
         );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
@@ -3568,7 +3568,16 @@ describe("release.yml", () => {
         );
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
         assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
+        // a full or restart run whose promotion failed in versioning or landing reports it in its own issue
+        assert.match(
+            held,
+            /\(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.verdict.outputs.promote == 'true' && \(needs.version.result != 'success' \|\| needs.land.outputs.pushed != 'true'\)/,
+        );
+        assert.match(held, /title="Nightly promotion failed: \$\{what\} on \$\{SHA:0:7\}"/);
+        assert.match(held, /release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md" "Nightly promotion failed:"/);
+        assert.match(held, /reclaimed != 'true' && inputs.mode != 'shadow'/, "announced too");
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
+        assert.match(helper, /--search "in:title \\"\$\{1:-Release held:\}\\""/, "searches by the prefix");
         assert.match(helper, /startswith\(\\"\$\{1:-Release held: \}\\"\)/);
         assert.match(helper, /gh issue edit "\$open"[^\n]*--title "\$2"/);
         assert.match(helper, /gh issue comment "\$open"/);
@@ -3599,7 +3608,7 @@ describe("release.yml", () => {
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
         // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
-        const runs = (results, release = "true", pushed = "", mode = "legacy") =>
+        const runs = (results, release = "true", pushed = "", mode = "legacy", promote = "") =>
             new Function(
                 "needs",
                 "inputs",
@@ -3615,6 +3624,7 @@ describe("release.yml", () => {
                         "audit",
                         "llm",
                         "version_dry_run",
+                        "verdict",
                         "version",
                         "approve",
                         "land",
@@ -3622,7 +3632,14 @@ describe("release.yml", () => {
                         j,
                         {
                             result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
+                            outputs:
+                                j === "pick"
+                                    ? { release }
+                                    : j === "land"
+                                      ? { pushed }
+                                      : j === "verdict"
+                                        ? { promote }
+                                        : {},
                         },
                     ]),
                 ),
@@ -3644,7 +3661,10 @@ describe("release.yml", () => {
                 "version",
                 "land",
             ]);
-            assert.match(held, new RegExp(`needs: \\[${trainNeeds.slice(0, -1).join(", ")}, approve, land\\]`));
+            assert.match(
+                held,
+                new RegExp(`needs: \\[${trainNeeds.slice(0, -2).join(", ")}, verdict, version, approve, land\\]`),
+            );
         });
 
         it("runs whatever the run's state: always(), never a list of red results", () => {
@@ -3745,6 +3765,15 @@ describe("release.yml", () => {
                 assert.equal(runs({ pick: "failure" }, "", "", mode), false);
             }
             assert.equal(runs({ ci: "failure", version: "skipped", land: "skipped" }, "true", "", "shadow"), true);
+        });
+
+        it("reports a full run's promotion whose versioning or landing failed", () => {
+            for (const mode of ["full", "restart"]) {
+                assert.equal(runs({ version: "failure", land: "skipped" }, "true", "", mode, "true"), true, mode);
+                assert.equal(runs({ land: "failure" }, "true", "", mode, "true"), true, mode);
+                assert.equal(runs({}, "true", "true", mode, "true"), false, "landed: the site job reports");
+                assert.equal(runs({ version: "skipped", land: "skipped" }, "true", "", mode, "false"), false);
+            }
         });
 
         it("still opens the held issue when versioning or landing fails before the push", () => {

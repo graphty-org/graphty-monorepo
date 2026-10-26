@@ -5,13 +5,57 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { bestEffort, bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
+import { execFileSync } from "node:child_process";
+
+import {
+    bestEffort,
+    bisectPlan,
+    differingImages,
+    greenCloses,
+    isOnNightly,
+    LANES,
+    pick,
+    redIssue,
+    verdictOf,
+} from "./full-run.mjs";
 
 // master's first parents, newest first: c3 <- c2 <- c1 <- c0
 const CHAIN = ["c3", "c2", "c1", "c0"];
 const firstParents = (sha) => CHAIN.slice(CHAIN.indexOf(sha));
 const code = () => ["tools/x.mjs: not a package.json or a CHANGELOG.md"];
 const store = (recent, sha = "c3") => ({ candidate: { sha, builtAt: 1 }, recent });
+
+describe("isOnNightly", () => {
+    it("counts a versions-only difference as on nightly, but not a screenshot baselines change", () => {
+        const dir = mkdtempSync(join(tmpdir(), "on-nightly-"));
+        const git = (...a) =>
+            execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...a], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
+            }).trim();
+        const commit = (path, text) => {
+            mkdirSync(join(dir, path, ".."), { recursive: true });
+            writeFileSync(join(dir, path), text);
+            git("add", "-A");
+            git("commit", "-q", "-m", path);
+            return git("rev-parse", "HEAD");
+        };
+        git("init", "-q", "-b", "main");
+        commit("p/package.json", JSON.stringify({ name: "p", version: "1.0.0" }));
+        const nightly = commit("p/src.js", "1");
+        git("checkout", "-q", "-b", "side", "HEAD~1");
+        const versions = commit("p/package.json", JSON.stringify({ name: "p", version: "1.1.0" }));
+        assert.equal(isOnNightly(nightly, nightly, dir), true, "in its history");
+        git("checkout", "-q", nightly);
+        const baselines = commit("visual-baselines/p/a.png", "new picture");
+        assert.equal(isOnNightly(baselines, nightly, dir), false, "a screenshot change nightly does not serve");
+        git("checkout", "-q", nightly);
+        git("merge", "-q", "--no-edit", versions);
+        assert.equal(isOnNightly(git("rev-parse", "HEAD"), nightly, dir), true, "only versions differ");
+        assert.equal(isOnNightly(baselines, "refs/heads/none", dir), false, "no channel/nightly yet");
+    });
+});
 
 describe("pick", () => {
     it("tests the newest commit with a site when nothing judged it", () => {
@@ -41,13 +85,16 @@ describe("pick", () => {
         assert.equal(pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: code }).run, true);
     });
 
-    it("tests a green-clean commit again while nightly lacks it, so a promotion that waited can happen", () => {
-        const own = store([{ sha: "c3", state: "green-clean" }]);
+    it("tests an unpromoted green-clean commit again only once a publish hold closed after its verdict", () => {
+        const own = store([{ sha: "c3", state: "green-clean", at: 100 }]);
         const off = () => false;
-        assert.equal(
-            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off }).run,
-            true,
-        );
+        const run = (hold) =>
+            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hold });
+        const open = run({ open: "42", closedAt: 0 });
+        assert.deepEqual([open.run, /publish hold #42/.test(open.why)], [false, true], "the hold still open");
+        assert.equal(run({ open: "", closedAt: 0 }).run, false, "a screenshot refusal or refused push: no re-test");
+        assert.equal(run({ open: "", closedAt: 50 }).run, false, "a hold that closed before the verdict");
+        assert.equal(run({ open: "", closedAt: 200 }).run, true, "the hold that blocked it closed");
         assert.equal(pick({ mode: "full", head: "h", store: own, firstParents, stray: code }).run, false);
         // nor does an unpromoted green-clean commit pass its verdict on
         const inherited = store([{ sha: "c1", state: "green-clean" }]);

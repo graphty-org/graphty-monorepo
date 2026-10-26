@@ -800,6 +800,14 @@ describe("GET /v1/release-state", () => {
         s.site("y", NOW - HOUR);
         assert.equal((await state(call)).ageNightlyMs, HOUR, "from the first site after the move");
     });
+    it("counts the commits built while nightly's promotion ran when nightly has no site row", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("during", NOW - 30 * HOUR);
+        s.nightly("x", NOW - 27 * HOUR);
+        const st = await state(call);
+        assert.equal(st.ageNightlyMs, 30 * HOUR, "a commit merged during the promotion is one nightly lacks");
+    });
     it("counts nightly's age from the first site when nightly never moved", async () => {
         const { call, env } = service();
         const s = seed(env);

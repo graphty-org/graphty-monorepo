@@ -3,6 +3,8 @@
 import { refuse } from "./service.js";
 
 const DAY = 86_400_000;
+// a full run's slot: release.yml runs every 6 hours, so a promotion run started at most this long before its move
+const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
@@ -315,10 +317,12 @@ export async function getReleaseState(q, who, db, now) {
          WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at`,
         now - 30 * DAY,
     );
-    // a nightly with no site row (a lost POST /v1/sites) counts from its move, never from the oldest site
+    // a nightly with no site row (a lost POST /v1/sites) counts from its promotion run's start, never from the
+    // oldest site: not from its move, which ends that run, or the commits merged while it ran would go uncounted.
+    // ponytail: the run's start is taken as one slot before the move; a run longer than its slot misses a few
     const nightlyBuilt = nightly
         ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
-          nightly.movedAt)
+          nightly.movedAt - FULL_RUN_SLOT)
         : 0;
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);

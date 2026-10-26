@@ -111,8 +111,18 @@ describe("the deploy wait", () => {
         assert.equal(deployState({ runs: [run("completed", "success")], stamp: null, sha: SHA }).ok, true);
         const failed = deployState({ runs: [run("completed", "failure")], stamp: SHA, sha: SHA });
         assert.deepEqual([failed.done, failed.ok], [true, false], "a failed deploy fails even with an old stamp");
-        assert.equal(deployState({ runs: [], stamp: SHA.slice(0, 12), sha: SHA }).ok, true);
-        assert.deepEqual(deployState({ runs: [], stamp: "b".repeat(40), sha: SHA }), { done: false });
+        assert.equal(deployState({ runs: null, stamp: SHA.slice(0, 12), sha: SHA }).ok, true);
+        assert.deepEqual(deployState({ runs: null, stamp: "b".repeat(40), sha: SHA }), { done: false });
+    });
+
+    it("on a re-run, waits for this deploy's run, not the first attempt's stamp", () => {
+        assert.deepEqual(deployState({ runs: [], stamp: SHA, sha: SHA }), { done: false }, "runs readable, none yet");
+        const failed = deployState({ runs: [run("completed", "failure")], stamp: SHA, sha: SHA });
+        assert.equal(failed.ok, false);
+        const other = { ...run("completed", "success"), path: ".github/workflows/lint.yml" };
+        assert.deepEqual(deployState({ runs: [other], stamp: SHA, sha: SHA }), { done: false }, "another workflow");
+        const deploy = { ...run("completed", "success"), path: ".github/workflows/deploy.yml" };
+        assert.equal(deployState({ runs: [other, deploy], stamp: null, sha: SHA }).ok, true);
     });
 
     it("reads the build stamp", () => {

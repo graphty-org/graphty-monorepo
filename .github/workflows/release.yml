@@ -181,6 +181,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: node tools/channel/nightly.mjs stall
 
@@ -721,8 +722,8 @@ jobs:
     # A shadow run opens no issue: it comments once on #3418 (the channels pipeline) and announces nothing.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, version, approve, land]
-        if: ${{ always() && (inputs.mode == 'shadow' || inputs.mode == 'legacy') && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true')))) }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, version, approve, land]
+        if: ${{ always() && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && (needs.version.result != 'success' || (needs.approve.result == 'success' && needs.land.outputs.pushed != 'true'))))) || ((inputs.mode == 'full' || inputs.mode == 'restart') && needs.verdict.outputs.promote == 'true' && (needs.version.result != 'success' || needs.land.outputs.pushed != 'true'))) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         # Pushover for a legacy hold's announcement; a shadow run announces nothing, so it takes no environment
@@ -785,7 +786,9 @@ jobs:
                   what=$(printf '%s, ' "${what[@]}"); what=${what%, }
                   echo "what=${what}" >> "$GITHUB_OUTPUT"
                   title="Release held: ${what} failed on ${SHA:0:7}"
-                  [ "$MODE" = legacy ] || title="Shadow release run: ${what} failed on ${SHA:0:7}"
+                  [ "$MODE" != shadow ] || title="Shadow release run: ${what} failed on ${SHA:0:7}"
+                  # a nightly promotion's own issue, not a train hold: scheduled full runs keep going
+                  [ "$MODE" != full ] && [ "$MODE" != restart ] || title="Nightly promotion failed: ${what} on ${SHA:0:7}"
                   # Each job of this attempt that did not pass: failed, cancelled, or never finished (a job GitHub
                   # never ran stays queued with no conclusion: "none" here, as read collapses an empty tab field).
                   # Not this job, and not the advisory Coverage job.
@@ -800,8 +803,10 @@ jobs:
                       echo
                       if [ "$MODE" = legacy ]; then
                           echo "Nothing was pushed to master and nothing was published. The whole release is held until this is fixed on master. Scheduled runs skip while this issue is open. Name this issue in the fix without closing it (\`Refs #<this issue>\`), then dispatch the release again (\`gh workflow run release.yml --ref master -f mode=legacy\`). A legacy run that lands releases everything at once and closes this issue; one that fails again comments here."
-                      else
+                      elif [ "$MODE" = shadow ]; then
                           echo "A shadow run: it never pushes or publishes, and it holds nothing (release.yml, mode shadow)."
+                      else
+                          echo "The verdict was green-clean and promoted, but versioning or landing did not finish: nothing reached master, npm \`next\` did not move and channel/nightly did not move. Re-run the failed jobs of the run to retry."
                       fi
                       if [ -n "$LLM_OWNER_ITEM" ]; then
                           echo
@@ -833,7 +838,11 @@ jobs:
                       done <<<"$jobs"
                       echo '```'
                   } > "$RUNNER_TEMP/body.md"
-                  if [ "$MODE" = legacy ]; then
+                  if [ "$MODE" = full ] || [ "$MODE" = restart ]; then
+                      open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md" "Nightly promotion failed:")
+                      echo "issue=${open}" >> "$GITHUB_OUTPUT"
+                      echo "::error::nightly promotion: ${what} failed on ${SHA}; nothing was pushed or published (issue ${open})"
+                  elif [ "$MODE" = legacy ]; then
                       open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
                       echo "issue=${open}" >> "$GITHUB_OUTPUT"
                       echo "::error::release held: ${what} failed on ${SHA}; nothing was pushed or published (issue ${open})"
@@ -847,7 +856,7 @@ jobs:
             # step above is announced too. A lost spot runner is not an outcome: its failed jobs are re-run, and that
             # attempt announces its own result. A shadow run is not announced.
             - name: Announce the held release
-              if: ${{ always() && steps.hold.outputs.reclaimed != 'true' && inputs.mode == 'legacy' }}
+              if: ${{ always() && steps.hold.outputs.reclaimed != 'true' && inputs.mode != 'shadow' }}
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
@@ -1541,6 +1550,7 @@ jobs:
               if: ${{ steps.current.outputs.ours == 'true' }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
                   CHANNEL_SHA256: ${{ steps.pack.outputs.channel_sha256 }}
               run: node tools/channel/nightly.mjs record

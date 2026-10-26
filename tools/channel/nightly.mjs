@@ -162,18 +162,25 @@ export function stampOf(html) {
 /**
  * Whether the site's deploy has ended (channels 3: on the deploy report, or on the public stamp).
  * @param o the inputs
- * @param o.runs the site repository's workflow runs for the deployed.json commit (status, conclusion, html_url)
+ * @param o.runs the site repository's workflow runs for the deployed.json commit (status, conclusion, html_url,
+ *     path), or null when they could not be read
  * @param o.stamp the commit the site's build stamp names
  * @param o.sha the candidate
  * @returns `{ done, ok, why }`
  */
 export function deployState({ runs, stamp, sha }) {
-    const finished = (runs ?? []).filter((r) => r.status === "completed");
+    // only the site's deploy workflow; another push workflow there says nothing about the deploy
+    const deploys = (runs ?? []).filter((r) => !r.path || r.path.endsWith("/deploy.yml"));
+    const finished = deploys.filter((r) => r.status === "completed");
     const bad = finished.find((r) => r.conclusion !== "success" && r.conclusion !== "skipped");
     if (bad) return { done: true, ok: false, why: `the site's deploy ended ${bad.conclusion}: ${bad.html_url}` };
     const good = finished.find((r) => r.conclusion === "success");
     if (good) return { done: true, ok: true, why: `the site's deploy passed: ${good.html_url}` };
-    if (stamp && sha.startsWith(stamp)) return { done: true, ok: true, why: `the site's build stamp names ${stamp}` };
+    // the stamp decides only when the runs cannot be read: a re-run's site already carries this commit's stamp from
+    // the first attempt, so with readable runs it waits for this deploy's own run
+    if (runs === null && stamp && sha.startsWith(stamp)) {
+        return { done: true, ok: true, why: `the site's build stamp names ${stamp}` };
+    }
     return { done: false };
 }
 
@@ -326,7 +333,7 @@ async function stallMain(env) {
 
 // One look at the site's deploy: graphty-nightly's runs for the deployed.json commit, and the site's stamp.
 async function lookAtDeploy(env) {
-    let runs = [];
+    let runs = null;
     try {
         runs = JSON.parse(
             gh(

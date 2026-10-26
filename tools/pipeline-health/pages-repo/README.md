@@ -14,8 +14,7 @@ It shows, for the [graphty-monorepo](https://github.com/graphty-org/graphty-mono
 - which data sources are reporting, and when they last did.
 
 Every color is judged on the last hour; the 6-hour and 24-hour views give the context. A gray
-"no data", "not set up" or "too few samples" means the dashboard does not know, not that all is
-well.
+NO DATA, "not set up", "too few" or IDLE means the dashboard does not know, not that all is well.
 
 ## This repository holds only the built page
 
@@ -32,8 +31,19 @@ deploy.
 - Report a problem or ask a question in
   [graphty-monorepo's issues](https://github.com/graphty-org/graphty-monorepo/issues).
 
-The page holds no data of its own: it reads the public pipeline health API when it loads and every
-60 seconds after.
+## Where the data comes from
+
+The page holds no data of its own: it reads the public, read-only pipeline health API (on AWS) when it
+loads and every 60 seconds after, and says so in red when the data is over 15 minutes old. The API is
+filled by:
+
+- a collector that reads GitHub every 5 minutes (workflow runs, jobs, pull requests, issues, release
+  lanes), npm hourly and the billing lines daily;
+- graphty-monorepo's CI, which posts its test results and timings;
+- a collector on the maintainers' machine, which posts its local test runs.
+
+The API, the MCP server for agents and the collectors are documented in
+[`tools/pipeline-health/README.md`](https://github.com/graphty-org/graphty-monorepo/blob/master/tools/pipeline-health/README.md).
 
 ## License
 

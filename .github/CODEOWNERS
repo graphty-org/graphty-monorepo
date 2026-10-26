@@ -128,3 +128,4 @@
 /webgpu-graph-algorithms/scripts/runner-class.js @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/warp-guard-verdict.sh @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/warp-question.sh @graphty-org/code-owners
+/tools/pipeline-health/web/vite.config.ts @graphty-org/code-owners

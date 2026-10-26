@@ -2,9 +2,9 @@
  * The pipeline health page: hash routing, loading from the health API (or the fixtures), a refresh
  * every 60 s, and the banners for fixture data, stale data and an API that did not answer.
  *
- * Data source: `VITE_HEALTH_API` at build time is the API base (https://...). When it is unset, or
- * the URL has `?fixtures` (`?fixtures=gray`, `?fixtures=stale` pick a scenario), the page reads
- * web/fixtures/*.json instead and says so in a FIXTURE DATA banner.
+ * Data source: `VITE_HEALTH_API_URL` at build time is the API base (https://...; default the live
+ * API). When the URL has `?fixtures` (`?fixtures=gray`, `?fixtures=stale` pick a scenario), the page
+ * reads web/fixtures/*.json instead and says so in a FIXTURE DATA banner.
  */
 import "./style.css";
 
@@ -22,9 +22,10 @@ import {
 import { type Here, nav, overviewView, pageView, setHere, stateWord, testView } from "./render";
 import { clock, esc, fmtDur, fmtTime } from "./text";
 
-const API = (import.meta.env.VITE_HEALTH_API as string | undefined)?.replace(/\/$/, "");
+const DEFAULT_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
+const API = ((import.meta.env.VITE_HEALTH_API_URL as string | undefined) || DEFAULT_API).replace(/\/$/, "");
 const search = new URLSearchParams(location.search);
-const FIXTURE = !API || search.has("fixtures");
+const FIXTURE = search.has("fixtures");
 const SCENARIO = search.get("fixtures") ?? "";
 /** In fixture mode the clock is the data's time plus this, so the page reads as the mockup does. */
 const FIXTURE_OFFSET_MS = (SCENARIO === "stale" ? 20 : 2) * 60_000;
@@ -158,10 +159,12 @@ let last: Loaded | null = null;
 
 function banners(error: string | null): string {
     const out: string[] = [];
-    if (FIXTURE)
+    if (FIXTURE) {
+        const scenario = SCENARIO ? " (scenario " + esc(SCENARIO) + ")" : "";
         out.push(
-            `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${SCENARIO ? ` (scenario ${esc(SCENARIO)})` : ""}, not the live pipeline.${API ? " Remove ?fixtures from the URL for live data." : " This build has no VITE_HEALTH_API."}</div>`,
+            `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${scenario}, not the live pipeline. Remove ?fixtures from the URL for live data.</div>`,
         );
+    }
     if (error)
         out.push(
             `<div class="banner stale" role="alert"><b>The health API did not answer</b> (${esc(error)}).${last ? ` Showing the data from ${fmtTime(last.generated)} UTC.` : ""}</div>`,

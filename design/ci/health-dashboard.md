@@ -856,7 +856,7 @@ own accounts. What was decided, and what is still the owner's to do:
    members of Costs. Until they exist those members are not set up and out of the status. The
    Sentry money line also needs the plan's monthly price in `config/rates.json`, which only the
    owner knows; until then it shows NO DATA.
-5. **Alarm email: subscribed, waiting for confirmation.** The address is the owner's choice and is
-   kept out of the repository: the owner subscribes it to the SNS topic `graphty-health-alarms`
-   with `tmp/health-alarm-email.sh <address>` (done), then clicks the confirmation link AWS emails.
-   Until that click the dead-man alarm and the Budget notifications reach nobody.
+5. **Alarm email: subscribed and confirmed.** The address is the owner's choice and is kept out of
+   the repository: the owner subscribed it to the SNS topic `graphty-health-alarms` with
+   `tmp/health-alarm-email.sh <address>`, and the subscription was confirmed on 2026-10-26 at
+   01:11Z, so the dead-man alarm and the Budget notifications reach the owner.

@@ -372,10 +372,13 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     const inv = ownId(b.invocation, who);
     const failures = b.failures === undefined ? [b] : list(b.failures, "failures");
     // The shard run, when it was posted first, gives the family and whether it passed (then these are flaky).
+    // `flaky: true` is the CI writer's own verdict (tools/results/run-group.mjs): these failed, then passed on the
+    // retry, whatever the retry's other tests did.
     const runs = (await db.query(`R#shard_run#${inv}`)) as unknown as ShardRunItem[];
     const run = runs.at(-1);
     const family = run?.family ?? familyOf(inv.split(".").slice(2).join("."));
-    const items = failures.map((f) => testItem(inv, f, family, "ci", run?.outcome === "passed", run?.endedAt ?? now));
+    const flaky = b.flaky === true || run?.outcome === "passed";
+    const items = failures.map((f) => testItem(inv, f, family, "ci", flaky, run?.endedAt ?? now));
     return { items, extra: invTests(inv, items, now) };
 }
 

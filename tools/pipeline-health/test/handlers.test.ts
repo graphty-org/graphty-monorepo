@@ -302,6 +302,27 @@ describe("ingest: what it stores", () => {
         expect(fold(mem.items.get("R#shard_run#500.1.x\u0000A#1"))).toBeNull();
     });
 
+    it("marks failures flaky when the CI writer says so, whatever the shard's outcome", async () => {
+        const h = await ingest();
+        // tools/results/run-group.mjs posts test-quarantine.mjs's flaky verdict for try 1, before or after its record.
+        const body = {
+            invocation: "500.1.test.compact-mantine.1",
+            flaky: true,
+            failures: [{ file: "c.ts", name: "u", message: "boom" }],
+        };
+        expect((await h(event("/v1/failures", body))).statusCode).toBe(200);
+        const id = "R#test#500.1.test.compact-mantine.1#c.ts#u\u0000A#1";
+        expect(mem.items.get(id)).toMatchObject({ outcome: "flaky", source: "ci", file: "c.ts", name: "u" });
+        // try 1's own record, a failed run with the same failure, never turns it back to failed
+        const try1 = invocation({
+            id: "500.1.test.compact-mantine.1",
+            variant: "compact-mantine",
+            failures: body.failures,
+        });
+        await h(event("/v1/invocations", try1));
+        expect(mem.items.get(id)?.outcome).toBe("flaky");
+    });
+
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
         // As the CI writers send them: each try under its own id, `<base>.<try>`; try 1 failed, try 2 passed.

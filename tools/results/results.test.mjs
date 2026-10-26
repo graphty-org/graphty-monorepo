@@ -24,6 +24,7 @@ import {
     baseId,
     fileIssues,
     junitOf,
+    postFlaky,
     postRecords,
     prJudge,
     recordsOf,
@@ -903,6 +904,29 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a shard's flaky tests to the health API only, as try 1's failures marked flaky", async () => {
+        const s = await serve();
+        const h = await serveHealth();
+        const cfg = config(healthEnv(s.url, h.url));
+        postFlaky(cfg, "9.1.test.x", []);
+        postFlaky(null, "9.1.test.x", [{ file: "a.ts", name: "t", excerpt: "e" }]);
+        postFlaky(cfg, "9.1.test.x", [
+            { file: "a.ts", name: "t", excerpt: "boom" },
+            { file: "b.ts", name: "u" },
+        ]);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/failures");
+        assert.deepEqual(post.body, {
+            invocation: "9.1.test.x.1",
+            flaky: true,
+            failures: [
+                { file: "a.ts", name: "t", message: "boom" },
+                { file: "b.ts", name: "u", message: "" },
+            ],
+        });
+        assert.equal(s.seen.length, 0);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

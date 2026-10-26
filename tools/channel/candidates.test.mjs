@@ -46,6 +46,18 @@ describe("listCandidates", () => {
         assert.equal((await listCandidates(async (path) => inherited[path]))[0].waiting, false);
     });
 
+    it("offers only the held head while nightly is held, and nothing until that head is green-images", async () => {
+        const recent = [
+            { sha: "e".repeat(40), state: "green-images", runId: 50, at: 5000 },
+            { sha: "d".repeat(40), state: "green-images", runId: 40, at: 4000 },
+        ];
+        const held = (head) => async (path) =>
+            path === "/v1/candidate" ? { recent, hold: { head, issue: 9 } } : answers[path];
+        const waiting = async (head) => (await listCandidates(held(head))).filter((c) => c.waiting).map((c) => c.runId);
+        assert.deepEqual(await waiting("e".repeat(40)), [50], "the held head, not the older green-images run");
+        assert.deepEqual(await waiting("f".repeat(40)), [], "a held head not judged yet offers nothing");
+    });
+
     it("works before the first nightly", async () => {
         const none = async (path) => (path === "/v1/release-state" ? { nightly: null } : answers[path]);
         assert.equal((await listCandidates(none))[0].promoted, false);

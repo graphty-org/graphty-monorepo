@@ -513,11 +513,13 @@ export function mediansByKey(run, rows, byStoreKey) {
     );
 }
 
-// Master's own runs are kind full in the store (the Worker sets it from master's ci.yml and release.yml).
+// The baseline a run is compared with: master's own push of ci.yml (a build, stored as kind master) for ci.yml,
+// the full run (kind full) for the workflows it runs.
 async function storeMedians(run, rows) {
     const cfg = config();
     if (!cfg) return {};
-    const q = new URLSearchParams({ workflows: basename(run.path ?? "ci.yml"), kind: "full", n: "10" });
+    const workflow = basename(run.path ?? "ci.yml");
+    const q = new URLSearchParams({ workflows: workflow, kind: workflow === "ci.yml" ? "master" : "full", n: "10" });
     const r = await call(cfg, "GET", `/v1/durations/medians?${q}`, undefined, 10_000);
     if (!r.ok) throw new Error(`GET /v1/durations/medians: ${r.why}`);
     return mediansByKey(run, rows, r.data ?? {});
@@ -554,9 +556,9 @@ async function sendRows(run, rows, evals) {
     return r.data;
 }
 
-// The run kinds whose trend alarms file issues: master's own runs (ci.yml on master, the full run and its lanes),
-// which the store records as kind full. A pull request only gets its comment.
-const ISSUE_KINDS = new Set(["full"]);
+// The run kinds whose trend alarms file issues: master's own runs, its build-only push of ci.yml (kind master) and
+// the full run and its lanes (kind full), each judged against its own kind. A pull request only gets its comment.
+const ISSUE_KINDS = new Set(["master", "full"]);
 
 const KIND_OF_EVENT = { pull_request: "pr", push: "master", workflow_dispatch: "dispatch" };
 

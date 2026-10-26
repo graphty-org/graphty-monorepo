@@ -395,17 +395,33 @@ export function storyFiles(index, root) {
 /**
  * The files --stories may break: the package's source and story files (never its tests, docs or Storybook
  * setup, which runs every story: stories.projectGlobal), and the source of every workspace package it depends
- * on, since a story can draw with a dependency no test of the package reaches.
+ * on, directly or through another (a story can draw with a dependency no test of the package reaches), and of
+ * the packages that draw the project (stories.drawnBy) and their dependencies.
  * @param wt the scratch worktree
  * @param pkg the package
+ * @param drawnBy packages that draw the project's stories beside pkg (stories.drawnBy)
  * @returns repo-relative paths
  */
-export function storyCandidates(wt, pkg) {
-    const manifest = JSON.parse(readFileSync(join(wt, pkg, "package.json"), "utf8"));
-    const deps = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies, ...manifest.peerDependencies })
-        .filter((d) => d.startsWith("@graphty/"))
-        .map((d) => d.slice("@graphty/".length))
-        .filter((d) => d !== pkg && existsSync(join(wt, d, "package.json")));
+export function storyCandidates(wt, pkg, drawnBy = []) {
+    const directDeps = (p) => {
+        const m = JSON.parse(readFileSync(join(wt, p, "package.json"), "utf8"));
+        return Object.keys({ ...m.dependencies, ...m.devDependencies, ...m.peerDependencies })
+            .filter((d) => d.startsWith("@graphty/"))
+            .map((d) => d.slice("@graphty/".length))
+            .filter((d) => existsSync(join(wt, d, "package.json")));
+    };
+    const seen = new Set([pkg]);
+    const queue = [pkg, ...drawnBy.filter((d) => existsSync(join(wt, d, "package.json")))];
+    queue.forEach((d) => seen.add(d));
+    for (let i = 0; i < queue.length; i++) {
+        for (const d of directDeps(queue[i])) {
+            if (!seen.has(d)) {
+                seen.add(d);
+                queue.push(d);
+            }
+        }
+    }
+    const deps = [...seen].filter((d) => d !== pkg);
     const story = (f) => STORY_SIDE.test(f) && !/\/\.storybook\//u.test(f);
     return execFileSync("git", ["ls-files", "--", pkg, ...deps], { cwd: wt, encoding: "utf8" })
         .split("\n")
@@ -431,12 +447,17 @@ async function storyMutant(c, n, f) {
         changed: [f],
         everything: change.everything,
         shards: c.SHARDS,
-        selection: change.shards,
+        selection: measuredOf(change.shards),
         rules: c.rules,
         lockMoved: false,
     }).find((p) => p.project === c.project);
     const what = sel.mode === "files" ? sel.files.length + " story file(s)" : sel.mode;
     log(`Mutant ${n}: ${f}: ${what}`);
+    if (sel.mode === "all") {
+        // every story runs, so nothing can be missed: not a test of the selector, and not worth a build
+        log("  SKIPPED: the selection runs every story");
+        return { misses: 0, inconclusive: 0, checked: 0 };
+    }
     const original = readFileSync(join(c.wt, f));
     writeFileSync(join(c.wt, f), mutant(f, original.toString("utf8")));
     let broken;
@@ -449,8 +470,12 @@ async function storyMutant(c, n, f) {
         log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
         return { misses: 0, inconclusive: 0, checked: 0 };
     }
-    // a capture that cannot run at all (the Storybook does not load) changes every story
-    const changed = broken ? c.changedIds(c.ref, broken) : [...c.fileOf.keys()].sort();
+    if (!broken) {
+        // a capture can fail for reasons that are not the mutant's (the browser, the slot), so it proves nothing
+        log("  INCONCLUSIVE: the broken Storybook could not be captured");
+        return { misses: 0, inconclusive: 1, checked: 1 };
+    }
+    const changed = c.changedIds(c.ref, broken);
     const missed = storiesMissed(changed, sel, (id) => c.fileOf.get(id));
     let found = [];
     if (missed.length > 0) {
@@ -554,7 +579,7 @@ async function storiesMain(project, opt) {
         return 2;
     }
     log(`${ref.items.length} captures of ${fileOf.size} stories`);
-    const candidates = storyCandidates(wt, pkg);
+    const candidates = storyCandidates(wt, pkg, rules.drawnBy?.[project] ?? []);
     const given = opt("--files", null);
     const picked = given
         ? given.split(",")

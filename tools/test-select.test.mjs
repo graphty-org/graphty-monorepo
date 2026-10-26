@@ -851,6 +851,19 @@ describe("mutation testing of the selection", () => {
         assert.ok(!has(/^graph-samples\/(?!src\/)/u), "only a dependency's source");
     });
 
+    it("--stories: follows dependencies through other packages and adds the packages that draw the project", () => {
+        const app = storyCandidates(ROOT, "graphty");
+        assert.ok(
+            app.some((f) => f.startsWith("algorithms/src/")) && app.some((f) => f.startsWith("layout/src/")),
+            "graphty-element's dependencies",
+        );
+        const fidelity = storyCandidates(ROOT, "graph-io", ["graph-io", "graphty-element"]);
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/src/")),
+            "a drawnBy package's source",
+        );
+    });
+
     it("gives runs with different names their own worktree and report", () => {
         const a = runPaths("/r", "graph-io", null);
         const b = runPaths("/r", "layout", null);

@@ -251,7 +251,11 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "invocations":
             return { ...(await invocationItems(body, who, db, now)), source: "ci-results" };
         case "failures":
-            return { ...(await failureItems(body, who, db, now)), source: "ci-results" };
+            // CI's flaky detections (tools/test-quarantine.mjs) are the flaky feed's own source on the Data sources page
+            return {
+                ...(await failureItems(body, who, db, now)),
+                source: body.flaky === true ? "flaky-feed" : "ci-results",
+            };
         case "durations":
             // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
             return {
@@ -372,10 +376,14 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     const inv = ownId(b.invocation, who);
     const failures = b.failures === undefined ? [b] : list(b.failures, "failures");
     // The shard run, when it was posted first, gives the family and whether it passed (then these are flaky).
+    // `flaky: true` is the CI writer's own verdict (tools/test-quarantine.mjs): these failed, then passed on the
+    // retry, whatever the retry's other tests did. It names the shard's family, which its id alone does not give.
     const runs = (await db.query(`R#shard_run#${inv}`)) as unknown as ShardRunItem[];
     const run = runs.at(-1);
-    const family = run?.family ?? familyOf(inv.split(".").slice(2).join("."));
-    const items = failures.map((f) => testItem(inv, f, family, "ci", run?.outcome === "passed", run?.endedAt ?? now));
+    const named = typeof b.family === "string" && b.family !== "" ? b.family : undefined;
+    const family = run?.family ?? named ?? familyOf(inv.split(".").slice(2).join("."));
+    const flaky = b.flaky === true || run?.outcome === "passed";
+    const items = failures.map((f) => testItem(inv, f, family, "ci", flaky, run?.endedAt ?? now));
     return { items, extra: invTests(inv, items, now) };
 }
 

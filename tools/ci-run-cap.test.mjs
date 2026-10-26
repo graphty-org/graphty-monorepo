@@ -5,7 +5,13 @@ import { test } from "node:test";
 
 import { earlierActive, MAX_WAIT_MINUTES, parseCap, POLL_SECONDS, waitTurn } from "./ci-run-cap.mjs";
 
-const run = (id, created_at, status, event = "pull_request") => ({ id, event, status, created_at });
+const run = (id, started, status, event = "pull_request") => ({
+    id,
+    event,
+    status,
+    created_at: started,
+    run_started_at: started,
+});
 const ME = run(40268423520, "2026-10-26T04:18:51Z", "in_progress");
 
 // a fake API that answers each path from a table, and a fake clock that advances on sleep
@@ -15,11 +21,14 @@ function fake({ ci, release = [], jobs = {} }) {
     const api = async (path) => {
         calls.push(path);
         if (path === `actions/runs/${ME.id}`) return ME;
-        if (path.startsWith("actions/workflows/ci.yml/runs"))
-            return { workflow_runs: typeof ci === "function" ? ci(t) : ci };
+        if (path.startsWith("actions/workflows/ci.yml/runs")) {
+            const status = /status=(\w+)/.exec(path)[1];
+            const runs = typeof ci === "function" ? ci(t) : ci;
+            return { workflow_runs: runs.filter((r) => r.status === status) };
+        }
         if (path.startsWith("actions/workflows/release.yml/runs")) return { workflow_runs: release };
         const m = /^actions\/runs\/(\d+)\/jobs/.exec(path);
-        if (m) return { jobs: jobs[m[1]] ?? [] };
+        if (m) return { jobs: jobs[m[1]] ?? [], total_count: (jobs[m[1]] ?? []).length };
         throw new Error(`unexpected ${path}`);
     };
     return { api, calls, sleep: async (ms) => void (t += ms), now: () => t, log: () => {} };
@@ -48,15 +57,12 @@ test("earlierActive counts only earlier, active pull request runs", () => {
     );
 });
 
-test("proceeds at once under the cap, with one runs call per check", async () => {
+test("proceeds at once under the cap, with one listing per status", async () => {
     const f = fake({ ci: [ME, run(1, "2026-10-26T04:00:00Z", "in_progress")] });
     const r = await waitTurn({ cap: 2, runId: ME.id, ...f });
     assert.deepEqual(r, { waitedSeconds: 0, outcome: "proceeded", checks: 1 });
-    assert.equal(f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml")).length, 1);
-    assert.match(
-        f.calls[1],
-        /event=pull_request&status=in_progress&per_page=100&created=2026-10-26T01:18:51Z\.\.2026-10-26T04:18:51Z/,
-    );
+    assert.equal(f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml")).length, 2);
+    assert.match(f.calls[1], /event=pull_request&status=in_progress&per_page=100$/);
 });
 
 test("waits while the cap is full, polling every POLL_SECONDS, until an earlier run finishes", async () => {

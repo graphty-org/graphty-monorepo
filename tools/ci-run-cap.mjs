@@ -23,9 +23,6 @@ export const POLL_SECONDS = 60;
 const MAX_POLL_SECONDS = 300;
 export const MIN_RATE_LEFT = 300;
 export const MAX_WAIT_MINUTES = 25;
-// how far back to look for earlier runs: longer than any pull request run's wait plus its work
-const LOOKBACK_HOURS = 3;
-// in_progress listings stay small, and a queued run holds no runner
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
 const HOSTED = /^(ubuntu|windows|macos)-/;
 
@@ -46,10 +43,11 @@ export function parseCap(raw) {
  * @returns the earlier active runs
  */
 export function earlierActive(me, runs) {
-    const mine = Date.parse(me.created_at);
+    // a run's place is its current attempt's start, so a re-run of an old run queues like a new one
+    const mine = Date.parse(me.run_started_at ?? me.created_at);
     return runs.filter((r) => {
         if (r.id === me.id || r.event !== "pull_request" || !ACTIVE.has(r.status)) return false;
-        const t = Date.parse(r.created_at);
+        const t = Date.parse(r.run_started_at ?? r.created_at);
         return t < mine || (t === mine && r.id < me.id);
     });
 }
@@ -73,25 +71,29 @@ export async function releaseWaiting(runs, jobsOf) {
 /**
  * One check: why this run must wait, or null to proceed.
  * @param ctx the check's inputs
- * @param ctx.me this run ({ id, created_at })
+ * @param ctx.me this run ({ id, run_started_at })
  * @param ctx.cap the cap
  * @param ctx.api path -> parsed JSON of a GET under the repository
  * @returns null to proceed, else why it waits and how many places it is from its turn
  */
 export async function check({ me, cap, api }) {
-    const from = new Date(Date.parse(me.created_at) - LOOKBACK_HOURS * 3600e3).toISOString().slice(0, 19);
-    const ci = await api(
-        `actions/workflows/ci.yml/runs?event=pull_request&status=in_progress&per_page=100&created=${from}Z..${me.created_at}`,
-    );
-    const ahead = earlierActive(me, ci.workflow_runs);
+    // two small listings (active runs only), the second only when the first leaves room
+    const list = async (status) =>
+        (await api(`actions/workflows/ci.yml/runs?event=pull_request&status=${status}&per_page=100`)).workflow_runs;
+    let ahead = earlierActive(me, await list("in_progress"));
+    if (ahead.length < cap) ahead = ahead.concat(earlierActive(me, await list("queued")));
     if (ahead.length >= cap)
         return { why: `${ahead.length} earlier pull request runs active (cap ${cap})`, places: ahead.length - cap + 1 };
     const rel = await api("actions/workflows/release.yml/runs?per_page=10");
     const active = rel.workflow_runs.filter((r) => ACTIVE.has(r.status));
-    const waiting = await releaseWaiting(
-        active,
-        async (id) => (await api(`actions/runs/${id}/jobs?per_page=100&filter=latest`)).jobs,
-    );
+    const waiting = await releaseWaiting(active, async (id) => {
+        const jobs = [];
+        for (let page = 1; ; page++) {
+            const r = await api(`actions/runs/${id}/jobs?per_page=100&filter=latest&page=${page}`);
+            jobs.push(...r.jobs);
+            if (r.jobs.length < 100 || jobs.length >= r.total_count) return jobs;
+        }
+    });
     return waiting ? { why: `release run ${waiting} is waiting for runners`, places: 1 } : null;
 }
 
@@ -122,7 +124,8 @@ export async function waitTurn({ cap, api, runId, sleep, now = Date.now, log = c
                 return { waitedSeconds: waited, outcome: "gave up waiting", checks };
             }
             log(`waiting: ${turn.why}`);
-            await sleep(Math.min(turn.places * POLL_SECONDS, MAX_POLL_SECONDS) * 1000);
+            const left = MAX_WAIT_MINUTES * 60 - waited;
+            await sleep(Math.max(POLL_SECONDS, Math.min(turn.places * POLL_SECONDS, MAX_POLL_SECONDS, left)) * 1000);
         }
     } catch (e) {
         log(`::warning::Run cap: ${e.message}; proceeding without waiting further`);

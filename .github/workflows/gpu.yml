@@ -304,6 +304,8 @@ jobs:
             contents: read
             actions: read
             id-token: write
+            # the trend alarm issues of master's runs (tools/ci-budgets.mjs report)
+            issues: write
         steps:
             - uses: actions/checkout@v4
               with:

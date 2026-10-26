@@ -315,9 +315,10 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     const since = Number((await c.cursor("unassigned-since")) ?? 0);
     const start = unassigned ? since || c.now : 0;
     await setCursor(c.d.store, "unassigned-since", String(start), c.now);
-    c.o("ci.running", use.running.linux_windows);
+    // The Runners page's jobs chart (views/sections.ts `jobs`): jobs against the 60-job limit, and jobs waiting.
+    c.o("ci.jobs_running", use.running.linux_windows);
     c.o("ci.running_macos", use.running.macos);
-    c.o("ci.queued", use.queued);
+    c.o("ci.jobs_queued", use.queued);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);

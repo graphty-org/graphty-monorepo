@@ -8,7 +8,7 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "synth": "cdk synth --quiet",
-        "backfill": "esbuild src/collector/backfill.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/backfill.mjs && node dist/backfill.mjs",
+        "backfill": "esbuild src/collector/backfill-cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/backfill.mjs && node dist/backfill.mjs",
         "deploy": "cdk deploy --profile graphty --require-approval never"
     },
     "dependencies": {

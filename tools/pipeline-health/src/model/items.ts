@@ -12,6 +12,10 @@
 //   QUOTA#<day>         -              rows ingested on a UTC day (the daily write budget)
 //   CURSOR#<name>       -              a collector's position (newest run seen, and so on)
 //   META#source#<id>    -              a source's last write, last error and first write
+//   RUN#<run id>        run#<attempt> | job#<job id>#<attempt>
+//                                      a run's attempts and jobs, for GET /v1/run/<id>
+//   TESTH#<file>        <seenAt>#<test id>#<attempt>
+//                                      a file's failed and flaky tests by time, for GET /v1/test-history
 
 import type { Histogram } from "./histogram.js";
 import type { Item } from "./store.js";
@@ -250,6 +254,14 @@ export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: stri
     pk: `T#${skTime(floorTo(at, "5m"))}`,
     sk: `${r.kind}#${field}#${r.id}#${r.attempt}`,
 });
+
+/** The index copies of a raw item (drill-downs read them), or none for kinds no drill-down indexes. */
+export function indexKeys(r: RawItem): Item[] {
+    if (r.kind === "run") return [{ pk: `RUN#${r.runId}`, sk: `run#${r.attempt}` }];
+    if (r.kind === "job") return [{ pk: `RUN#${r.runId}`, sk: `job#${r.id.split("/").pop()}#${r.attempt}` }];
+    if (r.kind === "test") return [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
+    return [];
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Rollups.

@@ -10,6 +10,7 @@ import {
     dirtyKey,
     floorTo,
     homeKey,
+    indexKeys,
     KEEP_DAYS,
     quotaKey,
     type RawItem,
@@ -74,6 +75,11 @@ function writesFor(r: RawItem, old: RawItem | undefined, nowMs: number, dirty: S
     const first = times.length ? Math.min(...times.map(([, t]) => t)) : nowMs;
     const body = { ...r, ...(keep === undefined ? {} : { ttl: ttlAt(first + keep * DAY) }) };
     const ops: BatchOp[] = [{ put: { ...body, ...homeKey(r) } }];
+    // Index copies: one whose key changed (a test seen at another time) is removed first.
+    const fresh = indexKeys(r);
+    for (const k of old ? indexKeys(old) : [])
+        if (!fresh.some((f) => f.pk === k.pk && f.sk === k.sk)) ops.push({ delete: k });
+    for (const k of fresh) ops.push({ put: { ...body, ...k } });
     const now = new Map(times);
     for (const [f, t] of old ? timesOf(old) : []) {
         const moved = now.get(f);

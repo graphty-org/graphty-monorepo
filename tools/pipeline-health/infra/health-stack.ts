@@ -55,13 +55,21 @@ export class HealthStack extends Stack {
             removalPolicy: RemovalPolicy.RETAIN,
         });
 
-        const fn = (name: string, reserved: number, timeout: number, memorySize = 256): NodejsFunction => {
+        const fn = (
+            name: string,
+            reserved: number,
+            timeout: number,
+            memorySize = 256,
+            entry = name.toLowerCase(),
+            functionName?: string,
+        ): NodejsFunction => {
             const logGroup = new logs.LogGroup(this, `${name}Logs`, {
                 retention: logs.RetentionDays.TWO_WEEKS,
                 removalPolicy: RemovalPolicy.DESTROY,
             });
             const f = new NodejsFunction(this, name, {
-                entry: `${root}src/handlers/${name.toLowerCase()}.ts`,
+                entry: `${root}src/handlers/${entry}.ts`,
+                functionName,
                 projectRoot: root,
                 depsLockFilePath: `${root}pnpm-lock.yaml`,
                 runtime: lambda.Runtime.NODEJS_22_X,
@@ -100,6 +108,10 @@ export class HealthStack extends Stack {
         table.grantReadWriteData(ingest);
         table.grantReadData(read);
         table.grantReadWriteData(collector);
+        // The four-week backfill (section 10.4): the collector's code invoked by hand with {"mode":"backfill"}, in
+        // 15-minute slices that resume from a cursor, so it never holds up the scheduled cycle's one slot.
+        const backfill = fn("Backfill", 1, 900, 512, "collector", "graphty-health-backfill");
+        table.grantReadWriteData(backfill);
 
         // HTTP API: public reads, CI writes behind the GitHub OIDC JWT authorizer, local writes
         // checked by the ingest Lambda's own token comparison.
@@ -213,7 +225,7 @@ export class HealthStack extends Stack {
             description: "Attached by the graphty-health Budget action at 100% of the monthly budget",
             statements: [new iam.PolicyStatement({ effect: iam.Effect.DENY, actions: ["*"], resources: ["*"] })],
         });
-        const roles = [ingest, read, collector].map((f) => f.role as iam.IRole);
+        const roles = [ingest, read, collector, backfill].map((f) => f.role as iam.IRole);
         const actionRole = new iam.Role(this, "BudgetActionRole", {
             assumedBy: new iam.ServicePrincipal("budgets.amazonaws.com", {
                 conditions: { StringEquals: { "aws:SourceAccount": this.account } },

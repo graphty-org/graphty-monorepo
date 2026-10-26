@@ -27,7 +27,7 @@ describe("health stack", () => {
         });
     });
 
-    it("reserves concurrency 20 / 5 / 1 on arm64 Node 22 with the right timeouts", () => {
+    it("reserves concurrency 20 / 5 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
         const fns = Object.values(t.findResources("AWS::Lambda::Function")).map((r) => r.Properties);
         const shapes = fns
             .map((p) => [p.ReservedConcurrentExecutions, p.Timeout, p.Runtime, p.Architectures[0]])
@@ -36,12 +36,13 @@ describe("health stack", () => {
             [20, 28, "nodejs22.x", "arm64"],
             [5, 10, "nodejs22.x", "arm64"],
             [1, 60, "nodejs22.x", "arm64"],
+            [1, 900, "nodejs22.x", "arm64"],
         ]);
     });
 
     it("keeps logs 14 days", () => {
         const groups = Object.values(t.findResources("AWS::Logs::LogGroup"));
-        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14]);
+        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14]);
     });
 
     it("checks CI writes with the GitHub OIDC issuer and audience", () => {
@@ -107,7 +108,7 @@ describe("health stack", () => {
         const action = Object.values(t.findResources("AWS::Budgets::BudgetsAction"))[0].Properties;
         expect(action.ActionType).toBe("APPLY_IAM_POLICY");
         expect(action.ActionThreshold).toEqual({ Type: "PERCENTAGE", Value: 100 });
-        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(3);
+        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(4);
         t.hasResourceProperties("AWS::IAM::ManagedPolicy", {
             PolicyDocument: { Statement: [{ Effect: "Deny", Action: "*", Resource: "*" }], Version: "2012-10-17" },
         });

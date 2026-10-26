@@ -4,10 +4,12 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import rates from "../../config/rates.json" with { type: "json" };
 import slas from "../../config/slas.json" with { type: "json" };
 import { costExplorerDaily, ssmGetParams } from "../collector/aws.js";
+import { backfill, backfillRepos, type BackfillReport } from "../collector/backfill.js";
 import { collect, type CycleReport } from "../collector/collect.js";
 import { GitHub, installationToken, readAppConfig } from "../collector/github.js";
 import type { Rates } from "../collector/parse.js";
 import { dynamoStore } from "../dynamo.js";
+import { recompute } from "../model/rollup.js";
 import { recomputeAll } from "../recompute.js";
 
 const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -20,7 +22,16 @@ const awsCosts = costExplorerDaily();
  * parameters in SSM it collects nothing from GitHub, and the GitHub sources stay "not set up" on Data sources.
  * @returns the time of this run and what the cycle did
  */
-export async function handler(): Promise<{ lastRun: string } & CycleReport> {
+export function handler(event?: Record<string, never>): Promise<{ lastRun: string } & CycleReport>;
+export function handler(
+    event: BackfillEvent,
+    context?: { getRemainingTimeInMillis(): number },
+): Promise<BackfillResult>;
+export async function handler(
+    event?: Partial<BackfillEvent>,
+    context?: { getRemainingTimeInMillis(): number },
+): Promise<({ lastRun: string } & CycleReport) | BackfillResult> {
+    if (event?.mode === "backfill") return runBackfill(event as BackfillEvent, context);
     const now = Date.now();
     const lastRun = new Date(now).toISOString();
     await doc.send(
@@ -46,4 +57,55 @@ export async function handler(): Promise<{ lastRun: string } & CycleReport> {
     const rolled = await recomputeAll(store, Date.now());
     console.log(JSON.stringify({ lastRun, ...report, ...rolled }));
     return { lastRun, ...report };
+}
+
+/** The invocation payload of the four-week backfill (design section 10.4). */
+export interface BackfillEvent {
+    mode: "backfill";
+    days?: number;
+    perHour?: number;
+}
+
+export type BackfillResult =
+    | ({ mode: "backfill"; recomputed: number; dirtyLeft: boolean } & BackfillReport)
+    | { mode: "backfill"; error: "github_app_not_set_up" };
+
+/**
+ * One slice of the backfill: loads from its cursor until 90 s before the timeout, then recomputes dirty buckets
+ * until 30 s before it. Invoke again while `done` is false; the scheduled collector drains what is left dirty.
+ */
+async function runBackfill(
+    event: BackfillEvent,
+    context?: { getRemainingTimeInMillis(): number },
+): Promise<BackfillResult> {
+    const start = Date.now();
+    const end = start + (context?.getRemainingTimeInMillis() ?? 60_000);
+    const app = await readAppConfig(getParams);
+    if (!app) return { mode: "backfill", error: "github_app_not_set_up" };
+    const gh = new GitHub(() => installationToken(app, fetch, Date.now()));
+    const store = dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
+    const repo = "graphty-org/graphty-monorepo";
+    const report = await backfill({
+        store,
+        gh,
+        repos: await backfillRepos(gh, "graphty-org", repo, start),
+        repo,
+        days: Math.min(event.days ?? 28, 28),
+        perHour: event.perHour ?? 2000,
+        now: start,
+        deadline: end - 90_000,
+    });
+    let recomputed = 0;
+    let dirtyLeft = true;
+    while (Date.now() < end - 30_000) {
+        const r = await recompute(store, Date.now());
+        recomputed += r.buckets;
+        if (r.buckets === 0) {
+            dirtyLeft = false;
+            break;
+        }
+    }
+    const out: BackfillResult = { mode: "backfill", ...report, recomputed, dirtyLeft };
+    console.log(JSON.stringify(out));
+    return out;
 }

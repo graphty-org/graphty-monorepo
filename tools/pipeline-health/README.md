@@ -290,11 +290,20 @@ No webhooks and no write permission.
 
 ### Backfill
 
-`pnpm run backfill` loads the last 28 days of runs and jobs (every attempt), pull requests and issues into
-the table, at most 3,000 GitHub requests an hour, and marks the range's buckets for recompute. It is
-resumable: a cursor per repository holds the last finished day, so running it again continues. It needs
-the App's parameters in SSM and the AWS profile `graphty`:
+The backfill loads the last 28 days of runs and jobs (every attempt), pull requests and issues into the
+table through the collector's own writers, and marks the range's buckets for recompute. It needs the
+GitHub App's parameters in SSM. Run it as the `graphty-health-backfill` Lambda, which works in 15-minute
+slices:
 
 ```bash
-AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill -- --days 28 --per-hour 3000
+aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
+    --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
 ```
+
+Each slice answers `{"done": false, "stopped": "deadline"}` until the range is loaded; invoke it again and it
+continues from its cursor (the next day and page, kept in the table), so a timeout loses nothing. It makes at
+most 2,000 GitHub requests an hour (`"perHour"` in the payload changes that), stops while the App has less
+than a quarter of its hour left (`"stopped": "rate"`), and writes at most half of the daily write budget
+(`"stopped": "write_budget"`: invoke it again the next UTC day). After loading it recomputes dirty buckets
+until the slice ends; the 5-minute collector drains whatever is left (`"dirtyLeft": true`). The same runs
+from this machine with `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill -- --days 28`.

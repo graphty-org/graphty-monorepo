@@ -5581,6 +5581,8 @@ export class RenderManager implements Manager {
     holdFrames(): () => void;
     init(): Promise<void>;
     requestFrame(): void;
+    // @internal
+    resize(): void;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;

@@ -293,7 +293,7 @@ jobs:
             - uses: pnpm/action-setup@v6
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               if: ${{ steps.pending.outputs.pending == 'false' }}
               with:
                   node-version: 22.x
@@ -451,7 +451,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -498,7 +498,7 @@ jobs:
             - uses: pnpm/action-setup@v6
               if: steps.due.outputs.due == 'true'
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               if: steps.due.outputs.due == 'true'
               with:
                   node-version: 22.x
@@ -562,7 +562,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -629,7 +629,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -656,7 +656,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -683,7 +683,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -710,7 +710,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -737,7 +737,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -764,7 +764,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -792,7 +792,7 @@ jobs:
               with:
                   sparse-checkout: tools
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -1004,7 +1004,7 @@ jobs:
                   fetch-depth: 0
                   filter: blob:none
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -1460,7 +1460,7 @@ jobs:
 
             - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -1796,7 +1796,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -2026,7 +2026,7 @@ jobs:
                       tools
                       graphty/sites
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

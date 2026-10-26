@@ -3,7 +3,7 @@
 # It replaces `node tools/land.mjs land <branch>` (design/ci/channels-pipeline/merging.md, section 2.2)
 # and runs no tests: CI is the only gate. It returns in seconds and never waits for CI.
 #
-#   tools/pr-open.sh --proof <file> [--refs] [--title "<header>"] [--issue N]
+#   tools/pr-open.sh --proof <file> [--refs] [--title "<header>"] [--issue N] [--review-answered]
 #
 # Keep the Proof file under tmp/<task>/ (gitignored): an untracked file in the worktree is refused.
 #
@@ -14,10 +14,15 @@
 #      title commitlint rejects (Lint PR Title is a required check);
 #   2. merges origin/<branch> when GitHub's copy has commits this one lacks (the owner's screenshot approvals),
 #      then origin/master when the branch is behind (never a rebase); a conflict stops it, exit 2;
-#   3. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
-#   4. opens the pull request (title: the branch's first commit header; body: the commit list, a line
-#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one;
-#   5. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
+#   3. runs the fresh-context review (tools/pr-review.sh; reused when its report already carries the branch's
+#      patch id) and stops, exit 3, on a blocking finding: fix it, or answer each finding in the Proof and run
+#      again with --review-answered;
+#   4. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
+#   5. opens the pull request (title: the branch's first commit header; body: the commit list, a line
+#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one, and
+#      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
+#      Integrity checks) unless one with that marker is already there;
+#   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
 #      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE), a change
 #      to what judges a pull request or guards the owner (OWNER_PATHS below), and a pull request someone other
 #      than the agent opened.
@@ -34,14 +39,15 @@ die() {
     exit "${code:-1}"
 }
 
-proof="" refs=0 title="" issue=""
+proof="" refs=0 title="" issue="" answered=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --proof) proof="${2:-}"; shift 2 ;;
         --refs) refs=1; shift ;;
         --title) title="${2:-}"; shift 2 ;;
         --issue) issue="${2:-}"; shift 2 ;;
-        *) die "unknown argument: $1 (usage: tools/pr-open.sh --proof <file> [--refs] [--title \"<header>\"] [--issue N])" ;;
+        --review-answered) answered=1; shift ;;
+        *) die "unknown argument: $1 (usage: tools/pr-open.sh --proof <file> [--refs] [--title \"<header>\"] [--issue N] [--review-answered])" ;;
     esac
 done
 
@@ -83,6 +89,18 @@ if ! git merge-base --is-ancestor origin/master HEAD; then
 fi
 [ -n "$(git rev-list -1 origin/master..HEAD)" ] || die "$branch has nothing master lacks"
 
+# The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
+review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
+rc=0
+report=$("$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+if [ "$rc" = 3 ] && [ "$answered" = 1 ]; then
+    echo "pr-open: opening with the review's blocking findings answered in the Proof (--review-answered)" >&2
+elif [ "$rc" = 3 ]; then
+    code=3 die "the review found blocking findings ($report); fix them, or answer each in the Proof and run again with --review-answered"
+elif [ "$rc" != 0 ]; then
+    die "the review failed (exit $rc)"
+fi
+
 base=$(git merge-base origin/master HEAD)
 scan="${PR_OPEN_SCAN:-$here/scan-secrets.sh}"
 PREPUSH_ROOT="$PWD" "$scan" "$base" HEAD || die "the secret scan refused the branch"
@@ -118,9 +136,21 @@ if [ -z "$url" ]; then
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
 fi
+# The review goes on the pull request once per patch id: a re-run after a master merge does not post it again.
+marker=$(head -n 1 "$report")
+if ! grep -qF -- "$marker" <<<"$(gh pr view "$url" --json reviews --jq '.reviews[].body')"; then
+    gh pr review "$url" --comment --body-file "$report" >/dev/null || die "the review could not be posted on $url"
+fi
 # What only the owner merges. A pull request runs its own copy of ci.yml and the files it reads, so a change to
 # them would judge itself; the others guard the owner's credentials, approvals and releases.
-OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$)'
+OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$|(.*/)?\.storybook/vitest\.setup\.)'
+# Plus every path master's .github/CODEOWNERS owns, as an ERE: a leading / anchors, a trailing / is a
+# directory, ** is any number of directories, * stays inside one. The list above stays as the floor.
+owners=$(git show "$base:.github/CODEOWNERS" 2>/dev/null |
+    sed -nE 's/^([^#[:space:]]+)[[:space:]].*/\1/p' |
+    sed -E 's/[.+?()|{}^$]/\\&/g; s#\*\*/#@#g; s#\*#[^/]*#g; s#@#(.*/)?#g; s#^/#^#; s#^([^^])#(^|/)\1#; s#([^/])$#\1$#' |
+    paste -sd'|' -) || true
+[ -z "$owners" ] || OWNER_PATHS="$OWNER_PATHS|$owners"
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then

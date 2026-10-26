@@ -6541,6 +6541,7 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;

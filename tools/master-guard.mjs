@@ -1,5 +1,5 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI, Hosts or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
@@ -9,12 +9,13 @@
 //   When the failure looks external (outsideCause: an outside service's error, a lost runner, or the same
 //   job failing on an earlier commit), it neither freezes nor reverts: it re-runs the failed jobs once and
 //   files the issue with the evidence.
+// - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
+//   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
+//   failed step names a culprit. Not when a newer master run superseded it (superseded).
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
-// - Hosts red on master (the nightly; a push to master no longer runs Hosts): open (or add to) a
-//   priority:critical issue naming the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
-//   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
-//   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
+// - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
+//   "Release held" issue, so neither is this script's business.
 // - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
 //   reached graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
 //
@@ -26,6 +27,11 @@ export const FREEZE_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
 export const DEPLOY_PREFIX = "graphty.app deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
+// A run that ended without a verdict: master has no green build, but nothing failed to point at.
+const STOPPED = new Set(["cancelled", "startup_failure"]);
+// A run superseded by a newer one is cancelled the moment the newer run is queued.
+// ponytail: a time window, not GitHub's cancel reason (the API has none); a push in the last minute of a timeout reads as superseded
+const SUPERSEDE_MS = 60 * 1000;
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
 // A log line naming an outside service's failure: an HTTP 5xx (lychee prints "[502] <url> | ..."), a network
@@ -112,15 +118,31 @@ export function decide(run) {
         if (failed) {
             return "red";
         }
+        if (STOPPED.has(run.conclusion)) {
+            return "stopped";
+        }
         return run.conclusion === "success" ? "green" : "none";
-    }
-    if (run.name === "Hosts" && failed && run.event === "schedule") {
-        return "hardware-red";
     }
     if (run.name === DEPLOY && failed) {
         return "deploy-red";
     }
     return "none";
+}
+
+/**
+ * Whether a stopped master CI run was superseded: a run for a later commit was queued just before it ended.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param run - The workflow_run payload's run.
+ * @returns True when superseded.
+ */
+export async function superseded(gh, run) {
+    const { workflow_runs: runs } = await gh("/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20");
+    const start = Date.parse(run.created_at);
+    const end = Date.parse(run.updated_at);
+    return runs.some((r) => {
+        const at = Date.parse(r.created_at);
+        return r.head_sha !== run.head_sha && at > start && at <= end && end - at <= SUPERSEDE_MS;
+    });
 }
 
 /**
@@ -362,6 +384,38 @@ export async function closeStaleReverts(gh, at) {
     return closed;
 }
 
+/**
+ * Files the red-master issue for a stopped master CI run, unless a newer run superseded it or it is already reported.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param run - The workflow_run payload's run.
+ * @param ctx - What main() shares.
+ * @param ctx.attempt - Runs a step, logging and recording its error.
+ * @param ctx.alreadyReported - Whether this commit is already on the red-master issue.
+ * @param ctx.title - The issue title.
+ * @param ctx.labels - The issue labels.
+ */
+async function reportStopped(gh, run, { attempt, alreadyReported, title, labels }) {
+    const sha = run.head_sha;
+    // An error here leaves `skip` undefined, so the run still alarms.
+    const skip = await attempt("look for a newer master run", () => superseded(gh, run));
+    if (skip) {
+        console.log("superseded by a newer master run: no alarm");
+    } else if (await alreadyReported()) {
+        console.log("already reported");
+    } else {
+        const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No freeze and no revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
+        await attempt("open or update the issue", () =>
+            fileIssue(gh, {
+                prefix: FREEZE_PREFIX,
+                title,
+                labels,
+                body: `CI did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+                comment: `CI also did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+            }),
+        );
+    }
+}
+
 async function main() {
     const { workflow_run: run } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
     const repo = process.env.GITHUB_REPOSITORY;
@@ -403,7 +457,18 @@ async function main() {
     const action = decide(run);
     const sha = run.head_sha;
     const short = sha.slice(0, 7);
+    const title = `${FREEZE_PREFIX}${short}`;
     console.log(`${run.name} ${run.conclusion} on ${sha} (${run.event}): ${action}`);
+    // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
+    const alreadyReported = () =>
+        attempt("look for an existing issue", async () => {
+            const [open] = await openIssues(gh, FREEZE_PREFIX);
+            if (!open) {
+                return false;
+            }
+            const comments = await gh(`/issues/${open.number}/comments?per_page=100`);
+            return open.title === title || comments.some((c) => c.body.includes(sha));
+        });
 
     if (action === "red") {
         const examined = await attempt("look for an outside cause", () => examineRed(gh, run));
@@ -444,16 +509,7 @@ async function main() {
             console.log("merge queue frozen; priority:critical pull requests still merge");
         });
 
-        const title = `${FREEZE_PREFIX}${short}`;
-        // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
-        const reported = await attempt("look for an existing issue", async () => {
-            const [open] = await openIssues(gh, FREEZE_PREFIX);
-            if (!open) {
-                return false;
-            }
-            const comments = await gh(`/issues/${open.number}/comments?per_page=100`);
-            return open.title === title || comments.some((c) => c.body.includes(sha));
-        });
+        const reported = await alreadyReported();
         if (reported) {
             console.log("already reported");
         } else {
@@ -549,6 +605,10 @@ async function main() {
         }
     }
 
+    if (action === "stopped") {
+        await reportStopped(gh, run, { attempt, alreadyReported, title, labels: labels("low") });
+    }
+
     if (action === "green") {
         await attempt("lift the freeze", async () => {
             for (const f of await ourFreezes()) {
@@ -568,32 +628,6 @@ async function main() {
         await attempt("close reverts no longer needed", () =>
             closeStaleReverts(gh, { sha, url: run.html_url, green: true }),
         );
-    }
-
-    if (action === "hardware-red") {
-        await attempt("open or update the lane's issue", async () => {
-            const file = run.path.split("/").pop();
-            const green = await gh(`/actions/workflows/${file}/runs?branch=master&status=success&per_page=1`);
-            const last = green.workflow_runs[0]?.head_sha;
-            let since = "No earlier green run on master was found.";
-            if (last) {
-                // ponytail: compare lists at most 250 commits; a lane red that long has bigger problems
-                const { commits } = await gh(`/compare/${last}...${sha}`);
-                const merges = commits // the pull requests that landed, not the branch merges inside them
-                    .filter((c) => mergedPrs(c.commit.message).length)
-                    .map((c) => `- ${c.sha.slice(0, 7)} ${c.commit.message.split("\n")[0]}`);
-                since = `Merges since its last green run (${last.slice(0, 7)}):\n\n${merges.join("\n") || "- none: the lane went red on a commit it had passed before (a flake, or the hardware)"}`;
-            }
-            const report = `${run.name} failed on master at ${sha} (${run.event}): ${run.html_url}\n\n${since}`;
-            const title = `${run.name} lane red on master`;
-            await fileIssue(gh, {
-                prefix: title,
-                title,
-                labels: labels("medium"),
-                body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
-                comment: report,
-            });
-        });
     }
 
     if (action === "deploy-red") {

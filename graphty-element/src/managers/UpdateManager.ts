@@ -1113,6 +1113,12 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
+     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     */
+    picturesLoading: (() => boolean) | null = null;
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -1156,6 +1162,10 @@ export class UpdateManager implements Manager {
 
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
+        }
+
+        if (this.picturesLoading?.() === true) {
+            return "an annotation's picture is still loading";
         }
 
         if (!this.drawnFrameIsFinished) {
@@ -1220,6 +1230,10 @@ export class UpdateManager implements Manager {
         // A template nothing uses is freed by counting frames, which a graph drawing on demand
         // stops making once the picture is finished.
         if (modelsFreeing(this.graphContext.getScene())) {
+            return false;
+        }
+
+        if (this.picturesLoading?.() === true) {
             return false;
         }
 

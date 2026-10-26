@@ -479,12 +479,37 @@ async function failOpen(what, fn) {
     }
 }
 
-async function storeMedians(keys) {
-    const url = process.env.RESULTS_URL;
-    if (!url) return {};
-    const q = new URLSearchParams({ keys: keys.join(","), kind: "master", n: "10" });
-    const res = await fetch(`${url}/durations/medians?${q}`, { signal: AbortSignal.timeout(10_000) });
-    return res.ok ? res.json() : {};
+// A stored row's key, as the Worker's keyOf makes it.
+function storeKey(s) {
+    if (s.task) return `task:${s.task}`;
+    return s.step ? `step:${s.workflow}:${s.job}:${s.step}` : `job:${s.workflow}:${s.job}`;
+}
+
+/**
+ * Master's medians, from the store's per-key answer, under each row's own key. The store keys a row by its
+ * stored identity (the Worker's keyOf), so a queue row is its job's `(queue)` step and the run row is job `(run)`.
+ * @param run the run (`path`)
+ * @param rows the run's rows
+ * @param byStoreKey seconds by store key (GET /v1/durations/medians)
+ * @returns seconds by row key
+ */
+export function mediansByKey(run, rows, byStoreKey) {
+    return Object.fromEntries(
+        storeRows(run, rows).flatMap((s, i) => {
+            const key = storeKey(s);
+            return byStoreKey[key] === undefined ? [] : [[rows[i].key, byStoreKey[key]]];
+        }),
+    );
+}
+
+// Master's own runs are kind full in the store (the Worker sets it from master's ci.yml and release.yml).
+async function storeMedians(run, rows) {
+    const cfg = config();
+    if (!cfg) return {};
+    const q = new URLSearchParams({ workflows: basename(run.path ?? "ci.yml"), kind: "full", n: "10" });
+    const r = await call(cfg, "GET", `/v1/durations/medians?${q}`, undefined, 10_000);
+    if (!r.ok) throw new Error(`GET /v1/durations/medians: ${r.why}`);
+    return mediansByKey(run, rows, r.data ?? {});
 }
 
 // The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write).
@@ -515,7 +540,7 @@ async function report(v) {
     ];
     const medians = v.medians
         ? JSON.parse(readFileSync(v.medians, "utf8"))
-        : ((await failOpen("reading master's medians", () => storeMedians(rows.map((r) => r.key)))) ?? {});
+        : ((await failOpen("reading master's medians", () => storeMedians(run, rows))) ?? {});
     const evals = evaluate(rows, file, medians);
     if (process.env.GITHUB_STEP_SUMMARY)
         appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## CI time\n\n${summaryTable(evals)}\n`);

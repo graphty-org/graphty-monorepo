@@ -255,7 +255,6 @@ jobs:
             pages: write
             id-token: write
             actions: read # the CI runs list, and the newest build's site-<sha> from that build's own run
-            deployments: read # a 404 from canary means 'no site yet' only while github-pages has no deployment
         runs-on: ubuntu-24.04
         environment:
             name: github-pages
@@ -274,16 +273,14 @@ jobs:
                   newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""') || newest=""
                   [ -n "$newest" ] || fail "master's newest green build could not be read"
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
-                  # A 200 must carry a build stamp; a 404 is 'no site yet' only while github-pages has never deployed.
-                  # Anything else (a 5xx, a 429, no answer, a body that breaks off after the headers) is a failed read.
+                  # Only a 200 with a build stamp is an answer. Anything else (a 404: this repository's Pages always
+                  # serves a site, a 5xx, a 429, no answer, a body that breaks off after the headers) is a failed read.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
                   code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}") || code=000
                   live=""
                   case "$code" in
                       200) live=$(sed -n 's/.*name="graphty-build" content="commit=\([0-9a-f]\{7,40\}\)[ "].*/\1/p' "$page" | head -1)
                           [ -n "$live" ] || fail "canary.graphty.app answered without a build stamp" ;;
-                      404) deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length) || deployed=""
-                          [ "$deployed" = 0 ] || fail "canary.graphty.app answered 404, and github-pages has deployed before (or its deployments could not be read)" ;;
                       *) fail "canary.graphty.app could not be read (HTTP ${code})" ;;
                   esac
                   echo "canary serves: ${live:-nothing yet}; master's newest green build: ${newest}"
@@ -314,11 +311,11 @@ jobs:
                   run-id: ${{ steps.live.outputs.run }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # master's tip, like promote.yml: graphty/sites/canary.json may not exist at an older deployed commit
             - name: Check out canary's site.json
               if: ${{ steps.live.outputs.deploy == 'true' }}
               uses: actions/checkout@v4
               with:
-                  ref: ${{ steps.live.outputs.sha }}
                   sparse-checkout: graphty/sites
                   path: ./repo/
 

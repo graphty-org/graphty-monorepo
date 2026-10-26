@@ -4578,7 +4578,7 @@ describe("release.yml", () => {
         });
 
         // The deploy job's decision, against a stub curl (canary's page, or nothing when canary does not answer)
-        // and a stub gh (the Pages domain, master's newest green build, the deployments list, the compare and the
+        // and a stub gh (the Pages domain, master's newest green build, the compare and the
         // newest build's site-<sha> artifact; null makes that call fail). Run as GitHub runs a step: bash -e -o pipefail.
         const decide = ({
             sha = "abc1111",
@@ -4588,7 +4588,6 @@ describe("release.yml", () => {
             cname = "canary.graphty.app",
             code = 200,
             cut = false,
-            deployments = 1,
             artifact = "42",
         } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
@@ -4612,7 +4611,7 @@ describe("release.yml", () => {
             writeFileSync(
                 join(bin, "gh"),
                 `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${answer(cname)};;\n` +
-                    `*/workflows/ci.yml/runs*) ${answer(newest)};;\n*/deployments*) ${answer(deployments)};;\n` +
+                    `*/workflows/ci.yml/runs*) ${answer(newest)};;\n` +
                     `*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
                 { mode: 0o755 },
             );
@@ -4668,11 +4667,12 @@ describe("release.yml", () => {
             // artifacts list, which may not show an upload made moments ago yet (#3618 review)
             assert.deepEqual(deploys({ sha: "abc9999", artifact: "" }), [0, "true", "abc9999", "7"]);
             assert.doesNotMatch(decide({ sha: "abc9999" }).gh, /actions\/artifacts/);
-            // canary's site.json comes from the deployed build's own commit
+            // canary's site.json comes from master's tip, like promote.yml's: an older deployed commit may not have it
             assert.match(
                 job(deploy, "deploy"),
-                /ref: \$\{\{ steps.live.outputs.sha \}\}\n\s+sparse-checkout: graphty\/sites/,
+                /- name: Check out canary's site.json\n(?:.*\n){3}\s+sparse-checkout: graphty\/sites\n/,
             );
+            assert.doesNotMatch(job(deploy, "deploy"), /ref: \$\{\{ steps.live/);
             // the download, the site.json and the Pages upload all take the chosen build's site
             const job_ = job(deploy, "deploy");
             assert.match(
@@ -4711,8 +4711,6 @@ describe("release.yml", () => {
                 [decide({ cname: "graphty.app" }).deploy, decide({ cname: "graphty.app" }).curl],
                 ["false", ""],
             );
-            // the very first deploy: canary answers 404 and github-pages has never deployed
-            assert.deepEqual(deploys({ code: 404, deployments: 0 }), [0, "true", "abc9999", "42"]);
         });
 
         it("fails the job, deploying nothing, on every read that fails, so master-guard reports it (#3618 review)", () => {
@@ -4725,8 +4723,8 @@ describe("release.yml", () => {
                 { code: 429 },
                 { cut: true }, // a body that breaks off after a 200
                 { live: "" }, // a 200 with no build stamp
-                { code: 404 }, // a 404 after github-pages has deployed
-                { code: 404, deployments: null },
+                { code: 404 }, // this repository's Pages always serves a site (the deploy job's environment alone
+                // records a github-pages deployment), so a 404 is never "no site yet" (#3618 review)
                 { compare: null }, // a stamp commit the compare API cannot resolve
                 { compare: "" },
                 { artifact: null }, // the artifacts list

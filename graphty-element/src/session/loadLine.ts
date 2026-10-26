@@ -11,7 +11,13 @@
  *
  * - a load ({@link LoadLine.join}) and `project.open` ({@link LoadLine.opening}) wait for it;
  * - an edit ({@link LoadLine.edit}) waits for it, then lands on what it loaded;
- * - a clear ({@link LoadLine.clear}) cancels it: it rejects with `E_SUPERSEDED` and adds nothing.
+ * - a clear ({@link LoadLine.clear}) cancels it, and every edit waiting behind it: each rejects
+ *   with `E_SUPERSEDED` and adds nothing, so the graph is what calling them in order would leave,
+ *   and the clear itself happens at once (behind a project open that is already writing).
+ *
+ * A door called inside a transaction or a running command is part of it: an edit or a clear
+ * dispatches into it at once, and a clear there cancels nothing, since the transaction may roll
+ * back. A load there still takes its place in line, as it always has.
  *
  * `test/session/load-entry.test.ts` holds every graph-changing session door to this, from the
  * door list's ordering column (`LOAD_ORDER` in `commands/doors.ts`). Internal.
@@ -51,7 +57,7 @@ interface LineOwner {
     readonly routing: boolean;
 }
 
-/** The kinds of place in line: a load is cancelled by a clear asked for after it, an edit is not. */
+/** The kinds of place in line: an edit called inside a transaction takes none. */
 type PlaceKind = "load" | "edit";
 
 /**
@@ -142,7 +148,7 @@ export class LoadLine {
     private waiting = 0;
     /** A place handed to the next `join`, by {@link within}. */
     private handoff: LoadTurn | undefined;
-    /** The loads that joined and have not left, each with what cancels it: what a clear cancels. */
+    /** The places taken and not left, each with what cancels it: what a clear cancels. */
     private readonly loads = new Map<LoadTurn, () => void>();
     /** How many project opens hold the head of the line while they write. */
     private holding = 0;
@@ -190,7 +196,9 @@ export class LoadLine {
      * A clear asked for after it cancels the load until it dispatches: its wait rejects with
      * `E_SUPERSEDED`, and it gives up its place at once.
      * @param signal - The load's signal: aborting it while the load waits gives up its place.
-     * @param kind - `edit` for a place a clear does not cancel.
+     * @param kind - `edit` for an edit, which takes no place when called inside a transaction or a
+     *   running command: it is part of it and dispatches at once, as it always did, since waiting
+     *   there for a load whose own step queues behind that command would never end.
      * @returns The place.
      */
     join(signal?: AbortSignal, kind: PlaceKind = "load"): LoadTurn {
@@ -199,7 +207,7 @@ export class LoadLine {
             this.handoff = undefined;
             return handed;
         }
-        if (this.inside()) {
+        if (this.inside() || (kind === "edit" && this.owner.routing)) {
             return AT_ONCE;
         }
 
@@ -243,14 +251,20 @@ export class LoadLine {
                     reject(supersededError());
                 };
                 cancelWaits.add(cancel);
-                before.then(() => {
-                    cancelWaits.delete(cancel);
-                    if (superseded) {
-                        reject(supersededError());
-                    } else {
-                        resolve();
-                    }
-                }, reject);
+                before.then(
+                    () => {
+                        cancelWaits.delete(cancel);
+                        if (superseded) {
+                            reject(supersededError());
+                        } else {
+                            resolve();
+                        }
+                    },
+                    (error: unknown) => {
+                        cancelWaits.delete(cancel);
+                        reject(error);
+                    },
+                );
             });
         };
         const issue = <T>(send: () => Promise<T>): Promise<T> => {
@@ -266,51 +280,44 @@ export class LoadLine {
             take: (send) => wait()?.then(() => issue(send)) ?? issue(send),
             leave,
         };
-        if (kind === "load") {
-            this.loads.set(turn, () => {
-                superseded = true;
-                leave();
-                for (const cancel of cancelWaits) {
-                    cancel();
-                }
-            });
-        }
+        this.loads.set(turn, () => {
+            superseded = true;
+            leave();
+            for (const cancel of cancelWaits) {
+                cancel();
+            }
+        });
         return turn;
     }
 
     /**
      * Dispatch an edit (an add, an update, a removal): in line behind every load asked for before
      * it, so it lands on what they loaded instead of under them, and at once when none is waiting.
-     * A clear does not cancel it.
+     * A clear asked for after it while it waits cancels it.
      * @param send - The dispatch, taken when the edit was asked for.
      * @returns What it returned.
      */
     edit<T>(send: () => Promise<T>): Promise<T> {
-        // Inside a transaction or a running command the edit is part of it and dispatches at once,
-        // as it always did: waiting there for a load whose own step queues behind that command
-        // would never end.
-        if (this.owner.routing) {
-            return send();
-        }
         return this.join(undefined, "edit").take(send);
     }
 
     /**
-     * Dispatch a clear: every load asked for before it that has not dispatched is cancelled (it
-     * rejects with `E_SUPERSEDED` and adds nothing), then the clear goes in line behind the edits
-     * still waiting, at once when none is (and at once inside a transaction, as an edit is).
+     * Dispatch a clear: every load and edit asked for before it that has not dispatched is
+     * cancelled (it rejects with `E_SUPERSEDED` and adds nothing), and the clear dispatches at
+     * once, before this call returns, unless a project open is writing: then it lands after the
+     * open. Inside a transaction or a running command it dispatches into it and cancels nothing.
      * @param send - The dispatch, taken when the clear was asked for.
      * @returns What it returned.
      */
     clear<T>(send: () => Promise<T>): Promise<T> {
-        if (this.inside()) {
+        if (this.owner.routing) {
             return send();
         }
         this.supersede();
-        return this.edit(send);
+        return this.join(undefined, "edit").take(send);
     }
 
-    /** Cancel every load waiting in line, as a clear does. */
+    /** Cancel every load and edit waiting in line, as a clear does. */
     supersede(): void {
         for (const cancel of [...this.loads.values()]) {
             cancel();

@@ -3731,13 +3731,22 @@ export class Graph implements GraphContext {
      */
     clearData(): void {
         // A load still in flight would otherwise put its data back after the graph was closed:
-        // the graph's own, dispatched or not, and a session load still reading (issue #3524). The
-        // clear itself lands after the edits asked for before it, at once when none waits.
+        // the graph's own, dispatched or not, and every session load or edit still waiting in line
+        // (issue #3524). The clear itself happens before this returns, as it always has; only
+        // while a project open writes does it wait for the open, which it would otherwise land in.
         this.dataManager.supersedeLoads();
-        void loadLineOf(dispatcherOf(this.session)).clear(() => {
-            this.dataManager.clear();
-            return Promise.resolve();
-        });
+        loadLineOf(dispatcherOf(this.session))
+            .clear(() => {
+                this.dataManager.clear();
+                return Promise.resolve();
+            })
+            .catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                );
+            });
     }
 
     /**

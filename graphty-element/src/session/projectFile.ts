@@ -25,7 +25,7 @@ import {
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { loadLineOf } from "./loadLine";
+import { historyMark, loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -2018,7 +2018,7 @@ export function projectOf(
             await line.opening(turn, () =>
                 isProject
                     ? openProject(doc, fileName, options.discard === true, problems, restored)
-                    : openDocument(doc, problems, restored, options.history === "start"),
+                    : openDocument(doc, problems, restored, historyMark(options).startsHistory === true),
             );
 
             return Object.freeze({

@@ -1860,7 +1860,7 @@ export class Graphty extends LitElement {
                     throw new Error("Operation cancelled");
                 }
             });
-        // An edit, not a load: a clearData asked for after it does not cancel it.
+        // An edit, not a load: inside a transaction it dispatches at once.
         const turn = loadLineOf(dispatcher).join(undefined, "edit");
         const inTurn = (): Promise<unknown> => {
             const ahead = turn.wait();

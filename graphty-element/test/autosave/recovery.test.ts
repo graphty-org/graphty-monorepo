@@ -6,7 +6,7 @@
  * unless the test says two loads are alive at once.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { GraphSession } from "../../session";
 import { Autosaver, lockName } from "../../src/autosave/Autosaver";
@@ -19,6 +19,8 @@ import type {
     AutosaveStore,
     AutosaveWrite,
 } from "../../src/autosave/types";
+import { dispatcherOf } from "../../src/session/GraphSession";
+import { loadLineOf } from "../../src/session/loadLine";
 import { faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
@@ -215,6 +217,29 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
+    it("a clear asked for while the restore waits cancels it without counting it as a failed attempt", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        // A load the page started, still reading: the restore's open waits behind it.
+        const reading = line.join();
+        const recovering = page.saver.recover();
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(
+            page.available.map((each) => [each.entry.id, each.reason, each.problem]),
+            [[id, "manual", null]],
+        );
+        assert.strictEqual((await store.read(id))?.meta.restoreAttempts, 0, "the cancelled attempt was taken back");
+    });
+
     it("two restores that never confirm make the third load skip the entry and report restore-failed", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Heavy" }));

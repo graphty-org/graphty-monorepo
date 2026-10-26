@@ -1302,6 +1302,16 @@ export class Autosaver {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
             release?.();
+            if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
+                // A clear asked for while the restore read cancelled it: the work is intact, so the
+                // attempt is taken back and the entry stays offered, not marked as failing.
+                const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
+                await this.#store
+                    .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
+                    .catch(() => undefined);
+                this.#available(untried, true, "manual", null);
+                return null;
+            }
             this.#available(current, true, "restore-failed", {
                 code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
                 params: { name: errorName(error) },

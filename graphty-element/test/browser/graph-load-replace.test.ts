@@ -237,18 +237,23 @@ describe("the load CALLED last wins", () => {
         assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
     });
 
-    test("clearData lands after an edit asked for before it, as session.data.clear does", async () => {
+    test("clearData cancels an edit still waiting behind a load, and clears before it returns", async () => {
         const graph = await graphWith(GOOD);
         const started = new Promise<void>((done) => (heldReadStarts = done));
         const sessionLoad = graph.getSession().data.import({ source: "held-clear", config: {} });
         sessionLoad.catch(() => undefined);
         await started;
         const edit = graph.getSession().data.addNodes([{ id: "edited" }]);
+        edit.catch(() => undefined);
         graph.clearData();
+        // Synchronous, as it has always been: a caller adding right after the clear keeps its node.
+        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+        await graph.addNodes([{ id: "after" }]);
         openHeldRead();
 
-        await edit;
+        const error = await rejection(edit);
 
-        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+        assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
+        assert.deepStrictEqual(ids(graph).nodes, ["after"]);
     });
 });

@@ -558,4 +558,30 @@ describe("the entry's edges", () => {
         assert.isDefined(cleared, "the open wrote nothing");
         assert.strictEqual(session.data.snapshot().nodeCount, 0, "the opened graph came back after the clear");
     });
+
+    it("a clear cancels an edit still waiting behind a load, and lands without waiting", async () => {
+        const session = fresh();
+        await session.data.import({ type: "json", config: { data: TRIANGLE } });
+        const older = await heldLoad(session, 5);
+        const edit = session.data.addNodes([{ id: "waiting" }]);
+        edit.catch(() => undefined);
+        // Settles with the load still held: the clear waits for nothing.
+        await session.data.clear();
+
+        assert.strictEqual(session.data.snapshot().nodeCount, 0);
+        await assertSuperseded(edit, "the waiting edit");
+        older.read.open();
+        await assertSuperseded(older.load, "the load still reading");
+        assert.strictEqual(session.data.snapshot().nodeCount, 0);
+    });
+
+    it("a clear inside a transaction cancels nothing, since the transaction may roll back", async () => {
+        const session = fresh();
+        const older = await heldLoad(session, 5);
+        await session.transaction("clear inside", (tx) => tx.data.clear());
+        older.read.open();
+        await older.load;
+
+        assert.strictEqual(session.data.snapshot().nodeCount, 5, "the load the transaction's clear left alone");
+    });
 });

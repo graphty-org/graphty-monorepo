@@ -2763,8 +2763,8 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
  * - `load`: it takes its place in line when called, and lands after every door asked for before
  *   it; a clear asked for after it, while it still reads, cancels it with `E_SUPERSEDED`.
  * - `edit`: it takes its place in line when called, and lands on what the loads ahead of it
- *   loaded; a clear does not cancel it.
- * - `clear`: it cancels every load still reading, then lands after the edits ahead of it.
+ *   loaded; a clear asked for after it while it waits cancels it.
+ * - `clear`: it cancels every load and edit still waiting, and lands at once.
  * - `{ direct: issue }`: it still dispatches at once, outside the line, until that issue routes it.
  *
  * `test/session/load-entry.test.ts` fails on any row, of either half, that dispatches a graph op

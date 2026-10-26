@@ -9,7 +9,7 @@ import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
-import { failureHashes } from "../src/signature.js";
+import { failureHashes, issueKey } from "../src/signature.js";
 import { AUDIENCE, handle } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
@@ -362,6 +362,27 @@ describe("POST /v1/durations", () => {
             403,
         );
         assert.equal((await call("POST", "/v1/durations", { token: LOCAL_TOKEN, body: { rows: [] } })).status, 403);
+    });
+
+    it("stores a build-only master push of ci.yml as master, and ci.yml called by release.yml as full", async () => {
+        const { call } = service();
+        const ci = `${REPO}/.github/workflows/ci.yml@refs/heads/master`;
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", job: "Build", ms: 61000, conclusion: "success" };
+        const push = oidc({ event_name: "push", ref: "refs/heads/master", workflow_ref: ci, job_workflow_ref: ci });
+        assert.equal((await call("POST", "/v1/durations", { token: push, body: { rows: [row] } })).body.kind, "master");
+        assert.equal((await call("POST", "/v1/invocations", { token: push, body: record({}) })).status, 403);
+        const called = oidc({
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            workflow_ref: `${REPO}/.github/workflows/release.yml@refs/heads/master`,
+            job_workflow_ref: ci,
+            run_id: "4011",
+        });
+        const fullRow = { ...row, runId: 4011 };
+        assert.equal(
+            (await call("POST", "/v1/durations", { token: called, body: { rows: [fullRow] } })).body.kind,
+            "full",
+        );
     });
 });
 
@@ -1108,6 +1129,9 @@ describe("/v1/durations/tests/<name>", () => {
     });
 });
 
+const UNSTABLE =
+    "Error: visual-review: app--default is unstable (two renders drew different pictures): dark\n \u276F g/x.ts:1:1";
+
 describe("failureHashes", () => {
     it("hashes every failure exactly as the test ledger does", () => {
         const samples = [
@@ -1119,9 +1143,26 @@ describe("failureHashes", () => {
             ],
             ["boom 0123456789abcdef in /tmp/x/y\n<div>", "p/c.test.ts", undefined],
             ["Error: frame\n \u276F p/d.test.ts:3:7\n \u276F node_modules/x.js:1:1", "p/d.test.ts", undefined],
+            [UNSTABLE, "g/src/A.stories.tsx", undefined],
+            [UNSTABLE.replace(": dark", ": light"), "g/src/A.stories.tsx", undefined],
         ];
         for (const [text, file, main] of samples)
             assert.deepEqual(failureHashes(text, file, main), ledgerHashes(text, file, main));
+    });
+
+    it("records a story whose two renders disagreed as unstable, not as an ordinary failure", () => {
+        assert.equal(failureHashes(UNSTABLE, "g/src/A.stories.tsx").status, "unstable");
+        assert.equal(failureHashes("Error: visual-review: play threw", "g/src/A.stories.tsx").status, "fail");
+    });
+
+    it("files one issue for an unstable story whichever modes differed, one per story in a file", () => {
+        const file = "g/src/A.stories.tsx";
+        const dark = failureHashes(UNSTABLE, file);
+        const light = failureHashes(UNSTABLE.replace(": dark", ": light"), file);
+        assert.equal(dark.signature, light.signature);
+        const key = (h, name) => issueKey(h.signature, h.status, name);
+        assert.equal(key(dark, "Default"), key(light, "Default"));
+        assert.notEqual(key(dark, "Default"), key(dark, "Other"));
     });
 });
 

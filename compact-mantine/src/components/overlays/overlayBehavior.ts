@@ -573,7 +573,12 @@ export function installOverlayBehavior(): void {
             return;
         }
         if (event.target.classList.contains("cm-tooltip")) {
-            holdIfFocusOpened(event.target);
+            // Only a mount is decided. The animation also starts again on a tooltip that is
+            // already open when its style is recomputed, and holding it then hid it for another
+            // open delay while its trigger kept focus.
+            if (event.target.dataset.cmSeen === undefined) {
+                holdIfFocusOpened(event.target);
+            }
         } else if (event.target.classList.contains("cm-menu")) {
             updateScrollEnds(event.target);
             menuResize?.observe(event.target);

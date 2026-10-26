@@ -141,14 +141,14 @@ describe("prIntegrity", () => {
         const reviews = [review(AGENT, "COMMENTED", "x", marker)];
         assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
 
-        // a merge of master keeps the review; a fix push needs a new one
+        // one review per pull request: a merge of master and a fix push both keep it
         r.git("switch", "-q", "master");
         r.commit("chore: other", { "src/other.mjs": "export const o = 1;\n" });
         r.git("switch", "-q", "b");
         r.git("merge", "-q", "--no-edit", "master");
         assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
         r.commit("fix: again", { "src/a.mjs": "export const a = 3;\n" });
-        assert.match(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems.join("\n"), /Fresh review/);
+        assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
     });
 
     it("does not ask a non-agent author for Proof or review", () => {

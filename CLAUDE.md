@@ -638,8 +638,9 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 **The full run (channels pipeline step 6, #3454).** release.yml now only tests: every scheduled run is
 `mode: full` (`tools/full-run.mjs`), which publishes nothing and ends in one verdict in the results store; a red
 one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
-whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
-in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
+whose merge references that issue starts `mode: restart` (`tools/release-due.mjs`): `Fixes #N` closes it and cancels
+the red run if it is still going, so the restart starts at once; `Refs #N` keeps the red run to its verdict and bisect,
+the restart waits for it, and a green verdict closes the issue. `-f mode=shadow` is the step-3 test-and-version run, which
 lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
 trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
@@ -1268,9 +1269,12 @@ Rules:
 - **Production moves only on the owner's go.** Every green master build deploys to canary.graphty.app;
   graphty.app moves only by `promote.yml`, which the owner dispatches and approves in GitHub. The scheduled
   release trains run the full run: they test and publish nothing. Never dispatch a release or a promotion yourself.
-- **Screenshots still gate a pull request.** A pull request whose capture changes a picture (or adds a
-  story) waits in `All Checks Pass` until the owner accepts it on the review page. Say so with an
-  `ACTION NEEDED` line when it blocks your work.
+- **A broken story fails its pull request; a changed picture does not.** The `Stories (<bin>)` jobs
+  capture the stories a change can reach, and `All Checks Pass` needs them: a story that fails to render,
+  whose play function throws, or that draws two different pictures on the same inputs (`[BROKEN]`,
+  `[UNSTABLE]`) fails the pull request; fix it on the branch. A changed or new picture blocks the promotion
+  to nightly until the owner approves it there (`node visual-review/trusted/cli.mjs serve --candidate next`),
+  so it needs no `ACTION NEEDED` line on the pull request.
 - **No pre-push gate on `pr-open.sh`.** It skips `.husky/pre-push` but runs its secret scan and LFS upload;
   CI is the gate. SonarQube and the NVIDIA GPU tests run only when you run them (step 2).
 - **Nothing tests master itself.** Master's build runs no tests, and required checks are not "strict", so

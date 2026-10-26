@@ -4614,6 +4614,9 @@ describe("release.yml", () => {
             assert.equal(decide({ live: "" }).deploy, "deploy=true");
             // an HTTP error page (a site deployed without index.html) is no stamp, so the next build heals it
             assert.equal(decide({ live: "abc1", code: 404 }).deploy, "deploy=true");
+            // any other status is a failed read, not "no stamp": a 503 or a 429 must never move canary back
+            assert.equal(decide({ live: "abc0", code: 503 }).deploy, "deploy=false");
+            assert.equal(decide({ live: "abc0", code: 429 }).deploy, "deploy=false");
             // the custom domain is this repository's Pages setting; the site carries no CNAME file
             assert.doesNotMatch(
                 deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),

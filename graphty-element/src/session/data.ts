@@ -100,7 +100,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
-import { historyMark, type LoadLine, type LoadTurn } from "./loadLine";
+import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -999,7 +999,8 @@ export class SessionData implements SessionDataApi {
             choiceOptions(options),
         );
         const mark = historyMark(options);
-        const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> => noted({ ...command, ...mark });
+        const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
+            noted({ ...command, ...mark });
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -1357,6 +1358,28 @@ export class SessionData implements SessionDataApi {
                     ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
                     : turn.take(() => host.dispatch(command)),
         };
+    }
+
+    /**
+     * Run a door that works out its change from the graph in the session's load line, as an
+     * edit: it takes its place when called and reads the graph once every load asked for before
+     * it has landed, so it changes what they loaded instead of what was there before them. A
+     * clear asked for while it waits cancels it: it resolves with `skipped`, or by default
+     * rejects with `E_SUPERSEDED`, since what it names is gone.
+     * @param run - The door's work.
+     * @param skipped - What a cancelled door resolves with; rejects when not given.
+     * @returns What `run` returned.
+     */
+    private afterLoads<T>(run: () => Promise<T>, skipped?: () => T): Promise<T> {
+        return this.inLine(
+            undefined,
+            run,
+            false,
+            skipped ??
+                ((): T => {
+                    throw supersededError();
+                }),
+        );
     }
 
     /**
@@ -2505,6 +2528,17 @@ export class SessionData implements SessionDataApi {
      */
     async fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
         this.requireLive("fix");
+        return this.afterLoads(() => this.fixNow(issue, fix));
+    }
+
+    /**
+     * fix, once the loads asked for before it have landed.
+     * @param issue - as fix takes it
+     * @param fix - as fix takes it
+     * @returns what fix returns
+     */
+    private async fixNow(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
+        this.requireLive("fix");
         const { issue: found, plan } = this.issueNamed(issue);
         if (!found.fixes.includes(fix) && found.current !== fix) {
             throw new GraphtyError({
@@ -2626,6 +2660,16 @@ export class SessionData implements SessionDataApi {
      */
     async removeSource(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
+        return this.afterLoads(() => this.removeSourceNow(key));
+    }
+
+    /**
+     * removeSource, once the loads asked for before it have landed.
+     * @param key - as removeSource takes it
+     * @returns what removeSource returns
+     */
+    private async removeSourceNow(key: SourceKey): Promise<RemoveSourceResult> {
+        this.requireLive("removeSource");
         const sources = this.sources();
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
@@ -2693,6 +2737,22 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      */
     async replaceSource(key: SourceKey, source: DataSourceInput, choices: LoadChoices = {}): Promise<ReplaceReport> {
+        this.requireLive("replaceSource");
+        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+    }
+
+    /**
+     * replaceSource, once the loads asked for before it have landed.
+     * @param key - as replaceSource takes it
+     * @param source - as replaceSource takes it
+     * @param choices - as replaceSource takes it
+     * @returns what replaceSource returns
+     */
+    private async replaceSourceNow(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices: LoadChoices = {},
+    ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load");
         const stored = this.storedSources();
@@ -2920,6 +2980,17 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
+        return this.afterLoads(() => this.reloadSourceNow(key, choices));
+    }
+
+    /**
+     * reloadSource, once the loads asked for before it have landed.
+     * @param key - as reloadSource takes it
+     * @param choices - as reloadSource takes it
+     * @returns what reloadSource returns
+     */
+    private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        this.requireLive("reloadSource");
         const entry = this.sources().find((each) => each.key === key);
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
@@ -2942,7 +3013,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSource(key, input, overChoices(entry.choices ?? {}, choices));
+        return this.replaceSourceNow(key, input, overChoices(entry.choices ?? {}, choices));
     }
 
     /**
@@ -3019,6 +3090,20 @@ export class SessionData implements SessionDataApi {
      * @returns settles once the step is recorded
      */
     async editJoin(source: SourceKey, choices: JoinChoices): Promise<void> {
+        this.requireLive("editJoin");
+        return this.afterLoads(
+            () => this.editJoinNow(source, choices),
+            () => undefined,
+        );
+    }
+
+    /**
+     * editJoin, once the loads asked for before it have landed.
+     * @param source - as editJoin takes it
+     * @param choices - as editJoin takes it
+     * @returns what editJoin returns
+     */
+    private async editJoinNow(source: SourceKey, choices: JoinChoices): Promise<void> {
         this.requireLive("editJoin");
         const send = this.sender("edit a join");
         const previous = this.joinedSource(source);
@@ -3987,6 +4072,20 @@ export class SessionData implements SessionDataApi {
      */
     async setType(column: ColumnRef, type: ValueType): Promise<void> {
         this.requireLive("setType");
+        return this.afterLoads(
+            () => this.setTypeNow(column, type),
+            () => undefined,
+        );
+    }
+
+    /**
+     * setType, once the loads asked for before it have landed.
+     * @param column - as setType takes it
+     * @param type - as setType takes it
+     * @returns what setType returns
+     */
+    private async setTypeNow(column: ColumnRef, type: ValueType): Promise<void> {
+        this.requireLive("setType");
         const { kind, name } = resolveColumn(this.attributes(), column);
         SessionData.checkType(type);
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
@@ -4037,6 +4136,20 @@ export class SessionData implements SessionDataApi {
      * @returns settles once the step is recorded
      */
     async renameColumn(column: ColumnRef, name: string): Promise<void> {
+        this.requireLive("renameColumn");
+        return this.afterLoads(
+            () => this.renameColumnNow(column, name),
+            () => undefined,
+        );
+    }
+
+    /**
+     * renameColumn, once the loads asked for before it have landed.
+     * @param column - as renameColumn takes it
+     * @param name - as renameColumn takes it
+     * @returns what renameColumn returns
+     */
+    private async renameColumnNow(column: ColumnRef, name: string): Promise<void> {
         this.requireLive("renameColumn");
         const attributes = this.attributes();
         const { kind, name: from } = resolveColumn(attributes, column);

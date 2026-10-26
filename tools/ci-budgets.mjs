@@ -513,7 +513,8 @@ export function mediansByKey(run, rows, byStoreKey) {
     );
 }
 
-// Master's own runs are kind full in the store (the Worker sets it from master's ci.yml and release.yml).
+// The full run's rows are kind full in the store (the Worker sets it from release.yml and the ci.yml it calls);
+// a build-only master push of ci.yml is kind master, so it never feeds the full trend.
 async function storeMedians(run, rows) {
     const cfg = config();
     if (!cfg) return {};

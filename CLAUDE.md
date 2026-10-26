@@ -570,7 +570,8 @@ mode for now (see "Release versioning"). In short:
   dispatch releases.
 
 **Live today:** every pull request into master runs the affected suite with the screenshots and the visual
-gate; `Cost Estimate Accuracy` runs on every pull request that affects graphty-element and gates it; the short
+gate; `Cost Estimate Accuracy` runs on a pull request only when what the estimates read, time or run with changed
+(ci.yml's "Plan the optional jobs" step lists the paths), and gates it; Docs runs only on a docs input; the short
 test shards run as two grouped jobs. ci.yml still holds the handling for the retired Mergify merge-queue runs
 (`Queue Checks Pass`), which no longer happen. A push to master runs no tests: ci.yml builds every package,
 Storybook and docs site and skips every test, link, cost and screenshot job; every green master build keeps its
@@ -607,7 +608,8 @@ writes `Fixes #N` (or `Refs #N`) from the branch's issue number.
 Configured by `lychee.toml` and `.lycheeignore` (URL patterns never worth checking, each with its
 reason); run by `tools/check-links.sh`:
 
-- **Every pull request** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
+- **Every pull request** runs the offline half (`tools/check-links.sh --offline`, in the Checks job).
+- **The full run** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
   the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
   and package.json; `github.com/graphty-org/graphty-monorepo/(blob|tree)/master/...` links resolved
   against the checkout; every other `github.com/graphty-org` link over the network; and every
@@ -772,7 +774,7 @@ shard. The shards:
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-5`
 - `graphty-element-lifecycle` (autosave across reloads, closes, discards, crashes and kills in Chromium,
-  Firefox and WebKit; never in the pre-push gate)
+  Firefox and WebKit; never in the pre-push gate, and only in the full run, never on a pull request)
 
 A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's

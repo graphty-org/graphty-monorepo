@@ -1,0 +1,2 @@
+# A standalone package with its own lockfile, outside the pnpm workspace: not an nx project.
+tools/pipeline-health/

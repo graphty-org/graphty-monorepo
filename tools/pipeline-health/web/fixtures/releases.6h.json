@@ -1,0 +1,678 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "6h",
+    "page": "releases",
+    "state": "bad",
+    "setBy": {
+        "member": "releases.lanes_red",
+        "state": "bad",
+        "value": {
+            "n": 2
+        },
+        "fact": {
+            "code": "short.lanes_red",
+            "params": {
+                "lanes": ["audit", "t4"]
+            }
+        }
+    },
+    "others": [
+        {
+            "member": "releases.workflows_failing",
+            "state": "bad",
+            "value": {
+                "n": 1
+            }
+        },
+        {
+            "member": "releases.train_skipped",
+            "state": "warn",
+            "value": {
+                "word": "yes"
+            }
+        }
+    ],
+    "notes": [
+        {
+            "code": "releases.note.shadow"
+        }
+    ],
+    "members": [
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.lanes_open",
+                    "params": {
+                        "h": 6
+                    }
+                }
+            },
+            "link": "/releases/lanes",
+            "id": "releases.lanes_red",
+            "value": {
+                "n": 2
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                "trend": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                "breach": [
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 0
+            }
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.failed_in_a_row",
+                    "params": {
+                        "runs": 3
+                    }
+                }
+            },
+            "link": "/releases/workflows",
+            "id": "releases.workflows_failing",
+            "value": {
+                "n": 1
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "trend": [
+                    0.02, 0.06, 0.11, 0.15, 0.19, 0.23, 0.28, 0.32, 0.36, 0.4, 0.45, 0.49, 0.53, 0.57, 0.62, 0.66, 0.7,
+                    0.74, 0.79, 0.83, 0.87, 0.91, 0.96, 1
+                ],
+                "breach": [
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 0
+            },
+            "note": {
+                "code": "releases.workflows.note",
+                "params": {
+                    "workflow": "promote.yml",
+                    "runs": 131
+                }
+            },
+            "fixWaitsOwner": 3577
+        },
+        {
+            "state": "warn",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.word",
+                    "params": {
+                        "word": "no"
+                    }
+                }
+            },
+            "link": "/releases/trains",
+            "id": "releases.train_skipped",
+            "value": {
+                "word": "yes"
+            },
+            "note": {
+                "code": "releases.skipped.note",
+                "params": {
+                    "attempt": "2026-10-25T18:00:00Z",
+                    "sha": "1fa254bf3"
+                }
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.after",
+                    "params": {
+                        "min": 30
+                    }
+                }
+            },
+            "link": "/releases",
+            "id": "releases.tagged_not_npm",
+            "value": {
+                "n": 0
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 90,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 75,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains",
+            "id": "releases.train_first_pass",
+            "value": {
+                "n": 1,
+                "of": 3
+            },
+            "n": 3
+        },
+        {
+            "state": "notsetup",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.canary_age",
+                    "params": {
+                        "h": 6
+                    }
+                }
+            },
+            "link": "/data-sources/not-set-up",
+            "id": "releases.channels",
+            "value": null,
+            "reason": {
+                "code": "unblock.channels",
+                "params": {
+                    "issue": 3418
+                }
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "table",
+            "id": "lanes",
+            "sub": {
+                "code": "releases.lanes.sub",
+                "params": {
+                    "sha": "a870943ef",
+                    "run": 40119894804,
+                    "at": "2026-10-24T18:15:00Z"
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "audit"
+                        },
+                        "result": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "lane.failed"
+                                }
+                            }
+                        },
+                        "since": {
+                            "t": "time",
+                            "at": "2026-10-24T18:45:00Z"
+                        },
+                        "job": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.job",
+                                "params": {
+                                    "job": "Security audit",
+                                    "s": 20
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "t4"
+                        },
+                        "result": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "lane.failed"
+                                }
+                            }
+                        },
+                        "since": {
+                            "t": "time",
+                            "at": "2026-10-24T19:25:00Z"
+                        },
+                        "job": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.job",
+                                "params": {
+                                    "job": "T4 GPU / Test (NVIDIA T4)",
+                                    "s": 2340
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "ci"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.passed"
+                            }
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "job": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.jobs",
+                                "params": {
+                                    "workflow": "CI",
+                                    "jobs": 25
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "hosts"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.passed"
+                            }
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "job": {
+                            "t": "name",
+                            "v": "Metal on macOS, D3D12 on Windows"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "autosave_macos"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.passed"
+                            }
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "job": {
+                            "t": "name",
+                            "v": "Work protection (macOS)"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "llm"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.passed"
+                            }
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "job": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.job_cost",
+                                "params": {
+                                    "job": "LLM regression",
+                                    "s": 600,
+                                    "usd": 0.94
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "lane": {
+                            "t": "name",
+                            "v": "version, land, publish"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.skipped"
+                            }
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "job": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "lane.shadow"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "trains",
+            "rows": [
+                {
+                    "cells": {
+                        "attempt": {
+                            "t": "time",
+                            "at": "2026-10-25T18:00:00Z"
+                        },
+                        "candidate": {
+                            "t": "sha",
+                            "v": "1fa254bf3"
+                        },
+                        "lanes": {
+                            "t": "mark",
+                            "state": "warn",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "train.untested"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "attempt": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-25T12:00:00Z"
+                                },
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-25T06:00:00Z"
+                                },
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-25T00:00:00Z"
+                                }
+                            ]
+                        },
+                        "candidate": {
+                            "t": "sha",
+                            "v": "a870943ef"
+                        },
+                        "lanes": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "train.nothing_new"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "attempt": {
+                            "t": "time",
+                            "at": "2026-10-24T18:15:00Z"
+                        },
+                        "candidate": {
+                            "t": "sha",
+                            "v": "a870943ef"
+                        },
+                        "lanes": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "train.tested_failed",
+                                "params": {
+                                    "lanes": ["audit", "t4"]
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "attempt": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-24T18:00:00Z"
+                                },
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-24T12:00:00Z"
+                                },
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-24T06:00:00Z"
+                                }
+                            ]
+                        },
+                        "candidate": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "sha",
+                                    "v": "a870943ef"
+                                },
+                                {
+                                    "t": "sha",
+                                    "v": "77154dddc"
+                                }
+                            ]
+                        },
+                        "lanes": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "train.nothing_new"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "attempt": {
+                            "t": "time",
+                            "at": "2026-10-24T00:00:00Z"
+                        },
+                        "candidate": {
+                            "t": "sha",
+                            "v": "77154dddc"
+                        },
+                        "lanes": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "train.failed_before",
+                                "params": {
+                                    "job": "Pick the release candidate"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "workflows",
+            "rows": [
+                {
+                    "cells": {
+                        "workflow": {
+                            "t": "name",
+                            "v": "promote.yml"
+                        },
+                        "runs": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "mark",
+                                    "state": "bad",
+                                    "cell": {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "wf.failed_of",
+                                            "params": {
+                                                "failed": 24,
+                                                "runs": 24
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "wf.in_a_row",
+                                        "params": {
+                                            "n": 131
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "since": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "wf.since_merge",
+                                "params": {
+                                    "at": "2026-10-25T18:03:00Z",
+                                    "pr": 3511
+                                }
+                            }
+                        },
+                        "cause": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cause.workflow_error",
+                                "params": {
+                                    "detail": "WORK read from the runner context in job env",
+                                    "fix": 3577,
+                                    "waits_owner_s": 2640
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "workflow": {
+                            "t": "name",
+                            "v": "release-watch.yml"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "since": {
+                            "t": "none"
+                        },
+                        "cause": {
+                            "t": "none"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

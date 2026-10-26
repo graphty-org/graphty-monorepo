@@ -46,6 +46,19 @@ export const SUITE_QUERY = `query($ids: [ID!]!) {
   }
 }`;
 
+/**
+ * Every check run of a batch of check suites (all attempts) with its annotations, for the flaky-history backfill:
+ * tools/test-quarantine.mjs leaves a warning annotation per test it let through. GitHub keeps at most 50 annotations
+ * of each level per job, so 50 holds them all.
+ */
+export const FLAKY_SUITE_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on CheckSuite { id
+      checkRuns(first: 100, filterBy: {checkType: ALL}) { nodes { databaseId name completedAt
+        annotations(first: 50) { nodes { message } } } } }
+  }
+}`;
+
 export const TAG_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     refs(refPrefix: "refs/tags/", first: 100, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {

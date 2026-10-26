@@ -32,6 +32,8 @@ const MASTER_KINDS = {
     "gpu.yml": "full",
     "hosts.yml": "full",
     "work-protection-macos.yml": "full",
+    // a full run's same-commit re-run decider: files and holds a red attempt 1 it does not re-run
+    "release-rerun.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
@@ -495,10 +497,11 @@ async function postChannelMove(body, who, db, nowMs) {
 
 // The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
 // is not green-clean, a fix forward moves its head, a promotion or the owner's abandon clears it ({ clear: true }).
-// Only master's own release.yml writes it.
+// Only master's own release.yml writes it, and release-rerun.yml for a red run it does not re-run.
 async function postHold(body, who, db, nowMs) {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
-        refuse(403, "only master's own release.yml holds a candidate");
+    const ref = String(who.claims?.job_workflow_ref);
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@"))) {
+        refuse(403, "only master's own release.yml or release-rerun.yml holds a candidate");
     }
     if (body?.clear === true) {
         const { meta } = await db.prepare("DELETE FROM candidate WHERE id = 1").run();

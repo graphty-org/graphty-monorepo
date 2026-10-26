@@ -882,6 +882,13 @@ describe("POST /v1/hold", () => {
         assert.equal(await hold(), null);
         assert.deepEqual((await post({ base: N, head: N })).body, { held: true }, "once cleared, a new base holds");
     });
+    it("lets release-rerun.yml hold a red run it does not re-run, and no other lane", async () => {
+        const { call } = service();
+        const post = (token) => call("POST", "/v1/hold", { token, body: { base: C, head: C, issue: 7 } });
+        assert.equal((await post(master("gpu.yml"))).status, 403);
+        assert.equal((await call("GET", "/v1/candidate", { token: master("release-rerun.yml") })).status, 200);
+        assert.deepEqual((await post(master("release-rerun.yml"))).body, { held: true });
+    });
     it("offers only the held head, once it is green-images, and reports nightly as held", async () => {
         const { call, env } = service();
         const s = seed(env);

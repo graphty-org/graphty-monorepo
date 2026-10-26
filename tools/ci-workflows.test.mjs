@@ -61,7 +61,12 @@ import {
     STORYBOOKS,
     treeWithout,
 } from "./ci-reuse-plan.mjs";
-import { cancelNote as releaseCancelNote, due as releaseDue, toCancel as releaseToCancel } from "./release-due.mjs";
+import {
+    cancelNote as releaseCancelNote,
+    due as releaseDue,
+    resumesDue as releaseResumesDue,
+    toCancel as releaseToCancel,
+} from "./release-due.mjs";
 import { rerunnable } from "./release-rerun.mjs";
 import { reportsFailure as releaseReportsFailure } from "./release-status.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -1434,9 +1439,32 @@ describe("ci.yml", () => {
             /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && !inputs\.ref \}\}\n/,
         );
         assert.match(due, /actions: write\n/);
+        // the held candidate is read from the results store when the merge is the owner's screenshot approval
+        assert.match(due, /id-token: write\n/);
+        assert.match(due, /RESULTS_URL: \$\{\{ vars.RESULTS_URL \}\}\n/);
         assert.doesNotMatch(due, /concurrency:/);
         // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
         assert.match(due, /\n {8}continue-on-error: true\n/);
+    });
+
+    it("promotes a held candidate when the owner's approval of it merges, and tells the hold issue when it is stale", () => {
+        const h = "a".repeat(40);
+        const accept = {
+            sha: "b".repeat(40),
+            parents: [h],
+            subject: `test(workspace): approve visual baselines at ${h.slice(0, 12)}`,
+        };
+        // the commit holding the owner's signed approval, the pull request's head
+        const approval = "9".repeat(40);
+        const merge = { sha: "c".repeat(40), parents: ["d".repeat(40), approval], subject: "Merge pull request #1" };
+        const store = (head) => ({ hold: { head, issue: 77 }, recent: [{ sha: h, state: "green-images", runId: 5 }] });
+        assert.deepEqual(releaseResumesDue([merge], store(h), approval), [], "no accept commit, no promotion");
+        const [due] = releaseResumesDue([merge, accept], store(h), approval);
+        assert.deepEqual([due.run, due.candidate, due.accept], [true, h, approval]);
+        const [stale] = releaseResumesDue([accept], store("e".repeat(40)), approval);
+        assert.deepEqual([stale.run, stale.comment], [false, 77]);
+        // a store that does not answer dispatches: promote-nightly checks again
+        assert.equal(releaseResumesDue([accept], null, approval)[0].run, true);
     });
 
     it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
@@ -3037,7 +3065,19 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
 
     it("re-runs a full run's lanes, re-capture and verdict, and never its version, land, publish or hold jobs", () => {
         const jobs = parseYaml(workflow("release.yml")).jobs;
-        const never = ["pick", "held", "version", "approve", "land", "unhold", "publish", "site", "candidate_branch"];
+        const never = [
+            "pick",
+            "held",
+            "version",
+            "approve",
+            "land",
+            "unhold",
+            "publish",
+            "site",
+            "candidate_branch",
+            "keep_builds",
+            "resume",
+        ];
         for (const [id, j] of Object.entries(jobs)) {
             const name = j.name.replace(/\$\{\{ matrix.project \}\}/, "graphty");
             if (id.startsWith("abandon")) continue;
@@ -3089,11 +3129,18 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.equal(jobs.abandon_approve.if, "${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}");
         assert.match(
             jobs.unhold.if,
-            /needs.land.outputs.pushed == 'true' && needs.pick.outputs.held != '' && needs.pick.outputs.held == needs.pick.outputs.sha/,
+            /needs.land.outputs.pushed == 'true' && \(\(needs.pick.outputs.held != '' && needs.pick.outputs.held == \(needs.pick.outputs.tested \|\| needs.pick.outputs.sha\)\) \|\| needs.pick.outputs.resume == 'true'\)/,
         );
         for (const id of ["abandon", "unhold"]) {
-            assert.equal(jobs[id].steps.at(-1).run, "node tools/channel/hold.mjs end", id);
+            assert.ok(
+                jobs[id].steps.some((st) => st.run === "node tools/channel/hold.mjs end"),
+                id,
+            );
         }
+        // after the owner's approval, the tested head is recorded approved, so the same approval never promotes again
+        const approved = jobs.unhold.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
+        assert.equal(approved.if, "${{ needs.pick.outputs.resume == 'true' }}");
+        assert.equal(approved.env.STATE, "approved");
     });
 
     it("opens no Release held issue for a first attempt the re-run will repeat, using the same test", () => {
@@ -3550,7 +3597,7 @@ describe("release.yml", () => {
     it("lands and publishes only in an owner-approved legacy run; a full run, the default, only tests", () => {
         assert.match(
             release,
-            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n\s+- abandon\n/,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n\s+- abandon\n\s+- promote-nightly\n\s+candidate:\n[^\n]*\n\s+required: false\n\s+default: ""\n\s+type: string\n\s+accept:\n/,
         );
         assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode \|\| 'full' \}\}\n/m);
         // the owner's approval in production stands before the land job, and refuses a production that asks nobody
@@ -3591,14 +3638,14 @@ describe("release.yml", () => {
         // the store's pick replaces the 29-minute nx check, which only shadow and legacy runs still make
         assert.match(
             pick,
-            /id: candidate\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && \(env.MODE == 'full' \|\| env.MODE == 'restart'\) \}\}/,
+            /id: candidate\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && \(env.MODE == 'full' \|\| env.MODE == 'restart'\) && steps.resume.outputs.resume != 'true' \}\}/,
         );
         assert.match(pick, /node tools\/full-run.mjs pick\n/);
         assert.match(pick, /RESULTS_URL: \$\{\{ vars.RESULTS_URL \}\}/);
         assert.match(pick, /id-token: write/);
         assert.match(
             pick,
-            /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' \}\}/,
+            /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' && env.MODE != 'promote-nightly' \}\}/,
         );
         // the verdict judges every lane, whatever it ended with, only in a full run
         const lanes = ["ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version_dry_run"];
@@ -3689,7 +3736,11 @@ describe("release.yml", () => {
         assert.deepEqual(pick.replace(/^\s*#.*$/gm, "").match(/ci\.yml[^\n]*/g), [
             'ci.yml --commit "$sha" --event push --status success --limit 1 \\',
         ]);
-        assert.doesNotMatch(release, /run-id: \$\{\{ needs.pick/);
+        // only a promotion after the owner's approval reads another run: the Release run that tested its candidate
+        assert.deepEqual(release.match(/run-id: \$\{\{ needs.pick[^\n]*/g), [
+            "run-id: ${{ needs.pick.outputs.source_run }}",
+            "run-id: ${{ needs.pick.outputs.source_run }}",
+        ]);
     });
 
     it("does nothing while the previous release is pending", () => {
@@ -3746,11 +3797,14 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict\]/);
+        assert.match(
+            version,
+            /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume\]/,
+        );
         // shadow and legacy: every lane passed; a nightly promotion: the verdict job decided to promote
         assert.match(
             version,
-            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.verdict.outputs.promote == 'true'\)\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
@@ -3848,11 +3902,17 @@ describe("release.yml", () => {
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
         assert.match(
             held,
-            /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, version, approve, land\]/,
+            /needs:\s+\[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume, version, approve, land\]/,
         );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
-        // the publish job finds only builds the version job kept, and only the version job keeps them
-        assert.equal(release.match(/name: release-builds-/g).length, 2);
+        // the publish job finds only builds the version job kept, and only the version job keeps them -- besides a held
+        // green-images head's, which the keep_builds job keeps for its promotion after the owner's approval
+        assert.equal(release.match(/name: release-builds-/g).length, 4);
+        assert.match(job(release, "keep_builds"), /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(
+            version,
+            /name: release-builds-\$\{\{ needs.pick.outputs.tested \}\}\n\s+path: [^\n]*\n\s+run-id: \$\{\{ needs.pick.outputs.source_run \}\}/,
+        );
         assert.match(version, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(publish, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
         // and the land job pushes exactly the commit the version job made
@@ -3897,7 +3957,8 @@ describe("release.yml", () => {
             /environment: \$\{\{ inputs.mode != 'shadow' && 'release' \|\| '' \}\}/,
             "Pushover's secrets",
         );
-        assert.match(held, /\[ "\$MODE" != full \] && \[ "\$MODE" != restart \] \|\| outcome=nightly-held/);
+        // full, restart and promote-nightly are nightly promotions (the job's NIGHTLY)
+        assert.match(held, /\[ "\$\{NIGHTLY:-\}" != true \] \|\| outcome=nightly-held/);
         const site = job(workflow("release.yml"), "site");
         assert.match(
             site,
@@ -3928,7 +3989,7 @@ describe("release.yml", () => {
             .../\n {8}needs: \[([^\]]*)\]/
                 .exec(version)[1]
                 .split(", ")
-                .filter((j) => j !== "verdict"),
+                .filter((j) => j !== "verdict" && j !== "resume"),
             "version",
             "land",
         ];
@@ -3952,6 +4013,7 @@ describe("release.yml", () => {
                         "llm",
                         "version_dry_run",
                         "verdict",
+                        "resume",
                         "version",
                         "approve",
                         "land",
@@ -3990,7 +4052,18 @@ describe("release.yml", () => {
             ]);
             assert.match(
                 held,
-                new RegExp(`needs: \\[${trainNeeds.slice(0, -2).join(", ")}, verdict, version, approve, land\\]`),
+                new RegExp(
+                    `needs:\\s+\\[${trainNeeds.slice(0, -2).join(", ")}, verdict, resume, version, approve, land\\]`,
+                ),
+            );
+            // a promotion after the owner's approval that did not land files the nightly promotion's issue too
+            assert.match(
+                held,
+                /\(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true' && \(needs.version.result != 'success' \|\| needs.land.outputs.pushed != 'true'\)\)/,
+            );
+            assert.match(
+                held,
+                /NIGHTLY: \$\{\{ inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'promote-nightly' \}\}/,
             );
         });
 
@@ -4440,7 +4513,7 @@ describe("release.yml", () => {
         // once its version job passed (the verdict decided to promote)
         assert.match(
             land,
-            /needs: \[pick, version, approve\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(needs.approve.result == 'success' \|\| inputs.mode == 'full' \|\| inputs.mode == 'restart'\) \}\}/,
+            /needs: \[pick, version, approve\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(needs.approve.result == 'success' \|\| inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'promote-nightly'\) \}\}/,
         );
         assert.match(approve, /if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/);
         // npm next moves only when something was versioned; the site and channel/nightly move either way
@@ -4479,6 +4552,23 @@ describe("release.yml", () => {
                 git(work, "commit", "-qm", "feat: t");
                 const T = git(work, "rev-parse", "HEAD");
                 git(work, "push", "-q", "origin", "HEAD:master");
+                // S, the commit versioned: T itself; the owner's accept commit on T, merged into master (a promotion
+                // after approval); or a commit master does not hold (code that never went through a pull request)
+                if (opts.accept) {
+                    git(work, "switch", "-q", "-c", "accept");
+                    mkdirSync(join(work, "visual-baselines"));
+                    writeFileSync(join(work, "visual-baselines", "a.png"), "png\n");
+                    git(work, "add", ".");
+                    git(work, "commit", "-qm", `test(workspace): approve visual baselines at ${T.slice(0, 12)}`);
+                    git(work, "switch", "-q", "master");
+                    git(work, "merge", "-q", "--no-ff", "-m", "Merge the approval", "accept");
+                    git(work, "push", "-q", "origin", "HEAD:master");
+                    git(work, "switch", "-q", "--detach", "accept");
+                } else if (opts.unmerged) {
+                    writeFileSync(join(work, "src.txt"), "code master never reviewed\n");
+                    git(work, "commit", "-qam", "fix: not on master");
+                }
+                const S = git(work, "rev-parse", "HEAD");
                 // the version commit and its bundle, as the version job makes them
                 writeFileSync(join(work, "package.json"), '{\n    "name": "a",\n    "version": "1.1.0"\n}\n');
                 writeFileSync(join(work, "CHANGELOG.md"), "## 1.1.0\n");
@@ -4487,8 +4577,8 @@ describe("release.yml", () => {
                 const V = git(work, "rev-parse", "HEAD");
                 mkdirSync(join(dir, "release"));
                 git(work, "branch", "release", V);
-                git(work, "bundle", "create", join(dir, "release", "release.bundle"), "release", `^${T}`);
-                git(work, "checkout", "-q", "--detach", T);
+                git(work, "bundle", "create", join(dir, "release", "release.bundle"), "release", `^${S}`);
+                git(work, "checkout", "-q", "--detach", S);
                 git(work, "branch", "-D", "release");
                 if (opts.moved || opts.conflict) {
                     const other = join(dir, "other");
@@ -4520,7 +4610,9 @@ describe("release.yml", () => {
                         ...process.env,
                         RUNNER_TEMP: dir,
                         GITHUB_OUTPUT: output,
-                        SHA: T,
+                        SHA: S,
+                        // after the owner's approval the land job is told the candidate the lanes tested
+                        ...(opts.accept ? { TESTED: T } : {}),
                         COMMIT: opts.noVersion ? "" : V,
                         TAGS: opts.noVersion ? "" : "a@1.1.0",
                         DIST_TAG: opts.distTag ?? "latest",
@@ -4556,6 +4648,7 @@ describe("release.yml", () => {
                     nightly,
                     candidate,
                     T,
+                    S,
                     V,
                 };
             } finally {
@@ -4611,6 +4704,26 @@ describe("release.yml", () => {
             assert.equal(other.run.status, 0, other.run.stdout + other.run.stderr);
             assert.equal(other.candidate, other.T, "another commit's promotion leaves the hold's branch");
             assert.equal(land_({ distTag: "next" }).candidate, "", "no branch, nothing to delete");
+        });
+
+        it("promotes the owner's accept commit: site tag on the tested candidate, nightly on its version commit", () => {
+            const r = land_({ distTag: "next", held: true, accept: true });
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.notEqual(r.S, r.T);
+            assert.equal(r.site, r.T, "the site master built is the candidate's");
+            assert.equal(r.nightly, r.V, "channel/nightly is the accept commit's version commit");
+            assert.equal(r.tag, r.V);
+            assert.equal(r.candidate, "", "the held candidate's branch goes with the promotion");
+        });
+
+        it("refuses a version commit whose merge would bring master code no pull request reviewed", () => {
+            const r = land_({ distTag: "next", unmerged: true });
+            assert.equal(r.run.status, 1);
+            assert.match(
+                r.run.stdout,
+                /::error::merging .* into master would bring in more than versions and changelogs/,
+            );
+            assert.deepEqual([r.output, r.tag, r.master], ["", "", r.T], "nothing pushed");
         });
 
         it("refuses a legacy release with no version commit, pushing nothing", () => {
@@ -6423,10 +6536,15 @@ describe("release.yml's nightly promotion (#1020)", () => {
 
     it("records an owner-approved baselines tree in channel.json as approved:<tree>, else unchanged", () => {
         assert.match(verdict, /\n {12}screenshots: \$\{\{ steps.gate.outputs.screenshots \}\}\n/);
-        const gate = steps.verdict.steps.find((x) => x.id === "gate").run;
-        assert.match(gate, /tree=\$\(git rev-parse "\$SHA:visual-baselines"\)/);
+        const gate = readFileSync("tools/channel/screenshot-gate.sh", "utf8");
+        assert.match(gate, /tree=\$\(git rev-parse "\$HEAD_SHA:visual-baselines"\)/);
         assert.match(gate, /echo "screenshots=approved:\$tree"/);
-        assert.match(site, /\n {12}SCREENSHOTS: \$\{\{ needs.verdict.outputs.screenshots \}\}\n/);
+        // a promotion after the owner's approval records its accept commit's tree the same way
+        assert.match(job(release, "resume"), /\n {12}screenshots: \$\{\{ steps.gate.outputs.screenshots \}\}\n/);
+        assert.match(
+            site,
+            /\n {12}SCREENSHOTS: \$\{\{ needs.verdict.outputs.screenshots \|\| needs.resume.outputs.screenshots \}\}\n/,
+        );
     });
 
     it("hands the publish job a build of every package it can version, cytoscape-extensions included", () => {
@@ -6450,9 +6568,17 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.equal(gate.if, "${{ steps.verdict.outputs.state == 'green-clean' }}");
         assert.equal(gate["continue-on-error"], undefined, "an error fails the job; only a refusal is a decision");
         // master's tip's gate, unchanged, against channel/nightly (or the last release before nightly exists)
-        assert.match(gate.run, /git archive HEAD visual-review\/trusted \| tar -x -C "\$gate"/);
-        assert.match(gate.run, /gate --captures "\$RUNNER_TEMP\/visual" --base "\$base" --head "\$SHA"/);
-        assert.match(gate.run, /refs\/heads\/channel\/nightly/);
+        assert.equal(gate.run, "tools/channel/screenshot-gate.sh");
+        assert.deepEqual(gate.env, { HEAD_SHA: "${{ env.SHA }}", CAPTURES: "${{ runner.temp }}/visual" });
+        const script = readFileSync("tools/channel/screenshot-gate.sh", "utf8");
+        assert.match(script, /git archive HEAD visual-review\/trusted \| tar -x -C "\$gate"/);
+        assert.match(script, /gate --captures "\$CAPTURES" --base "\$base" --head "\$HEAD_SHA"/);
+        assert.match(script, /refs\/heads\/channel\/nightly/);
+        // the promotion after the owner's approval runs the same gate on its accept commit, with the captures of the
+        // run that judged its candidate
+        const resume = steps.resume.steps.find((st) => st.id === "gate");
+        assert.match(resume.run, /\n\s*tools\/channel\/screenshot-gate.sh\n?$/);
+        assert.equal(resume.env.HEAD_SHA, "${{ needs.pick.outputs.sha }}");
         const decide = steps.verdict.steps.find((st) => st.id === "promote");
         assert.equal(decide.run, "node tools/channel/nightly.mjs decide");
         assert.deepEqual(decide.env, {
@@ -6467,7 +6593,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
     });
 
     it("tells a screenshot gate refusal from an error, and a missing channel/nightly from a failed ls-remote", () => {
-        const run = steps.verdict.steps.find((st) => st.id === "gate").run;
+        const run = readFileSync("tools/channel/screenshot-gate.sh", "utf8");
         // the refusal line the step looks for is the one the gate prints
         assert.match(readFileSync("visual-review/trusted/gate.mjs", "utf8"), /"Review them with `visual-review serve`/);
         const gateRun = (lsRemote, gateExit, gateOut) => {
@@ -6504,7 +6630,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
                 env: {
                     ...process.env,
                     PATH: `${bin}:${process.env.PATH}`,
-                    SHA: "abc",
+                    HEAD_SHA: "abc",
+                    CAPTURES: join(dir, "captures"),
                     RUNNER_TEMP: join(dir, "tmp"),
                     GITHUB_OUTPUT: out,
                 },
@@ -6536,7 +6663,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
     });
 
     it("trusts the passkeys.json master already has, and still judges visual-baselines/ against nightly's", () => {
-        const run = steps.verdict.steps.find((st) => st.id === "gate").run;
+        const run = readFileSync("tools/channel/screenshot-gate.sh", "utf8");
         const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
         const scenario = (changeBaselines) => {
             const dir = mkdtempSync(join(TMP, "nightly-passkey-"));
@@ -6592,7 +6719,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
                 env: {
                     ...process.env,
                     PATH: `${bin}:${process.env.PATH}`,
-                    SHA: git("rev-parse", "HEAD"),
+                    HEAD_SHA: git("rev-parse", "HEAD"),
+                    CAPTURES: join(dir, "captures"),
                     RUNNER_TEMP: join(dir, "tmp"),
                     GITHUB_OUTPUT: out,
                 },
@@ -6663,12 +6791,55 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.match(readFileSync(join(dir, "held.log"), "utf8"), /^open Nightly blocked: abc$/m);
     });
 
+    it("promotes after the owner's approval: no lane runs, the gate reads the judging run, then version to site", () => {
+        const pick = steps.pick;
+        const resume = pick.steps.find((st) => st.id === "resume");
+        assert.equal(
+            resume.if,
+            "${{ steps.pending.outputs.pending == 'false' && (env.MODE == 'full' || env.MODE == 'promote-nightly') }}",
+        );
+        assert.match(resume.run, /node tools\/channel\/resume.mjs check\n$/);
+        const order = pick.steps.map((st) => st.id);
+        assert.ok(order.indexOf("resume") < order.indexOf("candidate"), "a full slot catches up first");
+        // the release output stays false, so no lane runs; the accept commit is the run's sha
+        assert.equal(
+            pick.outputs.release,
+            "${{ steps.candidate.outputs.run || steps.releasable.outputs.release || 'false' }}",
+        );
+        assert.match(pick.outputs.sha, /^\$\{\{ steps.resume.outputs.sha \|\| /);
+        for (const lane of ["ci", "t4", "hosts", "autosave_macos", "audit", "version_dry_run"]) {
+            assert.equal(steps[lane].if, "${{ needs.pick.outputs.release == 'true' }}", lane);
+        }
+        const gate = steps.resume;
+        assert.equal(gate.if, "${{ needs.pick.outputs.resume == 'true' }}");
+        const download = gate.steps.find((st) => st.uses?.startsWith("actions/download-artifact"));
+        assert.deepEqual(
+            [download.with.pattern, download.with["run-id"]],
+            ["visual-final-*", "${{ needs.pick.outputs.source_run }}"],
+        );
+        const decide = gate.steps.find((st) => st.id === "promote");
+        assert.deepEqual([decide.run, decide.env.STATE], ["node tools/channel/nightly.mjs decide", "approved"]);
+        // only a gate refusal is recorded (rejected), never a wait for a publish hold
+        const rejected = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
+        assert.equal(rejected.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
+        assert.equal(rejected.env.STATE, "rejected");
+        // the builds the promotion ships: those the judging run kept for its held green-images head
+        assert.equal(
+            steps.keep_builds.if,
+            "${{ !cancelled() && needs.verdict.outputs.state == 'green-images' && (needs.verdict.outputs.hold == 'start' || needs.verdict.outputs.hold == 'update') }}",
+        );
+    });
+
     it("deploys the site from environment nightly, after npm next, with the site repository's key only", () => {
-        assert.match(site, /\n {8}needs: \[pick, verdict, version, land, publish\]\n/);
+        assert.match(site, /\n {8}needs: \[pick, verdict, resume, version, land, publish\]\n/);
         assert.equal(
             steps.site.if,
-            "${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}",
+            "${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'promote-nightly') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}",
         );
+        // after the owner's approval: the candidate's built site (master built it, not the accept commit), and
+        // channel/nightly where the land job moved it
+        assert.equal(steps.site.env.SHA, "${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}");
+        assert.equal(steps.site.env.TARGET, "${{ needs.version.outputs.commit || needs.pick.outputs.sha }}");
         assert.equal(steps.site.environment, "nightly");
         assert.deepEqual(steps.site.permissions, {
             actions: "read",

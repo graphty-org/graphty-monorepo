@@ -16,18 +16,27 @@
  * its record in the results store. Only runs the issue names are cancelled, never one testing another commit, and a
  * note on the Release status issue keeps release-watch from announcing the cancel as a release that ended badly.
  *
- * Not yet: resuming an approved awaiting candidate, which needs the results store.
+ * A merge of the owner's screenshot approval (design/ci/channels-pipeline.md section 5, "Approval gates nightly"):
+ * its accept commit A, subject "<prefix>: approve visual baselines at <sha12>", parented on the candidate H, dispatches
+ * release.yml `mode: promote-nightly` with `candidate` H and `accept` P, the pull request's head (A and the commit
+ * holding the owner's signed approval on it; the merge's second parent), when H is the held head (or nothing is held)
+ * and its latest verdict is green-images (tools/channel/resume.mjs). An approval for a head that is no longer the
+ * held one dispatches nothing and says so on the hold issue. A store that does not answer dispatches anyway: the
+ * run's own check decides.
  *
  * Usage: node tools/release-due.mjs [--dry-run]
- *   env GH_TOKEN, GITHUB_REPOSITORY; the checkout is the master commit, with its parents.
+ *   env GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token; the checkout is the master commit, with
+ *   its parents.
  */
 
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { acceptsIn, resumeDecision } from "./channel/resume.mjs";
 import { listRedIssues, RED_TITLE } from "./full-run.mjs";
 import { LABEL } from "./release-status.mjs";
+import { call, config } from "./results/client.mjs";
 
 // how long after its close a red issue still restarts: the merge that closed it ran this job minutes later
 const CLOSED_WITHIN_MS = 60 * 60 * 1000;
@@ -82,6 +91,25 @@ export function toCancel(runs, issueText) {
 export function cancelNote(issue, url, attempt) {
     const rerun = attempt > 1 ? ` (re-run, attempt ${attempt})` : "";
     return `**Full run red**${rerun}: see #${issue}. This run was cancelled to restart on a merge that fixes it.\n\nRun: ${url}`;
+}
+
+/**
+ * The promotions a merge's accept commits start (design/ci/channels-pipeline.md section 5).
+ * @param commits the merge's commits, `[{ sha, parents, subject }]`
+ * @param store `GET /v1/candidate`'s answer (hold, recent), or null when the store did not answer
+ * @param approval the merged pull request's head (the merge's second parent), which promote-nightly checks holds
+ *   only accept-only commits on the candidate
+ * @returns `[{ candidate, accept, run, why, comment }]`: run, dispatch promote-nightly; comment, the hold issue to
+ *   tell why not
+ */
+export function resumesDue(commits, store, approval) {
+    return acceptsIn(commits).map(({ candidate }) => {
+        const accept = approval;
+        if (!store) return { candidate, accept, run: true, why: "the results store did not answer: the run decides" };
+        const latest = (store.recent ?? []).find((v) => v.sha === candidate) ?? null;
+        const d = resumeDecision({ candidate, accept, hold: store.hold ?? null, latest });
+        return { candidate, accept, ...d };
+    });
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
@@ -141,7 +169,48 @@ function cancelRedRun(issue, dryRun) {
     }
 }
 
-function main() {
+async function promoteApproved(range, approval, dryRun) {
+    const commits = run("git", ["log", "--format=%H %P%x09%s", ...range])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+            const [ids, subject] = line.split("\t");
+            const [sha, ...parents] = ids.split(" ");
+            return { sha, parents, subject };
+        });
+    if (acceptsIn(commits).length === 0) return;
+    const cfg = config(process.env);
+    const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
+    for (const p of resumesDue(commits, r.ok ? r.data : null, approval)) {
+        console.log(`release-due: the approval ${p.accept} of ${p.candidate}: ${p.why}`);
+        if (dryRun) continue;
+        if (p.run) {
+            run("gh", [
+                "workflow",
+                "run",
+                "release.yml",
+                "--ref",
+                "master",
+                "-f",
+                "mode=promote-nightly",
+                "-f",
+                `candidate=${p.candidate}`,
+                "-f",
+                `accept=${p.accept}`,
+            ]);
+        } else if (p.comment) {
+            run("gh", [
+                "issue",
+                "comment",
+                String(p.comment),
+                "--body",
+                `The approval ${p.accept} merged, but nothing was promoted: ${p.why}.`,
+            ]);
+        }
+    }
+}
+
+async function main() {
     const dryRun = process.argv.includes("--dry-run");
     // the open ones, and those closed in the last hour (by this merge's Fixes)
     const issues = [
@@ -168,6 +237,14 @@ function main() {
     } catch (error) {
         console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
     }
+    // an approval merge promotes its candidate whatever the red issues say; its failure never stops the restart
+    try {
+        // the pull request's head: the merge's second parent, or the commit itself when it is no merge
+        const approval = run("git", ["rev-parse", range.length === 1 ? "HEAD^2" : "HEAD"]);
+        await promoteApproved(range, approval, dryRun);
+    } catch (error) {
+        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+    }
     const plan = due(issues, `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`);
     if (!plan) {
         console.log("release-due: nothing due (no open red issue referenced by this merge)");
@@ -186,5 +263,5 @@ function main() {
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    main();
+    await main();
 }

@@ -59,8 +59,9 @@ export async function putRaw(
 }
 
 /**
- * `r` over what is stored: a field `r` leaves out or undefined keeps its stored value, so a writer that knows less
- * (the backfill) never erases what one that knew more (the live collector: cause, cancelClass, hang, stages) stored.
+ * `r` over what is stored, keeping only the fields the live collector alone writes (LIVE_ONLY: cause, cancelClass,
+ * hang, stages, tested) when `r` leaves them out, so a writer that knows less (the backfill) never erases them. Every
+ * other field `r` leaves out stays unset.
  * @param r
  * @param old
  */
@@ -75,7 +76,7 @@ function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
     );
     return { ...r, ...live } as RawItem;
 }
-const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages"] as const;
+const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages", "tested"] as const;
 
 export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {

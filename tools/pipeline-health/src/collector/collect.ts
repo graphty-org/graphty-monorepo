@@ -727,6 +727,9 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
             throw new Error(`deploy build ${last.buildId} ${status}; attempt ${attempt + 1} started`);
     } else if (failed) {
         throw new Error(`deploy build ${last.buildId} ${status} after ${attempt} attempts`);
+    } else if (status === "STOPPED") {
+        // Not restarted, but not healthy either: the stack runs older code than master until a new tree deploys.
+        throw new Error(`deploy build ${last.buildId} STOPPED; not restarted for the same tree`);
     }
     await recordSource(c.d.store, "deploy", c.now, { ok: true });
 }

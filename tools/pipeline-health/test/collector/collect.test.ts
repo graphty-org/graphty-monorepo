@@ -277,7 +277,7 @@ describe("collector deploy trigger", () => {
         expect(JSON.stringify(await store.get(sourceKey("deploy")))).toContain("FAILED");
     });
 
-    it("never starts again a build someone stopped", async () => {
+    it("never starts again a build someone stopped, and reports the deploy source as failed", async () => {
         const store = new MemoryStore();
         await run(
             store,
@@ -292,6 +292,6 @@ describe("collector deploy trigger", () => {
             NOW + 5 * MIN,
         );
         expect(b.started).toEqual([]);
-        expect(r.errors.deploy).toBeUndefined();
+        expect(r.errors.deploy).toContain("STOPPED");
     });
 });

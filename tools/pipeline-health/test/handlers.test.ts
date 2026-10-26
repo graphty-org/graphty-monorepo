@@ -199,6 +199,17 @@ describe("ingest: what it stores", () => {
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
     });
 
+    it("refuses an oversized row before charging the quota or writing anything", async () => {
+        const h = await ingest();
+        const longName = { failures: [{ file: "a.test.ts", name: "x".repeat(3000), message: "m" }] };
+        const res = await h(event("/v1/invocations", invocation(longName)));
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(String(res.body)).code).toBe("row_refused");
+        const files = Array.from({ length: 4000 }, (_, i) => [`${"f".repeat(80)}${i}.test.ts`, 1, 1, 0, 1]);
+        expect((await h(event("/v1/invocations", invocation({ files })))).statusCode).toBe(400);
+        expect(mem.items.size).toBe(0);
+    });
+
     it("refuses a row with a fractional try as content (400), not as an outage", async () => {
         const h = await ingest();
         const res = await h(event("/v1/invocations", { ...invocation(), try: 1.5 }));
@@ -235,6 +246,12 @@ describe("ingest: what it stores", () => {
         expect((await h(event("/v1/durations", { rows }, { claims: pr }))).statusCode).toBe(403);
         const branch = { ...site, ref: "refs/heads/feature" };
         expect((await h(event("/v1/durations", { rows }, { claims: branch }))).statusCode).toBe(403);
+        // Only deploy.yml: another default-branch workflow (pull_request_target, workflow_run) is refused.
+        const other = {
+            ...site,
+            job_workflow_ref: "graphty-org/graphty-nightly/.github/workflows/triage.yml@refs/heads/main",
+        };
+        expect((await h(event("/v1/durations", { rows }, { claims: other }))).statusCode).toBe(403);
     });
 
     it("records the site deploy-pages.yml built, from that workflow on master only", async () => {

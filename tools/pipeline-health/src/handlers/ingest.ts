@@ -16,7 +16,6 @@ import { dynamoStore } from "../dynamo.js";
 import {
     DAY,
     oldestAt,
-    check,
     putRaw,
     recordSource,
     takeQuota,
@@ -32,6 +31,12 @@ import type { Store } from "../model/store.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_ROWS = 5000;
+/**
+ * A row DynamoDB would refuse (an item over its 400 KB, a partition key over 2048 bytes), refused before the quota
+ * is charged or anything is written, so the request is all or nothing. Below the hard limits for the copies' keys.
+ */
+const MAX_ITEM_BYTES = 300_000;
+const MAX_ID_BYTES = 1500;
 export const LOCAL_TOKEN_PARAMETER = "/graphty-health/local-token-sha256";
 export const REPOSITORY = "graphty-org/graphty-monorepo";
 export const REPOSITORY_ID = "1122477634";
@@ -132,14 +137,13 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!body || typeof body !== "object") refuse(400, "bad_body");
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
-    for (const item of items) {
-        try {
-            check(item);
-        } catch (error) {
-            refuse(400, "bad_row", { error: String(error).slice(0, 200) });
-        }
-    }
     if (items.length + extra.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    for (const item of items)
+        if (
+            Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
+            Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
+        )
+            refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
     await putRaw(db, items, now);
     if (extra.length) await db.batch(extra.map((put) => ({ put })));
@@ -153,8 +157,14 @@ export function whoOf(claims: Claims): Who {
     if (claims.repository_owner !== "graphty-org") refuse(403, "wrong_owner");
     const site = DEPLOY_REPOSITORIES[String(claims.repository_id)];
     if (site && claims.repository === site) {
-        // Only a deploy from the default branch, never a pull request's or another branch's workflow.
-        if (claims.event_name === "pull_request" || !/^refs\/heads\/(main|master)$/.test(String(claims.ref)))
+        // Only the site repository's deploy.yml (tools/channel/site-deploy.yml) at its default branch: never a pull
+        // request's, another branch's, or another workflow's (pull_request_target, workflow_run) token.
+        const ref = String(claims.ref);
+        if (
+            claims.event_name === "pull_request" ||
+            !/^refs\/heads\/(main|master)$/.test(ref) ||
+            claims.job_workflow_ref !== `${site}/.github/workflows/deploy.yml@${ref}`
+        )
             refuse(403, "deploy_from_default_branch_only");
         return { kind: "deploy", claims };
     }

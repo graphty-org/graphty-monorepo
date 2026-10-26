@@ -1198,7 +1198,9 @@ describe("ci.yml", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
-        assert.doesNotMatch(job(ci, "packages"), /\n {8}(needs|if):/, "Build has no needs and no condition");
+        // Build needs only the run cap (tools/ci-run-cap.mjs), which never fails, and has no condition
+        assert.doesNotMatch(job(ci, "packages"), /\n {8}if:/, "Build has no condition");
+        assert.match(job(ci, "packages"), /\n {8}needs: run-cap\n/, "Build needs only the run cap");
         assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });

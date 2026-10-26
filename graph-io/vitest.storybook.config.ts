@@ -44,10 +44,6 @@ export default defineConfig({
             ...(VISUAL ? ["fidelity-stories/.storybook/vitest.setup.visual.ts"] : []),
             "fidelity-stories/.storybook/vitest.setup.ts",
         ],
-        testTimeout: 30000,
-        // With screenshots on, a story's afterEach renders it again for each further mode and once
-        // more when a shot differs from its baseline: it bounds that work, no wait.
-        ...(VISUAL && { hookTimeout: 90000 }),
         // One story file at a time, as graphty-element's and graphty's storybook projects.
         fileParallelism: false,
     },

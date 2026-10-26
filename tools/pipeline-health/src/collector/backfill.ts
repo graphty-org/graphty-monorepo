@@ -154,7 +154,8 @@ async function pullRequestsAndIssues(o: BackfillOptions, gate: () => Promise<voi
 }
 
 async function main() {
-    const { DynamoStore, ssmGetParams } = await import("./aws.js");
+    const { ssmGetParams } = await import("./aws.js");
+    const { dynamoStore } = await import("../dynamo.js");
     const arg = (name: string, d: number) => {
         const i = process.argv.indexOf(`--${name}`);
         return i > 0 ? Number(process.argv[i + 1]) : d;
@@ -165,7 +166,7 @@ async function main() {
         process.exit(2);
     }
     const gh = new GitHub(() => installationToken(app, fetch, Date.now()));
-    const store = new DynamoStore(process.env.TABLE_NAME ?? "graphty-health");
+    const store = dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
     const repos = (
         (await gh.rest<{ full_name: string; archived: boolean; pushed_at: string }[]>(
             "orgs/graphty-org/repos?per_page=100&type=all",

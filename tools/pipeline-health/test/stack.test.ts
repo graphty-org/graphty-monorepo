@@ -49,10 +49,12 @@ describe("health stack", () => {
             AuthorizerType: "JWT",
             JwtConfiguration: { Issuer: "https://token.actions.githubusercontent.com", Audience: ["graphty-health"] },
         });
-        t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
-            RouteKey: "POST /v1/ingest/{kind}",
-            AuthorizationType: "JWT",
-        });
+        for (const path of ["invocations", "failures", "durations", "verdicts"]) {
+            t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+                RouteKey: `POST /v1/${path}`,
+                AuthorizationType: "JWT",
+            });
+        }
         t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
             RouteKey: "POST /v1/local/{kind}",
             AuthorizationType: "NONE",
@@ -66,7 +68,8 @@ describe("health stack", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
             DefaultRouteSettings: { ThrottlingRateLimit: 20, ThrottlingBurstLimit: 40 },
             RouteSettings: {
-                "POST /v1/ingest/{kind}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
+                "POST /v1/invocations": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
+                "POST /v1/verdicts": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
                 "POST /v1/local/{kind}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
             },
         });
@@ -75,7 +78,7 @@ describe("health stack", () => {
     it("allows GET from the page and the dev origin only", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Api", {
             CorsConfiguration: Match.objectLike({
-                AllowOrigins: ["https://health.graphty.app", "https://dev.example:9123"],
+                AllowOrigins: ["https://health.graphty.app", "http://localhost:5173", "https://dev.example:9123"],
                 AllowMethods: ["GET"],
             }),
         });

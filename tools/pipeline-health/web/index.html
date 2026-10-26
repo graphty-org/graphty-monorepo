@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        <title>Pipeline health</title>
+        <link rel="icon" href="data:," />
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <pattern id="nh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width="6" height="6" style="fill: var(--nh)" />
+                    <rect width="2" height="6" style="fill: var(--nhs)" />
+                </pattern>
+            </defs>
+        </svg>
+        <div id="app"><p style="padding: 28px 40px">Loading the pipeline's health...</p></div>
+        <noscript>This page needs JavaScript: it reads the health API and draws the dashboard.</noscript>
+        <script type="module" src="./src/main.ts"></script>
+    </body>
+</html>

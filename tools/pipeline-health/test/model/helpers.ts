@@ -1,8 +1,8 @@
 // Fixtures for the model and SLA tests.
 import {
     HOUR,
-    MIN,
     type JobItem,
+    MIN,
     type ObservationItem,
     type PullRequestItem,
     type RunItem,

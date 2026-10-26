@@ -23,6 +23,9 @@ export const CI_AUDIENCE = "graphty-health";
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 10;
+export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts"];
+/** The page's Vite dev server, allowed beside the live origin. */
+export const DEV_ORIGIN = "http://localhost:5173";
 
 export interface HealthStackProps extends StackProps {
     /** An extra CORS origin for a local dev server of the page (cdk context `devOrigin`). */
@@ -52,7 +55,7 @@ export class HealthStack extends Stack {
             removalPolicy: RemovalPolicy.RETAIN,
         });
 
-        const fn = (name: string, reserved: number, timeout: number): NodejsFunction => {
+        const fn = (name: string, reserved: number, timeout: number, memorySize = 256): NodejsFunction => {
             const logGroup = new logs.LogGroup(this, `${name}Logs`, {
                 retention: logs.RetentionDays.TWO_WEEKS,
                 removalPolicy: RemovalPolicy.DESTROY,
@@ -63,7 +66,7 @@ export class HealthStack extends Stack {
                 depsLockFilePath: `${root}pnpm-lock.yaml`,
                 runtime: lambda.Runtime.NODEJS_22_X,
                 architecture: lambda.Architecture.ARM_64,
-                memorySize: 256,
+                memorySize,
                 timeout: Duration.seconds(timeout),
                 reservedConcurrentExecutions: reserved,
                 logGroup,
@@ -89,7 +92,8 @@ export class HealthStack extends Stack {
         };
         const ingest = fn("Ingest", 20, 10);
         const read = fn("Read", 5, 10);
-        const collector = fn("Collector", 1, 60);
+        // The collector also recomputes rollups, runs the SLA engine and writes about 40 gzipped page items.
+        const collector = fn("Collector", 1, 60, 512);
         // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
         collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
         table.grantReadWriteData(ingest);
@@ -101,7 +105,7 @@ export class HealthStack extends Stack {
         const api = new apigw.HttpApi(this, "Api", {
             apiName: "graphty-health",
             corsPreflight: {
-                allowOrigins: [PAGE_ORIGIN, ...(props.devOrigin ? [props.devOrigin] : [])],
+                allowOrigins: [PAGE_ORIGIN, DEV_ORIGIN, ...(props.devOrigin ? [props.devOrigin] : [])],
                 allowMethods: [apigw.CorsHttpMethod.GET],
                 maxAge: Duration.hours(1),
             },
@@ -114,12 +118,10 @@ export class HealthStack extends Stack {
             ...readPaths.flatMap((path) =>
                 api.addRoutes({ path, methods: [apigw.HttpMethod.GET], integration: readTarget }),
             ),
-            ...api.addRoutes({
-                path: "/v1/ingest/{kind}",
-                methods: [apigw.HttpMethod.POST],
-                integration: ingestTarget,
-                authorizer: jwt,
-            }),
+            // CI posts the results service's own paths, so one client sends the same bodies to both.
+            ...CI_ROUTES.flatMap((path) =>
+                api.addRoutes({ path, methods: [apigw.HttpMethod.POST], integration: ingestTarget, authorizer: jwt }),
+            ),
             ...api.addRoutes({ path: "/v1/local/{kind}", methods: [apigw.HttpMethod.POST], integration: ingestTarget }),
         ];
         const stage = (api.defaultStage as apigw.HttpStage).node.defaultChild as apigw.CfnStage;
@@ -130,7 +132,9 @@ export class HealthStack extends Stack {
         stage.defaultRouteSettings = throttle(READ_THROTTLE);
         // routeSettings is untyped JSON, so CloudFormation's own (PascalCase) keys go in as is.
         const write = { ThrottlingRateLimit: WRITE_THROTTLE.rate, ThrottlingBurstLimit: WRITE_THROTTLE.burst };
-        stage.routeSettings = { "POST /v1/ingest/{kind}": write, "POST /v1/local/{kind}": write };
+        stage.routeSettings = Object.fromEntries(
+            [...CI_ROUTES, "/v1/local/{kind}"].map((path) => [`POST ${path}`, write]),
+        );
         for (const route of routes) {
             stage.node.addDependency(route);
         }

@@ -13,7 +13,8 @@ Stack `graphty-health`, account 494945606241, Region us-east-2:
 - DynamoDB table `graphty-health` (on demand, `pk`/`sk`, TTL attribute `ttl`, retained, deletion protection).
 - HTTP API:
     - `GET /v1/health`, `/v1/status`, `/v1/page/{page}`, `/v1/{proxy+}`: public reads (20 requests/s, burst 40).
-    - `POST /v1/ingest/{kind}`: CI writes with a GitHub OIDC token, audience `graphty-health` (50/s, burst 100).
+    - `POST /v1/invocations`, `/v1/failures`, `/v1/durations`, `/v1/verdicts`: CI writes, the results
+      service's own bodies, with a GitHub OIDC token, audience `graphty-health` (50/s, burst 100).
     - `POST /v1/local/{kind}`: this machine's writer, `Authorization: Bearer <token>`; the Lambda compares
       the token's SHA-256 with the SSM parameter `/graphty-health/local-token-sha256`.
 - Lambdas `Ingest`, `Read`, `Collector` (Node 22, arm64, reserved concurrency 20 / 5 / 1); the collector

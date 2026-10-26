@@ -1,9 +1,11 @@
 // The collector Lambda's handler with the AWS SDK mocked: today's live state, no GitHub App in SSM.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryStore } from "../../src/model/store.ts";
 
 const ssmSend = vi.fn();
 const docSend = vi.fn();
 const ceSend = vi.fn();
+let mem = new MemoryStore();
 const command = (name: string) =>
     class {
         name = name;
@@ -33,9 +35,12 @@ vi.mock("@aws-sdk/lib-dynamodb", () => ({
     BatchWriteCommand: command("BatchWrite"),
 }));
 
+vi.mock("../../src/dynamo.ts", () => ({ dynamoStore: () => mem }));
+
 describe("collector handler", () => {
     beforeEach(() => {
         vi.resetModules();
+        mem = new MemoryStore();
         ssmSend
             .mockReset()
             .mockResolvedValue({ Parameters: [], InvalidParameters: ["/graphty-health/github-app/app-id"] });
@@ -64,10 +69,10 @@ describe("collector handler", () => {
         const urls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
         expect(urls.every((u) => !u.includes("api.github.com"))).toBe(true);
         expect(ssmSend.mock.calls[0][0].input).toMatchObject({ WithDecryption: true });
-        // Writes go to the one table only.
-        for (const [cmd] of docSend.mock.calls) {
-            const input = cmd.input as { TableName?: string; RequestItems?: Record<string, unknown> };
-            expect(input.TableName ?? Object.keys(input.RequestItems ?? {})[0]).toBe("graphty-health");
-        }
+        // Coverage and billing are collected without the App; the GitHub sources are left unwritten.
+        expect(mem.items.has("META#source#coverage\u0000-")).toBe(true);
+        expect(mem.items.has("META#source#collector\u0000-")).toBe(false);
+        // Then the rollups and page items are recomputed.
+        expect([...mem.items.keys()].some((k) => k.startsWith("PAGE#status"))).toBe(true);
     });
 });

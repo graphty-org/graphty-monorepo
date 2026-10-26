@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { addValue, binOf, emptyHistogram, FACTOR, HI, LO, mergeInto, quantile } from "../../src/model/histogram.js";
 
 /** A deterministic generator, so a failure reproduces. */
@@ -12,7 +13,9 @@ describe("log histogram", () => {
         for (let trial = 0; trial < 20; trial++) {
             const xs = Array.from({ length: 50 + trial * 20 }, () => LO * (HI / LO) ** r());
             const h = emptyHistogram();
-            for (const x of xs) addValue(h, x);
+            for (const x of xs) {
+                addValue(h, x);
+            }
             for (const q of [0.5, 0.9]) {
                 const est = quantile(h, q)!;
                 expect(Math.abs(Math.log(est / exact(xs, q)))).toBeLessThanOrEqual(Math.log(FACTOR));

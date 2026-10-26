@@ -1,0 +1,154 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "6h",
+    "page": "local-runs",
+    "state": "idle",
+    "others": [],
+    "notes": [
+        {
+            "code": "local.note.idle",
+            "params": {
+                "since": "2026-10-25"
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "idle",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 2,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 5,
+                    "unit": "pct"
+                }
+            },
+            "link": "/ci/local-runs",
+            "id": "local-runs.local_vs_ci",
+            "value": null,
+            "n": 0,
+            "spark": {
+                "step": "15m",
+                "ctx": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "trend": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 2
+            }
+        },
+        {
+            "state": "idle",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 1.5,
+                    "unit": "x"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 3,
+                    "unit": "x"
+                }
+            },
+            "link": "/ci/local-runs",
+            "id": "local-runs.shard_time",
+            "value": null,
+            "n": 0
+        },
+        {
+            "state": "idle",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 2,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 10,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/local-runs",
+            "id": "local-runs.slot_waits",
+            "value": null,
+            "n": 0
+        }
+    ],
+    "sections": []
+}

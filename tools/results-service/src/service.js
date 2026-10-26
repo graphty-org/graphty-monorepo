@@ -289,7 +289,7 @@ async function postIssue(body, who, db, nowMs) {
         db
             .prepare(
                 `INSERT INTO tracked_issue (signature, kind, number, state, opened_at, last_seen) VALUES (?, ?, ?, 'open', ?, ?)
-                 ON CONFLICT(signature) DO UPDATE SET number = excluded.number, state = 'open', last_seen = excluded.last_seen`,
+                 ON CONFLICT(signature) DO UPDATE SET kind = excluded.kind, number = excluded.number, state = 'open', last_seen = excluded.last_seen`,
             )
             .bind(body.signature, body.kind, body.number, nowMs, nowMs),
         db

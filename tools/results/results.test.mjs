@@ -451,6 +451,9 @@ describe("the pull request rules", () => {
         assert.match(d.lines[0].text, /fails the same way on master b1, issue #31/);
         assert.match(d.lines[1].text, /-f repeat=1/);
         assert.equal(judge(plan, report(fail("known")), report(fail("known"))).pass, true);
+        // nor does one with other flags
+        const flagsOn = { ...plan, failingOnBase: [{ ...row, variant: `${FAMILY}|flags=on|whole` }] };
+        assert.equal(judge(flagsOn, report(fail("known")), report(fail("known"))).pass, false);
         // another family's base failure excuses nothing
         const elsewhere = { ...plan, failingOnBase: [{ ...row, variant: "layout|flags=off|whole" }] };
         assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
@@ -581,6 +584,17 @@ describe("fileIssues", () => {
         );
     });
 
+    it("never reopens an earlier issue from a base run, whose commit may predate the fix", async () => {
+        const { gh, calls } = ghFake();
+        const answers = [{ ok: true, data: { kind: "base", flaky: [{ ...flaky, had: 12 }] } }];
+        await fileIssues(null, [rec("passed", [])], answers, [], gh);
+        assert.equal(calls.filter((c) => c[1] === "reopen").length, 0);
+        assert.deepEqual(
+            calls.filter((c) => c[1] === "comment").map((c) => c[2]),
+            ["12"],
+        );
+    });
+
     it("files one Failing on master issue per signature a base run failed every time", async () => {
         const { gh, calls } = ghFake();
         const failures = [
@@ -692,5 +706,33 @@ describe("cli", () => {
         );
         assert.ok(runs.every((r) => r[0] === "layout" && r[1].includes(file) && r[3] === variant && r[4] === "off"));
         assert.equal(await baseCheck({ root, variant: "nope|flags=off|whole", file: "x", env: {}, run }), 2);
+    });
+
+    it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));
+        const marks = (codes) => {
+            const seen = [];
+            const run = async (shard, cmd, o) => (seen.push(o.env.RESULTS_FILE_FAILING), codes[seen.length - 1]);
+            return { seen, run };
+        };
+        const check = (run, repeat) =>
+            baseCheck({
+                root,
+                variant: "layout|flags=off|selected",
+                file: `layout/test/${file}`,
+                repeat,
+                env: {},
+                run,
+            });
+        const all = marks([1, 1, 1]);
+        await check(all.run, 3);
+        assert.deepEqual(all.seen, ["0", "0", "1"]);
+        const mixed = marks([1, 0, 1]);
+        await check(mixed.run, 3);
+        assert.deepEqual(mixed.seen, ["0", "0", "0"]);
+        const once = marks([1]);
+        await check(once.run, 1);
+        assert.deepEqual(once.seen, ["1"]);
     });
 });

@@ -115,8 +115,10 @@ export async function importLedger(cfg, files, post = (c, rec) => call(c, "POST"
 export async function baseCheck({ root, variant, file, repeat = 1, env = process.env, build = false, run = runGroup }) {
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const family = variant.split("|")[0];
-    const shard = SHARDS.find((s) => familyOf(s.shard) === family);
-    const cmd = shard && selectedCommand(root, shard, [file]);
+    const slices = SHARDS.filter((s) => familyOf(s.shard) === family);
+    const shard = slices[0];
+    // a family whose command is not a plain vitest run (the WebGPU node passes, a script) runs its one shard whole
+    const cmd = shard && (selectedCommand(root, shard, [file]) ?? (slices.length === 1 ? shard["test-command"] : null));
     if (!cmd) {
         console.error(`base-check: no shard of family ${family} runs ${file}`);
         return 2;
@@ -124,16 +126,21 @@ export async function baseCheck({ root, variant, file, repeat = 1, env = process
     if (build) execFileSync("pnpm", ["exec", "nx", "run", `${shard.package}:build`], { cwd: root, stdio: "inherit" });
     const flags = variant.includes("|flags=on|") ? "on" : "off";
     let worst = 0;
+    let best = Infinity;
     for (let i = 1; i <= repeat; i++) {
+        // `Failing on master` is filed by the last run, and only when every run before it failed too: one failing
+        // repeat of several proves nothing alone (a pass among them makes the store's flaky verdict instead)
         const runEnv = {
             ...env,
             RESULTS_VARIANT: variant,
             GRAPHTY_FLAGS: flags,
             RESULTS_REPEAT: String(i),
-            RESULTS_REPEATS: String(repeat),
+            RESULTS_FILE_FAILING: i === repeat && best > 0 ? "1" : "0",
         };
         console.log(`base-check: ${file} at ${variant}, run ${i} of ${repeat}`);
-        worst = Math.max(worst, await run(shard.shard, cmd, { root, env: runEnv }));
+        const code = await run(shard.shard, cmd, { root, env: runEnv });
+        worst = Math.max(worst, code);
+        best = Math.min(best, code);
     }
     return worst;
 }

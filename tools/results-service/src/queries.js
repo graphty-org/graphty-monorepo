@@ -449,7 +449,11 @@ export async function concludeFlaky(db, id, now) {
                     now + 14 * DAY,
                 )
                 .run();
-        const had = await db.prepare("SELECT number FROM tracked_issue WHERE signature = ?").bind(t.signature).first();
+        // only an earlier flaky issue: a `Failing on master` one for the signature is not where a quarantine goes
+        const had = await db
+            .prepare("SELECT number FROM tracked_issue WHERE signature = ? AND kind = 'flaky'")
+            .bind(t.signature)
+            .first();
         out.push({ family, file: t.file, name: t.name, signature: t.signature, proof, had: had?.number ?? null });
     }
     return out;

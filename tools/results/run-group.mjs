@@ -71,7 +71,11 @@ export function prJudge(plan, { shard, family, variant, base }) {
     const affected = plan?.affected ? new Set(plan.affected) : null;
     const unknown = (plan?.unknownFamilies ?? []).includes(family);
     const touched = (f) => !affected || unknown || affected.has(f.file);
-    const onBase = (plan?.failingOnBase ?? []).filter((b) => b.variant.split("|")[0] === family);
+    // master's evidence counts only from the same family and the same flags as this job
+    const flagsOf = (v) => v.split("|")[1];
+    const onBase = (plan?.failingOnBase ?? []).filter(
+        (b) => b.variant.split("|")[0] === family && flagsOf(b.variant) === flagsOf(variant),
+    );
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
     const check = (f, repeat) =>
@@ -169,8 +173,8 @@ function findIssue(gh, signature) {
     }
 }
 
-// An earlier issue that was closed (fixed, then the test regressed) is reopened, so the new quarantine or failure
-// is tracked on an open issue, never as a comment nobody watches.
+// An earlier flaky issue that was closed (fixed, then the test regressed on current master) is reopened, so the new
+// quarantine is tracked on an open issue. Not for a base run, whose commit may predate the fix.
 function reopen(gh, number) {
     try {
         gh(["issue", "reopen", String(number)]);
@@ -183,8 +187,7 @@ function reopen(gh, number) {
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
 function fileFailingOnMaster(gh, f, sha) {
     const { signature, line } = failureHashes(f.message, f.file);
-    const found = findIssue(gh, signature);
-    const had = found && reopen(gh, found);
+    const had = findIssue(gh, signature);
     const body = [
         `\`${idOf(f)}\` fails on master ${sha} in its base check.`,
         "",
@@ -253,7 +256,8 @@ export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now
             extra: ["", marker(t.signature)],
         };
         const earlier = t.had ?? findIssue(gh, t.signature);
-        const number = fileIssue(entry, earlier && reopen(gh, earlier), gh);
+        const current = answers.at(-1)?.data?.kind !== "base";
+        const number = fileIssue(entry, earlier && current ? reopen(gh, earlier) : earlier, gh);
         if (number)
             out.push({ signature: t.signature, number, kind: "flaky", family: t.family, file: t.file, name: t.name });
     }
@@ -482,7 +486,7 @@ async function record(shard, o) {
     const cfg = config(env, root);
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
-        onMaster: (Number(env.RESULTS_REPEATS) || 1) <= 1,
+        onMaster: env.RESULTS_FILE_FAILING !== "0",
     });
 }
 

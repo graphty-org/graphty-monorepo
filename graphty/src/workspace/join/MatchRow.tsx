@@ -93,9 +93,9 @@ export function MatchRow({
                     const side = keyLabel(edges, at);
                     const name = edges || at === 0 ? side : `Match ${String(at + 1)}`;
                     return (
-                        <div // NOSONAR(S6479): one slot per key position; the position is its identity
+                        <div
                             className="jn-key"
-                            key={at}
+                            key={at} // NOSONAR(S6479): one slot per key position; the position is its identity
                         >
                             <span className="jn-key-label">{side}</span>
                             <Select

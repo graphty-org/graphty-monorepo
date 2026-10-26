@@ -362,13 +362,16 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  * The matrix entry of one group, holding only the members a run must test.
  * @param name the group's name
  * @param members the SHARDS entries to run, in order
- * @returns a matrix entry; "coverage" lists "<shard>=<lcov path>" pairs, space separated
+ * @returns a matrix entry; "members" names its shards; "coverage" lists "<shard>=<lcov path>" pairs, space separated
  */
 export function groupEntry(name, members) {
     const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
     return {
         shard: name,
         package: members.map((m) => m.package).join(" "),
+        // Each member by name, so a job that runs beside one shard (ci.yml's story-tests legs) finds
+        // it in the matrix as '"<shard>"' whether it runs alone or in its group.
+        members: members.map((m) => m.shard),
         "test-command": `failed=""; ${steps.join("; ")}; if [ -n "$failed" ]; then echo "::error::failed:$failed"; exit 1; fi`,
         "needs-browser": members.some((m) => m["needs-browser"]),
         coverage: members

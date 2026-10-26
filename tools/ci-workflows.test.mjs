@@ -1674,6 +1674,16 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests-parity"), /project: \[graphty, graphty-element, algorithms\]/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
+        // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
+        // (algorithms-browser is a member of small-browser): for one package alone and for all of them.
+        const legs = [...job(ci, "story-tests").matchAll(/^\s+shard: (\S+)$/gm)].map((m) => m[1]);
+        assert.ok(legs.includes("algorithms-browser"));
+        for (const shard of legs) {
+            const own = SHARDS.find((s) => s.shard === shard);
+            for (const affected of [PACKAGES, [own.package]]) {
+                assert.ok(JSON.stringify(plan(affected)).includes(`"${shard}"`), `${shard} for ${affected.join(",")}`);
+            }
+        }
     });
 
     it("is not seen by the workflows that react to master's CI", () => {

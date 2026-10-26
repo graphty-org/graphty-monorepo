@@ -100,14 +100,14 @@ curl -s https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status
 
 [`mcp/server.mjs`](mcp/server.mjs) is a stdio MCP server that reads only the public routes above, so it
 needs no credentials. The repository's root [`.mcp.json`](../../.mcp.json) registers it as
-`pipeline-health`:
+`pipeline-health` through [`mcp/start.mjs`](mcp/start.mjs):
 
 ```json
-{ "mcpServers": { "pipeline-health": { "command": "node", "args": ["tools/pipeline-health/mcp/server.mjs"] } } }
+{ "mcpServers": { "pipeline-health": { "command": "node", "args": ["tools/pipeline-health/mcp/start.mjs"] } } }
 ```
 
-It needs Node 22.18 or later and this package's dependencies (`pnpm install --frozen-lockfile` in this
-directory). `HEALTH_API_URL` points it at another API (only its origin is used).
+It needs Node 22.18 or later and this package's dependencies, which `start.mjs` installs
+(`pnpm install --frozen-lockfile` in this directory, output on stderr) the first time a checkout runs it. `HEALTH_API_URL` points it at another API (only its origin is used).
 
 | Tool                                     | Returns                                                                                |
 | ---------------------------------------- | -------------------------------------------------------------------------------------- |

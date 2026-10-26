@@ -2755,3 +2755,37 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
         "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
         "checked by test/session/styles/file-style-store.test.ts.",
 };
+
+/**
+ * How a session door that changes the graph is ordered against a load still reading, by
+ * `Root.member`: every such door goes through the session's load line (`session/loadLine.ts`).
+ *
+ * - `load`: it takes its place in line when called, and lands after every door asked for before
+ *   it; a clear asked for after it, while it still reads, cancels it with `E_SUPERSEDED`.
+ * - `edit`: it takes its place in line when called, and lands on what the loads ahead of it
+ *   loaded; a clear does not cancel it.
+ * - `clear`: it cancels every load still reading, then lands after the edits ahead of it.
+ *
+ * `test/session/load-entry.test.ts` fails on a session row that dispatches a graph op and has no
+ * entry here, and calls every entry with a load held in line to check the door keeps to it.
+ */
+export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
+    "SessionDataApi.addNodes": "edit",
+    "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.updateNodes": "edit",
+    "SessionDataApi.updateEdges": "edit",
+    "SessionDataApi.removeNodes": "edit",
+    "SessionDataApi.removeEdges": "edit",
+    "SessionDataApi.collapse": "edit",
+    "SessionDataApi.clear": "clear",
+    "SessionDataApi.import": "load",
+    "SessionDataApi.generate": "load",
+    "SessionDataApi.loadDataset": "load",
+    "SessionDataApi.loadSample": "load",
+    "SessionDataApi.more": "load",
+    "SessionDataApi.runPendingSourceLoad": "load",
+    "SessionDataApi.expand": "load",
+    "LoadDraft.load": "load",
+    // The autosave restore opens through it.
+    "ProjectApi.open": "load",
+};

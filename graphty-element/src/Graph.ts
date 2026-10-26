@@ -3730,7 +3730,9 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
-        // A load still in flight would otherwise put its data back after the graph was closed.
+        // A load still in flight would otherwise put its data back after the graph was closed:
+        // the graph's own, dispatched or not, and a session load still reading (issue #3524).
+        loadLineOf(dispatcherOf(this.session)).supersede();
         this.dataManager.supersedeLoads();
         this.dataManager.clear();
     }

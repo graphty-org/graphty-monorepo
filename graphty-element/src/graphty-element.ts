@@ -1742,7 +1742,10 @@ export class Graphty extends LitElement {
         if (ahead === undefined) {
             run = go();
         } else {
-            run = ahead.then(go);
+            // A clearData asked for while it waited cancelled it: nothing to load.
+            run = ahead.then(go, () => {
+                this.#pairWaiting = undefined;
+            });
             this.#pairWaiting = run;
         }
         return run.finally(() => {
@@ -1852,7 +1855,8 @@ export class Graphty extends LitElement {
                     throw new Error("Operation cancelled");
                 }
             });
-        const turn = loadLineOf(dispatcher).join();
+        // An edit, not a load: a clearData asked for after it does not cancel it.
+        const turn = loadLineOf(dispatcher).join(undefined, "edit");
         const inTurn = (): Promise<unknown> => {
             const ahead = turn.wait();
             return ahead === undefined ? turn.issue(dispatch) : ahead.then(queueTurn).then(() => turn.issue(dispatch));

@@ -2400,7 +2400,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         records,
         readData,
         {
-            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            applier: () => {
+                const send = dispatcher.capturedDispatch();
+                return (mutation) => send({ op: "data.apply", mutation });
+            },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
             slice,

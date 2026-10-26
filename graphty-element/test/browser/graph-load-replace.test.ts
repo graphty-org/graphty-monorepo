@@ -5,8 +5,28 @@
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
+import { defineSource, registerSource } from "../../session";
 import type { DataLoadingErrorEvent } from "../../src/events.js";
 import { Graph } from "../../src/Graph.js";
+
+/** Opened by the test: the held source's read waits for it. */
+let openHeldRead = (): void => undefined;
+/** Called by the held source once its read has started. */
+let heldReadStarts = (): void => undefined;
+
+// A network source whose read waits until the test lets it go.
+registerSource(
+    defineSource({
+        id: "held-clear",
+        descriptor: { plainName: "Held", params: [] },
+        async records() {
+            const gate = new Promise<void>((done) => (openHeldRead = done));
+            heldReadStarts();
+            await gate;
+            return { nodes: [{ id: "s1" }, { id: "s2" }] };
+        },
+    }),
+);
 
 const GOOD = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ src: "a", dst: "b" }] });
 const OTHER = JSON.stringify({ nodes: [{ id: "x" }, { id: "y" }, { id: "z" }], edges: [{ src: "x", dst: "y" }] });
@@ -197,6 +217,21 @@ describe("the load CALLED last wins", () => {
         graph.clearData();
 
         const error = await rejection(fileLoad);
+
+        assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
+        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+    });
+
+    test("clearData abandons a session load still reading, so it cannot bring its data back (issue #3524)", async () => {
+        const graph = await graphWith(GOOD);
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        const sessionLoad = graph.getSession().data.import({ source: "held-clear", config: {} });
+        sessionLoad.catch(() => undefined);
+        await started;
+        graph.clearData();
+        openHeldRead();
+
+        const error = await rejection(sessionLoad);
 
         assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
         assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });

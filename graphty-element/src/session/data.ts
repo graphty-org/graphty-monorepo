@@ -59,7 +59,7 @@ import {
     SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
-import type { LoadLine, LoadTurn } from "./loadLine";
+import { historyMark, type LoadLine, type LoadTurn } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -142,8 +142,11 @@ type ColumnScalar = string | number | boolean;
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
-    /** Dispatch `data.apply`. */
-    dispatch(mutation: DataMutation): Promise<unknown>;
+    /**
+     * Where a `data.apply` made now would go -- the session, or the transaction a routed verb
+     * runs in -- held for an edit that dispatches once the loads ahead of it have.
+     */
+    applier(): (mutation: DataMutation) => Promise<unknown>;
     /**
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
@@ -510,7 +513,7 @@ export class SessionData implements SessionDataApi {
      */
     async addNodes(records: readonly NodeRecordInput[]): Promise<void> {
         this.requireLive("addNodes");
-        await this.writes.dispatch({ kind: "add-nodes", records });
+        await this.edit({ kind: "add-nodes", records });
     }
 
     /**
@@ -520,7 +523,7 @@ export class SessionData implements SessionDataApi {
      */
     async addEdges(records: readonly EdgeRecordInput[]): Promise<void> {
         this.requireLive("addEdges");
-        await this.writes.dispatch({ kind: "add-edges", records });
+        await this.edit({ kind: "add-edges", records });
     }
 
     /**
@@ -530,7 +533,7 @@ export class SessionData implements SessionDataApi {
      */
     async updateNodes(rows: readonly RowUpdate<NodeId>[]): Promise<void> {
         this.requireLive("updateNodes");
-        await this.writes.dispatch({ kind: "update-rows", target: "node", rows });
+        await this.edit({ kind: "update-rows", target: "node", rows });
     }
 
     /**
@@ -540,7 +543,7 @@ export class SessionData implements SessionDataApi {
      */
     async updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void> {
         this.requireLive("updateEdges");
-        await this.writes.dispatch({ kind: "update-rows", target: "edge", rows });
+        await this.edit({ kind: "update-rows", target: "edge", rows });
     }
 
     /**
@@ -550,7 +553,7 @@ export class SessionData implements SessionDataApi {
      */
     async removeNodes(ids: readonly NodeId[]): Promise<void> {
         this.requireLive("removeNodes");
-        await this.writes.dispatch({ kind: "remove-nodes", ids });
+        await this.edit({ kind: "remove-nodes", ids });
     }
 
     /**
@@ -560,7 +563,7 @@ export class SessionData implements SessionDataApi {
      */
     async removeEdges(ids: readonly EdgeId[]): Promise<void> {
         this.requireLive("removeEdges");
-        await this.writes.dispatch({ kind: "remove-edges", ids });
+        await this.edit({ kind: "remove-edges", ids });
     }
 
     /**
@@ -569,10 +572,24 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
-        await this.writes.dispatch({ kind: "clear" });
+        // A load still reading when the clear is asked for is cancelled: it rejects with
+        // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524).
+        const send = this.writes.applier();
+        await this.loadLine.clear(() => send({ kind: "clear" }));
         // Nothing a source load brought is left, so `loads()` lists none of them and a saved
         // project does not offer to fetch them again; undo brings the rows and the records back.
         this.pendingLoads.clear();
+    }
+
+    /**
+     * Dispatch an edit in the session's load line, behind every load asked for before it, so it
+     * lands on what they load instead of under them (issue #3526).
+     * @param mutation - The edit.
+     * @returns Settles once it is applied.
+     */
+    private edit(mutation: DataMutation): Promise<unknown> {
+        const send = this.writes.applier();
+        return this.loadLine.edit(() => send(mutation));
     }
 
     /**
@@ -711,10 +728,8 @@ export class SessionData implements SessionDataApi {
         turn: LoadTurn,
         fromFile = true,
     ): Promise<void> {
-        const send =
-            options.history === "start"
-                ? (command: DataImportCommand | BatchCommand) => importer({ ...command, startsHistory: true })
-                : importer;
+        const mark = historyMark(options);
+        const send = (command: DataImportCommand | BatchCommand): Promise<unknown> => importer({ ...command, ...mark });
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -821,7 +836,8 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
-        return sourceExpand.collapseNode(this.sourceHost(), id);
+        // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
+        return this.inLine(undefined, (host) => sourceExpand.collapseNode(host, id), true, "edit");
     }
 
     /**
@@ -950,14 +966,16 @@ export class SessionData implements SessionDataApi {
      * @param run - The verb, given a host whose dispatch waits for the turn.
      * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
      *   once; otherwise it is given up at the first dispatch.
+     * @param kind - `edit` for a verb a clear asked for after it does not cancel.
      * @returns What the verb returned.
      */
     private async inLine<T>(
         signal: AbortSignal | undefined,
         run: (host: SourceHost) => Promise<T>,
         hold = false,
+        kind: "load" | "edit" = "load",
     ): Promise<T> {
-        const turn = this.loadLine.join(signal);
+        const turn = this.loadLine.join(signal, kind);
         try {
             return await run(this.hostInTurn(turn, hold));
         } finally {

@@ -15,6 +15,7 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructured
 import { dynamoStore } from "../dynamo.js";
 import {
     DAY,
+    oldestAt,
     putRaw,
     recordSource,
     takeQuota,
@@ -120,7 +121,7 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
     await putRaw(db, items, now);
     if (extra.length) await db.batch(extra.map((put) => ({ put })));
-    await recordSource(db, source, now, { ok: true });
+    await recordSource(db, source, now, { ok: true }, oldestAt(items));
     log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
     return { stored: items.length, kind: who.kind };
 }

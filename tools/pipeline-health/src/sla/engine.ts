@@ -668,7 +668,12 @@ function clearing(open: OpenEpisode, isRecovered: boolean, t: number): void {
 
 const RANK: Record<string, number> = { OK: 0, "NO DATA": 1, WARNING: 2, FAILING: 3 };
 
-function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[]): CategoryStatus {
+/**
+ * A category's state: the worst of its judged members, and the member that set it.
+ * @param cfg
+ * @param members
+ */
+export function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[]): CategoryStatus {
     const mine = members.filter((m) => m.category === cfg.id);
     const judged = mine.filter((m) => m.judged);
     const headline = mine.find((m) => m.headline)?.id;

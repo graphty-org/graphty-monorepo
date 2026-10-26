@@ -76,11 +76,21 @@ export const PAGE_PATH: Record<PageId, string> = {
     "data-sources": "/data-sources",
 };
 
-const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
+export const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
     ...CATEGORY_NAME,
     runners: "Runners",
     "local-runs": "Local runs",
 };
+
+/** A catalog label: the LABEL entry, else a member's name ("member.<id>") or a page's title ("page.<id>"). */
+export function labelText(code: string): string {
+    if (LABEL[code] !== undefined) return LABEL[code];
+    const [kind, ...rest] = code.split(".");
+    const id = rest.join(".");
+    if (kind === "member" && id in MEMBER) return esc(MEMBER[id as keyof typeof MEMBER].name);
+    if (kind === "page" && id in PAGE_TITLE) return esc(PAGE_TITLE[id as keyof typeof PAGE_TITLE]);
+    return esc(code);
+}
 
 let here: Here = { page: "overview", range: "1h", q: new URLSearchParams() };
 export function setHere(h: Here): void {
@@ -179,7 +189,7 @@ export function cellHtml(c: Cell): string {
         case "name":
             return c.bold ? `<b>${esc(c.v)}</b>` : esc(c.v);
         case "label":
-            return LABEL[c.code] ?? esc(c.code);
+            return labelText(c.code);
         case "num": {
             const s = c.unit === "usd" || c.unit === "count" || !c.unit ? fmtN(c.n) : fmtUnit(c.n, c.unit);
             const v = esc(s + (c.of !== undefined ? ` of ${fmtN(c.of)}` : ""));

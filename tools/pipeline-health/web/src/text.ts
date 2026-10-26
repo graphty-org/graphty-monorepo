@@ -424,6 +424,8 @@ export const LABEL: Record<string, string> = {
     "source.billing": "Billing: AWS, T4 rates",
     "source.flaky-feed": "Feed of CI's flaky detections",
     "source.local": "Local writer",
+    "source.release": "Release records",
+    "source.coverage": "Coverage (Coveralls)",
     "member.releases.channels": "Channel members",
     "page.costs": "Costs",
     "page.flaky": "Flaky tests",
@@ -439,7 +441,17 @@ const LANE: Record<string, [string, string]> = {
     llm: ["LLM", "LLM regression"],
 };
 const lane = (id: string, long = false) => esc(LANE[id]?.[long ? 1 : 0] ?? id);
-const SOURCE: Record<string, string> = { billing: "billing", collector: "the collector", npm: "npm" };
+const SOURCE: Record<string, string> = {
+    billing: "billing",
+    collector: "the collector",
+    npm: "npm",
+    release: "the release collector",
+    "ci-results": "CI test results",
+    coverage: "coverage",
+    local: "the local writer",
+    stress: "the weekly stress run",
+    hosts: "the host matrix",
+};
 
 // ---------------------------------------------------------------- SLAs
 
@@ -733,6 +745,7 @@ export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>
 /** A member in a sentence: "runner wait p90 31 min", or its short fact. */
 export function refText(r: { member: MemberId; value: Value; fact?: Fact }): string {
     if (r.fact) return sentence(r.fact);
-    if (r.value && "word" in r.value && r.value.word === "yes") return esc(MEMBER[r.member].short);
+    // No value (NO DATA, not set up): the state word says why, so the name stands alone, never "name --".
+    if (r.value === null || ("word" in r.value && r.value.word === "yes")) return esc(MEMBER[r.member].short);
     return `${esc(MEMBER[r.member].short)} ${fmtValue(r.value)}`;
 }

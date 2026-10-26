@@ -10,5 +10,5 @@
         "sourceMap": false,
         "types": ["vite/client", "node"]
     },
-    "include": ["src", "fixtures/build.ts", "vite.config.ts"]
+    "include": ["src", "fixtures/build.ts", "vite.config.ts", "../test/web"]
 }

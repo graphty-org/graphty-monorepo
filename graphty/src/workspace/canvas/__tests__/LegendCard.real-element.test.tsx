@@ -252,12 +252,26 @@ describe("the canvas key on the real element", () => {
         const ids = session.data.nodes().map((node) => node.id);
         // The key floats over the drawing, which is framed in the whole canvas: measure it as it stays.
         await element.waitForStableFrame();
-        const xs = ids.flatMap((id) => {
-            const at = element.nodeScreenPosition(id);
-            return at === null || at === undefined ? [] : [at.x];
-        });
-        const span = Math.max(...xs) - Math.min(...xs);
-        assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
+        const measure = (): { count: number; min: number; max: number; span: number } => {
+            const xs = ids.flatMap((id) => {
+                const at = element.nodeScreenPosition(id);
+                return at === null || at === undefined ? [] : [at.x];
+            });
+            const min = Math.min(...xs);
+            const max = Math.max(...xs);
+            return { count: xs.length, min, max, span: max - min };
+        };
+        const first = measure();
+        const width = canvas?.clientWidth ?? 0;
+        if (first.span < width / 2) {
+            // Diagnostics for #3767 (passed on retry in CI, never reproduced locally): whether the
+            // "stable" frame was still moving shows in a second measurement after another wait.
+            await element.waitForStableFrame();
+            const again = measure();
+            assert.fail(
+                `the drawing's width on the canvas: ${JSON.stringify({ first, again, canvasWidth: width, nodes: ids.length })}`,
+            );
+        }
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
     });
 

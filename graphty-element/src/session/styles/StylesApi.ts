@@ -760,11 +760,12 @@ export interface StylesApi {
      * question instead.
      *
      * It waits for the runs on the session's queue, the repaint of every style edit written so
-     * far, and every repaint pass already asked for when it is called, such as the one a
-     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). A pass
-     * asked for after the call is not waited for, so steady pointer input cannot keep it from
-     * resolving. A live set's new membership after the graph changed arrives on a later rendered
-     * frame and is not waited for.
+     * far, and the repaint passes asked for by the time those are done, such as the one a
+     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). Passes
+     * asked for later are not waited for, so steady pointer input cannot keep it from resolving.
+     * A layer that selects the members of a live set may still be repainting when it resolves:
+     * after the graph changes its new membership arrives on a later rendered frame, and its
+     * whole-graph passes are merged and started one after another.
      * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
@@ -4602,12 +4603,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         async settled(): Promise<void> {
             // What the element starts for itself (a run's suggested layers) waits on the queue;
             // the repaint of every edit written so far waits on the derivation lane.
-            // The passes nobody awaits (a selection or pointer change asks for one), read NOW, so a
-            // pass asked for while this waits does not extend the wait.
+            // The passes nobody awaits (a selection or pointer change asks for one), read before and
+            // again after the queue and lane: a finishing run may ask for one. Each read is bounded
+            // by the passes asked for by then, so steady pointer input cannot extend the wait.
             const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
             await passes;
+            await sources.idle?.();
         },
 
         explain(target: ExplainTarget): StyleExplanation {

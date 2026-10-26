@@ -456,6 +456,52 @@ marks out of `test-slots.mjs`, the sync merge out of `branch-push.sh`, the gate-
 `with-browser.sh`, the sync fields out of `branch-note.mjs`. Done: their tests pass; two local
 vitest runs still share slots. Undo: revert.
 
+### Step 5a: runner load (after step 5; owner, 2026-10-26)
+
+Runners, not merging, are the bottleneck at about 76 merges a day, and more capacity is not
+available for under about $1,000 a month (design section 7.1). The items cut work, in this order;
+the full run stays first in line for runners. Each item's Proof gives its runner-minutes saved.
+
+**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` cancels an unfinished
+master push build when a newer one starts (push to master only; pull request, dispatch and
+release.yml calls unchanged); the ci.yml comment and its tool test say so. Needs: nothing. Done: two
+quick master merges leave the older build cancelled, the newer deployed to canary, and the next
+full run picks the newer commit. Undo: revert.
+
+**stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
+Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).
+Needs: nothing. Done: on 5 pull requests no capture job runs past `All Checks Pass`. Undo: revert.
+
+**old-capture-removal** (#3473, step 9) -- the largest single saving; no new work here, only its
+order: it goes as soon as story-test parity holds for each project.
+
+**selection-for-whole-shard-packages** -- agent, M. The packages whose pull requests still run whole
+shards join `fileLevel` after a clean `test-select-mutate.mjs` run, as `file-level-selection` did for
+the first ones. Needs: `file-level-selection`. Done: no `run:ci.yml:pr-<package>` budget key left.
+Undo: drop the package from `fileLevel`.
+
+**nx-cache-hit-rate** -- agent, S. Measure the nx remote build cache's hit rate per task on pull
+requests from the `timings` rows, then fix the largest misses (inputs that change on every commit).
+Needs: `nx-cache-worker`. Done: the hit rate is shown per task and the top three misses are fixed or
+explained. Undo: revert.
+
+**tools-docs-fast-path** -- agent, S. A change only to `tools/` (outside the selector's inputs) or
+only to docs runs only the checks that read it, with no package build or test shard. Needs:
+`light-check-workflow`. Done: a tools-only and a docs-only pull request each finish under 5 runner-
+minutes with `All Checks Pass` green. Undo: revert.
+
+**runner-minutes-per-merge** -- agent, S. The health dashboard shows runner-minutes per merged pull
+request per day, split by kind (pull request run, master build, full run, other). Needs: the results
+store's job rows; the dashboard is `design/ci/health-dashboard.md`. Done: the dashboard shows the last 14 days, and each item above can read its
+saving from it. Undo: revert.
+
+**merge-queue-batching-replay** -- agent, M, only if runners are still saturated after the items
+above. Replay a day of merges through GitHub's native merge queue with merge groups, and measure
+tests per batch, batch failure rate and bisect cost; the owner decides from the numbers. Mergify's
+record (809 CI runs for 761 merges, 197 wasted) is why it is measured first. Needs:
+`runner-minutes-per-merge`. Done: the measurements recorded in design section 7.1 and a decision on
+#3418. Undo: none needed (a replay changes nothing).
+
 ### Step 6: the full run every 6 hours, publishing nothing
 
 **bisect-core** (#3450) -- agent, M. `tools/bisect-core.mjs` with tests: `verify.mjs`'s rules (channels

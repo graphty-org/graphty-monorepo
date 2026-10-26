@@ -1130,7 +1130,7 @@ export class UpdateManager implements Manager {
     /**
      * Whether nothing is still owed to the picture: no operation is queued or running, and the
      * frame drawn is the finished one. The one question `waitForStableFrame()` asks; the pending-work
-     * record of issue #3546 replaces this body and {@link UpdateManager.pictureIsFinished}'s.
+     * record of issue #3546 replaces this body and `pictureIsFinished()`'s.
      * @returns True when the picture on screen is final and nothing queued will change it.
      */
     nothingIsOwed(): boolean {

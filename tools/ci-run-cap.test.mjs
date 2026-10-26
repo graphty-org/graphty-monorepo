@@ -53,7 +53,10 @@ test("proceeds at once under the cap, with one runs call per check", async () =>
     const r = await waitTurn({ cap: 2, runId: ME.id, ...f });
     assert.deepEqual(r, { waitedSeconds: 0, outcome: "proceeded", checks: 1 });
     assert.equal(f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml")).length, 1);
-    assert.match(f.calls[1], /event=pull_request&per_page=100&created=2026-10-26T01:18:51Z\.\.2026-10-26T04:18:51Z/);
+    assert.match(
+        f.calls[1],
+        /event=pull_request&status=in_progress&per_page=100&created=2026-10-26T01:18:51Z\.\.2026-10-26T04:18:51Z/,
+    );
 });
 
 test("waits while the cap is full, polling every POLL_SECONDS, until an earlier run finishes", async () => {
@@ -68,6 +71,14 @@ test("waits while the cap is full, polling every POLL_SECONDS, until an earlier 
     assert.equal(r.outcome, "proceeded");
     assert.equal(r.waitedSeconds, 180);
     assert.equal(r.checks, 180 / POLL_SECONDS + 1);
+});
+
+test("a run further back checks less often", async () => {
+    const ahead = [1, 2, 3, 4].map((i) => run(i, `2026-10-26T04:0${i}:00Z`, "in_progress"));
+    const f = fake({ ci: (t) => [ME, ...ahead.filter((_, i) => t < 600e3 || i > 2)] });
+    const r = await waitTurn({ cap: 2, runId: ME.id, ...f });
+    // 3 places from its turn: a check every 180 s until three runs finish at 600 s
+    assert.deepEqual(r, { waitedSeconds: 720, outcome: "proceeded", checks: 5 });
 });
 
 test("yields to a release run waiting for a GitHub-hosted runner, not to a T4 or an approval", async () => {

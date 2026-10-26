@@ -8,7 +8,9 @@
 // proceeds: no deadlock. A cancelled or superseded run is completed and frees its place at once.
 //
 // It never fails the pull request: an API error, or waiting longer than MAX_WAIT_MINUTES, lets the run
-// proceed. One API call per check, a check every POLL_SECONDS. The wait goes in the job summary.
+// proceed, and so does a GITHUB_TOKEN with under MIN_RATE_LEFT requests left this hour (the token's 1,000 an
+// hour are shared by every workflow). A run k places from its turn checks every k x POLL_SECONDS (at most
+// 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
 //
 // CAP is the repository variable CI_PR_RUN_CAP (default 2), read in ci.yml's "Run cap" job:
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body 3    (raise it)
@@ -18,9 +20,12 @@ import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const POLL_SECONDS = 60;
+const MAX_POLL_SECONDS = 300;
+export const MIN_RATE_LEFT = 300;
 export const MAX_WAIT_MINUTES = 25;
 // how far back to look for earlier runs: longer than any pull request run's wait plus its work
 const LOOKBACK_HOURS = 3;
+// in_progress listings stay small, and a queued run holds no runner
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
 const HOSTED = /^(ubuntu|windows|macos)-/;
 
@@ -71,22 +76,23 @@ export async function releaseWaiting(runs, jobsOf) {
  * @param ctx.me this run ({ id, created_at })
  * @param ctx.cap the cap
  * @param ctx.api path -> parsed JSON of a GET under the repository
- * @returns a reason string, or null
+ * @returns null to proceed, else why it waits and how many places it is from its turn
  */
 export async function check({ me, cap, api }) {
     const from = new Date(Date.parse(me.created_at) - LOOKBACK_HOURS * 3600e3).toISOString().slice(0, 19);
     const ci = await api(
-        `actions/workflows/ci.yml/runs?event=pull_request&per_page=100&created=${from}Z..${me.created_at}`,
+        `actions/workflows/ci.yml/runs?event=pull_request&status=in_progress&per_page=100&created=${from}Z..${me.created_at}`,
     );
     const ahead = earlierActive(me, ci.workflow_runs);
-    if (ahead.length >= cap) return `${ahead.length} earlier pull request runs active (cap ${cap})`;
+    if (ahead.length >= cap)
+        return { why: `${ahead.length} earlier pull request runs active (cap ${cap})`, places: ahead.length - cap + 1 };
     const rel = await api("actions/workflows/release.yml/runs?per_page=10");
     const active = rel.workflow_runs.filter((r) => ACTIVE.has(r.status));
     const waiting = await releaseWaiting(
         active,
         async (id) => (await api(`actions/runs/${id}/jobs?per_page=100&filter=latest`)).jobs,
     );
-    return waiting ? `release run ${waiting} is waiting for runners` : null;
+    return waiting ? { why: `release run ${waiting} is waiting for runners`, places: 1 } : null;
 }
 
 /**
@@ -108,15 +114,15 @@ export async function waitTurn({ cap, api, runId, sleep, now = Date.now, log = c
         const me = await api(`actions/runs/${runId}`);
         for (;;) {
             checks++;
-            const why = await check({ me, cap, api });
+            const turn = await check({ me, cap, api });
             const waited = Math.round((now() - start) / 1000);
-            if (!why) return { waitedSeconds: waited, outcome: "proceeded", checks };
+            if (!turn) return { waitedSeconds: waited, outcome: "proceeded", checks };
             if (waited >= MAX_WAIT_MINUTES * 60) {
-                log(`::warning::Run cap: waited ${waited} s, the most it waits; proceeding (${why})`);
+                log(`::warning::Run cap: waited ${waited} s, the most it waits; proceeding (${turn.why})`);
                 return { waitedSeconds: waited, outcome: "gave up waiting", checks };
             }
-            log(`waiting: ${why}`);
-            await sleep(POLL_SECONDS * 1000);
+            log(`waiting: ${turn.why}`);
+            await sleep(Math.min(turn.places * POLL_SECONDS, MAX_POLL_SECONDS) * 1000);
         }
     } catch (e) {
         log(`::warning::Run cap: ${e.message}; proceeding without waiting further`);
@@ -131,9 +137,12 @@ async function main() {
             `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${GITHUB_REPOSITORY}/${path}`,
             {
                 headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" },
+                signal: AbortSignal.timeout(30_000),
             },
         );
         if (!res.ok) throw new Error(`GET ${path}: HTTP ${res.status}`);
+        const left = Number(res.headers.get("x-ratelimit-remaining") ?? Infinity);
+        if (left < MIN_RATE_LEFT) throw new Error(`only ${left} API requests left this hour`);
         return res.json();
     };
     const cap = parseCap(process.env.CAP);

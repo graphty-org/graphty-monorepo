@@ -101,6 +101,8 @@ jobs:
         name: Run cap
         runs-on: ubuntu-24.04
         timeout-minutes: 30
+        # only a pull request waits; elsewhere the job is skipped and takes no runner (Build runs on !cancelled())
+        if: github.event_name == 'pull_request'
         # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
         continue-on-error: true
         permissions:
@@ -108,13 +110,11 @@ jobs:
             actions: read
         steps:
             - uses: actions/checkout@v4
-              if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools/ci-run-cap.mjs
                   sparse-checkout-cone-mode: false
             - name: Wait for a turn
-              if: github.event_name == 'pull_request'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   CAP: ${{ vars.CI_PR_RUN_CAP || '2' }}
@@ -129,6 +129,8 @@ jobs:
     packages:
         name: Build
         needs: run-cap
+        # runs whether the run cap waited, was skipped (not a pull request) or failed; never after a cancel
+        if: ${{ !cancelled() }}
         runs-on: ubuntu-24.04
         timeout-minutes: 12
         # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)

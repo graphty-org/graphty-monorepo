@@ -444,7 +444,11 @@ async function storiesMain(project, opt) {
         );
         if (r.status !== 0 || !existsSync(join(out, "results.json"))) {
             log(
-                `capture ${name} failed (exit ${r.status}): ${`${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join(" | ")}`,
+                `  capture ${name} failed (exit ${r.status}): ${`${r.stdout}\n${r.stderr}`
+                    .split("\n")
+                    .filter((l) => /error/iu.test(l) && !/^\s+at /u.test(l))
+                    .slice(0, 3)
+                    .join(" | ")}`,
             );
             return null;
         }
@@ -507,11 +511,8 @@ async function storiesMain(project, opt) {
             log("  SKIPPED: the Storybook does not build with it broken (the Storybooks build job fails the change)");
             continue;
         }
-        if (!broken) {
-            inconclusive++;
-            continue;
-        }
-        const changed = changedIds(ref, broken);
+        // a capture that cannot run at all (the Storybook does not load) changes every story
+        const changed = broken ? changedIds(ref, broken) : [...fileOf.keys()].sort();
         const missed = storiesMissed(changed, sel, (id) => fileOf.get(id));
         let found = [];
         if (missed.length > 0) {

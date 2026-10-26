@@ -397,7 +397,8 @@ jobs:
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
                   # the summary describes the bins only when their matrix was written (else every shard runs whole)
                   if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
-                      node tools/test-select.mjs --summary "$plan/light-plan.json" >> "$GITHUB_STEP_SUMMARY" \
+                      node tools/test-select.mjs --summary "$plan/light-plan.json" --affected "$AFFECTED" \
+                          >> "$GITHUB_STEP_SUMMARY" \
                           || echo "::warning::could not write the light check's job summary"
                   fi
 

@@ -1506,7 +1506,13 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             bins: [],
             whole: ["graphty-1", "graphty-2"],
             none: [],
-            why: { graphty: ["graphty/vite.config.ts changed"] },
+            why: {
+                graphty: {
+                    package: "graphty",
+                    shards: ["graphty-1", "graphty-2"],
+                    reasons: ["graphty/vite.config.ts changed"],
+                },
+            },
         });
     });
 
@@ -1531,7 +1537,14 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         assert.match(md, /nothing selected, not run: layout/u);
         assert.match(md, /graphty-1: 2 files/u);
         assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
-        assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /Everything runs: pnpm-lock.yaml/u);
+        assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /runs whole: pnpm-lock.yaml/u);
+        const scoped = planSummary(out, ["graphty"]);
+        assert.match(
+            scoped,
+            /1 test bins, 0 shards whole/u,
+            "a whole shard of an unaffected package is not in the matrix",
+        );
+        assert.doesNotMatch(scoped, /githerd/u);
         assert.match(
             planSummary({ ...out, everything: "a <details> tag" }),
             /a &lt;details&gt; tag/u,

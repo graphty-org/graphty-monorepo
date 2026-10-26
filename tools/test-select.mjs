@@ -27,7 +27,7 @@
  *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
- *   node tools/test-select.mjs --summary <plan.json>
+ *   node tools/test-select.mjs --summary <plan.json> [--affected <JSON list of affected packages>]
  *       the light check's plan as Markdown for a CI job summary (planSummary()): each bin's files and why, the
  *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
@@ -1276,7 +1276,8 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
  * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why }`;
- *   `why` maps each family that runs whole to its reasons and a bin's `why` each of its files to its reason; a
+ *   `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of its files
+ *   to its reason; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
@@ -1287,7 +1288,11 @@ export function lightPlan(root, shards, selection, durations = {}) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
             const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
-            out.why[family] = reasons.length > 0 ? reasons : ["the selector gave no reason"];
+            out.why[family] = {
+                package: runs[0].shard.package,
+                shards: runs.flatMap((r) => r.covers),
+                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+            };
             continue;
         }
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
@@ -1323,19 +1328,23 @@ export function lightPlan(root, shards, selection, durations = {}) {
  * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
  * whole and why, and which run nothing.
  * @param plan lightPlan() output (or the `--plan` JSON)
+ * @param [affected] the package directories nx calls affected: a whole family of another package is not in the
+ *   run's matrix (tools/ci-test-matrix.mjs plan()), so it is left out of the summary
  * @returns Markdown
  */
-export function planSummary(plan) {
+export function planSummary(plan, affected) {
     const esc = (t) => String(t).replaceAll(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const whole = Object.entries(plan.why ?? {}).filter(([, w]) => !affected || affected.includes(w.package));
+    const shardCount = whole.reduce((n, [, w]) => n + w.shards.length, 0);
     const lines = [
-        `### Light check: ${plan.bins.length} test bins, ${plan.whole.length} shards whole, ${plan.none.length} shards with nothing selected`,
+        `### Light check: ${plan.bins.length} test bins, ${shardCount} shards whole, ${plan.none.length} shards with nothing selected`,
         "",
     ];
-    if (plan.everything) {
-        lines.push(`Everything runs: ${esc(plan.everything)}`, "");
+    if (plan.everything && whole.length > 0) {
+        lines.push(`Every affected shard runs whole: ${esc(plan.everything)}`, "");
     }
-    for (const [family, reasons] of Object.entries(plan.why ?? {})) {
-        lines.push(`- **${family}** runs whole: ${esc(reasons.join("; "))}`);
+    for (const [family, w] of whole) {
+        lines.push(`- **${family}** runs whole: ${esc(w.reasons.join("; "))}`);
     }
     if (plan.none.length > 0) {
         lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
@@ -2614,7 +2623,8 @@ async function main(argv) {
         if (!arg("--summary")) {
             throw new Error("--summary needs the plan JSON file");
         }
-        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8"))));
+        const affected = arg("--affected") && JSON.parse(arg("--affected")).map((p) => p.replace(/^@graphty\//u, ""));
+        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8")), affected || undefined));
         return;
     }
     if (arg("--graph")) {

@@ -143,7 +143,8 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     if (!body || typeof body !== "object") refuse(400, "bad_body");
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
-    if (items.length + extra.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
+    if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
     for (const item of items)
         if (
             Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||

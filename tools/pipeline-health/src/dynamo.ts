@@ -25,6 +25,7 @@ function conditionOf(c: Condition | undefined, names: Record<string, string>, va
     return c.orNotExists ? `(#c ${op} :c OR attribute_not_exists(#c))` : `#c ${op} :c`;
 }
 
+const RETRY = new Set(["TransactionConflict", "ThrottlingError", "ProvisionedThroughputExceeded"]);
 const keyOf = (k: Key): Key => ({ pk: k.pk, sk: k.sk });
 const idOf = (k: Key) => `${k.pk}\u0000${k.sk}`;
 
@@ -196,7 +197,7 @@ export function dynamoStore(
                     },
                 };
             });
-            // A concurrent write to one of the keys cancels the transaction (TransactionConflict): try again.
+            // A concurrent write to one of the keys, or throttling, cancels the transaction: try again.
             for (let tries = 0; ; tries++) {
                 try {
                     await client.send(new TransactWriteCommand({ TransactItems: items }));
@@ -204,7 +205,7 @@ export function dynamoStore(
                 } catch (error) {
                     const reasons = (error as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
                     if (reasons.some((r) => r.Code === "ConditionalCheckFailed")) return false;
-                    if (tries === 4 || !reasons.some((r) => r.Code === "TransactionConflict")) throw error;
+                    if (tries === 4 || !reasons.some((r) => RETRY.has(r.Code ?? ""))) throw error;
                     await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
                 }
             }

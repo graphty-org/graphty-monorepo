@@ -32,9 +32,13 @@ describe("dynamoStore.transact", () => {
         expect(
             await storeWith(vi.fn().mockRejectedValue(cancelled("None", "ConditionalCheckFailed"))).transact(ops),
         ).toBe(false);
-        const send = vi.fn().mockRejectedValueOnce(cancelled("TransactionConflict", "None")).mockResolvedValue({});
+        const send = vi
+            .fn()
+            .mockRejectedValueOnce(cancelled("TransactionConflict", "None"))
+            .mockRejectedValueOnce(cancelled("ThrottlingError", "None"))
+            .mockResolvedValue({});
         expect(await storeWith(send).transact(ops)).toBe(true);
-        expect(send).toHaveBeenCalledTimes(2);
+        expect(send).toHaveBeenCalledTimes(3);
     });
 
     it("throws any other error", async () => {

@@ -75,19 +75,24 @@ export async function putRaw(
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    const tests: Promise<void>[] = [];
+    const tests: (() => Promise<void>)[] = [];
     items.forEach((r, i) => {
         const merged = opts.merge ? mergeOld(r, olds[i]) : r;
-        if (r.kind === "test") tests.push(putTest(store, merged, olds[i], nowMs, dirty));
+        if (r.kind === "test") tests.push(() => putTest(store, merged, olds[i], nowMs, dirty));
         else ops.push(...writesFor(merged, olds[i], nowMs, dirty));
     });
     // Before the batch, which holds the dirty marks: a recompute never runs on a bucket before its rows are in.
-    // ponytail: all of a post's tests at once; failing tries carry tens, chunk these if one ever carries thousands.
-    await Promise.all(tests);
+    // Twenty-five transactions at a time; a failed one still lets the rest, the other rows and the marks be written.
+    let failure: unknown;
+    for (let i = 0; i < tests.length; i += 25) {
+        for (const r of await Promise.allSettled(tests.slice(i, i + 25).map((t) => t())))
+            if (r.status === "rejected") failure ??= r.reason;
+    }
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }
     await store.batch(ops);
+    if (failure) throw failure;
     return items.length;
 }
 

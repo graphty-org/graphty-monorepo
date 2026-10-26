@@ -377,6 +377,22 @@ describe("ingest: what it stores", () => {
         expect(testReads).toBe(40);
     });
 
+    it("caps a failing try by its rows, not its bookkeeping copies, and stores the rest when one test write fails", async () => {
+        const h = await ingest();
+        const failures = Array.from({ length: 3000 }, (_, i) => ({ file: "a.ts", name: `t${i}`, message: "x" }));
+        const big = invocation({ id: "500.1.test.layout.1", variant: "layout", failures });
+        expect((await h(event("/v1/invocations", big))).statusCode).toBe(200);
+        mem = new MemoryStore();
+        vi.resetModules();
+        const h2 = await ingest();
+        vi.spyOn(mem, "transact").mockRejectedValueOnce(new Error("throttled"));
+        const two = invocation({ id: "500.1.test.layout.1", variant: "layout", failures: failures.slice(0, 2) });
+        expect((await h2(event("/v1/invocations", two))).statusCode).toBe(500);
+        expect(mem.items.get("R#shard_run#500.1.test.layout.1\u0000A#1")).toBeDefined();
+        expect([...mem.items.keys()].some((k) => k.startsWith("DIRTY"))).toBe(true);
+        expect([...mem.items.values()].filter((i) => i.pk.startsWith("R#test#"))).toHaveLength(1);
+    });
+
     it("keeps flaky when try 1 and try 2 arrive at the same moment, in every row of the test", async () => {
         for (const order of [0, 1]) {
             mem = new MemoryStore();

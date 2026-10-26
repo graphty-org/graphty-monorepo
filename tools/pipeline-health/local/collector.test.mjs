@@ -15,7 +15,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-import { batches, collect, fit, MAX_BYTES, MAX_ROWS, mapLedger, readToken, scrub } from "./collector.mjs";
+import { batches, collect, fit, MAX_BYTES, MAX_ROWS, mapLedger, readToken, scrub, SERVER_TRIES } from "./collector.mjs";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 let root;
@@ -143,6 +143,32 @@ test("a refused body is split and only the refused row is skipped", async () => 
     assert.equal(counts["push-runs"].posted, 1);
     const again = recorder();
     await collect({ root, post: again.post });
+    assert.deepEqual(again.calls, []);
+});
+
+test("a row that gets 500 on every pass is skipped after SERVER_TRIES passes, others kept", async () => {
+    const failures = new Map();
+    const calls = [];
+    // The first push-runs row always gets 500; the second is taken.
+    const post = async (kind, body) => {
+        if (kind !== "push-runs") return true;
+        calls.push(body.rows.length);
+        return body.rows.length === 1 && body.rows[0].id !== firstRow ? true : "server";
+    };
+    let firstRow;
+    const probe = async (kind, body) => {
+        if (kind === "push-runs") firstRow ??= body.rows[0].id;
+        return post(kind, body);
+    };
+    for (let pass = 1; pass < SERVER_TRIES; pass++) {
+        const counts = await collect({ root, post: probe, failures });
+        assert.equal(counts["push-runs"].posted, 0, `pass ${pass} skipped a row too early`);
+    }
+    const counts = await collect({ root, post: probe, failures });
+    assert.equal(counts["push-runs"].posted, 1);
+    assert.deepEqual(calls, [...Array(SERVER_TRIES).fill(2), 1, 1]);
+    const again = recorder();
+    await collect({ root, post: again.post, failures });
     assert.deepEqual(again.calls, []);
 });
 

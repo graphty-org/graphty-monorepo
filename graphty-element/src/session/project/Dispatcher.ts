@@ -2503,6 +2503,15 @@ export class Dispatcher {
     }
 
     /**
+     * Whether a queued command is waiting off the queue for a key; see
+     * {@link Dispatcher.waitersSettled}.
+     * @returns True while one is.
+     */
+    get hasWaiters(): boolean {
+        return this.waiters.size > 0;
+    }
+
+    /**
      * Settles once no queued command is waiting off the queue for a key: each such command gave
      * its queue slot up, so an idle queue does not mean it has run.
      * @returns Whether there was one to wait for; what it ran may have queued more work.

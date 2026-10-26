@@ -26,6 +26,8 @@ import {
     measuredOf,
     outsideOf,
     packBins,
+    BIN_LIMIT_MS,
+    FILE_OVERHEAD_MS,
     rootImportGraph,
     sameOutside,
     planRuns,
@@ -49,7 +51,15 @@ import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } fr
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, runPaths, seededPick, unexplained } from "./test-select-mutate.mjs";
+import {
+    mutant,
+    runPaths,
+    seededPick,
+    storiesMissed,
+    storyCandidates,
+    storyFiles,
+    unexplained,
+} from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -806,6 +816,58 @@ describe("mutation testing of the selection", () => {
         assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
     });
 
+    it("--stories: maps story ids to their files and finds the changed stories a selection did not run", () => {
+        const index = {
+            entries: {
+                "a--one": { type: "story", id: "a--one", importPath: "./stories/A.stories.ts" },
+                "a--docs": { type: "docs", id: "a--docs", importPath: "./stories/A.mdx" },
+                "b--two": { type: "story", id: "b--two", importPath: "./stories/B.stories.ts" },
+            },
+        };
+        const files = storyFiles(index, "layout");
+        assert.deepEqual(
+            [...files],
+            [
+                ["a--one", "layout/stories/A.stories.ts"],
+                ["b--two", "layout/stories/B.stories.ts"],
+            ],
+        );
+        const of = (id) => files.get(id);
+        const sel = (mode, f = [], baselines = []) => ({ mode, files: f, baselines });
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("all"), of), []);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("none"), of), ["a--one", "b--two"]);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("files", ["layout/stories/A.stories.ts"]), of), [
+            "b--two",
+        ]);
+        assert.deepEqual(storiesMissed(["b--two"], sel("none", [], ["b--two"]), of), [], "a changed baseline runs");
+    });
+
+    it("--stories: breaks the package's source and story files and its workspace dependencies' source", () => {
+        const files = storyCandidates(ROOT, "layout");
+        const has = (re) => files.some((f) => re.test(f));
+        assert.ok(has(/^layout\/src\//u), "the package's source");
+        assert.ok(has(/^layout\/stories\/.+\.stories\.ts$/u), "its story files");
+        assert.ok(has(/^graph-samples\/src\//u) && has(/^graph-format\/src\//u), "its dependencies' source");
+        assert.ok(!has(/\/(test|\.storybook)\//u), "never a test or the Storybook setup");
+        assert.ok(!has(/^layout\/[^/]+$/u), "never a root file of the package (package.json, tsconfig)");
+        assert.ok(!has(/^graph-samples\/(?!src\/)/u), "only a dependency's source");
+    });
+
+    it("--stories: follows dependencies through other packages and adds the packages that draw the project", () => {
+        const app = storyCandidates(ROOT, "graphty");
+        assert.ok(
+            app.some((f) => f.startsWith("algorithms/src/")) && app.some((f) => f.startsWith("layout/src/")),
+            "graphty-element's dependencies",
+        );
+        const fidelity = storyCandidates(ROOT, "graph-io", ["graph-io", "graphty-element"]);
+        const test = (f) => /\.(test|spec)\./u.test(f);
+        assert.ok(!app.some(test) && !fidelity.some(test), "never a test file under stories/");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/src/")),
+            "a drawnBy package's source",
+        );
+    });
+
     it("gives runs with different names their own worktree and report", () => {
         const a = runPaths("/r", "graph-io", null);
         const b = runPaths("/r", "layout", null);
@@ -1341,7 +1403,7 @@ describe("packBins", () => {
     ]);
 
     it("packs the longest files first into bins of at most 8 minutes", () => {
-        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms);
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, BIN_LIMIT_MS, 0);
         assert.deepEqual(bins, [
             { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
             { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
@@ -1349,17 +1411,34 @@ describe("packBins", () => {
     });
 
     it("counts a file with no recorded time as the family's longest", () => {
-        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms);
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, BIN_LIMIT_MS, 0);
         assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
     });
 
     it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
-        assert.deepEqual(packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]])), [
-            { files: ["p/x.test.ts"], ms: 9 * MIN },
-            { files: ["p/y.test.ts"], ms: 9 * MIN },
+        assert.deepEqual(
+            packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), BIN_LIMIT_MS, 0),
+            [
+                { files: ["p/x.test.ts"], ms: 9 * MIN },
+                { files: ["p/y.test.ts"], ms: 9 * MIN },
+            ],
+        );
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), BIN_LIMIT_MS, 0), [
+            { files: ["p/x.test.ts"], ms: 30_000 },
         ]);
-        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map()), [{ files: ["p/x.test.ts"], ms: 30_000 }]);
         assert.deepEqual(packBins([], ms), []);
+    });
+
+    it("counts Vitest's per-file setup and import, so many short files are split (#3645)", () => {
+        const files = Array.from({ length: 300 }, (_, i) => `p/f${i}.test.ts`);
+        const short = new Map(files.map((f) => [f, 300]));
+        const bins = packBins(files, short);
+        assert.ok(bins.length > 1);
+        for (const b of bins) {
+            assert.ok(b.ms <= BIN_LIMIT_MS);
+            assert.equal(b.ms, b.files.length * (300 + FILE_OVERHEAD_MS));
+        }
+        assert.equal(bins.flatMap((b) => b.files).length, 300);
     });
 });
 
@@ -1399,8 +1478,8 @@ describe("light-check-replay", () => {
             key: "run:ci.yml:pr",
             at: record.at,
             bins: 2,
-            testMs: 6 * MIN,
-            runMs: SETUP_MS + 6 * MIN,
+            testMs: 6 * MIN + FILE_OVERHEAD_MS,
+            runMs: SETUP_MS + 6 * MIN + FILE_OVERHEAD_MS,
             overLimit: false,
         });
     });
@@ -1409,8 +1488,8 @@ describe("light-check-replay", () => {
         const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
         const r = replayRecord(record, durations, fileLevel);
         assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
-        assert.equal(r.bins, 2, "five 2-minute files make bins of 8 and 2 minutes");
-        assert.equal(r.testMs, 8 * MIN);
+        assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
+        assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
     });
 
     it("keys a global input or a graphty-element build change as pr-wide", () => {
@@ -1618,8 +1697,9 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 });
 
 describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md section 5)", () => {
-    const stories = loadRules(ROOT).stories;
     const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;
+    // every project as if proven, so these tests judge the selection itself
+    const stories = { ...loadRules(ROOT).stories, selectProjects: Object.keys(projects) };
     const byName = (name) => SHARDS.find((s) => s.shard === name);
     const shards = [
         "graphty-storybook",
@@ -1687,6 +1767,15 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.equal(theme.layout.mode, "none");
         assert.ok(Object.values(pick(none, ["pnpm-lock.yaml"], { lockMoved: true })).every((p) => p.mode === "all"));
         assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
+    });
+
+    it("runs every story of a project not yet proven by test-select-mutate --stories, on any change", () => {
+        assert.ok(Array.isArray(loadRules(ROOT).stories.selectProjects), "the rules list the proven projects");
+        const out = pick(none, ["graphty-element/src/a.ts"], { rules: { ...stories, selectProjects: ["layout"] } });
+        assert.equal(out.layout.mode, "none", "a proven project is selected as before");
+        assert.equal(out["graphty-element"].mode, "all");
+        assert.match(out["graphty-element"].reasons[0], /test-select-mutate --stories/u);
+        assert.equal(out.graphty.mode, "all", "even with nothing of it changed");
     });
 
     it("runs a story whose baseline changed", () => {
@@ -1777,8 +1866,8 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.deepEqual(
             bins.map((b) => [b.name, b.files, b.ms]),
             [
-                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
-                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));

@@ -90,6 +90,7 @@ export function loadRules(root) {
             lockfile: toRe(raw.stories.lockfile),
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
+            selectProjects: raw.stories.selectProjects ?? [],
         },
     };
 }
@@ -1234,6 +1235,12 @@ export function planRuns(root, shards, selection) {
 export const BIN_LIMIT_MS = 8 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
+/**
+ * Milliseconds added to every file in a bin for Vitest's per-file setup and import, which a recorded duration
+ * (the file's own test time) leaves out. Evidence (#3645): graphty-element's browser slice on master reports
+ * `Duration 692s (setup 84s, import 367s, tests 222s)`, 4 to 5 s of setup and import per file.
+ */
+export const FILE_OVERHEAD_MS = 5_000;
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1242,12 +1249,13 @@ const NO_HISTORY_MS = 30_000;
  * @param files the selected test files (repository paths)
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
+ * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {
@@ -1456,7 +1464,8 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
- * whole whenever a package that draws it is selected.
+ * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1482,9 +1491,16 @@ export function selectStories({ projects, changed, everything, shards, selection
         const global = everything
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
-        const sel = global
-            ? { mode: "all", files: [], reasons: [global] }
-            : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
+        let sel = { mode: "all", files: [], reasons: [global] };
+        if (!global) {
+            sel = rules.selectProjects.includes(project)
+                ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
+                : {
+                      mode: "all",
+                      files: [],
+                      reasons: [`${project} runs whole until test-select-mutate --stories proves its selection`],
+                  };
+        }
         return { project, ...sel, baselines };
     });
 }

@@ -10,6 +10,11 @@
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
 //   red             a full run's verdict is red: --what names the lanes, --issue the "Full run red" issue
 //   owner-item      a full run failed for a reason no code change fixes (--what says which)
+//   nightly         a full run's candidate was promoted: npm `next` holds --tags and nightly.graphty.app serves it
+//   nightly-failed  the nightly site job failed after npm `next` moved: --issue names the "Nightly site deploy
+//                   failed" issue
+//   nightly-held    a full run promoted but versioning or landing failed (--what): nothing moved; --issue names
+//                   the "Nightly promotion failed" issue
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
@@ -64,12 +69,21 @@ export function statusComment(outcome, f, notify = "") {
         case "owner-item":
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
+        case "nightly":
+            text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
+            break;
+        case "nightly-failed":
+            text = `**Nightly site deploy failed**${rerun} on ${sha}: npm \`next\` and nightly.graphty.app now differ. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries the deploy.`;
+            break;
+        case "nightly-held":
+            text = `**Nightly promotion failed**${rerun} on ${sha}: ${f.what || "versioning or landing"} did not finish, so nothing reached master, npm \`next\` or nightly.graphty.app. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries it.`;
+            break;
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
         default:
             throw new Error(
-                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, run-ended)`,
+                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, nightly, nightly-failed, nightly-held, run-ended)`,
             );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
@@ -89,7 +103,9 @@ export function reportsFailure(body, run, attempt) {
     return (
         body.trimEnd().endsWith(`Run: ${run}`) &&
         n === String(attempt || 1) &&
-        /\*\*(Release held|Publish failed|Release run ended|Full run red|Owner item)\b/.test(body)
+        /\*\*(Release held|Publish failed|Release run ended|Full run red|Owner item|Nightly site deploy failed|Nightly promotion failed)\b/.test(
+            body,
+        )
     );
 }
 
@@ -206,6 +222,25 @@ export function pushMessage(outcome, f) {
             lines: [`${f.what || "A lane"} on ${sha}`, "No code change fixes it"],
             priority: 0,
             sound: "pushover",
+        },
+        nightly: {
+            title: "Nightly PROMOTED",
+            lines: [`${sha} on nightly.graphty.app`, tags ? `npm next: ${tags}` : "No package changed", retry],
+            priority: 0,
+            sound: "cashregister",
+        },
+        "nightly-failed": {
+            title: "Nightly DEPLOY FAILED",
+            lines: [`Site deploy failed on ${sha}; see ${ref(f.issue)}`, retry || "Re-run its failed jobs to retry"],
+            ...fail,
+        },
+        "nightly-held": {
+            title: "Nightly PROMOTION FAILED",
+            lines: [
+                `${f.what || "Landing"} failed on ${sha}; see ${ref(f.issue)}`,
+                retry || "Re-run its failed jobs to retry",
+            ],
+            ...fail,
         },
         "run-ended": {
             title: "Release RUN ENDED BADLY",

@@ -1389,12 +1389,32 @@ describe("ci.yml", () => {
         assert.match(due, /\n {8}needs: all-checks\n/);
         assert.match(
             due,
-            /\n {8}if: github.event_name == 'push' && github.ref == 'refs\/heads\/master' && !inputs.ref\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && !inputs\.ref \}\}\n/,
         );
         assert.match(due, /actions: write\n/);
         assert.doesNotMatch(due, /concurrency:/);
         // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
         assert.match(due, /\n {8}continue-on-error: true\n/);
+    });
+
+    it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
+        const hygiene = job(ci, "cache-hygiene");
+        assert.match(
+            hygiene,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs\.all-checks\.result == 'success' && github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' \}\}\n/,
+        );
+        const doc = parseYaml(ci).jobs["cache-hygiene"];
+        assert.deepEqual(doc.permissions, { contents: "read", actions: "write", "pull-requests": "read" });
+        // a failed cleanup must not turn master red
+        assert.equal(doc["continue-on-error"], true);
+        // the script deletes, so its summary is written after the deletes and counts the failed ones
+        assert.match(
+            hygiene,
+            /node tools\/cache-hygiene\.mjs "\$RUNNER_TEMP\/caches\.ndjson" "\$RUNNER_TEMP\/open-prs\.txt" --apply/,
+        );
+        assert.match(hygiene, /gh pr list --repo "\$GITHUB_REPOSITORY" --state open/);
+        // no pull-request run reaches it: All Checks Pass does not wait on it
+        assert.ok(!(parseYaml(ci).jobs["all-checks"].needs ?? []).includes("cache-hygiene"));
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {

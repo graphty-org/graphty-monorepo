@@ -74,6 +74,7 @@
 /tools/check-storybook-links.mjs @apowers313
 /tools/claude-area-rules.mjs @apowers313
 /tools/claude-no-foreground-wait.mjs @apowers313
+/tools/copy-docs-content.js @apowers313
 /tools/eslint-rules/no-test-timing.mjs @apowers313
 /tools/eslint-rules/story-wait-options.mjs @apowers313
 /tools/full-run.mjs @apowers313

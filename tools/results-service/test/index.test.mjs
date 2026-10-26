@@ -656,6 +656,37 @@ describe("flaky tests from master's records", () => {
         assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
     });
 
+    it("names a test again when it flips after 20 passes took it out of the quarantine", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.p1.1") });
+        const [t] = (await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.p2.1") })).body.flaky;
+        const back = {
+            signature: t.signature,
+            kind: "flaky",
+            number: 79,
+            family: t.family,
+            file: t.file,
+            name: t.name,
+        };
+        await call("POST", "/v1/issues", { token, body: back });
+        const at = (id, sha, startedAt, base) => ({ token, body: { ...base(id), sha, startedAt } });
+        const run = (id, sha, startedAt, outcome) =>
+            call("POST", "/v1/invocations", at(id, sha, startedAt, outcome === "passed" ? passing : failing));
+        for (let i = 1; i <= 20; i++) await run(`4010.1.base.pass${i}.1`, `pass${i}`, NOW + i, "passed");
+        assert.deepEqual((await plan(call, { variants: BROWSER, inputs: "k1" })).body.quarantine, []);
+        rows("UPDATE quarantine SET since = since - 60000 RETURNING 1"); // the store's clock is fixed here
+        await run("4010.1.base.f.1", "flip", NOW + 100, "failed");
+        const again = await run("4010.1.base.g.1", "flip", NOW + 101, "passed");
+        assert.deepEqual(
+            again.body.flaky.map((f) => [f.name, f.had]),
+            [["camera > zooms", 79]],
+        );
+        assert.deepEqual(rows("SELECT left_why FROM quarantine WHERE left_at IS NOT NULL"), [
+            { left_why: "20 passes since its last failure" },
+        ]);
+    });
+
     it("files two timeouts in one file as two issues, so closing one leaves the other quarantined", async () => {
         const { call, rows } = service();
         const token = master("base-check.yml");

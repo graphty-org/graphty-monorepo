@@ -24,24 +24,28 @@ const median = (xs) => {
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave).
-async function passesSince(db, q) {
+// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave), counting
+// only runs started before `before` (concludeFlaky asks as of just before the proof that names the test again).
+async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
     const [row] = await all(
         db,
         `SELECT count(*) AS n FROM file_run r JOIN invocation i ON i.id = r.invocation
          WHERE r.file = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.outcome IN ('passed','failed')
-           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ?
+           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ? AND i.started_at < ?
            AND NOT EXISTS (SELECT 1 FROM failure f WHERE f.invocation = i.id AND f.file = r.file AND f.name = ?)
            AND i.started_at > coalesce((SELECT max(j.started_at) FROM failure f JOIN invocation j ON j.id = f.invocation
-                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?), 0)`,
+                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?
+                   AND j.started_at < ?), 0)`,
         q.file,
         q.family,
         q.family,
         q.since,
+        before,
         q.name,
         q.file,
         q.name,
         q.since,
+        before,
     );
     return row.n;
 }
@@ -417,7 +421,8 @@ export async function trendFor(db, kind, posted, budgets, now) {
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
 // ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
 // or was cut short is no pass of the test. Only pairs that include `id` are asked.
-const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn
+const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn,
+       min(a.started_at, b.started_at) AS at
      FROM invocation a JOIN failure f ON f.invocation = a.id
      JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
      JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
@@ -444,12 +449,26 @@ export async function concludeFlaky(db, id, now) {
     for (const t of found) {
         const family = t.variant.split("|")[0];
         if (NEVER_QUARANTINED.test(family) || out.some((o) => o.file === t.file && o.name === t.name)) continue;
-        const active = await db
+        let active = await db
             .prepare(
-                "SELECT issue FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
+                "SELECT since, issue FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
             )
             .bind(family, t.file, t.name, now)
             .first();
+        // an entry that had passed 20 times before this proof had left (activeQuarantine computes that on read and
+        // never writes it): record it, so the test enters again and its issue is reopened or commented on
+        if (
+            active &&
+            (await passesSince(db, { ...active, family, file: t.file, name: t.name }, t.at)) >= QUARANTINE_PASSES
+        ) {
+            await db
+                .prepare(
+                    "UPDATE quarantine SET left_at = ?, left_why = ? WHERE family = ? AND file = ? AND name = ? AND since = ?",
+                )
+                .bind(now, `${QUARANTINE_PASSES} passes since its last failure`, family, t.file, t.name, active.since)
+                .run();
+            active = null;
+        }
         // an active entry whose issue was never posted back (GitHub refused it) is named again, so it gets one
         if (active?.issue != null) continue;
         const proof = `${t.failedIn} failed it, ${t.passedIn} passed it`;

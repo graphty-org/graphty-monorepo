@@ -1,8 +1,9 @@
 name: Pipeline health
 
 # Type-checks, tests and synthesizes the pipeline health backend (tools/pipeline-health/: the CDK stack
-# and its Lambda handlers). It needs no AWS credentials: the stack is deployed from this machine
-# (`pnpm run deploy` there). Design: design/ci/health-dashboard.md, section 10.
+# and its Lambda handlers, the MCP server, the local collector and the page). It needs no AWS credentials:
+# the collector Lambda starts the deploy build (graphty-health-deploy, infra/deploy-stack.ts) when master's
+# tools/pipeline-health changes. Design: design/ci/health-dashboard.md, section 10.
 
 on:
     pull_request:
@@ -38,7 +39,11 @@ jobs:
               run: npx --yes pnpm@10.34.5 install --frozen-lockfile
             - name: Type-check
               run: npx --yes pnpm@10.34.5 run typecheck
+            - name: Type-check the page
+              run: npx tsc --noEmit -p web
             - name: Test
               run: npx --yes pnpm@10.34.5 run test
+            - name: Test the MCP server and the local collector
+              run: node --test mcp/server.test.mjs local/collector.test.mjs
             - name: Synthesize
               run: npx --yes pnpm@10.34.5 run synth

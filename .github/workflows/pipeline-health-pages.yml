@@ -36,7 +36,7 @@ jobs:
               env:
                   VITE_HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
-                  npm install --no-save --no-package-lock --no-audit --no-fund --prefix tools/pipeline-health/web vite@7.3.6
+                  npm install --no-save --no-package-lock --no-audit --no-fund --prefix tools/pipeline-health/web vite@8.3.5
                   tools/pipeline-health/web/node_modules/.bin/vite build --config tools/pipeline-health/web/vite.config.ts
                   cd tools/pipeline-health/web/dist
                   test -f index.html

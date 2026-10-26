@@ -39,8 +39,8 @@ export function costExplorerDaily(client = new CostExplorerClient({ region: "us-
 export interface DeployBuilds {
     /** Starts a build of `commit`; returns the build id. */
     start(commit: string): Promise<string>;
-    /** True while the build is still running. */
-    running(buildId: string): Promise<boolean>;
+    /** The build's CodeBuild status: IN_PROGRESS, SUCCEEDED, FAILED, FAULT, STOPPED or TIMED_OUT. */
+    status(buildId: string): Promise<string | undefined>;
 }
 
 /**
@@ -63,9 +63,9 @@ export function codeBuildDeploy(projectName: string, client = new CodeBuildClien
             }
             return r.build.id;
         },
-        async running(buildId) {
+        async status(buildId) {
             const r = await client.send(new BatchGetBuildsCommand({ ids: [buildId] }));
-            return r.builds?.[0]?.buildStatus === "IN_PROGRESS";
+            return r.builds?.[0]?.buildStatus;
         },
     };
 }

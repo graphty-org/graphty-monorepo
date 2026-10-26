@@ -16,7 +16,8 @@ export function bootstrapRoleArns(account: string, region: string): string[] {
 
 const BUILDSPEC = {
     version: "0.2",
-    env: { variables: { GIT_LFS_SKIP_SMUDGE: "1" } },
+    // NODE_OPTIONS: cdk.json runs infra/bin/app.ts directly, which needs type stripping on a Node 22 older than 22.18.
+    env: { variables: { GIT_LFS_SKIP_SMUDGE: "1", NODE_OPTIONS: "--experimental-strip-types" } },
     phases: {
         install: {
             "runtime-versions": { nodejs: "22" },
@@ -28,8 +29,8 @@ const BUILDSPEC = {
                 "git checkout --detach FETCH_HEAD",
                 // tools/pipeline-health is a standalone pnpm workspace with its own lockfile.
                 "cd tools/pipeline-health",
-                "corepack enable",
-                "pnpm install --frozen-lockfile",
+                // The pinned pnpm through npx, as CI does: the image's corepack may be too old to verify pnpm 10.
+                "npx --yes pnpm@10.34.5 install --frozen-lockfile",
             ],
         },
         build: {

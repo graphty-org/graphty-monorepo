@@ -652,6 +652,18 @@ fails when a project would publish a major (below 1.0.0, a minor: nx's breaking 
 `release-approvals.json` (`project`, `kind` major or first, `merge`, `approval` URL, `since`), naming each such
 project in its `held` output. A legacy run then lands nothing; `pnpm run check:release-hold` validates the file.
 
+**The held nightly candidate (#3741).** A full run that is still not green-clean after its one automatic
+same-commit re-run (`release-rerun.yml`) holds its commit: branch `channel/candidate`, the results store's hold
+and a "Nightly held on <sha12>" issue. Master keeps merging and its slots still run, but none promotes or replaces
+the held commit. Fix it forward from the candidate's head, never from newer master:
+`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`, `Refs #<hold issue>` in the commit
+message, then `tools/pr-open.sh` as usual. When it merges, release.yml (`mode: candidate`, which `release-due`
+dispatches; every full and restart run does it too) merges the fix commit, never master, into `channel/candidate`
+and re-tests the new head only where the fix reaches. A fix made from newer master, or a fix commit made after
+pr-open's master merge, is refused on the hold issue. A green-clean head promotes to nightly; a green-images one
+when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by the
+owner's `gh workflow run release.yml --ref master -f mode=abandon`.
+
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11).
 The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App,
 because GitHub's own scheduler delays or drops this repository's scheduled runs (setup and

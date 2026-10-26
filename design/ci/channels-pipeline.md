@@ -213,28 +213,37 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
   only); newer master supersedes it only through that abandon.
-- **Fix forward into the candidate.** A fix branch never contains master. It starts from the
-  candidate head (`./tools/worktree-new.sh fix/<n>-<topic> <head> --issue <n>`), its commits say
-  `Refs #<hold issue>`, and `pr-open.sh --candidate` opens it into master without merging
-  origin/master (required checks are not strict, so GitHub merges it as is); later fix commits go
-  on the same branch. If it conflicts with master, the author merges the fix branch and master on a
-  second branch `<branch>-master` and opens that one instead, still committing fixes on the first
-  and merging them across. On the merge into master `release-due` dispatches `mode: candidate`
-  (input `fix_pr`). `tools/channel/candidate-fix.mjs` takes F, the newest commit of that pull
-  request with no master merge in its ancestry since the candidate, and merges F into
-  `channel/candidate` (a merge, never a cherry-pick). It refuses, commenting on the hold issue, when
-  any commit in `channel/candidate..F` is reachable from M0, the master tip before the fix merged
-  (first parent of its merge commit), or is not in the pull request's own commit list; a conflict
-  comments too, and the round opens a new fix branch from the head. A defect already fixed on
-  master from a newer base therefore cannot enter without a copy: the refusal says so and names the
-  owner's choice, abandon (the next slot holds a commit with the fix) or a fix forward from the
-  head. The run re-tests the new head H with nothing newer from master: ci.yml with `shards` (the
-  shards `test-select.mjs` picks for C..H plus every red one), T4, the audit, and Hosts and macOS
-  work protection when their paths or the lockfile changed in C..H; LLM regression keeps its daily
-  rule. A release.yml `candidate-capture` job re-shoots every story of each project nx calls
-  affected by C..H (every project for root files, the lockfile or Storybook config) plus the
-  stories still changed, and builds `visual-final-*` with C's captures for the rest. H has no
-  master build, so the run builds it and assembles `site-<H>` itself.
+- **Fix forward into the candidate.** A fix never brings master into the candidate. Its branch
+  starts from the candidate head (`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate
+--issue <n>`), a commit says `Refs #<hold issue>` (or the branch is named for the hold issue,
+  `fix/<hold issue>-<topic>`), and it opens and merges into master as usual (`tools/pr-open.sh`,
+  unchanged: the merge of origin/master it adds on top is simply never taken). A further fix commit
+  for the same pull request goes on a branch from its last fix commit, merged into the pull
+  request's branch. Before every full, restart and candidate pick, release.yml's `candidate_fix` job
+  (deploy key, nothing installed; `tools/channel/candidate-fix.mjs advance`) walks master's merges
+  since C: for each one that references the hold issue and holds no accept commit, F is the newest
+  of its pull request's commits (the merge's second-parent side) whose history past the candidate
+  head holds only that pull request's own commits. F is merged into the head (a fast-forward when
+  it starts from the head; never a cherry-pick), `channel/candidate` is pushed and the store's hold
+  moves to the new head H. It refuses, once, with a marked comment on the hold issue, when no
+  commit qualifies (the branch holds master commits the candidate lacks: a defect already fixed on
+  master from a newer base cannot enter without a copy, so the owner abandons the hold or the fix is
+  made again from the head), when a non-merge commit of the pull request is not in F (a fix commit
+  made after the master merge), and on a conflict. Every run does this, so the `mode: candidate`
+  run `release-due` dispatches on such a merge loses nothing when another dispatch replaces it
+  while pending. The pick then tests H first (it is unjudged) and plans the re-test from C..H
+  (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
+  as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
+  graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile
+  changed, and any lane the head's previous verdict found red; LLM regression keeps its daily rule.
+  A red CI lane or screenshot capture before, or no earlier run to carry captures from, re-runs
+  everything. The `recapture` job shoots every story of an affected Storybook and carries the
+  other projects' `visual-final-*` over from the run that judged the head before, shooting their
+  changed and new stories again; ci.yml's visual job and gate are untouched and ci.yml gets no new
+  input. H has no master build, so the run's CI call builds it and `candidate_site` assembles
+  `site-<H>` with `deploy-pages.yml` (called: it assembles and keeps the artifact, records and
+  deploys nothing); a site that fails to assemble counts against the CI lane. A red re-test is
+  reported on the hold issue only: no "Full run red" issue, no early red issue, no bisect.
 - **Nightly promotion** reuses today's `version`, `land` (deploy key, version merge and tags, the
   site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. A held candidate's
   merge brings candidate merge commits into master, so `land` first runs `release-diff.mjs` over

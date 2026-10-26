@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps, Tags } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
@@ -25,6 +25,14 @@ export const CI_AUDIENCE = "graphty-health";
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 10;
+/**
+ * The tag on every resource of the stack. The Budget cannot filter on it: this project's account is
+ * a linked account, and Billing refuses to activate cost-allocation tags there ("Linked account
+ * doesn't have access to cost allocation tags"), so a tag filter would match no cost and the Budget
+ * would never fire. The Budget therefore counts the whole account; a service that moves into this
+ * account must get its own project, or this Budget's limit and deny action must be revisited.
+ */
+export const COST_TAG = { key: "graphty-cost", value: "graphty-health" };
 export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts", "/v1/sites"];
 /** The page's Vite dev server, allowed beside the live origin. */
 export const DEV_ORIGIN = "http://localhost:5173";
@@ -46,6 +54,7 @@ export class HealthStack extends Stack {
      */
     constructor(scope: Construct, id: string, props: HealthStackProps = {}) {
         super(scope, id, props);
+        Tags.of(this).add(COST_TAG.key, COST_TAG.value);
 
         const table = new dynamodb.TableV2(this, "Table", {
             tableName: "graphty-health",
@@ -229,6 +238,9 @@ export class HealthStack extends Stack {
                 budgetType: "COST",
                 timeUnit: "MONTHLY",
                 budgetLimit: { amount: MONTHLY_BUDGET_USD, unit: "USD" },
+                // Credits would hide the spend until they run out, so count cost before credits.
+                // No tag filter: see COST_TAG.
+                costTypes: { includeCredit: false, includeRefund: false },
             },
             notificationsWithSubscribers: [notify("ACTUAL", 50), notify("FORECASTED", 100)],
         });

@@ -80,6 +80,38 @@ export function fakeGitHub(opts: { coveralls?: string } = {}): Fake {
             if (body.query.includes("pullRequests")) return json(fixture("gql-pr.json"));
             if (body.query.includes("issues(")) return json(fixture("gql-issue.json"));
             if (body.query.includes("refs(")) return json(fixture("gql-tag.json"));
+            if (body.query.includes("test-quarantine.json"))
+                return json({
+                    data: {
+                        repository: {
+                            quarantine: {
+                                text: JSON.stringify({
+                                    quarantine: [
+                                        {
+                                            file: "a/x.test.ts",
+                                            name: "t1",
+                                            family: "a",
+                                            issue: 9,
+                                            reason: "r",
+                                            excerpt: "e",
+                                        },
+                                    ],
+                                }),
+                            },
+                            codeowners: { text: "# owners\n/.github/ @o\n/visual-review/ @o\n" },
+                        },
+                    },
+                });
+            if (body.query.includes("files(first")) {
+                const ns = [...body.query.matchAll(/p(\d+): pullRequest/g)].map((m) => m[1]);
+                return json({
+                    data: {
+                        repository: Object.fromEntries(
+                            ns.map((n) => [`p${n}`, { files: { nodes: [{ path: ".github/workflows/ci.yml" }] } }]),
+                        ),
+                    },
+                });
+            }
         }
         if (p === "/orgs/graphty-org/repos") return json(fixture("org-repos.json"));
         if (p.endsWith("/actions/workflows/ci.yml/runs")) return json({ total_count: 2, workflow_runs: masterRuns() });

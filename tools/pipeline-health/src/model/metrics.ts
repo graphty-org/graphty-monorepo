@@ -54,6 +54,13 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
+    // Where the time goes: each merged pull request's stage times, the dimension the stage.
+    {
+        id: "pr.stage_time",
+        from: (["runners", "checks", "red", "merging"] as const).map((stage) =>
+            src("pr", "mergedAt", (p) => (p.stages && !p.ownerWait ? { value: p.stages[stage], dim: stage } : null)),
+        ),
+    },
     {
         id: "pr.merge_ratio",
         from: [

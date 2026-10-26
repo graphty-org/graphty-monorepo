@@ -445,10 +445,7 @@ export async function dimBars(
 
 export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {
     master: ["shared"],
-    "pull-requests": ["time", "owner"],
     ci: ["causes"],
     runners: ["holders", "superseded"],
-    flaky: ["quarantine"],
-    releases: ["lanes", "trains", "workflows"],
     "data-sources": ["stress"],
 };

@@ -52,3 +52,17 @@ export const TAG_QUERY = `query($owner: String!, $name: String!) {
       nodes { name target { oid ... on Commit { committedDate } ... on Tag { tagger { date } } } } }
   }
 }`;
+
+/** The files of the pull requests waiting on the owner, one alias each (`p<number>`). */
+export const ownerFilesQuery = (numbers: number[]): string =>
+    `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${numbers
+        .map((n) => `p${Math.trunc(n)}: pullRequest(number: ${Math.trunc(n)}) { files(first: 100) { nodes { path } } }`)
+        .join(" ")} } }`;
+
+/** The committed quarantine list and CODEOWNERS on the default branch. */
+export const REPO_FILES_QUERY = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    quarantine: object(expression: "HEAD:tools/test-quarantine.json") { ... on Blob { text } }
+    codeowners: object(expression: "HEAD:.github/CODEOWNERS") { ... on Blob { text } }
+  }
+}`;

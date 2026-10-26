@@ -1732,7 +1732,7 @@ jobs:
     # packed into bins of at most 8 minutes, each captured with the old visual-review capture exactly as the
     # visual job captures, but only those stories (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
-    # pictures on the same inputs (`unstable`, a [NEW-FLAKY] story: stories have no quarantine list yet), or a
+    # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
     # capture that crashes fails the job, and "All Checks Pass" needs it (#3472). A changed picture never fails
     # the job: it is listed in the job summary, and the owner approves it at the promotion to nightly. The
     # artifact is "stories-<bin>-<attempt>", not "visual-*", so neither the visual gate nor the flaky-story
@@ -1740,10 +1740,8 @@ jobs:
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
-        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
-        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # Its story bins are planned only for a pull request's light check, so it runs only there.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -1880,27 +1878,28 @@ jobs:
                   } >> "$GITHUB_STEP_SUMMARY"
 
             # What blocks: a story that failed (did not render, its play function threw, its wait never settled)
-            # or was unstable (two shots on the same inputs disagreed). Every other status, a changed, new or
-            # removed picture included, passes here.
+            # or was unstable (two shots on the same inputs disagreed), judged by visual-review's storyVerdict
+            # with VISUAL_REVIEW_BLOCKING=1. Every other status, a changed, new or removed picture included, passes.
             - name: Fail on a broken or unstable story
               if: steps.pick.outputs.stories != ''
               env:
                   PROJECT: ${{ matrix.project }}
+                  VISUAL_REVIEW_BLOCKING: "1"
               run: |
                   f="$RUNNER_TEMP/visual/results.json"
                   if [[ ! -f "$f" ]]; then
                       echo "::error::[BROKEN] $PROJECT: the capture wrote no results.json"
                       exit 1
                   fi
-                  jq -r --arg p "$PROJECT" '.items[]
-                      | if .status == "failed" then "::error::[BROKEN] \($p): \(.file): \((.reason // "failed") | split("\n")[0])"
-                        elif .status == "unstable" then "::error::[NEW-FLAKY] \($p): \(.file) drew two different pictures on the same inputs"
-                        else empty end' "$f" | tee "$RUNNER_TEMP/broken.txt"
-                  if [[ -s "$RUNNER_TEMP/broken.txt" ]]; then
-                      echo "$(wc -l <"$RUNNER_TEMP/broken.txt") broken or unstable stories fail this pull request"
-                      exit 1
-                  fi
-                  echo "no broken or unstable story"
+                  F="$f" node --input-type=module -e '
+                      import { readFileSync } from "node:fs";
+                      import { blockingOn, storyVerdict } from "./visual-review/capture/story-outcomes.mjs";
+                      const results = JSON.parse(readFileSync(process.env.F, "utf8"));
+                      results.project ??= process.env.PROJECT;
+                      const v = storyVerdict(results, { blocking: blockingOn(), gh: true });
+                      for (const line of v.lines) console.log(line);
+                      process.exitCode = v.code;
+                  '
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).

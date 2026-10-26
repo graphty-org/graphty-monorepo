@@ -1272,9 +1272,9 @@ Rules:
 - **A broken story fails its pull request; a changed picture does not.** The `Stories (<bin>)` jobs
   capture the stories a change can reach, and `All Checks Pass` needs them: a story that fails to render,
   whose play function throws, or that draws two different pictures on the same inputs (`[BROKEN]`,
-  `[NEW-FLAKY]`) fails the pull request; fix it on the branch. A changed or new picture is only reported
-  (the job summary and the `Visual report` job's warning); the owner approves it at the promotion to
-  nightly, so it needs no `ACTION NEEDED` line on the pull request.
+  `[UNSTABLE]`) fails the pull request; fix it on the branch. A changed or new picture blocks the promotion
+  to nightly until the owner approves it there (`node visual-review/trusted/cli.mjs serve --candidate next`),
+  so it needs no `ACTION NEEDED` line on the pull request.
 - **No pre-push gate on `pr-open.sh`.** It skips `.husky/pre-push` but runs its secret scan and LFS upload;
   CI is the gate. SonarQube and the NVIDIA GPU tests run only when you run them (step 2).
 - **Nothing tests master itself.** Master's build runs no tests, and required checks are not "strict", so

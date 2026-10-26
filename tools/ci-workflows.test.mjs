@@ -6992,9 +6992,11 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
             }
             return spawnSync("bash", ["-e", "-c", runOf("Fail on a broken or unstable story")], {
                 encoding: "utf8",
-                env: { ...process.env, RUNNER_TEMP: dir, PROJECT: "graphty-element" },
+                env: { ...process.env, RUNNER_TEMP: dir, PROJECT: "graphty-element", VISUAL_REVIEW_BLOCKING: "1" },
             });
         };
+        assert.match(stories, /- name: Fail on a broken or unstable story\n[\s\S]*?VISUAL_REVIEW_BLOCKING: "1"/);
+        assert.match(stories, /github\.event_name == 'pull_request'/);
         const passing = verdict([
             { file: "a.png", status: "changed" },
             { file: "b.png", status: "new" },
@@ -7007,7 +7009,7 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.match(broken.stdout, /::error::\[BROKEN\] graphty-element: a\.png: play function threw\n/);
         const unstable = verdict([{ file: "b.png", status: "unstable" }]);
         assert.equal(unstable.status, 1);
-        assert.match(unstable.stdout, /::error::\[NEW-FLAKY\] graphty-element: b\.png/);
+        assert.match(unstable.stdout, /::error::\[UNSTABLE\] graphty-element: b\.png/);
         const missing = verdict(null);
         assert.equal(missing.status, 1);
         assert.match(missing.stdout, /wrote no results\.json/);

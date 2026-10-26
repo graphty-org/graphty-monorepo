@@ -156,7 +156,11 @@ describe("POST /v1/invocations", () => {
                 token: master(file),
                 body: record({ id: `4010.1.job.g.${n}`, kind: "local" }),
             });
-            assert.deepEqual(res.body, { stored: true, kind, flaky: [] }, file);
+            assert.deepEqual(
+                res.body,
+                { stored: true, kind, flaky: [], ...(kind === "stress" ? {} : { tracked: [] }) },
+                file,
+            );
         }
         assert.equal(rows("SELECT * FROM invocation").length, 8);
     });
@@ -617,6 +621,39 @@ describe("flaky tests from master's records", () => {
             res.body.quarantine.map((q) => [q.name, q.issue]),
             [["camera > zooms", 77]],
         );
+    });
+
+    it("names the issues in force to the master job, and a closed one ends its entry so the next proof files again", async () => {
+        const { call, rows } = service();
+        const token = master("base-check.yml");
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.q1.1") });
+        const proved = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.q2.1") });
+        const [t] = proved.body.flaky;
+        const back = {
+            signature: t.signature,
+            kind: "flaky",
+            number: 78,
+            family: t.family,
+            file: t.file,
+            name: t.name,
+        };
+        await call("POST", "/v1/issues", { token, body: back });
+        const next = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.q3.1") });
+        assert.deepEqual(next.body.tracked, [78]);
+        const closed = { number: 78, state: "closed" };
+        assert.equal((await call("POST", "/v1/issues", { token: pr(), body: closed })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: closed })).status, 200);
+        assert.deepEqual(rows("SELECT left_why FROM quarantine"), [{ left_why: "issue #78 closed" }]);
+        assert.deepEqual(rows("SELECT state FROM tracked_issue"), [{ state: "closed" }]);
+        assert.deepEqual((await plan(call, { variants: BROWSER, inputs: "k1" })).body.quarantine, []);
+        rows("UPDATE quarantine SET since = since - 60000 RETURNING 1"); // the store's clock is fixed here
+        // the fix did not hold: the next flip is a new entry, named for an issue, with the closed one as `had`
+        const again = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.q4.1") });
+        assert.deepEqual(
+            again.body.flaky.map((f) => [f.name, f.had]),
+            [["camera > zooms", 78]],
+        );
+        assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
     });
 
     it("never quarantines from a pull request's records, other inputs, another skip count or a GPU family", async () => {

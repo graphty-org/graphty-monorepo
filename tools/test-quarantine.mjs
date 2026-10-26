@@ -738,6 +738,25 @@ function countPasses(state, ran, failedNow, day) {
 }
 
 /**
+ * The closed ones among some issues, in one GraphQL query.
+ * @param issues issue numbers
+ * @param [gh] `(args) => stdout`
+ * @returns a Set of the closed numbers, or null when GitHub could not be read
+ */
+export function closedIssues(issues, gh = ghCli) {
+    if (issues.length === 0) return new Set();
+    try {
+        const fields = issues.map((n) => `i${n}: issue(number: ${n}) { state }`).join(" ");
+        const query = `{ repository(owner: "graphty-org", name: "graphty-monorepo") { ${fields} } }`;
+        const repo = JSON.parse(gh(["api", "graphql", "-f", `query=${query}`])).data.repository;
+        return new Set(issues.filter((n) => repo[`i${n}`]?.state === "CLOSED"));
+    } catch (e) {
+        console.log(`test-quarantine: could not read the quarantine issues (${e.message.split("\n")[0]})`);
+        return null;
+    }
+}
+
+/**
  * Ends the entries whose issue was closed: at most once an hour, one GraphQL query for every issue on the list.
  * Never throws.
  * @param main the main checkout
@@ -753,16 +772,8 @@ export function closeFinished(main, root, gh = ghCli, now = Date.now()) {
     const issues = [...new Set(list.map((q) => Number(q.issue)).filter((n) => n > 0))];
     updateState(main, (s) => (s.issueCheck = { at: now }));
     if (issues.length === 0) return [];
-    let closed;
-    try {
-        const fields = issues.map((n) => `i${n}: issue(number: ${n}) { state }`).join(" ");
-        const query = `{ repository(owner: "graphty-org", name: "graphty-monorepo") { ${fields} } }`;
-        const repo = JSON.parse(gh(["api", "graphql", "-f", `query=${query}`])).data.repository;
-        closed = new Set(issues.filter((n) => repo[`i${n}`]?.state === "CLOSED"));
-    } catch (e) {
-        console.log(`test-quarantine: could not read the quarantine issues (${e.message.split("\n")[0]})`);
-        return [];
-    }
+    const closed = closedIssues(issues, gh);
+    if (!closed) return [];
     const left = list.filter((q) => closed.has(Number(q.issue)));
     if (left.length === 0) return [];
     const day = today();

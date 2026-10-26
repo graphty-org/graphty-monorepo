@@ -551,6 +551,25 @@ describe("fileIssues", () => {
         });
     });
 
+    it("ends the store's entries whose issue closed, never one it just reopened", async () => {
+        const s = await serve();
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const calls = [];
+        const gh = (args) => {
+            calls.push(args);
+            if (args[0] === "api")
+                return JSON.stringify({ data: { repository: { i41: { state: "CLOSED" }, i42: { state: "OPEN" } } } });
+            return "";
+        };
+        const answers = [{ ok: true, data: { kind: "full", flaky: [], tracked: [41, 42] } }];
+        await fileIssues(cfg, [rec("passed", [])], answers, [], gh);
+        assert.equal(calls.filter((c) => c[0] === "api").length, 1);
+        assert.deepEqual(
+            s.seen.filter((r) => r.url === "/v1/issues").map((r) => r.body),
+            [{ number: 41, state: "closed" }],
+        );
+    });
+
     it("files one issue for a test both tries' answers name", async () => {
         const { gh, calls } = ghFake();
         const answers = [

@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { shardKeys } from "../prepush-inputs.mjs";
 import { failureHashes, familyOf, headFacts, newRunId, parseJunit } from "../test-ledger.mjs";
-import { emptyState, fileIssue, PASSES_TO_LEAVE, quarantined, runShard } from "../test-quarantine.mjs";
+import { closedIssues, emptyState, fileIssue, PASSES_TO_LEAVE, quarantined, runShard } from "../test-quarantine.mjs";
 import { call, config, postInvocation, readPlan } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 
@@ -140,7 +140,11 @@ function readPlanFile(file) {
  * A re-run attempt's plan: the store's quarantine and master evidence read again (a base check dispatched after the
  * first attempt stored its evidence since), the rest as the first attempt planned. Fails open to the plan as it is.
  * @param plan the plan file
- * @param o `cfg` (config()), `sha`, `family`, `variant`
+ * @param o the run's facts
+ * @param o.cfg config()
+ * @param o.sha the commit tested
+ * @param o.family the shard family
+ * @param o.variant the variant
  * @returns the plan
  */
 export async function refreshPlan(plan, { cfg, sha, family, variant }) {
@@ -276,6 +280,13 @@ export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now
         }
     }
     for (const i of out) await call(cfg, "POST", "/v1/issues", i);
+    // the store's entries whose issue closed leave, as a committed entry does (6.5); one just reopened stays
+    const filed = new Set(out.map((i) => i.number));
+    const tracked = [...new Set(answers.flatMap((a) => (a.ok ? (a.data?.tracked ?? []) : [])))].filter(
+        (n) => !filed.has(n),
+    );
+    for (const n of closedIssues(tracked, gh) ?? [])
+        await call(cfg, "POST", "/v1/issues", { number: n, state: "closed" });
     return out;
 }
 

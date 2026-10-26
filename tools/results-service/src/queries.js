@@ -71,6 +71,24 @@ async function activeQuarantine(db, families, now) {
     return out;
 }
 
+/**
+ * The issues of a family's quarantine entries in force, for the master job that posted to check on GitHub: a
+ * closed one ends its entries (POST /v1/issues with state closed), as a closed issue ends a committed entry.
+ * @param db the D1 database
+ * @param family the shard family
+ * @param now milliseconds
+ * @returns issue numbers
+ */
+export async function trackedIssues(db, family, now) {
+    const rows = await all(
+        db,
+        "SELECT DISTINCT issue FROM quarantine WHERE family = ? AND left_at IS NULL AND expires > ? AND issue IS NOT NULL",
+        family,
+        now,
+    );
+    return rows.map((r) => r.issue);
+}
+
 // Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
 // inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {

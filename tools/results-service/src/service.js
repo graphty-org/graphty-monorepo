@@ -11,7 +11,16 @@
 //   kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { concludeFlaky, getCandidate, getFailures, getMedians, getPlan, getReleaseState, trendFor } from "./queries.js";
+import {
+    concludeFlaky,
+    getCandidate,
+    getFailures,
+    getMedians,
+    getPlan,
+    getReleaseState,
+    trackedIssues,
+    trendFor,
+} from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -266,7 +275,10 @@ async function postInvocation(body, who, db, nowMs) {
     ]);
     const stored = first.meta.changes === 1;
     const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
-    return { stored, kind: who.kind, flaky: judged ? await concludeFlakySafely(db, body.id, nowMs) : [] };
+    if (!judged) return { stored, kind: who.kind, flaky: [] };
+    const flaky = await concludeFlakySafely(db, body.id, nowMs);
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
+    return { stored, kind: who.kind, flaky, tracked };
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
@@ -285,6 +297,7 @@ async function concludeFlakySafely(db, id, nowMs) {
 // kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
 async function postIssue(body, who, db, nowMs) {
     if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
+    if (body.state === "closed") return closeIssue(body, db, nowMs);
     need(body, { signature: "string", number: "number" });
     if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
     await db.batch([
@@ -300,6 +313,22 @@ async function postIssue(body, who, db, nowMs) {
                 "UPDATE quarantine SET issue = ? WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND issue IS NULL",
             )
             .bind(body.number, body.family ?? "", body.file ?? "", body.name ?? ""),
+    ]);
+    return { stored: true };
+}
+
+// A tracked issue a master job found closed: its quarantine entries leave now (6.5), so the next proof of the same
+// test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
+// not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
+async function closeIssue(body, db, nowMs) {
+    need(body, { number: "number" });
+    await db.batch([
+        db
+            .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
+            .bind(nowMs, body.number),
+        db
+            .prepare("UPDATE quarantine SET left_at = ?, left_why = ? WHERE issue = ? AND left_at IS NULL")
+            .bind(nowMs, `issue #${body.number} closed`, body.number),
     ]);
     return { stored: true };
 }

@@ -265,12 +265,14 @@ export function shardOfRun(root, listed, command) {
  * @param [o.list] the quarantine in force, in place of the committed list and the local state (the results store's)
  * @param [o.judge] `(decision, { firstOutcome }) => decision` in place of blameChange(): the pull request rules of
  *   tools/results/run-group.mjs; a decision with `lines` prints those instead of the [FLAKY] and [FAIL] lines
+ * @param [o.family] the family the quarantine list is matched by, in place of the shard's own (run-group.mjs's
+ *   groupFamily(), which keeps a screenshot run apart)
  * @returns the exit code
  */
 export async function runShard(
     shardName,
     command,
-    { root, viaRunTests, env = process.env, state, logBudget = LOG_BUDGET_BYTES, list: given, judge },
+    { root, viaRunTests, env = process.env, state, logBudget = LOG_BUDGET_BYTES, list: given, judge, family: fam },
 ) {
     if (!quarantineEnabled(env)) {
         const r = await sh(command, env, root);
@@ -294,7 +296,7 @@ export async function runShard(
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);
         if (r1.code === 0) return flood;
-        const family = familyOf(shardName);
+        const family = fam ?? familyOf(shardName);
         const list = given ?? activeList(committedList(root), state);
         const runs = expectedRuns(shard?.["test-command"] ?? command);
         const firstOutcome = outcomeOf({ code: r1.code, log: r1.text, runs, junit: first });

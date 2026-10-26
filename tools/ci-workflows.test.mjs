@@ -1732,7 +1732,29 @@ describe("verification runs of ci.yml", () => {
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
         }
         assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
-        assert.match(job(ci, "story-tests"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        // Through the results store like every test shard, and judged against the committed quarantine list.
+        assert.match(job(ci, "story-tests"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
+        assert.match(job(ci, "story-tests"), /id-token: write/);
+        // the combine step judges by the very list the run step judged by, which the run step writes
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_QUARANTINE_OUT: \$\{\{ runner\.temp \}\}\/stories\/quarantine\.json/,
+        );
+        assert.match(job(ci, "story-tests"), /merge-results .*--quarantine "\$RUNNER_TEMP\/stories\/quarantine\.json"/);
+        // the store quarantines a flaky story with an issue, which the step files
+        assert.match(job(ci, "story-tests"), /issues: write/);
+        // the pull request's own stories run here, so no token reaches them on a pull request
+        assert.match(job(ci, "story-tests"), /persist-credentials: false/);
+        assert.match(
+            job(ci, "story-tests"),
+            /RESULTS_PLAN: \$\{\{ runner\.temp \}\}\/results-plan\/results-plan\.json/,
+        );
+        assert.match(
+            job(ci, "story-tests"),
+            /GH_TOKEN: \$\{\{ github\.event_name != 'pull_request' && github\.token \|\| '' \}\}/,
+        );
+        // The blocking switch stays off until the project switches.
+        assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
         assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
@@ -1868,11 +1890,15 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
     // A job that only holds steps the base branch already requires (a required job split in two) is not
     // a new check: its steps were required yesterday, so they stay required without a warning period.
     const baseSteps = new Set(Object.values(baseChecks).flat());
+    // A job the base branch runs report-only (job-level continue-on-error: true) has served its warning period.
+    const baseJobs = parseJobs(baseCi);
     for (const job of registry.required) {
         check(job in checks, `${job}: in "required" but not a required job of ci.yml`);
         if (baseRegistry && !baseRegistry.required.includes(job))
             check(
-                job in baseChecks || (job in checks && checks[job].every((step) => baseSteps.has(step))),
+                job in baseChecks ||
+                    baseJobs[job]?.coe === "true" ||
+                    (job in checks && checks[job].every((step) => baseSteps.has(step))),
                 `${job}: "required" only grows by jobs the base branch already runs, or jobs made of steps it already requires; a new one goes into "advisory" first`,
             );
     }
@@ -2138,6 +2164,40 @@ jobs:
             );
         });
 
+        it("accepts a job the base branch ran report-only straight into required (#3472)", () => {
+            const report = `    report:
+        needs: packages
+        continue-on-error: true
+        steps:
+            - name: Report
+              run: x
+`;
+            const required = `    report:
+        needs: packages
+        steps:
+            - name: Report
+              run: x
+`;
+            const base = BASE_CI.replace("    all-checks:", `${report}    all-checks:`);
+            const head = BASE_CI.replace("    all-checks:", `${required}    all-checks:`).replace(
+                "needs: [packages, test]",
+                "needs: [packages, test, report]",
+            );
+            const check = (baseCi) =>
+                advisoryProblems({
+                    ci: head,
+                    registry: { required: [...REQUIRED, "report"], advisory: [] },
+                    baseCi,
+                    baseRegistry: { required: REQUIRED, advisory: [] },
+                    today: "2026-10-05",
+                }).problems;
+            assert.deepEqual(check(base), []);
+            assert.ok(
+                check(BASE_CI).some((p) => p.startsWith('report: "required" only grows')),
+                "a new job still waits",
+            );
+        });
+
         it("refuses an unregistered job and a stale entry", () => {
             assert.ok(
                 run({ advisory: [entry("test", "Types")] }).problems.includes(
@@ -2287,6 +2347,7 @@ describe("the summary checks fail as soon as a required job fails", () => {
             "links",
             "lint",
             "packages",
+            "stories",
             "test",
         ]);
         for (const name of deciding) {
@@ -6843,10 +6904,12 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)='/);
     });
 
-    it("is report-only: outside All Checks Pass, and nothing in it fails the job", () => {
-        assert.doesNotMatch(job(ci, "all-checks"), /needs: \[[^\]]*\bstories\b/);
-        assert.match(stories, /\n {8}continue-on-error: true\n/);
-        assert.match(stories, /- name: Capture the selected stories\n[\s\S]*?\n {14}continue-on-error: true\n/);
+    it("blocks: All Checks Pass needs it, and neither the job nor its capture is continue-on-error (#3472)", () => {
+        assert.match(job(ci, "all-checks"), /needs: \[[^\]]*\bstories\b/);
+        const jobs = parseJobs(ci);
+        assert.equal(jobs.stories.coe, undefined, "no job-level continue-on-error");
+        const capture = jobs.stories.steps.find((x) => x.name === "Capture the selected stories");
+        assert.equal(capture.coe, undefined, "a capture crash fails the job");
         // its partial captures are not visual-* artifacts, which the visual gate and the flaky report read
         assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
     });
@@ -6915,9 +6978,79 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         });
         assert.equal(r.status, 0, r.stderr);
         const text = readFileSync(summary, "utf8");
-        assert.match(text, /### Stories \(graphty-element-1\), report-only/);
+        assert.match(text, /### Stories \(graphty-element-1\)\n/);
         assert.match(text, /\n- changed: a--one\.png\n/);
         assert.doesNotMatch(text, /- unchanged/);
+    });
+
+    it("fails on a broken or unstable story, never on a changed, new or flaky-then-matching picture (#3472)", () => {
+        const verdict = (items) => {
+            const dir = mkdtempSync(join(TMP, "stories-verdict-"));
+            if (items) {
+                mkdirSync(join(dir, "visual"));
+                writeFileSync(join(dir, "visual", "results.json"), JSON.stringify({ items }));
+            }
+            return spawnSync("bash", ["-e", "-c", runOf("Fail on a broken or unstable story")], {
+                encoding: "utf8",
+                env: { ...process.env, RUNNER_TEMP: dir, PROJECT: "graphty-element", VISUAL_REVIEW_BLOCKING: "1" },
+            });
+        };
+        assert.match(stories, /- name: Fail on a broken or unstable story\n[\s\S]*?VISUAL_REVIEW_BLOCKING: "1"/);
+        assert.match(stories, /github\.event_name == 'pull_request'/);
+        const passing = verdict([
+            { file: "a.png", status: "changed" },
+            { file: "b.png", status: "new" },
+            { file: "c.png", status: "unchanged", flaky: true },
+            { file: "d.png", status: "removed" },
+        ]);
+        assert.equal(passing.status, 0, passing.stdout);
+        const broken = verdict([{ file: "a.png", status: "failed", reason: "play function threw\nstack" }]);
+        assert.equal(broken.status, 1);
+        assert.match(broken.stdout, /::error::\[BROKEN\] graphty-element: a\.png: play function threw\n/);
+        const unstable = verdict([{ file: "b.png", status: "unstable" }]);
+        assert.equal(unstable.status, 1);
+        assert.match(unstable.stdout, /::error::\[UNSTABLE\] graphty-element: b\.png/);
+        const missing = verdict(null);
+        assert.equal(missing.status, 1);
+        assert.match(missing.stdout, /wrote no results\.json/);
+    });
+
+    it("All Checks Pass fails on a failed Stories job and passes a skipped one when none was planned (#3472)", () => {
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "all-checks"),
+        )[1];
+        const verdict = (count, result, full = "false") =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: full,
+                    LIGHT: "false",
+                    ADVISORY: "[]",
+                    REUSE_RUN: "",
+                    TEST_COUNT: "0",
+                    STORIES_COUNT: count,
+                    NEEDS: JSON.stringify(
+                        Object.fromEntries(
+                            ["packages", "build", "lint", "checks", "docs"]
+                                .map((n) => [n, { result: "success" }])
+                                .concat([
+                                    ["test", { result: "success" }],
+                                    ["stories", { result }],
+                                ]),
+                        ),
+                    ),
+                },
+            });
+        assert.equal(verdict("2", "success").status, 0);
+        assert.equal(verdict("0", "skipped").status, 0, "no story selected: a skipped Stories passes");
+        assert.equal(verdict("0", "skipped", "true").status, 0, "a full run plans no Stories job either");
+        const failed = verdict("2", "failure");
+        assert.equal(failed.status, 1);
+        assert.match(failed.stdout, /the plan made 2 Stories jobs, but Stories reports failure/);
+        assert.equal(verdict("2", "skipped").status, 1, "planned Stories jobs that never ran fail");
+        assert.equal(verdict("2", "cancelled").status, 1);
     });
 
     it("storiesPlan() makes one entry per story bin with its project's Storybook artifact", () => {

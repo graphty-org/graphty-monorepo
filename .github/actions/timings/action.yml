@@ -4,7 +4,8 @@
 #
 # The calling job checks out tools/ and ci-budgets.json, runs last with `if: always()`, and needs
 # `actions: read` (the run's jobs), `id-token: write` (the store's credential) and `pull-requests: write`
-# (the comment). The Build job uploads its nx profile as the artifact `nx-profile`.
+# (the comment), and `issues: write` (the trend alarm issues of master's runs, kind full in the store).
+# The Build job uploads its nx profile as the artifact `nx-profile`.
 name: CI timings
 description: Report the run's durations against their budgets and send them to the results store
 inputs:

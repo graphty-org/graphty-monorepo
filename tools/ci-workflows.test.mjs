@@ -1534,7 +1534,7 @@ describe("ci.yml", () => {
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
         assert.match(ci, /workflow_call:\n\s+inputs:\n\s+ref:\n(?:.*\n){1,2}\s+type: string\n\s+required: true/);
-        const checkouts = ci.match(/- uses: actions\/checkout@v4\n(?:\s+.*\n){0,3}/g);
+        const checkouts = ci.match(/- uses: actions\/checkout@v\d+\n(?:\s+.*\n){0,3}/g);
         assert.ok(checkouts.length >= 10);
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
@@ -1696,7 +1696,12 @@ describe("verification runs of ci.yml", () => {
         // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
         // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
-        const sha = (t) => createHash("sha256").update(t).digest("hex");
+        // A version bump of an action from GitHub's own `actions/` organization (Dependabot's, `@v4` to `@v7`) is
+        // not a change to the owner's steps; any other edit, another action or a ref that is not a version, is.
+        const sha = (t) =>
+            createHash("sha256")
+                .update(t.replace(/(uses: actions\/[\w-]+)@v\d+(?:\.\d+)*$/gm, "$1@v4"))
+                .digest("hex");
         // The gate steps moved, unchanged, from "All Checks Pass" to the Visual report job (#3443).
         const report = job(ci, "visual-report");
         const from = report.indexOf("            - name: Check out the gate");

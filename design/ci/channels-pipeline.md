@@ -323,15 +323,23 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   exactly H is `green-images` (every lane green, no owner item), never an older or newer run;
   `visual-review notify` tells the owner once. Finish commits accept commit A parented on H, on
   branch `visual/approve-<sha12>`, writing every accept carried by hash from an earlier head into
-  A's tree, and opens a pull request touching only `visual-baselines/` and
-  `visual-review-approvals/`. When it merges, `release-due` matches its subject ("approve visual
-  baselines at <sha12>") to H and dispatches release.yml `mode: promote-nightly` (inputs
-  `candidate`, `accept`); an accept for a head no longer current dispatches nothing and comments on
-  the hold issue. `promote-nightly` refuses unless A's parent is H and H's latest verdict is
-  `green-images`; then the gate runs unchanged on H's `visual-final-*` (30 days) against A's
-  baselines (byte copies, so `capture_sha == baseline_sha`), with `--base channel/nightly --head A`;
-  then version, land, publish and site on A; the store records `approved`, the branch is deleted and
-  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. The gate and
+  A's tree, then commits his signed approval of that tree on A, and opens a pull request touching
+  only `visual-baselines/` and `visual-review-approvals/`; its head P is the approval. When it
+  merges, `release-due` matches A's subject ("approve visual baselines at <sha12>") to H and
+  dispatches release.yml `mode: promote-nightly` (inputs `candidate` H, `accept` P, the merge's
+  second parent); an approval for a head no longer current dispatches nothing and comments on the
+  hold issue. `promote-nightly` refuses unless P is H plus accept-only commits (no merge, nothing
+  outside those two directories) and H's latest verdict is `green-images`; then the gate runs
+  unchanged on H's `visual-final-*` (30 days) against P's baselines (byte copies, so `capture_sha ==
+baseline_sha`) and P's signed approval, with `--base channel/nightly --head P`; then version,
+  land, publish and site on P; the store records `approved`, the branch is deleted and
+  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. Every `full`
+  slot first catches up on such an approval (a held head whose approval is on master, with no
+  publish hold open), so a slot that replaced a pending `promote-nightly` run loses nothing. The run
+  that holds a green-images head keeps its builds as `release-builds-<H>` (30 days), which the
+  promotion ships, and the site deployed is H's own `site-<H>`, which master built; P changes only
+  baselines and approvals. A gate refusal records `rejected` on H and comments on the hold issue, so
+  no later slot retries that approval; an open publish hold only delays it. The gate and
   capture code come from master's tip at the run's start (code-owned paths), recorded in
   `channel.json`.
 - **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;

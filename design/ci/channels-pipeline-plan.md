@@ -548,10 +548,11 @@ Order below: the smallest piece that unblocks nightly first. Each is part of #37
 change release.yml are owned.
 
 **nightly-resume** (#3741) -- agent, M, CP. `mode: promote-nightly` (design section 5): refuse unless
-the accept's parent is the candidate and its latest verdict is green-images; gate on its
-`visual-*` with `--head <accept>`; version, land (with the version-only `release-diff` of the master
-merge), publish, site on the accept commit; store `approved`; `release-due` dispatches it on an
-accept merge naming a waiting candidate (the oldest waiting one until `candidate-hold`). Needs:
+the approval (the accept pull request's head) is the candidate plus accept-only commits and the
+candidate's latest verdict is green-images; gate on its `visual-final-*` with `--head <approval>`;
+version, land (with the version-only `release-diff` of the master merge), publish, site on the
+approval; store `approved`; `release-due` dispatches it on an accept merge naming the held candidate
+(or any green-images one while nothing is held), and every full slot catches up on one. Needs:
 `nightly-site`. Done: an approved green-images run promotes to `next` and nightly.graphty.app; a
 second dispatch, or one for a red run, does nothing. Undo: revert; candidates wait as today.
 

@@ -81,6 +81,8 @@ export interface JobItem extends RawBase {
     name: string;
     family?: string; // a test family, bins folded ("Test (graphty-element-browser-3)" -> graphty-element-browser)
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
+    /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
+    os?: "linux" | "windows" | "macos";
     status: string;
     conclusion?: string;
     /** Ended at its own timeout-minutes, or ran past twice its budget. */
@@ -179,6 +181,8 @@ export interface NpmItem extends RawBase {
 export interface CostItem extends RawBase {
     kind: "cost";
     line: string; // t4 | llm | aws | cloudflare | sentry | github
+    /** The workflow file whose job cost it (t4, llm), for money by workflow. */
+    workflow?: string;
     day: number; // start of the UTC day
     usd: number;
 }

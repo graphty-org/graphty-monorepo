@@ -37,6 +37,9 @@ import {
     redSpans,
     shards,
     sourcesTable,
+    stressTable,
+    unitCosts,
+    byWorkflow,
 } from "./sections.js";
 
 export type ViewBody = StatusResponse | OverviewResponse | PageResponse | SectionResponse;
@@ -259,7 +262,12 @@ class Builder {
             case "flaky":
                 return [await hotspots(this.reads, "7d"), ...empty];
             case "data-sources":
-                return [...empty, sourcesTable(this.reads), notSetUpTable(this.reads, this.reads.ev.members)];
+                return [
+                    ...empty,
+                    await stressTable(this.reads),
+                    sourcesTable(this.reads),
+                    notSetUpTable(this.reads, this.reads.ev.members),
+                ];
             case "local-runs":
                 return [
                     await dimBars(this.reads, "runs", "local.runs", range, "n"),
@@ -328,8 +336,8 @@ class Builder {
             members,
             sections: [
                 await moneyTable(this.reads, range, byEngineId),
-                notCollected("unit"),
-                notCollected("by-workflow"),
+                await unitCosts(this.reads, range),
+                await byWorkflow(this.reads),
             ],
         };
     }

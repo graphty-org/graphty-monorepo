@@ -2,6 +2,7 @@
 // records yet is an EmptySection with the same id, saying so, never a table of zeros.
 
 import type {
+    BarsSection,
     Cell,
     Fact,
     JobsSection,
@@ -16,9 +17,12 @@ import type {
     TableRow,
     TreeNode,
 } from "../../web/src/contract.js";
+import rates from "../../config/rates.json" with { type: "json" };
+import type { StressCursorRun } from "../collector/parse.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, MIN, STEP_MS } from "../model/items.js";
 import { SHARD_BASE_MS } from "../model/metrics.js";
+import { getCursor } from "../model/raw.js";
 import { emptyAgg, mergeAgg } from "../model/rollup.js";
 import { type MemberStatus } from "../sla/engine.js";
 import { iso, type Reads, reasonFact, sourceState, SPEC } from "./members.js";
@@ -450,5 +454,174 @@ export const NOT_COLLECTED: Partial<Record<PageId, string[]>> = {
     runners: ["holders", "superseded"],
     flaky: ["quarantine"],
     releases: ["lanes", "trains", "workflows"],
-    "data-sources": ["stress"],
 };
+
+/**
+ * Events (n) of one metric over the last `days` daily buckets.
+ * @param reads the store reads
+ * @param metric the metric id
+ * @param days how many daily buckets, today included
+ * @returns the event count
+ */
+async function countOver(reads: Reads, metric: string, days: number): Promise<number> {
+    const today = floorTo(reads.now, "1d");
+    let n = 0;
+    for (const b of (await reads.series(metric, "1d", today - (days - 1) * DAY, today)).values()) {
+        n += b.n;
+    }
+    return n;
+}
+
+/**
+ * Days from the first of this UTC month to today, inclusive.
+ * @param now the time now
+ * @returns the day count
+ */
+const monthDaysSoFar = (now: number): number => {
+    const d = new Date(now);
+    return (floorTo(now, "1d") - Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)) / DAY + 1;
+};
+
+/**
+ * List-price value (USD) by workflow from `ci.job_minutes`; a minute with no rate for its OS is left out.
+ * @param minutes job minutes by [workflow, os]
+ * @returns USD by workflow
+ */
+function valueByWorkflow(minutes: Map<string, Agg>): Map<string, number> {
+    const rate: Record<string, number | undefined> = rates.actionsListPrice.usdPerMin;
+    const out = new Map<string, number>();
+    for (const [key, a] of minutes) {
+        const [workflow, os] = JSON.parse(key) as [string, string];
+        const r = rate[os];
+        if (r !== undefined) {
+            out.set(workflow, (out.get(workflow) ?? 0) + a.sum * r);
+        }
+    }
+    return out;
+}
+
+/**
+ * Unit costs (section 7), for comparison only: money per tested release train (T4 and the LLM step of
+ * release.yml, over the trains that tested) and list-price value per pull request merged into master.
+ * @param reads the store reads
+ * @param range the picked range
+ * @returns the unit table, or empty
+ */
+export async function unitCosts(reads: Reads, range: SlowRange): Promise<Section> {
+    const days = daysOf(range);
+    const [money, trains, minutes, merged] = await Promise.all([
+        dimsOver(reads, "cost.by_workflow", days),
+        countOver(reads, "release.trains", days),
+        dimsOver(reads, "ci.job_minutes", days),
+        countOver(reads, "master.reverts", days), // one event per pull request merged into master
+    ]);
+    const rows: TableRow[] = [];
+    if (trains > 0) {
+        const usd = [...money].filter(([w]) => w.startsWith("release.yml")).reduce((t, [, a]) => t + a.sum, 0);
+        rows.push({
+            cells: {
+                measure: { t: "label", code: "unit.train" },
+                value: { t: "num", n: round(usd / trains), unit: "usd", bold: true },
+                note: { t: "fact", fact: f("unit.train.mean", { days, trains }) },
+            },
+        });
+    }
+    const value = [...valueByWorkflow(minutes).values()].reduce((t, v) => t + v, 0);
+    if (merged > 0 && minutes.size > 0) {
+        rows.push({
+            cells: {
+                measure: { t: "label", code: "unit.pr_value" },
+                value: { t: "num", n: round(value / merged), unit: "usd", bold: true },
+                note: { t: "fact", fact: f("unit.pr_value.note") },
+            },
+        });
+    }
+    return rows.length
+        ? { kind: "table", id: "unit", rows }
+        : { kind: "empty", id: "unit", fact: f("section.no_events") };
+}
+
+/**
+ * Money and list-price value by workflow, this month so far (section 7): two sorted-bar lists, never summed.
+ * @param reads the store reads
+ * @returns the two bar lists, or empty
+ */
+export async function byWorkflow(reads: Reads): Promise<Section> {
+    const days = monthDaysSoFar(reads.now);
+    const [money, minutes] = await Promise.all([
+        dimsOver(reads, "cost.by_workflow", days),
+        dimsOver(reads, "ci.job_minutes", days),
+    ]);
+    const sorted = (xs: [string, number][], tone?: "value"): BarsSection["groups"][number]["items"] =>
+        xs
+            .map(([w, n]) => ({
+                label: { t: "name", v: w } satisfies Cell,
+                n: round(n),
+                unit: "usd" as const,
+                ...(tone ? { tone } : {}),
+            }))
+            .filter((i) => i.n > 0)
+            .sort((a, b) => b.n - a.n);
+    const moneyItems = sorted([...money].map(([w, a]) => [w, a.sum]));
+    const valueItems = sorted([...valueByWorkflow(minutes)], "value");
+    if (!moneyItems.length && !valueItems.length) {
+        return { kind: "empty", id: "by-workflow", fact: f("section.no_events") };
+    }
+    return {
+        kind: "bars",
+        id: "by-workflow",
+        groups: [
+            { head: f("costs.money_by_workflow"), items: moneyItems },
+            { head: f("costs.value_by_workflow"), items: valueItems },
+        ],
+    };
+}
+
+/**
+ * The weekly stress run's last runs (4.7), newest first, from the collector's `stress` cursor (GitHub's job
+ * results). How many issues a run filed is not recorded, so only a run that found nothing says 0.
+ * @param reads the store reads
+ * @returns the stress table, or empty
+ */
+export async function stressTable(reads: Reads): Promise<Section> {
+    let runs: StressCursorRun[] = [];
+    try {
+        const raw = await getCursor(reads.store, "stress");
+        runs = Object.values(raw ? (JSON.parse(raw) as Record<string, StressCursorRun>) : {});
+    } catch {
+        // an unreadable cursor is no runs, never a guess
+    }
+    const sub = f("data.stress.sub", { workflow: "restricted-cpu-stress.yml" });
+    runs = runs.filter((r) => r.at !== undefined).sort((a, b) => b.at - a.at);
+    if (!runs.length) {
+        return { kind: "empty", id: "stress", sub, fact: f("stress.no_runs") };
+    }
+    const rows: TableRow[] = runs.map((r, i) => {
+        let result: Cell = { t: "fact", fact: f("stress.found_nothing") };
+        if (r.state === 2) {
+            result = {
+                t: "mark",
+                state: "bad",
+                cell: { t: "fact", fact: f("stress.failed_in", { job: r.failedJob ?? "" }) },
+            };
+        } else if (r.foundFailures) {
+            result = { t: "fact", fact: f("stress.found_filed") };
+        }
+        return {
+            ...(i > 0 ? { past: true } : {}),
+            cells: {
+                run: {
+                    t: "list",
+                    sep: "comma",
+                    items: [
+                        { t: "time", at: iso(r.at) },
+                        { t: "run", id: r.runId },
+                    ],
+                },
+                result,
+                filed: r.state === 0 && !r.foundFailures ? { t: "num", n: 0 } : none,
+            },
+        };
+    });
+    return { kind: "table", id: "stress", sub, rows };
+}

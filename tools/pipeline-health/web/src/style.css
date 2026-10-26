@@ -378,6 +378,20 @@ summary:hover {
     font-weight: 600;
     color: var(--muted);
 }
+.kvm {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+}
+.epm > summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 10px 6px 18px;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+}
 .range .rlab {
     cursor: default;
     padding-right: 2px;

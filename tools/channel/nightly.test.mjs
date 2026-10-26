@@ -34,6 +34,10 @@ describe("promotion", () => {
         for (const state of ["green-images", "red", "owner-item", ""]) {
             assert.equal(promotion({ state, publishHold: "", gate: "success" }).promote, false, state);
         }
+        const held = { state: "green-clean", publishHold: "", gate: "success", sha: "s" };
+        assert.equal(promotion({ ...held, held: "s" }).promote, true, "the held candidate itself promotes");
+        assert.match(promotion({ ...held, held: "t" }).why, /nightly is held on t/);
+        assert.equal(promotion({ ...held, held: "unknown" }).promote, false, "an unknown hold is not no hold");
         const refused = promotion({ state: "green-clean", publishHold: "", gate: "failure" });
         assert.equal(refused.promote, false);
         assert.match(refused.why, /screenshot gate refused/);

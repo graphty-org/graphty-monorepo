@@ -159,7 +159,12 @@ function main() {
     // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
     let bodies = "";
     try {
-        bodies = run("gh", ["api", "repos/{owner}/{repo}/commits/HEAD/pulls", "--jq", ".[].body // empty"]);
+        bodies = run("gh", [
+            "api",
+            `repos/{owner}/{repo}/commits/${run("git", ["rev-parse", "HEAD"])}/pulls`,
+            "--jq",
+            ".[].body // empty",
+        ]);
     } catch (error) {
         console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
     }

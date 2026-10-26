@@ -4,7 +4,8 @@ name: Pipeline health page
 # graphty-org/pipeline-health, which GitHub Pages serves at https://health.graphty.app. The page holds
 # no data: it reads the health API, whose base is the repository variable HEALTH_API_URL (the page's
 # built-in default when unset). The push uses the deploy key in the secret HEALTH_PAGES_DEPLOY_KEY;
-# without it the job says so and passes. Design: design/ci/health-dashboard.md, section 11.
+# without it the job says so and passes. It first runs the package's type-check and tests (as
+# pipeline-health.yml does) and publishes nothing when they fail. Design: design/ci/health-dashboard.md, section 11.
 
 on:
     push:
@@ -32,6 +33,16 @@ jobs:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with: { node-version: 22.x }
+            # The package is outside nx, so no required check covers it: run pipeline-health.yml's checks here
+            # and publish nothing when they fail.
+            - name: Type-check and test the package
+              working-directory: tools/pipeline-health
+              run: |
+                  npx --yes pnpm@10.34.5 install --frozen-lockfile
+                  npx --yes pnpm@10.34.5 run typecheck
+                  npx tsc --noEmit -p web
+                  npx --yes pnpm@10.34.5 run test
+                  node --test mcp/server.test.mjs local/collector.test.mjs
             - name: Build
               env:
                   VITE_HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}

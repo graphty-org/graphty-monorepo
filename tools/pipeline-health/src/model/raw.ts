@@ -35,7 +35,12 @@ const timesOf = (r: RawItem): [string, number][] =>
  * @param items
  * @param nowMs
  */
-export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
+export async function putRaw(
+    store: Store,
+    items: RawItem[],
+    nowMs: number,
+    opts: { merge?: boolean } = {},
+): Promise<number> {
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
     items.forEach(check);
@@ -45,7 +50,7 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
         const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
         olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
-    items.forEach((r, i) => ops.push(...writesFor(r, olds[i], nowMs, dirty)));
+    items.forEach((r, i) => ops.push(...writesFor(opts.merge ? mergeOld(r, olds[i]) : r, olds[i], nowMs, dirty)));
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }
@@ -53,7 +58,27 @@ export async function putRaw(store: Store, items: RawItem[], nowMs: number): Pro
     return items.length;
 }
 
-function check(r: RawItem): void {
+/**
+ * `r` over what is stored, keeping only the fields the live collector alone writes (LIVE_ONLY: cause, cancelClass,
+ * hang, stages, tested) when `r` leaves them out, so a writer that knows less (the backfill) never erases them. Every
+ * other field `r` leaves out stays unset.
+ * @param r
+ * @param old
+ */
+function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
+    if (!old) return r;
+    // Only what the live collector alone knows survives; every other field the new record leaves out means
+    // "unset" (a skipped job's startedAt, a null conclusion) and must not come back from the old copy.
+    const live = Object.fromEntries(
+        LIVE_ONLY.filter((k) => old[k] !== undefined && (r as unknown as Record<string, unknown>)[k] === undefined).map(
+            (k) => [k, old[k]],
+        ),
+    );
+    return { ...r, ...live } as RawItem;
+}
+const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages", "tested"] as const;
+
+export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {
         throw new Error(`unknown kind ${String((r as { kind: unknown }).kind)}`);
     }

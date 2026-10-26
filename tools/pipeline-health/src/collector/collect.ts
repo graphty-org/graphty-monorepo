@@ -718,7 +718,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
         await recordSource(c.d.store, "deploy", c.now, { ok: true });
         return;
     }
-    const failed = status !== undefined && status !== "SUCCEEDED";
+    // STOPPED is someone stopping the build on purpose: never started again for the same tree.
+    const failed = status !== undefined && status !== "SUCCEEDED" && status !== "STOPPED";
     const attempt = last.tree === tree ? (last.attempt ?? 1) : 0;
     // A new tree starts a build; a failed build of the same tree is retried up to DEPLOY_ATTEMPTS times in all.
     if (last.tree !== tree || (failed && attempt < DEPLOY_ATTEMPTS)) {
@@ -728,6 +729,9 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
             throw new Error(`deploy build ${last.buildId} ${status}; attempt ${attempt + 1} started`);
     } else if (failed) {
         throw new Error(`deploy build ${last.buildId} ${status} after ${attempt} attempts`);
+    } else if (status === "STOPPED") {
+        // Not restarted, but not healthy either: the stack runs older code than master until a new tree deploys.
+        throw new Error(`deploy build ${last.buildId} STOPPED; not restarted for the same tree`);
     }
     await recordSource(c.d.store, "deploy", c.now, { ok: true });
 }

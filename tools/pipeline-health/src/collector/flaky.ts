@@ -1,7 +1,7 @@
 // The Flaky tests members the collector observes (design/ci/health-dashboard.md, section 4.4): tests seen flaky in
 // CI with no open issue, open pull requests blocked by a flake, and net new flaky. Read from the flaky.tests daily
 // rollup (distinct tests seen flaky in CI, live and backfilled), the RUNTESTS index of test rows (items.ts), the
-// open pull requests' checks, and one batched GitHub issue search per cycle.
+// open pull requests' checks, and one GraphQL query for the flaky issues per cycle.
 
 import { DAY, floorTo } from "../model/items.js";
 import { loadSeries } from "../model/rollup.js";
@@ -42,17 +42,39 @@ export async function flakyHistory(store: Store, now: number, days = 28): Promis
     return out;
 }
 
-/** The words an issue names a test by: its own title, the last part of "describe > test" (a story's id for a story). */
-export const needle = (name: string) =>
-    (name.split(" > ").at(-1) ?? name).replaceAll(/["\\]/g, " ").replaceAll(/\s+/g, " ").trim().slice(0, 200);
+/** Lowercase words only: "find-no-match", "Find No Match" and "`Find No Match`" all read "find no match". */
+const words = (s: string) =>
+    ` ${s
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, " ")
+        .trim()} `;
+
+/** An issue as the batched search returns it. */
+export interface IssueText {
+    title: string;
+    body: string;
+    closedAt?: string | null;
+}
+
+/**
+ * Whether an issue names a test: its title or body names the test's file (by its file name) and the test, by the last
+ * part of "describe > test" (a story's name or id for a story). A whole-file failure, whose name is the file's path,
+ * is named by the file alone.
+ * @param issue
+ * @param t
+ */
+export function namesTest(issue: IssueText, t: { file: string; name: string }): boolean {
+    const text = words(`${issue.title}\n${issue.body}`);
+    if (!text.includes(words(t.file.split("/").at(-1) ?? t.file))) return false;
+    return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1) ?? t.name));
+}
 
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
-/** Aliases per query: two searches per test. */
-const CHUNK = 40;
 
 /**
  * For each test, whether an open issue names it, and when the newest issue naming it was closed as fixed since
- * `closedSince` (undefined: none). One GraphQL query per 20 tests, every search an alias.
+ * `closedSince` (undefined: none). One GraphQL query: the open flaky issues and those closed as fixed since then,
+ * matched to the tests here (namesTest). ponytail: 100 issues per side, page through them if that is ever reached.
  * @param gh
  * @param repo
  * @param tests
@@ -65,31 +87,22 @@ export async function issuesNaming(
     closedSince: number,
 ): Promise<Map<string, { open: boolean; closedAt?: number }>> {
     const out = new Map<string, { open: boolean; closedAt?: number }>();
-    const per = CHUNK / 2;
-    for (let i = 0; i < tests.length; i += per) {
-        const part = tests.slice(i, i + per);
-        const vars: Record<string, string> = {};
-        const fields: string[] = [];
-        part.forEach((t, j) => {
-            const words = `repo:${repo} is:issue in:title,body "${needle(t.name)}"`;
-            vars[`o${j}`] = `${words} is:open`;
-            vars[`c${j}`] = `${words} is:closed reason:completed closed:>=${isoDay(closedSince)}`;
-            fields.push(
-                `o${j}: search(query: $o${j}, type: ISSUE, first: 1) { issueCount }`,
-                `c${j}: search(query: $c${j}, type: ISSUE, first: 5) { nodes { ... on Issue { closedAt } } }`,
-            );
-        });
-        const decl = Object.keys(vars)
-            .map((v) => `$${v}: String!`)
-            .join(", ");
-        type Got = Record<string, { issueCount?: number; nodes?: ({ closedAt?: string | null } | null)[] }>;
-        const data = await gh.graphql<Got>(`query(${decl}) { ${fields.join(" ")} }`, vars);
-        part.forEach((t, j) => {
-            const closed = (data[`c${j}`]?.nodes ?? []).flatMap((n) => (n?.closedAt ? [Date.parse(n.closedAt)] : []));
-            out.set(testKey(t.file, t.name), {
-                open: (data[`o${j}`]?.issueCount ?? 0) > 0,
-                ...(closed.length ? { closedAt: Math.max(...closed) } : {}),
-            });
+    if (!tests.length) return out;
+    const base = `repo:${repo} is:issue flaky`;
+    const nodes = `nodes { ... on Issue { title body closedAt } }`;
+    type Got = Record<"open" | "closed", { nodes?: (IssueText | null)[] } | undefined>;
+    const data = await gh.graphql<Got>(
+        `query($o: String!, $c: String!) { open: search(query: $o, type: ISSUE, first: 100) { ${nodes} } ` +
+            `closed: search(query: $c, type: ISSUE, first: 100) { ${nodes} } }`,
+        { o: `${base} is:open`, c: `${base} is:closed reason:completed closed:>=${isoDay(closedSince)}` },
+    );
+    const open = (data.open?.nodes ?? []).filter((n): n is IssueText => !!n);
+    const closed = (data.closed?.nodes ?? []).filter((n): n is IssueText => !!n?.closedAt);
+    for (const t of tests) {
+        const at = closed.filter((i) => namesTest(i, t)).map((i) => Date.parse(i.closedAt!));
+        out.set(testKey(t.file, t.name), {
+            open: open.some((i) => namesTest(i, t)),
+            ...(at.length ? { closedAt: Math.max(...at) } : {}),
         });
     }
     return out;
@@ -229,7 +242,12 @@ export async function flakyMembers(store: Store, gh: GitHub, repo: string, open:
     for (const [k, v] of issues) if (v.closedAt !== undefined) fixedAt.set(k, v.closedAt);
     const blocked = await blockedPrs(store, open, new Set(history.keys()), now);
     return {
-        "flaky.no_issue": week.filter((s) => !issues.get(testKey(s.file, s.name))?.open).length,
+        // A test is filed while an issue naming it is open, or once one was closed as fixed on or after its last
+        // detection's day (the same rule as netChange).
+        "flaky.no_issue": week.filter((s) => {
+            const i = issues.get(testKey(s.file, s.name));
+            return !i?.open && !(i?.closedAt !== undefined && i.closedAt >= s.days.at(-1)!);
+        }).length,
         "flaky.blocked_prs": blocked.prs.length,
         "flaky.blocked_oldest_ms": blocked.oldestMs,
         "flaky.net_change": netChange(history, fixedAt, now),

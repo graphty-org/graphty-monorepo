@@ -418,11 +418,12 @@ export function trend(history, file) {
 export const issuePrefix = (v) => `CI budget: ${v.key} (${v.kind}) `;
 
 function issueBody(v) {
-    const runs = v.runs.map((r) => `- ${r.recorded_at} ${r.sha.slice(0, 10)}: ${fmt(r.seconds)}`).join("\n");
+    const runs = (v.runs ?? []).map((r) => `- ${r.recorded_at} ${r.sha.slice(0, 10)}: ${fmt(r.seconds)}`).join("\n");
     const range = v.range
         ? `Suspects: master's first-parent merges in ${v.range}.`
         : "Suspects: no single step over the line.";
-    return `\`${v.key}\` on ${v.kind} runs: median of the last 5 runs ${fmt(v.recent)}, of the 10 before ${fmt(v.earlier)}.\n\n${range}\n\nLast 5 runs:\n${runs}`;
+    const last = runs ? `\n\nLast 5 runs:\n${runs}` : "";
+    return `\`${v.key}\` on ${v.kind} runs: median of the last 5 runs ${fmt(v.recent)}, of the 10 before ${fmt(v.earlier)}.\n\n${range}${last}`;
 }
 
 /**
@@ -522,14 +523,40 @@ async function storeMedians(run, rows) {
     return mediansByKey(run, rows, r.data ?? {});
 }
 
-// The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write).
-async function sendRows(run, rows) {
+/**
+ * The store's trend answer (POST /v1/durations, per store key within the run's kind) applied as issues: one per
+ * key and kind, filed, commented on or closed by syncIssues(), titled by each row's own key.
+ * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
+ * @param run the run (`path`)
+ * @param rows the run's rows
+ * @param answer the answer's `trend`: `{ key, kind, recent, earlier, alarm, range }[]`
+ * @param file the parsed ci-budgets.json
+ * @returns syncIssues()'s actions
+ */
+export async function applyTrend(gh, run, rows, answer, file) {
+    const rowKey = new Map(storeRows(run, rows).map((s, i) => [storeKey(s), rows[i].key]));
+    const verdicts = answer.map((v) => ({ ...v, key: rowKey.get(v.key) ?? v.key }));
+    return syncIssues(gh, verdicts, file.defaults?.owner);
+}
+
+// The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write), and judges
+// each posted key's trend against the budgets sent with the rows.
+async function sendRows(run, rows, evals) {
     const cfg = config();
     if (!cfg) return console.log("RESULTS_URL is unset or no credential: rows not sent");
-    const r = await call(cfg, "POST", "/v1/durations", { rows: storeRows(run, rows) }, 10_000);
+    const sent = storeRows(run, rows);
+    const budgets = Object.fromEntries(
+        sent.flatMap((s, i) => (evals[i].budget == null ? [] : [[storeKey(s), evals[i].budget]])),
+    );
+    const r = await call(cfg, "POST", "/v1/durations", { rows: sent, budgets }, 10_000);
     if (!r.ok) throw new Error(`POST /v1/durations: ${r.why}`);
     console.log(`sent ${r.data?.stored ?? 0} duration rows (kind ${r.data?.kind})`);
+    return r.data;
 }
+
+// The run kinds whose trend alarms file issues: master's own runs (ci.yml on master, the full run and its lanes),
+// which the store records as kind full. A pull request only gets its comment.
+const ISSUE_KINDS = new Set(["full"]);
 
 const KIND_OF_EVENT = { pull_request: "pr", push: "master", workflow_dispatch: "dispatch" };
 
@@ -559,7 +586,12 @@ async function report(v) {
     const body = prComment(evals);
     const pr = v.pr ?? run.pull_requests?.[0]?.number;
     if (body && pr) await failOpen("the pull request comment", () => upsertComment(gh, pr, body));
-    await failOpen("sending the rows", () => sendRows(run, rows));
+    const stored = await failOpen("sending the rows", () => sendRows(run, rows, evals));
+    if (ISSUE_KINDS.has(stored?.kind) && stored.trend?.length) {
+        // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
+        const done = await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file));
+        for (const a of done ?? []) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
+    }
     return 0;
 }
 

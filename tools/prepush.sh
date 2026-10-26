@@ -65,8 +65,8 @@ if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V 
     echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
 fi
 
-# The gate runs at normal priority: other work yields to it (tools/low-priority.sh, and the low lanes of the
-# test and browser slots while it runs its shards), never the other way round. A gate started from a niced
+# The gate runs at normal priority: other work yields to it (tools/low-priority.sh), never the other way
+# round. A gate started from a niced
 # shell inherits the niceness and cannot lower it again without privilege, so say so.
 if [ "$(nice)" != 0 ]; then
     echo "WARNING: the gate runs at niceness $(nice), not 0: it was started from a lowered shell (tools/low-priority.sh?), so other work gets the CPU first"
@@ -240,14 +240,13 @@ fi
 # only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
 # once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
 # says when it waits and when it works). Its own process group, killed by the EXIT trap,
-# so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
-# never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
+# so a step that stops the gate stops the capture with it.
 # The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
 if [ "$LIGHT" != 1 ] && [ -n "$PROJECT_LIST" ]; then
     SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
     mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
     echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-    setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
     SCREENSHOTS_PGID=$!
     SCREENSHOTS_STAGED=1
     echo ""

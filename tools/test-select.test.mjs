@@ -51,7 +51,15 @@ import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } fr
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, runPaths, seededPick, unexplained } from "./test-select-mutate.mjs";
+import {
+    mutant,
+    runPaths,
+    seededPick,
+    storiesMissed,
+    storyCandidates,
+    storyFiles,
+    unexplained,
+} from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -808,6 +816,58 @@ describe("mutation testing of the selection", () => {
         assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
     });
 
+    it("--stories: maps story ids to their files and finds the changed stories a selection did not run", () => {
+        const index = {
+            entries: {
+                "a--one": { type: "story", id: "a--one", importPath: "./stories/A.stories.ts" },
+                "a--docs": { type: "docs", id: "a--docs", importPath: "./stories/A.mdx" },
+                "b--two": { type: "story", id: "b--two", importPath: "./stories/B.stories.ts" },
+            },
+        };
+        const files = storyFiles(index, "layout");
+        assert.deepEqual(
+            [...files],
+            [
+                ["a--one", "layout/stories/A.stories.ts"],
+                ["b--two", "layout/stories/B.stories.ts"],
+            ],
+        );
+        const of = (id) => files.get(id);
+        const sel = (mode, f = [], baselines = []) => ({ mode, files: f, baselines });
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("all"), of), []);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("none"), of), ["a--one", "b--two"]);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("files", ["layout/stories/A.stories.ts"]), of), [
+            "b--two",
+        ]);
+        assert.deepEqual(storiesMissed(["b--two"], sel("none", [], ["b--two"]), of), [], "a changed baseline runs");
+    });
+
+    it("--stories: breaks the package's source and story files and its workspace dependencies' source", () => {
+        const files = storyCandidates(ROOT, "layout");
+        const has = (re) => files.some((f) => re.test(f));
+        assert.ok(has(/^layout\/src\//u), "the package's source");
+        assert.ok(has(/^layout\/stories\/.+\.stories\.ts$/u), "its story files");
+        assert.ok(has(/^graph-samples\/src\//u) && has(/^graph-format\/src\//u), "its dependencies' source");
+        assert.ok(!has(/\/(test|\.storybook)\//u), "never a test or the Storybook setup");
+        assert.ok(!has(/^layout\/[^/]+$/u), "never a root file of the package (package.json, tsconfig)");
+        assert.ok(!has(/^graph-samples\/(?!src\/)/u), "only a dependency's source");
+    });
+
+    it("--stories: follows dependencies through other packages and adds the packages that draw the project", () => {
+        const app = storyCandidates(ROOT, "graphty");
+        assert.ok(
+            app.some((f) => f.startsWith("algorithms/src/")) && app.some((f) => f.startsWith("layout/src/")),
+            "graphty-element's dependencies",
+        );
+        const fidelity = storyCandidates(ROOT, "graph-io", ["graph-io", "graphty-element"]);
+        const test = (f) => /\.(test|spec)\./u.test(f);
+        assert.ok(!app.some(test) && !fidelity.some(test), "never a test file under stories/");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/src/")),
+            "a drawnBy package's source",
+        );
+    });
+
     it("gives runs with different names their own worktree and report", () => {
         const a = runPaths("/r", "graph-io", null);
         const b = runPaths("/r", "layout", null);
@@ -1220,6 +1280,45 @@ describe("reads of another package's files, path by path", () => {
             );
         } finally {
             rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("visual-review files only the story setups load", () => {
+    const pkgs = ["visual-review", "algorithms", "layout", "graphty", "graphty-element"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map(pkgs.map((d) => [d, new Set(d === "visual-review" ? [] : ["visual-review"])]));
+    const noGraphs = new Map(pkgs.map((d) => [d, []]));
+    const run = (changed) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        return selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke)
+            .filter((s) => s.mode !== "none")
+            .map((s) => s.shard);
+    };
+
+    it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
+        const picked = run(["visual-review/capture/story-test-setup.mjs"]);
+        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
+        // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
+        assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
+        assert.ok(story.length === 6, story.join(", "));
+    });
+
+    it("a change to visual-review's other code still runs every dependent's shards", () => {
+        for (const f of ["visual-review/trusted/cli.mjs", "visual-review/capture/story-test.mjs"]) {
+            const picked = run([f]);
+            for (const sh of ["algorithms-default", "layout", "graphty-1", "graphty-element-browser-1"]) {
+                assert.ok(picked.includes(sh), `${f}: ${sh} in ${picked.join(", ")}`);
+            }
         }
     });
 });
@@ -1637,8 +1736,9 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 });
 
 describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md section 5)", () => {
-    const stories = loadRules(ROOT).stories;
     const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;
+    // every project as if proven, so these tests judge the selection itself
+    const stories = { ...loadRules(ROOT).stories, selectProjects: Object.keys(projects) };
     const byName = (name) => SHARDS.find((s) => s.shard === name);
     const shards = [
         "graphty-storybook",
@@ -1706,6 +1806,15 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.equal(theme.layout.mode, "none");
         assert.ok(Object.values(pick(none, ["pnpm-lock.yaml"], { lockMoved: true })).every((p) => p.mode === "all"));
         assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
+    });
+
+    it("runs every story of a project not yet proven by test-select-mutate --stories, on any change", () => {
+        assert.ok(Array.isArray(loadRules(ROOT).stories.selectProjects), "the rules list the proven projects");
+        const out = pick(none, ["graphty-element/src/a.ts"], { rules: { ...stories, selectProjects: ["layout"] } });
+        assert.equal(out.layout.mode, "none", "a proven project is selected as before");
+        assert.equal(out["graphty-element"].mode, "all");
+        assert.match(out["graphty-element"].reasons[0], /test-select-mutate --stories/u);
+        assert.equal(out.graphty.mode, "all", "even with nothing of it changed");
     });
 
     it("runs a story whose baseline changed", () => {

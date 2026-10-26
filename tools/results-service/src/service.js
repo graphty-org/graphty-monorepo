@@ -444,6 +444,48 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
+const SHA = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
+// A channel moved (channels 3): release.yml's site job records the nightly promotion it deployed, with the sha256
+// of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
+// its sha256 changes) replaces that run's hashes, so promote.yml compares against what is hung now. It keeps the
+// row's time: a re-run never makes an older promotion the newest nightly.
+// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
+async function postChannelMove(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml records a channel move");
+    }
+    if (body?.channel !== "nightly") refuse(400, "channel must be nightly");
+    if (!SHA.test(body.sha ?? "")) refuse(400, "sha must be a full commit id");
+    if (body.versionCommit != null && !SHA.test(body.versionCommit))
+        refuse(400, "versionCommit must be a full commit id");
+    for (const field of ["siteSha256", "channelSha256"]) {
+        if (!SHA256.test(body[field] ?? "")) refuse(400, `${field} must be a sha256`);
+    }
+    const runId = Number(who.claims.run_id);
+    const seen = await db
+        .prepare("SELECT 1 FROM channel_move WHERE channel = ? AND sha = ? AND run_id = ?")
+        .bind(body.channel, body.sha, runId)
+        .first();
+    if (seen) {
+        await db
+            .prepare(
+                "UPDATE channel_move SET version_commit = ?, site_sha256 = ?, channel_sha256 = ? WHERE channel = ? AND sha = ? AND run_id = ?",
+            )
+            .bind(body.versionCommit ?? null, body.siteSha256, body.channelSha256, body.channel, body.sha, runId)
+            .run();
+        return { stored: true, replaced: true };
+    }
+    await db
+        .prepare(
+            "INSERT INTO channel_move (channel, sha, at, version_commit, site_sha256, channel_sha256, run_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(body.channel, body.sha, nowMs, body.versionCommit ?? null, body.siteSha256, body.channelSha256, runId)
+        .run();
+    return { stored: true };
+}
+
 const ROUTES = {
     "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
@@ -451,6 +493,7 @@ const ROUTES = {
     "POST /v1/durations": postDurations,
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
+    "POST /v1/channel-moves": postChannelMove,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,

@@ -37,7 +37,7 @@ writeFileSync(
 chmodSync(join(bin, "claude"), 0o755);
 chmodSync(join(bin, "gh"), 0o755);
 
-const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}` });
+const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}`, PR_REVIEW_LOCAL: "1" });
 const git = (cwd, ...args) => {
     const r = spawnSync("git", args, { cwd, env, encoding: "utf8" });
     assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
@@ -88,7 +88,9 @@ describe("pr-review.sh", () => {
         const sections = prompt.split(/^===== (.*) =====$/m);
         // [instructions, "ISSUE #1234", issue, "PROOF", proof, "DIFF (...)", diff]
         assert.equal(sections.length, 7, "exactly three input sections");
-        assert.match(sections[0], /code-review.*high/);
+        assert.match(sections[0], /code-review.*medium/);
+        assert.match(sections[0], /Report ONLY critical findings/);
+        assert.match(sections[0], /"No critical findings\."/);
         assert.equal(sections[1], "ISSUE #1234");
         assert.equal(sections[2].trim(), ISSUE);
         assert.equal(sections[3], "PROOF");
@@ -125,22 +127,40 @@ describe("pr-review.sh", () => {
         assert.equal(r.code, 3, r.out);
         assert.match(r.out, /2 blocking finding/);
         assert.match(readFileSync(reportPath(), "utf8"), /^Blocking findings: 2$/m);
-        r = run(undefined, "looks fine");
+        r = run(["--proof", proof, "--again"], "looks fine");
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /without a 'Blocking findings: N' line/);
     });
 
-    it("reuses a report for the same patch id with --reuse, without calling claude", () => {
+    it("reviews a branch once: a fix reuses the report without calling claude; --again reviews it again", () => {
         assert.equal(run(undefined, "x\n\nBlocking findings: 1").code, 3);
         rmSync(argsLog);
-        const r = run(["--proof", proof, "--reuse"]);
-        assert.equal(r.code, 3, r.out);
+        assert.equal(run(["--proof", proof, "--reuse"]).code, 3);
         assert.ok(!existsSync(argsLog), "claude was not called");
-        // a fix changes the patch id, so the next run reviews again
         writeFileSync(join(work, "a.txt"), "one\nTwo\nthree\n");
         git(work, "commit", "-q", "-am", "fix(tools): the finding");
-        assert.equal(run(["--proof", proof, "--reuse"]).code, 0);
-        assert.ok(existsSync(argsLog), "claude reviewed the new diff");
+        assert.equal(run().code, 3, "the first review still stands after a fix");
+        assert.ok(!existsSync(argsLog), "claude was not called for the fix");
+        assert.equal(run(["--proof", proof, "--again"]).code, 0);
+        assert.ok(existsSync(argsLog), "--again reviewed the branch once more");
+    });
+
+    it("runs master's copy of itself when this branch's copy is older", () => {
+        // master gets a different pr-review.sh; the branch's run must hand over to it
+        git(work, "checkout", "-q", "master");
+        mkdirSync(join(work, "tools"), { recursive: true });
+        writeFileSync(join(work, "tools", "pr-review.sh"), "echo MASTER-COPY $PR_REVIEW_FROM_MASTER\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore(tools): newer review");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        const r = spawnSync("bash", [script, "--proof", proof], {
+            cwd: work,
+            env: { ...env, PR_REVIEW_LOCAL: "" },
+            encoding: "utf8",
+        });
+        assert.match(r.stdout, /^MASTER-COPY 1$/m, r.stdout + r.stderr);
+        assert.ok(!existsSync(argsLog), "the branch's own copy did not run the review");
     });
 
     it("refuses without a Proof file, calling nothing", () => {

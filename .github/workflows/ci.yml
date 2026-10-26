@@ -639,6 +639,13 @@ jobs:
                   path: layout/dist/
                   retention-days: 1
 
+            - name: Upload cytoscape-extensions build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-cytoscape-extensions
+                  path: cytoscape-extensions/dist/
+                  retention-days: 1
+
             - name: Upload graphty build
               uses: actions/upload-artifact@v7
               with:
@@ -919,7 +926,8 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/prepush.sh.
+    # tools/prepush.sh. On a pull request, a step that reads one package's files runs only when that package
+    # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks
         needs: packages
@@ -990,15 +998,53 @@ jobs:
             - name: ESLint root config
               run: pnpm run lint:eslint-root
 
+            # Which of the steps below this run needs. Every run but a pull request's own runs them all. A pull
+            # request runs a package's step when that package is affected or the step's own script changed, and
+            # checks the formatting of only the files it changed unless one of prettier's inputs changed (a file
+            # it did not touch keeps its formatting otherwise). About 3 minutes off a one-package pull request.
+            - name: Plan the package-only checks
+              id: scope
+              env:
+                  FULL: ${{ needs.packages.outputs.full }}
+                  AFFECTED: ${{ needs.packages.outputs.affected }}
+                  BASE_REF: ${{ github.base_ref }}
+              run: |
+                  if [[ "$FULL" == "true" ]]; then
+                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
+                  has() { jq -e --arg p "$1" 'index($p) != null' <<<"$AFFECTED" >/dev/null || grep -qE "$2" <<<"$changed"; }
+                  out() { if has "$2" "$3"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+                  out bundle graphty-element '^tools/check-bundle-size'
+                  out api graphty-element '^tools/api-report'
+                  out datasource graphty-element '^tools/check-data-source-migration'
+                  out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
+                      echo "format-all=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "format-all=false" >> "$GITHUB_OUTPUT"
+                  fi
+                  cat "$GITHUB_OUTPUT"
+
             - name: Formatting
+              if: steps.scope.outputs.format-all == 'true'
               run: pnpm run format:check
 
+            - name: Formatting (changed files)
+              if: steps.scope.outputs.format-all != 'true'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
+
             - name: Bundle size (graphty-element)
+              if: steps.scope.outputs.bundle == 'true'
               run: pnpm run check:bundle-size
 
             # What a browser application downloads for each part of cytoscape-extensions (the main entry and each
             # part it loads on first use), against cytoscape-extensions/size-budgets.json. Needs the build above.
             - name: Bundle size (cytoscape-extensions)
+              if: steps.scope.outputs.cytoscape == 'true'
               run: pnpm --filter @graphty/cytoscape-extensions run size
 
             # graphty-element's public API, as built, must match the committed report
@@ -1007,6 +1053,7 @@ jobs:
             # so every API change shows up in the pull request as a diff of that report.
             # The same check runs in tools/prepush.sh.
             - name: Public API report (graphty-element)
+              if: steps.scope.outputs.api == 'true'
               run: pnpm run check:api-report
 
             # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
@@ -1026,6 +1073,7 @@ jobs:
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io
+              if: steps.scope.outputs.datasource == 'true'
               run: pnpm run check:data-source-migration
 
             # The import reader of the script that prints the counts in design/graph-format/STATUS.md.
@@ -1632,6 +1680,42 @@ jobs:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
 
+            # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
+            # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
+            # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
+            # cache key, all three browsers' system packages), before either benchmark runs.
+            # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
+            # came before them.
+            # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
+            # to every Chromium-only shard that restores it.
+            - name: Restore Playwright browsers
+              if: ${{ !cancelled() }}
+              uses: actions/cache/restore@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
+
+            - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium firefox webkit
+
+            # A cache hit may hold only Chromium; a browser already installed is skipped.
+            - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
+              run: pnpm exec playwright install chromium firefox webkit
+
+            # Before the bench project: its three-engine autosave run is the long one, and a job that
+            # runs out of time there must not cost the browser numbers.
+            - name: Run the graphty-element browser timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: pnpm exec vitest run --project=browser-bench
+
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
             # the mechanisms they time are pinned by counts in the test shards.
@@ -1639,24 +1723,6 @@ jobs:
               if: ${{ !cancelled() }}
               working-directory: graphty-element
               run: pnpm exec vitest run --project=bench
-
-            # A failed benchmark above must not cost the browser numbers, so the browser set-up
-            # runs whatever came before it.
-            - uses: ./.github/actions/drop-microsoft-apt-source
-              if: ${{ !cancelled() }}
-
-            - name: Install Playwright system packages
-              if: ${{ !cancelled() }}
-              uses: ./.github/actions/playwright-system-deps
-
-            - name: Install Playwright browsers
-              if: ${{ !cancelled() }}
-              run: pnpm exec playwright install chromium
-
-            - name: Run the graphty-element browser timing benchmarks
-              if: ${{ !cancelled() }}
-              working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
@@ -1889,8 +1955,11 @@ jobs:
     # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
     # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
-    # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
-    # different pictures fail its test) is retried once and reported flaky when the retry passes.
+    # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
+    # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
+    # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
+    # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
+    # promotion.blocked; it stays unset (report only) until the project switches.
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
@@ -1898,6 +1967,12 @@ jobs:
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record);
+        # issues: write files the issue of a story the store quarantines
+        permissions:
+            contents: read
+            id-token: write
+            issues: write
         strategy:
             fail-fast: false
             matrix:
@@ -1929,6 +2004,8 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+                  # the token is not left in .git/config for a pull request's code
+                  persist-credentials: false
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
@@ -1997,17 +2074,32 @@ jobs:
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
+            # the store's plan (the Packages job's results-plan artifact) holds a quarantine of the `-shots` family
+            - name: Download the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:
                   SHARD: ${{ matrix.shard }}
                   COMMAND: ${{ matrix.command }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
-              run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
+                  # the quarantine list this run judges by, which the combine step must judge by too
+                  RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
+                  GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
+              run: node tools/results/run-group.mjs "$SHARD" "$COMMAND"
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
-              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
@@ -2515,11 +2607,14 @@ jobs:
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5
-        # actions: write to dispatch release.yml; issues: read for the open red issues.
+        # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
+        # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
+        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N.
         permissions:
             contents: read
             actions: write
-            issues: read
+            issues: write
+            pull-requests: read
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
             - uses: actions/checkout@v4
@@ -2631,6 +2726,8 @@ jobs:
             contents: read
             actions: read
             id-token: write
+            # the trend alarm issues of master's runs (tools/ci-budgets.mjs report)
+            issues: write
             pull-requests: write
         steps:
             - uses: actions/checkout@v4

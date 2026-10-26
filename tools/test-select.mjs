@@ -61,7 +61,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
+ * @returns `{ everything, smoke, storySetup, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
  *   stories }`
  */
 export function loadRules(root) {
@@ -77,6 +77,7 @@ export function loadRules(root) {
     return {
         everything: [...raw.everything.patterns.map(toRe), ...shared],
         smoke: { patterns: (raw.smoke?.patterns ?? []).map(toRe), shards: raw.smoke?.shards ?? [] },
+        storySetup: { patterns: (raw.storySetup?.patterns ?? []).map(toRe), shards: raw.storySetup?.shards ?? [] },
         noTests: raw.noTests.patterns.map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
@@ -90,6 +91,7 @@ export function loadRules(root) {
             lockfile: toRe(raw.stories.lockfile),
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
+            selectProjects: raw.stories.selectProjects ?? [],
         },
     };
 }
@@ -426,7 +428,9 @@ export function selectPackages({
         }
     }
     if (!deferDownstream) {
-        dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out });
+        // a file only the story setups load changes no dependent's build: its story shards run (storySetup below)
+        const storyOnly = (f) => rules.storySetup?.patterns.some((re) => re.test(f));
+        dependents({ changed: changed.filter((f) => !storyOnly(f)), packages, deps, refs, graphs, pkgOf, whole, out });
     }
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
@@ -435,6 +439,10 @@ export function selectPackages({
     const smoke = new Map(
         smokeBy ? rules.smoke.shards.map((sh) => [sh, `${smokeBy} changes how CI runs shards (smoke shard)`]) : [],
     );
+    const storyBy = changed.find((f) => rules.storySetup?.patterns.some((re) => re.test(f)));
+    for (const sh of storyBy ? rules.storySetup.shards : []) {
+        smoke.set(sh, smoke.get(sh) ?? `${storyBy} is loaded by the story setup of this shard`);
+    }
     return { everything: null, packages: out, unexplainedRoot, smoke };
 }
 
@@ -1463,7 +1471,8 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
- * whole whenever a package that draws it is selected.
+ * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1489,9 +1498,16 @@ export function selectStories({ projects, changed, everything, shards, selection
         const global = everything
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
-        const sel = global
-            ? { mode: "all", files: [], reasons: [global] }
-            : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
+        let sel = { mode: "all", files: [], reasons: [global] };
+        if (!global) {
+            sel = rules.selectProjects.includes(project)
+                ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
+                : {
+                      mode: "all",
+                      files: [],
+                      reasons: [`${project} runs whole until test-select-mutate --stories proves its selection`],
+                  };
+        }
         return { project, ...sel, baselines };
     });
 }

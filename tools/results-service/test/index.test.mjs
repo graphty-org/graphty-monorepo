@@ -9,7 +9,7 @@ import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
-import { failureHashes } from "../src/signature.js";
+import { failureHashes, issueKey } from "../src/signature.js";
 import { AUDIENCE, handle } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
@@ -414,7 +414,7 @@ function seed(env) {
                 extra.issue ?? null,
                 at,
             ),
-        nightly: (sha, at) => run("INSERT INTO channel_move VALUES ('nightly', ?, ?)", sha, at),
+        nightly: (sha, at) => run("INSERT INTO channel_move (channel, sha, at) VALUES ('nightly', ?, ?)", sha, at),
         duration: (runId, ms, at, kind = "full", job = "Build") =>
             run(
                 "INSERT INTO duration (run_id, attempt, workflow, job, sha, kind, started_at, ms, conclusion) VALUES (?, 1, 'ci.yml', ?, ?, ?, ?, ?, 'success')",
@@ -832,6 +832,64 @@ describe("POST /v1/verdicts", () => {
     });
 });
 
+describe("POST /v1/channel-moves", () => {
+    const C = "c".repeat(40);
+    const V = "d".repeat(40);
+    const body = {
+        channel: "nightly",
+        sha: C,
+        versionCommit: V,
+        siteSha256: "1".repeat(64),
+        channelSha256: "2".repeat(64),
+    };
+    it("records master's release.yml nightly promotion once a run, and nightly's age restarts from it", async () => {
+        const { call, env, rows } = service();
+        const s = seed(env);
+        s.site(C, NOW - 30 * HOUR);
+        const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: true });
+        // a re-run of the site job re-packs channel.json: its new hash replaces the run's row
+        assert.deepEqual(
+            (await post(master("release.yml"), { ...body, channelSha256: "3".repeat(64) })).body,
+            { stored: true, replaced: true },
+            "a re-run of the job replaces that run's row",
+        );
+        assert.deepEqual(
+            rows("SELECT channel, sha, at, version_commit, site_sha256, channel_sha256, run_id FROM channel_move"),
+            [
+                {
+                    channel: "nightly",
+                    sha: C,
+                    at: NOW,
+                    version_commit: V,
+                    site_sha256: "1".repeat(64),
+                    channel_sha256: "3".repeat(64),
+                    run_id: 4010,
+                },
+            ],
+        );
+        const st = (await call("GET", "/v1/release-state", { token: LOCAL_TOKEN })).body;
+        assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], [C, 0, null]);
+    });
+    it("refuses every other writer and a malformed record", async () => {
+        const { call, rows } = service();
+        const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
+        for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
+            assert.equal((await post(token)).status, 403);
+        }
+        for (const bad of [
+            { channel: "production" },
+            { sha: "abc" },
+            { versionCommit: "v" },
+            { siteSha256: "x" },
+            { channelSha256: undefined },
+        ]) {
+            assert.equal((await post(master("release.yml"), { ...body, ...bad })).status, 400, JSON.stringify(bad));
+        }
+        assert.deepEqual(rows("SELECT * FROM channel_move"), []);
+    });
+});
+
 describe("GET /v1/failures", () => {
     it("lists a run's failing tests by shard, and those master saw fail before the good commit", async () => {
         const { call, env } = service();
@@ -882,7 +940,7 @@ describe("GET /v1/release-state", () => {
         assert.deepEqual([st.red.sha, st.red.lane, st.red.issue], ["c3", "ci", 77]);
         assert.equal(st.offered.sha, "c1", "the oldest waiting candidate stays offered");
         assert.deepEqual(st.approved, []);
-        assert.equal(st.ageNightlyMs, 49 * HOUR);
+        assert.equal(st.ageNightlyMs, 40 * HOUR, "from the first site built after nightly's");
         assert.equal(st.blocking, "red");
 
         s.verdict("c1", "approved", NOW - 30 * 60_000);
@@ -902,13 +960,80 @@ describe("GET /v1/release-state", () => {
         assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], ["c4", 0, null]);
         assert.deepEqual(st.approved, [], "an approved candidate older than nightly promotes nothing");
     });
-    it("counts nightly's age from the first site when nightly never moved", async () => {
+    it("takes a promotion's version merge, which inherited nightly's verdict, for nightly itself", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "a".repeat(40);
+        s.site(n, NOW - 50 * HOUR);
+        s.nightly(n, NOW - 49 * HOUR);
+        s.site("m1", NOW - 48 * HOUR);
+        s.verdict("m1", "green-clean", NOW - 47 * HOUR, { lane: "inherited from aaaaaaa" });
+        assert.deepEqual([(await state(call)).ageNightlyMs, (await state(call)).blocking], [0, null]);
+        // a merge of approval records with the same baselines tree inherits from the version merge: still nightly
+        const m1 = "b".repeat(40);
+        s.site(m1, NOW - 46 * HOUR);
+        s.verdict(m1, "green-clean", NOW - 45 * HOUR, { lane: "inherited from aaaaaaa" });
+        s.site("y", NOW - 44 * HOUR);
+        s.verdict("y", "green-clean", NOW - 43 * HOUR, { lane: "inherited from bbbbbbb" });
+        assert.equal((await state(call)).ageNightlyMs, 0, "the inherited chain leads to nightly");
+        s.site("z", NOW - 42 * HOUR);
+        s.verdict("z", "green-clean", NOW - 41 * HOUR, { lane: "inherited from ccccccc" });
+        assert.equal((await state(call)).ageNightlyMs, 42 * HOUR, "a chain that does not reach nightly waits, from z");
+    });
+    it("waits on an approved-baselines merge after nightly, which the full run judged itself and did not promote", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "e".repeat(40);
+        s.site(n, NOW - 50 * HOUR);
+        s.nightly(n, NOW - 49 * HOUR);
+        // full-run.mjs pick never inherits across a visual-baselines change, so the merge has a verdict of its own
+        s.site("ap", NOW - 48 * HOUR);
+        s.verdict("ap", "green-clean", NOW - 40 * HOUR, { lane: "" });
+        assert.equal((await state(call)).ageNightlyMs, 48 * HOUR, "the approved baselines are not on nightly");
+    });
+    it("counts nightly's age from the first site after it, so a quiet master is no stall", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("n", NOW - 72 * HOUR);
+        s.nightly("n", NOW - 72 * HOUR);
+        s.site("c1", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR);
+    });
+    it("does not start nightly's clock at a promotion's own version merge", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "d".repeat(40);
+        s.site(n, NOW - 73 * HOUR);
+        s.nightly(n, NOW - 73 * HOUR);
+        s.site("m", NOW - 72 * HOUR);
+        s.verdict("m", "green-clean", NOW - 71 * HOUR, { lane: "inherited from ddddddd" });
+        s.site("x", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR, "a quiet weekend after a versioned promotion");
+    });
+    it("counts nightly's age from its move when nightly has no site row", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("old", NOW - 30 * DAY);
+        s.nightly("x", NOW - 2 * HOUR);
+        assert.equal((await state(call)).ageNightlyMs, 0, "nothing built since the move");
+        s.site("y", NOW - HOUR);
+        assert.equal((await state(call)).ageNightlyMs, HOUR, "from the first site after the move");
+    });
+    it("counts the commits built while nightly's promotion ran when nightly has no site row", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("during", NOW - 30 * HOUR);
+        s.nightly("x", NOW - 27 * HOUR);
+        const st = await state(call);
+        assert.equal(st.ageNightlyMs, 30 * HOUR, "a commit merged during the promotion is one nightly lacks");
+    });
+    it("gives no nightly age while nightly has never moved", async () => {
         const { call, env } = service();
         const s = seed(env);
         s.site("c1", NOW - 30 * HOUR);
         s.site("c2", NOW - HOUR);
         const st = await state(call);
-        assert.deepEqual([st.nightly, st.ageNightlyMs, st.blocking], [null, 30 * HOUR, "unjudged"]);
+        assert.deepEqual([st.nightly, st.ageNightlyMs, st.blocking], [null, null, "unjudged"]);
     });
 });
 
@@ -983,6 +1108,9 @@ describe("/v1/durations/tests/<name>", () => {
     });
 });
 
+const UNSTABLE =
+    "Error: visual-review: app--default is unstable (two renders drew different pictures): dark\n \u276F g/x.ts:1:1";
+
 describe("failureHashes", () => {
     it("hashes every failure exactly as the test ledger does", () => {
         const samples = [
@@ -994,9 +1122,26 @@ describe("failureHashes", () => {
             ],
             ["boom 0123456789abcdef in /tmp/x/y\n<div>", "p/c.test.ts", undefined],
             ["Error: frame\n \u276F p/d.test.ts:3:7\n \u276F node_modules/x.js:1:1", "p/d.test.ts", undefined],
+            [UNSTABLE, "g/src/A.stories.tsx", undefined],
+            [UNSTABLE.replace(": dark", ": light"), "g/src/A.stories.tsx", undefined],
         ];
         for (const [text, file, main] of samples)
             assert.deepEqual(failureHashes(text, file, main), ledgerHashes(text, file, main));
+    });
+
+    it("records a story whose two renders disagreed as unstable, not as an ordinary failure", () => {
+        assert.equal(failureHashes(UNSTABLE, "g/src/A.stories.tsx").status, "unstable");
+        assert.equal(failureHashes("Error: visual-review: play threw", "g/src/A.stories.tsx").status, "fail");
+    });
+
+    it("files one issue for an unstable story whichever modes differed, one per story in a file", () => {
+        const file = "g/src/A.stories.tsx";
+        const dark = failureHashes(UNSTABLE, file);
+        const light = failureHashes(UNSTABLE.replace(": dark", ": light"), file);
+        assert.equal(dark.signature, light.signature);
+        const key = (h, name) => issueKey(h.signature, h.status, name);
+        assert.equal(key(dark, "Default"), key(light, "Default"));
+        assert.notEqual(key(dark, "Default"), key(dark, "Other"));
     });
 });
 

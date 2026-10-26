@@ -167,7 +167,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   entry and stays held.
 - **Concurrency:** release.yml loses its `workflow_run` trigger. ci.yml's master-push `release-due`
   job reads the store and dispatches release.yml only when a restart or a resume is due. Every
-  release.yml run first catches up (resumes an approved candidate, runs an unjudged slot), so a run
+  release.yml run first catches up (promotes an approved candidate, re-tests a fixed candidate head,
+  runs an unjudged slot), so a run
   the `release-train` group replaces loses nothing. `release-router.yml` is not built.
 - **Red:** release.yml files "Full run red: <lane> on <sha>" (`priority:critical`) and dispatches
   `bisect.yml` once (concurrency `bisect-<sha>`): when the ci.yml lane ends red, or at the verdict
@@ -181,8 +182,62 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   paid run each, spend checked against the ceiling first. The round opens the revert. A restart runs
   only on a merge referencing the red issue, failing tests first. Budget `ttg:full` 180 min, with
   owner-wait recorded as its own key.
+- **Nightly fixes the run it has.** Master moves every 6 hours with new fixes and new problems, so
+  waiting for a clean newest full run may never publish. A full run that is not green-clean is
+  checked once more on its own commit, then held and fixed in place, never replaced by newer master.
+- **Same-commit re-run, once.** A release.yml `recapture` job (needs ci; ci.yml's visual job and
+  gate step are untouched) re-shoots on a fresh runner only the stories attempt 1 found changed or
+  new (`capture --stories`). A story is changed only when both shots differ from its baseline and
+  equal each other; two different shots are nondeterministic rendering, filed as flaky and never
+  approvable, so they hold the candidate until fixed. The run's one gated capture is
+  `visual-final-<project>` (attempt 1's shots with the re-shot ones replaced); the verdict, the page
+  and `promote-nightly` all read it. `release-rerun.yml` (`workflow_run` on Release; it absorbs
+  `gpu-rerun-on-runner-loss.yml`, so one workflow re-runs a run) runs `gh run rerun --failed` once,
+  on attempt 1 of a `full`, `restart` or `candidate` run whose failed jobs are all lanes or the
+  verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
+  `release-train` group like any run (every run catches up first, so a pending run it replaces
+  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does,
+  and `release-watch.yml` files the red issue when attempt 1 ended red and no attempt 2 started. A
+  test, lane or story that failed and then passed is filed "Flaky in full run: <name>" (bug,
+  priority:critical, effort:medium; a comment when it recurs) and does not block. It is a
+  confirmation, not a quarantine: nothing joins a quarantine list, so the screenshot gate and GPU
+  tests keep their rule. Today's flaky drop-target story ends here, not in a hold.
+- **Held candidate.** A run still not green-clean after its re-run holds its commit C: release.yml
+  pushes branch `channel/candidate` at C (deploy key, environment `release`, ruleset like
+  `channel/nightly`), writes the store's one-row `candidate` table (`base` C, `head`), and opens
+  "Nightly held on <sha12>" (priority:high) listing the red lanes, changed images and owner items,
+  announced on the Release status issue and Pushover. Master keeps merging; master slots still run
+  and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
+  candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
+  closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
+  only); newer master supersedes it only through that abandon.
+- **Fix forward into the candidate.** A fix branch never contains master. It starts from the
+  candidate head (`./tools/worktree-new.sh fix/<n>-<topic> <head> --issue <n>`), its commits say
+  `Refs #<hold issue>`, and `pr-open.sh --candidate` opens it into master without merging
+  origin/master (required checks are not strict, so GitHub merges it as is); later fix commits go
+  on the same branch. If it conflicts with master, the author merges the fix branch and master on a
+  second branch `<branch>-master` and opens that one instead, still committing fixes on the first
+  and merging them across. On the merge into master `release-due` dispatches `mode: candidate`
+  (input `fix_pr`). `tools/channel/candidate-fix.mjs` takes F, the newest commit of that pull
+  request with no master merge in its ancestry since the candidate, and merges F into
+  `channel/candidate` (a merge, never a cherry-pick). It refuses, commenting on the hold issue, when
+  any commit in `channel/candidate..F` is reachable from M0, the master tip before the fix merged
+  (first parent of its merge commit), or is not in the pull request's own commit list; a conflict
+  comments too, and the round opens a new fix branch from the head. A defect already fixed on
+  master from a newer base therefore cannot enter without a copy: the refusal says so and names the
+  owner's choice, abandon (the next slot holds a commit with the fix) or a fix forward from the
+  head. The run re-tests the new head H with nothing newer from master: ci.yml with `shards` (the
+  shards `test-select.mjs` picks for C..H plus every red one), T4, the audit, and Hosts and macOS
+  work protection when their paths or the lockfile changed in C..H; LLM regression keeps its daily
+  rule. A release.yml `candidate-capture` job re-shoots every story of each project nx calls
+  affected by C..H (every project for root files, the lockfile or Storybook config) plus the
+  stories still changed, and builds `visual-final-*` with C's captures for the rest. H has no
+  master build, so the run builds it and assembles `site-<H>` itself.
 - **Nightly promotion** reuses today's `version`, `land` (deploy key, version merge and tags, the
-  site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. While a publish hold
+  site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. A held candidate's
+  merge brings candidate merge commits into master, so `land` first runs `release-diff.mjs` over
+  origin/master..(its merge result) and refuses unless that adds only version fields and
+  changelogs: candidate code reaches master only through master's own pull requests. While a publish hold
   is open, slots still run; promoting a new version set waits for the hold to clear.
 - **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
   "prevent self-review" off, master only) refuses a nightly that was not clean or approved, whose
@@ -260,14 +315,23 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   tree (reverts excepted, recomputed), checked with master's own `approval.mjs`. The verdict runs the
   gate on green-clean too: C's baselines tree must equal nightly's or carry a signed statement of
   exactly that tree.
-- **Approval gates nightly.** Changed images make a pending status `promotion/screenshots`. The
-  page offers the oldest unpromoted green-images candidate C and freezes it: newer candidates queue
-  behind it, and the next is offered only once C is promoted or rejected, with decisions carried by
-  image hash. Finish commits accept commit A on C and opens a pull request touching only
-  `visual-baselines/` and `visual-review-approvals/`; its merge resumes C, which promotes if newer than
-  `channel/nightly`. The resume runs the gate unchanged on C's own capture against A's baselines (byte
-  copies, so `capture_sha == baseline_sha`). The gate and capture code come from master's tip at the
-  run's start (code-owned paths), recorded in `channel.json`.
+- **Approval gates nightly.** Images still changed after the re-capture hold the candidate and set
+  the pending status `promotion/screenshots`. The page offers only the held candidate's tested head
+  H (`channel/candidate`, read from the store), and only once the store's latest verdict for
+  exactly H is `green-images` (every lane green, no owner item), never an older or newer run;
+  `visual-review notify` tells the owner once. Finish commits accept commit A parented on H, on
+  branch `visual/approve-<sha12>`, writing every accept carried by hash from an earlier head into
+  A's tree, and opens a pull request touching only `visual-baselines/` and
+  `visual-review-approvals/`. When it merges, `release-due` matches its subject ("approve visual
+  baselines at <sha12>") to H and dispatches release.yml `mode: promote-nightly` (inputs
+  `candidate`, `accept`); an accept for a head no longer current dispatches nothing and comments on
+  the hold issue. `promote-nightly` refuses unless A's parent is H and H's latest verdict is
+  `green-images`; then the gate runs unchanged on H's `visual-final-*` (30 days) against A's
+  baselines (byte copies, so `capture_sha == baseline_sha`), with `--base channel/nightly --head A`;
+  then version, land, publish and site on A; the store records `approved`, the branch is deleted and
+  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. The gate and
+  capture code come from master's tip at the run's start (code-owned paths), recorded in
+  `channel.json`.
 - **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;
   CI is the reference until local captures match it on two days.
 - **Migration:** a spike measures byte parity on 50 graphty and graphty-element stories. Either
@@ -511,9 +575,10 @@ a product fix, and never re-runs hoping for green.
 
 Answers to review findings that the sections above do not settle by themselves.
 
-- **Rejected candidate.** With the frozen candidate (section 5), a rejected C is dropped and the
-  oldest queued green candidate is offered, carrying decisions by hash, so an image already rejected
-  stays rejected until a pull request changes it.
+- **Rejected candidate.** A rejected image is a defect of the held candidate, fixed forward into
+  `channel/candidate` (section 3); the candidate is not dropped and no other run is offered
+  meanwhile. Decisions carry by image hash, so a rejected image stays rejected until a fix changes
+  it. Only the owner ends a hold without a promotion (`mode: abandon`).
 - **Test integrity is replayed, not trialled.** It is replayed over past landings before it is
   required, rather than warning for a week first: the replay gives the false-positive rate without
   letting a week of real pull requests through unchecked.

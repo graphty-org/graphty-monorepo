@@ -986,7 +986,8 @@ export function wholePackageRule(rel, rules) {
  * File-level selection is adopted package by package (design/ci/fast-pipeline.md section 5.1, item 2):
  * a shard whose package is not in `allowed`, or whose runs include a browser project (browsers are a lane,
  * not file selection), runs whole wherever its package was judged file by file. Its file-level answer is
- * kept as `measured`, so the replay can show it before it is allowed.
+ * kept as `measured` (with `untrusted`, as a smoke shard's: the shard runs whole because that answer is not
+ * relied on), so the replay can show it before it is allowed.
  * @param shards SHARDS entries (the gate's or CI's)
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
@@ -1011,7 +1012,7 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
                 mode: "all",
                 files: [],
                 reasons: [smoke.get(shard.shard)],
-                measured: { mode: sel.mode, files: sel.files },
+                measured: { mode: sel.mode, files: sel.files, untrusted: true },
             };
         }
         if (!p.fileLevel || sel.mode === "all") {
@@ -1021,7 +1022,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         if (!why) {
             return { ...base, ...sel };
         }
-        return { ...base, mode: "all", files: [], reasons: [why], measured: { mode: sel.mode, files: sel.files } };
+        const measured = { mode: sel.mode, files: sel.files, untrusted: true };
+        return { ...base, mode: "all", files: [], reasons: [why], measured };
     });
 }
 
@@ -1276,7 +1278,7 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard], touched }`;
  *   `touched` is every test file the import graphs selected, also in a shard that runs whole (the pull request rules
  *   read it: a test outside it was not changed by the pull request, nor anything it imports) and `unknown` every
- *   family with a shard that has no file-level answer, all of whose files count as touched; a
+ *   family with a shard that has no file-level answer the selector relies on, all of whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
@@ -1285,7 +1287,11 @@ export function lightPlan(root, shards, selection, durations = {}) {
     const runsPlanned = planRuns(root, shards, selection);
     const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
     out.touched = [...touched].sort();
-    const unknown = runsPlanned.filter((r) => r.mode === "all" && (r.measured?.mode ?? "all") === "all");
+    // a whole run with no file-level answer, or one the selector does not rely on (a smoke shard, a package or a
+    // browser project not allowed file by file), says nothing about which files the change reached
+    const unknown = runsPlanned.filter(
+        (r) => r.mode === "all" && (!r.measured || r.measured.untrusted || r.measured.mode === "all"),
+    );
     out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
     const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {

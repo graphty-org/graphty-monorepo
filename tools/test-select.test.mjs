@@ -409,6 +409,17 @@ describe("file-level selection, allowed and measured", () => {
         const [browser] = selectShards([shard], pkgs, graphs, new Set(["pa"]));
         assert.equal(browser.mode, "all", "a project without the browser flag counts as a browser project");
         assert.match(browser.reasons[0], /browser/u);
+        assert.ok(s.measured.untrusted && browser.measured.untrusted, "the light check does not rely on either answer");
+        const [smoked] = selectShards(
+            [shard],
+            pkgs,
+            g,
+            new Set(["pa"]),
+            new Set(),
+            new Map([["pa-unit", "a smoke pattern"]]),
+        );
+        assert.equal(smoked.mode, "all");
+        assert.equal(smoked.measured.untrusted, true);
     });
 
     it("selects a browser shard file by file only where fileLevelBrowser allows it", () => {
@@ -1509,6 +1520,22 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             touched: [...many(2)].sort(),
             unknown: ["graphty"],
         });
+    });
+
+    it("counts every file of a family touched when a shard runs whole on a file-level answer it does not rely on", () => {
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const measured = (shard, why) => ({
+            ...sel(shard, "all"),
+            reasons: [why],
+            measured: { mode: "none", files: [], untrusted: true },
+        });
+        for (const why of ["a smoke pattern", "it runs a browser project, which runs whole (measured only)"]) {
+            const out = lightPlan(ROOT, shards, [measured("graphty-1", why), measured("graphty-2", why)]);
+            assert.deepEqual(out.unknown, ["graphty"], why);
+        }
+        // a trusted answer whose command only cannot be narrowed keeps its files
+        const trusted = { ...sel("graphty-1", "all"), measured: { mode: "none", files: [] } };
+        assert.deepEqual(lightPlan(ROOT, [byName("graphty-1")], [trusted]).unknown, []);
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {

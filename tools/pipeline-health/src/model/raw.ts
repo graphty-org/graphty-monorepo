@@ -37,11 +37,14 @@ const timesOf = (r: RawItem): [string, number][] =>
 export async function putRaw(store: Store, items: RawItem[], nowMs: number): Promise<number> {
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
-    for (const r of items) {
-        check(r);
-        const old = (await store.get(homeKey(r))) as (Item & RawItem) | undefined;
-        ops.push(...writesFor(r, old, nowMs, dirty));
+    items.forEach(check);
+    // The old copies are read 25 at a time: one by one, a 500-row post outlived the 10 s Lambda.
+    const olds: ((Item & RawItem) | undefined)[] = [];
+    for (let i = 0; i < items.length; i += 25) {
+        const chunk = items.slice(i, i + 25).map((r) => store.get(homeKey(r)));
+        olds.push(...((await Promise.all(chunk)) as ((Item & RawItem) | undefined)[]));
     }
+    items.forEach((r, i) => ops.push(...writesFor(r, olds[i], nowMs, dirty)));
     for (const start of dirty) {
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }

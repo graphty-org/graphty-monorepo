@@ -151,14 +151,20 @@ export function dynamoStore(
             const all = [...last.values()].map((op) =>
                 "put" in op ? { PutRequest: { Item: op.put } } : { DeleteRequest: { Key: keyOf(op.delete) } },
             );
-            for (let i = 0; i < all.length; i += 25) {
-                let pending: typeof all | undefined = all.slice(i, i + 25);
+            const write = async (chunk: typeof all): Promise<void> => {
+                let pending: typeof all | undefined = chunk;
                 for (let tries = 0; pending?.length; tries++) {
                     if (tries === 8) throw new Error(`batch write: ${pending.length} items unprocessed`);
                     if (tries) await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
                     const r = await client.send(new BatchWriteCommand({ RequestItems: { [tableName]: pending } }));
                     pending = r.UnprocessedItems?.[tableName] as typeof all | undefined;
                 }
+            };
+            // Eight BatchWriteItem calls at a time (ops on one key are already merged above).
+            for (let i = 0; i < all.length; i += 200) {
+                const group: Promise<void>[] = [];
+                for (let j = i; j < Math.min(i + 200, all.length); j += 25) group.push(write(all.slice(j, j + 25)));
+                await Promise.all(group);
             }
         },
     };

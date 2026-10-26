@@ -85,6 +85,6 @@ describe("what error reporting sends", () => {
         assert.include(all, '"infer_ip":"never"');
         assert.notInclude(all, "{{auto}}");
         // The browser string is kept on purpose.
-        assert.include(all, '"User-Agent"');
+        assert.include(all, `"User-Agent":${JSON.stringify(navigator.userAgent)}`);
     });
 });

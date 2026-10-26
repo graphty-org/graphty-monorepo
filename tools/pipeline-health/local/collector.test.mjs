@@ -146,6 +146,21 @@ test("a refused body is split and only the refused row is skipped", async () => 
     assert.deepEqual(again.calls, []);
 });
 
+test("an outage (500 or 504 on every pass) skips no row and moves no cursor", async () => {
+    // Ingest answers 500 for DynamoDB throttling, SSM or a deny action: never a reason to drop a row.
+    const post = async (kind) => (kind === "push-runs" ? false : true);
+    for (let pass = 0; pass < 5; pass++) {
+        const counts = await collect({ root, post });
+        assert.equal(counts["push-runs"].posted, 0);
+    }
+    const again = recorder();
+    await collect({ root, post: again.post });
+    assert.deepEqual(
+        again.calls.filter((c) => c.kind === "push-runs").map((c) => c.body.rows.length),
+        [2],
+    );
+});
+
 test("dry run posts nothing and keeps no cursor", async () => {
     const counts = await collect({ root, dryRun: true, post: () => assert.fail("posted") });
     assert.equal(counts.invocations.rows, 2);

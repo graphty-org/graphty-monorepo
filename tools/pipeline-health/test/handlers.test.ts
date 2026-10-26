@@ -183,6 +183,105 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("answers 400 when DynamoDB refuses a row's content, so the local collector splits and skips it", async () => {
+        const h = await ingest();
+        const refused = Object.assign(new Error("Item size has exceeded the maximum allowed size"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(refused);
+        const res = await h(event("/v1/invocations", invocation()));
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(String(res.body)).code).toBe("row_refused");
+        vi.spyOn(mem, "get").mockRejectedValue(new Error("ProvisionedThroughputExceededException"));
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+        // Our own bug (a key that does not match the schema) is not the row's fault: 500, retried.
+        const schema = Object.assign(new Error("The provided key element does not match the schema"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(schema);
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+        // An expression over its size limit is our own update's fault too: 500.
+        const expr = Object.assign(new Error("Expression size has exceeded the maximum allowed size"), {
+            name: "ValidationException",
+        });
+        vi.spyOn(mem, "get").mockRejectedValue(expr);
+        expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(500);
+    });
+
+    it("refuses an oversized row before charging the quota or writing anything", async () => {
+        const h = await ingest();
+        const longName = { failures: [{ file: "a.test.ts", name: "x".repeat(3000), message: "m" }] };
+        const res = await h(event("/v1/invocations", invocation(longName)));
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(String(res.body)).code).toBe("row_refused");
+        // An id under the size check but over the 1024-byte sort key of its copies is refused too.
+        const midName = { failures: [{ file: "a.test.ts", name: "y".repeat(1000), message: "m" }] };
+        expect((await h(event("/v1/invocations", invocation(midName)))).statusCode).toBe(400);
+        const files = Array.from({ length: 4000 }, (_, i) => [`${"f".repeat(80)}${i}.test.ts`, 1, 1, 0, 1]);
+        expect((await h(event("/v1/invocations", invocation({ files })))).statusCode).toBe(400);
+        expect(mem.items.size).toBe(0);
+    });
+
+    it("refuses a row with a fractional try as content (400), not as an outage", async () => {
+        const h = await ingest();
+        const res = await h(event("/v1/invocations", { ...invocation(), try: 1.5 }));
+        expect(res.statusCode).toBe(400);
+        expect(mem.items.size).toBe(0);
+    });
+
+    it("takes durations from the site repositories and only durations", async () => {
+        const h = await ingest();
+        const site = {
+            repository_owner: "graphty-org",
+            repository: "graphty-org/graphty-nightly",
+            repository_id: "1433424324",
+            event_name: "push",
+            run_id: "700",
+            run_attempt: "1",
+            ref: "refs/heads/main",
+            job_workflow_ref: "graphty-org/graphty-nightly/.github/workflows/deploy.yml@refs/heads/main",
+        };
+        const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
+        const res = await h(event("/v1/durations", { rows }, { claims: site }));
+        expect(res.statusCode).toBe(200);
+        expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        // A site deploy's timings never make ci-results look fresh.
+        const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
+        expect(sources).toContain("site");
+        expect(sources).not.toContain("ci-results");
+        expect((await h(event("/v1/invocations", invocation(), { claims: site }))).statusCode).toBe(403);
+        // A repository claiming a site repository's id under another name is refused.
+        const fake = { ...site, repository: "graphty-org/evil" };
+        expect((await h(event("/v1/durations", { rows }, { claims: fake }))).statusCode).toBe(403);
+        // Only the default branch deploys: a pull request's or another branch's workflow is refused.
+        const pr = { ...site, event_name: "pull_request", ref: "refs/pull/3/merge" };
+        expect((await h(event("/v1/durations", { rows }, { claims: pr }))).statusCode).toBe(403);
+        const branch = { ...site, ref: "refs/heads/feature" };
+        expect((await h(event("/v1/durations", { rows }, { claims: branch }))).statusCode).toBe(403);
+        // Only deploy.yml: another default-branch workflow (pull_request_target, workflow_run) is refused.
+        const other = {
+            ...site,
+            job_workflow_ref: "graphty-org/graphty-nightly/.github/workflows/triage.yml@refs/heads/main",
+        };
+        expect((await h(event("/v1/durations", { rows }, { claims: other }))).statusCode).toBe(403);
+    });
+
+    it("records the site deploy-pages.yml built, from that workflow on master only", async () => {
+        const h = await ingest();
+        const pages = {
+            ...CI_CLAIMS,
+            event_name: "workflow_run",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/deploy-pages.yml@refs/heads/master",
+        };
+        const sha = "a".repeat(40);
+        expect((await h(event("/v1/sites", { sha }, { claims: pages }))).statusCode).toBe(200);
+        expect(mem.items.get(`SITE\u0000${sha}`)).toMatchObject({ sha, builtAt: NOW, runId: 500 });
+        expect((await h(event("/v1/sites", { sha: "nope" }, { claims: pages }))).statusCode).toBe(400);
+        expect((await h(event("/v1/sites", { sha }))).statusCode).toBe(403);
+        expect((await h(event("/v1/invocations", invocation(), { claims: pages }))).statusCode).toBe(403);
+    });
+
     it("judges a stored full-run shard by its ci-budgets.json budget, and a pull request bin not at all", async () => {
         const h = await ingest();
         const full = {
@@ -205,14 +304,53 @@ describe("ingest: what it stores", () => {
 
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
-        const fail = { invocation: "500.1.compact-mantine", failures: [{ file: "b.ts", name: "t", message: "x" }] };
+        // As the CI writers send them: each try under its own id, `<base>.<try>`; try 1 failed, try 2 passed.
+        const fail = {
+            invocation: "500.1.test.compact-mantine.1",
+            failures: [{ file: "b.ts", name: "t", message: "x" }],
+        };
         await h(event("/v1/failures", fail));
-        const id = "R#test#500.1.compact-mantine#b.ts#t\u0000A#1";
+        const id = "R#test#500.1.test.compact-mantine.1#b.ts#t\u0000A#1";
         expect(mem.items.get(id)?.outcome).toBe("failed");
-        const passed = invocation({ id: "500.1.compact-mantine", variant: "compact-mantine", outcome: "passed" });
-        delete (passed as Record<string, unknown>).failures;
+        const passed = invocation({
+            id: "500.1.test.compact-mantine.2",
+            try: 2,
+            variant: "compact-mantine",
+            outcome: "passed",
+        });
+        // As tools/results/run-group.mjs sends a passing run: an empty failures list.
+        (passed as Record<string, unknown>).failures = [];
         await h(event("/v1/invocations", passed));
+        expect(mem.items.get(id)).toMatchObject({ outcome: "flaky", family: "compact-mantine" });
+        // Try 1's own record, arriving after try 2's, never turns it back to failed.
+        const try1 = invocation({
+            id: "500.1.test.compact-mantine.1",
+            variant: "compact-mantine",
+            failures: fail.failures,
+        });
+        expect((await h(event("/v1/invocations", try1))).statusCode).toBe(200);
         expect(mem.items.get(id)?.outcome).toBe("flaky");
+    });
+
+    it("marks an earlier try's failure flaky when the passing try lists another failure", async () => {
+        const h = await ingest();
+        const fail = {
+            invocation: "500.1.test.layout.1",
+            failures: [
+                { file: "a.ts", name: "flaky", message: "x" },
+                { file: "q.ts", name: "quarantined", message: "x" },
+            ],
+        };
+        await h(event("/v1/failures", fail));
+        const passed = invocation({
+            id: "500.1.test.layout.2",
+            try: 2,
+            variant: "layout",
+            outcome: "passed",
+        });
+        (passed as Record<string, unknown>).failures = [{ file: "q.ts", name: "quarantined", message: "x" }];
+        await h(event("/v1/invocations", passed));
+        expect(mem.items.get("R#test#500.1.test.layout.1#a.ts#flaky\u0000A#1")?.outcome).toBe("flaky");
     });
 
     it("answers 429 past the daily write budget and writes nothing", async () => {

@@ -463,14 +463,29 @@ jobs:
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
-                      --base "$(git rev-parse "origin/$BASE_REF")" --files "$RUNNER_TEMP/changed.txt" || true
+                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" || true
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
+                      # no answer about what the change touched: the pull request rules stay off and the committed
+                      # quarantine list stands, as in a store outage
+                      echo '{"unavailable":"the test selector failed"}' > "$plan/results-plan.json"
                       exit 0
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
                       "$plan/light-plan.json"
+                  # What the pull request rules read with the store's answer (tools/results/run-group.mjs prJudge):
+                  # the base, and the test files the change touched: the ones it changed and the ones whose imports
+                  # reach a changed file (not the ones a rule runs), and the families with no file-level answer
+                  # (every file of those counts as touched). An everything plan gets only the base, so every test
+                  # counts as touched and a re-run still reads the store again; an unavailable one stays as it is,
+                  # and an outage leaves the committed quarantine list in force.
+                  jq -s --arg base "$(git rev-parse HEAD^1)" --rawfile changed "$RUNNER_TEMP/changed.txt" \
+                      'if .[0].unavailable then .[0] elif .[1].everything then .[0] + {base: $base} else .[0] + {base: $base,
+                          affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
+                          unknownFamilies: (.[1].unknown // [])} end' \
+                      "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
+                      && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" --pull-request \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
                   # the summary describes the bins only when their matrix was written (else every shard runs whole)
@@ -1212,6 +1227,8 @@ jobs:
             contents: read
             checks: write
             id-token: write
+            # a full or bisect run files the issue of a test it proves flaky (tools/results/run-group.mjs)
+            issues: write
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
@@ -1221,6 +1238,9 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+                  # the job may write issues; the token is not left in .git/config for a pull request's code
+                  # (the repository is public, so the Git LFS pull below needs no credential)
+                  persist-credentials: false
 
             - uses: pnpm/action-setup@v6
 
@@ -1350,6 +1370,17 @@ jobs:
                   key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: test-durations-${{ matrix.shard }}-
 
+            # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
+            # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
+            # on the full path, where tools/test-quarantine.json stands.
+            - name: Download the results plan
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan
+
             # VITEST_BUDGET_CHECK reports every passing test over 10 s, or over 3 times its median in
             # VITEST_DURATION_HISTORY (tools/vitest-time-budget.mjs), as a warning; it never fails the shard.
             # Only here, not in the pre-push gate, whose machine runs several shards at once.
@@ -1359,6 +1390,10 @@ jobs:
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
+                  # a pull request's run never does, so it gets no token
+                  GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 

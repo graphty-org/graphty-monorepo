@@ -1,6 +1,7 @@
 // The results Worker's read side (design/ci/channels-pipeline/results-service.md 5.3 and 6; channels.md 5 and
 // 7; budgets-and-trust.md 1.6). Every answer is computed when it is read: no cron, no stored conclusion.
 import { refuse } from "./service.js";
+import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
 // a full run's slot: release.yml runs every 6 hours, so a promotion run started at most this long before its move
@@ -25,24 +26,28 @@ const median = (xs) => {
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave).
-async function passesSince(db, q) {
+// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave), counting
+// only runs started before `before` (concludeFlaky asks as of just before the proof that names the test again).
+async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
     const [row] = await all(
         db,
         `SELECT count(*) AS n FROM file_run r JOIN invocation i ON i.id = r.invocation
          WHERE r.file = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.outcome IN ('passed','failed')
-           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ?
+           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ? AND i.started_at < ?
            AND NOT EXISTS (SELECT 1 FROM failure f WHERE f.invocation = i.id AND f.file = r.file AND f.name = ?)
            AND i.started_at > coalesce((SELECT max(j.started_at) FROM failure f JOIN invocation j ON j.id = f.invocation
-                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?), 0)`,
+                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?
+                   AND j.started_at < ?), 0)`,
         q.file,
         q.family,
         q.family,
         q.since,
+        before,
         q.name,
         q.file,
         q.name,
         q.since,
+        before,
     );
     return row.n;
 }
@@ -73,6 +78,24 @@ async function activeQuarantine(db, families, now) {
     return out;
 }
 
+/**
+ * The issues of a family's quarantine entries in force, for the master job that posted to check on GitHub: a
+ * closed one ends its entries (POST /v1/issues with state closed), as a closed issue ends a committed entry.
+ * @param db the D1 database
+ * @param family the shard family
+ * @param now milliseconds
+ * @returns issue numbers
+ */
+export async function trackedIssues(db, family, now) {
+    const rows = await all(
+        db,
+        "SELECT DISTINCT issue FROM quarantine WHERE family = ? AND left_at IS NULL AND expires > ? AND issue IS NOT NULL",
+        family,
+        now,
+    );
+    return rows.map((r) => r.issue);
+}
+
 // Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
 // inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
@@ -81,7 +104,7 @@ async function failingOnBase(db, base, pairs, changed) {
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const rows = await all(
         db,
-        `SELECT DISTINCT i.variant, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
@@ -432,4 +455,85 @@ export async function trendFor(db, kind, posted, budgets, now) {
     return [...byKey]
         .filter(([key, rs]) => keys.has(key) && rs.length >= 5)
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
+}
+
+// Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
+// ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
+// or was cut short is no pass of the test. Only pairs that include `id` are asked.
+const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn,
+       min(a.started_at, b.started_at) AS at
+     FROM invocation a JOIN failure f ON f.invocation = a.id
+     JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
+     JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
+     JOIN file_run rb ON rb.invocation = b.id AND rb.file = f.file AND coalesce(rb.skipped, 0) = coalesce(ra.skipped, 0)
+       AND coalesce(rb.passed, 0) + coalesce(rb.failed, 0) = coalesce(ra.passed, 0) + coalesce(ra.failed, 0)
+     WHERE (a.id = ? OR b.id = ?) AND a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
+       AND a.outcome IN ('passed','failed') AND b.outcome IN ('passed','failed')
+       AND NOT EXISTS (SELECT 1 FROM failure g WHERE g.invocation = b.id AND g.file = f.file AND g.name = f.name)`;
+
+/**
+ * Quarantines the tests a just-stored master-evidence record proves flaky (6.1, 6.5): each enters once, for 14
+ * days, with no issue yet; a later proof names it again until its issue is posted back. The answer names them so
+ * the job that posted files the issue (6.6) and posts its number back (POST /v1/issues); `had` is the signature's
+ * earlier issue, to comment on instead.
+ * @param db the D1 database
+ * @param id the stored invocation
+ * @param now milliseconds
+ * @returns the tests quarantined and still without an issue: family, file, name, signature, proof (the two
+ *   invocations), had
+ */
+export async function concludeFlaky(db, id, now) {
+    const found = await all(db, DISAGREE, id, id);
+    const out = [];
+    for (const t of found) {
+        const family = t.variant.split("|")[0];
+        if (NEVER_QUARANTINED.test(family) || out.some((o) => o.file === t.file && o.name === t.name)) continue;
+        let active = await db
+            .prepare(
+                "SELECT since, issue FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
+            )
+            .bind(family, t.file, t.name, now)
+            .first();
+        // an entry that had passed 20 times before this proof had left (activeQuarantine computes that on read and
+        // never writes it): record it, so the test enters again and its issue is reopened or commented on
+        if (
+            active &&
+            (await passesSince(db, { ...active, family, file: t.file, name: t.name }, t.at)) >= QUARANTINE_PASSES
+        ) {
+            await db
+                .prepare(
+                    "UPDATE quarantine SET left_at = ?, left_why = ? WHERE family = ? AND file = ? AND name = ? AND since = ?",
+                )
+                .bind(now, `${QUARANTINE_PASSES} passes since its last failure`, family, t.file, t.name, active.since)
+                .run();
+            active = null;
+        }
+        // an active entry whose issue was never posted back (GitHub refused it) is named again, so it gets one
+        if (active?.issue != null) continue;
+        const proof = `${t.failedIn} failed it, ${t.passedIn} passed it`;
+        if (!active)
+            await db
+                .prepare(
+                    "INSERT OR IGNORE INTO quarantine (family, file, name, reason, proof, since, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(
+                    family,
+                    t.file,
+                    t.name,
+                    "failed and passed on the same commit and inputs",
+                    proof,
+                    now,
+                    now + 14 * DAY,
+                )
+                .run();
+        // only an earlier flaky issue: a `Failing on master` one for the signature is not where a quarantine goes.
+        // A timeout's issue is keyed by its test too, so closing one never ends another timeout's quarantine.
+        const signature = issueKey(t.signature, t.status, t.name);
+        const had = await db
+            .prepare("SELECT number FROM tracked_issue WHERE signature = ? AND kind = 'flaky'")
+            .bind(signature)
+            .first();
+        out.push({ family, file: t.file, name: t.name, signature, proof, had: had?.number ?? null });
+    }
+    return out;
 }

@@ -4513,15 +4513,18 @@ describe("release.yml", () => {
             compare = "ahead",
             cname = "canary.graphty.app",
             pagesFails = false,
+            code = 200,
         } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
             writeFileSync(
                 join(bin, "curl"),
-                live === null
-                    ? `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nexit 6\n`
-                    : `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                // like curl -o <file> -w '%{http_code}': the page into the file, the status on stdout, 000 unreached
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n` +
+                    (live === null
+                        ? `printf 000\nexit 6\n`
+                        : `echo '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">' > "$out"\nprintf ${code}\n`),
                 { mode: 0o755 },
             );
             writeFileSync(
@@ -4539,6 +4542,7 @@ describe("release.yml", () => {
                     SHA: "abc1",
                     CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
+                    RUNNER_TEMP: dir,
                     GITHUB_RUN_ID: "7",
                     GITHUB_RUN_ATTEMPT: "2",
                     GITHUB_JOB: "check",
@@ -4558,10 +4562,12 @@ describe("release.yml", () => {
         it("deploys every green master build to canary.graphty.app, release or not (#3467)", () => {
             // no commit-message rule: an ordinary merge deploys
             assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
-            assert.deepEqual(decide(), {
-                deploy: "deploy=true",
-                curl: "-fsSL --max-time 30 https://canary.graphty.app/?run=7-2-check\n",
-            });
+            const first = decide();
+            assert.equal(first.deploy, "deploy=true");
+            assert.match(
+                first.curl,
+                /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2-check\n$/,
+            );
             // the stamp is read from canary, never from graphty.app, which graphty-site serves
             assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);
             assert.match(job(deploy, "check"), /CANARY_URL: https:\/\/canary\.graphty\.app\/\n/);
@@ -4569,6 +4575,8 @@ describe("release.yml", () => {
             // one that answers with no stamp (before its first deploy of a stamped build) gets one
             assert.equal(decide({ live: null }).deploy, "deploy=false");
             assert.equal(decide({ live: "" }).deploy, "deploy=true");
+            // an HTTP error page (a site deployed without index.html) is no stamp, so the next build heals it
+            assert.equal(decide({ live: "abc1", code: 404 }).deploy, "deploy=true");
             // the custom domain is this repository's Pages setting; the site carries no CNAME file
             assert.doesNotMatch(
                 deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),

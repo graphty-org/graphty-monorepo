@@ -546,6 +546,22 @@ const S: Record<string, (p: P) => string> = {
     "nodata.source_late": (p) =>
         `${esc(SOURCE[String(p.source)] ?? p.source)} has not written for ${fmtN(num(p, "h"))} h`,
     "nodata.token_rejected": (p) => `token rejected since ${at(p, "since")}`,
+    "nodata.source_error": (p) =>
+        `${esc(SOURCE[String(p.source)] ?? p.source)} failing since ${at(p, "since")}: ${str(p, "error")}`,
+    "reason.no_write": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} has not written yet`,
+    "reason.not_set_up": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} has no writer yet`,
+    "reason.idle": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is idle by design`,
+    "reason.stale": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} stopped writing`,
+    "reason.error": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is failing`,
+    "reason.thin": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} sends less than usual for its activity`,
+    "reason.no_value": () => "no value in the window",
+    "section.no_detail": () => "Not collected yet: no writer records this detail.",
+    "master.no_red_span": () => "No red span in the range.",
+    "data.all_set_up": () => "Every member has a writer.",
+    "ep.past_threshold": (p) =>
+        `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} past its threshold` +
+        (p.peak === undefined ? "" : `, peak ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`) +
+        (typeof p.cleared === "string" ? `, cleared ${at(p, "cleared")}` : ""),
 
     // page notes
     "master.note.queued": (p) =>

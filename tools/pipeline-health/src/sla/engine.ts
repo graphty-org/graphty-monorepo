@@ -162,7 +162,7 @@ function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: numbe
     return elapsed === 0 ? all : (done / elapsed) * monthDays;
 }
 
-function measureValue(m: Measure, b: Bucket, spanMs: number): number | undefined {
+export function measureValue(m: Measure, b: Bucket, spanMs: number): number | undefined {
     const scale = "scale" in m && m.scale !== undefined ? m.scale : 1;
     switch (m.type) {
         case "rate":
@@ -357,7 +357,7 @@ function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: n
  * @param value
  * @param value6h
  */
-function thresholds(
+export function thresholds(
     c: MemberConfig,
     value: number,
     value6h: number | undefined,

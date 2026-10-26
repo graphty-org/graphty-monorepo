@@ -240,8 +240,8 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
             const cols =
                 `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name)}${tags}</span>` +
                 `<span class="dbar"><span style="width: ${Math.round((Math.min(nd.distinct, maxDistinct * 2) / maxDistinct) * 36)}px"></span>${fmtN(nd.distinct)}</span>` +
-                `<span class="num">${fmtN(nd.events)}</span><span class="num">${fmtN(nd.per1000)}</span>` +
-                `<span class="num">${fmtN(nd.quarantined)}</span><span class="num">${fmtN(nd.prsHeld)}</span>${CHEV}`;
+                `<span class="num">${fmtN(nd.events)}</span><span class="num">${nd.per1000 === null ? "--" : fmtN(nd.per1000)}</span>` +
+                `<span class="num">${nd.quarantined === null ? "--" : fmtN(nd.quarantined)}</span><span class="num">${nd.prsHeld === null ? "--" : fmtN(nd.prsHeld)}</span>${CHEV}`;
             if (nd.children?.length)
                 return `<details data-key="tree${key}"><summary class="hrow">${cols}</summary>${treeRows(nd.children, href, depth + 1, key)}</details>`;
             if (nd.link) return `<a class="hrow leaf" href="${href(nd.link)}">${cols}</a>`;

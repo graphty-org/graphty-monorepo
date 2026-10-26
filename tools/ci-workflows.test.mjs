@@ -6787,7 +6787,18 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         // the import graphs resolve the other packages through their dist folders
         for (const b of ["Build affected (PR)", "Build the rest (PR), so every shard finds its artifact"]) {
             assert.ok(index(b) > 0 && index(b) < index("Plan the light check's test bins"), `${b} runs first`);
+            // the app is off the test jobs' critical path: no PR job reads graphty/dist, Lint builds it
+            assert.match(
+                build.slice(index(b)),
+                /^[^\n]*\n[^\n]*\n {14}run: [^\n]*--exclude=graphty\b/u,
+                `${b} skips the app`,
+            );
         }
+        const lint = job(ci, "lint");
+        assert.match(
+            lint,
+            /- name: Build the graphty app \(PR, when affected\)\n {14}if: needs\.packages\.outputs\.full == 'false' && contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty'\)\n {14}run: pnpm exec nx run graphty:build --exclude-task-dependencies\n/u,
+        );
         assert.ok(
             index("Plan the light check's test bins") < index("Upload all package builds"),
             "planned before the uploads",

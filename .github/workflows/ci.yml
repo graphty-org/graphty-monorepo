@@ -422,7 +422,7 @@ jobs:
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
-              run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
+              run: pnpm exec nx affected -t build --parallel=3 --exclude=graphty --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Every test shard downloads every package's dist, so every package must be built even when the
             # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
@@ -433,9 +433,13 @@ jobs:
             # and compact-mantine unbuilt and failed all twenty shards (run 35668273734). Building every
             # project is what master already does, and the Nx cache makes it a no-op for whatever the
             # affected build above produced.
+            # Both PR builds leave out the graphty app: no pull-request job reads graphty/dist (only Links, a full
+            # run's job), and its build has `git rev-parse HEAD` as an input, so it missed the cache on every commit
+            # and added about 84 s to this job, which every test job waits on. The Lint job builds it instead, when
+            # it is affected, so a pull request that breaks the app's build still fails.
             - name: Build the rest (PR), so every shard finds its artifact
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
-              run: pnpm exec nx run-many -t build --parallel=3
+              run: pnpm exec nx run-many -t build --parallel=3 --exclude=graphty
               env:
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
@@ -652,6 +656,8 @@ jobs:
                   name: build-graphty
                   path: graphty/dist/
                   retention-days: 1
+                  # a light pull request does not build the app here (see "Build the rest (PR)")
+                  if-no-files-found: ignore
 
             - name: Upload graphty-element build
               uses: actions/upload-artifact@v7
@@ -916,6 +922,15 @@ jobs:
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
+            # The graphty app's build check on a light pull request: the Build job leaves the app out (nothing it
+            # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
+            # package builds, and only when the pull request affects it.
+            - name: Build the graphty app (PR, when affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true

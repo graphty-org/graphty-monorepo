@@ -30,7 +30,7 @@ There is no CPU fallback anywhere in this package: when no adapter or device exi
 ```bash
 npm install @graphty/webgpu-graph-algorithms @graphty/graph-format
 # Node only: Dawn is an OPTIONAL peer dependency (browser consumers never install it)
-npm install webgpu@0.6.1
+npm install webgpu@0.6.2
 ```
 
 Which build a Linux consumer can run is decided by their distribution, and the two available builds do not
@@ -41,7 +41,7 @@ satisfies. Loading 0.6.x on 22.04 fails at `require` with
 "libstdc++.so.6: version `GLIBCXX_3.4.32' not found", not at adapter acquisition. The peer range
 `>=0.4.0 <1.0.0`admits both on purpose, so a consumer pins the one their distribution can load; a Node consumer
 that forgets the package entirely gets`E_NO_WEBGPU`with the message
-"install the optional peer dependency webgpu@0.6.1".`@graphty/algorithms`and`@graphty/layout`are
+"install the optional peer dependency webgpu@0.6.2".`@graphty/algorithms`and`@graphty/layout`are
 optional peer dependencies too, on different footings since W1b: the layout interfaces and option types
 are`import type`d from `@graphty/layout`and re-exported, so they ARE its declarations, while the`@graphty/algorithms`accelerator types are still structural mirrors until A2. Either way a consumer that
 type-checks against the accelerator types (without`skipLibCheck`) installs the package it names; a

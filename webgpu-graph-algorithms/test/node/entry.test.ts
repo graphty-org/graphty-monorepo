@@ -136,14 +136,14 @@ describe("createNodeGpu", () => {
                 createNodeGpu({ loadModule: () => Promise.reject(new Error("Cannot find module 'webgpu'")) }),
             ),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.6.1" },
+            { hint: "install the optional peer dependency webgpu@0.6.2" },
         );
         expect(String(failing.details.reason)).toContain("Cannot find module 'webgpu'");
         expect(failing.message).toContain("Cannot find module 'webgpu'");
         const shapeless = expectCode(
             await rejection(createNodeGpu({ loadModule: () => Promise.resolve({ globals: {} }) })),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.6.1" },
+            { hint: "install the optional peer dependency webgpu@0.6.2" },
         );
         expect(String(shapeless.details.reason)).toContain("create");
         const throwingCreate = expectCode(
@@ -159,10 +159,10 @@ describe("createNodeGpu", () => {
                 }),
             ),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.6.1" },
+            { hint: "install the optional peer dependency webgpu@0.6.2" },
         );
         expect(String(throwingCreate.details.reason)).toContain("unrecognised backend 'bogus'");
-        expect(throwingCreate.message).toContain("install the optional peer dependency webgpu@0.6.1");
+        expect(throwingCreate.message).toContain("install the optional peer dependency webgpu@0.6.2");
     });
 });
 

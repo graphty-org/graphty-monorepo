@@ -430,6 +430,7 @@ export class ElementAutosave {
             ...(options.keep === undefined ? {} : { keep: options.keep }),
             clock: this.#env.clock,
             locks: this.#env.locks,
+            hidden: () => this.#env.document.visibilityState === "hidden",
         });
         this.#saver = saver;
         this.#stops.push(

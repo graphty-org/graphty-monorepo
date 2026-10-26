@@ -212,3 +212,74 @@ describe("the ephemeral fact", () => {
         assert.strictEqual(await ephemeral((env) => ({ ...env, thirdParty: () => true })), "likely");
     });
 });
+
+describe("while the page is hidden", () => {
+    it("writes a change made during a write right after it, with no timer (issue #3485)", async () => {
+        const { env } = page();
+        const clock = env.clock as FakeClock;
+        const inner = memoryAutosaveStore();
+        let held = false;
+        let release: (() => void) | null = null;
+        const store: AutosaveStore = {
+            ...inner,
+            commit: async (writes, options) => {
+                if (held) {
+                    held = false;
+                    await new Promise<void>((resolve) => {
+                        release = resolve;
+                    });
+                }
+
+                return inner.commit(writes, options);
+            },
+        };
+        let onSaved: (() => void) | null = null;
+        const session = await baseSession();
+        const autosave = new ElementAutosave((type, detail) => {
+            if (type === "graphty-autosave-status" && (detail as { state: string }).state === "saved") {
+                onSaved?.();
+            }
+        }, env);
+        await autosave.start({
+            session,
+            key: "test.hidden",
+            options: { store },
+            restore: "auto",
+            pageConfig: {},
+            reloadPage: () => Promise.resolve(),
+        });
+        await session.config.set({ name: "Before hiding" });
+        await autosave.api.flush();
+        (env.document as { visibilityState: string }).visibilityState = "hidden";
+        env.document.dispatchEvent(new Event("visibilitychange"));
+        await autosave.api.flush();
+
+        held = true;
+        const firstWrite = new Promise<void>((resolve) => {
+            const look = (): void => {
+                if (release === null) {
+                    queueMicrotask(look);
+                } else {
+                    resolve();
+                }
+            };
+            look();
+        });
+        await session.config.set({ name: "While hidden" });
+        await firstWrite;
+        // A change that leaves the status as it was ("pending", the write in flight).
+        autosave.api.stash("test.note", 1);
+        // The write takes longer than the debounce, as on a loaded machine.
+        const { fired } = clock;
+        clock.advance(2000);
+        assert.strictEqual(clock.fired, fired, "no debounce or maximum-wait timer was armed while hidden");
+        const saved = new Promise<void>((resolve) => {
+            onSaved = resolve;
+        });
+        (release as unknown as () => void)();
+        await saved;
+        assert.strictEqual(autosave.api.status.state, "saved");
+        assert.deepStrictEqual(autosave.api.stashed("test.note"), 1);
+        autosave.depart();
+    });
+});

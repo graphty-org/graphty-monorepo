@@ -41,12 +41,18 @@ const dirName = (project) => project.replace(/^@graphty\//, "");
 // graphty-element's source.
 const DRAWN_BY = { "graph-io-fidelity": ["graph-io", "graphty-element"] };
 
-// Root files no Storybook build reads: the workflows (the visual job runs master's capture code, never the
-// pull request's) and the repository's tools, except the one a Storybook's manager imports. A pull request
-// that changes only these and package files is judged by its packages alone. The full run captures every
-// project on master every 6 hours, which is the backstop now that no merge queue captures before a merge.
-const NOT_DRAWN = (f) =>
-    (f.startsWith(".github/") || f.startsWith("tools/")) && f !== "tools/storybook-brand-theme.mjs";
+// Root files no Storybook build or capture reads: the workflows other than ci.yml (which sets up the
+// capture browser, its fonts and this plan step) and the repository's tools, except the brand theme a
+// Storybook's manager imports and this planner itself. .github/actions/ (the capture browser's system
+// packages and fonts) still counts as a root file. A pull request that changes only these and package files
+// is judged by its packages alone. The full run captures every project on master every 6 hours, which is
+// the backstop now that no merge queue captures before a merge.
+const DRAWN_ROOT = new Set([
+    ".github/workflows/ci.yml",
+    "tools/storybook-brand-theme.mjs",
+    "tools/visual-capture-plan.mjs",
+]);
+const NOT_DRAWN = (f) => (f.startsWith(".github/workflows/") || f.startsWith("tools/")) && !DRAWN_ROOT.has(f);
 
 /**
  * The visual-review projects a run may leave uncaptured.

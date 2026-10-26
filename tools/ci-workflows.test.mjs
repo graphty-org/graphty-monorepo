@@ -2309,6 +2309,9 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         for (const root of [
             "pnpm-lock.yaml",
             "tools/storybook-brand-theme.mjs",
+            "tools/visual-capture-plan.mjs",
+            ".github/workflows/ci.yml",
+            ".github/actions/playwright-system-deps/install.sh",
             "visual-baselines/layout/a.png",
             "visual-fonts/fonts.conf",
             "design/x.md",
@@ -2318,7 +2321,7 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
     });
 
     it("judges a change to workflows and tools no Storybook reads by its packages alone", () => {
-        const changed = ["graph-io/src/index.ts", ".github/workflows/ci.yml", "tools/full-run.mjs"];
+        const changed = ["graph-io/src/index.ts", ".github/workflows/release.yml", "tools/full-run.mjs"];
         assert.deepEqual(
             skippedProjects({ ...base, changed }),
             skippedProjects({ ...base, changed: changed.slice(0, 1) }),

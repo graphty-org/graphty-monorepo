@@ -207,8 +207,13 @@ export async function runGroup(shardName, command = undefined, { root = process.
 /**
  * A group's variant and inputs key. The flags are "on" for an On shard (its SHARDS entry says `flags: "on"`,
  * tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off".
- * @param o `shardName`, `shard` (its SHARDS entry, or undefined), `command` (the narrower command, if any),
- *   `cmd` (the command run), `env`, `shardKey`
+ * @param o the facts
+ * @param o.shardName the shard
+ * @param o.shard its SHARDS entry, or undefined
+ * @param o.command the narrower command, if any (run shape `selected`)
+ * @param o.cmd the command run
+ * @param o.env the environment
+ * @param o.shardKey the shard's input key
  * @returns `{ variant, inputs }`
  */
 export function groupKeys({ shardName, shard, command, cmd, env, shardKey }) {

@@ -282,12 +282,15 @@ describe("ingest: what it stores", () => {
     it("marks failures flaky when their shard passed", async () => {
         const h = await ingest();
         // As the CI writers send them: each try under its own id, `<base>.<try>`; try 1 failed, try 2 passed.
-        const fail = { invocation: "500.1.compact-mantine.1", failures: [{ file: "b.ts", name: "t", message: "x" }] };
+        const fail = {
+            invocation: "500.1.test.compact-mantine.1",
+            failures: [{ file: "b.ts", name: "t", message: "x" }],
+        };
         await h(event("/v1/failures", fail));
-        const id = "R#test#500.1.compact-mantine.1#b.ts#t\u0000A#1";
+        const id = "R#test#500.1.test.compact-mantine.1#b.ts#t\u0000A#1";
         expect(mem.items.get(id)?.outcome).toBe("failed");
         const passed = invocation({
-            id: "500.1.compact-mantine.2",
+            id: "500.1.test.compact-mantine.2",
             try: 2,
             variant: "compact-mantine",
             outcome: "passed",
@@ -295,6 +298,14 @@ describe("ingest: what it stores", () => {
         // As tools/results/run-group.mjs sends a passing run: an empty failures list.
         (passed as Record<string, unknown>).failures = [];
         await h(event("/v1/invocations", passed));
+        expect(mem.items.get(id)).toMatchObject({ outcome: "flaky", family: "compact-mantine" });
+        // Try 1's own record, arriving after try 2's, never turns it back to failed.
+        const try1 = invocation({
+            id: "500.1.test.compact-mantine.1",
+            variant: "compact-mantine",
+            failures: fail.failures,
+        });
+        expect((await h(event("/v1/invocations", try1))).statusCode).toBe(200);
         expect(mem.items.get(id)?.outcome).toBe("flaky");
     });
 

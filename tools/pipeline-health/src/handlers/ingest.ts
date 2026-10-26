@@ -13,6 +13,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
+import { homeKey } from "../model/items.js";
 import {
     DAY,
     oldestAt,
@@ -330,8 +331,16 @@ async function invocationItems(b: Record<string, unknown>, who: Who, db: Store):
         for (const inv of invs)
             for (const t of await db.query(INV_TESTS(inv))) {
                 const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
-                items.push({ ...(test as unknown as TestItem), outcome: "flaky" });
+                // The passing run's family: an early failure post only guessed it from the id.
+                items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
             }
+    }
+    // The two tries' posts are not ordered: an earlier try's failure never turns a flaky result back to failed.
+    if (!passed && source === "ci") {
+        const kept: RawItem[] = [];
+        for (const item of items)
+            if (item.kind !== "test" || (await db.get(homeKey(item)))?.outcome !== "flaky") kept.push(item);
+        return kept;
     }
     return items;
 }

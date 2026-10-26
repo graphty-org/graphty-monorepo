@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps, Tags } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
@@ -25,6 +25,12 @@ export const CI_AUDIENCE = "graphty-health";
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 10;
+/**
+ * The cost-allocation tag on every resource of the stack; the Budget counts only spend that carries
+ * it. Costs are tagged only after the tag is activated in Billing (`aws ce
+ * update-cost-allocation-tags-status`), and Billing lists a tag for activation a day after first use.
+ */
+export const COST_TAG = { key: "graphty-cost", value: "graphty-health" };
 export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts"];
 /** The page's Vite dev server, allowed beside the live origin. */
 export const DEV_ORIGIN = "http://localhost:5173";
@@ -46,6 +52,7 @@ export class HealthStack extends Stack {
      */
     constructor(scope: Construct, id: string, props: HealthStackProps = {}) {
         super(scope, id, props);
+        Tags.of(this).add(COST_TAG.key, COST_TAG.value);
 
         const table = new dynamodb.TableV2(this, "Table", {
             tableName: "graphty-health",
@@ -229,6 +236,10 @@ export class HealthStack extends Stack {
                 budgetType: "COST",
                 timeUnit: "MONTHLY",
                 budgetLimit: { amount: MONTHLY_BUDGET_USD, unit: "USD" },
+                // Credits would hide the stack's spend, and other services in the account must not
+                // trip the deny action on these Lambdas: count only this stack's tagged, pre-credit cost.
+                costTypes: { includeCredit: false, includeRefund: false },
+                costFilters: { TagKeyValue: [`user:${COST_TAG.key}$${COST_TAG.value}`] },
             },
             notificationsWithSubscribers: [notify("ACTUAL", 50), notify("FORECASTED", 100)],
         });

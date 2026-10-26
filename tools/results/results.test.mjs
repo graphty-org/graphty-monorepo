@@ -24,12 +24,14 @@ import {
     baseId,
     fileIssues,
     groupKeys,
+    groupFamily,
     junitOf,
     postRecords,
     prJudge,
     recordsOf,
     refreshPlan,
     runGroup,
+    runShape,
     storeList,
 } from "./run-group.mjs";
 
@@ -219,6 +221,27 @@ describe("reporter", () => {
             mock.timers.reset();
         }
     });
+    it("sends a story whose two renders disagreed as unstable", () => {
+        const events = [];
+        const r = new ResultsReporter({
+            env: { GRAPHTY_RESULTS_INVOCATION: "b" },
+            cfg: {},
+            root: process.cwd(),
+            send: (_cfg, inv, failures) => events.push({ inv, failures }),
+        });
+        const message = "visual-review: app--default is unstable (two renders drew different pictures): dark";
+        r.onTestCaseResult({
+            module: { moduleId: join(process.cwd(), "graphty/src/App.stories.tsx") },
+            fullName: "Default",
+            result: () => ({ state: "failed", errors: [{ message, stack: "at x" }] }),
+        });
+        assert.deepEqual(events[0].failures[0], {
+            file: "graphty/src/App.stories.tsx",
+            name: "Default",
+            status: "unstable",
+            message: `${message}\nat x`,
+        });
+    });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
@@ -288,6 +311,16 @@ describe("records", () => {
             flood.map((r) => r.outcome),
             ["error"],
         );
+    });
+});
+
+describe("runShape", () => {
+    it("files a story-tests run that takes screenshots apart from the plain test job of the same shard", () => {
+        // ci.yml's graphty leg runs graphty-storybook's own command with VISUAL_REVIEW_STORY_OUT set
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, false), "shots");
+        assert.equal(runShape({ VISUAL_REVIEW_STORY_OUT: "/tmp/stories" }, true), "shots");
+        assert.equal(runShape({}, false), "whole");
+        assert.equal(runShape({}, true), "selected");
     });
 });
 
@@ -380,6 +413,64 @@ describe("runGroup", () => {
     });
 });
 
+describe("groupFamily", () => {
+    it("keeps every story-tests leg that takes screenshots apart from the shard it is named after", () => {
+        const shots = { VISUAL_REVIEW_STORY_OUT: "/tmp/stories" };
+        // ci.yml's story-tests legs: the graphty and graphty-element storybook shards, and the algorithms and
+        // layout legs that borrow the algorithms-browser and layout unit-test shards' names
+        for (const [shard, plain] of [
+            ["graphty-storybook", "graphty-storybook"],
+            ["graphty-element-storybook-1", "graphty-element-storybook"],
+            ["algorithms-browser", "algorithms-browser"],
+            ["layout", "layout"],
+        ]) {
+            assert.equal(groupFamily(shard, {}), plain);
+            assert.equal(groupFamily(shard, shots), `${plain}-shots`);
+        }
+    });
+
+    it("judges a screenshot run by its shard's quarantine and its own and hands that very list to the combine step", async () => {
+        const root = join(TMP, "checkout-shots");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-storybook", package: "graphty", "test-command": "exit 0" }];\n`,
+        );
+        const day = new Date().toISOString().slice(0, 10);
+        const entry = (family, name) => ({
+            file: "g/A.stories.tsx",
+            name,
+            family,
+            issue: 7,
+            reason: "r",
+            since: day,
+            expires: day,
+        });
+        writeFileSync(
+            join(root, "tools/test-quarantine.json"),
+            JSON.stringify({
+                quarantine: [entry("graphty-storybook", "Plain"), entry("graphty-storybook-shots", "Shots")],
+            }),
+        );
+        const out = join(root, "not-made-yet/quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("graphty-storybook", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [
+                ["Plain", "graphty-storybook-shots"],
+                ["Shots", "graphty-storybook-shots"],
+            ],
+        );
+    });
+});
+
 describe("planRead", () => {
     const shards = [
         { shard: "graphty-element-browser-1", package: "graphty-element" },
@@ -399,6 +490,14 @@ describe("planRead", () => {
             "full-run-only": true,
         };
         assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
+    it("also asks for a story shard's screenshot family", () => {
+        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
+        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+            "graphty-storybook|flags=off|whole",
+            "graphty-storybook|flags=off|selected",
+            "graphty-storybook-shots|flags=off|shots",
+        ]);
     });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {

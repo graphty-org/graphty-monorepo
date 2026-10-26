@@ -18,6 +18,44 @@ describe("createGraphSession", () => {
         session.dispose();
     });
 
+    it("tells its watchers once that it was disposed, when it no longer answers", () => {
+        const session = createGraphSession();
+        const seen: boolean[] = [];
+        session.on("session:disposed", () => {
+            seen.push(session.status.ready);
+        });
+
+        session.dispose();
+        session.dispose();
+
+        assert.deepEqual(seen, [false], "once, and already not ready");
+    });
+
+    it("tells a watcher that subscribes after the disposal, too", async () => {
+        const session = createGraphSession();
+        session.dispose();
+        const told = new Promise<void>((resolve) => {
+            session.on("session:disposed", () => {
+                resolve();
+            });
+        });
+
+        await told;
+        assert.isFalse(session.status.ready);
+    });
+
+    it("does not tell a late watcher that stopped before the disposal was announced", async () => {
+        const session = createGraphSession();
+        session.dispose();
+        let told = false;
+        session.on("session:disposed", () => {
+            told = true;
+        })();
+
+        await Promise.resolve();
+        assert.isFalse(told);
+    });
+
     it("takes the element's own data defaults when it is given no configuration", () => {
         const session = createGraphSession();
 

@@ -31,7 +31,14 @@ export function variantsOf(shards, affected) {
     const families = new Set(
         shards.filter((s) => !s["full-run-only"] && affected.includes(s.package)).map((s) => familyOf(s.shard)),
     );
-    return [...families].sort().flatMap((f) => [`${f}|flags=off|whole`, `${f}|flags=off|selected`]);
+    // a story shard's screenshot run (ci.yml's story-tests job) is a family of its own, `<family>-shots`
+    return [...families]
+        .sort()
+        .flatMap((f) => [
+            `${f}|flags=off|whole`,
+            `${f}|flags=off|selected`,
+            ...(f.endsWith("storybook") ? [`${f}-shots|flags=off|shots`] : []),
+        ]);
 }
 
 /**

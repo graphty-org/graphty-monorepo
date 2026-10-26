@@ -25,6 +25,7 @@ import {
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -1979,11 +1980,26 @@ export function projectOf(
             }
         },
         async open(source, options = {}) {
-            const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
+            // Its place in the session's load line is taken now, before the file is read, so a
+            // load asked for before the open lands before it, and one asked for after lands after
+            // it, whichever read finishes first (issue #3525). The autosave restore opens here too.
+            const line = loadLineOf(dispatcher);
+            const turn = line.join();
+            let doc: ReturnType<typeof graphtyDocumentOf>;
+            let text: string;
+            try {
+                text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
+                doc = graphtyDocumentOf(text);
+            } catch (error) {
+                // An unreadable or refused file gives its place up, so nothing waits behind it.
+                turn.leave();
+                throw error;
+            }
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
-            const doc = graphtyDocumentOf(text);
             if (doc === undefined) {
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
+                // Nothing is loaded until its draft is, which takes a place of its own.
+                turn.leave();
                 const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
                 return Object.freeze({
                     opened: "graph" as const,
@@ -1999,11 +2015,11 @@ export function projectOf(
             const problems = [...doc.problems];
             const restored = new Set<ProjectSlice>();
 
-            if (isProject) {
-                await openProject(doc, fileName, options.discard === true, problems, restored);
-            } else {
-                await openDocument(doc, problems, restored, options.history === "start");
-            }
+            await line.opening(turn, () =>
+                isProject
+                    ? openProject(doc, fileName, options.discard === true, problems, restored)
+                    : openDocument(doc, problems, restored, options.history === "start"),
+            );
 
             return Object.freeze({
                 opened: isProject ? "project" : "document",

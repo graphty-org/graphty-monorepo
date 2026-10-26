@@ -27,14 +27,23 @@
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { shardKeys } from "../prepush-inputs.mjs";
 import { failureHashes, familyOf, headFacts, newRunId, parseJunit } from "../test-ledger.mjs";
-import { closedIssues, emptyState, fileIssue, PASSES_TO_LEAVE, quarantined, runShard } from "../test-quarantine.mjs";
+import {
+    activeList,
+    closedIssues,
+    committedList,
+    emptyState,
+    fileIssue,
+    PASSES_TO_LEAVE,
+    quarantined,
+    runShard,
+} from "../test-quarantine.mjs";
 import { call, config, flushHealth, postInvocation, readPlan, sendHealth } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 
@@ -467,7 +476,7 @@ export async function runGroup(
         return 2;
     }
     const { variant } = groupShape({ shardName, shard, command, env });
-    const family = familyOf(shardName);
+    const family = groupFamily(shardName, env);
     const head = headFacts(root, env);
     // no file (the full path), an unreadable one or a store outage: the committed list stands
     let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
@@ -482,6 +491,18 @@ export async function runGroup(
                   judge: prJudge(plan, { shard: shardName, family, variant, base: plan.base ?? head.base }),
               }
             : {};
+    rules.family = family;
+    rules.list ??= activeList(committedList(root), emptyState());
+    // the gate never writes a screenshot run's own family (`<family>-shots`; only the store's plan holds it), so
+    // the shard's committed quarantine counts for it too
+    const base = familyOf(shardName);
+    if (family !== base) rules.list = rules.list.map((q) => (q.family === base ? { ...q, family } : q));
+    // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
+    if (env.RESULTS_QUARANTINE_OUT) {
+        const quarantine = rules.list.filter((q) => q.family === family);
+        mkdirSync(dirname(env.RESULTS_QUARANTINE_OUT), { recursive: true });
+        writeFileSync(env.RESULTS_QUARANTINE_OUT, `${JSON.stringify({ quarantine }, null, 4)}\n`);
+    }
     if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL)
         return runShard(shardName, cmd, { root, env, state: emptyState(), ...rules });
     const id = baseId(shardName, env);
@@ -520,7 +541,7 @@ export async function runGroup(
 export function groupShape({ shardName, shard, command, env }) {
     const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
-    const variant = env.RESULTS_VARIANT || `${familyOf(shardName)}|flags=${flags}|${selected ? "selected" : "whole"}`;
+    const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
     return { flags, selected, variant };
 }
 
@@ -537,7 +558,36 @@ export function groupShape({ shardName, shard, command, env }) {
  */
 export function groupKeys({ shardName, shard, command, cmd, env, shardKey }) {
     const { flags, selected, variant } = groupShape({ shardName, shard, command, env });
-    return { variant, inputs: inputsKey({ shardKey, env: envString(env), flags, extra: selected ? cmd : "" }) };
+    const extra = (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? "\nshots" : "");
+    return { variant, inputs: inputsKey({ shardKey, env: envString(env), flags, extra }) };
+}
+
+/**
+ * The family a run's history, flaky detection and quarantine are kept under (the variant's first part, which the
+ * results service files by): the shard's family, or for a story-tests run that takes screenshots (ci.yml's
+ * story-tests job) a family of its own, `<family>-shots`, so a story unstable only when screenshotted never
+ * excuses a failure in the plain storybook shard, and the algorithms and layout legs never mix into the
+ * algorithms-browser and layout unit tests' history.
+ * @param shardName the shard the run is named after
+ * @param env the environment
+ * @returns the family
+ */
+export function groupFamily(shardName, env) {
+    return env.VISUAL_REVIEW_STORY_OUT ? `${familyOf(shardName)}-shots` : familyOf(shardName);
+}
+
+/**
+ * A run's shape, the last part of its variant: `shots` for a story-tests run that also takes and compares every
+ * story's screenshot (VISUAL_REVIEW_STORY_OUT set, ci.yml's story-tests job), which runs a storybook shard's
+ * stories under the same shard name as the plain test job (its family is groupFamily()'s); else `selected` for
+ * a narrower command than the shard's own, `whole` for the shard's own.
+ * @param env the environment
+ * @param selected whether the command is not the shard's own
+ * @returns "shots", "selected" or "whole"
+ */
+export function runShape(env, selected) {
+    if (env.VISUAL_REVIEW_STORY_OUT) return "shots";
+    return selected ? "selected" : "whole";
 }
 
 /**

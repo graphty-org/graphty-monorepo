@@ -594,6 +594,15 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     if (full) {
         lanes.land = "not in this mode";
         lanes.publish = "not in this mode";
+        // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
+        // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
+        // so a lane whose Red early job skipped passed, whatever its jobs show.
+        for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
+            const early = jobs.find((j) => j.name === `Red early (${name})`);
+            if (lanes[lane] === "failed" && early?.status === "completed" && early.conclusion === "skipped") {
+                lanes[lane] = "passed";
+            }
+        }
     }
     const tested = TESTING.some((l) => lanes[l] !== "skipped" && lanes[l] !== "absent");
     const red = (Object.keys(lanes) as Lane[]).filter((l) => lanes[l] === "failed");
@@ -761,4 +770,29 @@ export const npmName = (project: string): string => (project.startsWith("@") ? p
 /** Tags whose version npm does not list; `times` maps npm name to its packument `time` (undefined: 404). */
 export function taggedNotOnNpm(tags: Tag[], times: Map<string, Record<string, string> | undefined>): Tag[] {
     return tags.filter((t) => !NOT_ON_NPM.has(t.project) && !times.get(npmName(t.project))?.[t.version]);
+}
+
+/** A compare (base...master) commit: its sha, parents and committer date. */
+export interface CompareCommit {
+    sha: string;
+    parents: { sha: string }[];
+    commit: { committer: { date: string } };
+}
+
+/**
+ * The commit date of the oldest commit on master's first-parent line after the tested base, or undefined when master
+ * is the base. Only that line landed on master: a pull request branch's own merge of master (a second-parent ancestor)
+ * can be a day older than its landing and must not age master.
+ * @param commits the compare's commits, oldest first, master's head last
+ * @returns the oldest first-parent commit's date in ms
+ */
+export function oldestUntested(commits: CompareCommit[]): number | undefined {
+    const bySha = new Map(commits.map((c) => [c.sha, c]));
+    let at = commits.at(-1);
+    let oldest: number | undefined;
+    while (at) {
+        oldest = Date.parse(at.commit.committer.date);
+        at = bySha.get(at.parents[0]?.sha ?? "");
+    }
+    return oldest;
 }

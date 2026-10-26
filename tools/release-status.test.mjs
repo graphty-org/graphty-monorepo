@@ -81,6 +81,41 @@ describe("statusComment", () => {
         assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
     });
 
+    it("announces a promoted nightly, and a nightly whose site deploy failed as a failure", () => {
+        const promoted = statusComment("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0,b@2.0.0" });
+        assert.match(
+            promoted,
+            /\*\*Nightly promoted\*\*: abcdef1 is on nightly.graphty.app and npm `next` holds a@1.0.0, b@2.0.0\./,
+        );
+        assert.match(
+            statusComment("nightly", { run: RUN, sha: "abcdef123" }),
+            /no package changed, so npm `next` did not move/,
+        );
+        const failed = statusComment("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" });
+        assert.match(
+            failed,
+            /\*\*Nightly site deploy failed\*\* on abcdef1: npm `next` and nightly.graphty.app now differ\. Details: #77\./,
+        );
+        assert.equal(reportsFailure(promoted, RUN, "1"), false);
+        assert.equal(reportsFailure(failed, RUN, "1"), true, "the release-watch backstop does not report it twice");
+        assert.equal(pushMessage("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0" }).title, "Nightly PROMOTED");
+        assert.equal(pushMessage("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" }).priority, "1");
+        const held = statusComment("nightly-held", {
+            run: RUN,
+            sha: "abcdef123",
+            issue: "78",
+            what: "landing on master",
+        });
+        assert.match(
+            held,
+            /\*\*Nightly promotion failed\*\* on abcdef1: landing on master did not finish[^\n]*Details: #78\./,
+        );
+        assert.doesNotMatch(held, /Release held/);
+        assert.equal(reportsFailure(held, RUN, "1"), true, "the backstop does not report it twice");
+        const push = pushMessage("nightly-held", { run: RUN, sha: "abcdef123", issue: "78" });
+        assert.deepEqual([push.title, push.priority], ["Nightly PROMOTION FAILED", "1"]);
+    });
+
     it("refuses an unknown outcome", () => {
         // no release pull request any more: the train publishes directly (owner decision, 2026-10-11)
         for (const gone of ["skipped", "opened", "dequeued"]) {

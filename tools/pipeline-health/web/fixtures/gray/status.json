@@ -1,0 +1,928 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "categories": [
+        {
+            "id": "master",
+            "state": "bad",
+            "setBy": {
+                "member": "master.same_check",
+                "state": "bad",
+                "value": {
+                    "n": 5
+                },
+                "fact": {
+                    "code": "short.same_check",
+                    "params": {
+                        "prs": 5,
+                        "check": "Test (graphty-*)"
+                    }
+                }
+            },
+            "others": [
+                {
+                    "member": "master.green_time",
+                    "state": "bad",
+                    "value": {
+                        "n": 40,
+                        "unit": "pct"
+                    }
+                }
+            ],
+            "headline": {
+                "state": "bad",
+                "window": "1h",
+                "sla": {
+                    "target": {
+                        "op": ">=",
+                        "n": 92,
+                        "unit": "pct"
+                    },
+                    "red": {
+                        "op": "<",
+                        "n": 75,
+                        "unit": "pct"
+                    }
+                },
+                "link": "/master/red",
+                "id": "master.green_time",
+                "value": {
+                    "n": 40,
+                    "unit": "pct"
+                },
+                "value6h": {
+                    "n": 49,
+                    "unit": "pct"
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+                    "trend": [
+                        100, 100, 100, 100, 100, 100, 100, 100, 92, 72, 52, 33, 22, 21, 21, 20, 20, 20, 20, 20, 25, 35,
+                        45, 55
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 92
+                },
+                "note": {
+                    "code": "master.green_time.def"
+                }
+            }
+        },
+        {
+            "id": "pull-requests",
+            "state": "ok",
+            "others": [],
+            "headline": {
+                "state": "partial",
+                "window": "1h6h",
+                "sla": {
+                    "target": {
+                        "op": "<=",
+                        "n": 60,
+                        "unit": "min"
+                    },
+                    "red": {
+                        "op": ">",
+                        "n": 180,
+                        "unit": "min"
+                    },
+                    "needs6h": true
+                },
+                "link": "/pull-requests",
+                "id": "pull-requests.time_to_merge",
+                "value": null,
+                "value6h": {
+                    "n": 74,
+                    "unit": "min"
+                },
+                "n": 2,
+                "minN": 5,
+                "spark": {
+                    "step": "15m",
+                    "ctx": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        48,
+                        55
+                    ],
+                    "trend": [
+                        56, 57, 58, 59, 61, 63, 65, 68, 69, 67, 66, 65, 65, 67, 69, 71, 72, 73, 74, 75, 76, 77, 78, 78
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn"
+                    ],
+                    "target": 60
+                },
+                "covered": {
+                    "h": 0.4,
+                    "of": 1
+                }
+            }
+        },
+        {
+            "id": "ci",
+            "state": "bad",
+            "setBy": {
+                "member": "ci.runner_wait",
+                "state": "bad",
+                "value": {
+                    "n": 31,
+                    "unit": "min"
+                }
+            },
+            "others": [
+                {
+                    "member": "ci.longest_queued",
+                    "state": "bad",
+                    "value": {
+                        "n": 68,
+                        "unit": "min"
+                    }
+                },
+                {
+                    "member": "ci.saturated",
+                    "state": "bad",
+                    "value": {
+                        "n": 60,
+                        "unit": "min"
+                    }
+                },
+                {
+                    "member": "ci.first_attempt",
+                    "state": "bad",
+                    "value": {
+                        "n": 55,
+                        "unit": "pct"
+                    }
+                }
+            ],
+            "headline": {
+                "state": "bad",
+                "window": "1h",
+                "sla": {
+                    "target": {
+                        "op": "<=",
+                        "n": 5,
+                        "unit": "min"
+                    },
+                    "red": {
+                        "op": ">",
+                        "n": 15,
+                        "unit": "min"
+                    }
+                },
+                "link": "/ci/runners",
+                "id": "ci.runner_wait",
+                "value": {
+                    "n": 31,
+                    "unit": "min"
+                },
+                "value6h": {
+                    "n": 24,
+                    "unit": "min"
+                },
+                "n": 168,
+                "minN": 20,
+                "spark": {
+                    "step": "15m",
+                    "ctx": [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 2.4, 4.5],
+                    "trend": [
+                        5.4, 6.83, 8.27, 9.7, 11.13, 12.57, 14, 15.5, 16.47, 17.44, 18.41, 19.38, 20.34, 21.31, 22.28,
+                        23.25, 24.22, 25.19, 26.16, 27.13, 28.09, 29.06, 30.03, 31
+                    ],
+                    "breach": [
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 5
+                }
+            }
+        },
+        {
+            "id": "flaky",
+            "state": "bad",
+            "setBy": {
+                "member": "flaky.blocked",
+                "state": "bad",
+                "value": {
+                    "n": 3
+                },
+                "fact": {
+                    "code": "short.blocked",
+                    "params": {
+                        "prs": 3
+                    }
+                }
+            },
+            "others": [
+                {
+                    "member": "flaky.no_issue",
+                    "state": "warn",
+                    "value": {
+                        "n": 2
+                    },
+                    "fact": {
+                        "code": "short.no_issue",
+                        "params": {
+                            "tests": 2
+                        }
+                    }
+                }
+            ],
+            "headline": {
+                "state": "ok",
+                "window": "1h6h",
+                "sla": {
+                    "target": {
+                        "op": "<",
+                        "n": 2,
+                        "unit": "per1000"
+                    },
+                    "red": {
+                        "op": ">",
+                        "n": 10,
+                        "unit": "per1000"
+                    },
+                    "needs6h": true
+                },
+                "link": "/flaky/hotspots",
+                "id": "flaky.flake_rate",
+                "value": {
+                    "n": 1.4,
+                    "unit": "per1000"
+                },
+                "value6h": {
+                    "n": 1.2,
+                    "unit": "per1000"
+                },
+                "n": 2140,
+                "minN": 125,
+                "covered6h": {
+                    "h": 2.8,
+                    "of": 6
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ],
+                    "trend": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        0.9,
+                        0.9,
+                        1,
+                        1.15,
+                        1.3,
+                        1.45,
+                        1.46,
+                        1.33,
+                        1.2,
+                        1.1,
+                        1.1,
+                        1.2,
+                        1.33,
+                        1.4
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ],
+                    "target": 2
+                },
+                "note": {
+                    "code": "flaky.flake_rate.note",
+                    "params": {
+                        "since": "2026-10-25T20:42:00Z"
+                    }
+                }
+            }
+        },
+        {
+            "id": "releases",
+            "state": "bad",
+            "setBy": {
+                "member": "releases.lanes_red",
+                "state": "bad",
+                "value": {
+                    "n": 2
+                },
+                "fact": {
+                    "code": "short.lanes_red",
+                    "params": {
+                        "lanes": ["audit", "t4"]
+                    }
+                }
+            },
+            "others": [
+                {
+                    "member": "releases.workflows_failing",
+                    "state": "bad",
+                    "value": {
+                        "n": 1
+                    }
+                },
+                {
+                    "member": "releases.train_skipped",
+                    "state": "warn",
+                    "value": {
+                        "word": "yes"
+                    }
+                }
+            ],
+            "headline": {
+                "state": "bad",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "op": "==",
+                        "n": 0
+                    },
+                    "red": {
+                        "code": "sla.lanes_open",
+                        "params": {
+                            "h": 6
+                        }
+                    }
+                },
+                "link": "/releases/lanes",
+                "id": "releases.lanes_red",
+                "value": {
+                    "n": 2
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                    "trend": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                    "breach": [
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 0
+                }
+            }
+        },
+        {
+            "id": "costs",
+            "state": "nodata",
+            "setBy": {
+                "member": "costs.spend",
+                "state": "nodata",
+                "value": null,
+                "fact": {
+                    "code": "short.nodata",
+                    "params": {
+                        "reason": "billing_late"
+                    }
+                }
+            },
+            "others": [],
+            "headline": {
+                "state": "nodata",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "op": "<=",
+                        "n": 300,
+                        "unit": "usd"
+                    },
+                    "red": {
+                        "op": ">",
+                        "n": 360,
+                        "unit": "usd"
+                    }
+                },
+                "link": "/costs",
+                "id": "costs.spend",
+                "value": null,
+                "reason": {
+                    "code": "nodata.source_late",
+                    "params": {
+                        "source": "billing",
+                        "h": 41
+                    }
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [
+                        232, 231.88, 231.76, 231.65, 231.53, 231.41, 231.29, 231.18, 231.06, 230.94, 230.82, 230.71,
+                        230.59, 230.47, 230.35, 230.24, 230.12, 230
+                    ],
+                    "trend": [
+                        230,
+                        230,
+                        230,
+                        230,
+                        230,
+                        230,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ],
+                    "target": 300
+                }
+            }
+        },
+        {
+            "id": "data-sources",
+            "state": "bad",
+            "setBy": {
+                "member": "data-sources.stress_run",
+                "state": "bad",
+                "value": {
+                    "word": "filed",
+                    "n": 0
+                },
+                "fact": {
+                    "code": "short.stress_filed",
+                    "params": {
+                        "filed": 0,
+                        "failures": 27
+                    }
+                }
+            },
+            "others": [],
+            "headline": {
+                "state": "ok",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "op": "==",
+                        "n": 0
+                    },
+                    "red": {
+                        "op": ">=",
+                        "n": 1
+                    }
+                },
+                "link": "/data-sources",
+                "id": "data-sources.sources_not_ok",
+                "value": {
+                    "n": 1,
+                    "of": 8
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    "trend": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    "breach": [
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 0
+                }
+            }
+        }
+    ],
+    "episodes": [
+        {
+            "id": "e1",
+            "category": "master",
+            "member": "master.same_check",
+            "worst": "bad",
+            "start": "2026-10-25T18:03:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.shared_check",
+                "params": {
+                    "check": "Test (graphty-*)",
+                    "prs": 5,
+                    "suspects": [3495, 3496, 3497]
+                }
+            },
+            "link": "/master/shared"
+        },
+        {
+            "id": "e2",
+            "category": "ci",
+            "member": "ci.saturated",
+            "worst": "bad",
+            "start": "2026-10-25T19:20:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.saturated",
+                "params": {
+                    "running": 57,
+                    "limit": 60,
+                    "queued": 235,
+                    "master_queued_min": 68
+                }
+            },
+            "link": "/ci/runners"
+        },
+        {
+            "id": "e3",
+            "category": "flaky",
+            "member": "flaky.blocked",
+            "worst": "bad",
+            "start": "2026-10-25T19:01:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.flaky_held",
+                "params": {
+                    "prs": 3,
+                    "tests": ["Football conference picker", "Find no-match line"]
+                }
+            },
+            "link": "/flaky/hotspots"
+        },
+        {
+            "id": "e4",
+            "category": "releases",
+            "member": "releases.lanes_red",
+            "worst": "bad",
+            "start": "2026-10-24T19:25:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.lanes_red",
+                "params": {
+                    "lanes": ["audit", "t4"],
+                    "sha": "a870943ef",
+                    "shadow": true
+                }
+            },
+            "link": "/releases/lanes"
+        },
+        {
+            "id": "e5",
+            "category": "releases",
+            "member": "releases.workflows_failing",
+            "worst": "bad",
+            "start": "2026-10-25T18:03:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.workflow_failing",
+                "params": {
+                    "workflow": "promote.yml",
+                    "runs": 131,
+                    "fix": 3577,
+                    "fix_waits_owner": true
+                }
+            },
+            "link": "/releases/workflows"
+        },
+        {
+            "id": "e6",
+            "category": "releases",
+            "member": "releases.train_skipped",
+            "worst": "warn",
+            "start": "2026-10-25T18:00:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.train_skipped",
+                "params": {
+                    "attempt": "2026-10-25T18:00:00Z",
+                    "sha": "1fa254bf3"
+                }
+            },
+            "link": "/releases/trains"
+        },
+        {
+            "id": "e7",
+            "category": "data-sources",
+            "member": "data-sources.stress_run",
+            "worst": "bad",
+            "start": "2026-10-25T08:42:00Z",
+            "end": null,
+            "fact": {
+                "code": "ep.stress_filing",
+                "params": {
+                    "filed": 0,
+                    "failures": 27,
+                    "cap": 25
+                }
+            },
+            "link": "/data-sources/stress"
+        },
+        {
+            "id": "e8",
+            "category": "master",
+            "member": "master.red_now",
+            "worst": "bad",
+            "start": "2026-10-25T20:01:00Z",
+            "end": "2026-10-25T23:06:00Z",
+            "fact": {
+                "code": "ep.no_green",
+                "params": {
+                    "h": 3.1,
+                    "builds": 11,
+                    "step": "Upload source maps to Sentry"
+                }
+            },
+            "link": "/master/red"
+        },
+        {
+            "id": "e9",
+            "category": "master",
+            "member": "master.same_check",
+            "worst": "warn",
+            "start": "2026-10-25T19:48:00Z",
+            "end": "2026-10-25T20:20:00Z",
+            "fact": {
+                "code": "ep.aggregator_alone",
+                "params": {
+                    "check": "All Checks Pass",
+                    "prs": 2,
+                    "signature": "Argument list too long"
+                }
+            },
+            "link": "/master/shared"
+        },
+        {
+            "id": "e10",
+            "category": "master",
+            "member": "master.same_check",
+            "worst": "warn",
+            "start": "2026-10-25T20:15:00Z",
+            "end": "2026-10-25T20:52:00Z",
+            "fact": {
+                "code": "ep.shared_check",
+                "params": {
+                    "check": "Checks",
+                    "step": "Figma lock",
+                    "prs": 3,
+                    "suspects": []
+                }
+            },
+            "link": "/master/shared"
+        }
+    ],
+    "sources": [
+        {
+            "id": "collector",
+            "lastWrite": "2026-10-25T23:28:00Z",
+            "limitS": 900,
+            "state": "ok"
+        },
+        {
+            "id": "ci-results",
+            "lastWrite": "2026-10-25T23:26:00Z",
+            "limitS": 7200,
+            "state": "ok"
+        },
+        {
+            "id": "ci-timings",
+            "lastWrite": "2026-10-25T23:26:00Z",
+            "limitS": 7200,
+            "state": "ok"
+        },
+        {
+            "id": "releases",
+            "lastWrite": "2026-10-25T18:24:00Z",
+            "limitS": 25200,
+            "state": "ok"
+        },
+        {
+            "id": "npm",
+            "lastWrite": "2026-10-25T22:52:00Z",
+            "limitS": 10800,
+            "state": "ok"
+        },
+        {
+            "id": "stress",
+            "lastWrite": "2026-10-25T09:30:00Z",
+            "limitS": 691200,
+            "state": "bad"
+        },
+        {
+            "id": "hosts",
+            "lastWrite": "2026-10-25T04:30:00Z",
+            "limitS": 108000,
+            "state": "ok"
+        },
+        {
+            "id": "billing",
+            "lastWrite": "2026-10-24T06:30:00Z",
+            "limitS": 129600,
+            "state": "nodata"
+        },
+        {
+            "id": "flaky-feed",
+            "lastWrite": null,
+            "limitS": null,
+            "state": "notsetup"
+        },
+        {
+            "id": "local",
+            "lastWrite": "2026-10-25T14:30:00Z",
+            "limitS": null,
+            "state": "idle"
+        }
+    ]
+}

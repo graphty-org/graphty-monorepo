@@ -80,6 +80,11 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
+    // CI causes (section 2.6): why each failed first attempt of a pull request run failed.
+    {
+        id: "ci.first_attempt_cause",
+        from: [src("run", "completedAt", (r) => (r.cause ? { dim: r.cause } : null))],
+    },
     {
         id: "ci.hangs",
         from: [src("job", "completedAt", (j) => ({ sum: j.hang ? 1 : 0, dim: j.workflow }))],

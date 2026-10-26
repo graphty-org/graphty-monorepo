@@ -26,7 +26,9 @@ import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } fro
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
 import {
+    causes,
     dimBars,
+    holders,
     hotspots,
     jobs,
     masterStrip,
@@ -36,7 +38,9 @@ import {
     notSetUpTable,
     redSpans,
     shards,
+    shared,
     sourcesTable,
+    superseded,
 } from "./sections.js";
 
 export type ViewBody = StatusResponse | OverviewResponse | PageResponse | SectionResponse;
@@ -250,12 +254,12 @@ class Builder {
         switch (page) {
             case "master": {
                 const strip = await masterStrip(this.reads, range);
-                return [strip ?? notCollected("red"), redSpans(strip, this.reads.now), ...empty];
+                return [strip ?? notCollected("red"), redSpans(strip, this.reads.now), await shared(this.reads)];
             }
             case "ci":
-                return [...empty, await shards(this.reads, "7d", "full")];
+                return [await causes(this.reads, range), await shards(this.reads, "7d", "full")];
             case "runners":
-                return [await jobs(this.reads, range), ...empty];
+                return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];
             case "flaky":
                 return [await hotspots(this.reads, "7d"), ...empty];
             case "data-sources":

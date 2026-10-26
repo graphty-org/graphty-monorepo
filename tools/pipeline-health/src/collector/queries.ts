@@ -10,9 +10,9 @@ const PR_BASE = `
 
 /** Open pull requests also carry their head's checks, for the stocks (4.1 red on the same check, 4.2). */
 const PR_CHECKS = `
-  commits(last: 1) { nodes { commit { statusCheckRollup { state
+  commits(last: 1) { nodes { commit { oid committedDate statusCheckRollup { state
     contexts(first: 100) { nodes { __typename
-      ... on CheckRun { name status conclusion }
+      ... on CheckRun { name status conclusion startedAt }
       ... on StatusContext { context state createdAt } } } } } } }`;
 
 /**

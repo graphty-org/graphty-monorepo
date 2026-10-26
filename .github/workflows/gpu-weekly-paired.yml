@@ -50,7 +50,7 @@ jobs:
         steps:
             # Before checkout: a bare ubuntu:24.04 has no git. The packages are gpu.yml's bootstrap (see its comment
             # for each one) plus gh, which the regression-issue step below calls.
-            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, gh)
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm, gh)
               working-directory: /
               run: |
                   apt-get update

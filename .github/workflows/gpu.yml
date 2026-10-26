@@ -128,7 +128,7 @@ jobs:
             # container reports no adapter; libegl1 because Dawn's NVIDIA ICD dlopen()s libEGL.so.1; sudo because
             # `playwright install --with-deps` shells out to it when it is present and apt otherwise; libatomic1 because
             # pnpm/action-setup v6 installs the standalone @pnpm/exe binary, which links libatomic.so.1 (run 40247287810).
-            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn)
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm)
               working-directory: /
               run: |
                   apt-get update
@@ -151,7 +151,7 @@ jobs:
             - name: Container floor and driver passthrough (the image facts of G0 rows F1-F3, F5, F6, F7, F9)
               run: |
                   { grep PRETTY_NAME /etc/os-release; ldd --version | head -1; uname -r
-                    dpkg-query -W -f '${Package} ${Version}\n' libvulkan1 libegl1 libgl1
+                    dpkg-query -W -f '${Package} ${Version}\n' libvulkan1 libegl1 libgl1 libatomic1
                     ls -1 /usr/share/vulkan/icd.d /etc/vulkan/icd.d 2>&1 | head -12
                     ls -1 /usr/share/glvnd/egl_vendor.d 2>&1 | head -5
                     echo "DISPLAY=${DISPLAY:-unset}"; } || true

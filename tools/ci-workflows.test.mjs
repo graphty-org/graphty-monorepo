@@ -2743,6 +2743,11 @@ describe("gpu.yml", () => {
                 // the whole apt-get install command, with its backslash-continued lines
                 const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
                 assert.match(install, /\blibvulkan1 libegl1\b/, where);
+                assert.match(
+                    install,
+                    /\blibatomic1\b/,
+                    `${where}: pnpm/action-setup v6 runs @pnpm/exe, which links libatomic.so.1`,
+                );
                 assert.doesNotMatch(body, /modprobe/, `${where}: a container cannot load kernel modules`);
                 if (/\bgh (issue|api|pr|run) /.test(body)) {
                     assert.match(install, /\sgh\s/, `${where}: calls gh, so installs it`);

@@ -4558,21 +4558,18 @@ describe("release.yml", () => {
 
         it("keeps the site of every green CI run of a push to master as site-<sha>", () => {
             assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
-            assert.match(
-                job(deploy, "check"),
-                /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
-            );
             const build = job(deploy, "build");
-            assert.doesNotMatch(build, /\n {8}if:/, "the site is assembled on every green master build");
+            assert.match(
+                build,
+                /if: \$\{\{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' \}\}/,
+            );
             assert.match(
                 build,
                 /name: site-\$\{\{ env.SHA \}\}\n\s+path: site-\$\{\{ env.SHA \}\}.tar\n\s+retention-days: 14/,
             );
-            assert.match(
-                build,
-                /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n\s+uses: actions\/upload-pages-artifact/,
-            );
-            assert.match(job(deploy, "deploy"), /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}/);
+            // the build job never deploys: the deploy job publishes master's newest site, whichever run it is in
+            assert.doesNotMatch(build, /upload-pages-artifact|site\.json/);
+            assert.match(job(deploy, "deploy"), /needs: build\n/);
             assert.doesNotMatch(
                 deploy,
                 /^concurrency:/m,
@@ -4580,218 +4577,167 @@ describe("release.yml", () => {
             );
         });
 
-        // The check job's script, against a stub curl (canary's live stamp, or nothing when canary does not
-        // answer) and a stub gh (this repository's Pages domain, and how this commit compares with the live one)
+        // The deploy job's decision, against a stub curl (canary's page, or nothing when canary does not answer)
+        // and a stub gh (the Pages domain, master's newest green build, the deployments list, the compare and the
+        // newest build's site-<sha> artifact; null makes that call fail). Run as GitHub runs a step: bash -e -o pipefail.
         const decide = ({
+            sha = "abc1111",
+            newest = "abc9999",
             live = "0ddba11",
             compare = "ahead",
             cname = "canary.graphty.app",
-            pagesFails = false,
             code = 200,
             cut = false,
-            newest = "abc1",
-            order = "ahead",
             deployments = 1,
-            jobName = "check",
+            artifact = "42",
         } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
+            const page =
+                live === ""
+                    ? "<html></html>"
+                    : `<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">`;
             writeFileSync(
                 join(bin, "curl"),
-                // like curl -o <file> -w '%{http_code}': the page into the file, the status on stdout, 000 unreached
                 `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n` +
                     (live === null
                         ? `printf 000\nexit 6\n`
                         : cut
-                          ? // the headers arrived, then the body broke off: curl still prints the status, and fails
-                            `echo '<html><head>' > "$out"\nprintf ${code}\nexit 28\n`
-                          : `echo '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">' > "$out"\nprintf ${code}\n`),
+                          ? `echo '<html><head>' > "$out"\nprintf ${code}\nexit 28\n`
+                          : `echo '${page}' > "$out"\nprintf ${code}\n`),
                 { mode: 0o755 },
             );
+            const answer = (v) => (v === null ? "exit 1" : `echo "${v}"`);
             writeFileSync(
                 join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${pagesFails ? "exit 1" : `echo "${cname}"`};;\n` +
-                    `*/workflows/ci.yml/runs*) ${newest === null ? "exit 1" : `echo "${newest}"`};;\n` +
-                    `*/deployments*) ${deployments === null ? "exit 1" : `echo ${deployments}`};;\n` +
-                    `*/compare/abc1...*) ${order === null ? "exit 1" : `echo ${order}`};;\n` +
-                    `*) ${compare === null ? "exit 1" : `echo ${compare}`};;\nesac\n`,
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${answer(cname)};;\n` +
+                    `*/workflows/ci.yml/runs*) ${answer(newest)};;\n*/deployments*) ${answer(deployments)};;\n` +
+                    `*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
                 { mode: 0o755 },
             );
-            const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, jobName)}\n\n`)[1];
+            const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, "deploy")}\n\n`)[1];
             const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
-            const r = spawnSync("bash", ["-e", "-c", script], {
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
                 encoding: "utf8",
                 env: {
                     ...process.env,
-                    SHA: "abc1",
+                    SHA: sha,
                     CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
                     RUNNER_TEMP: dir,
                     GITHUB_RUN_ID: "7",
                     GITHUB_RUN_ATTEMPT: "2",
-                    GITHUB_JOB: jobName,
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
             });
-            assert.equal(r.status, 0, r.stderr);
+            const output = readFileSync(out, "utf8");
             const result = {
-                deploy: /deploy=\w+/.exec(readFileSync(out, "utf8"))[0],
-                newer: /newer=(\w+)/.exec(readFileSync(out, "utf8"))?.[1] ?? "",
+                status: r.status,
+                deploy: /deploy=(\w+)/.exec(output)?.[1] ?? "",
+                sha: /sha=(\w+)/.exec(output)?.[1] ?? "",
+                run: /run=(\w+)/.exec(output)?.[1] ?? "",
                 curl: existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "",
+                gh: existsSync(join(dir, "gh.log")) ? readFileSync(join(dir, "gh.log"), "utf8") : "",
             };
             rmSync(dir, { recursive: true, force: true });
             return result;
         };
+        const deploys = (o) => {
+            const r = decide(o);
+            return [r.status, r.deploy, r.sha, r.run];
+        };
 
-        it("deploys every green master build to canary.graphty.app, release or not (#3467)", () => {
+        it("deploys master's newest green build's site from that build's own run, whichever run gets here (#3618 review)", () => {
             // no commit-message rule: an ordinary merge deploys
             assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
-            const first = decide();
-            assert.equal(first.deploy, "deploy=true");
+            // this run is for abc1111, master's newest green build is abc9999: abc9999's site is deployed, from its run 42
+            assert.deepEqual(deploys(), [0, "true", "abc9999", "42"]);
+            const r = decide();
+            assert.match(r.gh, /workflows\/ci\.yml\/runs\?branch=master&event=push&status=success&per_page=1/);
+            assert.match(r.gh, /compare\/0ddba11\.\.\.abc9999/);
+            assert.match(r.gh, /actions\/artifacts\?name=site-abc9999/);
             assert.match(
-                first.curl,
-                /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2-check\n$/,
+                r.curl,
+                /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2\n$/,
             );
-            // the stamp is read from canary, never from graphty.app, which graphty-site serves
-            assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);
-            assert.match(job(deploy, "check"), /CANARY_URL: https:\/\/canary\.graphty\.app\/\n/);
-            // a canary that does not answer gets nothing (a failed read must never move canary back);
-            // one that answers with no stamp (before its first deploy of a stamped build) gets one
-            assert.equal(decide({ live: null }).deploy, "deploy=false");
-            assert.equal(decide({ live: "" }).deploy, "deploy=true");
-            // a 404 is "no site yet" only while Pages has never deployed: a 404 after a deploy (the CDN between
-            // two deploys) is a failed read, so an older build never moves canary back (#3618 review)
-            assert.equal(decide({ live: "abc1", code: 404, deployments: 0 }).deploy, "deploy=true");
-            assert.equal(decide({ live: "abc1", code: 404 }).deploy, "deploy=false");
-            assert.equal(decide({ live: "abc1", code: 404, deployments: null }).deploy, "deploy=false");
-            // any other status is a failed read, not "no stamp": a 503 or a 429 must never move canary back
-            assert.equal(decide({ live: "abc0", code: 503 }).deploy, "deploy=false");
-            assert.equal(decide({ live: "abc0", code: 429 }).deploy, "deploy=false");
-            // a body that breaks off after a 200 (curl exits 28 or 56) is a failed read too, not "no stamp"
-            assert.equal(decide({ live: "abc0", cut: true }).deploy, "deploy=false");
+            // this run's own build is the newest: it deploys its own site
+            assert.deepEqual(deploys({ sha: "abc9999" }), [0, "true", "abc9999", "42"]);
+            // the download, the site.json and the Pages upload all take the chosen build's site
+            const job_ = job(deploy, "deploy");
+            assert.match(
+                job_,
+                /name: site-\$\{\{ steps.live.outputs.sha \}\}\n\s+path: \.\/site\/\n\s+run-id: \$\{\{ steps.live.outputs.run \}\}/,
+            );
+            assert.ok(job_.indexOf("tar -xf") < job_.indexOf("canary.json > public/site.json"));
+            assert.ok(job_.indexOf("canary.json > public/site.json") < job_.indexOf("upload-pages-artifact"));
+            assert.match(
+                job_,
+                /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
+            );
+            // no hand-off to another run: nothing re-runs a run, finds one by name, or needs actions: write
+            assert.doesNotMatch(deploy, /Hand off|gh run rerun|display_title|actions: write/);
+            assert.equal(
+                JSON.parse(readFileSync(new URL("../graphty/sites/canary.json", import.meta.url), "utf8")).site,
+                "canary",
+            );
             // the custom domain is this repository's Pages setting; the site carries no CNAME file
             assert.doesNotMatch(
                 deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),
                 /CNAME/,
             );
-            assert.match(job(deploy, "deploy"), /uses: actions\/deploy-pages@/);
         });
 
-        it("deploys nothing while this repository's Pages domain is not canary.graphty.app", () => {
-            // before the domain swap the domain is graphty.app, which only promotion may move
-            assert.deepEqual(decide({ cname: "graphty.app" }), { deploy: "deploy=false", newer: "", curl: "" });
-            assert.equal(decide({ cname: "" }).deploy, "deploy=false");
-            // a Pages API error deploys nothing and does not fail the job, so the build job still keeps the site
-            assert.equal(decide({ pagesFails: true }).deploy, "deploy=false");
-            assert.match(job(deploy, "build"), /needs: check\n/);
-        });
-
-        it("asks again in the deploy job, right before it deploys, with the same script", () => {
-            const step = (name) =>
-                /- id: live\n[\s\S]*?echo "deploy=true" >> "\$GITHUB_OUTPUT"\n/.exec(job(deploy, name))[0];
-            // the same script, plus the newest-green-build check, which only the deploy job makes
-            assert.equal(
-                step("deploy").replace(/ +# Only master's newest[\s\S]*?\n {18}fi\n(?= {18}echo "deploy=true")/, ""),
-                step("check"),
+        it("deploys nothing when canary already serves the newest build, or something newer", () => {
+            assert.deepEqual(deploys({ live: "abc9999" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "behind" }), [0, "false", "", ""]);
+            assert.deepEqual(deploys({ compare: "identical" }), [0, "false", "", ""]);
+            // a canary on a commit off master's line is replaced
+            assert.deepEqual(deploys({ compare: "diverged" }), [0, "true", "abc9999", "42"]);
+            // the newest build's site is not assembled yet: that build's own run deploys it
+            assert.deepEqual(deploys({ artifact: "" }), [0, "false", "", ""]);
+            // before the domain swap the domain is graphty.app, which only promotion may move: canary is not read
+            assert.deepEqual(
+                [decide({ cname: "graphty.app" }).deploy, decide({ cname: "graphty.app" }).curl],
+                ["false", ""],
             );
-            assert.match(
-                job(deploy, "deploy"),
-                /- name: Deploy to GitHub Pages\n\s+if: \$\{\{ steps.live.outputs.deploy == 'true' \}\}\n/,
-            );
+            // the very first deploy: canary answers 404 and github-pages has never deployed
+            assert.deepEqual(deploys({ code: 404, deployments: 0 }), [0, "true", "abc9999", "42"]);
         });
 
-        it("does not deploy a commit canary already serves, or one older than canary's", () => {
-            assert.equal(decide({ live: "abc1" }).deploy, "deploy=false");
-            assert.equal(decide({ compare: "behind" }).deploy, "deploy=false");
-            assert.equal(decide({ compare: "identical" }).deploy, "deploy=false");
-            // a compare that fails deploys nothing; a canary on a commit off master's line is replaced
-            assert.equal(decide({ compare: null }).deploy, "deploy=false");
-            assert.equal(decide({ compare: "diverged" }).deploy, "deploy=true");
-        });
-
-        it("deploys only master's newest green build, and hands an ended newer deploy back (#3618 review)", () => {
-            const d = (o) => decide({ jobName: "deploy", ...o });
-            // a newer green build exists: this older one does not deploy, and names it for the hand-off
-            assert.deepEqual([d({ newest: "abc9" }).deploy, d({ newest: "abc9" }).newer], ["deploy=false", "abc9"]);
-            // the newest green build is this one, or an older one (a re-run of an older CI run): canary decides
-            assert.equal(d({}).deploy, "deploy=true");
-            assert.equal(d({ newest: "abc9", order: "behind" }).deploy, "deploy=true");
-            // the list or the compare cannot be read: a failed read deploys nothing and hands nothing off
-            for (const o of [{ newest: null }, { newest: "" }, { newest: "abc9", order: null }]) {
-                assert.deepEqual([d(o).deploy, d(o).newer], ["deploy=false", ""]);
+        it("fails the job, deploying nothing, on every read that fails, so master-guard reports it (#3618 review)", () => {
+            for (const o of [
+                { cname: null }, // the Pages settings
+                { newest: null }, // the CI runs list
+                { newest: "" },
+                { live: null }, // canary does not answer
+                { code: 503 },
+                { code: 429 },
+                { cut: true }, // a body that breaks off after a 200
+                { live: "" }, // a 200 with no build stamp
+                { code: 404 }, // a 404 after github-pages has deployed
+                { code: 404, deployments: null },
+                { compare: null }, // a stamp commit the compare API cannot resolve
+                { compare: "" },
+                { artifact: null }, // the artifacts list
+                { artifact: "expired" },
+                { sha: "abc9999", artifact: "" }, // this run's own site is missing
+            ]) {
+                const r = decide(o);
+                assert.notEqual(r.status, 0, JSON.stringify(o));
+                assert.notEqual(r.deploy, "true", JSON.stringify(o));
             }
-            // a canary that already serves something newer hands nothing off either
-            assert.equal(d({ newest: "abc9", compare: "behind" }).newer, "");
-            // the check job does not ask, so every build ahead of canary reaches the deploy job and its hand-off
-            assert.equal(decide({ newest: "abc9" }).deploy, "deploy=true");
-            assert.match(job(deploy, "deploy"), /actions: write/);
-            // a 404 is judged by the deployments list, which the token must be allowed to read in both jobs
-            assert.match(deploy, /^permissions:\n(?: {4}.*\n)*? {4}deployments: read/m);
-            assert.match(job(deploy, "deploy"), /permissions:\n(?: {12}.*\n)*? {12}deployments: read/);
-            // a deploy-pages run works on master's tip when it starts, so its run name names the commit it deploys
-            assert.match(deploy, /^run-name: Deploy \$\{\{ github\.event\.workflow_run\.head_sha \}\}$/m);
-            const handoff = (runs) => {
-                const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
-                const bin = join(dir, "bin");
-                mkdirSync(bin);
-                // the runs list (or a failing API) through the step's own --jq expression, with the real jq
-                writeFileSync(join(dir, "runs.json"), JSON.stringify({ workflow_runs: runs ?? [] }));
-                writeFileSync(
-                    join(bin, "gh"),
-                    `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\n[ "$1" = run ] && exit 0\n${runs === null ? "exit 1" : `jq -r "$4" "${dir}/runs.json"`}\n`,
-                    { mode: 0o755 },
-                );
-                const step = /- name: Hand off to the newer build\n([\s\S]*?)\n\n/.exec(job(deploy, "deploy"))[1];
-                assert.match(step, /if: \$\{\{ steps.live.outputs.newer != '' \}\}/);
-                const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
-                const r = spawnSync("bash", ["-e", "-c", script], {
-                    encoding: "utf8",
-                    env: {
-                        ...process.env,
-                        NEWER: "abc9",
-                        GITHUB_REPOSITORY: "o/r",
-                        PATH: `${bin}:${process.env.PATH}`,
-                    },
-                });
-                const log = existsSync(join(dir, "gh.log")) ? readFileSync(join(dir, "gh.log"), "utf8") : "";
-                rmSync(dir, { recursive: true, force: true });
-                return { status: r.status, rerun: /^run rerun (\S+) --repo o\/r$/m.exec(log)?.[1] ?? "" };
-            };
-            const run = (id, title, status, conclusion = null) => ({ id, display_title: title, status, conclusion });
-            // matched by run name, never by head_sha (master's tip when that run started)
-            const others = [run(7, "Deploy abc1", "in_progress"), run(8, "Deploy abc0", "completed", "success")];
-            // the newer build's run ended without deploying (its pending deploy replaced, or its read failed): re-run it
-            assert.deepEqual(handoff([...others, run(42, "Deploy abc9", "completed", "cancelled")]), {
-                status: 0,
-                rerun: "42",
-            });
-            assert.deepEqual(handoff([run(42, "Deploy abc9", "completed", "success"), ...others]), {
-                status: 0,
-                rerun: "42",
-            });
-            // still going: it deploys itself
-            assert.deepEqual(handoff([run(42, "Deploy abc9", "queued"), ...others]), { status: 0, rerun: "" });
-            // not found, or the list cannot be read: fail loudly, master-guard reports a failed deploy
-            assert.deepEqual(handoff(others), { status: 1, rerun: "" });
-            assert.equal(handoff(null).status, 1);
         });
 
-        it("adds canary's site.json to the deployed site only, never to the kept site-<sha>", () => {
-            const build = job(deploy, "build");
-            assert.ok(
-                build.indexOf("jq . graphty/sites/canary.json > public/site.json") > build.indexOf("Pack the site"),
-            );
-            assert.match(
-                build,
-                /- name: Add canary's site.json\n\s+if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n/,
-            );
-            assert.equal(
-                JSON.parse(readFileSync(new URL("../graphty/sites/canary.json", import.meta.url), "utf8")).site,
-                "canary",
-            );
+        it("reuses the hosted datasets canary publishes, not graphty.app's, which moves only by promotion (#3618 review)", () => {
+            const hosted = readFileSync(new URL("../graph-samples/scripts/build-hosted.mjs", import.meta.url), "utf8");
+            assert.match(hosted, /^const REUSE_URL = "https:\/\/canary\.graphty\.app\/data\/graph-samples\/v1\/";$/m);
+            assert.match(hosted, /publishedCopy\(`\$\{REUSE_URL\}/);
+            assert.doesNotMatch(hosted, /publishedCopy\(`\$\{BASE_URL\}/);
+            assert.match(job(deploy, "build"), /node graph-samples\/scripts\/build-hosted\.mjs --reuse-published/);
         });
 
         // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told

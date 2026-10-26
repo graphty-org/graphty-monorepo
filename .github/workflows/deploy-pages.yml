@@ -5,7 +5,8 @@ name: Deploy to GitHub Pages
 # repository's GitHub Pages, served at canary.graphty.app (the custom domain is a Pages setting of this repository,
 # not a file in the site). Canary is the first channel (design/ci/channels-pipeline.md, section 3):
 # nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
-# (promote.yml, and the full run's nightly promotion). To redeploy, re-run this workflow's run for that commit.
+# (promote.yml, and the full run's nightly promotion). The deploy job always deploys master's newest green build's
+# site, so re-running any run redeploys canary's newest site when canary is behind it.
 run-name: Deploy ${{ github.event.workflow_run.head_sha }}
 on:
     workflow_run:
@@ -24,68 +25,12 @@ permissions:
     pages: write
     id-token: write
     actions: read # Required to download artifacts from other workflow runs
-    deployments: read # a 404 from canary means 'no site yet' only while github-pages has no deployment
 
 jobs:
-    # Only a green CI run of a push to master builds and deploys the site, and only while this repository's Pages
-    # domain is canary.graphty.app (before the domain swap it was graphty.app, which only promotion may move). The
-    # live canary's build stamp says which commit it serves; when it is this one (a re-run), or a newer one (CI runs
-    # finish out of order), there is nothing to deploy, and the site is still kept as site-<sha>. The deploy job asks
-    # again right before it deploys, because a newer build may have deployed while this one assembled.
-    check:
-        name: Is this build newer than canary
-        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
-        runs-on: ubuntu-24.04
-        outputs:
-            deploy: ${{ steps.live.outputs.deploy }}
-        steps:
-            - id: live
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CANARY_URL: https://canary.graphty.app/
-              run: |
-                  # an API error is an unknown domain: deploy nothing, but the build job still keeps the site
-                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""' || true)
-                  if [ "$cname" != canary.graphty.app ]; then
-                      echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
-                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
-                  # deployments list can confirm: a 404 after a deploy is the CDN between deploys) are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
-                  # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
-                  # read or a failed compare deploys nothing, so it never moves canary back.
-                  page="${RUNNER_TEMP:-/tmp}/canary.html"
-                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}") || code=000
-                  if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
-                      echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  if [ "$code" = 404 ]; then
-                      deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length || true)
-                      if [ "$deployed" != 0 ]; then
-                          echo "::warning::canary.graphty.app answered 404 after a deploy (or the deployments list could not be read): a failed read, nothing is deployed"
-                          echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                      fi
-                  fi
-                  live=$(grep -o 'name="graphty-build" content="[^"]*"' "$page" || true)
-                  [ "$code" = 200 ] || live=""
-                  echo "live stamp: ${live:-none}"
-                  live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
-                  case "$live" in
-                      *"commit=${SHA} "*) echo "::notice::${SHA} is live on canary already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                  esac
-                  if [ -n "$live_sha" ]; then
-                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status || true)
-                      if [ "$status" != ahead ] && [ "$status" != diverged ]; then
-                          echo "::notice::${SHA} is not ahead of canary's ${live_sha} (${status:-compare failed})"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                      fi
-                  fi
-                  echo "deploy=true" >> "$GITHUB_OUTPUT"
-
     build:
         name: Assemble Site
-        needs: check
+        # Only a green CI run of a push to master assembles a site
+        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
         runs-on: ubuntu-24.04
         steps:
             # The deployed commit, with history and tags, so the stamp below can name the app's release.
@@ -187,7 +132,7 @@ jobs:
             # needs only Node and the builds of graph-format, graph-io (the Cytoscape and ontology datasets are
             # read by graph-io's own importers) and graph-samples (whose dist/data/v1/ holds the small datasets,
             # packed from the repository's data/, which the script copies beside the large ones it builds). With
-            # --reuse-published it takes each large dataset already on graphty.app whose SHA-256 is the one
+            # --reuse-published it takes each large dataset already on canary.graphty.app whose SHA-256 is the one
             # src/datasets/hosted.ts records, so a deploy never depends on the third-party source hosts (#3302);
             # only a dataset whose recorded checksum changed is built from its sources. The script records every
             # source's URL and SHA-256, so its hash keys the download cache for those builds.
@@ -293,124 +238,107 @@ jobs:
                       fi
                   fi
 
-            # The kept site-<sha> above has no site.json (a promotion writes its own); the canary deploy adds canary's.
-            - name: Add canary's site.json
-              if: ${{ needs.check.outputs.deploy == 'true' }}
-              run: jq . graphty/sites/canary.json > public/site.json
-
-            - name: Setup Pages
-              if: ${{ needs.check.outputs.deploy == 'true' }}
-              uses: actions/configure-pages@v4
-
-            - name: Upload Pages artifact
-              if: ${{ needs.check.outputs.deploy == 'true' }}
-              uses: actions/upload-pages-artifact@v3
-              with:
-                  path: ./public
-
+    # Canary always gets master's NEWEST green build, whichever build's run gets here: an older build's run deploys
+    # the newest site too, so the order in which runs finish or queue does not matter, and a newest build whose own
+    # deploy was replaced in the queue is still deployed by the next one. It deploys only when that build is ahead of
+    # the commit canary's build stamp names, so nothing older ever replaces canary. Every read that fails (the Pages
+    # settings, the runs list, canary itself, the compare, the artifact) fails the job, and master-guard reports it.
     deploy:
         name: Deploy
-        needs: [check, build]
-        if: ${{ needs.check.outputs.deploy == 'true' }}
-        # One deploy at a time; a newer pending deploy replaces an older pending one. On this job, not the workflow,
-        # so every build still assembles and keeps its own site-<sha>.
+        needs: build
+        # One deploy at a time; a later queued deploy replaces a pending one, which is harmless, since each deploys
+        # the newest site. On this job, not the workflow, so every build still assembles and keeps its own site-<sha>.
         concurrency:
             group: deploy-pages
         permissions:
             contents: read
             pages: write
             id-token: write
-            deployments: read
-            actions: write # to re-run a newer build's deploy that this job's queueing cancelled
+            actions: read # the CI runs list, and the newest build's site-<sha> from that build's own run
+            deployments: read # a 404 from canary means 'no site yet' only while github-pages has no deployment
         runs-on: ubuntu-24.04
         environment:
             name: github-pages
             url: ${{ steps.deployment.outputs.page_url }}
         steps:
-            # the check job's step, again: an older build that assembled slower must not replace a newer canary
             - id: live
               env:
                   GH_TOKEN: ${{ github.token }}
                   CANARY_URL: https://canary.graphty.app/
               run: |
-                  # an API error is an unknown domain: deploy nothing, but the build job still keeps the site
-                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""' || true)
-                  if [ "$cname" != canary.graphty.app ]; then
-                      echo "::warning::this repository's Pages domain is '${cname:-unknown}', not canary.graphty.app: nothing is deployed (graphty.app moves only by promotion)"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
+                  fail() { echo "::error::$*: nothing is deployed"; exit 1; }
+                  skip() { echo "::notice::$*"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0; }
+                  # Before the domain swap this repository's Pages domain was graphty.app, which only promotion may move
+                  cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""') || fail "this repository's Pages settings could not be read"
+                  [ "$cname" = canary.graphty.app ] || skip "this repository's Pages domain is '${cname}', not canary.graphty.app (graphty.app moves only by promotion)"
+                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""') || newest=""
+                  [ -n "$newest" ] || fail "master's newest green build could not be read"
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
-                  # Only a 200 (a page that may hold a stamp) and a 404 (no site yet, which only the Pages
-                  # deployments list can confirm: a 404 after a deploy is the CDN between deploys) are answers. Any other status (a 5xx, a 429), no answer at all, or a curl that fails after the
-                  # headers (a timeout or a reset mid-body still prints 200) is a failed read, and a failed
-                  # read or a failed compare deploys nothing, so it never moves canary back.
+                  # A 200 must carry a build stamp; a 404 is 'no site yet' only while github-pages has never deployed.
+                  # Anything else (a 5xx, a 429, no answer, a body that breaks off after the headers) is a failed read.
                   page="${RUNNER_TEMP:-/tmp}/canary.html"
-                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}") || code=000
-                  if [ "${code:-000}" != 200 ] && [ "${code:-000}" != 404 ]; then
-                      echo "::warning::canary.graphty.app could not be read (HTTP ${code:-000}): nothing is deployed; the next master build tries again"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  if [ "$code" = 404 ]; then
-                      deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length || true)
-                      if [ "$deployed" != 0 ]; then
-                          echo "::warning::canary.graphty.app answered 404 after a deploy (or the deployments list could not be read): a failed read, nothing is deployed"
-                          echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                      fi
-                  fi
-                  live=$(grep -o 'name="graphty-build" content="[^"]*"' "$page" || true)
-                  [ "$code" = 200 ] || live=""
-                  echo "live stamp: ${live:-none}"
-                  live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
-                  case "$live" in
-                      *"commit=${SHA} "*) echo "::notice::${SHA} is live on canary already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                  code=$(curl -sSL --max-time 30 -o "$page" -w '%{http_code}' "${CANARY_URL}?run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}") || code=000
+                  live=""
+                  case "$code" in
+                      200) live=$(sed -n 's/.*name="graphty-build" content="commit=\([0-9a-f]\{7,40\}\)[ "].*/\1/p' "$page" | head -1)
+                          [ -n "$live" ] || fail "canary.graphty.app answered without a build stamp" ;;
+                      404) deployed=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=1" --jq length) || deployed=""
+                          [ "$deployed" = 0 ] || fail "canary.graphty.app answered 404, and github-pages has deployed before (or its deployments could not be read)" ;;
+                      *) fail "canary.graphty.app could not be read (HTTP ${code})" ;;
                   esac
-                  if [ -n "$live_sha" ]; then
-                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status || true)
-                      if [ "$status" != ahead ] && [ "$status" != diverged ]; then
-                          echo "::notice::${SHA} is not ahead of canary's ${live_sha} (${status:-compare failed})"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                      fi
-                  fi
-                  # Only master's newest green build deploys (checked here, after canary, and not in the check job,
-                  # so every build that is ahead of canary reaches this job). The concurrency group keeps one pending
-                  # job, so an older build that queues later replaces a newer build's pending deploy: the older one
-                  # does not deploy and names the newer one (newer=) for the hand-off step below. An API error or a
-                  # failed compare is a failed read: nothing is deployed.
-                  newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
-                  if [ -z "$newest" ]; then
-                      echo "::warning::master's newest green build could not be read: nothing is deployed; the next master build tries again"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  if [ "$newest" != "$SHA" ]; then
-                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${SHA}...${newest}" --jq .status || true)
-                      case "$order" in
-                          ahead) echo "::notice::${newest} is a newer green master build: it deploys, not ${SHA}"
-                              echo "newer=${newest}" >> "$GITHUB_OUTPUT"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                          behind | diverged) ;;
-                          *) echo "::warning::${SHA} could not be compared with master's newest green build ${newest}: nothing is deployed"
-                              echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                  echo "canary serves: ${live:-nothing yet}; master's newest green build: ${newest}"
+                  [ "$live" != "$newest" ] || skip "${newest} is live on canary already"
+                  if [ -n "$live" ]; then
+                      status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live}...${newest}" --jq .status) || status=""
+                      case "$status" in
+                          ahead | diverged) ;;
+                          behind | identical) skip "${newest} is not ahead of canary's ${live}" ;;
+                          *) fail "canary's ${live} could not be compared with ${newest}" ;;
                       esac
                   fi
-                  echo "deploy=true" >> "$GITHUB_OUTPUT"
+                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=site-${newest}&per_page=1" --jq '.artifacts[0] // {} | if .expired then "expired" else (.workflow_run.id // "" | tostring) end') || fail "the artifacts of ${newest} could not be listed"
+                  [ "$run" != expired ] || fail "site-${newest} has expired"
+                  if [ -z "$run" ]; then
+                      [ "$newest" != "$SHA" ] || fail "this run's own site-${SHA} could not be found"
+                      skip "site-${newest} is not assembled yet: that build's own run deploys it"
+                  fi
+                  { echo "sha=${newest}"; echo "run=${run}"; echo "deploy=true"; } >> "$GITHUB_OUTPUT"
 
-            # A newer green build exists, and canary (older than this build) does not serve it. A deploy-pages run
-            # works on master's tip when it starts, so its run name (run-name above) names the commit it deploys.
-            # When that build's run has ended -- its pending deploy replaced by this job's, or its own read of
-            # canary failed -- nothing else would deploy it: re-run it. A run still going deploys itself.
-            - name: Hand off to the newer build
-              if: ${{ steps.live.outputs.newer != '' }}
+            - name: Download the newest site
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/download-artifact@v8
+              with:
+                  name: site-${{ steps.live.outputs.sha }}
+                  path: ./site/
+                  run-id: ${{ steps.live.outputs.run }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check out canary's site.json
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: graphty/sites
+                  path: ./repo/
+
+            # The kept site-<sha> has no site.json (a promotion writes its own); the canary deploy adds canary's.
+            - name: Unpack the site and add canary's site.json
+              if: ${{ steps.live.outputs.deploy == 'true' }}
               env:
-                  GH_TOKEN: ${{ github.token }}
-                  NEWER: ${{ steps.live.outputs.newer }}
+                  NEWEST: ${{ steps.live.outputs.sha }}
               run: |
-                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?event=workflow_run&per_page=50" --jq "[.workflow_runs[] | select(.display_title == \"Deploy ${NEWER}\")][0] // empty | \"\\(.id) \\(.status) \\(.conclusion)\"" || true)
-                  read -r id status conclusion <<< "$run"
-                  case "${status:-}" in
-                      completed)
-                          gh run rerun "$id" --repo "$GITHUB_REPOSITORY" || { echo "::error::${NEWER}'s deploy run ${id} (${conclusion}) could not be re-run: canary stays behind master until the next build"; exit 1; }
-                          echo "::notice::re-ran ${NEWER}'s deploy run ${id}, which ended ${conclusion} without deploying" ;;
-                      "") echo "::error::${NEWER}'s deploy run could not be found: canary stays behind master until the next build"; exit 1 ;;
-                      *) echo "::notice::${NEWER}'s deploy run ${id} is ${status}: it deploys itself" ;;
-                  esac
+                  mkdir public
+                  tar -xf "site/site-${NEWEST}.tar" -C public
+                  jq . repo/graphty/sites/canary.json > public/site.json
+
+            - name: Setup Pages
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/configure-pages@v4
+
+            - name: Upload Pages artifact
+              if: ${{ steps.live.outputs.deploy == 'true' }}
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
 
             - name: Deploy to GitHub Pages
               if: ${{ steps.live.outputs.deploy == 'true' }}

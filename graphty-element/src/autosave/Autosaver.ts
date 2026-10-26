@@ -1198,12 +1198,12 @@ export class Autosaver {
 
     /**
      * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
-     * the restore waited) left the work intact, so its attempt is taken back and the entry stays
-     * offered, not marked as failing.
+     * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
      * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
      * @param error - Why the open failed.
      */
-    async #restoreFailed(current: AutosaveEntryMeta, error: unknown): Promise<void> {
+    async #restoreFailed(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, error: unknown): Promise<void> {
         if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
             this.#available(current, true, "restore-failed", {
                 code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
@@ -1211,11 +1211,12 @@ export class Autosaver {
             });
             return;
         }
-        const untried = { ...current, restoreAttempts: Math.max(0, Number(current.restoreAttempts ?? 1) - 1) };
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
+        // entry is written back as it was before the attempt, to be offered on the next load.
+        // ponytail: a commit that loses to another tab leaves the attempt counted; it only costs one.
         await this.#store
-            .commit([{ id: untried.id, expectedGen: untried.gen, meta: untried, parts: {} }])
+            .commit([{ id: untried.id, expectedGen: current.gen, meta: { ...untried, gen: current.gen }, parts: {} }])
             .catch(() => undefined);
-        this.#available(untried, true, "manual", null);
     }
 
     /**
@@ -1292,6 +1293,8 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
+        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
         let sizes: Map<string, number>;
@@ -1315,6 +1318,7 @@ export class Autosaver {
                 ({ meta: current, release } = await this.#copyEntry(current, entry.parts));
             }
 
+            untried = current;
             current = await this.#recordAttempt(current);
         } catch (error) {
             return giveUp({
@@ -1328,8 +1332,9 @@ export class Autosaver {
         try {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
+            // Before the lock goes, so no other tab commits over the entry meanwhile.
+            await this.#restoreFailed(current, untried, error);
             release?.();
-            await this.#restoreFailed(current, error);
             return null;
         } finally {
             this.#restoring = false;

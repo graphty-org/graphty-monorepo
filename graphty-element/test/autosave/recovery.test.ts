@@ -217,7 +217,7 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
-    it("a clear asked for while the restore waits cancels it without counting it as a failed attempt", async () => {
+    it("a clear asked for while the restore waits cancels it, reports nothing and takes the attempt back", async () => {
         const store = memoryAutosaveStore();
         const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
         const page = load(store);
@@ -233,11 +233,12 @@ describe("a restore that does not finish", () => {
         reading.leave();
 
         assert.isNull(await recovering);
-        assert.deepStrictEqual(
-            page.available.map((each) => [each.entry.id, each.reason, each.problem]),
-            [[id, "manual", null]],
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await store.read(id))?.meta.restoreAttempts ?? 0),
+            0,
+            "the cancelled attempt was taken back",
         );
-        assert.strictEqual((await store.read(id))?.meta.restoreAttempts, 0, "the cancelled attempt was taken back");
     });
 
     it("two restores that never confirm make the third load skip the entry and report restore-failed", async () => {

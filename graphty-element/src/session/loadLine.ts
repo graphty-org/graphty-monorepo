@@ -57,8 +57,11 @@ interface LineOwner {
     readonly routing: boolean;
 }
 
-/** The kinds of place in line: an edit called inside a transaction takes none. */
-type PlaceKind = "load" | "edit";
+/**
+ * The kinds of place in line: an edit or a clear called inside a transaction takes none, and a
+ * clear's own place is never cancelled by a later clear.
+ */
+type PlaceKind = "load" | "edit" | "clear";
 
 /**
  * The refusal of a load a newer replacing load, or a clear, overtook: every door that cancels a
@@ -150,6 +153,8 @@ export class LoadLine {
     private handoff: LoadTurn | undefined;
     /** The places taken and not left, each with what cancels it: what a clear cancels. */
     private readonly loads = new Map<LoadTurn, () => void>();
+    /** The places a clear cancelled, so a door that already waited can tell. */
+    private readonly cancelled = new WeakSet<LoadTurn>();
     /** How many project opens hold the head of the line while they write. */
     private holding = 0;
 
@@ -207,7 +212,7 @@ export class LoadLine {
             this.handoff = undefined;
             return handed;
         }
-        if (this.inside() || (kind === "edit" && this.owner.routing)) {
+        if (this.inside() || (kind !== "load" && this.owner.routing)) {
             return AT_ONCE;
         }
 
@@ -280,13 +285,16 @@ export class LoadLine {
             take: (send) => wait()?.then(() => issue(send)) ?? issue(send),
             leave,
         };
-        this.loads.set(turn, () => {
-            superseded = true;
-            leave();
-            for (const cancel of cancelWaits) {
-                cancel();
-            }
-        });
+        if (kind !== "clear") {
+            this.loads.set(turn, () => {
+                superseded = true;
+                this.cancelled.add(turn);
+                leave();
+                for (const cancel of cancelWaits) {
+                    cancel();
+                }
+            });
+        }
         return turn;
     }
 
@@ -314,7 +322,7 @@ export class LoadLine {
             return send();
         }
         this.supersede();
-        return this.join(undefined, "edit").take(send);
+        return this.join(undefined, "clear").take(send);
     }
 
     /** Cancel every load and edit waiting in line, as a clear does. */
@@ -335,6 +343,10 @@ export class LoadLine {
     async opening<T>(turn: LoadTurn, write: () => Promise<T>): Promise<T> {
         try {
             await turn.wait();
+            // A clear asked for in the moment between the wait and now cancelled it after all.
+            if (this.cancelled.has(turn)) {
+                throw supersededError("project");
+            }
             // It writes now: a clear asked for from here on lands after the open, not under it.
             this.loads.delete(turn);
             this.holding++;

@@ -584,4 +584,22 @@ describe("the entry's edges", () => {
 
         assert.strictEqual(session.data.snapshot().nodeCount, 5, "the load the transaction's clear left alone");
     });
+
+    it("a second clear asked for while an open writes does not cancel the first", async () => {
+        const text = await triangleProject();
+        const session = fresh();
+        const dispatcher = dispatcherOf(session);
+        let clears: Promise<unknown> | undefined;
+        dispatcher.events.dispatched = () => {
+            clears ??= Promise.resolve().then(() =>
+                Promise.allSettled([session.data.clear(), session.data.clear()]).then((each) =>
+                    each.map((one) => one.status),
+                ),
+            );
+        };
+        await session.project.open(text, { discard: true });
+
+        assert.deepEqual(await clears, ["fulfilled", "fulfilled"]);
+        assert.strictEqual(session.data.snapshot().nodeCount, 0);
+    });
 });

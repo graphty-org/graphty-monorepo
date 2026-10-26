@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
+import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
@@ -280,6 +281,16 @@ function appendBenchRow(log: string): undefined {
 }
 
 /**
+ * Screenshots taken inside the story tests (visual-review's story-test harness), off unless
+ * VISUAL_REVIEW_STORY_OUT names the directory this run's partial capture goes to: the storybook
+ * project then runs with production semantics, shoots every story and mode at the end of its test
+ * and compares it with its baseline, as `visual-review capture` does with the built Storybook.
+ */
+const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
+    ? visualStoryTest({ project: "graphty-element", out: path.resolve(process.env.VISUAL_REVIEW_STORY_OUT) })
+    : null;
+
+/**
  * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
  * it. Every project sets it, since an inline project does not inherit the root's `define`, and each
  * gets its own copy, since vitest deletes the keys from the object it is handed.
@@ -297,7 +308,7 @@ export default defineConfig({
         // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
         // projects keep their own maxWorkers or fileParallelism.
         maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters()],
+        reporters: ["default", ...ciReporters(), ...(VISUAL ? [VISUAL.reporter] : [])],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -831,7 +842,8 @@ export default defineConfig({
                 },
             },
             {
-                define: { ...define },
+                // With screenshots on, what build-storybook builds: production mode and NODE_ENV.
+                define: { ...define, ...(VISUAL && PRODUCTION.define) },
                 extends: "vite.config.ts",
                 plugins: [
                     // The plugin will run tests for the stories defined in your Storybook config
@@ -842,6 +854,7 @@ export default defineConfig({
                         storybookUrl: process.env.STORYBOOK_URL ?? "https://localhost:6006",
                     }),
                 ],
+                ...(VISUAL && { mode: PRODUCTION.mode, appType: PRODUCTION.appType }),
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
@@ -870,12 +883,24 @@ export default defineConfig({
                         commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright(),
+                        provider: playwright(VISUAL?.providerOptions),
                         instances: [{ browser: "chromium" }],
+                        ...(VISUAL && {
+                            viewport: VISUAL.viewport,
+                            commands: { ...mapTileCommands, ...VISUAL.commands },
+                        }),
                     },
-                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, ".storybook/vitest.setup.ts"],
+                    setupFiles: [
+                        BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
+                        ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
+                        ".storybook/vitest.setup.ts",
+                    ],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
+                    // With screenshots on, a story's afterEach renders it again for each further mode
+                    // and once more when a shot differs from its baseline: it bounds that work, no wait.
+                    ...(VISUAL && { hookTimeout: 90000 }),
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,

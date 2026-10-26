@@ -1,14 +1,118 @@
 # What only the owner merges: the files that decide whether a pull request passes (a pull request runs its
 # own copy of them, so a change here would judge itself), the screenshot gate, the release and the agents'
-# own guards. It takes effect once the master ruleset requires a code owner's review. tools/pr-open.sh
-# keeps the same list (OWNER_PATHS) and leaves auto-merge off for it; keep the two in step.
-/.github/                                   @apowers313
-/.claude/                                   @apowers313
-/tools/ci-*                                 @apowers313
-/tools/test-quarantine.json                 @apowers313
-/tools/test-select*                         @apowers313
-/tools/claude-owner-credential-guard.mjs    @apowers313
-/tools/pr-open.sh                           @apowers313
-/visual-review/                             @apowers313
-/visual-review.config.json                  @apowers313
-/release-*.json                             @apowers313
+# own guards (design/ci/channels-pipeline.md, section 6.2). Everything else merges on green. It takes effect
+# once the master ruleset requires a code owner's review. tools/pr-open.sh reads this file and leaves
+# auto-merge off for a pull request that changes an owned path.
+#
+# Owned closure: tools/check-owned-closure.mjs fails when an owned script or workflow reaches an
+# unowned file through its imports or the paths it runs; such a file is added below, in its own
+# pull request. Test files are deliberately not owned (the integrity check covers them), and so is
+# tools/tool-tests.txt, the tool test list: the integrity check flags a line removed from it.
+
+/.github/ @apowers313
+/.claude/ @apowers313
+/CLAUDE.md @apowers313
+/tools/ci-* @apowers313
+/tools/run-ci-workflow-tests.mjs @apowers313
+/tools/test-quarantine.json @apowers313
+/tools/test-quarantine.mjs @apowers313
+/tools/test-select* @apowers313
+/tools/claude-owner-credential-guard.mjs @apowers313
+/visual-review/ @apowers313
+/visual-review.config.json @apowers313
+/release-*.json @apowers313
+/ci-budgets.json @apowers313
+/nx.json @apowers313
+/vitest.shared.config.ts @apowers313
+/vitest.ci-junit.mjs @apowers313
+**/.storybook/vitest.setup.* @apowers313
+/graphty/sites/nightly.json @apowers313
+/graphty/sites/production.json @apowers313
+
+# tools/: the results, cache, scheduler and channel directories
+/tools/results/ @apowers313
+/tools/results-service/ @apowers313
+/tools/nx-cache-worker/ @apowers313
+/tools/release-scheduler/ @apowers313
+/tools/channel/ @apowers313
+
+# tools/: bisect, the release tools, the test matrix, the selector and its rules
+/tools/bisect-core.mjs @apowers313
+/tools/release-diff.mjs @apowers313
+/tools/release-dry-run.mjs @apowers313
+/tools/release-held.sh @apowers313
+/tools/release-hold.mjs @apowers313
+/tools/release-status.mjs @apowers313
+/tools/release-version.sh @apowers313
+/tools/publish-hold.mjs @apowers313
+/tools/changelog-renderer.cjs @apowers313
+/tools/run-tests.sh @apowers313
+
+# tools/: the integrity, features, budgets, pull request and quick-check scripts
+/tools/check-test-integrity.mjs @apowers313
+/tools/check-owned-closure.mjs @apowers313
+/tools/pr-integrity.mjs @apowers313
+/tools/check-features.mjs @apowers313
+/tools/pr-open.sh @apowers313
+/tools/pr-review.sh @apowers313
+/tools/check-quick.sh @apowers313
+
+# The owned closure: files the owned scripts and workflows above import or run
+# (node tools/check-owned-closure.mjs)
+/compact-mantine/eslint/mantine-replacements.js @apowers313
+/cytoscape-extensions/scripts/test-cytoscape-versions.sh @apowers313
+/eslint.config.js @apowers313
+/graph-samples/scripts/build-hosted.mjs @apowers313
+/graph-samples/scripts/graph-io-source.mjs @apowers313
+/graph-samples/scripts/hosted-sources.mjs @apowers313
+/graph-samples/scripts/refresh-sources.mjs @apowers313
+/tools/assemble-pages-site.sh @apowers313
+/tools/bisect-ci.mjs @apowers313
+/tools/check-links.sh @apowers313
+/tools/check-storybook-links.mjs @apowers313
+/tools/claude-area-rules.mjs @apowers313
+/tools/claude-no-foreground-wait.mjs @apowers313
+/tools/eslint-rules/no-test-timing.mjs @apowers313
+/tools/eslint-rules/story-wait-options.mjs @apowers313
+/tools/full-run.mjs @apowers313
+/tools/gpu-runner-lost.sh @apowers313
+/tools/llm-due.mjs @apowers313
+/tools/master-guard.mjs @apowers313
+/tools/merge-coverage.sh @apowers313
+/tools/pr-issue-link.mjs @apowers313
+/tools/prepush-inputs.mjs @apowers313
+/tools/push-base.mjs @apowers313
+/tools/release-approvals.mjs @apowers313
+/tools/release-due.mjs @apowers313
+/tools/restricted-cpu-stress.mjs @apowers313
+/tools/shard-verdict.mjs @apowers313
+/tools/sonar-baseline.mjs @apowers313
+/tools/sonar-gate.mjs @apowers313
+/tools/sonar/api.mjs @apowers313
+/tools/test-changed.mjs @apowers313
+/tools/test-history.mjs @apowers313
+/tools/test-ledger.mjs @apowers313
+/tools/test-select-mutate.mjs @apowers313
+/tools/test-slots.mjs @apowers313
+/tools/visual-capture-plan.mjs @apowers313
+/tools/visual-flaky-report.mjs @apowers313
+/tools/visual-preview.sh @apowers313
+/tools/vitest-time-budget.mjs @apowers313
+/tools/wait-log.mjs @apowers313
+/tools/with-browser.sh @apowers313
+/tsconfig.base.json @apowers313
+/vite.shared.config.ts @apowers313
+/vitest.browser-coverage-setup.ts @apowers313
+/webgpu-graph-algorithms/scripts/bench-compare.js @apowers313
+/webgpu-graph-algorithms/scripts/bench-targets.js @apowers313
+/webgpu-graph-algorithms/scripts/gpu-policy.js @apowers313
+/webgpu-graph-algorithms/scripts/gpu-report.js @apowers313
+/webgpu-graph-algorithms/scripts/install-redist-warp.sh @apowers313
+/webgpu-graph-algorithms/scripts/print-crash-reports.mjs @apowers313
+/webgpu-graph-algorithms/scripts/probe-browser-flags.mjs @apowers313
+/webgpu-graph-algorithms/scripts/probe-webkit-webgpu.mjs @apowers313
+/webgpu-graph-algorithms/scripts/run-browser-project.js @apowers313
+/webgpu-graph-algorithms/scripts/run-node-shard.js @apowers313
+/webgpu-graph-algorithms/scripts/runner-class.js @apowers313
+/webgpu-graph-algorithms/scripts/warp-guard-verdict.sh @apowers313
+/webgpu-graph-algorithms/scripts/warp-question.sh @apowers313

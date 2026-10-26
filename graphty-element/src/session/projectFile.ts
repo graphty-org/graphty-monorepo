@@ -25,6 +25,7 @@ import {
     type RunId,
     type SetDefinitionInput,
 } from "../catalog/types";
+import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
@@ -472,7 +473,66 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         pinnedStyle,
         layoutBehavior,
     });
-    return JSON.parse(text) as ProjectConfigPatch;
+    const config = JSON.parse(text) as Record<string, unknown>;
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && JSON.stringify(parent[leaf]) === JSON.stringify(fallback)) {
+            Reflect.deleteProperty(parent, leaf);
+        }
+    }
+
+    return config;
+}
+
+/**
+ * The settings added after the first project files, with their defaults. Each is written only when
+ * it is not its default, so a project that does not use it saves as before and an older
+ * graphty-element, which refuses every setting of a file when one is unknown to it, still opens it
+ * (test/lifecycle/production-compat.test.ts opens the candidate's file with production's build).
+ * One left out reads back as its default.
+ * A new setting goes here.
+ */
+const ADDED_SETTINGS: readonly (readonly [group: readonly string[], leaf: string, fallback: unknown])[] = [
+    [["data", "knownFields"], "edgeWeightMeaning", null],
+    [["selectionStyle"], "edgeColor", DEFAULT_SELECTION_STYLE.edgeColor],
+    [["selectionStyle"], "edgeScale", DEFAULT_SELECTION_STYLE.edgeScale],
+    [["selectionStyle"], "edgeOpacity", DEFAULT_SELECTION_STYLE.edgeOpacity],
+];
+
+/**
+ * The object holding a setting.
+ * @param config - The settings.
+ * @param group - The path to the object holding the setting.
+ * @returns The object, or undefined when one on the way is missing.
+ */
+function parentOf(config: Record<string, unknown>, group: readonly string[]): Record<string, unknown> | undefined {
+    let at = config;
+    for (const key of group) {
+        if (!isObject(at[key])) {
+            return undefined;
+        }
+        at = at[key];
+    }
+
+    return at;
+}
+
+/**
+ * A file's settings with every added setting it leaves out set to its default, where the file
+ * holds the setting's group (a file without `selectionStyle` leaves the session's as it was).
+ * @param saved - The settings as the file holds them.
+ * @returns A copy with the defaults filled in.
+ */
+function withAddedDefaults(saved: unknown): Record<string, unknown> {
+    const config = isObject(saved) ? structuredClone(saved) : {};
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && !(leaf in parent)) {
+            parent[leaf] = fallback;
+        }
+    }
+
+    return config;
 }
 
 /**
@@ -1500,7 +1560,7 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
+    await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);

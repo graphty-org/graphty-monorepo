@@ -57,7 +57,8 @@ export interface Fixture {
      * The fixture page's URL.
      * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`),
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), and for a page
-     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending).
+     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -327,10 +328,15 @@ function bodyOf(request: IncomingMessage): Promise<string> {
 
 /**
  * Start the fixture server on a free loopback port.
+ * @param options - `bundles`: more builds of graphty-element by name (a path to each one's
+ *   `graphty.bundle.js`); the page loads one instead of the built ./bundle with the URL parameter
+ *   `build=<name>`, from the same origin, so it sees the same storage.
+ * @param options.bundles - The builds by name.
  * @returns The fixture.
  */
-export async function startFixture(): Promise<Fixture> {
+export async function startFixture(options: { bundles?: Record<string, string> } = {}): Promise<Fixture> {
     const bundle = readFileSync(BUNDLE);
+    const builds = new Map(Object.entries(options.bundles ?? {}).map(([name, file]) => [name, readFileSync(file)]));
     const log: LogEvent[] = [];
     const waiters = new Set<() => void>();
     const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -364,10 +370,23 @@ export async function startFixture(): Promise<Fixture> {
             return;
         }
 
+        const build = /^\/bundle-(.+)\.js$/.exec(url.pathname)?.[1];
+        if (build !== undefined && builds.has(build)) {
+            response
+                .writeHead(200, { "content-type": "text/javascript", "cache-control": "max-age=3600" })
+                .end(builds.get(build));
+            return;
+        }
+
         if (url.pathname === "/fixture.html") {
+            const named = url.searchParams.get("build");
+            const page =
+                named !== null && builds.has(named)
+                    ? PAGE.replace('import "/bundle.js";', `import "/bundle-${named}.js";`)
+                    : PAGE;
             response
                 .writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
-                .end(PAGE);
+                .end(page);
             return;
         }
 

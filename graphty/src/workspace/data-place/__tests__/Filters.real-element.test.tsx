@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { columnVerb } from "../../../test/column-header";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
@@ -98,7 +99,7 @@ describe("Filters on the real element", () => {
             await screen.findByText(
                 'Showing only: "value is between 9 and 31". Click to open Filters, where you can turn it off.',
                 {},
-                { timeout: 3000 },
+                storyWaitOptions(3000),
             );
             await userEvent.unhover(chip);
             await waitFor(() => {
@@ -122,7 +123,7 @@ describe("Filters on the real element", () => {
             // The checkbox's tooltip says what a click does.
             const tick = screen.getByRole("checkbox", { name: "Apply step: value is between 9 and 31" });
             await userEvent.hover(tick);
-            await screen.findByText("Turn this step off", {}, { timeout: 3000 });
+            await screen.findByText("Turn this step off", {}, storyWaitOptions(3000));
             await userEvent.unhover(tick);
 
             // Untick: the full graph, the chip gone, the row and the editor say off.
@@ -204,7 +205,7 @@ describe("Filters on the real element", () => {
 
             // Hover names the missing attribute; a click adds nothing.
             await userEvent.hover(add);
-            await screen.findByText("Add a condition first", {}, { timeout: 3000 });
+            await screen.findByText("Add a condition first", {}, storyWaitOptions(3000));
             await userEvent.click(add);
             assert.lengthOf(session.visibility.steps, 0);
             await userEvent.unhover(add);
@@ -221,7 +222,7 @@ describe("Filters on the real element", () => {
             await userEvent.tab();
             await userEvent.tab();
             assert.equal(document.activeElement, add);
-            await screen.findByText("Type a value first", {}, { timeout: 3000 });
+            await screen.findByText("Type a value first", {}, storyWaitOptions(3000));
 
             // A whole rule enables it, and it adds the step.
             await openStepPicker("node");

@@ -206,8 +206,8 @@ export default defineConfig({
                                   commands: { chooseNextFile, ...VISUAL.commands },
                               }
                             : { ...chromium(), viewport: { width: 1200, height: 900 } }),
-                        // addon-vitest 9.1.21 turns both off unless set; the setup's cdp() needs them.
-                        api: { allowWrite: true, allowExec: true },
+                        // addon-vitest 9.1.21 turns write and exec off unless set; real-input cdp() needs them. Loopback only: the project's server.host is true.
+                        api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
                     },
                     setupFiles: [
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),

@@ -68,7 +68,7 @@ describe("finalOf", () => {
 });
 
 describe("merge", () => {
-    it("writes the final capture and the flaky stories", () => {
+    it("writes the final capture and the flaky stories", async () => {
         const root = mkdtempSync(join(tmpdir(), "recapture-"));
         const [first, second, out] = ["first", "second", "out"].map((d) => join(root, d));
         const [red, green] = [png(200), png(120)];
@@ -83,7 +83,7 @@ describe("merge", () => {
             "same.png": red,
             "third.png": green,
         });
-        const flaky = merge({ first, second, out });
+        const flaky = await merge({ first, second, out });
         assert.deepEqual(
             flaky.map((f) => f.file),
             ["flake.png", "third.png"],
@@ -102,10 +102,10 @@ describe("merge", () => {
         assert.deepEqual(readFileSync(join(out, "third.png")), red);
         assert.deepEqual(JSON.parse(readFileSync(join(out, "flaky.json"), "utf8")), flaky);
     });
-    it("copies the first capture unchanged when nothing was shot again", () => {
+    it("copies the first capture unchanged when nothing was shot again", async () => {
         const root = mkdtempSync(join(tmpdir(), "recapture-"));
         capture(join(root, "first"), [item("a", "changed")], { "a.png": png(1) });
-        assert.deepEqual(merge({ first: join(root, "first"), second: null, out: join(root, "out") }), []);
+        assert.deepEqual(await merge({ first: join(root, "first"), second: null, out: join(root, "out") }), []);
         assert.ok(existsSync(join(root, "out", "a.png")));
         assert.equal(JSON.parse(readFileSync(join(root, "out", "results.json"), "utf8")).items[0].status, "changed");
     });

@@ -22,6 +22,19 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 # - restart: dispatched by ci.yml's release-due job when a green master build references the open red issue
 #   (tools/release-due.mjs); the same run on the commit it was dispatched on.
 #
+# Same-commit re-run, once, and the held candidate (design/ci/channels-pipeline.md section 3, issue #3741):
+#   - the recapture job shoots the stories the CI lane found changed or new again on a fresh runner and writes the
+#     run's one gated capture, visual-final-<project>-<attempt>; a story that does not draw the same picture twice is
+#     filed as flaky by the verdict;
+#   - attempt 1 of a full or restart run that is red on a lane files nothing and announces nothing: release-rerun.yml
+#     re-runs its failed jobs once (never version, land, publish), and that attempt's verdict decides; a lane green
+#     on the re-run is filed "Flaky in full run" and does not block;
+#   - a deciding verdict that is not green-clean holds its commit while nothing is held: branch channel/candidate,
+#     the results store's hold and a "Nightly held on <sha12>" issue. While a hold stands, a slot first tests the held
+#     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes or
+#     replaces the hold. The held candidate promoting ends the hold (land), and so does the owner's
+#     `-f mode=abandon` (environment production, then the abandon job).
+#
 # And the two of rollout step 3 (design/ci/channels-pipeline/migration.md section 3; issue #3424):
 #
 # - shadow, only when dispatched with `-f mode=shadow` (it was the default before full): the lanes below run on
@@ -98,7 +111,7 @@ on:
                 default: ""
                 type: string
             mode:
-                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest"
+                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. abandon (owner only, environment production): end the held nightly candidate without promoting it"
                 required: false
                 default: full
                 type: choice
@@ -107,6 +120,7 @@ on:
                     - restart
                     - shadow
                     - legacy
+                    - abandon
 
 # One train at a time across all its jobs: a second train waits for the first, which has published (or held the
 # release) by then, so the second finds nothing new to release or tries the newer commit, and never pays for a
@@ -142,6 +156,7 @@ jobs:
                 llm,
                 version_dry_run,
                 coverage,
+                recapture,
                 verdict,
                 held,
                 version,
@@ -189,7 +204,7 @@ jobs:
     # (owner rule: a state ends on the event that settles it, never on a count of hours).
     pick:
         name: Pick the release candidate
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.ref == 'refs/heads/master' && inputs.mode != 'abandon' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
         # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
@@ -207,6 +222,8 @@ jobs:
             sha: ${{ steps.candidate.outputs.sha || steps.pending.outputs.sha }}
             good: ${{ steps.candidate.outputs.good }}
             build_run: ${{ steps.candidate.outputs.build_run }}
+            # the held candidate's head (tools/full-run.mjs pick): "" none, "unknown" when the store did not answer
+            held: ${{ steps.candidate.outputs.held }}
         steps:
             # The commit this run was started on (master's head when it was dispatched), so the run's commit,
             # Coveralls' commit and the tested commit are one and the same.
@@ -789,6 +806,141 @@ jobs:
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: node tools/full-run.mjs lane-red
 
+    # The same-commit re-capture (design/ci/channels-pipeline.md section 3, "Same-commit re-run, once"): on a fresh
+    # runner, shoots again only the stories the CI lane's capture (ci.yml's visual job) found changed or new, and
+    # uploads the run's one gated capture, visual-final-<project>-<attempt>: the CI lane's capture with each re-shot
+    # story's verdict replaced (tools/channel/recapture.mjs). A story stays changed only when both shots draw the
+    # same picture; one that matches its baseline the second time, or draws a third picture (unstable, never
+    # approvable), is listed in its flaky.json, which the verdict files as flaky. The verdict, the gate, the review
+    # page and the promotion read only visual-final-*. ci.yml's visual job and gate are untouched. The projects are
+    # ci.yml's visual matrix: a test keeps the two lists equal.
+    recapture:
+        name: Re-capture (${{ matrix.project }})
+        needs: [pick, ci]
+        if: ${{ !cancelled() && needs.ci.result == 'success' && (inputs.mode == 'full' || inputs.mode == 'restart') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        permissions:
+            contents: read
+            actions: read # the CI lane's capture and Storybook, artifacts of this run
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: compact-mantine
+                      artifact: build-storybook-compact-mantine
+                    - project: graphty-element
+                      artifact: build-storybook-element
+                    - project: layout
+                      artifact: build-storybook-layout
+                    - project: algorithms
+                      artifact: build-storybook-algorithms
+                    - project: graphty
+                      artifact: build-storybook-app
+                    - project: cytoscape-extensions
+                      artifact: build-storybook-cytoscape-extensions
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+        env:
+            PROJECT: ${{ matrix.project }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download the CI lane's capture
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-${{ matrix.project }}-*
+                  path: ${{ runner.temp }}/first
+
+            # stories empty: nothing to shoot again; dir empty: the CI lane has no capture, and no final capture is
+            # uploaded, so the verdict says which capture is missing
+            - name: Plan the re-capture
+              id: plan
+              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+
+            - name: Restore this project's baseline images
+              if: ${{ steps.plan.outputs.stories != '' }}
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: ${{ steps.plan.outputs.stories != '' }}
+              run: git lfs pull --include "visual-baselines/${PROJECT}/**,visual-fonts/**"
+
+            - uses: pnpm/action-setup@v6
+              if: ${{ steps.plan.outputs.stories != '' }}
+
+            - name: Install dependencies
+              if: ${{ steps.plan.outputs.stories != '' }}
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              if: ${{ steps.plan.outputs.stories != '' }}
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              if: ${{ steps.plan.outputs.stories != '' }}
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ steps.plan.outputs.stories != '' }}
+
+            - name: Install Playwright system packages
+              if: ${{ steps.plan.outputs.stories != '' }}
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
+            - name: Install Chromium
+              if: ${{ steps.plan.outputs.stories != '' }}
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
+
+            - name: Download Storybook build
+              if: ${{ steps.plan.outputs.stories != '' }}
+              uses: actions/download-artifact@v8
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
+
+            - name: Shoot the changed and new stories again
+              if: ${{ steps.plan.outputs.stories != '' }}
+              env:
+                  STORIES: ${{ steps.plan.outputs.stories }}
+              run: pnpm exec visual-review capture --project "$PROJECT" --out "$RUNNER_TEMP/second" --stories "$STORIES"
+
+            - name: Build the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
+              env:
+                  FIRST: ${{ steps.plan.outputs.dir }}
+                  SECOND: ${{ steps.plan.outputs.stories != '' && format('{0}/second', runner.temp) || '' }}
+              run: node tools/channel/recapture.mjs merge --first "$FIRST" --second "$SECOND" --out "$RUNNER_TEMP/final"
+
+            - name: Upload the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-final-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/final/
+                  retention-days: 30
+
     # A full run's one ending (channels design, sections 5 and 6): every lane's result and the screenshot captures
     # make one state, written to the results store (tools/full-run.mjs verdict). Red files or updates the "Full run
     # red" issue, dispatches bisect.yml once (with GITHUB_TOKEN's actions: write), and is announced; green closes
@@ -809,6 +961,7 @@ jobs:
                 audit,
                 llm,
                 version_dry_run,
+                recapture,
                 ci_red,
                 t4_red,
                 hosts_red,
@@ -831,6 +984,8 @@ jobs:
             state: ${{ steps.verdict.outputs.state }}
             promote: ${{ steps.promote.outputs.promote }}
             screenshots: ${{ steps.gate.outputs.screenshots }}
+            deferred: ${{ steps.verdict.outputs.deferred }}
+            hold: ${{ steps.verdict.outputs.hold }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}
@@ -853,12 +1008,24 @@ jobs:
               with:
                   node-version: 22.x
 
-            - name: Download the screenshot captures
+            # The run's one gated capture is the re-capture job's visual-final-<project>-<attempt>, renamed to the
+            # visual-<project>-<attempt> the judge and the gate read; a project without one is missing, so red.
+            - name: Download the final screenshot captures
               continue-on-error: true
               uses: actions/download-artifact@v8
               with:
-                  pattern: visual-*
-                  path: ${{ runner.temp }}/visual
+                  pattern: visual-final-*
+                  path: ${{ runner.temp }}/final
+
+            # verdict-<attempt>.json of earlier attempts: the lanes a re-run attempt finds green again are flaky
+            - name: Download the earlier attempts' verdicts
+              if: ${{ github.run_attempt > 1 }}
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: verdict-*
+                  path: ${{ runner.temp }}/verdicts
+                  merge-multiple: true
 
             - name: Judge the run
               id: verdict
@@ -868,11 +1035,45 @@ jobs:
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
                   VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}
+                  RUN_ATTEMPT: ${{ github.run_attempt }}
+                  HELD: ${{ needs.pick.outputs.held }}
+                  RECORDS: ${{ runner.temp }}/verdicts
+                  RECORD: ${{ runner.temp }}/record/verdict-${{ github.run_attempt }}.json
                   LANES: >-
                       {"pick": "${{ needs.pick.result }}", "ci": "${{ needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
                       "hosts": "${{ needs.hosts.result }}", "autosave_macos": "${{ needs.autosave_macos.result }}",
-                      "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}"}
-              run: node tools/full-run.mjs verdict
+                      "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}",
+                      "recapture": "${{ needs.recapture.result }}"}
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$CAPTURES" "$(dirname "$RECORD")"
+                  for d in "$RUNNER_TEMP"/final/visual-final-*; do
+                      [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
+                  done
+                  node tools/full-run.mjs verdict
+
+            # what this attempt decided, for a re-run attempt (flaky lanes) and for release-rerun.yml (deferred)
+            - name: Keep this attempt's verdict
+              uses: actions/upload-artifact@v7
+              with:
+                  name: verdict-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/record/verdict-${{ github.run_attempt }}.json
+                  retention-days: 30
+
+            # A deciding run that is not green-clean holds its commit while nothing is held (channels-pipeline.md
+            # section 3): the results store's hold and the "Nightly held on <sha12>" issue here, branch
+            # channel/candidate in the candidate_branch job (the deploy key). A verdict on the held head comments on
+            # that issue. The store is what the next slot reads, so a failed store write fails the job.
+            - name: Hold the candidate
+              id: hold
+              if: ${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}
+              env:
+                  HOLD: ${{ steps.verdict.outputs.hold }}
+                  STATE: ${{ steps.verdict.outputs.state }}
+                  WHAT: ${{ steps.verdict.outputs.what }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/channel/hold.mjs "$HOLD"
 
             # A green-clean candidate reaches nightly only when its visual-baselines/ tree equals nightly's or
             # carries the owner's passkey-signed approval of exactly that tree (channels section 7), so a baseline
@@ -949,12 +1150,14 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
                   FIRST: ${{ steps.gate.outputs.first }}
+                  HELD: ${{ needs.pick.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 
             # green-images too: it waits for the owner's screenshot review, and without this the run ends green
             # while nightly silently stays put (#3698)
+            # an attempt-1 red that waits for its same-commit re-run announces nothing: the re-run decides
             - name: Announce a red run, an owner item or changed screenshots
-              if: ${{ steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' || steps.verdict.outputs.state == 'green-images' }}
+              if: ${{ steps.verdict.outputs.deferred != 'true' && (steps.verdict.outputs.state == 'red' || steps.verdict.outputs.state == 'owner-item' || steps.verdict.outputs.state == 'green-images') }}
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
@@ -967,6 +1170,84 @@ jobs:
               run: |
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
                       --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
+    # The owner ends a held nightly candidate without promoting it (design/ci/channels-pipeline.md section 3):
+    # `gh workflow run release.yml --ref master -f mode=abandon`. Environment production, so it waits for the owner's
+    # approval in GitHub whoever dispatched it, as a legacy release does; then the abandon job clears the results
+    # store's hold and closes the "Nightly held on" issue, and candidate_branch deletes branch channel/candidate.
+    # The next slot tests master's newest commit again.
+    abandon_approve:
+        name: Owner approval (abandon the held candidate)
+        if: ${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        environment: production # the owner's approval
+        permissions: {}
+        steps:
+            - run: echo "the owner approved abandoning the held nightly candidate"
+
+    abandon:
+        name: Abandon the held candidate
+        needs: abandon_approve
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: write # close the hold issue
+            id-token: write # the results store
+        outputs:
+            base: ${{ steps.end.outputs.base }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: End the hold
+              id: end
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  WHY: abandoned by the owner
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/channel/hold.mjs end
+
+    # Branch channel/candidate (design/ci/channels-pipeline.md section 3), with the deploy key: pushed at the commit a
+    # deciding verdict holds, deleted when the owner abandons the hold (land deletes it in its own push when the held
+    # candidate promotes). It runs git only. The results store's hold is what the slots read, so a refused push (the
+    # deploy-key ruleset does not cover channel/candidate yet: an owner item) only warns.
+    candidate_branch:
+        name: Move branch channel/candidate
+        needs: [pick, verdict, abandon]
+        if: ${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.abandon.result == 'success') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        environment: release # the deploy key
+        permissions:
+            contents: read # the push goes over SSH with the deploy key, not with this token
+        env:
+            SHA: ${{ needs.pick.outputs.sha }}
+            ABANDON: ${{ needs.abandon.result == 'success' }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+            - name: Push or delete channel/candidate
+              run: |
+                  if [ "$ABANDON" = true ]; then
+                      ref=:refs/heads/channel/candidate
+                  else
+                      git fetch --quiet origin "$SHA"
+                      ref="${SHA}:refs/heads/channel/candidate"
+                  fi
+                  git push --no-verify origin "$ref" ||
+                      echo "::warning::could not push ${ref}: add channel/candidate to the deploy-key ruleset (owner item); the hold stands in the results store"
 
     # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed
@@ -1040,7 +1321,7 @@ jobs:
                   done
                   [ "${#what[@]}" != 0 ] || what+=("release train")
                   # The first attempt failed only because a spot runner was taken away (every failed job says its
-                  # runner was lost): gpu-rerun-on-runner-loss.yml re-runs this run's failed jobs once when it
+                  # runner was lost): release-rerun.yml re-runs this run's failed jobs once when it
                   # ends, with the same test (tools/gpu-runner-lost.sh), so there is nothing to hold yet. A second
                   # loss, or any real failure beside the loss, opens the issue below.
                   if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then
@@ -1286,6 +1567,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
             COMMIT: ${{ needs.version.outputs.commit }}
             TAGS: ${{ needs.version.outputs.tags }}
+            HELD: ${{ needs.pick.outputs.held }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1354,6 +1636,11 @@ jobs:
                           git tag "$site" "$SHA"
                       fi
                       refs+=("refs/tags/${site}:refs/tags/${site}" "${COMMIT:-$SHA}:refs/heads/channel/nightly")
+                      # the held candidate promoting ends its hold (design/ci/channels-pipeline.md section 3): its
+                      # branch goes in the same push; the unhold job clears the store and closes the issue
+                      if [ "${HELD:-}" = "$SHA" ] && git ls-remote --exit-code --heads origin refs/heads/channel/candidate >/dev/null; then
+                          refs+=(":refs/heads/channel/candidate")
+                      fi
                   fi
                   # Nothing versioned (a nightly only): master does not move, only the site tag and channel/nightly.
                   if [ -z "$COMMIT" ]; then
@@ -1425,6 +1712,36 @@ jobs:
                   msg="the release (${TAGS}) is on master and is being published, but a later step of this job failed (see the failed step above); the release is not held"
                   echo "::error::${msg}"
                   echo "Release landed, then a bookkeeping step failed: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+    # The held candidate promoted (design/ci/channels-pipeline.md section 3): land deleted branch channel/candidate in
+    # its push; this clears the results store's hold and closes the "Nightly held on" issue (tools/channel/hold.mjs).
+    unhold:
+        name: End the nightly hold
+        needs: [pick, land]
+        if: ${{ !cancelled() && needs.land.outputs.pushed == 'true' && needs.pick.outputs.held != '' && needs.pick.outputs.held == needs.pick.outputs.sha }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: write # close the hold issue
+            id-token: write # the results store
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: End the hold
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  WHY: promoted to nightly
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/channel/hold.mjs end
 
     # Publishes what the land job put on master, from the builds of this run's CI call. always(): a land job that
     # pushed and then failed a bookkeeping step still publishes. A re-run of the run's failed jobs re-runs only this

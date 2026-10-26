@@ -27,8 +27,6 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { compareImages } from "../../visual-review/trusted/lib/compare.mjs";
-
 const RESHOOT = new Set(["changed", "new"]);
 const BASELINE_MATCH = new Set(["unchanged", "moved"]);
 
@@ -92,7 +90,9 @@ const copyIfThere = (from, to) => {
  * @param o.out where the final capture goes
  * @returns the flaky stories, `[{ file, why }]`
  */
-export function merge({ first, second, out }) {
+export async function merge({ first, second, out }) {
+    // only a re-capture needs the image comparison, and with it visual-review's dependencies installed
+    const { compareImages } = second ? await import("../../visual-review/trusted/lib/compare.mjs") : {};
     cpSync(first, out, { recursive: true });
     const results = JSON.parse(readFileSync(join(first, "results.json"), "utf8"));
     const again =
@@ -136,7 +136,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, lines);
         process.stdout.write(lines);
     } else if (cmd === "merge") {
-        const flaky = merge({ first: values.first, second: values.second || null, out: values.out });
+        const flaky = await merge({ first: values.first, second: values.second || null, out: values.out });
         for (const f of flaky) console.log(`::warning::flaky story ${f.file}: ${f.why}`);
     } else {
         console.error("usage: node tools/channel/recapture.mjs plan | merge (see the head of the file)");

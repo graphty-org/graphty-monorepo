@@ -488,7 +488,7 @@ async function pickMain(env) {
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
     }
-    output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
+    output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why, held: p.held ?? "" });
 }
 
 /**
@@ -785,7 +785,7 @@ export function fixedRecently(closed, sha, now = Date.now()) {
 }
 
 function laneRedMain(env) {
-    if (env.RUN_ATTEMPT === "1" && RERUN_MODES.has(env.MODE)) {
+    if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && RERUN_MODES.has(env.MODE)) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;
     }

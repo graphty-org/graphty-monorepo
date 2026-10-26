@@ -445,6 +445,24 @@ describe("the held candidate", () => {
         assert.equal(holdAction({ held: "t", sha: "s", state: "red" }), "none", "a master slot never replaces it");
         assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "none");
     });
+    it("re-tests a head that fixes moved past the held commit, and mode candidate never tests master", () => {
+        const moved = (recent) => ({ ...store(recent), hold: { base: C, head: "h2", issue: 4 } });
+        const p = pick({
+            mode: "candidate",
+            head: "h",
+            store: moved([{ sha: C, state: "red" }]),
+            firstParents,
+            stray: code,
+        });
+        assert.deepEqual([p.run, p.sha, p.forward], [true, "h2", C]);
+        assert.equal(pick({ mode: "full", head: "h", store: held([]), firstParents, stray: code }).forward, "");
+        const judged = moved([{ sha: "h2", state: "red" }]);
+        assert.equal(pick({ mode: "candidate", head: "h", store: judged, firstParents, stray: code }).run, false);
+        assert.equal(pick({ mode: "candidate", head: "h", store: store([]), firstParents, stray: code }).run, false);
+    });
+    it("passes a lane the fixes do not reach", () => {
+        assert.equal(verdictOf({ ...ALL_GREEN, hosts: "unaffected" }, 0).state, "green-clean");
+    });
 });
 
 describe("same-commit re-run", () => {
@@ -561,6 +579,18 @@ describe("same-commit re-run", () => {
         assert.match(v.calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
         const other = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson({ t4: "failure" }), HELD: "f".repeat(40) });
         assert.equal(other.outputs.hold, "none", "another commit is held: a master slot never replaces it");
+    });
+    it("reports a held head past its commit only on the hold issue: no red issue, no bisect", () => {
+        const sha = "abcdef1234";
+        const v = runVerdict({
+            RUN_ATTEMPT: "2",
+            LANES: lanesJson({ t4: "failure" }),
+            HELD: sha,
+            FORWARD: "c".repeat(40),
+        });
+        assert.deepEqual([v.outputs.state, v.outputs.hold, v.outputs.issue], ["red", "update", ""]);
+        assert.doesNotMatch(v.calls, /Full run red|bisect/);
+        assert.equal(v.record.forward, true);
     });
 });
 

@@ -32,6 +32,8 @@ const RERUNNABLE = [
     "LLM regression",
     "Version dry run",
     "Re-capture",
+    // a fix forward's site, which the promotion deploys (release.yml candidate_site)
+    "Assemble the held head's site",
     "Red early",
     "Verdict",
     "Coverage",

@@ -24,6 +24,12 @@
  * held one dispatches nothing and says so on the hold issue. A store that does not answer dispatches anyway: the
  * run's own check decides.
  *
+ * A fix forward into the held candidate (design/ci/channels-pipeline.md section 3): a merge whose branch is named for
+ * the hold issue, or whose commits or pull request description reference it, dispatches release.yml
+ * `mode: candidate`, which merges the fix into branch channel/candidate (tools/channel/candidate-fix.mjs) and re-tests
+ * the new head. Every full and restart run merges waiting fixes first too, so a candidate run that another dispatch
+ * replaces while pending loses nothing.
+ *
  * Usage: node tools/release-due.mjs [--dry-run]
  *   env GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token; the checkout is the master commit, with
  *   its parents.
@@ -33,6 +39,7 @@ import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { referencesHold } from "./channel/candidate-fix.mjs";
 import { acceptsIn, resumeDecision } from "./channel/resume.mjs";
 import { listRedIssues, RED_TITLE } from "./full-run.mjs";
 import { LABEL } from "./release-status.mjs";
@@ -210,6 +217,26 @@ async function promoteApproved(range, approval, dryRun) {
     }
 }
 
+/**
+ * Whether a merge fixes the held candidate forward.
+ * @param merge `{ subject, messages }`: the merge's subject, and its commits' messages and pull request description
+ * @param store `GET /v1/candidate`'s answer, or null
+ * @returns the hold issue's number, or null
+ */
+export function fixForwardDue(merge, store) {
+    const issue = store?.hold?.issue;
+    return issue && referencesHold(merge, issue) ? issue : null;
+}
+
+async function dispatchFixForward(subject, messages, dryRun) {
+    const cfg = config(process.env);
+    const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
+    const issue = fixForwardDue({ subject, messages }, r.ok ? r.data : null);
+    if (!issue) return;
+    console.log(`release-due: this merge fixes the held candidate forward (#${issue}): release.yml mode=candidate`);
+    if (!dryRun) run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=candidate"]);
+}
+
 async function main() {
     const dryRun = process.argv.includes("--dry-run");
     // the open ones, and those closed in the last hour (by this merge's Fixes)
@@ -245,7 +272,14 @@ async function main() {
     } catch (error) {
         console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
     }
-    const plan = due(issues, `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`);
+    const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
+    // its failure never stops the restart below
+    try {
+        await dispatchFixForward(run("git", ["log", "-1", "--format=%s", "HEAD"]), messages, dryRun);
+    } catch (error) {
+        console.log(`::warning::the fix-forward check failed: ${String(error.message).split("\n")[0]}`);
+    }
+    const plan = due(issues, messages);
     if (!plan) {
         console.log("release-due: nothing due (no open red issue referenced by this merge)");
         return;

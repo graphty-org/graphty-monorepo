@@ -3,13 +3,14 @@
 // sections 5 and 6): which commit a slot tests, and the verdict on it.
 //
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
-//       env MODE (full | restart), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's OIDC token
-//       writes run, sha, why and good to GITHUB_OUTPUT
+//       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
+//       OIDC token; writes run, sha, why, good, held and forward to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
-//           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
+//           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, FORWARD (the held commit, when SHA is a held head past
+//           it: red goes to the hold issue only, no "Full run red" issue and no bisect)
 //   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
 //                                     references it restarts the run without waiting for the other lanes
 //       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
@@ -70,7 +71,7 @@ export const LANES = {
 /**
  * The commit a slot tests, or why it does nothing.
  * @param o the inputs
- * @param o.mode full or restart
+ * @param o.mode full, restart or candidate
  * @param o.head the commit the run started on (master's head when it was dispatched)
  * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
@@ -86,8 +87,9 @@ export const LANES = {
  *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
  * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
- * @returns `{ run, sha, why, good, inherit, held }`; inherit is the verdict the commit takes over, when it does;
- *   held is the held candidate's head ("" when nothing is held, "unknown" when the store did not answer)
+ * @returns `{ run, sha, why, good, inherit, held, forward }`; inherit is the verdict the commit takes over, when it
+ *   does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not answer);
+ *   forward is the held commit when the tested head is past it
  */
 export function pick({
     mode,
@@ -110,9 +112,28 @@ export function pick({
     }
     const held = store.hold?.head ?? "";
     // a held candidate's head no run judged yet is tested first (catch-up order, channels-pipeline.md section 3);
-    // a judged one leaves the slot to master, whose verdict never promotes or replaces it
+    // a judged one leaves the slot to master, whose verdict never promotes or replaces it. A head past the held
+    // commit (fixes merged forward, tools/channel/candidate-fix.mjs) is re-tested only where the fixes reach:
+    // forward names the held commit
     if (held && !(store.recent ?? []).some((v) => v.sha === held)) {
-        return { run: true, sha: held, good: "", held, why: `the held candidate ${short(held)} is not judged yet` };
+        const forward = store.hold.base && store.hold.base !== held ? store.hold.base : "";
+        return {
+            run: true,
+            sha: held,
+            good: "",
+            held,
+            forward,
+            why: `the held candidate ${short(held)} is not judged yet`,
+        };
+    }
+    // mode candidate only re-tests a held head that fixes moved on; it never tests master
+    if (mode === "candidate") {
+        return {
+            run: false,
+            sha: held || head,
+            held,
+            why: held ? "the held head is judged already" : "nothing is held",
+        };
     }
     const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
     return { ...p, held };
@@ -197,6 +218,8 @@ export function verdictOf(lanes, images, ownerItem = "", held = "") {
     const passed = (l) =>
         l === "pick" ||
         lanes[l] === "success" ||
+        // a fix forward's re-test leaves out a lane its fixes do not reach (tools/channel/candidate-fix.mjs plan)
+        lanes[l] === "unaffected" ||
         (l === "llm" && (lanes[l] ?? "skipped") === "skipped") ||
         ((l === "captures" || l === "recapture") && lanes.ci !== "success");
     const red = Object.keys(LANES).filter((l) => !passed(l));
@@ -482,7 +505,14 @@ async function pickMain(env) {
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
     }
-    output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why, held: p.held ?? "" });
+    output({
+        run: String(p.run),
+        sha: p.sha,
+        good: p.good ?? "",
+        why: p.why,
+        held: p.held ?? "",
+        forward: p.forward ?? "",
+    });
 }
 
 /**
@@ -716,11 +746,14 @@ async function verdictMain(env) {
                 ? env.LLM_OWNER_ITEM
                 : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
     }
-    const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes };
+    // a held head past its commit (FORWARD) is the hold issue's to report, never a "Full run red" one: master
+    // does not hold it, so neither a bisect nor a restart on master could help
+    const forward = !!env.FORWARD;
+    const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
     if (wait) {
         console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
     } else if (state === "red") {
-        ({ issue, bisect } = await fileRedVerdict(cfg, facts));
+        if (!forward) ({ issue, bisect } = await fileRedVerdict(cfg, facts));
         what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
     } else if (state !== "owner-item") {
         bestEffort(
@@ -751,8 +784,8 @@ async function verdictMain(env) {
  */
 async function fileDeferredMain(file, env) {
     const facts = readJson(file);
-    if (!facts?.deferred) {
-        console.log(`::notice::${file} defers nothing`);
+    if (!facts?.deferred || facts.forward) {
+        console.log(`::notice::${file} defers nothing to file`);
         return;
     }
     const { issue, bisect } = await fileRedVerdict(config(env), facts);

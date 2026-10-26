@@ -28,7 +28,10 @@ export const PARENT: Partial<Record<Step, Step>> = { "5m": "15m", "15m": "1h", "
 export const CHILD: Partial<Record<Step, Step>> = { "15m": "5m", "1h": "15m", "1d": "1h" };
 
 export const floorTo = (ms: number, step: Step): number => Math.floor(ms / STEP_MS[step]) * STEP_MS[step];
-/** Sort keys are zero-padded epoch ms, so string order is time order. */
+/**
+ * Sort keys are zero-padded epoch ms, so string order is time order.
+ * @param ms
+ */
 export const skTime = (ms: number): string => String(ms).padStart(13, "0");
 export const ttlAt = (ms: number): number => Math.ceil(ms / 1000);
 

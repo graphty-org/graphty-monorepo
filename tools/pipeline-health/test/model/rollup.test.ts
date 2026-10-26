@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DAY, floorTo, HOUR, rollKey, STEP_MS, type Bucket, type Step } from "../../src/model/items.js";
+
+import { type Bucket, DAY, floorTo, HOUR, rollKey, type Step, STEP_MS } from "../../src/model/items.js";
 import { putRaw } from "../../src/model/raw.js";
 import { loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -42,8 +43,9 @@ describe("rollups", () => {
         for (const metric of ["ci.runner_wait", "ci.hangs"]) {
             const fives = await sums(store, metric, "5m", dayStart, now, now);
             expect(fives.n).toBe(400);
-            for (const step of ["15m", "1h", "1d"] as Step[])
+            for (const step of ["15m", "1h", "1d"] as Step[]) {
                 expect(await sums(store, metric, step, dayStart, now, now)).toEqual(fives);
+            }
             // and every parent equals its own children
             const parents = await loadSeries(store, metric, "1h", dayStart, now, now);
             for (const [start, b] of parents) {

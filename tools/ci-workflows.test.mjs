@@ -4585,6 +4585,7 @@ describe("release.yml", () => {
             newest = "abc9999",
             live = "0ddba11",
             compare = "ahead",
+            order = "behind",
             cname = "canary.graphty.app",
             code = 200,
             cut = false,
@@ -4612,7 +4613,7 @@ describe("release.yml", () => {
                 join(bin, "gh"),
                 `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/pages) ${answer(cname)};;\n` +
                     `*/workflows/ci.yml/runs*) ${answer(newest)};;\n` +
-                    `*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
+                    `*/compare/abc9999...abc1111) ${answer(order)};;\n*/compare/*) ${answer(compare)};;\n*/actions/artifacts*) ${answer(artifact)};;\n*) exit 1;;\nesac\n`,
                 { mode: 0o755 },
             );
             const step = /- id: live\n([\s\S]*?)\n\n/.exec(`${job(deploy, "deploy")}\n\n`)[1];
@@ -4663,6 +4664,9 @@ describe("release.yml", () => {
                 r.curl,
                 /^-sSL --max-time 30 -o \S+ -w %\{http_code\} https:\/\/canary\.graphty\.app\/\?run=7-2\n$/,
             );
+            // the runs list lags and still names an older build than the one that started this run: this run's
+            // build is the newest, and it deploys its own site (#3618 review)
+            assert.deepEqual(deploys({ order: "ahead", artifact: "" }), [0, "true", "abc1111", "7"]);
             // this run's own build is the newest: it deploys its own site, from this run, without asking the
             // artifacts list, which may not show an upload made moments ago yet (#3618 review)
             assert.deepEqual(deploys({ sha: "abc9999", artifact: "" }), [0, "true", "abc9999", "7"]);
@@ -4716,6 +4720,9 @@ describe("release.yml", () => {
         it("fails the job, deploying nothing, on every read that fails, so master-guard reports it (#3618 review)", () => {
             for (const o of [
                 { cname: null }, // the Pages settings
+                { cname: "" }, // a Pages domain that is neither graphty.app (before the swap) nor canary
+                { cname: "canary.graphty.ap" },
+                { order: null }, // this run's build cannot be compared with the runs list's newest
                 { newest: null }, // the CI runs list
                 { newest: "" },
                 { live: null }, // canary does not answer

@@ -269,9 +269,19 @@ jobs:
                   skip() { echo "::notice::$*"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0; }
                   # Before the domain swap this repository's Pages domain was graphty.app, which only promotion may move
                   cname=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.cname // ""') || fail "this repository's Pages settings could not be read"
-                  [ "$cname" = canary.graphty.app ] || skip "this repository's Pages domain is '${cname}', not canary.graphty.app (graphty.app moves only by promotion)"
+                  [ "$cname" != graphty.app ] || skip "this repository's Pages domain is still graphty.app, which moves only by promotion"
+                  [ "$cname" = canary.graphty.app ] || fail "this repository's Pages domain is '${cname}', not canary.graphty.app"
                   newest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=master&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""') || newest=""
                   [ -n "$newest" ] || fail "master's newest green build could not be read"
+                  # the runs list can lag a run that just completed: the build that started this run counts too
+                  if [ "$newest" != "$SHA" ]; then
+                      order=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${newest}...${SHA}" --jq .status) || order=""
+                      case "$order" in
+                          ahead) newest="$SHA" ;;
+                          behind | identical | diverged) ;;
+                          *) fail "${SHA} could not be compared with ${newest}" ;;
+                      esac
+                  fi
                   # a query string of its own, so the Pages CDN answers with what is live now, not a cached page.
                   # Only a 200 with a build stamp is an answer. Anything else (a 404: this repository's Pages always
                   # serves a site, a 5xx, a 429, no answer, a body that breaks off after the headers) is a failed read.

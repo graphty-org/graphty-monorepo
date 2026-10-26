@@ -615,6 +615,7 @@ jobs:
         outputs:
             state: ${{ steps.verdict.outputs.state }}
             promote: ${{ steps.promote.outputs.promote }}
+            screenshots: ${{ steps.gate.outputs.screenshots }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}
@@ -678,6 +679,13 @@ jobs:
                   mkdir -p "$gate"
                   git archive HEAD visual-review/trusted | tar -x -C "$gate"
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" --base "$base" --head "$SHA"
+                  # channel.json's screenshots: "unchanged", or the owner-approved visual-baselines/ tree it carries
+                  tree=$(git rev-parse "$SHA:visual-baselines")
+                  if [ "$(git rev-parse "$base:visual-baselines")" = "$tree" ]; then
+                      echo "screenshots=unchanged" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "screenshots=approved:$tree" >> "$GITHUB_OUTPUT"
+                  fi
 
             # Whether the candidate promotes now: green-clean, the gate passed, and no publish hold open (a nightly
             # promotion of a new version set waits for the hold to clear; channels section 11). The why goes into
@@ -901,7 +909,7 @@ jobs:
             - name: Download the tested commit's builds
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the publish job
@@ -1409,7 +1417,7 @@ jobs:
     # of the run's failed jobs re-runs this job alone. No dependency is installed: it holds a deploy key.
     site:
         name: Deploy the nightly site
-        needs: [pick, version, land, publish]
+        needs: [pick, verdict, version, land, publish]
         if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
@@ -1424,6 +1432,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
             COMMIT: ${{ needs.version.outputs.commit }}
             TAGS: ${{ needs.version.outputs.tags }}
+            SCREENSHOTS: ${{ needs.verdict.outputs.screenshots }}
             SITE_REPO: graphty-org/graphty-nightly
             SITE_URL: https://nightly.graphty.app
             RUN_ID: ${{ github.run_id }}

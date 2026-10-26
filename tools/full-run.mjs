@@ -49,6 +49,9 @@ export const LANES = {
  * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
+ * @param o.sameBaselines (from, to) => whether two commits have the same visual-baselines/ tree; a verdict is never
+ *     inherited across a baselines change, because those screenshots were never captured and gated against nightly
+ *     (an inherited green-clean commit is never promoted, so the owner's approved baselines would never reach it)
  * @param o.onNightly (sha) => whether channel/nightly holds that commit; a green-clean commit it lacks was not
  *     promoted (a publish hold, the screenshot gate, a refused push)
  * @param o.hold `{ open, closedAt }`: the open publish hold's number (or empty) and when the newest closed one
@@ -65,6 +68,7 @@ export function pick({
     store,
     firstParents,
     stray,
+    sameBaselines = () => true,
     onNightly = () => true,
     hasNightly = () => true,
     hold = { open: "", closedAt: 0 },
@@ -119,9 +123,14 @@ export function pick({
     }
     if (own) return { run: false, sha, good, why: `${short(sha)} is already judged ${own.state}` };
     const at = chain.findIndex((s) => judged.has(s));
-    if (at > 0 && !unpromoted(judged.get(chain[at])) && stray(chain[at], sha).length === 0) {
+    if (
+        at > 0 &&
+        !unpromoted(judged.get(chain[at])) &&
+        stray(chain[at], sha).length === 0 &&
+        sameBaselines(chain[at], sha)
+    ) {
         const inherit = judged.get(chain[at]);
-        const why = `every merge since ${short(chain[at])} (judged ${inherit.state}) changes only versions or screenshot approvals`;
+        const why = `every merge since ${short(chain[at])} (judged ${inherit.state}) changes only versions or approval records`;
         return { run: false, sha, good, why, inherit };
     }
     return { run: true, sha, good, why: `${short(sha)} is not judged yet` };
@@ -310,6 +319,8 @@ async function pickMain(env) {
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
     const firstParents = (sha) => sh("git", ["rev-list", "--first-parent", "-n", "200", sha]).split("\n");
     const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
+    const baselines = (sha) => sh("git", ["rev-parse", `${sha}:visual-baselines`]);
+    const sameBaselines = (from, to) => baselines(from) === baselines(to);
     const NIGHTLY = "refs/remotes/origin/channel/nightly";
     const onNightly = (sha) => isOnNightly(sha, NIGHTLY);
     const hasNightly = (sha) => {
@@ -331,6 +342,7 @@ async function pickMain(env) {
         store,
         firstParents,
         stray,
+        sameBaselines,
         onNightly,
         hasNightly,
         hold: publishHold(),

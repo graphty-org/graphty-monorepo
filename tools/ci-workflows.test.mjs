@@ -5968,6 +5968,26 @@ describe("release.yml's nightly promotion (#1020)", () => {
     const timings = job(release, "timings");
     const steps = parseYaml(release).jobs;
 
+    it("records an owner-approved baselines tree in channel.json as approved:<tree>, else unchanged", () => {
+        assert.match(verdict, /\n {12}screenshots: \$\{\{ steps.gate.outputs.screenshots \}\}\n/);
+        const gate = steps.verdict.steps.find((x) => x.id === "gate").run;
+        assert.match(gate, /tree=\$\(git rev-parse "\$SHA:visual-baselines"\)/);
+        assert.match(gate, /echo "screenshots=approved:\$tree"/);
+        assert.match(site, /\n {12}SCREENSHOTS: \$\{\{ needs.verdict.outputs.screenshots \}\}\n/);
+    });
+
+    it("hands the publish job a build of every package it can version, cytoscape-extensions included", () => {
+        const ci = parseYaml(workflow("ci.yml"));
+        const uploaded = Object.values(ci.jobs)
+            .flatMap((j) => j.steps ?? [])
+            .map((x) => x.with?.name)
+            .filter((n) => typeof n === "string" && n.startsWith("build-"));
+        const pattern = steps.version.steps.find((x) => x.name === "Download the tested commit's builds").with.pattern;
+        const downloaded = /^build-\{(.+)\}$/.exec(pattern)[1].split(",");
+        assert.ok(downloaded.includes("cytoscape-extensions"));
+        for (const name of downloaded) assert.ok(uploaded.includes(`build-${name}`), `ci.yml uploads build-${name}`);
+    });
+
     it("decides the promotion in the verdict job: green-clean, the screenshot gate, no publish hold", () => {
         assert.match(
             verdict,
@@ -6020,7 +6040,7 @@ describe("release.yml's nightly promotion (#1020)", () => {
     });
 
     it("deploys the site from environment nightly, after npm next, with the site repository's key only", () => {
-        assert.match(site, /\n {8}needs: \[pick, version, land, publish\]\n/);
+        assert.match(site, /\n {8}needs: \[pick, verdict, version, land, publish\]\n/);
         assert.equal(
             steps.site.if,
             "${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}",

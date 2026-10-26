@@ -274,10 +274,11 @@ const BLOCKING = {
 };
 
 /**
- * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or screenshot
- * approvals: the full run's pick writes such a verdict as "inherited from <short sha>" (tools/full-run.mjs) and
+ * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or approval
+ * records: the full run's pick writes such a verdict as "inherited from <short sha>" (tools/full-run.mjs) and
  * never promotes that commit, so it is nightly, not a candidate waiting for it. The chain is followed (a
- * promotion's version merge, then an approvals-only merge after it).
+ * promotion's version merge, then a merge after it). pick never inherits across a visual-baselines/ change, so a
+ * merge of the owner's approved baselines is judged on its own and counts as waiting for nightly here too.
  * @param sha the commit
  * @param nightlySha nightly's commit
  * @param states the newest verdict of each recent commit

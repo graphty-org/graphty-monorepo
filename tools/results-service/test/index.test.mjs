@@ -761,7 +761,7 @@ describe("GET /v1/release-state", () => {
         s.site("m1", NOW - 48 * HOUR);
         s.verdict("m1", "green-clean", NOW - 47 * HOUR, { lane: "inherited from aaaaaaa" });
         assert.deepEqual([(await state(call)).ageNightlyMs, (await state(call)).blocking], [0, null]);
-        // an approvals-only merge after it inherits from the version merge: still nightly
+        // a merge of approval records with the same baselines tree inherits from the version merge: still nightly
         const m1 = "b".repeat(40);
         s.site(m1, NOW - 46 * HOUR);
         s.verdict(m1, "green-clean", NOW - 45 * HOUR, { lane: "inherited from aaaaaaa" });
@@ -771,6 +771,17 @@ describe("GET /v1/release-state", () => {
         s.site("z", NOW - 42 * HOUR);
         s.verdict("z", "green-clean", NOW - 41 * HOUR, { lane: "inherited from ccccccc" });
         assert.equal((await state(call)).ageNightlyMs, 42 * HOUR, "a chain that does not reach nightly waits, from z");
+    });
+    it("waits on an approved-baselines merge after nightly, which the full run judged itself and did not promote", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        const n = "e".repeat(40);
+        s.site(n, NOW - 50 * HOUR);
+        s.nightly(n, NOW - 49 * HOUR);
+        // full-run.mjs pick never inherits across a visual-baselines change, so the merge has a verdict of its own
+        s.site("ap", NOW - 48 * HOUR);
+        s.verdict("ap", "green-clean", NOW - 40 * HOUR, { lane: "" });
+        assert.equal((await state(call)).ageNightlyMs, 48 * HOUR, "the approved baselines are not on nightly");
     });
     it("counts nightly's age from the first site after it, so a quiet master is no stall", async () => {
         const { call, env } = service();

@@ -67,6 +67,23 @@ describe("the records", () => {
         assert.equal(autosaveFormatOf(null), null);
     });
 
+    it("writes channel.json with the owner-approved baselines tree, and refuses anything else", () => {
+        const base = {
+            sha: SHA,
+            commit: "",
+            versions: {},
+            run: 1,
+            configBlob: "b",
+            autosaveFormat: 1,
+            siteSha256: "f",
+            now: NOW,
+        };
+        const tree = "c".repeat(40);
+        assert.equal(channelRecord({ ...base, screenshots: `approved:${tree}` }).screenshots, `approved:${tree}`);
+        assert.throws(() => channelRecord(base), /screenshots must be/);
+        assert.throws(() => channelRecord({ ...base, screenshots: "approved:x" }), /screenshots must be/);
+    });
+
     it("writes channel.json with every field the design names", () => {
         const r = channelRecord({
             sha: SHA,
@@ -77,6 +94,7 @@ describe("the records", () => {
             autosaveFormat: 1,
             siteSha256: "f".repeat(64),
             now: NOW,
+            screenshots: "unchanged",
         });
         assert.deepEqual(Object.keys(r).sort(), [
             "autosaveFormat",

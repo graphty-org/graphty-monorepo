@@ -111,16 +111,30 @@ export function autosaveFormatOf(source) {
  * @param o.autosaveFormat autosaveFormatOf() at the same commit
  * @param o.siteSha256 the sha256 of site.tar.zst
  * @param o.now milliseconds
+ * @param o.screenshots "unchanged", or "approved:<tree>" when the candidate's visual-baselines/ tree differs from
+ *   the previous nightly's and the owner signed it (release.yml's screenshot gate step)
  * @returns the record
  */
-export function channelRecord({ sha, commit, versions, run, configBlob, autosaveFormat, siteSha256, now }) {
+export function channelRecord({
+    sha,
+    commit,
+    versions,
+    run,
+    configBlob,
+    autosaveFormat,
+    siteSha256,
+    now,
+    screenshots,
+}) {
+    if (screenshots !== "unchanged" && !/^approved:[0-9a-f]{40}$/.test(screenshots ?? ""))
+        throw new Error(`screenshots must be "unchanged" or "approved:<tree sha>", not ${JSON.stringify(screenshots)}`);
     return {
         channel: "nightly",
         commit: sha,
         versionCommit: commit || null,
         versions,
         fullRun: String(run),
-        screenshots: "unchanged",
+        screenshots,
         siteConfigBlob: configBlob,
         autosaveFormat,
         siteSha256,
@@ -412,7 +426,7 @@ function decideMain(env) {
 }
 
 function channelJsonMain(env) {
-    need(env, ["SHA", "RUN_ID", "SITE_SHA256", "CONFIG_REF"]);
+    need(env, ["SHA", "RUN_ID", "SITE_SHA256", "CONFIG_REF", "SCREENSHOTS"]);
     const at = show(env.COMMIT || env.SHA);
     const blob = execFileSync("git", ["rev-parse", `${env.CONFIG_REF}:graphty/sites/nightly.json`], {
         encoding: "utf8",
@@ -426,6 +440,7 @@ function channelJsonMain(env) {
         autosaveFormat: autosaveFormatOf(at("graphty-element/src/autosave/Autosaver.ts")),
         siteSha256: env.SITE_SHA256,
         now: Date.now(),
+        screenshots: env.SCREENSHOTS,
     });
     console.log(JSON.stringify(record, null, 2));
 }

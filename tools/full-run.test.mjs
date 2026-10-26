@@ -85,6 +85,15 @@ describe("pick", () => {
         assert.equal(pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: code }).run, true);
     });
 
+    it("does not inherit across a change of the visual-baselines tree: the owner's approved baselines are tested", () => {
+        const recent = [{ sha: "c1", state: "green-clean" }];
+        const seen = [];
+        const sameBaselines = (from, to) => (seen.push([from, to]), false);
+        const p = pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: () => [], sameBaselines });
+        assert.deepEqual([p.run, p.sha, p.inherit], [true, "c3", undefined]);
+        assert.deepEqual(seen, [["c1", "c3"]]);
+    });
+
     it("tests an unpromoted green-clean commit again only once a publish hold closed after its verdict", () => {
         const own = store([{ sha: "c3", state: "green-clean", at: 100 }]);
         const off = () => false;

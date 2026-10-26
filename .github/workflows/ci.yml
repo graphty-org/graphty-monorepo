@@ -1789,23 +1789,25 @@ jobs:
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
     # packed into bins of at most 8 minutes, each captured with the old visual-review capture exactly as the
-    # visual job captures, but only those stories (--stories). Report-only until rollout step 9 replaces it with
-    # story tests per project: a changed picture is listed in the job summary and never fails the job, and the
-    # job is outside "All Checks Pass". The artifact is "stories-<bin>-<attempt>", not "visual-*", so neither the
-    # visual gate nor the flaky-story report reads these partial captures. No story selected: no job.
+    # visual job captures, but only those stories (--stories). A broken story blocks its pull request: one that
+    # fails to render or whose play function throws (`failed` in results.json), one that draws two different
+    # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
+    # capture that crashes fails the job, and "All Checks Pass" needs it (#3472). A changed picture never fails
+    # the job: it is listed in the job summary, and the owner approves it at the promotion to nightly. The
+    # artifact is "stories-<bin>-<attempt>", not "visual-*", so neither the visual gate nor the flaky-story
+    # report reads these partial captures. No story selected: no job, and "All Checks Pass" counts that a pass.
     stories:
         name: Stories (${{ matrix.name }})
         needs: [packages, build]
-        # OFF for now (2026-10-25): report-only beside the visual job, and its story bins are planned only for a
-        # pull request's light check, so this condition switches it off everywhere. Its 17 shards held the
-        # runners every pull request run and the full run queued for. Delete the event check to turn it back on.
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # Its story bins are planned only for a pull request's light check, so it runs only there.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
             # To download master's newest capture (the reference step below).
             actions: read
-        continue-on-error: true
+            # The early verdict (the last step) posts a failed "All Checks Pass" check run.
+            checks: write
         timeout-minutes: 20
         strategy:
             fail-fast: false
@@ -1897,11 +1899,10 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
 
-            # A changed picture is never a failure (capture exits 0 on changes); continue-on-error keeps even a
-            # crash of the tool from failing the job while it only reports.
+            # A changed picture is never a failure (capture exits 0 on changes and on broken stories, which the
+            # verdict step below judges); a crash of the tool fails the job.
             - name: Capture the selected stories
               if: steps.pick.outputs.stories != ''
-              continue-on-error: true
               env:
                   STORIES: ${{ steps.pick.outputs.stories }}
               run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}" --stories "$STORIES"
@@ -1922,18 +1923,56 @@ jobs:
               run: |
                   f="$RUNNER_TEMP/visual/results.json"
                   {
-                      echo "### Stories ($NAME), report-only"
+                      echo "### Stories ($NAME)"
                       if [[ -f "$f" ]]; then
                           jq -r '"\(.items | length) stories captured, master reference run: \(.reference)",
                               "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |"),
                               "", (.items[] | select(.status != "unchanged" and .status != "excluded") | "- \(.status): \(.id // .file)")' "$f"
                           echo ""
-                          echo "Reported only: a changed picture does not fail this job or the pull request."
+                          echo "Reported only: a changed picture does not fail this job or the pull request; a broken or unstable story does."
                       else
                           echo "No capture: no story of this bin is in the built Storybook, or capture did not start."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
+
+            # What blocks: a story that failed (did not render, its play function threw, its wait never settled)
+            # or was unstable (two shots on the same inputs disagreed), judged by visual-review's storyVerdict
+            # with VISUAL_REVIEW_BLOCKING=1. Every other status, a changed, new or removed picture included, passes.
+            - name: Fail on a broken or unstable story
+              if: steps.pick.outputs.stories != ''
+              env:
+                  PROJECT: ${{ matrix.project }}
+                  VISUAL_REVIEW_BLOCKING: "1"
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  if [[ ! -f "$f" ]]; then
+                      echo "::error::[BROKEN] $PROJECT: the capture wrote no results.json"
+                      exit 1
+                  fi
+                  # the base branch's verdict (the swap above); a base older than story-outcomes.mjs has none, so
+                  # the pull request's own copy judges until the base has it
+                  m=visual-review/capture/story-outcomes.mjs
+                  [[ -f "$m" ]] || git show "HEAD:$m" > "$m"
+                  F="$f" node --input-type=module -e '
+                      import { readFileSync } from "node:fs";
+                      import { blockingOn, storyVerdict } from "./visual-review/capture/story-outcomes.mjs";
+                      const results = JSON.parse(readFileSync(process.env.F, "utf8"));
+                      results.project ??= process.env.PROJECT;
+                      const v = storyVerdict(results, { blocking: blockingOn(), gh: true });
+                      for (const line of v.lines) console.log(line);
+                      process.exitCode = v.code;
+                  '
+
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: stories
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
     # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
@@ -2369,7 +2408,7 @@ jobs:
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy]
+        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories]
         if: always()
         runs-on: ubuntu-24.04
         timeout-minutes: 10
@@ -2387,6 +2426,7 @@ jobs:
                   R_TEST: ${{ needs.test.result }}
                   R_LINKS: ${{ needs.links.result }}
                   R_COST: ${{ needs.cost-accuracy.result }}
+                  R_STORIES: ${{ needs.stories.result }}
                   BUILD: ${{ needs.packages.result }}
                   FULL: ${{ needs.packages.outputs.full }}
                   ADVISORY: ${{ needs.packages.outputs.advisory-checks }}
@@ -2394,15 +2434,16 @@ jobs:
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
                   TEST_COUNT: ${{ needs.packages.outputs.test-count }}
+                  STORIES_COUNT: ${{ needs.packages.outputs.stories-count }}
                   DOCS: ${{ needs.packages.outputs.docs }}
               run: |
                   # The tests set NEEDS themselves; in CI it is built from the results above.
                   [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
                       --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
-                      --arg links "$R_LINKS" --arg cost "$R_COST" \
+                      --arg links "$R_LINKS" --arg cost "$R_COST" --arg stories "$R_STORIES" \
                       '{packages: {result: $packages}, build: {result: $build}, lint: {result: $lint},
                         checks: {result: $checks}, docs: {result: $docs}, test: {result: $test},
-                        links: {result: $links}, "cost-accuracy": {result: $cost}}')
+                        links: {result: $links}, "cost-accuracy": {result: $cost}, stories: {result: $stories}}')
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
                       exit 1
@@ -2424,7 +2465,7 @@ jobs:
                   adv="${ADVISORY:-[]}"
                   jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
                   bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
-                      'to_entries[] | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "stories") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   # The plan's Test jobs (whole shards, groups and light-check bins) are one matrix: when the plan
                   # made any, the matrix must have run and passed, so a skipped or missing Test job is never a pass.
@@ -2432,6 +2473,13 @@ jobs:
                   if [[ -z "$REUSE_RUN" && "${TEST_COUNT:-0}" != "0" && "$test_result" != "success" ]] && ! jq -e --arg k test 'index($k)' <<<"$adv" >/dev/null; then
                       echo "::error::the plan made $TEST_COUNT Test jobs, but Test reports $test_result"
                       bad="$bad test"
+                  fi
+                  # The Stories jobs exist only when the light plan selected a story, on any kind of run: none
+                  # planned, a skipped Stories job passes; planned, they must have run and passed (a broken story).
+                  stories_result=$(jq -r '.stories.result // "skipped"' <<<"$NEEDS")
+                  if [[ "${STORIES_COUNT:-0}" != "0" && "$stories_result" != "success" ]] && ! jq -e --arg k stories 'index($k)' <<<"$adv" >/dev/null; then
+                      echo "::error::the plan made $STORIES_COUNT Stories jobs, but Stories reports $stories_result"
+                      bad="$bad stories"
                   fi
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

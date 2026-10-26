@@ -1269,9 +1269,12 @@ Rules:
 - **Production moves only on the owner's go.** Every green master build deploys to canary.graphty.app;
   graphty.app moves only by `promote.yml`, which the owner dispatches and approves in GitHub. The scheduled
   release trains run the full run: they test and publish nothing. Never dispatch a release or a promotion yourself.
-- **Screenshots still gate a pull request.** A pull request whose capture changes a picture (or adds a
-  story) waits in `All Checks Pass` until the owner accepts it on the review page. Say so with an
-  `ACTION NEEDED` line when it blocks your work.
+- **A broken story fails its pull request; a changed picture does not.** The `Stories (<bin>)` jobs
+  capture the stories a change can reach, and `All Checks Pass` needs them: a story that fails to render,
+  whose play function throws, or that draws two different pictures on the same inputs (`[BROKEN]`,
+  `[UNSTABLE]`) fails the pull request; fix it on the branch. A changed or new picture blocks the promotion
+  to nightly until the owner approves it there (`node visual-review/trusted/cli.mjs serve --candidate next`),
+  so it needs no `ACTION NEEDED` line on the pull request.
 - **No pre-push gate on `pr-open.sh`.** It skips `.husky/pre-push` but runs its secret scan and LFS upload;
   CI is the gate. SonarQube and the NVIDIA GPU tests run only when you run them (step 2).
 - **Nothing tests master itself.** Master's build runs no tests, and required checks are not "strict", so

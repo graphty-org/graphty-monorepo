@@ -5227,8 +5227,13 @@ export class Graph implements GraphContext {
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
+     * It also rejects, at once, when the graph is shut down -- the element was removed from the page
+     * -- before the picture came to rest, or had been already when the wait started: a graph that
+     * is gone will never draw again, so there is nothing to wait for.
      * @throws Error when the picture is still changing when the timeout expires; the message names
      *   what was still unfinished and how many frames were drawn while it waited.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the graph is shut down (the element left the
+     *   page) before or during the wait.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -5246,11 +5251,32 @@ export class Graph implements GraphContext {
         const firstFrame = this.scene.getRenderId();
         let listenerId: symbol | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let onTeardown: (() => void) | undefined;
+        const teardown = this.#teardown.signal;
 
         try {
             await Promise.race([
                 this.untilFrameIsStable((id) => {
                     listenerId = id;
+                }),
+                // A shut-down graph never draws again: end the wait now rather than at the timeout.
+                new Promise<never>((_resolve, reject) => {
+                    onTeardown = () => {
+                        reject(
+                            new GraphtyError({
+                                code: "E_DISPOSED",
+                                message: "waitForStableFrame(): the graph was shut down (its element left the page)",
+                                source: "view",
+                                details: { disposed: "graph" },
+                            }),
+                        );
+                    };
+
+                    if (teardown.aborted) {
+                        onTeardown();
+                    } else {
+                        teardown.addEventListener("abort", onTeardown, { once: true });
+                    }
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
@@ -5268,6 +5294,10 @@ export class Graph implements GraphContext {
         } finally {
             if (timer !== undefined) {
                 clearTimeout(timer);
+            }
+
+            if (onTeardown !== undefined) {
+                teardown.removeEventListener("abort", onTeardown);
             }
 
             if (listenerId !== undefined) {

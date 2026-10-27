@@ -113,10 +113,17 @@ describe("dependency-refresh", () => {
         );
     });
 
-    it("stops when a specifier's major moved", () => {
+    it("stops when a specifier leaves its range (a new major)", () => {
         const cwd = fixture();
         const run = runner(cwd, { bump: (d) => ({ ...d, b: "~3.0.0" }) });
-        assert.throws(() => update({ cwd, run, tagsOf }), /a major moved.*package\.json b/);
+        assert.throws(() => update({ cwd, run, tagsOf }), /left its range.*package\.json b/);
+    });
+
+    it("accepts a new minimum inside an open range (>=0.82.2 to >=1.2.0)", () => {
+        const cwd = fixture();
+        writeFileSync(join(cwd, "package.json"), JSON.stringify({ devDependencies: { a: "^1.2.0", b: ">=0.82.2" } }));
+        const run = runner(cwd, { bump: (d) => ({ ...d, a: "^1.3.0", b: ">=1.2.0" }) });
+        assert.deepEqual(update({ cwd, run, tagsOf: () => [] }).npm.sort(), ["package.json", "pnpm-lock.yaml"]);
     });
 
     it("changes nothing and opens nothing when nothing is newer", () => {

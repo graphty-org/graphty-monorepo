@@ -67,24 +67,26 @@ export const modeOf = (title) => /^Release \(([a-z-]+)\)$/.exec(title ?? "")?.[1
  * @returns "rerun", "file" or "none"
  */
 export function decide({ workflow, title, attempt, conclusion, record, record2 = null, failed, lostRunner }) {
-    const release = workflow === "Release" && RERUN_MODES.has(modeOf(title));
+    if (workflow === "Release" && RERUN_MODES.has(modeOf(title))) {
+        return decideFullRun({ attempt: Number(attempt), conclusion, record, record2, failed });
+    }
+    return Number(attempt) === 1 && conclusion === "failure" && lostRunner() ? "rerun" : "none";
+}
+
+// decide() for a full, restart or candidate Release run
+function decideFullRun({ attempt, conclusion, record, record2, failed }) {
     // the re-run attempt was cancelled before its verdict (replaced while pending in the release-train group): attempt
     // 1's deferred red is filed here, or it is lost
-    if (release && Number(attempt) === 2 && conclusion === "cancelled") {
-        return record?.deferred && !record2 ? "file" : "none";
-    }
-    if (Number(attempt) !== 1) return "none";
-    if (release) {
-        if (conclusion === "success") return "none";
-        // a job that hits its timeout-minutes ends cancelled, and so does the run: a deferred verdict is acted on
-        // whatever the run's conclusion, or nothing re-runs it and nothing files it
-        if (record?.deferred) return failed.length && failed.every(rerunnable) ? "rerun" : "file";
-        // the verdict decided, then a later step of its job failed (the screenshot gate, the promotion decision, the
-        // hold): its message says re-run the failed jobs, so this does, once. Never a red one, which filed its issue
-        // and bisect already
-        return failed.length && failed.every((j) => j === "Verdict") && record?.state !== "red" ? "rerun" : "none";
-    }
-    return conclusion === "failure" && lostRunner() ? "rerun" : "none";
+    if (attempt === 2 && conclusion === "cancelled") return record?.deferred && !record2 ? "file" : "none";
+    if (attempt !== 1 || conclusion === "success") return "none";
+    // a job that hits its timeout-minutes ends cancelled, and so does the run: a deferred verdict is acted on whatever
+    // the run's conclusion, or nothing re-runs it and nothing files it
+    if (record?.deferred) return failed.length && failed.every(rerunnable) ? "rerun" : "file";
+    // the verdict decided, then a later step of its job failed (the screenshot gate, the promotion decision, the
+    // hold): its message says re-run the failed jobs, so this does, once. Never a red one, which filed its issue and
+    // bisect already
+    const verdictOnly = failed.length > 0 && failed.every((j) => j === "Verdict");
+    return verdictOnly && record?.state !== "red" ? "rerun" : "none";
 }
 
 // stdio "ignore" returns null, not ""

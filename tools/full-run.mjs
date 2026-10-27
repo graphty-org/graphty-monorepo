@@ -299,16 +299,16 @@ export function differingImages(dir, expected = []) {
         if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
     }
     if (!newest.size) return { changed: [], missing: expected.length ? expected : ["every project"] };
-    const changed = [];
+    const read = [...newest].map(([project, { f }]) => ({
+        project,
+        results: JSON.parse(readFileSync(join(dir, f), "utf8")),
+    }));
+    const changed = read.flatMap(({ project, results }) =>
+        (results.items ?? []).filter((i) => !PASSING_IMAGES.has(i.status)).map((i) => `${project}/${i.file ?? i.id}`),
+    );
     // a capture that stopped part way (complete false: a crash, a shard missing from the merge) is not "nothing
     // else differs": its project counts as missing, as the gate refuses it
-    const incomplete = new Set();
-    for (const [project, { f }] of newest) {
-        const results = JSON.parse(readFileSync(join(dir, f), "utf8"));
-        if (results.complete !== true) incomplete.add(project);
-        for (const i of results.items ?? [])
-            if (!PASSING_IMAGES.has(i.status)) changed.push(`${project}/${i.file ?? i.id}`);
-    }
+    const incomplete = read.filter(({ results }) => results.complete !== true).map(({ project }) => project);
     const missing = [...new Set([...expected.filter((p) => !newest.has(p)), ...incomplete])];
     return { changed: changed.sort(), missing };
 }

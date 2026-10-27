@@ -43,11 +43,14 @@ export const emptyState = () => ({ issues: [], dispatches: [], reruns: [], artif
 function argsOf(argv) {
     const flags = {};
     const pos = [];
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
+    const rest = [...argv];
+    while (rest.length) {
+        const a = rest.shift();
         if (a === "--paginate") continue;
-        if (a.startsWith("-") && a.length > 1) (flags[a] ??= []).push(argv[++i]);
-        else pos.push(a);
+        if (a.startsWith("-") && a.length > 1) {
+            flags[a] ??= [];
+            flags[a].push(rest.shift());
+        } else pos.push(a);
     }
     const one = (...names) => names.map((n) => flags[n]?.at(-1)).find((v) => v !== undefined);
     return { flags, pos, one };
@@ -116,7 +119,10 @@ export function ghCall(s, argv, now = new Date().toISOString()) {
         touch(s.issues.at(-1));
         return `https://github.com/${REPO}/issues/${number}`;
     }
-    if (cmd === "issue" && sub === "comment") return void touch(issue(a.pos[1])).comments.push(bodyOf(a));
+    if (cmd === "issue" && sub === "comment") {
+        touch(issue(a.pos[1])).comments.push(bodyOf(a));
+        return "";
+    }
     if (cmd === "issue" && sub === "edit") {
         const i = touch(issue(a.pos[1]));
         if (a.one("--title", "-t")) i.title = a.one("--title", "-t");
@@ -136,8 +142,10 @@ export function ghCall(s, argv, now = new Date().toISOString()) {
         s.dispatches.push({ workflow: a.pos[1], ref: a.one("--ref", "-r"), fields: a.flags["-f"] ?? [] });
         return "";
     }
-    if (cmd === "run" && sub === "rerun")
-        return void s.reruns.push({ run: a.pos[1], failed: argv.includes("--failed") });
+    if (cmd === "run" && sub === "rerun") {
+        s.reruns.push({ run: a.pos[1], failed: argv.includes("--failed") });
+        return "";
+    }
     if (cmd === "run" && sub === "download") {
         const name = a.one("-n", "--name");
         const file = s.artifacts[`${a.pos[1]}/${name}`] ?? fail(`no artifact ${name} on run ${a.pos[1]}`);
@@ -500,9 +508,11 @@ if (process.argv[1] === SELF) {
     } else if (cmd === "--list") {
         console.log(Object.keys(SCENARIOS).join("\n"));
     } else {
-        main(cmd ? [cmd, ...rest] : Object.keys(SCENARIOS)).catch((e) => {
+        try {
+            await main(cmd ? [cmd, ...rest] : Object.keys(SCENARIOS));
+        } catch (e) {
             console.error(e.message);
             process.exit(1);
-        });
+        }
     }
 }

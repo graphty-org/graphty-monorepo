@@ -566,7 +566,7 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
-    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", () => {
+    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
         const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
         const out = join(dir, "checks");
         const plan = { quarantine: [], failingOnBase: [], affected: [] };
@@ -591,10 +591,7 @@ describe("the pull request rules", () => {
             { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
         ]);
         const calls = [];
-        assert.equal(
-            dispatchChecks(checks, (args) => calls.push(args.join(" "))),
-            2,
-        );
+        assert.equal(await dispatchChecks(checks, (args) => calls.push(args.join(" "))), 2);
         assert.equal(
             calls[0],
             `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5`,
@@ -603,7 +600,7 @@ describe("the pull request rules", () => {
         rmSync(dir, { recursive: true, force: true });
     });
 
-    it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {
+    it("says [KNOWN] when master failed it the same way on the base, and passes it as [UNRELATED] otherwise", () => {
         const { key } = failureHashes("AssertionError: known", "a.test.ts");
         const row = {
             variant: `${FAMILY}|flags=off|whole`,
@@ -616,16 +613,61 @@ describe("the pull request rules", () => {
         const plan = { quarantine: [], failingOnBase: [row, { ...row, name: "other key", key: "nope" }], affected: [] };
         const both = report(fail("known"), fail("other key"));
         const d = judge(plan, both, both);
-        assert.deepEqual(tags(d), ["warn [KNOWN]", "fail [KNOWN?]"]);
+        assert.deepEqual(tags(d), ["warn [KNOWN]", "warn [UNRELATED]"]);
+        assert.equal(d.pass, true);
         assert.match(d.lines[0].text, /fails the same way on master b1, issue #31/);
         assert.match(d.lines[1].text, /-f repeat=1/);
         assert.equal(judge(plan, report(fail("known")), report(fail("known"))).pass, true);
-        // nor does one with other flags
+        // master evidence with other flags or from another family is not [KNOWN]; untouched, it is [UNRELATED]
         const flagsOn = { ...plan, failingOnBase: [{ ...row, variant: `${FAMILY}|flags=on|whole` }] };
-        assert.equal(judge(flagsOn, report(fail("known")), report(fail("known"))).pass, false);
-        // another family's base failure excuses nothing
+        assert.deepEqual(tags(judge(flagsOn, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
         const elsewhere = { ...plan, failingOnBase: [{ ...row, variant: "layout|flags=off|whole" }] };
-        assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
+        assert.deepEqual(tags(judge(elsewhere, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
+    });
+
+    it("#3925: passes an untouched failure as [UNRELATED] with a summary line; never a touched, GPU or crashed one", () => {
+        const dir = mkdtempSync(join(tmpdir(), "unrelated-"));
+        const env = { GITHUB_STEP_SUMMARY: join(dir, "summary.md") };
+        const plan = { quarantine: [], failingOnBase: [], affected: ["touched.test.ts"] };
+        const run = (p, opts, first) => {
+            const d = decide({ family: opts.family, first, firstOutcome: "failed", second: first, list: [] });
+            return prJudge(p, { ...opts, env })(d, { firstOutcome: "failed" });
+        };
+        const both = report(fail("theirs"), fail("mine", "touched.test.ts"));
+        const d = run(plan, o, both);
+        assert.deepEqual(tags(d), ["warn [UNRELATED]", "fail [FAIL]"]);
+        assert.equal(d.pass, false);
+        assert.deepEqual(
+            d.failing.map((f) => f.name),
+            ["mine"],
+        );
+        assert.equal(run(plan, o, report(fail("theirs"))).pass, true);
+        assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^- \[UNRELATED\] .*a\.test\.ts > theirs/m);
+        // a GPU family is never excused, touched or not
+        const gpu = { ...o, family: "webgpu-graph-algorithms-node", shard: "webgpu-graph-algorithms-node" };
+        assert.deepEqual(tags(run(plan, gpu, report(fail("theirs")))), ["fail [FAIL]"]);
+        // a crash, an unhandled error or coverage is not a test failure: the judge leaves it failing
+        const crashed = { pass: false, flaky: [], excused: [], failing: [fail("theirs")] };
+        assert.equal(prJudge(plan, { ...o, env })(crashed, { firstOutcome: "error" }).pass, false);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
+        const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
+        const seen = new Set();
+        const claim = async (c) => {
+            const k = `${c.base} ${c.file} ${c.variant}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        };
+        const calls = [];
+        const gh = (args) => calls.push(args.join(" "));
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 42 }), 1);
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 43 }), 0);
+        assert.match(calls[0], / -f repeat=1 -f pr=42$/);
+        // a store that cannot answer does not stop the check
+        assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
 
     it("lets the store's quarantine through", () => {

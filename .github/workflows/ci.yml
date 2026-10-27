@@ -1439,7 +1439,7 @@ jobs:
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
-                  # the base checks its [FLAKY-UNRELATED] and [KNOWN?] tests need; the base-checks job dispatches them
+                  # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
@@ -2831,8 +2831,8 @@ jobs:
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
     # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
     # not need it.
-    # A pull request's [FLAKY-UNRELATED] and [KNOWN?] tests name a base check (tools/results/run-group.mjs prJudge);
-    # this dispatches them, so base-check.yml's master records quarantine a flaky test and file its one issue, or
+    # A pull request's [FLAKY-UNRELATED] and [UNRELATED] tests name a base check (tools/results/run-group.mjs prJudge);
+    # this dispatches each one the results store has not seen for its base, file and variant (#3925), so base-check.yml's master records quarantine a flaky test and file its one issue, or
     # file `Failing on master`, with nobody reading the warnings. The script checks each line against a strict
     # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
     base-checks:
@@ -2845,11 +2845,14 @@ jobs:
         permissions:
             contents: read
             actions: write
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/results
+                  sparse-checkout: |
+                      tools/results
+                      tools/sonar
 
             - name: Download the base checks
               continue-on-error: true
@@ -2863,6 +2866,9 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  PR: ${{ github.event.pull_request.number }}
               run: node tools/results/dispatch-base-checks.mjs "$RUNNER_TEMP/base-checks"
 
     visual-flaky:

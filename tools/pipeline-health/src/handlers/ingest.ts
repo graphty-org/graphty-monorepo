@@ -328,10 +328,11 @@ async function invocationItems(
         source,
         variant,
         family,
-        // A light-check bin: a pull request's test shard. The `-shots` families are the Story tests job's whole-project
-        // captures, report-only and outside All Checks Pass, so not bins: counted, graphty's 30-minute capture alone
-        // put ci.bins_over_8 at 80% while every required job of the same runs took under 9 minutes.
-        bin: who.kind === "pr" && !family.endsWith("-shots"),
+        // A light-check bin: a pull request's test shard. A run of the `shots` shape (variant
+        // `<family>|flags=..|shots`) is the Story tests job's whole-project capture, report-only and outside
+        // All Checks Pass, so not a bin: counted, graphty's 30-minute capture alone put ci.bins_over_8 at 80%
+        // while every required job of the same runs took under 9 minutes.
+        bin: who.kind === "pr" && variant.split("|").at(-1) !== "shots",
         full: who.kind === "full",
         ...(typeof b.pr === "number" ? { pr: b.pr } : {}),
         sha: b.sha as string,

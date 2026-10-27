@@ -17,6 +17,7 @@ import {
     fixedRecently,
     flakyLanes,
     greenCloses,
+    heldLine,
     holdAction,
     isOnNightly,
     LANES,
@@ -209,11 +210,16 @@ describe("verdictOf: the pick and the version dry run", () => {
         assert.equal(verdictOf({ ...ALL_GREEN, pick: "success" }, 0).state, "green-clean");
     });
 
-    it("is an owner item when only the dry run failed on held projects", () => {
+    it("holds only the projects the dry run held: the rest of the run decides as usual (#4021)", () => {
         const lanes = { ...ALL_GREEN, version_dry_run: "failure" };
-        assert.equal(verdictOf(lanes, 0, "", "graphty-element").state, "owner-item");
+        // the version job leaves the held projects out (RELEASE_HOLD_ALSO), so every other project promotes
+        assert.deepEqual(verdictOf(lanes, 0, "", "babylonjs-map"), { state: "green-clean", red: [] });
+        assert.equal(verdictOf(lanes, 2, "", "babylonjs-map").state, "green-images");
         assert.equal(verdictOf(lanes, 0, "", "").state, "red", "a dry run that failed otherwise is red");
-        assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "", "graphty-element").state, "red");
+        assert.deepEqual(verdictOf({ ...lanes, ci: "failure" }, 0, "", "babylonjs-map"), { state: "red", red: ["ci"] });
+        // the held projects stay the owner's item, named in the verdict's owner output
+        assert.match(heldLine("babylonjs-map"), /^babylonjs-map held alone .*release-approvals\.json/);
+        assert.equal(heldLine(""), "");
     });
 
     it("plans no bisect for a failed pick", () => {

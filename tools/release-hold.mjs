@@ -21,6 +21,11 @@
  * every project not named is held for that run as well, on top of the holds in the file, which
  * still apply. Nothing is written to release-hold.json.
  *
+ * RELEASE_HOLD_ALSO (comma separated nx project names) holds those projects for this run only, exactly like a
+ * release-hold.json entry, without writing the file: release.yml's version job passes the projects the version dry
+ * run held (a major or a first publish with no release-approvals.json entry), so they wait alone and every other
+ * project still releases.
+ *
  * Both modes also check that nx can resolve a current version for every project in nx.json's
  * release.projects: its last `{projectName}@{version}` tag, else the version in its package.json
  * (release.version.fallbackCurrentVersionResolver "disk"). A project with neither stops the whole
@@ -33,6 +38,7 @@
  * Usage: node tools/release-hold.mjs check   (exit 1 when release-hold.json is invalid)
  *        node tools/release-hold.mjs apply   (check, then leave the held projects out of nx.json)
  *        node tools/release-hold.mjs apply --only <project>[,<project>...]
+ *        RELEASE_HOLD_ALSO=<project>[,<project>...] node tools/release-hold.mjs apply [--only ...]
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -110,6 +116,20 @@ export function holdAllBut(hold, projects, only, since) {
 }
 
 /**
+ * The hold list with the named projects held for this run too (RELEASE_HOLD_ALSO), each once.
+ * @param hold - the parsed, valid release-hold.json (possibly widened by --only)
+ * @param also - the project names to hold as well
+ * @param since - today, YYYY-MM-DD
+ * @returns the widened hold list
+ */
+export function holdAlso(hold, also, since) {
+    const held = new Set(hold.hold.map((h) => h.project));
+    const reason = "a major or a first publish with no release-approvals.json entry (RELEASE_HOLD_ALSO, this run only)";
+    const extra = [...new Set(also)].filter((name) => !held.has(name)).map((project) => ({ project, reason, since }));
+    return { hold: [...hold.hold, ...extra] };
+}
+
+/**
  * The projects nx cannot resolve a current version for, so cannot version.
  * @param released - each project in release.projects: its name, its package.json version, and
  *   whether a `{name}@...` tag exists
@@ -171,7 +191,7 @@ function fail(found) {
     process.exit(1);
 }
 
-function main(mode, only) {
+function main(mode, only, also) {
     let hold = JSON.parse(readFileSync(join(ROOT, "release-hold.json"), "utf8"));
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
@@ -184,6 +204,11 @@ function main(mode, only) {
         found = widened.problems.length > 0 ? widened.problems : problems(widened.hold, projects);
         if (found.length > 0) fail(found);
         hold = widened.hold;
+    }
+    if (also.length > 0) {
+        hold = holdAlso(hold, also, new Date().toISOString().slice(0, 10));
+        found = problems(hold, projects);
+        if (found.length > 0) fail(found);
     }
     for (const { project, reason, since } of hold.hold) {
         // a workflow annotation in a release run, a plain line anywhere else
@@ -207,11 +232,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("usage: node tools/release-hold.mjs [check|apply [--only <project>,...]]");
         process.exit(2);
     }
-    const only = onlyGiven
-        ? (list ?? "")
-              .split(",")
-              .map((name) => name.trim())
-              .filter(Boolean)
-        : undefined;
-    main(mode, only);
+    const names = (text) =>
+        (text ?? "")
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean);
+    main(mode, onlyGiven ? names(list) : undefined, names(process.env.RELEASE_HOLD_ALSO));
 }

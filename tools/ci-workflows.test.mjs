@@ -3390,8 +3390,10 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
     // #3952: the first nightly run's candidate predated tools/channel/recapture.mjs, so every re-capture failed
     it("runs master's nightly and capture code, never the picked commit's, in every job that checks the pick out", () => {
         const nightlyCode = /tools\/channel\/|visual-review (capture|gate)|visual-review\/(trusted|capture)/;
-        const overlay =
-            /git archive "\$GITHUB_SHA" tools\/channel visual-review\/capture visual-review\/trusted \| tar -x/;
+        // the one overlay step (tools/own-tools-overlay.test.mjs), with the capture code beside tools/
+        const overlay = /git archive "\$GITHUB_SHA" \$OVERLAY \| tar -x/;
+        const own = parseYaml(workflow("release.yml")).jobs.recapture.steps.find((st) => overlay.test(st.run ?? ""));
+        assert.equal(own.env.OVERLAY, "tools .github/actions visual-review/capture visual-review/trusted");
         let checked = 0;
         for (const [id, j] of Object.entries(parseYaml(workflow("release.yml")).jobs)) {
             const steps = j.steps ?? [];
@@ -5146,7 +5148,7 @@ describe("release.yml", () => {
         // a re-run of a failed publish says it is retrying, before anything else in the job
         assert.match(
             publish,
-            /fetch-depth: 0\n\n[^\n]*\n\s+- name: Announce a re-run of the publish\n\s+if: \$\{\{ github.run_attempt > 1 \}\}\n\s+continue-on-error: true\n/,
+            /git archive "\$GITHUB_SHA" \$OVERLAY \| tar -x\n\n[^\n]*\n\s+- name: Announce a re-run of the publish\n\s+if: \$\{\{ github.run_attempt > 1 \}\}\n\s+continue-on-error: true\n/,
         );
         assert.match(publish, /node tools\/release-status.mjs started --sha "\$SHA" --attempt "\$GITHUB_RUN_ATTEMPT"/);
     });
@@ -7588,7 +7590,8 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
     });
 
     it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {
-        assert.match(stories, /git archive HEAD\^1 visual-review\/capture visual-review\/trusted \| tar -x/);
+        assert.match(stories, /if \[ "\$GITHUB_EVENT_NAME" = pull_request \]; then src=HEAD\^1\n/);
+        assert.match(stories, /git archive "\$src" visual-review\/capture visual-review\/trusted \| tar -x/);
         assert.match(
             stories,
             /run: pnpm exec visual-review capture --project \$\{\{ matrix\.project \}\} --out "\$RUNNER_TEMP\/visual" --reference "\$\{\{ steps\.reference\.outputs\.dir \}\}" --stories "\$STORIES"\n/,

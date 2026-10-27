@@ -208,7 +208,8 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
  *   may be left out
  * @param images how many screenshots differ from their baselines (a missing capture is lanes.captures, not this)
  * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
- * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty
+ * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty: the
+ *   version job leaves them and their dependents out (RELEASE_HOLD_ALSO), so the dry run's failure passes
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
 export function verdictOf(lanes, images, ownerItem = "", held = "") {
@@ -221,11 +222,10 @@ export function verdictOf(lanes, images, ownerItem = "", held = "") {
         // a fix forward's re-test leaves out a lane its fixes do not reach (tools/channel/candidate-fix.mjs plan)
         lanes[l] === "unaffected" ||
         (l === "llm" && (lanes[l] ?? "skipped") === "skipped") ||
+        (l === "version_dry_run" && lanes[l] === "failure" && !!held) ||
         ((l === "captures" || l === "recapture") && lanes.ci !== "success");
     const red = Object.keys(LANES).filter((l) => !passed(l));
     if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
-    // a planned major or first publish waits for the owner's release-approvals.json entry: his item, not a bug
-    if (red.length === 1 && red[0] === "version_dry_run" && held) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
     return { state: images === 0 ? "green-clean" : "green-images", red };
 }
@@ -738,15 +738,24 @@ const readJson = (file) => {
  * @returns the line
  */
 function whatOf({ state, red, lanes, changed, env }) {
-    if (state === "owner-item") {
-        return red[0] === "llm"
-            ? env.LLM_OWNER_ITEM
-            : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
-    }
-    if (state === "red")
-        return red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
-    return state === "green-images" ? changedSummary(changed) : state;
+    const held = heldLine(env.VERSION_HELD);
+    let what = state;
+    if (state === "owner-item") what = env.LLM_OWNER_ITEM;
+    else if (state === "red")
+        what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
+    else if (state === "green-images") what = changedSummary(changed);
+    return held ? `${what}; ${held}` : what;
 }
+
+/**
+ * The owner's item for the projects the version dry run held: they and their dependents wait, the rest promote.
+ * @param held VERSION_HELD, comma separated nx project names, or empty
+ * @returns the line, or "" when nothing is held
+ */
+export const heldLine = (held) =>
+    held
+        ? `${held} held with the projects that depend on it (a major or a first publish): add its release-approvals.json entry to release them`
+        : "";
 
 async function verdictMain(env) {
     const cfg = config(env);
@@ -785,7 +794,8 @@ async function verdictMain(env) {
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
     const hold = wait || red[0] === "pick" ? "none" : holdAction({ held: env.HELD ?? "unknown", sha: env.SHA, state });
-    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold });
+    const owner = heldLine(env.VERSION_HELD);
+    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner });
 }
 
 /**

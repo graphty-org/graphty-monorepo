@@ -3988,8 +3988,13 @@ describe("release.yml", () => {
             verdict,
             /if: \$\{\{ !cancelled\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && \(needs.pick.outputs.release == 'true' \|\| \(needs.pick.result != 'success' && needs.pick.result != 'skipped'\)\) \}\}/,
         );
-        // a held major's projects make the dry run's failure an owner item
+        // a held major's projects are held alone: the verdict names them, and a green-clean run announces them
         assert.match(verdict, /VERSION_HELD: \$\{\{ needs.version_dry_run.outputs.held \}\}/);
+        assert.match(verdict, /owner: \$\{\{ steps.verdict.outputs.owner \}\}/);
+        assert.match(
+            verdict,
+            /if: \$\{\{ steps.verdict.outputs.state == 'green-clean' && steps.verdict.outputs.owner != '' \}\}[\s\S]*?node tools\/release-status.mjs owner-item --sha "\$SHA" --what "\$OWNER"/,
+        );
         assert.match(
             verdict,
             /"ci": "\$\{\{ needs.candidate_site.result == 'failure' && 'failure' \|\| needs.ci.result \}\}"/,
@@ -4170,6 +4175,13 @@ describe("release.yml", () => {
         assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
         assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
+        // the projects the dry run held are left out of this run's versioning alone (#4021); a promotion after
+        // approval, which runs no dry run, checks its version commit and versions again without the ones it names
+        assert.match(version, /RELEASE_HOLD_ALSO: \$\{\{ needs.version_dry_run.outputs.held \}\}/);
+        assert.match(
+            version,
+            /if ! GITHUB_OUTPUT="\$RUNNER_TEMP\/approvals" node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"; then[\s\S]*?git reset --hard --quiet "\$SHA"[\s\S]*?commit=\$\(tools\/release-version.sh "\$PACKAGES"\)[\s\S]*?node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"\n\s+fi\n\s+node tools\/release-diff.mjs/,
+        );
         assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // land and publish follow only a version commit made after every lane passed, and the owner's approval
         // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)

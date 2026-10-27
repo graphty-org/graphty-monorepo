@@ -41,6 +41,7 @@ import {
     toPrItem,
     toRunItem,
     toStepItems,
+    trainSkipped,
     workflowFile,
     workflowState,
     type CompareCommit,
@@ -331,8 +332,10 @@ async function classify(
             ids: chunk.map((x) => x.run.check_suite_node_id),
         });
         chunk.forEach((x, k) => {
-            const notes = suiteNotes(data.nodes[k] ?? null);
-            out.set(x.run.id, { cls: classifyCancel(notes), hung: timedOutJobs(notes) });
+            const node = data.nodes[k] ?? null;
+            const notes = suiteNotes(node);
+            // A suite GitHub did not return is unknown, not empty: it stays red.
+            out.set(x.run.id, { cls: node ? classifyCancel(notes) : "red", hung: timedOutJobs(notes) });
         });
     }
     return out;
@@ -695,7 +698,7 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     c.o("release.lanes_red", candidate?.red.length ?? 0);
     const holdSince = Math.min(candidate?.red.length ? candidate.at : Infinity, heldSince || Infinity);
     c.o("release.hold_open_ms", Number.isFinite(holdSince) ? c.now - holdSince : 0);
-    c.o("release.train_skipped", newest && !newest.tested && newest.sha !== candidate?.sha ? 1 : 0);
+    c.o("release.train_skipped", trainSkipped(attempts, runs) ? 1 : 0);
     c.o("master.full_run_failed", candidate?.ciFailed ? 1 : 0);
 
     let failing = 0;

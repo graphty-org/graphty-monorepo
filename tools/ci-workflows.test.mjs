@@ -7550,14 +7550,17 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     });
 
     it("restores the selector's import graphs read-only; only master's push build saves them", () => {
-        assert.match(build, /- name: Restore the selector's import graphs\n[\s\S]*?uses: actions\/cache\/restore@v4/);
-        assert.doesNotMatch(build, /actions\/cache\/save@|actions\/cache@v4\n[^\n]*\n[^\n]*tmp\/test-select/);
+        assert.match(
+            build,
+            /- name: Restore the selector's import graphs\n[\s\S]*?uses: actions\/cache\/restore@v\d+\n/,
+        );
+        assert.doesNotMatch(build, /actions\/cache\/save@|actions\/cache@v\d+\n[^\n]*\n[^\n]*tmp\/test-select/);
         const graphs = job(ci, "select-graphs");
         assert.match(
             graphs,
             /\n {8}if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && inputs\.ref == ''\n/,
         );
-        assert.match(graphs, /uses: actions\/cache\/save@v4/);
+        assert.match(graphs, /uses: actions\/cache\/save@v\d+\n/);
         assert.match(graphs, /lookup-only: true/, "the saved set holds only the current graphs");
     });
 

@@ -597,16 +597,17 @@ Order below: the smallest piece that unblocks nightly first. Each is part of #37
 change release.yml are owned.
 
 **nightly-resume** (#3741) -- agent, M, CP. `mode: promote-nightly` (design section 5): refuse unless
-the accept's parent is the candidate and its latest verdict is green-images; gate on its
-`visual-*` with `--head <accept>`; version, land (with the version-only `release-diff` of the master
-merge), publish, site on the accept commit; store `approved`; `release-due` dispatches it on an
-accept merge naming a waiting candidate (the oldest waiting one until `candidate-hold`). Needs:
+the approval (the accept pull request's head) is the candidate plus accept-only commits and the
+candidate's latest verdict is green-images; gate on its `visual-final-*` with `--head <approval>`;
+version, land (with the version-only `release-diff` of the master merge), publish, site on the
+approval; store `approved`; `release-due` dispatches it on an accept merge naming the held candidate
+(or any green-images one while nothing is held), and every full slot catches up on one. Needs:
 `nightly-site`. Done: an approved green-images run promotes to `next` and nightly.graphty.app; a
 second dispatch, or one for a red run, does nothing. Undo: revert; candidates wait as today.
 
 **same-commit-rerun** (#3741) -- agent, M. The `recapture` job and `visual-final-*`,
 `release-rerun.yml` (absorbing `gpu-rerun-on-runner-loss.yml`; modes and jobs as design section 3),
-no red issue or bisect on attempt 1, `release-watch.yml` filing when no attempt 2 started, "Flaky in
+no red issue or bisect on attempt 1, `release-rerun.yml` filing when it starts no attempt 2, "Flaky in
 full run" filing in `full-run.mjs verdict`. First check on a scratch run that `--failed` re-runs a
 failed job inside the called ci.yml and its dependents. Needs: none. Done: a seeded one-time lane
 failure and a seeded one-time story difference each end green with one flaky issue; a consistent
@@ -620,14 +621,16 @@ channels section 7. Needs: `nightly-resume`, `same-commit-rerun`, the owner addi
 slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the newest again.
 
 **candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
-(reachability refusals, the conflict branch), `pr-open.sh --candidate` (a guarded path: the owner
-merges it), `mode: candidate` with T4 and the affected lanes on H, the release.yml
-`candidate-capture` job (ci.yml's visual job and gate untouched; ci.yml gets no new input), the
-run's own build and `site-<H>`, `release-due` on a merge with `Refs #<hold issue>`. Needs:
-`candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a scratch fix from C
-merges into master and `channel/candidate`, the run on H re-tests the selected shards, T4 and the
-affected projects' stories and promotes; a fix whose range holds a commit reachable from the
-earlier master tip is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+(the fix commit, the newer-master and partial-fix refusals, a conflict), release.yml's
+`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` with T4 and
+the affected lanes on H, the `recapture` job shooting the affected Storybooks whole and carrying
+the rest over (ci.yml's visual job and gate untouched; ci.yml gets no new input), the run's own
+build and `site-<H>` (`deploy-pages.yml` called), `release-due` on a merge that references the hold
+issue. Fix authors use `worktree-new.sh` from `origin/channel/candidate` and `pr-open.sh`
+unchanged. Needs: `candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a
+scratch fix from C merges into master and `channel/candidate`, the run on H re-tests the selected
+shards, T4 and the affected projects' stories and promotes; a fix made from newer master is
+refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
 
 **candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
 recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.

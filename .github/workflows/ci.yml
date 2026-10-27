@@ -2776,12 +2776,14 @@ jobs:
         timeout-minutes: 5
         # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
         # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
-        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N.
+        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N; id-token: write to read the held
+        # nightly candidate from the results store when the merge is the owner's screenshot approval.
         permissions:
             contents: read
             actions: write
             issues: write
             pull-requests: read
+            id-token: write
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
             - uses: actions/checkout@v7
@@ -2791,9 +2793,11 @@ jobs:
                   filter: blob:none
                   sparse-checkout: tools
 
-            - name: Dispatch release.yml when a restart is due
+            - name: Dispatch release.yml when a restart or a promotion is due
               env:
                   GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/release-due.mjs
 
     # Actions cache hygiene (#3431): deletes every cache of a closed pull request's ref, and on any other

@@ -34,6 +34,10 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
     writeFileSync(join(repo, "tools/test-changed.mjs"), envDump(out("tests.json"), "STUB_RC_TESTS"));
     writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
+    writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
+    copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
+    writeFileSync(join(repo, "tools/copy-docs-content.js"), "");
+    writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "docs:api:graph-io": "x" } }));
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
@@ -74,6 +78,7 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
         tests: read("tests.json"),
         sonar: read("sonar.json"),
         gpu: read("gpu.json"),
+        integrity: read("integrity.json"),
     };
     rmSync(dir, { recursive: true, force: true });
     return result;
@@ -99,6 +104,7 @@ describe("tools/check-quick.sh", () => {
         assert.equal(tests.env.GIT_CONFIG_GLOBAL, "/dev/null", "tests read no developer git config");
         assert.equal(sonar.env.PUSH_BASE_REF, "main", "SonarQube measures from the same base");
         assert.equal(gpu, undefined, "no GPU run when webgpu-graph-algorithms is not affected");
+        assert.doesNotMatch(pnpm, /docs:build|check:bundle-size|run size/, "no docs or bundle step when unaffected");
         assert.match(r.stdout, /\[PASS\] quick check/);
     });
 
@@ -112,6 +118,21 @@ describe("tools/check-quick.sh", () => {
         assert.equal(gpu.env.GRAPHTY_EGL_LIB_DIR, "/egl");
         assert.match(gpu.env.LD_LIBRARY_PATH, /^\/egl(:|$)/);
         assert.equal(gpu.env.GIT_CONFIG_GLOBAL, "/dev/null");
+    });
+
+    it("runs PR Integrity on HEAD, and the docs build and bundle sizes when their packages are affected", () => {
+        const { r, pnpm, integrity } = sandbox({ affected: "graph-io graphty-element cytoscape-extensions" });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(integrity.argv, ["--local", "--base", "main"]);
+        assert.match(pnpm, /^run docs:build$/m);
+        assert.match(pnpm, /^run check:bundle-size$/m);
+        assert.match(pnpm, /^--filter @graphty\/cytoscape-extensions run size$/m);
+    });
+
+    it("names a failed PR Integrity in the summary", () => {
+        const { r } = sandbox({ env: { STUB_RC_INTEGRITY: "1" } });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /\[FAIL\] quick check: PR Integrity \(local\)/);
     });
 
     it("runs every step after a failure and names each failed one", () => {

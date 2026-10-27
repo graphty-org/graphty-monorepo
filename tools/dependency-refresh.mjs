@@ -56,7 +56,7 @@ const newer = (a, b) => {
  * @returns the text with the bumped refs
  */
 export function bumpActionRefs(text, tagsOf) {
-    return text.replace(USES, (all, pre, repo, sub, major, rest) => {
+    return text.replaceAll(USES, (all, pre, repo, sub, major, rest) => {
         const current = parts(`v${major}${rest}`);
         let best = null;
         for (const tag of tagsOf(repo)) {
@@ -149,7 +149,7 @@ export function update({ cwd, run = defaultRun, tagsOf }) {
  */
 export function openPullRequest({ cwd, label, npm, actions, run = defaultRun }) {
     if (!npm.length && !actions.length) return null;
-    const branch = `chore/deps-refresh-${label.replace(/[^\w.-]+/g, "-")}`;
+    const branch = `chore/deps-refresh-${label.replaceAll(/[^\w.-]+/g, "-")}`;
     const title = `chore(deps): refresh dependencies after promotion ${label}`;
     const git = (...args) => run("git", args, { cwd });
     git("switch", "-c", branch);

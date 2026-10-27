@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { kindOf, problems, released, unapproved } from "./release-approvals.mjs";
+import { kindOf, onNpm, problems, released, unapproved } from "./release-approvals.mjs";
 
 const SHA = "a".repeat(40);
 const entry = (over) => ({
@@ -104,12 +104,21 @@ describe("dry-run on a version commit", () => {
         execFileSync("git", args, { cwd: dir, encoding: "utf8", env: { ...isolatedGitEnv(), HUSKY: "0" } }).trim();
     mkdirSync(join(dir, "tools"));
     cpSync(new URL("./release-approvals.mjs", import.meta.url), join(dir, "tools", "release-approvals.mjs"));
+    cpSync(new URL("./release-hold.mjs", import.meta.url), join(dir, "tools", "release-hold.mjs"));
+    // npm as the registry answers: githerd was never published (a 404), everything else has versions
+    mkdirSync(join(dir, "bin"));
+    writeFileSync(
+        join(dir, "bin", "npm"),
+        '#!/bin/bash\nif [ "$2" = githerd ]; then echo "npm error code E404" >&2; exit 1; fi\necho \'["1.0.0"]\'\n',
+        { mode: 0o755 },
+    );
     git("init", "-q", "-b", "master");
     writeFileSync(join(dir, "release-approvals.json"), '{ "approve": [] }\n');
     git("add", ".");
     git("commit", "-q", "-m", "chore: start");
     git("tag", "graphty-element@3.30.0");
     git("tag", "layout@2.5.10");
+    git("tag", "githerd@0.1.19");
     git("commit", "-q", "--allow-empty", "-m", "feat(graphty-element)!: drop the old API");
     const candidate = git("rev-parse", "HEAD");
     git(
@@ -117,16 +126,16 @@ describe("dry-run on a version commit", () => {
         "-q",
         "--allow-empty",
         "-m",
-        "chore(release): publish [skip ci]\n\n- project: graphty-element 4.0.0\n\n- project: layout 2.5.11",
+        "chore(release): publish [skip ci]\n\n- project: graphty-element 4.0.0\n\n- project: layout 2.5.11\n\n- project: githerd 0.1.20",
     );
     const commit = git("rev-parse", "HEAD");
-    const run = () => {
+    const run = (env = {}) => {
         const out = join(dir, "github-output");
         writeFileSync(out, "");
         const r = spawnSync("node", ["tools/release-approvals.mjs", "dry-run", candidate, commit], {
             cwd: dir,
             encoding: "utf8",
-            env: { ...isolatedGitEnv(), GITHUB_OUTPUT: out },
+            env: { ...isolatedGitEnv(), PATH: `${join(dir, "bin")}:${process.env.PATH}`, GITHUB_OUTPUT: out, ...env },
         });
         return { status: r.status, stdout: r.stdout, output: readFileSync(out, "utf8") };
     };
@@ -137,13 +146,42 @@ describe("dry-run on a version commit", () => {
         assert.match(r.stdout, /graphty-element: 3\.30\.0 -> 4\.0\.0/);
         assert.match(r.stdout, /::error::graphty-element would publish a major \(3\.30\.0 -> 4\.0\.0\)/);
         assert.doesNotMatch(r.stdout, /::error::layout/);
-        assert.equal(r.output, "held=graphty-element\n");
+        assert.match(r.output, /^held=graphty-element,githerd\n$/);
     });
 
-    it("passes once release-approvals.json approves that major", () => {
-        writeFileSync(join(dir, "release-approvals.json"), JSON.stringify({ approve: [entry({ merge: candidate })] }));
+    it("holds a tagged package npm never had as a first publish, not a plain bump that fails to publish", () => {
+        const r = run();
+        assert.match(r.stdout, /githerd: \(first publish\) -> 0\.1\.20/);
+        assert.match(r.stdout, /::error::githerd would publish its first publish/);
+    });
+
+    it("passes once release-approvals.json approves that major and that first publish", () => {
+        const approve = [entry({ merge: candidate }), entry({ project: "githerd", kind: "first", merge: candidate })];
+        writeFileSync(join(dir, "release-approvals.json"), JSON.stringify({ approve }));
         const r = run();
         assert.equal(r.status, 0, r.stdout);
         assert.equal(r.output, "held=\n");
+    });
+
+    it("reads release-approvals.json from RELEASE_POLICY_REF, not from the checked-out candidate", () => {
+        // master's tip approves nothing; the checkout's file (the candidate's tree) still approves both
+        git("branch", "-f", "policy", candidate);
+        const r = run({ RELEASE_POLICY_REF: "policy" });
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.output, /^held=graphty-element,githerd\n$/);
+    });
+});
+
+describe("onNpm", () => {
+    it("is false only on npm's 404, true for a package with versions, and throws on any other failure", () => {
+        const fail = (stderr) => () => {
+            throw Object.assign(new Error("Command failed: npm view"), { stderr });
+        };
+        assert.equal(onNpm("@graphty/githerd", fail("npm error code E404\nnpm error 404 Not Found - GET ...")), false);
+        assert.equal(
+            onNpm("@graphty/layout", () => '["1.0.0","1.0.1"]'),
+            true,
+        );
+        assert.throws(() => onNpm("@graphty/layout", fail("npm error code ETIMEDOUT")), /npm view/);
     });
 });

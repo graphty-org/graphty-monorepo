@@ -14,7 +14,7 @@
 // `base`, `affected` (the test files whose file or import closure the pull request changed) and `unknownFamilies`
 // (families the selector has no file-level answer for: every file touched)), the store's
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
-// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. A re-run attempt reads the quarantine and the master
+// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[UNRELATED]`. A re-run attempt reads the quarantine and the master
 // evidence again, so a base check made after the first attempt counts. An unreadable or unavailable plan (a store
 // outage) changes nothing: the committed list stands, as it does elsewhere. When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
@@ -66,8 +66,9 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
  * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
- * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else fails as
- * `[KNOWN?]`. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
+ * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else passes
+ * loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
  * @param plan the plan file (no `affected`: every test touched)
@@ -77,12 +78,16 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * @param o.variant its variant
  * @param o.base the pull request's base commit
  * @param [o.out] the directory the base checks to dispatch are written to
+ * @param [o.env] the environment (GITHUB_STEP_SUMMARY)
  * @returns the judge
  */
-export function prJudge(plan, { shard, family, variant, base, out }) {
+export function prJudge(plan, { shard, family, variant, base, out, env = process.env }) {
+    const summary = (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
     const affected = plan?.affected ? new Set(plan.affected) : null;
     const unknown = (plan?.unknownFamilies ?? []).includes(family);
-    const touched = (f) => !affected || unknown || affected.has(f.file);
+    // GPU tests are never excused (CLAUDE.md, WebGPU): they judge as touched
+    const gpu = /^webgpu-graph-algorithms/.test(family);
+    const touched = (f) => gpu || !affected || unknown || affected.has(f.file);
     // master's evidence counts only from the same family and the same flags as this job
     const flagsOf = (v) => v.split("|")[1];
     const onBase = (plan?.failingOnBase ?? []).filter(
@@ -126,11 +131,13 @@ export function prJudge(plan, { shard, family, variant, base, out }) {
             const k = !touched(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} failed every time`);
-            else
-                fail(
-                    f,
-                    `[KNOWN?] ${shard}: ${idOf(f)} failed every time; no master evidence. Base check: ${check(f, 1)}`,
-                );
+            else {
+                // #3925: a failure this pull request did not cause must not block it; the base check (dispatched
+                // in the background) files `Failing on master`, and the full run with bisect and revert is the net
+                const text = `[UNRELATED] ${shard}: ${idOf(f)} failed every time; this pull request did not touch it. Base check: ${check(f, 1)}`;
+                warn(text);
+                summary(`- ${text}`);
+            }
         }
         return { ...d, flaky: d.flaky.filter((f) => !failing.includes(f)), failing, pass: failing.length === 0, lines };
     };

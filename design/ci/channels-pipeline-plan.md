@@ -471,6 +471,18 @@ build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: 
 merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
 restart asked for by the cancelled merge started. Undo: revert.
 
+**fewer-pushes-per-pr** (#3850) -- agent, S. On 2026-10-26 (07:00Z on, 244 pull request ci.yml
+runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6 minutes
+later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 cancelled
+run-minutes a day. Two causes: `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit,
+so every commit on a branch with an open pull request started a run; and `tools/pr-open.sh` merged
+`origin/master` into a branch that was only behind, one more push, though a pull request is tested
+as merged with master and the required checks are not strict. So `branch-push.sh` does not push a
+branch with an open pull request (the status broker's file when fresh, else one cached `gh pr list`;
+unsure, it pushes) and says so, and `pr-open.sh` merges master only on a conflict or
+`--merge-master`. Needs: nothing. Done: over a day, pull request runs cancelled by a newer push to
+the same branch fall well below the 99 measured. Undo: revert.
+
 **stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
 Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).
 Needs: nothing. Done: on 5 pull requests no capture job runs past `All Checks Pass`. Undo: revert.

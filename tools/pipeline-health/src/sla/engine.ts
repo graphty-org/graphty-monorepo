@@ -81,6 +81,11 @@ export interface SourceStatus {
     ageRatio?: number;
     thinRatio?: number;
     reason?: Reason;
+    /**
+     * Failing, but its last OK write is within its age limit: its members keep the values it wrote, marked stale,
+     * and are not grayed until the limit passes.
+     */
+    holding?: boolean;
 }
 
 export interface Evaluation {
@@ -248,7 +253,7 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
  * @param ctx
  */
 function sourcesNotOk(ctx: Ctx): Computed {
-    const bad = [...ctx.sources.values()].filter((s) => s.state === "stale" || s.state === "error");
+    const bad = [...ctx.sources.values()].filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
     if (!bad.length) {
         return { value: 0 };
     }
@@ -410,11 +415,14 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
     }
     if (meta.error) {
         const since = meta.errorSince ?? meta.lastAt;
+        const limit = cfg.yellowAfterMs;
+        const holding = limit !== undefined && meta.lastOkAt !== undefined && ctx.now - meta.lastOkAt <= limit;
         return {
             ...base,
             state: "error",
             since,
             reason: { code: "error", params: { source: id, error: meta.error, since } },
+            ...(holding ? { holding } : {}),
         };
     }
     return freshness(ctx, id, cfg, meta, base);
@@ -489,7 +497,8 @@ function sourceGray(
     c: MemberConfig,
     srcs: SourceStatus[],
 ): { state: MemberState; reason: Reason; judged: boolean } | undefined {
-    const first = (...states: SourceStatus["state"][]) => srcs.find((s) => states.includes(s.state))?.reason;
+    const first = (...states: SourceStatus["state"][]) =>
+        srcs.find((s) => states.includes(s.state) && !s.holding)?.reason;
     const notSetUp = first("not set up");
     if (notSetUp) {
         return { state: "NOT SET UP", reason: notSetUp, judged: false };
@@ -548,6 +557,11 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         ...(v.n === undefined ? {} : { n: v.n }),
         ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
     });
+    // A source failing within its age limit: the value its last good writes give, marked stale with its age.
+    const held = srcs.find((s) => s.holding);
+    if (held) {
+        status.reason = { code: "stale", params: { source: held.id, since: held.lastOkAt ?? ctx.now } };
+    }
     const partial = partialWindow(ctx, c, srcs);
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };

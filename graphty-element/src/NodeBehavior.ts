@@ -23,6 +23,7 @@ import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import { sourceLoadsOf } from "./session/sources/ids";
 
 /**
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
@@ -464,9 +465,17 @@ function expandNode(node: GraphNode): void {
  */
 function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
     const context: GraphContext = node.parentGraph;
-    const { trigger, ...options } = context.getStyles().config.behavior.expand;
     const session = context.getSession?.();
-    if (trigger !== gesture || session === undefined) {
+    if (session === undefined) {
+        return;
+    }
+
+    // The load that brought the node may carry its own expand behavior, which wins over the config.
+    const keys = sourceLoadsOf(session.data.node(node.id)).map((key) => key.split("/")[0]);
+    // ponytail: loads() walks every node; only a node a source brought pays for it, once per click.
+    const own = keys.length === 0 ? undefined : session.data.loads().find((load) => keys.includes(load.key))?.expand;
+    const { trigger, ...options } = { ...context.getStyles().config.behavior.expand, ...own };
+    if (trigger !== gesture) {
         return;
     }
 

@@ -5,7 +5,7 @@
  * `steps` effect of `plan`). The app holds no filter state and writes only the words.
  */
 
-import { ControlSection, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import { ControlSection, SegmentedControl, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { FilterStep, GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Menu, Select, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -13,10 +13,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type Card, type CardField, cardFields, cardOf, keyOf, leafOf, newCard } from "../style/cards";
-import { keystrokeTarget } from "../style/useFocusLine";
-import { CardBody } from "../style/WhichPicker";
-import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
+import { type Card, type CardField, cardFields, cardOf, isFinished, leafOf, type Side } from "../style/cards";
+import { WhichPicker } from "../style/WhichPicker";
+import { reportTimeError, unitOf } from "../time/timeActions";
+import { countWords, windowWords } from "../time/timeWords";
+import { countStep, NEW, newId, offersTime, openStepEditor, stepWords, TIME_ROW, writeSteps } from "./filterSteps";
 import {
     applyName,
     applyTip,
@@ -29,11 +30,13 @@ import {
     notAddedWords,
     outcomeWords,
     overEdges,
+    readsEnds,
     savedWords,
     saveLabel,
     statusWords,
     type StepMissing,
 } from "./filterWords";
+import { TimeCard } from "./TimeCard";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** What is left before the first step and after each step that is on, by step id. */
@@ -131,7 +134,9 @@ export function FiltersSection(): React.JSX.Element {
     };
 
     let before = outcomes?.start;
-    const items: TreeNodeData[] = steps.map((step) => {
+    const timed = session !== null && session.time.field !== null;
+    const window = timed ? session.time.current : null;
+    const stepItems: TreeNodeData[] = steps.map((step) => {
         const words = session === null ? "" : stepWords(session, step);
         const after = step.on ? outcomes?.after.get(step.id) : undefined;
         // A step over an edge column changes both counts, so it names both; the element counts both.
@@ -166,6 +171,45 @@ export function FiltersSection(): React.JSX.Element {
         };
     });
 
+    // The time window is a filter row too, while a time field is designated: the same element
+    // state the dock moves, not a second window. Its box turns the window on and off; the row opens
+    // its card.
+    const items: TreeNodeData[] =
+        session === null || !timed
+            ? stepItems
+            : [
+                  ...stepItems,
+                  {
+                      id: TIME_ROW,
+                      name: window === null ? "Time" : `Time ${windowWords(window, unitOf(session))}`,
+                      icon: <GLYPHS.time size={14} aria-hidden />,
+                      description:
+                          window === null
+                              ? "off"
+                              : `${countWords(session.visibility.summary.visibleNodes, "node")}, ${countWords(session.visibility.summary.visibleEdges, "edge")}`,
+                      descriptionVisible: true,
+                      dimmed: window === null,
+                      strong: false,
+                      actions: (
+                          <Tooltip label={window === null ? "Apply the time window" : "Show all time"}>
+                              <span data-pinned="">
+                                  <Checkbox
+                                      size="xs"
+                                      aria-label="Apply the time window"
+                                      checked={window !== null}
+                                      onChange={(event) => {
+                                          session.time.pause();
+                                          session.time
+                                              .window(event.currentTarget.checked ? {} : null)
+                                              .then(() => undefined, reportTimeError(store));
+                                      }}
+                                  />
+                              </span>
+                          </Tooltip>
+                      ),
+                  },
+              ];
+
     const plus = (
         <Tooltip label="Add filter step">
             <ActionIcon
@@ -182,13 +226,15 @@ export function FiltersSection(): React.JSX.Element {
     );
 
     return (
-        <ControlSection label="Filters" actions={plus} empty={steps.length === 0}>
-            {steps.length === 0 ? null : (
+        <ControlSection label="Filters" actions={plus} empty={items.length === 0}>
+            {items.length === 0 ? null : (
                 <Tree
                     label="Filters"
                     items={items}
                     multiselect={false}
-                    selected={open !== undefined && steps.some((s) => s.id === open) ? [open] : []}
+                    selected={
+                        open !== undefined && (open === TIME_ROW || steps.some((s) => s.id === open)) ? [open] : []
+                    }
                     onSelect={(ids) => {
                         const id = ids.at(-1);
                         if (id !== undefined) {
@@ -198,7 +244,9 @@ export function FiltersSection(): React.JSX.Element {
                     rowMenu={(node) => (
                         <Menu.Item
                             onClick={() => {
-                                if (session !== null) {
+                                if (session !== null && node.id === TIME_ROW) {
+                                    session.time.window(null).then(() => undefined, reportTimeError(store));
+                                } else if (session !== null) {
                                     // The next row takes focus, or the one above when the last
                                     // goes, or "+" when none is left.
                                     const at = steps.findIndex((s) => s.id === node.id);
@@ -260,16 +308,21 @@ function usePreview(
     return preview?.key === key ? preview : null;
 }
 
-/** What a step keeps, as the editor's first field. */
-type Keep = "attribute" | "largest" | "neighbors";
+/** What a step keeps, as the editor's Filter by menu; `time` is the time window's card. */
+type Keep = "attribute" | "largest" | "neighbors" | "time";
 
-/** The editor's fields: what the step keeps, and for a value, the condition card that tests it. */
+/**
+ * The editor's fields: what the step keeps, whether it hides that instead, and its condition
+ * cards, the nodes' and the edges'.
+ */
 interface Fields {
     readonly keep: Keep;
-    readonly card: Card | null;
+    readonly hide: boolean;
+    readonly nodes: readonly Card[];
+    readonly edges: readonly Card[];
 }
 
-const BLANK: Fields = { keep: "attribute", card: null };
+const BLANK: Fields = { keep: "attribute", hide: false, nodes: [], edges: [] };
 
 /**
  * A leaf on an edge value read as a filter step reads it: it keeps the passing edges and the nodes
@@ -293,39 +346,88 @@ function atEnds(leaf: RuleTree): RuleTree {
 }
 
 /**
- * The values a step can test, nodes' then edges', as condition cards read them.
+ * The values a step's cards test on one kind. A Data source step keeps nodes and edges alike, so
+ * it is listed once, with the nodes.
  * @param session - the element's session.
+ * @param side - nodes or edges.
  * @returns the fields.
  */
-const stepFields = (session: GraphSession): CardField[] => [
-    ...cardFields(session, "node"),
-    ...cardFields(session, "edge"),
-];
+const stepFields = (session: GraphSession, side: Side): CardField[] =>
+    cardFields(session, side).filter((field) => side === "node" || field.kind !== "source");
+
+/**
+ * A rule as Keep or Hide: a Hide step is `not` around what it hides. The `not` a card makes itself
+ * ("Has no value") is a kept card's.
+ * @param session - the element's session.
+ * @param rule - the step's rule.
+ * @returns whether it hides, and the rule it keeps or hides.
+ */
+function hiddenOf(session: GraphSession, rule: RuleTree): { readonly hide: boolean; readonly rule: RuleTree } {
+    if (rule.kind !== "not") {
+        return { hide: false, rule };
+    }
+    const own = cardOf(session, rule, stepFields(session, readsEnds(rule) ? "edge" : "node"), 0);
+    return own.type === "fixed" ? { hide: true, rule: rule.of } : { hide: false, rule };
+}
 
 /**
  * The editor's fields for a step, or for a new one.
  * @param session - the element's session.
  * @param step - the step, or undefined for a new one.
- * @param filled - `<kind>:<path>` to fill for a new step, or "".
  * @returns the fields.
  */
-function fieldsOf(session: GraphSession, step: FilterStep | undefined, filled: string): Fields {
-    const fields = stepFields(session);
-    const rule = step?.rule;
-    if (rule === undefined) {
-        const field = fields.find((f) => keyOf(f) === filled);
-        return { ...BLANK, card: field === undefined ? null : newCard(field) };
+function fieldsOf(session: GraphSession, step: FilterStep | undefined): Fields {
+    if (step === undefined) {
+        return BLANK;
     }
-    if (rule.kind === "member") {
-        return { ...BLANK, keep: "largest" };
+    const { hide, rule } = hiddenOf(session, step.rule);
+    if (rule.kind === "member" && rule.of === "largest-component") {
+        return { ...BLANK, hide, keep: "largest" };
     }
     if (rule.kind === "neighborhood") {
-        return { ...BLANK, keep: "neighbors" };
+        return { ...BLANK, hide, keep: "neighbors" };
     }
-    // A rule that reads at its edges' ends is on an edge value: edges are looked up first.
-    const onEdges = sameRule(rule, atEnds(rule));
-    const ordered = onEdges ? [...fields.filter((f) => f.on === "edge"), ...fields] : fields;
-    return { ...BLANK, card: cardOf(session, rule, ordered, 0) };
+    // One card per leaf: a leaf that reads at its edges' ends is an edge value's.
+    const leaves = rule.kind === "all" ? rule.of : [rule];
+    const nodeFields = stepFields(session, "node");
+    const edgeFields = stepFields(session, "edge");
+    return {
+        ...BLANK,
+        hide,
+        nodes: leaves.filter((leaf) => !readsEnds(leaf)).map((leaf, at) => cardOf(session, leaf, nodeFields, at)),
+        edges: leaves.filter(readsEnds).map((leaf, at) => cardOf(session, leaf, edgeFields, at)),
+    };
+}
+
+/**
+ * What the fields keep, before Hide: null while it is incomplete (no card, or one with no value).
+ * @param fields - the fields.
+ * @param seeds - the selected nodes, for a neighbors step.
+ * @returns the rule.
+ */
+function keptOf(fields: Fields, seeds: readonly (string | number)[]): RuleTree | null {
+    if (fields.keep === "largest") {
+        return { kind: "member", of: "largest-component" };
+    }
+    if (fields.keep === "neighbors") {
+        return seeds.length === 0 ? null : { kind: "neighborhood", seeds, depth: 1 };
+    }
+    const cards = [...fields.nodes, ...fields.edges];
+    if (!cards.every(isFinished)) {
+        return null;
+    }
+    // An edge value's leaf keeps the edges that pass and the nodes at their ends.
+    const leaves = [
+        ...fields.nodes.flatMap((card) => leafOf(card) ?? []),
+        ...fields.edges.flatMap((card) => {
+            const leaf = leafOf(card);
+            return leaf === null ? [] : [atEnds(leaf)];
+        }),
+    ];
+    if (leaves.length === 0) {
+        return null;
+    }
+    return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
 }
 
 /**
@@ -335,44 +437,29 @@ function fieldsOf(session: GraphSession, step: FilterStep | undefined, filled: s
  * @returns the rule.
  */
 function ruleOf(fields: Fields, seeds: readonly (string | number)[]): RuleTree | null {
-    if (fields.keep === "largest") {
-        return { kind: "member", of: "largest-component" };
-    }
-    if (fields.keep === "neighbors") {
-        return seeds.length === 0 ? null : { kind: "neighborhood", seeds, depth: 1 };
-    }
-    const { card } = fields;
-    const leaf = card === null ? null : leafOf(card);
-    // An edge value's step keeps the edges that pass and the nodes at their ends.
-    return leaf !== null && card !== null && "field" in card && card.field.on === "edge" ? atEnds(leaf) : leaf;
+    const kept = keptOf(fields, seeds);
+    return kept === null || !fields.hide ? kept : { kind: "not", of: kept };
 }
 
 /**
  * What the editor's submit waits for, or null when it is ready.
  * @param rule - the rule the fields make, or null while incomplete.
  * @param unchanged - whether the rule is the saved step's own.
- * @param keep - the Keep choice.
- * @param card - the condition card, or null before an attribute is chosen.
+ * @param fields - the fields.
  * @param none - whether the element counted no node left after the step.
  * @returns what is missing.
  */
-function missingOf(
-    rule: RuleTree | null,
-    unchanged: boolean,
-    keep: Fields["keep"],
-    card: Card | null,
-    none: boolean,
-): StepMissing | null {
+function missingOf(rule: RuleTree | null, unchanged: boolean, fields: Fields, none: boolean): StepMissing | null {
     if (rule !== null) {
         if (unchanged) {
             return "change";
         }
         return none ? "none" : null;
     }
-    if (keep === "neighbors") {
+    if (fields.keep === "neighbors") {
         return "nodes";
     }
-    return card === null ? "attribute" : "value";
+    return fields.nodes.length + fields.edges.length === 0 ? "attribute" : "value";
 }
 
 /**
@@ -392,42 +479,46 @@ function sameRule(a: RuleTree, b: RuleTree): boolean {
 }
 
 /**
- * The side a step's attribute is on: a node's or an edge's.
- * @param card - the step's condition card.
- * @returns the side.
- */
-function sideOf(card: Card | null): CardField["on"] {
-    return card !== null && "field" in card ? card.field.on : "node";
-}
-
-/**
- * The Keep menu's choices.
- * @param neighbors - whether "the neighbors of the selection" is offered.
+ * The Filter by menu's choices.
+ * @param neighbors - whether the neighbors of the selection are offered.
+ * @param time - whether a time window is offered.
  * @returns the choices.
  */
-function keepChoicesOf(neighbors: boolean): { value: string; label: string }[] {
+function keepChoicesOf(neighbors: boolean, time: boolean): { value: string; label: string }[] {
     return [
-        { value: "attribute", label: "an attribute's value" },
-        { value: "largest", label: "the largest component" },
-        ...(neighbors ? [{ value: "neighbors", label: "the neighbors of the selection" }] : []),
+        { value: "attribute", label: "Matching" },
+        { value: "largest", label: "Largest component" },
+        ...(neighbors ? [{ value: "neighbors", label: "Neighbors of selection" }] : []),
+        ...(time ? [{ value: "time", label: "Time window" }] : []),
     ];
 }
 
-/**
- * The Attribute menu's choices, grouped under Nodes and Edges; a side with none has no group.
- * @param choosable - the attributes a step can test.
- * @returns the grouped choices.
- */
-function attributeChoicesOf(choosable: CardField[]): { group: string; items: { value: string; label: string }[] }[] {
-    return (["node", "edge"] as const).flatMap((kind) => {
-        const items = choosable.filter((f) => f.on === kind).map((f) => ({ value: keyOf(f), label: f.name }));
-        return items.length === 0 ? [] : [{ group: kind === "node" ? "Nodes" : "Edges", items }];
-    });
+/** The two kinds a step's cards test, in the order the editor draws their pickers. */
+const SIDES: readonly Side[] = ["node", "edge"];
+
+/** A field the editor opens a kind's picker on, with a card on it; `n` tells two asks apart. */
+interface Adding {
+    readonly side: Side;
+    readonly path: string;
+    readonly n: number;
 }
 
 /**
- * The step editor, drawn in the inspector: Keep, then the attribute, the comparison and the
- * value. Committing adds the step or saves the edited one, on either way.
+ * The field a new step was opened from (`NEW:<kind>:<path>`).
+ * @param filled - `<kind>:<path>`, or "".
+ * @returns the field to add a card on, or null.
+ */
+function addingOf(filled: string): Adding | null {
+    const at = filled.indexOf(":");
+    const side = filled.slice(0, at);
+    return side === "node" || side === "edge" ? { side, path: filled.slice(at + 1), n: 0 } : null;
+}
+
+/**
+ * The step editor, drawn in the inspector: Keep or Hide, what (matching the cards, the largest
+ * component, the neighbors of the selection, a time window), and for matching the Which nodes and
+ * Which edges pickers a style layer draws. Committing adds the step or saves the edited one, on
+ * either way.
  * @param props - Component props
  * @param props.id - the step id, `NEW`, or `NEW:<kind>:<path>`.
  * @returns the editor.
@@ -437,7 +528,21 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const steps = session?.visibility.steps ?? [];
     const step = steps.find((s) => s.id === id);
     const filled = id.startsWith(`${NEW}:`) ? id.slice(NEW.length + 1) : "";
-    const [fields, setFields] = useState<Fields>(() => (session === null ? BLANK : fieldsOf(session, step, filled)));
+    const timeRow = id === TIME_ROW;
+    const [fields, setFields] = useState<Fields>(() => {
+        if (timeRow) {
+            return { ...BLANK, keep: "time" };
+        }
+        return session === null ? BLANK : fieldsOf(session, step);
+    });
+    // A field a picker opens on with a card: the attribute a new step came from, or one of the
+    // other kind's typed in a picker's Add a condition.
+    const [adding, setAdding] = useState<Adding | null>(() => addingOf(filled));
+    // A new step opens Which nodes on arrival, once: not again on coming back to Matching.
+    const arriving = useRef(id === NEW);
+    useEffect(() => {
+        arriving.current = false;
+    }, []);
     // What the editor opened with, so leaving a new step says it was not added only after an edit.
     const opened = useRef(fields);
     const set = (next: Partial<Fields>): void => {
@@ -451,8 +556,12 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const unadded = useRef<string | null>(null);
     // Saves a whole, changed rule when the reader leaves the editor; set on every draw below.
     const leave = useRef<() => void>(() => undefined);
+    // Focus leaving the form saves, a frame later: a move into a list it opened (drawn in a
+    // portal) comes back into it as a focus event first.
+    const leaving = useRef(0);
     useEffect(
         () => () => {
+            cancelAnimationFrame(leaving.current);
             // A click on anything else closes the editor: that saves an edited step too.
             leave.current();
             // A new step applies only when added: leaving drops it, and says so.
@@ -462,23 +571,11 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         },
         [id, session, store],
     );
-    // An attribute picked hands focus to its card's value, as a layer's Add a condition does, so
-    // the next keystroke is the value, not more search text in the attribute box.
-    const cardBox = useRef<HTMLDivElement>(null);
-    const [toCard, setToCard] = useState(false);
-    useEffect(() => {
-        if (toCard) {
-            setToCard(false);
-            const controls = cardBox.current?.querySelectorAll<HTMLElement>("input:not([type=hidden]), button");
-            keystrokeTarget([...(controls ?? [])])?.focus();
-        }
-    }, [toCard]);
     const seeds = session?.selection.nodes ?? [];
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
-    const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
+    const saved = step?.rule.kind === "not" ? step.rule.of : step?.rule;
+    const kept = saved?.kind === "neighborhood" ? saved.seeds : [];
     const rule = ruleOf(fields, seeds.length > 0 ? seeds : kept);
-    const { card } = fields;
-    const side = sideOf(card);
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
@@ -494,10 +591,13 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // A step that would hide every node is never written: it is a value no node holds.
     const none = preview?.after.nodes === 0;
     // What the submit waits for, named in its tooltip while it is drawn disabled.
-    const missing = missingOf(rule, unchanged, fields.keep, card, none);
+    let missing = missingOf(rule, unchanged, fields, none);
+    if (fields.keep === "time") {
+        missing = session?.time.field === null ? "attribute" : null;
+    }
     unadded.current = rule === null || session === null ? null : stepWords(session, { id: added, on: true, rule });
 
-    if (session === null || (step === undefined && id !== NEW && filled === "")) {
+    if (session === null || (step === undefined && id !== NEW && filled === "" && !timeRow)) {
         // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
         // last draw's save would write it back.
         leave.current = () => undefined;
@@ -509,11 +609,23 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     }
 
     // Neighbors is offered only with a selection to start from, or on a step that already has one.
-    const keepChoices = keepChoicesOf(seeds.length > 0 || fields.keep === "neighbors");
-    const choosable = stepFields(session);
-    const attributeChoices = attributeChoicesOf(choosable);
+    const keepChoices = keepChoicesOf(
+        seeds.length > 0 || fields.keep === "neighbors",
+        timeRow || fields.keep === "time" || offersTime(session),
+    );
 
     const commit = async (): Promise<void> => {
+        if (fields.keep === "time") {
+            // The window opens one step wide at the start of the data; the card stays open on it.
+            if (timeRow || session.time.field === null) {
+                return;
+            }
+            keep.current = false;
+            session.time.pause();
+            await session.time.window(session.time.current ?? {}).then(() => undefined, reportTimeError(store));
+            store.set({ inspected: { kind: "filter-step", id: TIME_ROW } });
+            return;
+        }
         // A press or Enter on an incomplete or unchanged rule adds nothing.
         if (rule === null || unchanged) {
             return;
@@ -589,90 +701,107 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                     event.preventDefault();
                     event.stopPropagation();
                     keep.current = false;
-                    focusStep(step?.id ?? PLUS);
+                    focusStep(step?.id ?? (timeRow ? TIME_ROW : PLUS));
                     store.set({
                         inspected: null,
                         announcement: cancelledWords(step === undefined ? null : stepWords(session, step)),
                     });
                 }
             }}
+            onFocus={() => {
+                cancelAnimationFrame(leaving.current);
+            }}
             onBlur={(event: React.FocusEvent) => {
-                // Focus moved out of the form, not between its fields or into a list it opened.
+                // Focus moved out of the form, not between its fields.
                 const to = event.relatedTarget;
                 if (!(to instanceof Node) || !event.currentTarget.contains(to)) {
-                    leave.current();
+                    cancelAnimationFrame(leaving.current);
+                    leaving.current = requestAnimationFrame(() => {
+                        leave.current();
+                    });
                 }
             }}
         >
-            <Select
-                label="Keep"
-                // A new step's editor takes focus, from "+" or the toolbar's Filters, so a key
-                // reader is in the form it asked for.
-                autoFocus={id === NEW}
-                data={keepChoices}
-                value={fields.keep}
-                allowDeselect={false}
-                onChange={(value) => {
-                    if (value === "attribute" || value === "largest" || value === "neighbors") {
-                        set({ keep: value });
-                    }
-                }}
-            />
-            {fields.keep === "attribute" && (
-                <>
-                    <Select
-                        label="Attribute"
-                        data={attributeChoices}
-                        value={card !== null && "field" in card ? keyOf(card.field) : null}
-                        placeholder="Choose an attribute"
-                        searchable
-                        // Tab passes through; the list opens on a click, a typed letter or ArrowDown.
-                        openOnFocus={false}
+            <Group gap="xs" wrap="nowrap">
+                {fields.keep !== "time" && (
+                    <SegmentedControl
+                        size="xs"
+                        label="Keep or hide"
+                        data={[
+                            { value: "keep", label: "Keep" },
+                            { value: "hide", label: "Hide" },
+                        ]}
+                        value={fields.hide ? "hide" : "keep"}
                         onChange={(value) => {
-                            const field = choosable.find((f) => keyOf(f) === value);
-                            set({ card: field === undefined ? null : newCard(field) });
-                            setToCard(field !== undefined);
+                            set({ hide: value === "hide" });
                         }}
                     />
-                    {card !== null && (
-                        // The condition card a layer's Which picker draws: its match menu, its values.
-                        <div ref={cardBox}>
-                            <CardBody
-                                session={session}
-                                card={card}
-                                side={side}
-                                onChange={(next) => {
-                                    set({ card: next });
-                                }}
-                            />
-                        </div>
-                    )}
-                    {side === "edge" && (
-                        <Text size="xs" c="dimmed">
-                            {ENDS_LINE}
-                        </Text>
-                    )}
-                </>
+                )}
+                <Select
+                    aria-label="Filter by"
+                    style={{ flex: 1, minWidth: 0 }}
+                    data={keepChoices}
+                    value={fields.keep}
+                    allowDeselect={false}
+                    onChange={(value) => {
+                        if (value === "attribute" || value === "largest" || value === "neighbors" || value === "time") {
+                            set({ keep: value });
+                        }
+                    }}
+                />
+            </Group>
+            {fields.keep === "time" && <TimeCard />}
+            {fields.keep === "attribute" &&
+                SIDES.map((side) => {
+                    const at = adding?.side === side ? adding : undefined;
+                    return (
+                        // The Which nodes and Which edges pickers a style layer draws, holding the
+                        // step's cards; a new one remounts on the field it is asked to add.
+                        <WhichPicker
+                            key={`${side} ${String(at?.n ?? "")}`}
+                            session={session}
+                            rows={[]}
+                            held={{
+                                cards: side === "node" ? fields.nodes : fields.edges,
+                                onChange: (cards) => {
+                                    set(side === "node" ? { nodes: cards } : { edges: cards });
+                                },
+                            }}
+                            side={side}
+                            autoOpen={side === "node" && arriving.current}
+                            adding={at?.path}
+                            onElsewhere={(field) => {
+                                setAdding({ side: field.on, path: field.path, n: (adding?.n ?? 0) + 1 });
+                            }}
+                        />
+                    );
+                })}
+            {fields.keep === "attribute" && fields.edges.length > 0 && (
+                <Text size="xs" c="dimmed">
+                    {ENDS_LINE}
+                </Text>
             )}
-            {rule !== null && preview !== null && (
+            {fields.keep !== "time" && rule !== null && preview !== null && (
                 // What the step would leave, in the words its row will use: "77 to 0 nodes".
                 <Text size="xs" c="dimmed">
                     {outcomeWords(true, preview.before, preview.after, overEdges({ id: added, on: true, rule }))}
                 </Text>
             )}
-            <Group gap="xs">
-                {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
-                <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
-                    <Button
-                        size="xs"
-                        type="submit"
-                        aria-disabled={missing !== null || undefined}
-                        data-disabled={missing !== null || undefined}
-                    >
-                        {step === undefined ? "Add step" : saveLabel(step.on)}
-                    </Button>
-                </Tooltip>
-            </Group>
+            {!timeRow && (
+                <Group gap="xs">
+                    {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
+                    <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
+                        <Button
+                            size="xs"
+                            type="submit"
+                            aria-disabled={missing !== null || undefined}
+                            data-disabled={missing !== null || undefined}
+                        >
+                            {step === undefined ? "Add step" : saveLabel(step.on)}
+                        </Button>
+                    </Tooltip>
+                </Group>
+            )}
         </Stack>
     );
 }
@@ -704,13 +833,18 @@ export function FilterChip(): React.JSX.Element | null {
         return null;
     }
     const words = chipWords(session.visibility.summary, session.visibility.steps);
-    const on = session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step));
+    // The time window is one of the filters in force, as the Filters list shows it.
+    const window = session.time.field === null ? null : session.time.current;
+    const on = [
+        ...session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step)),
+        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),
+    ];
     return (
         <Tooltip label={chipTip(on)} multiline maw={280}>
             <Button
                 variant="subtle"
                 size="compact-xs"
-                aria-label={`Filter: ${words}`}
+                aria-label={`Filter: ${words}${window === null ? "" : ", time window"}`}
                 leftSection={<GLYPHS.filter size={12} aria-hidden />}
                 onClick={() => {
                     store.set({ page: "panels", place: "data" });

@@ -18,6 +18,20 @@
         "patterns": ["^\\.github/workflows/ci\\.yml$", "^\\.github/actions/"],
         "shards": ["graph-format", "algorithms-browser"]
     },
+    "storySetup": {
+        "$comment": "visual-review files that only the packages' Storybook story setups load (.storybook/vitest.setup.visual.ts, a setup file of the storybook projects only). A change to one changes no dependent package's build, so instead of every shard of every package that depends on visual-review it runs visual-review's own shards and these shards whole: the storybook shards of graphty and graphty-element, and algorithms-browser and layout, because ci.yml's story-tests job runs the stories of algorithms and layout only when those shards are in the matrix. visual-review's other files (story-test.mjs and capture.mjs, which the vitest configs import) keep the dependency-wide answer.",
+        "patterns": ["^visual-review/capture/story-test-setup\\.(mjs|d\\.mts)$"],
+        "shards": [
+            "algorithms-browser",
+            "layout",
+            "graphty-storybook",
+            "graphty-element-storybook-1",
+            "graphty-element-storybook-2",
+            "graphty-element-storybook-3",
+            "graphty-element-storybook-4",
+            "graphty-element-storybook-5"
+        ]
+    },
     "noTests": {
         "$comment": "Root paths no test shard reads: the screenshot lane, design notes and agent settings. Asked only after the import graphs and the test-side string literals (test-select.mjs, rootFiles), so a design file a test imports or names still runs that test. A root file that matches none of these and that no import, rule or test accounts for runs everything, except code under tools/.",
         "patterns": [
@@ -70,7 +84,9 @@
             "graph-samples",
             "layout",
             "algorithms",
-            "cytoscape-extensions"
+            "cytoscape-extensions",
+            "visual-review",
+            "githerd"
         ]
     },
     "fileLevelBrowser": {
@@ -96,12 +112,16 @@
         "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\(|promisify\\(|\\bexecFile\\b|\\bspawn\\b|child_process|node:fs|new ESLint\\(|loadESLint|calculateConfigForFile|\\bfetch\\(|page\\.goto"
     },
     "stories": {
-        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package).",
+        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package). selectProjects: the projects whose stories are selected at all; every other project runs every story on every change. A project joins only after a clean run of node tools/test-select-mutate.mjs --stories <project>, which breaks its files one at a time, captures the whole Storybook and requires every story whose picture or play result changed to have been selected. storyless: CI and tool files no story reads; a change only to these, with no storybook shard selected, runs no story in any project, proven or not. A tools/ file a Storybook or story-test config imports (directly or through another tools/ file) stays out of it (tools/test-select.test.mjs checks that), and so does what defines the Stories job itself: ci.yml, the composite actions, the planners and tools/results/, so a change to the job runs it.",
         "global": [
             "^visual-review\\.config\\.json$",
             "^visual-fonts/",
             "^visual-review/capture/",
             "^visual-review/trusted/lib/compare\\.mjs$"
+        ],
+        "storyless": [
+            "^\\.github/(?!workflows/ci\\.yml$|actions/)",
+            "^tools/(?!(features-on|storybook-brand-theme|test-slots|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)"
         ],
         "projectGlobal": ["^{dir}/\\.storybook/", "^{dir}/vitest(\\.[\\w-]+)?\\.config\\.[cm]?[jt]s$"],
         "lockfile": "playwright|chromium|storybook|vitest|font",
@@ -109,6 +129,7 @@
             "pattern": "^compact-mantine/src/theme/",
             "projects": ["graphty", "compact-mantine"]
         },
+        "selectProjects": [],
         "drawnBy": {
             "graph-io-fidelity": ["graph-io", "graphty-element"]
         }

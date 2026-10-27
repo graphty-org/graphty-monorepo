@@ -23,6 +23,8 @@ interface StandInFacts {
     blocks?: readonly LegendBlock[];
     runs?: Record<string, string>;
     layers?: Record<string, string>;
+    /** Column paths and their names. */
+    columns?: Record<string, string>;
     painting?: RunPainting;
 }
 
@@ -77,6 +79,7 @@ function standIn(facts: StandInFacts = {}): {
                           distinguishedBy: null,
                           siblingsDifferBy: null,
                           scope: { spec: "visible" },
+                          caveats: {},
                       },
             painting: () => facts.painting,
         },
@@ -85,6 +88,15 @@ function standIn(facts: StandInFacts = {}): {
             name: (id: string) => ({ a: "Ava", b: "Ben" })[id],
             edge: (id: string) => (id === "e1" ? { id, source: "a", target: "b" } : undefined),
             source: () => undefined,
+            attributes: () => Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({ path, plainName })),
+            readableValues: () =>
+                Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({
+                    path,
+                    plainName,
+                    on: "node",
+                    from: "data",
+                    kind: "category",
+                })),
         },
         status: { directed: true },
         selection: { nodes: [], edges: [] },
@@ -107,12 +119,12 @@ function standIn(facts: StandInFacts = {}): {
 }
 
 /**
- * An Add data command whose disabled reason the test sets.
+ * A Samples... command whose disabled reason the test sets.
  * @param disabled - the reason, or null for an enabled command.
  * @returns the command.
  */
 function openCommand(disabled: string | null): Command {
-    return { id: "data.add", label: "Add data...", group: "Data", disabled: () => disabled, run: vi.fn() };
+    return { id: "data.samples", label: "Samples...", group: "Data", disabled: () => disabled, run: vi.fn() };
 }
 
 /**
@@ -201,51 +213,28 @@ describe("the canvas's state cards", () => {
         assert.isNull(screen.queryByRole("status"));
     });
 
-    it("shows No nodes to draw over an empty graph, with Add data... and Open a sample", () => {
+    it("shows No nodes to draw over an empty graph, with the Sources doors File... and Samples...", () => {
         renderOver(standIn({ nodeCount: 0 }).session);
         assert.isNotNull(screen.getByRole("region", { name: "No nodes to draw" }));
         assert.deepEqual(
             screen.getAllByRole("button").map((button) => button.textContent),
-            ["Add data...", "Open a sample"],
+            ["File...", "Samples..."],
         );
     });
 
-    it("lists every sample under Open a sample, and a row runs that sample's command", async () => {
-        const karate: Command = {
-            id: "sample.open.karate",
-            label: "Open sample: Zachary's karate club",
-            group: "Project",
-            run: vi.fn(),
-        };
-        renderOver(standIn({ nodeCount: 0 }).session, {}, [karate]);
-        await userEvent.click(screen.getByRole("button", { name: "Open a sample" }));
-        const rows = await screen.findAllByRole("menuitem");
-        assert.deepEqual(
-            rows.map((row) => row.textContent),
-            [
-                "Les Miserables77 characters",
-                "Zachary's karate club34 members",
-                "College football115 teams",
-                "Florentine families15 families",
-            ],
-        );
-        await userEvent.click(rows[1]);
-        assert.equal(vi.mocked(karate.run).mock.calls.length, 1);
-    });
-
-    it("offers Add data on the empty card, and runs it", async () => {
+    it("offers Samples... on the empty card, and runs it", async () => {
         const command = openCommand(null);
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
-        const button = screen.getByRole("button", { name: "Add data..." });
+        const button = screen.getByRole("button", { name: "Samples..." });
         assert.notEqual(button.getAttribute("aria-disabled"), "true");
         await userEvent.click(button);
         assert.equal(vi.mocked(command.run).mock.calls.length, 1);
     });
 
-    it("keeps Add data reachable but disabled, with the reason in a tooltip", async () => {
+    it("keeps Samples... reachable but disabled, with the reason in a tooltip", async () => {
         const command = openCommand("Close the dialog first");
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
-        const button = screen.getByRole("button", { name: "Add data..." });
+        const button = screen.getByRole("button", { name: "Samples..." });
         assert.equal(button.getAttribute("aria-disabled"), "true");
         // force: a reader can still press a disabled control, and it must do nothing
         await userEvent.click(button, { force: true });
@@ -385,6 +374,20 @@ describe("the legend card", () => {
         assert.isNotNull(within(section).getByText("Other"));
         assert.isNull(within(section).queryByText("Other: 3 groups"));
         assert.isNotNull(within(section).getByText("28 more"));
+    });
+
+    it("titles a reader's layer that colors by a column after the column, not the layer", () => {
+        const byDept = block({
+            field: { plainName: "dept", technicalName: "dept", path: "data.dept" },
+            swatches: [{ label: "east", value: "east", color: "#ff0000" }],
+        });
+        renderOver(
+            standIn({ blocks: [byDept], layers: { "layer-1": "Everything" }, columns: { "data.dept": "Dept" } })
+                .session,
+        );
+        // Tier 3's legend names the column as the legend block does (its plainName).
+        assert.isNotNull(screen.getByRole("group", { name: "Color: dept" }));
+        assert.isNull(screen.queryByRole("group", { name: "Color: Everything" }));
     });
 
     it("names the shape a category paints", () => {

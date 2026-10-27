@@ -14,16 +14,13 @@
 # recorded in the wait log, with who held the slots when it began (tools/wait-log.mjs,
 # <main checkout>/tmp/waits.jsonl). BROWSER_SLOT_POLL sets the seconds between looks (5).
 #
-# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs,
-# tools/low-priority.sh) the command waits for slot 4 only, the one every other command tries last, so it
-# never holds more than one of the four and never one an ordinary command would have taken first. While a
-# pre-push gate runs its test shards (a live gate mark, <main checkout>/tmp/test-slots/.gate-<pid>, written
-# by tools/prepush-tests.mjs through tools/test-slots.mjs), every command outside a gate takes the low lane
-# too; the gate's own shards (TEST_SLOT_GATE set) never do.
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (tools/low-priority.sh) the command waits for slot 4
+# only, the one every other command tries last, so it never holds more than one of the four and never one an
+# ordinary command would have taken first.
 #
 # The high lane: with BROWSER_SLOT_PRIORITY=high (the cut's screenshot preview, which the owner reviews before
 # a ship: tools/visual-preview.sh sets it) the command takes the next free slot of the four,
-# ahead of every other waiter, the gate's shards included: while it waits it leaves a mark
+# ahead of every other waiter: while it waits it leaves a mark
 # (<slot dir>/.high-<pid>), and no command outside the high lane takes a slot while a live mark exists. It
 # never takes a slot from a command that holds one.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -54,15 +51,6 @@ high_waiting() {
     return 1
 }
 
-# Whether a gate runs its test shards: a gate mark whose process is alive.
-gate_running() {
-    local f
-    for f in "${GRAPHTY_TEST_SLOTS_DIR:-$main/tmp/test-slots}"/.gate-*; do
-        [ -e "$f" ] && kill -0 "${f##*/.gate-}" 2>/dev/null && return 0
-    done
-    return 1
-}
-
 start=$(date +%s%3N)
 held_by=()
 high=""
@@ -77,7 +65,7 @@ while :; do
         :
     elif high_waiting; then
         slots=""
-    elif [ -z "${TEST_SLOT_GATE:-}" ] && { [ "${BROWSER_SLOT_PRIORITY:-}" = low ] || gate_running; }; then
+    elif [ "${BROWSER_SLOT_PRIORITY:-}" = low ]; then
         slots=4
     fi
     for i in $slots; do

@@ -11,6 +11,8 @@ export interface Namer {
     readonly node: (id: NodeId) => string;
     /** One value of a path in words (a yes-or-no as Yes or No); absent writes it as it is. */
     readonly value?: (path: string, value: string) => string;
+    /** A load's name, by its `data.sources()` key; absent writes the key. */
+    readonly source?: (key: string) => string;
 }
 
 /**
@@ -42,8 +44,12 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
                 : `not: ${ruleWords(rule.of, names)}`;
         case "any":
             return rule.of.map((each) => ruleWords(each, names)).join(" or ");
+        case "all":
+            return rule.of.map((each) => ruleWords(each, names)).join(" and ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
+        case "source":
+            return `from ${rule.sources.map((key) => names.source?.(key) ?? key).join(" or ")}`;
         case "neighborhood": {
             // The hop count leads: a cut row still tells two steps on the same node apart.
             const who = rule.seeds.length === 1 ? names.node(rule.seeds[0]) : `${String(rule.seeds.length)} nodes`;
@@ -100,7 +106,7 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
  * @param rule - the rule.
  * @returns true when one does.
  */
-function readsEnds(rule: RuleTree): boolean {
+export function readsEnds(rule: RuleTree): boolean {
     switch (rule.kind) {
         case "range":
         case "categories":
@@ -109,6 +115,7 @@ function readsEnds(rule: RuleTree): boolean {
         case "not":
             return readsEnds(rule.of);
         case "any":
+        case "all":
             return rule.of.some(readsEnds);
         default:
             return false;
@@ -228,7 +235,7 @@ export type StepMissing = "attribute" | "value" | "nodes" | "change" | "none";
 export function missingTip(missing: StepMissing): string {
     switch (missing) {
         case "attribute":
-            return "Choose an attribute first";
+            return "Add a condition first";
         case "value":
             return "Type a value first";
         case "nodes":

@@ -12,11 +12,12 @@
  * The file-level runs' files are ranked by the test ledger's history (tools/test-history.mjs,
  * design/ci/history-selection.md) and printed with why; history never adds or drops a file unless --budget asks.
  *
- * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--base <ref>] [--budget <s>]
+ * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--features-on] [--base <ref>] [--budget <s>]
  *   --dry-run  print the selection, the history ranking and why, run nothing
  *   --budget   run only the highest-ranked selected files that fit in <s> seconds of recorded time
  *              (whole-shard runs are not cut)
  *   --all      every shard the change touches runs whole
+ *   --features-on  also select the features-on twins (the "On" configuration; none while no experiment is declared)
  *   --base     compare with another ref (default origin/master)
  */
 
@@ -79,12 +80,15 @@ export function describePlan(plan) {
 }
 
 /**
- * Every shard but the "never" ones (tools/ci-test-matrix.mjs), as the selecting gate asks: which packages
+ * Every shard but the "never" ones (tools/ci-test-matrix.mjs), as the selecting gate asks (with
+ * `featuresOn`, the features-on twins too, which are "never" only so the gate skips them): which packages
  * and files the change reaches is the selector's question, and the "when-paths-change" policy would drop
  * shards it runs whole (a graphty-element source change runs its browser shards).
+ * @param featuresOn also include the features-on twins (`flags: "on"` shards)
  * @returns SHARDS entries
  */
-export const candidateShards = () => SHARDS.filter((s) => s.local !== "never");
+export const candidateShards = (featuresOn = false) =>
+    SHARDS.filter((s) => s.local !== "never" || (featuresOn && s.flags === "on"));
 
 // A file-level run with only the files a budget kept; with none kept it runs nothing.
 function keepOnly(p, keep) {
@@ -148,7 +152,7 @@ async function main(argv) {
     if (changed.length === 0) {
         return 0;
     }
-    const shards = candidateShards();
+    const shards = candidateShards(argv.includes("--features-on"));
     let selection;
     try {
         selection = (await selectChange(ROOT, changed, shards, undefined, false, { base, head: null })).shards;

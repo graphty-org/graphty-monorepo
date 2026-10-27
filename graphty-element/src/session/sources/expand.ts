@@ -20,7 +20,7 @@ import { resolve as storedCredential } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, sourceFactKeys, sourceFactsOf, sourceLoadsOf } from "./ids";
-import type { CollapseResult, ExpandOptions, SourceLoadRecord } from "./types";
+import type { CollapseResult, ExpandOptions, SourceExpandResult, SourceLoadRecord } from "./types";
 
 /** How far from its seed a new node starts, in scene units. */
 const START_RADIUS = 6;
@@ -95,7 +95,7 @@ function unknownNode(id: NodeId): GraphtyError {
  * @param details - the details
  * @returns the params
  */
-function factParams(details: unknown): Record<string, CodedFactParam> {
+export function factParams(details: unknown): Record<string, CodedFactParam> {
     const params: Record<string, CodedFactParam> = {};
     for (const [key, value] of Object.entries((details as Record<string, unknown> | undefined) ?? {})) {
         const scalar = (v: unknown): boolean => v === null || ["string", "number", "boolean"].includes(typeof v);
@@ -124,9 +124,13 @@ function originOf(endpoint: string | null): string {
  * @param options - depth, direction, limit and the credential
  * @returns settles once the neighborhood is in the graph
  */
-export async function expandNodes(host: SourceHost, ids: readonly NodeId[], options: ExpandOptions): Promise<void> {
+export async function expandNodes(
+    host: SourceHost,
+    ids: readonly NodeId[],
+    options: ExpandOptions,
+): Promise<SourceExpandResult> {
     const { running } = host.expansions;
-    const joined: Promise<void>[] = [];
+    const joined: Promise<Added>[] = [];
     const fresh: NodeId[] = [];
     for (const id of ids) {
         const current = running.get(String(id));
@@ -154,7 +158,21 @@ export async function expandNodes(host: SourceHost, ids: readonly NodeId[], opti
         joined.push(run);
     }
 
-    await Promise.all(joined);
+    // An expansion joined twice (two of its seeds asked again) counts once.
+    const added = [...new Set(await Promise.all(joined))];
+    const nodes = added.reduce((sum, each) => sum + each.nodes, 0);
+    const edges = added.reduce((sum, each) => sum + each.edges, 0);
+    return Object.freeze({
+        code: nodes + edges > 0 ? ("I_SOURCE_EXPANDED" as const) : ("I_SOURCE_NOTHING_NEW" as const),
+        params: { seeds: ids.map(String), added: [nodes, edges], partial: added.some((each) => each.partial) },
+    });
+}
+
+/** What one expansion run added, and whether it has more. */
+interface Added {
+    readonly nodes: number;
+    readonly edges: number;
+    readonly partial: boolean;
 }
 
 /**
@@ -162,8 +180,9 @@ export async function expandNodes(host: SourceHost, ids: readonly NodeId[], opti
  * @param host - the session pieces
  * @param ids - the seeds
  * @param options - the options
+ * @returns what the expansions added
  */
-async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: ExpandOptions): Promise<void> {
+async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: ExpandOptions): Promise<Added> {
     const groups = new Map<string, { load: SourceLoadRecord; seeds: NodeId[] }>();
     for (const id of ids) {
         const record = host.node(id);
@@ -183,9 +202,15 @@ async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: Ex
         groups.set(load.key, group);
     }
 
+    const total = { nodes: 0, edges: 0, partial: false };
     for (const { load, seeds } of groups.values()) {
-        await expandGroup(host, load, seeds, options);
+        const added = await expandGroup(host, load, seeds, options);
+        total.nodes += added.nodes;
+        total.edges += added.edges;
+        total.partial ||= added.partial;
     }
+
+    return total;
 }
 
 /**
@@ -194,13 +219,14 @@ async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: Ex
  * @param load - the load they came from
  * @param seeds - the seeds
  * @param options - the options
+ * @returns what the expansion added
  */
 async function expandGroup(
     host: SourceHost,
     load: SourceLoadRecord,
     seeds: readonly NodeId[],
     options: ExpandOptions,
-): Promise<void> {
+): Promise<Added> {
     host.emit("source:expand-start", { seeds });
     // A capped expansion of one node continues from where it stopped.
     const facts = seeds.length === 1 ? sourceFactsOf(host.node(seeds[0])) : {};
@@ -248,14 +274,12 @@ async function expandGroup(
     const command = mergeCommand(host, fetched, expansion.key, seeds, next, options.layout ?? "continue");
     const before = host.edges().length;
     await host.dispatch(command);
+    const added = { nodes: command.nodes.length, edges: host.edges().length - before, partial: next !== null };
     host.emit("source:expanded", {
         code: "I_SOURCE_EXPANDED",
-        params: {
-            seeds: seeds.map(String),
-            added: [command.nodes.length, host.edges().length - before],
-            partial: next !== null,
-        },
+        params: { seeds: seeds.map(String), added: [added.nodes, added.edges], partial: added.partial },
     });
+    return added;
 }
 
 /**

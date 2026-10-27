@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -172,22 +173,9 @@ function accelerationLine(status: AccelerationStatus | null): string {
  * @returns The section
  */
 function Performance(): React.JSX.Element {
-    const { element, session } = useWorkspace();
+    const { element } = useWorkspace();
     const [policy, setPolicy] = useState(() => readPreference(ACCELERATION));
-    const [status, setStatus] = useState<AccelerationStatus | null>(() => session?.capabilities.acceleration ?? null);
-    useEffect(() => {
-        if (element === null) {
-            return undefined;
-        }
-        const update = (): void => {
-            setStatus(element.session.capabilities.acceleration);
-        };
-        update();
-        element.addEventListener("graphty-capabilities-change", update);
-        return () => {
-            element.removeEventListener("graphty-capabilities-change", update);
-        };
-    }, [element]);
+    const status = useAccelerationStatus();
     return (
         <Input.Wrapper
             label="GPU acceleration"

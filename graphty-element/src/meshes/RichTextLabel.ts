@@ -754,6 +754,8 @@ export class RichTextLabel {
         if (!tempCtx) {
             return;
         }
+        // measured with the glyphs it is drawn with (see _drawContent)
+        tempCtx.textRendering = "geometricPrecision";
 
         this.wrapToWidth(tempCtx);
 
@@ -1017,6 +1019,11 @@ export class RichTextLabel {
         const { height } = this.texture.getSize();
 
         ctx.clearRect(0, 0, width, height);
+        // Chromium hints a font's glyphs or not by the device pixel ratio in force when it first
+        // loaded that font, and keeps the loaded font for the page, so the same label drew one
+        // pixel taller or shorter depending on what the page had drawn before (#3472).
+        // geometricPrecision always draws unhinted glyphs, the same on every page.
+        ctx.textRendering = "geometricPrecision";
 
         const scaleX = width / this.actualDimensions.width;
         const scaleY = height / this.actualDimensions.height;

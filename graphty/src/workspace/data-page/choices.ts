@@ -6,7 +6,14 @@
  */
 
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
-import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
+import {
+    type ColumnRole,
+    type DraftTable,
+    LOAD_ROLES,
+    type LoadChoices,
+    type LoadDraft,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
 
 import { fileStylesChoice } from "../settings/preferences";
 
@@ -21,6 +28,8 @@ interface TableEdits {
     readonly roles: Readonly<Record<string, PageRole>>;
     /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
     readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
+    /** How a number time column is read, once the reader chose. */
+    readonly timeUnit?: NonNullable<TableMapping["timeUnit"]>;
 }
 
 /** Every choice on the page. */
@@ -53,16 +62,6 @@ export function initialChoices(): PageChoices {
 export function offersStyles(draft: LoadDraft): boolean {
     return draft.styles?.declared === true || formatDescriptor(draft.type)?.styles?.read === true;
 }
-
-/**
- * The roles a table of each kind takes, in menu order (the element's own role names).
- * Temporary: the element keeps this list private (`session/draft.ts` ROLES) and does not export
- * it; #926 asks it to. Delete this copy when it does.
- */
-export const ROLES_BY_KIND: Readonly<Record<"nodes" | "edges", readonly ColumnRole[]>> = {
-    nodes: ["key", "label", "time"],
-    edges: ["source", "target", "weight", "time", "edgeId"],
-};
 
 /**
  * What each row of a table becomes: the reader's choice, else the element's reading.
@@ -183,12 +182,24 @@ export function setWeightMeaning(
     meaning: NonNullable<TableMapping["weightMeaning"]> | undefined,
     choices: PageChoices,
 ): PageChoices {
-    const { rowsAre, roles } = choices.tables[table.id] ?? { roles: {} };
-    const edits: TableEdits = {
-        ...(rowsAre === undefined ? {} : { rowsAre }),
-        roles,
-        ...(meaning === undefined ? {} : { weightMeaning: meaning }),
-    };
+    const { weightMeaning: _was, ...rest } = choices.tables[table.id] ?? { roles: {} };
+    const edits: TableEdits = { ...rest, ...(meaning === undefined ? {} : { weightMeaning: meaning }) };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
+}
+
+/**
+ * Says how a table's number time column is read.
+ * @param table - the table.
+ * @param unit - the unit.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setTimeUnit(
+    table: DraftTable,
+    unit: NonNullable<TableMapping["timeUnit"]>,
+    choices: PageChoices,
+): PageChoices {
+    const edits: TableEdits = { ...(choices.tables[table.id] ?? { roles: {} }), timeUnit: unit };
     return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
 }
 
@@ -226,7 +237,7 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};
-    for (const role of ROLES_BY_KIND[kind]) {
+    for (const role of LOAD_ROLES[kind].takes) {
         const holder = table.columns.find((column) => roleOf(draft, table, column.name, choices) === role);
         if (holder !== undefined) {
             mapping[role] = holder.name;
@@ -236,12 +247,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const meaning =
         edits.weightMeaning !== undefined && kind === "edges" && weightHolder(draft, table, choices) !== undefined;
-    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning;
+    const unit =
+        edits.timeUnit !== undefined && table.columns.some((c) => roleOf(draft, table, c.name, choices) === "time");
+    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning || unit;
     return changed
         ? {
               ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }),
               ...mapping,
               ...(meaning ? { weightMeaning: edits.weightMeaning } : {}),
+              ...(unit ? { timeUnit: edits.timeUnit } : {}),
           }
         : undefined;
 }

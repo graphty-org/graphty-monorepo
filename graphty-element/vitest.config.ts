@@ -32,9 +32,11 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
+import { withFeaturesOn } from "../tools/features-on.mjs";
+import { shardCacheDir } from "../tools/test-slots.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { baseTest } from "../vitest.base.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
@@ -113,6 +115,12 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
  * whole run (issue #2247).
  */
 const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-setup.ts");
+
+/**
+ * In every browser project's `setupFiles`, with `mapTileCommands` in its `commands`: map tiles come
+ * from a local fixture, never a tile server (vitest.map-tiles.mjs).
+ */
+const MAP_TILES_SETUP = path.join(dirname, "../vitest.map-tiles-setup.ts");
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
@@ -294,14 +302,9 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
-        // projects keep their own maxWorkers or fileParallelism.
-        maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters(), ...(VISUAL ? [VISUAL.reporter] : [])],
+        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -483,7 +486,7 @@ export default defineConfig({
                     // of starting a browser project at all -- but a file that needs a settled physics
                     // layout or a video encode does not belong in a gate a person waits on.
                     name: "contract",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/label-paint.test.ts",
                         "test/browser/style-layer-ordering.test.ts",
@@ -528,6 +531,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -553,11 +557,12 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -577,11 +582,12 @@ export default defineConfig({
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/browser/**/*.bench.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
@@ -620,7 +626,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -659,6 +665,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -703,6 +710,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -753,7 +761,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
@@ -763,6 +771,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -787,6 +796,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -800,7 +810,7 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -817,6 +827,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -865,14 +876,21 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(VISUAL?.providerOptions),
                         instances: [{ browser: "chromium" }],
-                        ...(VISUAL && { viewport: VISUAL.viewport, commands: VISUAL.commands }),
+                        // addon-vitest 9.1.21 turns write and exec off unless set; test/helpers/real-input.ts cdp() needs them. Loopback only: server.host is true.
+                        api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
+                        ...(VISUAL && {
+                            viewport: VISUAL.viewport,
+                            commands: { ...mapTileCommands, ...VISUAL.commands },
+                        }),
                     },
                     setupFiles: [
                         BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
                         ".storybook/vitest.setup.ts",
                     ],
@@ -961,3 +979,16 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["default", "mesh", "browser", "interactions", "xr", "storybook"],
+        "./test/setup-features-on.ts",
+    ),
+};
+
+export default config;

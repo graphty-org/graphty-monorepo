@@ -2509,7 +2509,9 @@ const ROUTE_LAYERS: LayerSpec[] = [
         name: "every edge",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.width": 4, "edge.color": "#1f4d99" },
+        // Straight between its ends, as every edge outside a geographic map is: the routes this story
+        // shows are the ports and loops below.
+        set: { "edge.width": 4, "edge.color": "#1f4d99", "edge.route": "straight" },
     },
     {
         name: "from the top right of its source to the bottom left of its target",

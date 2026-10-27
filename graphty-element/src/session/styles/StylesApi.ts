@@ -75,6 +75,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
+
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
     AttributeDescriptor,
@@ -129,7 +131,9 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
+import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
+import type { Resolution } from "../sets/resolve";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
@@ -203,7 +207,11 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import {
     assertRouted,
+    ghostRow,
+    isGhostRow,
     partPatch,
+    PINNED_ROW_ID,
+    pinnedRow,
     retargetSelector,
     rowOf,
     type RowParts,
@@ -759,10 +767,14 @@ export interface StylesApi {
      * what a consumer should never have to write against this element. So the element answers the
      * question instead.
      *
-     * Every style edit is queued on the session's own queue, so this is the queue being empty
-     * rather than a per-run promise: after it resolves there is no element-initiated painting
-     * outstanding, whoever started it.
-     * @returns A promise that resolves when nothing the element started is still in flight.
+     * It waits for the runs on the session's queue, the repaint of every style edit written so
+     * far, and the repaint passes asked for by the time those are done, such as the one a
+     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). Passes
+     * asked for later are not waited for, so steady pointer input cannot keep it from resolving.
+     * A layer that selects the members of a live set may still be repainting when it resolves:
+     * after the graph changes its new membership arrives on a later rendered frame, and its
+     * whole-graph passes are merged and started one after another.
+     * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
     /**
@@ -1180,12 +1192,27 @@ export interface StylesApi {
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
      * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
-     * project setting `startingRows` to true adds them the same way.
+     * project setting `startingRows` to true adds them the same way. While a time field is
+     * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
+     * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
+     * `startingRows` on, designating a field adds it and clearing the field takes it away. While
+     * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
+     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
+     * `startingRows` on, setting `pinnedStyle` adds it and clearing it takes it away.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the rows added, bottom first.
      * @since 3.26.0
      */
     restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
+    /**
+     * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
+     * same member a project file holds. It carries the layers (and the palettes they name) and
+     * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
+     * columns. Apply one with {@link StylesApi.applyTemplate}.
+     * @returns The style file.
+     * @since 3.30.0
+     */
+    toFile(): StyleFileDocument;
     /**
      * Choose the palette a colour binding uses when it names none, one per palette kind: a
      * binding on groups takes the categorical default, one on amounts the sequential default, and
@@ -1203,6 +1230,11 @@ export interface StylesApi {
      *   of the wrong kind or a slot that is not a palette kind.
      */
     setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+}
+
+/** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
+export interface StyleFileDocument extends StyleDocument {
+    readonly kind: "graphty-style";
 }
 
 /** The palette a colour binding naming none uses, per palette kind. */
@@ -1271,6 +1303,23 @@ export interface StyleChange {
      * What moved the stack: an edit (`"command"`), or an undo, a redo, a restore or a rollback,
      * which each publish one change per step they passed.
      */
+    readonly cause: HistoryCause;
+}
+
+/**
+ * Every `style:changed` one repaint published, told once after the last of them.
+ *
+ * One pass can carry many edits -- a grouping run adds a layer per group, a held undo passes
+ * several steps -- and `style:changed` tells each one. A consumer that only re-reads what the
+ * stack draws (`styles.legend()`, `styles.counts()`) listens here instead and reads once.
+ * @since 3.36.0
+ */
+export interface StyleBatchChange {
+    /** How many `style:changed` events this batch closes; at least 1. */
+    readonly edits: number;
+    /** Every layer those edits touched, each once, in the order the edits named them. */
+    readonly layers: readonly LayerId[];
+    /** What moved the stack: the cause of the batch's last edit. */
     readonly cause: HistoryCause;
 }
 
@@ -1381,6 +1430,11 @@ export interface StylesSources {
      */
     readonly repaint?: LayerRepaint;
     /**
+     * Resolves once every repaint pass asked for so far has ended, which `settled()` waits on: a
+     * selection or pointer change starts a pass without awaiting it. Absent, nothing is waited.
+     */
+    readonly idle?: () => Promise<void>;
+    /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
      * written when it is dispatched.
@@ -1407,6 +1461,11 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * Called once after the last {@link StylesSources.onChange} of one repaint.
+     * @param batch - The edits that pass told.
+     */
+    readonly onBatch?: (batch: StyleBatchChange) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -1611,6 +1670,28 @@ interface ImportedLayer {
     readonly spec: LayerSpec;
     /** The layer it compiled to, carrying the id it will keep. */
     readonly compiled: CompiledLayer;
+}
+
+/** The dense indices of each resolution's bitmaps, built once for the resolution the cache holds. */
+const indicesOfResolution = new WeakMap<Resolution, AgreementElements>();
+
+/**
+ * The dense indices a resolution's bitmaps hold.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it covers.
+ * @returns Its nodes and edges, as indices into that snapshot.
+ */
+function indicesBehind(resolution: Resolution, graph: GraphSnapshot): AgreementElements {
+    let elements = indicesOfResolution.get(resolution);
+    if (elements === undefined) {
+        elements = {
+            nodes: maskToIndices(resolution.nodes, graph.nodeCount),
+            edges: maskToIndices(resolution.edges, graph.edgeCount),
+        };
+        indicesOfResolution.set(resolution, elements);
+    }
+
+    return elements;
 }
 
 /**
@@ -2372,6 +2453,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const elementsOf = (scope: Scope): AgreementElements => {
         const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+        // The bitmaps behind the scope are already in dense index order: read them, rather than
+        // spell every element as an id and look each id up again. A legend reads this once per
+        // layer on every style change, and on the airline routes (36,906 edges, 31 layers) the
+        // id round trip held the page for a minute after a Louvain run.
+        const behind = resolutionBehind(resolved);
+        if (behind !== undefined) {
+            return indicesBehind(behind.resolution, behind.graph);
+        }
 
         return {
             nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
@@ -3489,6 +3578,51 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layers.push(...plan.layers);
         }
 
+        // The Pinned row exists while the pinned look is set: added directly below Selected, and
+        // taken away when the look is cleared.
+        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
+        const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
+        const pinnedParts = stack.filter(isPinnedRow);
+        if (pinnedLook !== undefined && pinnedParts.length === 0) {
+            const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            const below = selected === -1 ? hovered : selected;
+            const row = pinnedRow(pinnedLook);
+            const plan = planAddRow(row.spec, undefined, { stack, index: below === -1 ? stack.length : below });
+            ({ stack } = plan);
+            rows = reconcile(rows, stack);
+            pins.push([plan.result.id, row.pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
+        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
+            stack = stack.filter((entry) => !isPinnedRow(entry));
+            rows = reconcile(rows, stack);
+            layers.push(...pinnedParts.map((entry) => entry.layer.id));
+        }
+
+        // The Ghost row exists while a time field is designated: added directly below Selected
+        // (and below Pinned), and taken away when the field is cleared.
+        const known = dispatcher.services.config?.().data.knownFields;
+        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
+        const ghosts = stack.filter(isGhostRow);
+        if (timed && ghosts.length === 0) {
+            const pinned = stack.findIndex(isPinnedRow);
+            const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
+            const ghost = ghostRow();
+            const plan = planAddRow(ghost.spec, undefined, { stack, index: below === -1 ? stack.length : below });
+            ({ stack } = plan);
+            rows = reconcile(rows, stack);
+            pins.push([plan.result.id, ghost.pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
+        } else if (!timed && ghosts.length > 0) {
+            stack = stack.filter((entry) => !isGhostRow(entry));
+            rows = reconcile(rows, stack);
+            layers.push(...ghosts.map((entry) => entry.layer.id));
+        }
+
         // Pinned once every row is placed: a pin taken earlier would band a row before the next
         // one is placed by its stack neighbors, and Hovered would land below Selected.
         for (const [id, pin] of pins) {
@@ -3963,6 +4097,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
+    // What one pass told, closed by a single `onBatch`.
+    let batch: StyleChange[] = [];
+    const flushBatch = (): void => {
+        const told = batch;
+        batch = [];
+        const last = told.at(-1);
+        if (last !== undefined) {
+            sources.onBatch?.({
+                edits: told.length,
+                layers: [...new Set(told.flatMap((each) => each.layers))],
+                cause: last.cause,
+            });
+        }
+    };
+
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
     // redo or a rollback -- from the stack the picture shows to the one state holds.
     dispatcher.lane.register("styles", async (rendered, target) => {
@@ -4002,9 +4151,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             styleRevision++;
-            sources.onChange?.({ ...joined(edit), painted, cause: "command" });
+            const change: StyleChange = { ...joined(edit), painted, cause: "command" };
+            batch.push(change);
+            sources.onChange?.(change);
             edit = [];
         }
+        flushBatch();
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -4014,14 +4166,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
             styleRevision++;
-            sources.onChange?.({
+            const told: StyleChange = {
                 reason: lastPass.reason,
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
                 warnings: NO_WARNINGS,
                 cause: change.cause,
-            });
+            };
+            // The steps of one undo, redo or restore are told one after another in the same task.
+            if (batch.length === 0) {
+                queueMicrotask(flushBatch);
+            }
+            batch.push(told);
+            sources.onChange?.(told);
         }
     };
 
@@ -4594,8 +4752,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         async settled(): Promise<void> {
             // What the element starts for itself (a run's suggested layers) waits on the queue;
             // the repaint of every edit written so far waits on the derivation lane.
+            // The passes nobody awaits (a selection or pointer change asks for one), read before and
+            // again after the queue and lane: a finishing run may ask for one. Each read is bounded
+            // by the passes asked for by then, so steady pointer input cannot extend the wait.
+            const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
+            await passes;
+            await sources.idle?.();
         },
 
         explain(target: ExplainTarget): StyleExplanation {
@@ -4874,6 +5038,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
                 ...(tree === undefined ? {} : { tree }),
             });
+        },
+
+        toFile(): StyleFileDocument {
+            return Object.freeze({ kind: "graphty-style", ...api.toDocument() });
         },
     };
 

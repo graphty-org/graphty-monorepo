@@ -27,6 +27,9 @@
  *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
+ *   node tools/test-select.mjs --summary <plan.json> [--affected <JSON list of affected packages>]
+ *       the light check's plan as Markdown for a CI job summary (planSummary()): each bin's files and why, the
+ *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
  *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
@@ -58,7 +61,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
+ * @returns `{ everything, smoke, storySetup, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
  *   stories }`
  */
 export function loadRules(root) {
@@ -74,6 +77,7 @@ export function loadRules(root) {
     return {
         everything: [...raw.everything.patterns.map(toRe), ...shared],
         smoke: { patterns: (raw.smoke?.patterns ?? []).map(toRe), shards: raw.smoke?.shards ?? [] },
+        storySetup: { patterns: (raw.storySetup?.patterns ?? []).map(toRe), shards: raw.storySetup?.shards ?? [] },
         noTests: raw.noTests.patterns.map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
@@ -87,6 +91,8 @@ export function loadRules(root) {
             lockfile: toRe(raw.stories.lockfile),
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
+            selectProjects: raw.stories.selectProjects ?? [],
+            storyless: (raw.stories.storyless ?? []).map(toRe),
         },
     };
 }
@@ -240,7 +246,9 @@ export function shardRuns(shard) {
 }
 
 /**
- * Whether a vitest project is one a run's --project filters select (`!name` excludes).
+ * Whether a vitest project is one a run's --project filters select (`!name` excludes). An On twin
+ * (`<name>-features-on`, tools/features-on.mjs) is selected only by name: it exists only in a run that sets
+ * GRAPHTY_FEATURES_ON=1, which only the On shards do, so an Off shard's `!storybook` never runs it.
  * @param name the project's name
  * @param filters the run's --project values (empty: every project)
  * @returns boolean
@@ -251,6 +259,9 @@ export function projectSelected(name, filters) {
     const negated = filters.filter((f) => f.startsWith("!")).map((f) => f.slice(1));
     if (negated.includes(base)) {
         return false;
+    }
+    if (base.endsWith("-features-on")) {
+        return plain.includes(base);
     }
     return plain.length === 0 || plain.includes(base);
 }
@@ -423,7 +434,9 @@ export function selectPackages({
         }
     }
     if (!deferDownstream) {
-        dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out });
+        // a file only the story setups load changes no dependent's build: its story shards run (storySetup below)
+        const storyOnly = (f) => rules.storySetup?.patterns.some((re) => re.test(f));
+        dependents({ changed: changed.filter((f) => !storyOnly(f)), packages, deps, refs, graphs, pkgOf, whole, out });
     }
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
@@ -432,6 +445,10 @@ export function selectPackages({
     const smoke = new Map(
         smokeBy ? rules.smoke.shards.map((sh) => [sh, `${smokeBy} changes how CI runs shards (smoke shard)`]) : [],
     );
+    const storyBy = changed.find((f) => rules.storySetup?.patterns.some((re) => re.test(f)));
+    for (const sh of storyBy ? rules.storySetup.shards : []) {
+        smoke.set(sh, smoke.get(sh) ?? `${storyBy} is loaded by the story setup of this shard`);
+    }
     return { everything: null, packages: out, unexplainedRoot, smoke };
 }
 
@@ -986,7 +1003,8 @@ export function wholePackageRule(rel, rules) {
  * File-level selection is adopted package by package (design/ci/fast-pipeline.md section 5.1, item 2):
  * a shard whose package is not in `allowed`, or whose runs include a browser project (browsers are a lane,
  * not file selection), runs whole wherever its package was judged file by file. Its file-level answer is
- * kept as `measured`, so the replay can show it before it is allowed.
+ * kept as `measured` (with `untrusted`, as a smoke shard's: the shard runs whole because that answer is not
+ * relied on), so the replay can show it before it is allowed.
  * @param shards SHARDS entries (the gate's or CI's)
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
@@ -998,22 +1016,22 @@ export function wholePackageRule(rel, rules) {
  */
 export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
-        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
-            return {
-                shard: shard.shard,
-                package: shard.package,
-                total: null,
-                mode: "all",
-                files: [],
-                reasons: [smoke.get(shard.shard)],
-            };
-        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
         const sel = measuredShard(p, own);
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                ...base,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+                measured: { mode: sel.mode, files: sel.files, untrusted: true },
+            };
+        }
         if (!p.fileLevel || sel.mode === "all") {
             return { ...base, ...sel };
         }
@@ -1021,7 +1039,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         if (!why) {
             return { ...base, ...sel };
         }
-        return { ...base, mode: "all", files: [], reasons: [why], measured: { mode: sel.mode, files: sel.files } };
+        const measured = { mode: sel.mode, files: sel.files, untrusted: true };
+        return { ...base, mode: "all", files: [], reasons: [why], measured };
     });
 }
 
@@ -1142,12 +1161,14 @@ function plainRun(root, shard) {
         // an nx target of its own in project.json must only run that script
         const target = JSON.parse(safeRead(join(root, dir, "project.json")) || "{}").targets?.coverage;
         const viaScript = !target || target.options?.command === "npm run coverage";
-        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, args: [] } : null;
+        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, env: [], args: [] } : null;
     }
     const m = PLAIN_VITEST.exec(cmd);
-    // COVERAGE_DIR only moves a coverage report this run does not write; any other variable picks a lane
+    // COVERAGE_DIR only moves a coverage report this run does not write, and GRAPHTY_FEATURES_ON=1 (kept) adds
+    // the On projects the shard names (tools/features-on.mjs); any other variable picks a lane
     const env = m?.[2].trim().split(/\s+/u).filter(Boolean) ?? [];
-    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR="))) {
+    const keep = env.filter((e) => e === "GRAPHTY_FEATURES_ON=1");
+    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR=") && !keep.includes(e))) {
         return null;
     }
     const args = m[3]
@@ -1155,7 +1176,7 @@ function plainRun(root, shard) {
         .trim()
         .split(/\s+/u)
         .filter((a) => a && !DROPPED.test(a));
-    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, args } : null;
+    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, env: keep, args } : null;
 }
 
 /**
@@ -1173,7 +1194,8 @@ export function selectedCommand(root, shard, files) {
         return null;
     }
     const rel = (files ?? []).map((f) => quote(f.slice(run.dir.length + 1)));
-    return `cd ${run.dir} && pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
+    const env = run.env.map((e) => `${e} `).join("");
+    return `cd ${run.dir} && ${env}pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
 }
 
 /**
@@ -1203,7 +1225,8 @@ export function planRuns(root, shards, selection) {
         const command = s.mode === "files" ? selectedCommand(root, shard, files) : null;
         if (s.mode === "files" && !command) {
             const why = "its command is not a plain vitest run, so it runs whole";
-            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard] });
+            const measured = { mode: s.mode, files: s.files ?? [] };
+            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard], measured });
             continue;
         }
         const same = command && plan.find((p) => p.command === command);
@@ -1228,6 +1251,12 @@ export function planRuns(root, shards, selection) {
 export const BIN_LIMIT_MS = 8 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
+/**
+ * Milliseconds added to every file in a bin for Vitest's per-file setup and import, which a recorded duration
+ * (the file's own test time) leaves out. Evidence (#3645): graphty-element's browser slice on master reports
+ * `Duration 692s (setup 84s, import 367s, tests 222s)`, 4 to 5 s of setup and import per file.
+ */
+export const FILE_OVERHEAD_MS = 5_000;
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1236,12 +1265,13 @@ const NO_HISTORY_MS = 30_000;
  * @param files the selected test files (repository paths)
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
+ * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {
@@ -1272,16 +1302,36 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command, why }], whole: [shard], none: [shard], why,
+ *   touched }`; `why` maps each family that runs whole to `{ package, shards, reasons }` and a bin's `why` each of
+ *   its files to its reason; `touched` is every test file the import graphs selected, also in a shard that runs
+ *   whole (the pull request rules read it: a test outside it was not changed by the pull request, nor anything it
+ *   imports) and `unknown` every family with a shard that has no file-level answer the selector relies on, all of
+ *   whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
-    const out = { bins: [], whole: [], none: [] };
-    const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
+    const out = { bins: [], whole: [], none: [], why: {} };
+    const runsPlanned = planRuns(root, shards, selection);
+    const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
+    out.touched = [...touched].sort();
+    // a whole run with no file-level answer, or one the selector does not rely on (a smoke shard, a package or a
+    // browser project not allowed file by file), says nothing about which files the change reached
+    const unknown = runsPlanned.filter(
+        (r) => r.mode === "all" && (!r.measured || r.measured.untrusted || r.measured.mode === "all"),
+    );
+    out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
+    const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
+            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+            out.why[family] = {
+                package: runs[0].shard.package,
+                shards: runs.flatMap((r) => r.covers),
+                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+            };
             continue;
         }
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
@@ -1291,6 +1341,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 out.none.push(...run.covers);
                 continue;
             }
+            const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
@@ -1304,11 +1355,47 @@ export function lightPlan(root, shards, selection, durations = {}) {
                     covers: run.covers,
                     ...bin,
                     command,
+                    why: Object.fromEntries(bin.files.map((f) => [f, fileWhy.get(f) ?? "selected"])),
                 });
             }
         }
     }
     return out;
+}
+
+/**
+ * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
+ * whole and why, and which run nothing.
+ * @param plan lightPlan() output (or the `--plan` JSON)
+ * @param [affected] the package directories nx calls affected: a whole family of another package is not in the
+ *   run's matrix (tools/ci-test-matrix.mjs plan()), so it is left out of the summary
+ * @returns Markdown
+ */
+export function planSummary(plan, affected) {
+    const esc = (t) => String(t).replaceAll(/[&<>]/gu, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const whole = Object.entries(plan.why ?? {}).filter(([, w]) => !affected || affected.includes(w.package));
+    const shardCount = whole.reduce((n, [, w]) => n + w.shards.length, 0);
+    const lines = [
+        `### Light check: ${plan.bins.length} test bins, ${shardCount} shards whole, ${plan.none.length} shards with nothing selected`,
+        "",
+    ];
+    if (plan.everything && whole.length > 0) {
+        lines.push(`Every affected shard runs whole: ${esc(plan.everything)}`, "");
+    }
+    for (const [family, w] of whole) {
+        lines.push(`- **${family}** runs whole: ${esc(w.reasons.join("; "))}`);
+    }
+    if (plan.none.length > 0) {
+        lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
+    }
+    for (const bin of plan.bins) {
+        lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
+        for (const f of bin.files) {
+            lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);
+        }
+        lines.push("", "</details>");
+    }
+    return `${lines.join("\n")}\n`;
 }
 
 // --- which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5) ------------
@@ -1393,7 +1480,9 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
- * whole whenever a package that draws it is selected.
+ * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change, except a change only to CI and tool
+ * files no story reads (the rules' storyless), which runs none.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1408,6 +1497,10 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
+    // CI and tool files no story reads (test-select-rules stories.storyless); a test that names one selects its
+    // package, which says nothing about a story reading it
+    const storyless =
+        !everything && changed.length > 0 && changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f)));
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
         const pkg = dir.split("/")[0];
@@ -1419,9 +1512,18 @@ export function selectStories({ projects, changed, everything, shards, selection
         const global = everything
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
-        const sel = global
-            ? { mode: "all", files: [], reasons: [global] }
-            : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
+        let sel = { mode: "all", files: [], reasons: [global] };
+        if (!global && storyless) {
+            sel = { mode: "none", files: [], reasons: ["the change touches only files no story reads"] };
+        } else if (!global) {
+            sel = rules.selectProjects.includes(project)
+                ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
+                : {
+                      mode: "all",
+                      files: [],
+                      reasons: [`${project} runs whole until test-select-mutate --stories proves its selection`],
+                  };
+        }
         return { project, ...sel, baselines };
     });
 }
@@ -1429,16 +1531,87 @@ export function selectStories({ projects, changed, everything, shards, selection
 const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 
 /**
+ * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
+ * top, so a bin's job ends about 5.5 min after the Storybooks job (#3418, step 5).
+ */
+export const STORY_BIN_LIMIT_MS = 4 * 60_000;
+
+/**
+ * A story's capture time, per project (all of its modes, the job's browsers): the light check's own Stories jobs'
+ * capture seconds divided by the stories (`export const` of a capitalized name) in their files, PR runs
+ * 40388949450, 40390361128 and 40394323379 (2026-10-26), rounded up. A project not listed counts NO_HISTORY_MS a
+ * story. Counted per file, one story per file left graphty's workspace bin (82 stories in 6 files) at 16 to 19
+ * minutes, the pull request's critical path, against a 20-minute job limit.
+ */
+// ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
+export const STORY_MS = {
+    // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
+    // bin 543 s against a 240 s plan
+    "graph-io-fidelity": 4_500,
+    graphty: 6_000,
+    "cytoscape-extensions": 1_600,
+    "graphty-element": 1_400,
+    "compact-mantine": 1_000,
+    algorithms: 1_200,
+    layout: 900,
+};
+
+/**
+ * A story's capture time for a story file far slower than its project's STORY_MS, measured the same way: the
+ * Start screen's stories each load a sample, run Louvain and wait for a stable frame (PR run 40559883826,
+ * Stories (graphty-4): 624 s for its 12 stories in two modes, against about 6 s for graphty's other stories).
+ */
+// ponytail: a hand-kept table (#4041 makes this file fast); record capture time per story in the results store when more files drift
+export const STORY_FILE_MS = {
+    "graphty/src/workspace/start/StartScreen.stories.tsx": 52_000,
+    // PR run 40567162255, Stories (graphty-1): 458 s for these two files' 40 stories, planned at 240 s
+    "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
+    "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
+};
+
+const STORY_EXPORT = /^export const [A-Z]/gmu;
+
+/**
+ * The stories a story file declares: its `export const` statements of a capitalized name, at least one.
+ * @param source the file's text
+ * @returns the count
+ */
+export function storyCount(source) {
+    return Math.max(1, (source.match(STORY_EXPORT) ?? []).length);
+}
+
+/**
+ * One story file's binning units: the file, or for a file longer than a bin its parts by story
+ * (`<file>#<k>/<n>`, which ci.yml's pick step resolves), each with its planned ms.
+ * @param file the story file
+ * @param count the stories it declares
+ * @param recordedMs its recorded play-test time, 0 without one
+ * @param rate its project's STORY_MS
+ * @returns `[[unit, ms]]`
+ */
+function storyUnits(file, count, recordedMs, rate) {
+    const ms = Math.max(recordedMs, (STORY_FILE_MS[file] ?? rate) * count);
+    const parts = Math.min(count, Math.ceil(ms / STORY_BIN_LIMIT_MS));
+    if (parts <= 1) {
+        return [[file, ms]];
+    }
+    return Array.from({ length: parts }, (_, i) => [`${file}#${i + 1}/${parts}`, ms / parts]);
+}
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
- * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
+ * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
+ * changed baseline's story id goes into the project's first bin. A file longer than a bin is split by story into
+ * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
  * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
-export function storyBins(stories, projects, listFiles, durations = {}) {
+export function storyBins(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
     const out = [];
     for (const s of stories) {
         const { storybook } = projects[s.project];
@@ -1447,9 +1620,12 @@ export function storyBins(stories, projects, listFiles, durations = {}) {
         if (files.length === 0 && s.baselines.length === 0) {
             continue;
         }
-        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
-        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
-        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        // a recorded play-test time marks a heavy file; the project's capture rate is the floor
+        const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
+        const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
+        const fileMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
+        const units = [...fileMs.keys()];
+        const bins = units.length > 0 ? packBins(units, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,
@@ -2010,13 +2186,14 @@ export function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
-        const configs = new Set(
-            shards.filter((s) => s.package === dir).flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)),
-        );
+        const mine = shards.filter((s) => s.package === dir);
+        const configs = new Set(mine.flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)));
+        // the -features-on projects exist only under GRAPHTY_FEATURES_ON=1 (tools/features-on.mjs)
+        const on = mine.some((s) => s.flags === "on");
         graphs.set(
             dir,
             [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config)),
+                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
             ),
         );
     }
@@ -2027,7 +2204,7 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build) => graph`
+ * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2043,13 +2220,13 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build) => {
+    return (dir, config, build, variant = "") => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
+                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
@@ -2401,7 +2578,7 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config) {
+function graphChild(root, dir, config, on = false) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
@@ -2409,7 +2586,13 @@ function graphChild(root, dir, config) {
         const out = execFileSync(
             process.execPath,
             [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
-            { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] },
+            {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 1 << 30,
+                stdio: ["ignore", "pipe", "pipe"],
+                env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
+            },
         );
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {
@@ -2561,7 +2744,13 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
         everything: selection.everything,
         ...lightPlan(root, shards, selection.shards, durations),
         stories,
-        storyBins: storyBins(stories, projects, listFiles, durations),
+        storyBins: storyBins(stories, projects, listFiles, durations, (f) => {
+            try {
+                return storyCount(readFileSync(join(root, f), "utf8"));
+            } catch {
+                return 1;
+            }
+        }),
     };
 }
 
@@ -2571,6 +2760,14 @@ async function main(argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const root = resolve(arg("--root") ?? join(HERE, ".."));
+    if (argv.includes("--summary")) {
+        if (!arg("--summary")) {
+            throw new Error("--summary needs the plan JSON file");
+        }
+        const affected = arg("--affected") && JSON.parse(arg("--affected")).map((p) => p.replace(/^@graphty\//u, ""));
+        process.stdout.write(planSummary(JSON.parse(readFileSync(arg("--summary"), "utf8")), affected || undefined));
+        return;
+    }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
         const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));
@@ -2586,13 +2783,15 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"), {
+    // a pull request's selection: the full-run-only On shards are never in it, nor in its import graphs
+    const shards = SHARDS.filter((s) => !s["full-run-only"]);
+    const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,
         head,
     });
     if (argv.includes("--plan")) {
         const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
-        console.log(JSON.stringify(planOf(root, { changed, selection, shards: SHARDS, base, head, durations })));
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations })));
         return;
     }
     if (argv.includes("--json")) {

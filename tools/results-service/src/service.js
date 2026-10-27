@@ -1,5 +1,6 @@
 // The test results store: a Cloudflare Worker over D1 that CI jobs and local runs write test-group records,
-// failure events and durations to. It stores and answers; it dispatches nothing and files no issue.
+// failure events and durations to. It stores and answers; it dispatches nothing and files no issue (the job whose
+// record proves a test flaky files it and posts its number back).
 // Design: design/ci/channels-pipeline/results-service.md (sections 4 and 5). Setup: README.md.
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
@@ -10,7 +11,16 @@
 //   kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { getCandidate, getFailures, getMedians, getPlan, getReleaseState, trendFor } from "./queries.js";
+import {
+    concludeFlaky,
+    getCandidate,
+    getFailures,
+    getMedians,
+    getPlan,
+    getReleaseState,
+    trackedIssues,
+    trendFor,
+} from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -22,6 +32,8 @@ const MASTER_KINDS = {
     "gpu.yml": "full",
     "hosts.yml": "full",
     "work-protection-macos.yml": "full",
+    // a full run's same-commit re-run decider: files and holds a red attempt 1 it does not re-run
+    "release-rerun.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
@@ -31,8 +43,11 @@ const MASTER_KINDS = {
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
+    master: "a push to master runs ci.yml as a build only, with no tests",
 };
 const MASTER = "refs/heads/master";
+const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
+const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
 
@@ -121,7 +136,12 @@ function kindOf(claims, env) {
     const prefix = `${claims.repository}/.github/workflows/`;
     const [path, at] = String(claims.job_workflow_ref).split("@");
     const file = path.startsWith(prefix) ? path.slice(prefix.length) : "";
-    if (Object.hasOwn(MASTER_KINDS, file) && claims.ref === MASTER && at === MASTER) return MASTER_KINDS[file];
+    if (Object.hasOwn(MASTER_KINDS, file) && claims.ref === MASTER && at === MASTER) {
+        // ci.yml run by master's own push (workflow_ref is ci.yml itself) builds only; called by release.yml it is the full run
+        const caller = String(claims.workflow_ref).split("@")[0];
+        if (file === "ci.yml" && claims.event_name === "push" && caller === path) return "master";
+        return MASTER_KINDS[file];
+    }
     return refuse(
         403,
         `only pull requests and master's own ${Object.keys(MASTER_KINDS).join(", ")} on refs/heads/master write here; ` +
@@ -153,13 +173,13 @@ function need(body, fields) {
 }
 
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
-function inserts(db, table, columns, rows) {
+function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
     for (let i = 0; i < rows.length; i += per) {
         const chunk = rows.slice(i, i + per);
-        const sql = `INSERT OR IGNORE INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
+        const sql = `${verb} INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
         out.push(db.prepare(sql).bind(...chunk.flat().map((v) => v ?? null)));
     }
     return out;
@@ -251,9 +271,74 @@ async function postInvocation(body, who, db, nowMs) {
             ["invocation", "file", "passed", "failed", "skipped", "ms"],
             files.map((f) => [body.id, ...f]),
         ),
-        ...inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.id, body.failures ?? [], body.root, nowMs)),
+        // the record's text (its JUnit report) replaces what the live reporter sent for the same test, so every
+        // key and signature a pull request, a base check or an issue compares comes from the same text
+        ...inserts(
+            db,
+            "failure",
+            FAILURE_COLUMNS,
+            failureRows(body.id, body.failures ?? [], body.root, nowMs),
+            "INSERT OR REPLACE",
+        ),
     ]);
-    return { stored: first.meta.changes === 1, kind: who.kind };
+    const stored = first.meta.changes === 1;
+    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    if (!judged) return { stored, kind: who.kind, flaky: [] };
+    const flaky = await concludeFlakySafely(db, body.id, nowMs);
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
+    return { stored, kind: who.kind, flaky, tracked };
+}
+
+// The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
+// make the client spool and re-post a record the store already has, whose re-post is never judged).
+async function concludeFlakySafely(db, id, nowMs) {
+    try {
+        return await concludeFlaky(db, id, nowMs);
+    } catch (e) {
+        console.log(`concludeFlaky ${id}: ${e.message}`);
+        return [];
+    }
+}
+
+// The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names. A
+// signature holds one tracked row; an issue of the other kind never overwrites it (the job finds that one by its
+// kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
+async function postIssue(body, who, db, nowMs) {
+    if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
+    if (body.state === "closed") return closeIssue(body, db, nowMs);
+    need(body, { signature: "string", number: "number" });
+    if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
+    await db.batch([
+        db
+            .prepare(
+                `INSERT INTO tracked_issue (signature, kind, number, state, opened_at, last_seen) VALUES (?, ?, ?, 'open', ?, ?)
+                 ON CONFLICT(signature) DO UPDATE SET number = excluded.number, state = 'open', last_seen = excluded.last_seen
+                 WHERE tracked_issue.kind = excluded.kind`,
+            )
+            .bind(body.signature, body.kind, body.number, nowMs, nowMs),
+        db
+            .prepare(
+                "UPDATE quarantine SET issue = ? WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND issue IS NULL",
+            )
+            .bind(body.number, body.family ?? "", body.file ?? "", body.name ?? ""),
+    ]);
+    return { stored: true };
+}
+
+// A tracked issue a master job found closed: its quarantine entries leave now (6.5), so the next proof of the same
+// test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
+// not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
+async function closeIssue(body, db, nowMs) {
+    need(body, { number: "number" });
+    await db.batch([
+        db
+            .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
+            .bind(nowMs, body.number),
+        db
+            .prepare("UPDATE quarantine SET left_at = ?, left_why = ? WHERE issue = ? AND left_at IS NULL")
+            .bind(nowMs, `issue #${body.number} closed`, body.number),
+    ]);
+    return { stored: true };
 }
 
 async function postFailures(body, who, db, nowMs) {
@@ -329,7 +414,9 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+// deferred: an attempt-1 red waiting for its same-commit re-run, which the pick does not take as judged
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected", "deferred"]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {
@@ -367,12 +454,101 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
+async function postBaseCheck(body, who, db, nowMs) {
+    if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
+    if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
+    for (const field of ["file", "variant"]) {
+        if (typeof body[field] !== "string" || !body[field] || body[field].length > 300) {
+            refuse(400, `${field} must be a string of 1 to 300 characters`);
+        }
+    }
+    const pr = Number.isInteger(body.pr) ? body.pr : null;
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .run();
+    return { dispatch: meta.changes === 1 };
+}
+
+const SHA = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
+// A channel moved (channels 3): release.yml's site job records the nightly promotion it deployed, with the sha256
+// of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
+// its sha256 changes) replaces that run's hashes, so promote.yml compares against what is hung now. It keeps the
+// row's time: a re-run never makes an older promotion the newest nightly.
+// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
+async function postChannelMove(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml records a channel move");
+    }
+    if (body?.channel !== "nightly") refuse(400, "channel must be nightly");
+    if (!SHA.test(body.sha ?? "")) refuse(400, "sha must be a full commit id");
+    if (body.versionCommit != null && !SHA.test(body.versionCommit))
+        refuse(400, "versionCommit must be a full commit id");
+    for (const field of ["siteSha256", "channelSha256"]) {
+        if (!SHA256.test(body[field] ?? "")) refuse(400, `${field} must be a sha256`);
+    }
+    const runId = Number(who.claims.run_id);
+    const seen = await db
+        .prepare("SELECT 1 FROM channel_move WHERE channel = ? AND sha = ? AND run_id = ?")
+        .bind(body.channel, body.sha, runId)
+        .first();
+    if (seen) {
+        await db
+            .prepare(
+                "UPDATE channel_move SET version_commit = ?, site_sha256 = ?, channel_sha256 = ? WHERE channel = ? AND sha = ? AND run_id = ?",
+            )
+            .bind(body.versionCommit ?? null, body.siteSha256, body.channelSha256, body.channel, body.sha, runId)
+            .run();
+        return { stored: true, replaced: true };
+    }
+    await db
+        .prepare(
+            "INSERT INTO channel_move (channel, sha, at, version_commit, site_sha256, channel_sha256, run_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(body.channel, body.sha, nowMs, body.versionCommit ?? null, body.siteSha256, body.channelSha256, runId)
+        .run();
+    return { stored: true };
+}
+
+// The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
+// is not green-clean, a fix forward moves its head, a promotion or the owner's abandon clears it ({ clear: true }).
+// Only master's own release.yml writes it, and release-rerun.yml for a red run it does not re-run.
+async function postHold(body, who, db, nowMs) {
+    const ref = String(who.claims?.job_workflow_ref);
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@"))) {
+        refuse(403, "only master's own release.yml or release-rerun.yml holds a candidate");
+    }
+    if (body?.clear === true) {
+        const { meta } = await db.prepare("DELETE FROM candidate WHERE id = 1").run();
+        return { cleared: meta.changes === 1 };
+    }
+    if (!SHA.test(body?.base ?? "") || !SHA.test(body?.head ?? ""))
+        refuse(400, "base and head must be full commit ids");
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const held = await db.prepare("SELECT base FROM candidate WHERE id = 1").first();
+    // one hold at a time: a new base replaces a hold only after it is cleared
+    if (held && held.base !== body.base) refuse(409, `nightly is already held on ${held.base}`);
+    await db
+        .prepare("INSERT OR REPLACE INTO candidate (id, base, head, issue, at) VALUES (1, ?, ?, ?, ?)")
+        .bind(body.base, body.head, body.issue ?? null, nowMs)
+        .run();
+    return { held: true };
+}
+
 const ROUTES = {
+    "POST /v1/hold": postHold,
     "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
+    "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
+    "POST /v1/base-checks": postBaseCheck,
+    "POST /v1/channel-moves": postChannelMove,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,

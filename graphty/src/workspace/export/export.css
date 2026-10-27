@@ -8,6 +8,23 @@
     height: min(600px, calc(100dvh - 120px));
 }
 
+.ws-export-list {
+    grid-row: 1;
+    grid-column: 1;
+    overflow: auto;
+    border-inline-end: 1px solid var(--mantine-color-default-border);
+    padding-inline-end: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Recent sits at the bottom of the output list. */
+.ws-export-recent {
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--mantine-color-default-border);
+}
+
 .ws-export-main {
     min-height: 0;
     overflow: hidden auto;
@@ -81,9 +98,19 @@
     overflow: auto;
 }
 
-.ws-export-notes {
+.ws-export-losses {
     margin: 0;
-    padding-inline-start: 16px;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 2px;
+}
+
+.ws-export-losses > li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
 }
 
 /* The Advanced fold takes its own full row under the key options. */

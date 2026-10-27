@@ -698,6 +698,21 @@ export type RestSourceInfo = {
 } & Partial<SourceDescriptor>;
 
 /**
+ * Where a mapping's API key goes, as a descriptor says it.
+ * @param auth - the mapping's auth
+ * @returns `{ apiKey }`, or nothing when the mapping takes no key or does not say where
+ */
+function apiKeyOf(auth: RestMapping["auth"]): Pick<SourceDescriptor, "apiKey"> {
+    if (auth?.kind !== "api-key") {
+        return {};
+    }
+    if (auth.header !== undefined) {
+        return { apiKey: { header: auth.header } };
+    }
+    return auth.query === undefined ? {} : { apiKey: { query: auth.query } };
+}
+
+/**
  * Turn a REST mapping into a source: a `records` source that loads the mapping's `load` request
  * page by page, with `expand` (breadth-first over the `expand` requests, `{ids}` batched; depth 0
  * fetches the seeds' own records through `hydrate`), `probe` and `validate`. The descriptor is
@@ -733,6 +748,7 @@ export function restSource(mapping: RestMapping, info: RestSourceInfo): GraphSou
         defaultEndpoint: mapping.endpoint,
         auth,
         authRequired: auth.length === 0 ? "none" : "optional",
+        ...apiKeyOf(mapping.auth),
         ...(mapping.rateLimit === undefined ? {} : { rateLimit: mapping.rateLimit }),
         ...fields,
     });

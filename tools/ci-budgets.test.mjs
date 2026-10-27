@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import { parse as parseYaml } from "yaml";
 
 import {
+    applyTrend,
     budgetFor,
     COMMENT_MARKER,
     evaluate,
@@ -178,6 +179,33 @@ describe("report", () => {
                 ["step:ci.yml:Build:Build all", 720],
             ],
         );
+    });
+
+    it("files a full run's over-budget trend as one issue under the row's key, and closes it when back under", async () => {
+        const rows = rowsFromJobs(run, jobs, "full");
+        const open = [];
+        const calls = [];
+        const gh = async (path, init) => {
+            calls.push([init?.method ?? "GET", path, init && JSON.parse(init.body)]);
+            if (path.startsWith("/issues?")) return open;
+            return path === "/issues" ? { number: 81 } : {};
+        };
+        // POST /v1/durations's trend answer: store keys, the queue row as its job's (queue) step
+        const answer = (alarm) => [
+            { key: "job:ci.yml:Build", kind: "full", recent: 300, earlier: 290, alarm: false, range: null },
+            { key: "step:ci.yml:Build:(queue)", kind: "full", recent: 400, earlier: 40, alarm, range: "aaa..bbb" },
+        ];
+        assert.deepEqual(await applyTrend(gh, run, rows, answer(true), FILE), [
+            { action: "file", key: "queue:ci.yml:Build", kind: "full", number: 81 },
+        ]);
+        assert.equal(calls.filter(([m, p]) => m === "POST" && p === "/issues").length, 1);
+        assert.equal(calls[1][2].title, "CI budget: queue:ci.yml:Build (full) 40s -> 6m40s");
+
+        open.push({ number: 81, title: calls[1][2].title });
+        assert.deepEqual(await applyTrend(gh, run, rows, answer(false), FILE), [
+            { action: "close", key: "queue:ci.yml:Build", kind: "full", number: 81 },
+        ]);
+        assert.deepEqual(calls.at(-1).slice(0, 2), ["PATCH", "/issues/81"]);
     });
 
     it("maps the store's medians, keyed by stored identity, back to each row's key", () => {

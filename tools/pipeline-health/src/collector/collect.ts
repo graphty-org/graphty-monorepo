@@ -9,12 +9,14 @@ import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
+import { flakyMembers } from "./flaky.js";
 import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
     classifyCancel,
     codeownerPatterns,
     fixedCosts,
     llmCost,
+    loadKind,
     masterState,
     npmName,
     ownerWait,
@@ -122,6 +124,8 @@ class Cycle {
     readonly errors: Record<string, string> = {};
     /** Unfinished runs of this cycle, for the superseded list (pull requests part). */
     openRuns?: GhRun[];
+    /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
+    openPrs?: GqlPr[];
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -329,7 +333,7 @@ async function writeRuns(
         );
         if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
-            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false));
+            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run)));
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
                 c.items.push(...toStepItems(j, repo, workflow));
             if (j.status === "completed") {
@@ -525,6 +529,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
+    c.openPrs = open;
     await ownerWaits(c, gh, open);
     const s = prStocks(open, c.now);
     c.o("pr.open", s.open);
@@ -896,6 +901,12 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     };
     ok = (await c.part("issues", "collector", readIssues)) && ok;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
+    const open = c.openPrs;
+    if (open)
+        await c.part("flaky", "collector", async () => {
+            for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now)))
+                c.o(metric, value);
+        });
     if (hourly) {
         await c.part("stress", "stress", () => stress(c, gh));
         await c.part("hosts", "hosts", () => hosts(c, gh));

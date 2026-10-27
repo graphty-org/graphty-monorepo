@@ -34662,7 +34662,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.89,
-            "raster.label": 0.88,
+            "raster.label": 0.87,
             "raster.nodeBody": 0.58,
             "raster.nodeOutline": 0.81
         },

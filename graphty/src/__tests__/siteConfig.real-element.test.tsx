@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import { render, screen, waitFor } from "../test/test-utils";
@@ -66,13 +66,22 @@ describe("site.json", () => {
     });
 
     it("switches every experiment off when the site serves no site.json", async () => {
+        // A real 404, never a request to the test server: its SPA fallback answers index.html, and
+        // Vite then optimizes main.tsx's dependencies mid-run and reloads the next test file (#3762).
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 404 }));
         const config = await loadSiteConfig("/no-site-here/site.json");
+        fetchSpy.mockRestore();
         assert.strictEqual(config.site, "unknown");
 
         const element = await mountElement();
         assert.deepEqual(element.features, []);
         assert.deepEqual(element.enabledFeatures, { enabled: [], unknown: [] });
         assert.isNull(screen.queryByLabelText(/^Site: /));
+    });
+
+    it("switches every experiment off when the site answers site.json with a page", async () => {
+        const config = await loadSiteConfig("data:text/html,<!doctype html><title>Graphty</title>");
+        assert.deepEqual(config, { site: "unknown", features: [] });
     });
 
     it("switches every experiment off when site.json is invalid", async () => {

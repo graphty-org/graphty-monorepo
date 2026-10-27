@@ -5,6 +5,7 @@ import type {
     CostItem,
     IssueItem,
     JobItem,
+    LoadKind,
     PrStages,
     PullRequestItem,
     RunItem,
@@ -130,7 +131,19 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 /** A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration. */
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false): JobItem {
+/**
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * @param run the run
+ * @returns full for release.yml (whose called workflows run inside it), pr, master for a push to master, else other
+ */
+export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
+    if (workflowFile(run.path) === "release.yml") return "full";
+    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
+    if (run.event === "push" && run.head_branch === "master") return "master";
+    return "other";
+}
+
+export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -144,6 +157,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         ...opt("family", fam),
         pool: pool(j.labels),
         ...opt("os", runnerOs(j.labels)),
+        ...opt("load", load),
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),

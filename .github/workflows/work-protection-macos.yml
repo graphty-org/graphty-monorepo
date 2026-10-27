@@ -44,7 +44,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v7
@@ -71,7 +71,7 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v7
@@ -99,7 +99,7 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v7
@@ -127,7 +127,7 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - name: Xcode 26
               run: |
@@ -171,7 +171,7 @@ jobs:
             actions: read
             id-token: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools

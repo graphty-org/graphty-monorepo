@@ -146,8 +146,8 @@ else is not.
 Network sources and click-to-expand (`session/commands/doors.ts`, `session/sources/`) are
 described as experimental in comments but are shipped behavior today. They are not put behind a
 flag: switching them off by default would change today's behavior, which is breaking. Their
-comments are changed to say "stable"; whether they later get an `@experimental` tag with no flag
-waits on the owner's answer about what the tag promises (section 11).
+comments are changed to say "stable"; they may later get an `@experimental` tag with no flag, now that
+the tag promises no compatibility (section 11).
 
 ## 4. The API report
 
@@ -173,11 +173,8 @@ api-extractor, which already understands the TSDoc `@experimental` modifier (it 
   places that reference it, so flag debt is visible. Nothing expires on a timer: graduation is the
   owner's judgment, and the owner rules say states end on events.
 
-What `@experimental` promises a third party is the one open question for the owner (section 11).
-**Until he answers, no experiment adds a public export or type**: `tools/check-features.mjs` fails on
-any `@experimental` tag in the API report, experiments are reached only through catalog keys and
-attributes gated at run time (whose shapes are data, so changing them breaks no type), and a piece
-that needs typed public API waits for the answer before it merges.
+What `@experimental` promises a third party is decided (section 11): nothing. Experiments may add
+public exports and types, tagged `@experimental <id>`, and the API report shows them as `// @beta`.
 
 ## 5. The app: one build, per-site runtime configuration
 
@@ -380,19 +377,13 @@ Deleted: the build-time per-site branches the configuration replaces (`import.me
 Sentry's environment in `graphty/src/lib/sentry.ts`, and the dataset-base branch for built sites in
 `graphty/src/workspace/start/open.ts`).
 
-## 11. Open question for the owner
+## 11. What `@experimental` promises
 
-**What `@experimental` promises third parties (a published contract, so a one-way door).** The
-recommended answer: an export, attribute, event or catalog entry tagged `@experimental` may change
-or disappear in a minor release of graphty-element, said so on the docs site's API pages and in
-the README, and the "breaking changes need the owner" rule applies only to untagged API. Without
-this, every shape change during an experiment's life is a major release, which would either hold
-the experiments or produce majors the grouped-major rule forbids. The alternative is to give
-experiments no public types at all until graduation, which fits catalog entries and attributes
-but not the timeline's commands and result types.
-
-The design does not decide this by default: it is in the owner's action list (main section 14,
-the remaining owner decisions). Until he answers, the alternative applies (section 4).
+**Decided by the owner on 2026-10-25 (comment on #3418), repeated on 2026-10-26: no contract.** An
+export, attribute, event or catalog entry tagged `@experimental` may change or disappear in any minor
+release of graphty-element; consumers opt in knowingly. Changing it is not a breaking change, so the
+"breaking changes need the owner" rule applies only to untagged API. graphty-element says so in its
+docs (`docs/guide/experiments.md`, `docs/api/index.md`) and README.
 
 Everything else in this section is decided above and reversible by an ordinary pull request:
 attribute syntax, `all`, the URL parameter on production, no live switching, no pair testing,

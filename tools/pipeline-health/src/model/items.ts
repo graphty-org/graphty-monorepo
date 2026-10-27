@@ -16,6 +16,8 @@
 //                                      a run's attempts and jobs, for GET /v1/run/<id>
 //   TESTH#<file>        <seenAt>#<test id>#<attempt>
 //                                      a file's failed and flaky tests by time, for GET /v1/test-history
+//   RUNTESTS#<run id>   <run attempt>#<test id>
+//                                      a CI run's failed and flaky tests, for "Blocked by a flake" (collector/flaky.ts)
 
 import type { Histogram } from "./histogram.js";
 import type { Item } from "./store.js";
@@ -74,6 +76,12 @@ export interface RunItem extends RawBase {
     completedAt?: number;
 }
 
+/**
+ * What started a job's run, for runner-minutes per merge (4.3): a pull request run, a master push build, a full run
+ * (release.yml and the workflows it calls), or anything else (bisect, stress, hosts, dependabot, dispatches).
+ */
+export type LoadKind = "pr" | "master" | "full" | "other";
+
 /** A job of a run attempt (the jobs API, filter=latest). */
 export interface JobItem extends RawBase {
     kind: "job";
@@ -85,6 +93,8 @@ export interface JobItem extends RawBase {
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
     /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
     os?: "linux" | "windows" | "macos";
+    /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
+    load?: LoadKind;
     status: string;
     conclusion?: string;
     /** Ended at its own timeout-minutes, or ran past twice its budget. */
@@ -273,7 +283,13 @@ export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: stri
 export function indexKeys(r: RawItem): Item[] {
     if (r.kind === "run") return [{ pk: `RUN#${r.runId}`, sk: `run#${r.attempt}` }];
     if (r.kind === "job") return [{ pk: `RUN#${r.runId}`, sk: `job#${r.id.split("/").pop()}#${r.attempt}` }];
-    if (r.kind === "test") return [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
+    if (r.kind === "test") {
+        const keys = [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
+        // A CI invocation id starts with its run id and run attempt (ingest.ts ownId).
+        const run = r.source === "ci" ? /^(\d+)\.(\d+)\./.exec(r.invocation) : null;
+        if (run) keys.push({ pk: `RUNTESTS#${run[1]}`, sk: `${run[2]}#${r.id}` });
+        return keys;
+    }
     return [];
 }
 

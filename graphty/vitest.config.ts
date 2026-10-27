@@ -135,9 +135,9 @@ export default defineConfig({
     optimizeDeps: {
         // react-dom/client and eruda are imported only by src/main.tsx, which no test imports, so
         // the scan never finds them. A request the dev server answers with its index.html fallback
-        // (siteConfig.real-element.test.tsx fetches /no-site-here/site.json) makes Vite
-        // pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the test
-        // page, and the shard hung until the job's timeout (CI run 40235438577, graphty-2).
+        // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
+        // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
+        // must never fetch a missing path from the test server; stub fetch instead.
         include: ["@mantine/hooks", "react-dom/client", "eruda"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are

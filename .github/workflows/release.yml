@@ -159,7 +159,7 @@ jobs:
             id-token: write
             issues: write # the age:nightly stall alarm
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools
@@ -210,7 +210,7 @@ jobs:
         steps:
             # The commit this run was started on (master's head when it was dispatched), so the run's commit,
             # Coveralls' commit and the tested commit are one and the same.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
@@ -428,7 +428,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
@@ -468,7 +468,7 @@ jobs:
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
@@ -538,7 +538,7 @@ jobs:
         outputs:
             held: ${{ steps.approvals.outputs.held }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
@@ -608,7 +608,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -635,7 +635,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -662,7 +662,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -689,7 +689,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -716,7 +716,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -743,7 +743,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -771,7 +771,7 @@ jobs:
             contents: read
             issues: write # the red issue
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
 
@@ -841,7 +841,7 @@ jobs:
             # Full history without file contents: a green verdict closes the red issue only from a later commit,
             # and the screenshot gate below reads the baselines' LFS pointers and the approvals from git and checks
             # an approval's commit is an ancestor.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools
@@ -1012,7 +1012,7 @@ jobs:
             VERSION_RESULT: ${{ needs.version.result }}
             LAND_RESULT: ${{ needs.land.result }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools/release-held.sh
@@ -1155,7 +1155,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
         steps:
             # The version commit must sit on the tree the lanes tested.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
@@ -1287,7 +1287,7 @@ jobs:
             COMMIT: ${{ needs.version.outputs.commit }}
             TAGS: ${{ needs.version.outputs.tags }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: master
                   fetch-depth: 0
@@ -1446,7 +1446,7 @@ jobs:
             SHA: ${{ needs.pick.outputs.sha }}
             COMMIT: ${{ needs.version.outputs.commit }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.version.outputs.commit }}
                   fetch-depth: 0
@@ -1700,7 +1700,7 @@ jobs:
               run: echo "JOB_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
             # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: master
                   fetch-depth: 0
@@ -1777,7 +1777,7 @@ jobs:
                           --notes "The built site of ${SHA}, promoted to nightly.graphty.app by ${RUN_URL}."
                   gh release upload "$tag" "$RUNNER_TEMP/out/site.tar.zst" "$RUNNER_TEMP/out/channel.json" --clobber
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: ${{ steps.current.outputs.ours == 'true' }}
               with:
                   repository: ${{ env.SITE_REPO }}

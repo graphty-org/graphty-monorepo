@@ -50,11 +50,17 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A push to master never cancels (each master commit is deployed from its own run). The release train's
-# call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
+# A newer push to master cancels an unfinished older master push run (design/ci/channels-pipeline.md section
+# 7.1): only the newest build's site matters for canary, and the full run picks the newest commit with a kept
+# site, so a cancelled build only means it picks a newer one. tools/master-guard.mjs reads such a run as
+# superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
+# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
+# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}
 
 # The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
 # .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals
@@ -110,7 +116,7 @@ jobs:
             actions: read
             checks: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
@@ -169,7 +175,7 @@ jobs:
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -723,7 +729,7 @@ jobs:
             advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
             visual-skip: ${{ needs.packages.outputs.visual-skip }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -860,7 +866,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -941,7 +947,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1123,7 +1129,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1205,7 +1211,7 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
@@ -1281,7 +1287,7 @@ jobs:
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1560,7 +1566,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1667,7 +1673,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 50
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1755,7 +1761,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1832,7 +1838,7 @@ jobs:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.stories-matrix) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
@@ -2070,7 +2076,7 @@ jobs:
               if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
@@ -2211,10 +2217,12 @@ jobs:
     # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
     # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
     # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
+    # Not on a pull request, where the old capture does not run (the visual job below); the switch is judged on
+    # full runs (two zero-difference full runs).
     story-tests-parity:
         name: Story tests parity (${{ matrix.project }})
         needs: [story-tests, visual]
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 10
@@ -2232,7 +2240,7 @@ jobs:
                         graph-io-fidelity,
                     ]
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: visual-review
@@ -2283,10 +2291,17 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
+    # The old full capture of every Storybook: the full run (release.yml's call), a dispatch and a bisect point.
+    # Not on a pull request (design/ci/channels-pipeline.md section 7.1, #3850): All Checks Pass does not need it
+    # and nothing that reads it decides anything there. A pull request's own stories are captured by the Stories
+    # jobs above, which All Checks Pass needs; the owner approves changed pictures on the full run's candidate
+    # (section 5), whose capture this job makes; story-test parity is judged on full runs; the flaky-screenshot
+    # report and the Visual report only reported. On a pull request these captures ran 15 to 25 minutes past
+    # All Checks Pass, about 36 runner-minutes a run.
     visual:
         name: visual (${{ matrix.project }})
         needs: build
-        if: needs.build.outputs.light != 'true'
+        if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -2337,7 +2352,7 @@ jobs:
             # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
             # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
             # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
@@ -2472,7 +2487,7 @@ jobs:
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories]
         if: always()
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 70
         steps:
             - name: Check all jobs passed
               env:
@@ -2550,24 +2565,45 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
+            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
+            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
             - name: Clear this check's early verdicts
               if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
                   CHECK: All Checks Pass
                   SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
+                  # An early verdict is a failure posted through the Checks API: its details link is a run or
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  clear() {
+                      local ids id
+                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      for id in $ids; do
+                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                              -f "output[title]=Superseded by a passing run" \
+                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
+                          echo "cleared early verdict $id"
+                      done
+                  }
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
+                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      wait=60
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
+                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
     # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
@@ -2578,7 +2614,7 @@ jobs:
         needs: [packages, all-checks]
         if: always()
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 70
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
@@ -2597,32 +2633,54 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
+            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
+            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
             - name: Clear this check's early verdicts
               if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
                   CHECK: Queue Checks Pass
                   SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
+                  # An early verdict is a failure posted through the Checks API: its details link is a run or
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  clear() {
+                      local ids id
+                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      for id in $ids; do
+                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                              -f "output[title]=Superseded by a passing run" \
+                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
+                          echo "cleared early verdict $id"
+                      done
+                  }
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
+                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      wait=60
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
+                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
     # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
     # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
+    # A pull request runs no old capture (the visual job), so this job runs only on a pull request that has one.
     visual-report:
         name: Visual report
         needs: [packages, visual]
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.visual.result != 'skipped' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         continue-on-error: true
@@ -2653,7 +2711,7 @@ jobs:
             # files naming each image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
               if: github.event_name == 'pull_request'
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   sparse-checkout: visual-review
                   fetch-depth: 0
@@ -2726,7 +2784,7 @@ jobs:
             pull-requests: read
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -2758,7 +2816,7 @@ jobs:
             actions: write
             pull-requests: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
                   # cone mode also checks out the root files, ci-budgets.json among them
@@ -2792,7 +2850,7 @@ jobs:
             contents: read
             actions: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools/results
@@ -2819,7 +2877,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools
@@ -2873,7 +2931,7 @@ jobs:
             issues: write
             pull-requests: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |

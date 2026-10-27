@@ -773,17 +773,10 @@ async function stress(c: Cycle, gh: GitHub) {
     }
     await c.setJson("stress", Object.fromEntries(runs.map((r) => [r.id, cache[r.id]])));
     const newest = cache[runs[0].id];
-    c.o(
-        "stress.state",
-        newest.state === 2
-            ? 2
-            : stressQuiet(
-                    runs.map((r) => cache[r.id]),
-                    c.now,
-                )
-              ? 1
-              : 0,
-    );
+    const seen = runs.map((r) => cache[r.id]);
+    let state = stressQuiet(seen, c.now) ? 1 : 0;
+    if (newest.state === 2) state = 2;
+    c.o("stress.state", state);
     await recordSource(c.d.store, "stress", Date.parse(runs[0].created_at), { ok: true });
 }
 

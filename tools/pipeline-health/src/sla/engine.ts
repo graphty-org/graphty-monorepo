@@ -154,9 +154,9 @@ const metricsOf = (m: Measure) => ("metric" in m ? [m.metric] : []);
 export const PROJECTION_DAYS = 7;
 
 /**
- * A line's month-end projection: what it cost through yesterday plus, for each day left (today included), its
- * average day over the trailing PROJECTION_DAYS whole days. The month-to-date average would carry a month's early
- * spend to its end (October's T4 lane ran on triggers removed by its second week).
+ * A line's month-end projection: what it cost through yesterday plus, for each day left, its average day over the
+ * trailing PROJECTION_DAYS whole days (today at least what it has cost so far). The month-to-date average would
+ * carry a month's early spend to its end (October's T4 lane ran on triggers removed by its second week).
  * @param daySum one day's cost, by the day's start
  * @param end now
  */
@@ -169,7 +169,9 @@ export function projectMonth(daySum: (day: number) => number, end: number): numb
     for (let t = monthStart; t < today; t += DAY) done += daySum(t);
     let recent = 0;
     for (let i = 1; i <= PROJECTION_DAYS; i++) recent += daySum(today - i * DAY);
-    return done + (recent / PROJECTION_DAYS) * (monthDays - (today - monthStart) / DAY);
+    const rate = recent / PROJECTION_DAYS;
+    const after = monthDays - (today - monthStart) / DAY - 1;
+    return done + Math.max(rate, daySum(today)) + rate * after;
 }
 
 function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: number): number | undefined {
@@ -177,8 +179,10 @@ function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: numbe
     const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
     const today = floorTo(end, "1d");
     const series = ctx.daily.get(m.metric);
-    const sumOf = (b: Bucket | undefined) =>
-        b === undefined ? 0 : m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0);
+    const sumOf = (b: Bucket | undefined) => {
+        if (b === undefined) return 0;
+        return m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0);
+    };
     if (!m.projected) {
         return sumOf(merged(series, monthStart, today));
     }

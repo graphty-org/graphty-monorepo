@@ -50,7 +50,10 @@ function addTo(agg: Agg, c: Contribution, at: number): void {
     }
     agg.hist ??= emptyHistogram();
     addValue(agg.hist, c.value);
-    if (c.exact) (agg.vals ??= []).push(c.value);
+    if (c.exact) {
+        agg.vals ??= [];
+        agg.vals.push(c.value);
+    }
     agg.max = Math.max(agg.max ?? -Infinity, c.value);
     if (agg.lastAt === undefined || at >= agg.lastAt) {
         agg.last = c.value;
@@ -70,7 +73,10 @@ export function mergeAgg(into: Agg, from: Agg): void {
         into.hist ??= emptyHistogram();
         mergeInto(into.hist, from.hist);
     }
-    if (from.vals) (into.vals ??= []).push(...from.vals);
+    if (from.vals) {
+        into.vals ??= [];
+        into.vals.push(...from.vals);
+    }
     if (from.max !== undefined) {
         into.max = Math.max(into.max ?? -Infinity, from.max);
     }

@@ -459,7 +459,7 @@ channels exist; until then they are not set up ("channel not built yet, #3418").
 
 Month to date, projected to month end, read now (billing data arrives daily, so an hour window would
 change nothing). The projection is what a line cost through yesterday plus, for each day left, its
-average day over the trailing 7 days: the month-to-date average carried October's first week, when
+average day over the trailing 7 days (today at least what it has cost so far): the month-to-date average carried October's first week, when
 the T4 lane still ran on pull requests and pushes, to the month's end. Only money sets the state; list-price values and per-run
 figures are for comparison (section 7). Budgets are configured; these are sample values. The two
 usage members are not set up until their read-only tokens exist (section 16).

@@ -1087,7 +1087,7 @@ jobs:
             # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
             - name: Restore this project's baseline images
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -1113,7 +1113,7 @@ jobs:
 
             - name: Restore the cached Playwright browsers
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

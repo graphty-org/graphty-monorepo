@@ -1559,6 +1559,7 @@ jobs:
                   path: ${{ runner.temp }}/base-checks/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
             # failing test files and run only those on this machine. continue-on-error: a report that did
@@ -1572,6 +1573,7 @@ jobs:
                   path: test-results/junit-*.xml
                   retention-days: 7
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
@@ -1582,6 +1584,7 @@ jobs:
                   include-hidden-files: true
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && startsWith(matrix.shard, 'graphty-element') }}
@@ -1591,6 +1594,7 @@ jobs:
                   path: graphty-element/coverage/lcov.info
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # A shard group (tools/ci-test-matrix.mjs, GROUPS) uploads one artifact holding a
             # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
@@ -1615,6 +1619,7 @@ jobs:
                   path: ${{ runner.temp }}/coverage/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.

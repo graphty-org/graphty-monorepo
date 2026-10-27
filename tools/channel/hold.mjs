@@ -195,6 +195,12 @@ async function end(env) {
         output({ base: "", head: "" });
         return;
     }
+    // an abandoned head is rejected before anything is cleared, so an approval of it that merges later promotes
+    // nothing (resume.mjs); a failure here leaves the hold standing, and a re-run finishes the abandon
+    if (env.ABANDONED === "true") {
+        const v = await call(cfg, "POST", "/v1/verdicts", { sha: hold.head, state: "rejected", lane: "abandoned" });
+        if (!v.ok) throw new Error(`recording the abandoned head failed (${v.why})`);
+    }
     // only the hold read above: a train that moved or replaced it since keeps its own
     const r = cfg ? await call(cfg, "POST", "/v1/hold", { clear: true, base: hold.base, head: hold.head }) : null;
     if (!r?.ok) throw new Error(`POST /v1/hold failed (${r?.why ?? "no store configured"})`);
@@ -204,11 +210,6 @@ async function end(env) {
         console.log(`::warning::the hold on ${hold.base} moved before it was cleared`);
         output({ base: "", head: "" });
         return;
-    }
-    // an abandoned head is rejected, so an approval of it that merges later promotes nothing (resume.mjs)
-    if (env.ABANDONED === "true") {
-        const v = await call(cfg, "POST", "/v1/verdicts", { sha: hold.head, state: "rejected", lane: "abandoned" });
-        if (!v.ok) console.log(`::warning::recording the abandoned head rejected failed (${v.why})`);
     }
     if (hold.issue)
         sh([

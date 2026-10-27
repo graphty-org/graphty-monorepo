@@ -158,10 +158,19 @@ describe("end", () => {
         const r = await withStore("end", hold, { ABANDONED: "true", WHY: "abandoned by the owner" });
         assert.equal(r.code, 0);
         assert.deepEqual(r.posts, [
-            { url: "/v1/hold", body: { clear: true, base: "d".repeat(40), head: "e".repeat(40) } },
             { url: "/v1/verdicts", body: { sha: "e".repeat(40), state: "rejected", lane: "abandoned" } },
+            { url: "/v1/hold", body: { clear: true, base: "d".repeat(40), head: "e".repeat(40) } },
         ]);
         assert.match(r.calls, /issue close 5/);
+    });
+    it("an abandon whose rejection the store refuses fails, clearing nothing and closing nothing", async () => {
+        const r = await withStore("end", hold, { ABANDONED: "true", WHY: "abandoned" }, 500);
+        assert.notEqual(r.code, 0);
+        assert.deepEqual(
+            r.posts.map((p) => p.url),
+            ["/v1/verdicts"],
+        );
+        assert.equal(r.calls, "");
     });
     it("a promotion only clears the hold", async () => {
         const r = await withStore("end", hold, { WHY: "promoted" });

@@ -260,7 +260,7 @@ jobs:
             - name: Restore the selector's import graphs
               if: steps.graphs-key.outputs.key != ''
               continue-on-error: true
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -802,7 +802,7 @@ jobs:
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
@@ -1320,7 +1320,7 @@ jobs:
             # superseded ones of earlier commits, so the entry does not grow.
             - name: Look up the import graphs
               id: graphs
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1341,7 +1341,7 @@ jobs:
 
             - name: Save the import graphs
               if: steps.graphs.outputs.cache-hit != 'true'
-              uses: actions/cache/save@v4
+              uses: actions/cache/save@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1429,7 +1429,7 @@ jobs:
             # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
@@ -1441,7 +1441,7 @@ jobs:
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -1515,7 +1515,7 @@ jobs:
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
             # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: test-durations
                   key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
@@ -1834,7 +1834,7 @@ jobs:
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
               if: ${{ !cancelled() }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -1986,7 +1986,7 @@ jobs:
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore this project's baseline images
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -2023,7 +2023,7 @@ jobs:
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -2291,7 +2291,7 @@ jobs:
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -2335,7 +2335,7 @@ jobs:
 
             - name: Cache Playwright browsers
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -3042,7 +3042,7 @@ jobs:
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore graphty-element's baseline images
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-graphty-element-${{ hashFiles('visual-baselines/graphty-element/**/*.png', 'visual-fonts/fonts/**') }}
@@ -3069,7 +3069,7 @@ jobs:
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

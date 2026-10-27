@@ -36,7 +36,8 @@ import type {
     Value,
 } from "../src/contract";
 
-const OUT = dirname(fileURLToPath(import.meta.url));
+// HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
+const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
 
 /** A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25"). */
@@ -1810,8 +1811,9 @@ const pages: PageResponse[] = [
         page: "flaky",
         ...head("flaky"),
         notes: [f("flaky.note.judged_again", { since: t("20:42") })],
-        members: flakyMembers,
-        sections: flakySections,
+        // Every flaky source (design 4.4): CI's rerun rate and the stress run are shown here too, judged elsewhere.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns"), byId(dataMembers, "data-sources.stress_run")],
+        sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
     }),
     page({
         page: "releases",

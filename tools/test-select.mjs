@@ -1559,7 +1559,7 @@ export const STORY_MS = {
  * Start screen's stories each load a sample, run Louvain and wait for a stable frame (PR run 40559883826,
  * Stories (graphty-4): 624 s for its 12 stories in two modes, against about 6 s for graphty's other stories).
  */
-// ponytail: a hand-kept table; record capture time per story in the results store when more files drift
+// ponytail: a hand-kept table (#4041 makes this file fast); record capture time per story in the results store when more files drift
 export const STORY_FILE_MS = {
     "graphty/src/workspace/start/StartScreen.stories.tsx": 52_000,
 };

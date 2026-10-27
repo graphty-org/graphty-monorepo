@@ -76,6 +76,12 @@ export interface RunItem extends RawBase {
     completedAt?: number;
 }
 
+/**
+ * What started a job's run, for runner-minutes per merge (4.3): a pull request run, a master push build, a full run
+ * (release.yml and the workflows it calls), or anything else (bisect, stress, hosts, dependabot, dispatches).
+ */
+export type LoadKind = "pr" | "master" | "full" | "other";
+
 /** A job of a run attempt (the jobs API, filter=latest). */
 export interface JobItem extends RawBase {
     kind: "job";
@@ -87,6 +93,8 @@ export interface JobItem extends RawBase {
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
     /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
     os?: "linux" | "windows" | "macos";
+    /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
+    load?: LoadKind;
     status: string;
     conclusion?: string;
     /** Ended at its own timeout-minutes, or ran past twice its budget. */

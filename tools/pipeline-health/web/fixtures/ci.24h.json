@@ -499,6 +499,30 @@
             }
         },
         {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 400,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 600,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runner-minutes",
+            "id": "ci.runner_minutes",
+            "value": {
+                "n": 387,
+                "unit": "min"
+            },
+            "n": 146,
+            "minN": 10
+        },
+        {
             "state": "ok",
             "window": "1h6h",
             "sla": {
@@ -623,6 +647,160 @@
                             "unit": "count"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "runner-minutes",
+            "sub": {
+                "code": "runner_minutes.sub",
+                "params": {
+                    "day": 83,
+                    "week": 146
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.pr"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 398,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 291,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 33046,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 42474,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.master"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 28,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 20,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 2285,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 2974,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.full"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 33,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 33,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 2777,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 4857,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.other"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 52,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 39,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 4313,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 5706,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.total"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 511,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 387,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 42421,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 56546,
+                            "unit": "min"
+                        }
+                    },
+                    "total": true
                 }
             ]
         },

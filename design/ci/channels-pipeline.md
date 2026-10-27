@@ -481,6 +481,38 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   with or without a culprit, waiting for screenshots, an owner item, a hold); the pipeline round owns
   a red with no culprit and fixes forward. Over 48 hours, the issue gets an `ACTION NEEDED` line.
 
+### 7.1 Load and runner capacity (owner, 2026-10-26)
+
+**The load.** On 2026-10-26 master took about 76 pull requests in one day (Mergify averaged about 54
+a day from 2026-10-04 to 10-17, with a median of 32 minutes from queue entry to merge); the owner
+says this is the new normal. Merging keeps up. GitHub runners do not: the plan allows 60 concurrent
+jobs, and that afternoon runners were saturated for 55 of 60 minutes in an hour, jobs waited about
+14 minutes for a runner, pull request runs took 30 to 45 minutes against their 10-minute budget, and
+a master push build took a median 35 minutes of wall time (14 when runners were free) for about 30
+runner-minutes of work.
+
+**Capacity cannot be bought.** The owner found no way to raise runner concurrency substantially for
+under about $1,000 a month. So the plan cuts work instead, in this order (plan step 5a), and the full
+run stays first in line for runners, as today:
+
+1. **Stop work nobody uses.** (a) A newer master push build cancels an unfinished older one: only
+   the newest build's site matters for canary, and the full run picks the newest commit with a kept
+   site, so a cancelled build only means it picks a newer commit. This replaces "a push to master
+   never cancels" for superseded master builds only; nothing else on master is cancelled, and
+   master-guard and the restart trigger learn to expect it in the same change. (b) A pull
+   request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
+   in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
+   parity holds (section 5, step 9): the largest single saving.
+2. **Make each run smaller.** File-level test selection for the packages that still run whole
+   shards on a pull request; measure the nx remote build cache's hit rate and raise it; a real fast
+   path for a change to tools only or docs only.
+3. **Measure.** The health dashboard shows runner-minutes per merged pull request, split by kind
+   (pull request run, master build, full run, other), so each change shows its real saving.
+4. **Only then, if runners are still saturated,** decide on batching: replay a day of merges through
+   GitHub's native merge queue with merge groups and measure tests per batch, batch failure rate and
+   bisect cost. Mergify's record argues for measuring first: 809 CI runs for 761 merges (it barely
+   batched), 197 of them wasted.
+
 ## 8. Feature flags
 
 Detail: [features.md](channels-pipeline/features.md).
@@ -544,7 +576,7 @@ signature checked on every path.
 | Cloudflare                          | Workers Paid $5 a month (results); R2 for the nx cache, a few GB at $0.015 per GB-month, no egress                                             |
 | T4 lane                             | 4 x 45 min = 3 h a day as a floor; with restarts and hotfix runs (8 of 17 verifications red) 5 h; bisects up to 4 h each, after the local card |
 | LLM regression                      | about $0.94 a run, once a UTC day plus owner runs (about $29 a month); bisects capped at the ceiling (section 9)                               |
-| GitHub-hosted Linux, macOS, Windows | free on this public repository; limited by concurrency (60 Linux, 5 macOS jobs; table in channels 5)                                           |
+| GitHub-hosted Linux, macOS, Windows | free on this public repository; limited by concurrency (60 Linux, 5 macOS jobs; table in channels 5); saturated at 76 merges a day (7.1)       |
 | Git LFS bandwidth                   | up to 880 MB per full run on a cache miss, 100 to 150 GB a month at worst, of 250 GiB; alarm at 150                                            |
 
 ## 12. Rollout and deletion
@@ -574,6 +606,9 @@ step's code-owned edits go in one pull request per step, listed in migration sec
    `branch-push.sh`. The old `visual` job is report-only until step 9. After: 3, 4. Done: of 20 pull
    requests, All Checks Pass median within budget, 18 untouched, master green after each, one
    Dependabot pull request auto-merged and built.
+   5a. **Runner load** (section 7.1): stop unused work, shrink runs, measure runner-minutes per merge,
+   then decide on batching. After: 5. Done: runners no longer saturated at the day's merge rate, or
+   the batching replay decided.
 6. **Full run** with bisect and revert, publishing nothing; `hosts.yml` loses its cron. After: 5.
    Done: 8 slots green, or red with a culprit whose revert made the next green.
 7. **Nightly and npm `next`:** the publish job declares `environment: release`, then the owner binds

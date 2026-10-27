@@ -204,6 +204,33 @@ describe("data states", () => {
         });
     });
 
+    it("a 7-day window with 2 days of history shows its value, labelled with the days it covers", async () => {
+        const store = await world([obs("flaky.net_change", 2, T0 - DAY), obs("flaky.net_change", 0, T0 - HOUR)]);
+        expect(await member(store, "flaky.net_new")).toMatchObject({
+            state: "OK",
+            value: 0,
+            reason: { code: "partial", params: { days: 2, of: 7 } },
+        });
+    });
+
+    it("a 7-day window the history covers has no coverage label", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "ci-results", T0 - 10 * DAY, { ok: true });
+        await recordSource(store, "ci-results", T0, { ok: true });
+        await putRaw(store, [obs("flaky.net_change", 0, T0 - HOUR)], T0);
+        await recompute(store, T0);
+        const m = await member(store, "flaky.net_new");
+        expect(m).toMatchObject({ state: "OK", value: 0 });
+        expect(m.reason).toBeUndefined();
+    });
+
+    it("a 7-day window with no data at all stays NO DATA", async () => {
+        expect(await member(await world([]), "flaky.net_new")).toMatchObject({
+            state: "NO DATA",
+            reason: { code: "no_value" },
+        });
+    });
+
     it("judges the write budget and the sources past their limit", async () => {
         const store = await world([], T0, [...LIVE, "stress", "hosts"]);
         await takeQuota(store, 0.95 * DAILY_ROW_LIMIT, T0);

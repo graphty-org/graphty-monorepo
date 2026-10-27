@@ -2,8 +2,8 @@
 // when it ends. Master alerts at once; any other category only after its member has been FAILING for 30 minutes.
 // One mark per member (ALERT#<member>, sk "episode") holds its episode: it starts at the first red and ends only
 // when the member is judged OK again, so a gap of NO DATA or a stale source in between neither ends it nor starts
-// another. A member alerts "open" at most once per REALERT_MS, even across episodes; an episode whose open was held
-// back by that floor never sends "clear". Each send is claimed with a conditional write first, so a retried or
+// another. A member alerts "open" at most once per REALERT_MS, even across episodes: an open inside that floor waits
+// until the floor has passed, and an episode that ends before its open was sent never sends "clear". Each send is claimed with a conditional write first, so a retried or
 // overlapping collector run never sends twice; a failed send releases the claim and the next run retries.
 
 import { DAY, HOUR, MIN } from "../model/items.js";
@@ -23,8 +23,6 @@ const LEASE_MS = 5 * MIN;
 const TTL_S = (8 * DAY) / 1000;
 /** A claim field holding this was sent; later than any claim time, so the claim condition fails on it. */
 const SENT = 8.64e15;
-/** An open held back by REALERT_MS: never sent, so its episode never clears; the claim condition fails on it too. */
-const SUPPRESSED = 9e15;
 
 export interface AlertsInput {
     evaluation: Evaluation;
@@ -99,18 +97,16 @@ async function member(ctx: Ctx, m: MemberStatus): Promise<void> {
             (await ctx.store.update(key, { set: fresh }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
             (await ctx.store.get(key));
     }
-    if (!mark || mark.open === SENT || mark.open === SUPPRESSED) {
+    if (!mark || mark.open === SENT) {
         return;
     }
     if (!(await due(ctx, key, e, m, mark.redSince as number | undefined))) {
         return;
     }
-    const last = (mark.lastOpenAt as number | undefined) ?? 0;
-    if (ctx.now - last < REALERT_MS) {
-        await ctx.store.update(key, { set: { open: SUPPRESSED, ttl: ttl(ctx) } });
-        return;
+    // Inside the floor the open waits; a later run sends it once the floor has passed, if the episode is still on.
+    if (ctx.now - ((mark.lastOpenAt as number | undefined) ?? 0) >= REALERT_MS) {
+        await once(ctx, key, "open", e, m);
     }
-    await once(ctx, key, "open", e, m);
 }
 
 /** The member is judged OK: the episode ends, with a "clear" only when its "open" was sent. */

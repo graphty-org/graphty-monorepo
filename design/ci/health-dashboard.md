@@ -762,7 +762,8 @@ threshold and page link, once per episode and once when it clears:
 An episode starts at a member's first red and ends only when the member is judged OK again: a gap
 of NO DATA or a stale source in between neither ends it nor starts another, so a flapping source
 cannot repeat the alert. A member alerts at most once in 6 hours, even when an episode truly ends
-and a new one starts; an episode whose alert was held back by that floor sends no "cleared".
+and a new one starts: a new episode's alert waits until 6 hours have passed since the last one and
+is sent then if the member is still red; one that ends before its alert was sent sends no "cleared".
 
 **A dead-man's switch.** The collector both computes the status and sends the alerts, so a paused
 AWS project, the Budget action's deny-all policy or a crashing collector would silence both. A

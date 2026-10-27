@@ -114,13 +114,21 @@ describe("sendAlerts", () => {
         await run(store, evaluation(m), T0, p.fetch);
         await ok(T0 + 10 * MIN);
         expect(p.calls.map((c) => c.get("title"))).toEqual(["master cat FAILING", "master cat cleared"]);
-        // A new episode an hour later is held back by the floor, and so is its clear.
+        // A new episode an hour later that ends inside the floor sends neither open nor clear.
         await run(store, evaluation(m, { start: T0 + HOUR }), T0 + HOUR, p.fetch);
         await ok(T0 + HOUR + 10 * MIN);
         expect(p.calls).toHaveLength(2);
-        // Past the floor, a new episode alerts again.
-        await run(store, evaluation(m, { start: T0 + REALERT_MS }), T0 + REALERT_MS, p.fetch);
-        expect(p.calls).toHaveLength(3);
+        // One that stays red waits for the floor, then alerts once.
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + 2 * HOUR, p.fetch);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS - MIN, p.fetch);
+        expect(p.calls).toHaveLength(2);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS, p.fetch);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS + 5 * MIN, p.fetch);
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "master cat FAILING",
+            "master cat cleared",
+            "master cat FAILING",
+        ]);
     });
 
     it("never clears an episode that never alerted", async () => {

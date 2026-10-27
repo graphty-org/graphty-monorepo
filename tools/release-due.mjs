@@ -16,6 +16,10 @@
  * its record in the results store. Only runs the issue names are cancelled, never one testing another commit, and a
  * note on the Release status issue keeps release-watch from announcing the cancel as a release that ended badly.
  *
+ * A newer master push cancels an unfinished older build (ci.yml's concurrency), and this job runs only in a green
+ * build, so it reads every merge since the last green master build, not only this one: a cancelled build's `Fixes #N`
+ * or `Refs #N` still restarts (lastGreenBuild).
+ *
  * Not yet: resuming an approved awaiting candidate, which needs the results store.
  *
  * Usage: node tools/release-due.mjs [--dry-run]
@@ -37,10 +41,12 @@ const CLOSED_WITHIN_MS = 60 * 60 * 1000;
  * @param redIssues the issues, as listRedIssues returns them; one with no state is open
  * @param messages the merge's commit messages, joined
  * @param [now] milliseconds
+ * @param [closedSince] milliseconds: an issue closed at or after this still counts (by default an hour before now; a
+ *   cancelled build's merge may have closed it earlier)
  * @returns the dispatch to make ({ mode, issue, cancel }), or null when nothing is due; `cancel` when the merge says
  *   it fixes the issue, not only refers to it
  */
-export function due(redIssues, messages, now = Date.now()) {
+export function due(redIssues, messages, now = Date.now(), closedSince = now - CLOSED_WITHIN_MS) {
     const keywords = new Map();
     for (const m of messages.matchAll(
         /\b(refs|fix(?:es|ed)?|close[sd]?|resolve[sd]?|part of):?\s+(?:(?:https:\/\/github\.com\/)?graphty-org\/graphty-monorepo(?:\/issues\/|#)|#)(\d+)/gi,
@@ -48,8 +54,7 @@ export function due(redIssues, messages, now = Date.now()) {
         const n = Number(m[2]);
         keywords.set(n, [...(keywords.get(n) ?? []), m[1].toLowerCase()]);
     }
-    const live = (i) =>
-        (i.state ?? "OPEN") === "OPEN" || (i.closedAt && now - Date.parse(i.closedAt) <= CLOSED_WITHIN_MS);
+    const live = (i) => (i.state ?? "OPEN") === "OPEN" || (i.closedAt && Date.parse(i.closedAt) >= closedSince);
     const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && keywords.has(i.number) && live(i));
     if (!red) return null;
     const cancel = keywords.get(red.number).some((k) => !["refs", "part of"].includes(k));
@@ -82,6 +87,18 @@ export function toCancel(runs, issueText) {
 export function cancelNote(issue, url, attempt) {
     const rerun = attempt > 1 ? ` (re-run, attempt ${attempt})` : "";
     return `**Full run red**${rerun}: see #${issue}. This run was cancelled to restart on a merge that fixes it.\n\nRun: ${url}`;
+}
+
+/**
+ * The last green master build before this one: every merge after it is this job's to read, because a build in
+ * between was cancelled by a newer push or ended red, and this job ran in neither.
+ * @param head this build's commit
+ * @param greenShas the head commits of master's green push builds, newest first
+ * @param isAncestor (sha) => whether that commit is in head's history
+ * @returns the commit, or null when none is (this job then reads only its own merge)
+ */
+export function lastGreenBuild(head, greenShas, isAncestor) {
+    return greenShas.find((sha) => sha !== head && isAncestor(sha)) ?? null;
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
@@ -143,34 +160,72 @@ function cancelRedRun(issue, dryRun) {
 
 function main() {
     const dryRun = process.argv.includes("--dry-run");
-    // the open ones, and those closed in the last hour (by this merge's Fixes)
-    const issues = [
-        ...listRedIssues("open"),
-        ...listRedIssues("closed", new Date(Date.now() - CLOSED_WITHIN_MS).toISOString()),
-    ];
-    // A merge commit brings in HEAD^1..HEAD; a plain commit is only itself.
-    let range = ["-1", "HEAD"];
+    const now = Date.now();
+    const head = run("git", ["rev-parse", "HEAD"]);
+    let base = null;
     try {
-        run("git", ["rev-parse", "--verify", "--quiet", "HEAD^2"]);
-        range = ["HEAD^1..HEAD"];
-    } catch {
-        // not a merge
-    }
-    // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
-    let bodies = "";
-    try {
-        bodies = run("gh", [
-            "api",
-            `repos/{owner}/{repo}/commits/${run("git", ["rev-parse", "HEAD"])}/pulls`,
-            "--jq",
-            ".[].body // empty",
-        ]);
+        const green = JSON.parse(
+            run("gh", [
+                "run",
+                "list",
+                "--workflow",
+                "ci.yml",
+                "--branch",
+                "master",
+                "--event",
+                "push",
+                "--status",
+                "success",
+                "--limit",
+                "30",
+                "--json",
+                "headSha",
+            ]),
+        ).map((r) => r.headSha);
+        base = lastGreenBuild(head, green, (sha) => {
+            try {
+                run("git", ["merge-base", "--is-ancestor", sha, head]);
+                return true;
+            } catch {
+                return false;
+            }
+        });
     } catch (error) {
-        console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::finding the last green master build failed: ${String(error.message).split("\n")[0]}`);
     }
-    const plan = due(issues, `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`);
+    // Every merge since the last green build; without one, a merge commit brings in HEAD^1..HEAD and a plain commit
+    // is only itself.
+    let range = ["-1", "HEAD"];
+    if (base) {
+        range = [`${base}..HEAD`];
+    } else {
+        try {
+            run("git", ["rev-parse", "--verify", "--quiet", "HEAD^2"]);
+            range = ["HEAD^1..HEAD"];
+        } catch {
+            // not a merge
+        }
+    }
+    // an issue a merge since the base closed still counts, however long the cancelled builds took
+    const baseAt = base ? Number(run("git", ["log", "-1", "--format=%ct", base])) * 1000 : now;
+    const closedSince = Math.min(now - CLOSED_WITHIN_MS, baseAt);
+    const issues = [...listRedIssues("open"), ...listRedIssues("closed", new Date(closedSince).toISOString())];
+    // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
+    // ponytail: one call per master commit since the base, capped; a longer run of cancelled builds reads the newest 20
+    const commits = base ? run("git", ["rev-list", "--first-parent", "-20", `${base}..HEAD`]).split("\n") : [head];
+    let bodies = "";
+    for (const sha of commits) {
+        try {
+            const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
+            bodies += run("gh", ["api", path, "--jq", ".[].body // empty"]) + "\n";
+        } catch (error) {
+            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+        }
+    }
+    if (base) console.log(`release-due: reading every merge since the last green master build ${base.slice(0, 7)}`);
+    const plan = due(issues, `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`, now, closedSince);
     if (!plan) {
-        console.log("release-due: nothing due (no open red issue referenced by this merge)");
+        console.log("release-due: nothing due (no open red issue referenced by these merges)");
         return;
     }
     console.log(`release-due: this merge references red issue #${plan.issue}: release.yml mode=${plan.mode}`);

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { blockedPrs, flakyMembers, netChange, testKey, type FlakySeen } from "../../src/collector/flaky.js";
+import { readFileSync } from "node:fs";
+import {
+    blockedPrs,
+    flakyMembers,
+    namesTest,
+    netChange,
+    testKey,
+    type FlakySeen,
+    type IssueText,
+} from "../../src/collector/flaky.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { GqlPr } from "../../src/collector/parse.js";
 import { DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
@@ -80,20 +89,22 @@ const pr = (number: number, checks: { name: string; run: number }[]): GqlPr =>
         },
     }) as GqlPr;
 
-/** A GitHub whose issue searches answer from `open` (needles with an open issue) and `closed` (needle -> closedAt). */
-function searchGitHub(open: string[], closed: Record<string, string> = {}) {
+/** An issue whose title names a test the way the quarantine files them: "Flaky test: <file> > <name>". */
+const filed = (file: string, name: string, closedAt?: string): IssueText => ({
+    title: `Flaky test: ${file} > ${name}`,
+    body: "",
+    ...(closedAt ? { closedAt } : {}),
+});
+
+/** A GitHub whose flaky issue search answers `open` and `closed`, and keeps the queries it was asked. */
+function searchGitHub(open: IssueText[], closed: IssueText[] = []) {
     const asked: string[] = [];
     const fetch = async (_url: string, init?: RequestInit) => {
         const { variables } = JSON.parse(String(init?.body)) as { variables: Record<string, string> };
-        const data: Record<string, unknown> = {};
-        for (const [k, q] of Object.entries(variables)) {
-            asked.push(q);
-            const hit = (n: string) => q.includes(`"${n}"`);
-            data[k] = k.startsWith("o")
-                ? { issueCount: open.some(hit) ? 1 : 0 }
-                : { nodes: Object.entries(closed).flatMap(([n, at]) => (hit(n) ? [{ closedAt: at }] : [])) };
-        }
-        return new Response(JSON.stringify({ data }), { status: 200 });
+        asked.push(...Object.values(variables));
+        return new Response(JSON.stringify({ data: { open: { nodes: open }, closed: { nodes: closed } } }), {
+            status: 200,
+        });
     };
     return { gh: new GitHub(async () => "ghs_test", fetch), asked };
 }
@@ -108,13 +119,14 @@ describe("flaky in CI with no open issue", () => {
         ]);
         await day(store, TODAY - 3 * DAY, [["graphty", "b.test.ts", "also unfiled"]]);
         await day(store, TODAY - 10 * DAY, [["graphty", "c.test.ts", "older than the week"]]);
-        const { gh, asked } = searchGitHub(["named in an issue"]);
+        const { gh, asked } = searchGitHub([filed("a.test.ts", "named in an issue")]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.no_issue"]).toBe(2);
-        // Only this week's tests are searched, open and closed, by the last part of their name.
-        expect(asked.filter((q) => q.includes("is:open"))).toHaveLength(3);
-        expect(asked.some((q) => q.includes("older than the week"))).toBe(false);
-        expect(asked).toContain(`repo:${REPO} is:issue in:title,body "nobody filed" is:open`);
+        // One query: the open flaky issues, and those closed as fixed since the week began.
+        expect(asked).toEqual([
+            `repo:${REPO} is:issue flaky is:open`,
+            `repo:${REPO} is:issue flaky is:closed reason:completed closed:>=${new Date(TODAY - 6 * DAY).toISOString().slice(0, 10)}`,
+        ]);
     });
 
     it("is 0 when nothing was flaky, without asking GitHub", async () => {
@@ -127,6 +139,67 @@ describe("flaky in CI with no open issue", () => {
             "flaky.net_change": 0,
         });
         expect(asked).toEqual([]);
+    });
+});
+
+describe("the six flaky issues of 2026-10-26", () => {
+    // Read once from GitHub (number, title, state, stateReason, closedAt, body), as the search returns them.
+    const issues = JSON.parse(
+        readFileSync(new URL("../fixtures/github/flaky-issues.json", import.meta.url), "utf8"),
+    ) as (IssueText & { number: number; state: string })[];
+    const issue = (n: number) => issues.find((i) => i.number === n)!;
+    // The test each issue is about, as the flaky.tests rollup names it.
+    const tests: [number, string, string][] = [
+        [3765, "graphty/src/workspace/graph-place/GraphPlace.stories.tsx", "Find No Match"],
+        [3766, "graphty/src/workspace/start/StartScreen.stories.tsx", "Settings Privacy"],
+        [
+            3767,
+            "graphty/src/workspace/canvas/__tests__/LegendCard.real-element.test.tsx",
+            "the canvas key on the real element > at 900 x 700 leaves the drawing at least half the canvas's width",
+        ],
+        [
+            3762, // a whole-file failure: the name is the file's path in its package
+            "graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+            "src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx",
+        ],
+        [
+            3768,
+            "visual-review/test/capture-run.test.mjs",
+            "capture run > classifies new, unchanged, excluded, failed, and a story newly excluded by its parameters",
+        ],
+        [
+            3754,
+            "graphty/src/workspace/canvas/__tests__/FramingIgnoresOverlays.real-element.test.tsx",
+            "the drawing is framed in the canvas alone > lands a layout change on the bare canvas's fit, whenever the key card comes up",
+        ],
+    ];
+
+    it("each names its own test and no other", () => {
+        for (const [n, file, name] of tests)
+            for (const [m] of tests) expect(namesTest(issue(m), { file, name }), `#${m} names ${name}`).toBe(m === n);
+    });
+
+    it("counts none of them as having no issue: three are open, three were closed as fixed after their last detection", async () => {
+        const store = new MemoryStore();
+        // Last seen the day before the closed issues were closed (2026-10-26).
+        await day(
+            store,
+            TODAY - DAY,
+            tests.map(([, file, name]) => ["graphty", file, name]),
+        );
+        const open = issues.filter((i) => i.state === "OPEN");
+        const closed = issues.filter((i) => i.state === "CLOSED");
+        expect(open).toHaveLength(3);
+        const m = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
+        // Seen again after the fix: the closed issues no longer count, so those three have no open issue.
+        await day(
+            store,
+            TODAY + DAY,
+            tests.map(([, file, name]) => ["graphty", file, name]),
+        );
+        const later = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW + DAY);
+        expect(later["flaky.no_issue"]).toBe(3);
     });
 });
 
@@ -156,10 +229,13 @@ describe("net new flaky", () => {
         const store = new MemoryStore();
         await day(store, TODAY - DAY, [["graphty", "a.test.ts", "fixed one"]]);
         await day(store, TODAY, [["graphty", "b.test.ts", "still open"]]);
-        const { gh } = searchGitHub(["still open"], { "fixed one": new Date(NOW - 3_600_000).toISOString() });
+        const { gh } = searchGitHub(
+            [filed("b.test.ts", "still open")],
+            [filed("a.test.ts", "fixed one", new Date(NOW - 3_600_000).toISOString())],
+        );
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.net_change"]).toBe(1); // two new, one fixed
-        expect(m["flaky.no_issue"]).toBe(1);
+        expect(m["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
     });
 });
 

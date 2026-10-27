@@ -50,11 +50,17 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A push to master never cancels (each master commit is deployed from its own run). The release train's
-# call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
+# A newer push to master cancels an unfinished older master push run (design/ci/channels-pipeline.md section
+# 7.1): only the newest build's site matters for canary, and the full run picks the newest commit with a kept
+# site, so a cancelled build only means it picks a newer one. tools/master-guard.mjs reads such a run as
+# superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
+# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
+# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}
 
 # The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
 # .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals
@@ -110,7 +116,7 @@ jobs:
             actions: read
             checks: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
@@ -169,7 +175,7 @@ jobs:
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -715,7 +721,7 @@ jobs:
             advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
             visual-skip: ${{ needs.packages.outputs.visual-skip }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -852,7 +858,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -933,7 +939,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1115,7 +1121,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1197,7 +1203,7 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
@@ -1273,7 +1279,7 @@ jobs:
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -1552,7 +1558,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1659,7 +1665,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 50
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1747,7 +1753,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -1824,7 +1830,7 @@ jobs:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.stories-matrix) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
@@ -2062,7 +2068,7 @@ jobs:
               if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
               run: echo "skip=true" >> "$GITHUB_OUTPUT"
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
@@ -2224,7 +2230,7 @@ jobs:
                         graph-io-fidelity,
                     ]
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: visual-review
@@ -2329,7 +2335,7 @@ jobs:
             # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
             # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
             # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
@@ -2645,7 +2651,7 @@ jobs:
             # files naming each image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
               if: github.event_name == 'pull_request'
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   sparse-checkout: visual-review
                   fetch-depth: 0
@@ -2718,7 +2724,7 @@ jobs:
             pull-requests: read
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
@@ -2750,7 +2756,7 @@ jobs:
             actions: write
             pull-requests: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
                   # cone mode also checks out the root files, ci-budgets.json among them
@@ -2784,7 +2790,7 @@ jobs:
             contents: read
             actions: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools/results
@@ -2811,7 +2817,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools
@@ -2865,7 +2871,7 @@ jobs:
             issues: write
             pull-requests: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |

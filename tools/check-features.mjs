@@ -2,8 +2,8 @@
 // The features check (design/ci/channels-pipeline/features.md, section 4): every experiment id the code,
 // the stories and the site configurations name is a row of graphty-element's FEATURES, every row has its
 // tracking issue, no graduated id lingers, every flagged descriptor field carries its `@experimental` tag,
-// the features module reads no host URL, storage or environment, and -- until the owner decides what
-// `@experimental` promises third parties (section 11) -- no experimental item is in the public API report.
+// and the features module reads no host URL, storage or environment. Experimental items may appear in the
+// public API report: `@experimental` promises no compatibility (owner, 2026-10-25; features.md section 11).
 //
 //   node tools/check-features.mjs          fails naming every problem
 //   node tools/check-features.mjs --list   prints every flag with its age, issue and referencing files
@@ -13,7 +13,6 @@ import { fileURLToPath } from "node:url";
 
 const REGISTRY = "graphty-element/src/features/registry.ts";
 const FEATURES_DIR = "graphty-element/src/features";
-const API_DIR = "graphty-element/api";
 const SCAN_DIRS = ["graphty-element/src", "graphty-element/stories", "graphty/src", "graphty/sites"];
 const SOURCE = /\.(?:[cm]?[jt]sx?|json|mdx)$/;
 const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$|\.test-d\.ts$/;
@@ -133,26 +132,6 @@ export function checkFeatures(root) {
                 );
             }
         }
-    }
-
-    // Section 4: until the owner answers section 11, no experiment adds a public export or type.
-    // api-extractor prints @experimental (and @beta, @alpha) as a release tag comment above the item.
-    const reports = existsSync(join(root, API_DIR))
-        ? readdirSync(join(root, API_DIR)).filter((f) => f.endsWith(".api.md"))
-        : [];
-    for (const file of reports.map((f) => join(API_DIR, f))) {
-        const lines = readFileSync(join(root, file), "utf8").split("\n");
-        lines.forEach((line, i) => {
-            if (!/^\s*\/\/ @(?:beta|alpha|experimental)\b/.test(line)) return;
-            const item =
-                lines
-                    .slice(i + 1)
-                    .find((l) => l.trim() !== "" && !l.trim().startsWith("//"))
-                    ?.trim() ?? "";
-            problems.push(
-                `${file}:${i + 1}: experimental public API "${item}"; experiments add no public export or type until the owner decides what @experimental promises (features.md section 11)`,
-            );
-        });
     }
 
     return { problems, flags: rows.map((r) => ({ ...r, files: [...files.get(r.id)].sort() })) };

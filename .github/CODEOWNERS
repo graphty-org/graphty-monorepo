@@ -51,6 +51,7 @@
 /tools/release-dry-run.mjs @graphty-org/code-owners
 /tools/release-held.sh @graphty-org/code-owners
 /tools/release-hold.mjs @graphty-org/code-owners
+/tools/release-rerun.mjs @graphty-org/code-owners
 /tools/release-status.mjs @graphty-org/code-owners
 /tools/release-version.sh @graphty-org/code-owners
 /tools/publish-hold.mjs @graphty-org/code-owners

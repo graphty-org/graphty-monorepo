@@ -3,17 +3,32 @@
 // sections 5 and 6): which commit a slot tests, and the verdict on it.
 //
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
-//       env MODE (full | restart), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's OIDC token
-//       writes run, sha, why and good to GITHUB_OUTPUT
+//       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
+//       OIDC token; writes run, sha, why, good, held and forward to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
-//           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
+//           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, FORWARD (the held commit, when SHA is a held head past
+//           it: red goes to the hold issue only, no "Full run red" issue and no bisect)
 //   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
 //                                     references it restarts the run without waiting for the other lanes
 //       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
-//           GH_TOKEN, GITHUB_REPOSITORY
+//           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE (attempt 1 of a re-runnable mode files nothing)
+//   node tools/full-run.mjs file-deferred <file>
+//                                     files the red issue and dispatches the bisect an attempt-1 verdict deferred
+//                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all
+//
+// Same-commit re-run, once (design/ci/channels-pipeline.md section 3): attempt 1 of a full or restart run that ends
+// red on a lane that failed (or was cancelled) records its verdict but files no red issue, dispatches no bisect and
+// announces nothing: release-rerun.yml re-runs its failed jobs once, and that attempt decides. The verdict writes
+// verdict-<attempt>.json (env RECORD) for the next attempt and for release-rerun.yml. A lane red on attempt 1 and
+// green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
+// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
+//
+// Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
+// held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
+// any other commit's verdict leaves the hold alone and never promotes (tools/channel/nightly.mjs).
 //
 // The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
 // not answer makes the slot test master's head and makes the verdict skip only its own record.
@@ -29,6 +44,9 @@ import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
 export const RED_TITLE = "Full run red:";
+export const FLAKY_TITLE = "Flaky in full run:";
+/** The modes whose attempt 1 is re-run once by release-rerun.yml instead of filing at once. */
+export const RERUN_MODES = new Set(["full", "restart", "candidate"]);
 const GREEN = new Set(["green-clean", "green-images", "approved"]);
 const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
@@ -43,6 +61,8 @@ export const LANES = {
     autosave_macos: { name: "work protection (macOS)", bisect: "macos" },
     audit: { name: "security audit", bisect: null },
     version_dry_run: { name: "version dry run", bisect: null },
+    // the release.yml job that shoots the changed stories again and writes the final captures
+    recapture: { name: "screenshot re-capture", bisect: null },
     // not a job: the verdict sets it from the downloaded captures (captureLane), so a capture that is missing is a
     // pipeline failure, never "the screenshots changed"
     captures: { name: "screenshot capture", bisect: null },
@@ -51,7 +71,7 @@ export const LANES = {
 /**
  * The commit a slot tests, or why it does nothing.
  * @param o the inputs
- * @param o.mode full or restart
+ * @param o.mode full, restart or candidate
  * @param o.head the commit the run started on (master's head when it was dispatched)
  * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
@@ -67,7 +87,9 @@ export const LANES = {
  *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
  * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
- * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
+ * @returns `{ run, sha, why, good, inherit, held, forward }`; inherit is the verdict the commit takes over, when it
+ *   does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not answer);
+ *   forward is the held commit when the tested head is past it
  */
 export function pick({
     mode,
@@ -80,7 +102,44 @@ export function pick({
     hasNightly = () => true,
     hold = { open: "", closedAt: 0 },
 }) {
-    if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
+    if (!store) {
+        return {
+            run: true,
+            sha: head,
+            held: "unknown",
+            why: "the results store did not answer: testing master's head",
+        };
+    }
+    const held = store.hold?.head ?? "";
+    // a held candidate's head no run judged yet is tested first (catch-up order, channels-pipeline.md section 3);
+    // a judged one leaves the slot to master, whose verdict never promotes or replaces it. A head past the held
+    // commit (fixes merged forward, tools/channel/candidate-fix.mjs) is re-tested only where the fixes reach:
+    // forward names the held commit
+    if (held && !(store.recent ?? []).some((v) => v.sha === held)) {
+        const forward = store.hold.base && store.hold.base !== held ? store.hold.base : "";
+        return {
+            run: true,
+            sha: held,
+            good: "",
+            held,
+            forward,
+            why: `the held candidate ${short(held)} is not judged yet`,
+        };
+    }
+    // mode candidate only re-tests a held head that fixes moved on; it never tests master
+    if (mode === "candidate") {
+        return {
+            run: false,
+            sha: held || head,
+            held,
+            why: held ? "the held head is judged already" : "nothing is held",
+        };
+    }
+    const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
+    return { ...p, held };
+}
+
+function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
     // older commit's build records its site late)
@@ -159,14 +218,60 @@ export function verdictOf(lanes, images, ownerItem = "", held = "") {
     const passed = (l) =>
         l === "pick" ||
         lanes[l] === "success" ||
+        // a fix forward's re-test leaves out a lane its fixes do not reach (tools/channel/candidate-fix.mjs plan)
+        lanes[l] === "unaffected" ||
         (l === "llm" && (lanes[l] ?? "skipped") === "skipped") ||
-        (l === "captures" && lanes.ci !== "success");
+        ((l === "captures" || l === "recapture") && lanes.ci !== "success");
     const red = Object.keys(LANES).filter((l) => !passed(l));
     if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
     // a planned major or first publish waits for the owner's release-approvals.json entry: his item, not a bug
     if (red.length === 1 && red[0] === "version_dry_run" && held) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
     return { state: images === 0 ? "green-clean" : "green-images", red };
+}
+
+// the lanes a re-run of the run's failed jobs can change: each is a job (or, for captures, the re-capture job's work)
+const JOB_RESULTS = new Set(["failure", "cancelled"]);
+
+/**
+ * Whether attempt 1's red verdict waits for the one same-commit re-run (release-rerun.yml) instead of filing: every
+ * red lane is a job that failed or was cancelled, which `gh run rerun --failed` runs again. A failed pick (it would
+ * pick again) and a capture missing while the re-capture job passed (nothing to re-run) decide at once.
+ * @param o the facts
+ * @param o.attempt the run attempt
+ * @param o.mode the run's mode
+ * @param o.state the verdict
+ * @param o.red the red lanes
+ * @param o.lanes every lane's result
+ * @returns boolean
+ */
+export function deferred({ attempt, mode, state, red, lanes }) {
+    if (Number(attempt) !== 1 || !RERUN_MODES.has(mode) || state !== "red") return false;
+    return red.every((l) =>
+        l === "captures" ? JOB_RESULTS.has(lanes.recapture) : l !== "pick" && JOB_RESULTS.has(lanes[l]),
+    );
+}
+
+/**
+ * The lanes that were red on the attempt before and passed on this one: flaky, filed, never blocking.
+ * @param before the earlier attempt's red lanes
+ * @param red this attempt's red lanes
+ * @returns LANES keys
+ */
+export const flakyLanes = (before, red) => before.filter((l) => l !== "pick" && !red.includes(l));
+
+/**
+ * What the deciding verdict does to the held candidate (channels-pipeline.md section 3).
+ * @param o the facts
+ * @param o.held the held head ("" none, "unknown" when the store did not answer)
+ * @param o.sha the judged commit
+ * @param o.state the verdict
+ * @returns "start" (hold this commit), "update" (a verdict on the held head) or "none"
+ */
+export function holdAction({ held, sha, state }) {
+    if (held === "unknown") return "none";
+    if (!held) return state === "green-clean" ? "none" : "start";
+    return held === sha ? "update" : "none";
 }
 
 /**
@@ -400,7 +505,14 @@ async function pickMain(env) {
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
     }
-    output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
+    output({
+        run: String(p.run),
+        sha: p.sha,
+        good: p.good ?? "",
+        why: p.why,
+        held: p.held ?? "",
+        forward: p.forward ?? "",
+    });
 }
 
 /**
@@ -540,6 +652,102 @@ function closeRedOnGreen(state, env) {
     }
 }
 
+/**
+ * The flaky stories the re-capture listed (flaky.json in each final capture).
+ * @param dir the downloaded captures
+ * @returns `<project>/<file>: <why>` lines
+ */
+export function flakyStories(dir) {
+    const out = [];
+    for (const f of dir && existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String) : []) {
+        const m = /^visual-(.+)-\d+[/\\]flaky\.json$/.exec(f);
+        if (!m) continue;
+        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8")))
+            out.push({ name: `${m[1]}/${s.file}`, why: s.why });
+    }
+    return out;
+}
+
+// One open "Flaky in full run: <name>" issue per name: a comment when it recurs
+function fileFlaky(name, body) {
+    const title = `${FLAKY_TITLE} ${name}`;
+    const open = sh("gh", [
+        "api",
+        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+        "--jq",
+        `.[] | select(.title == ${JSON.stringify(title)}) | .number`,
+        "--paginate",
+    ]).split("\n")[0];
+    const file = join(tmpdir(), `full-run-flaky-${process.pid}.md`);
+    writeFileSync(file, body);
+    if (open) return sh("gh", ["issue", "comment", open, "--body-file", file]);
+    const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
+    return sh("gh", ["issue", "create", "--title", title, ...labels, "--body-file", file]);
+}
+
+function fileFlakies(env, lanes, stories) {
+    const at = `on ${env.SHA} (${env.RUN_URL}, attempt ${env.RUN_ATTEMPT ?? 1})`;
+    const tail = "It does not block nightly: this is a confirmation, not a quarantine. Find the mechanism and fix it.";
+    for (const l of lanes) {
+        const body = `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`;
+        bestEffort(
+            () => fileFlaky(LANES[l].name, body),
+            `filing the flaky ${LANES[l].name}`,
+            () => null,
+        );
+    }
+    for (const s of stories) {
+        const body = `The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
+        bestEffort(
+            () => fileFlaky(s.name, body),
+            `filing the flaky story ${s.name}`,
+            () => null,
+        );
+    }
+}
+
+// The red path: bisect once, file or update the red issue
+async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes }) {
+    const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
+    const bisect = tryBisect(bisectPlan({ red, sha, good, run: runId, failures }));
+    const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
+    const issue = bestEffort(
+        () => fileRed(body),
+        "filing the red issue",
+        () => null,
+    );
+    return { issue, bisect };
+}
+
+const readJson = (file) => {
+    try {
+        return JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * What a verdict found, in one line: the red lanes, the owner's item or the changed screenshots.
+ * @param o the facts
+ * @param o.state the verdict
+ * @param o.red the red lanes
+ * @param o.lanes every lane's result
+ * @param o.changed differingImages' changed
+ * @param o.env LLM_OWNER_ITEM and VERSION_HELD
+ * @returns the line
+ */
+function whatOf({ state, red, lanes, changed, env }) {
+    if (state === "owner-item") {
+        return red[0] === "llm"
+            ? env.LLM_OWNER_ITEM
+            : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
+    }
+    if (state === "red")
+        return red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
+    return state === "green-images" ? changedSummary(changed) : state;
+}
+
 async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
@@ -547,25 +755,20 @@ async function verdictMain(env) {
     const { changed, missing } = differingImages(env.CAPTURES, projects);
     lanes.captures = captureLane(missing);
     const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
+    // unset (a run by hand): no attempt to wait for, so it decides at once
+    const attempt = Number(env.RUN_ATTEMPT || 0);
+    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes });
     let issue = null;
     let bisect = "";
-    let what = state;
-    if (state === "owner-item") {
-        what =
-            red[0] === "llm"
-                ? env.LLM_OWNER_ITEM
-                : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
-    }
-    if (state === "red") {
-        const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
-        bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
-        const body = redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect });
-        issue = bestEffort(
-            () => fileRed(body),
-            "filing the red issue",
-            () => null,
-        );
-        what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
+    const what = whatOf({ state, red, lanes, changed, env });
+    // a held head past its commit (FORWARD) is the hold issue's to report, never a "Full run red" one: master
+    // does not hold it, so neither a bisect nor a restart on master could help
+    const forward = !!env.FORWARD;
+    const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
+    if (wait) {
+        console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
+    } else if (state === "red") {
+        if (!forward) ({ issue, bisect } = await fileRedVerdict(cfg, facts));
     } else if (state !== "owner-item") {
         bestEffort(
             () => closeRedOnGreen(state, env),
@@ -573,14 +776,31 @@ async function verdictMain(env) {
             () => null,
         );
     }
-    // a failed pick judged no commit: recording red on one would make the next slot skip it
+    // a lane red on the attempt before and green now, and a story the re-capture found flaky: filed, not blocking
+    const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
+    if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
-    if (state === "green-images") {
-        what = changedSummary(changed);
-        console.log(`::notice::${what}\n${changed.join("\n")}`);
-    }
+    if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
+    // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
-    output({ state, issue: issue ? String(issue) : "", what, bisect });
+    if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
+    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held: env.HELD ?? "unknown", sha: env.SHA, state });
+    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold });
+}
+
+/**
+ * Files what an attempt-1 verdict deferred, when its run is not re-run after all (release-rerun.yml).
+ * @param file the verdict-1.json record
+ * @param env the environment
+ */
+async function fileDeferredMain(file, env) {
+    const facts = readJson(file);
+    if (!facts?.deferred || facts.forward) {
+        console.log(`::notice::${file} defers nothing to file`);
+        return;
+    }
+    const { issue, bisect } = await fileRedVerdict(config(env), facts);
+    output({ issue: issue ? String(issue) : "", bisect, sha: facts.sha });
 }
 
 /**
@@ -603,6 +823,10 @@ export function fixedRecently(closed, sha, now = Date.now()) {
 }
 
 function laneRedMain(env) {
+    if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && RERUN_MODES.has(env.MODE)) {
+        console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
+        return;
+    }
     if (env.OWNER_ITEM) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
@@ -621,8 +845,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     if (cmd === "pick") await pickMain(process.env);
     else if (cmd === "verdict") await verdictMain(process.env);
     else if (cmd === "lane-red") laneRedMain(process.env);
+    else if (cmd === "file-deferred") await fileDeferredMain(process.argv[3], process.env);
     else {
-        console.error("usage: node tools/full-run.mjs pick | verdict | lane-red (see the head of the file)");
+        console.error(
+            "usage: node tools/full-run.mjs pick | verdict | lane-red | file-deferred <file> (see the head of the file)",
+        );
         process.exit(2);
     }
 }

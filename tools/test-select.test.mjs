@@ -1336,13 +1336,152 @@ describe("visual-review files only the story setups load", () => {
         assert.ok(story.length === 6, story.join(", "));
     });
 
-    it("a change to visual-review's other code still runs every dependent's shards", () => {
+    it("a dependent without an import graph still runs whole on a change to visual-review's other code", () => {
+        // testRefs' fallback for a package whose graph could not be built: it may read any file of the package
+        const refs = new Map(
+            pkgs
+                .filter((d) => d !== "visual-review")
+                .map((d) => [d, [{ target: "visual-review", prefix: "visual-review/", holder: null }]]),
+        );
         for (const f of ["visual-review/trusted/cli.mjs", "visual-review/capture/story-test.mjs"]) {
-            const picked = run([f]);
-            for (const sh of ["algorithms-default", "layout", "graphty-1", "graphty-element-browser-1"]) {
-                assert.ok(picked.includes(sh), `${f}: ${sh} in ${picked.join(", ")}`);
+            const sel = selectPackages({
+                changed: [f],
+                packages: real,
+                deps,
+                refs,
+                graphs: noGraphs,
+                rules: loadRules(ROOT),
+            });
+            for (const d of ["algorithms", "layout", "graphty", "graphty-element"]) {
+                assert.equal(sel.packages.get(d).mode, "all", `${f}: ${d}`);
             }
         }
+    });
+});
+
+describe("visual-review has no build: its dependents run only what loads the changed file (#3850)", () => {
+    const pkgs = ["visual-review", "algorithms", "webgpu-graph-algorithms", "graphty-element", "githerd", "layout"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map([
+        ["visual-review", new Set()],
+        ["algorithms", new Set(["visual-review"])],
+        ["layout", new Set(["visual-review"])],
+        ["webgpu-graph-algorithms", new Set(["algorithms", "layout"])],
+        ["graphty-element", new Set(["algorithms", "layout", "visual-review"])],
+        ["githerd", new Set(["visual-review"])],
+    ]);
+    const STORY_TEST = "visual-review/capture/story-test.mjs";
+    const COMPARE = "visual-review/trusted/lib/compare.mjs";
+    const g = (pkg, specs, imports = {}, config = null) => ({
+        package: pkg,
+        config,
+        projects: { unit: { specs, setup: [] } },
+        imports: { ...Object.fromEntries(specs.map((s) => [s, []])), ...imports },
+        opaque: [],
+    });
+    const graphs = new Map([
+        [
+            "visual-review",
+            [
+                g("visual-review", ["visual-review/test/compare.test.mjs"], {
+                    "visual-review/test/compare.test.mjs": [COMPARE],
+                }),
+            ],
+        ],
+        ["algorithms", [g("algorithms", ["algorithms/test/a.test.ts"])]],
+        ["layout", [g("layout", ["layout/test/l.test.ts"])]],
+        ["webgpu-graph-algorithms", [g("webgpu-graph-algorithms", ["webgpu-graph-algorithms/test/w.test.ts"])]],
+        // graphty-element's vitest.config.ts imports story-test.mjs, and a config test imports the config
+        [
+            "graphty-element",
+            [
+                g("graphty-element", ["graphty-element/test/config.test.ts", "graphty-element/test/b.test.ts"], {
+                    "graphty-element/test/config.test.ts": ["graphty-element/vitest.config.ts"],
+                    "graphty-element/vitest.config.ts": [STORY_TEST],
+                    [STORY_TEST]: [COMPARE],
+                    [COMPARE]: [],
+                }),
+            ],
+        ],
+        [
+            "githerd",
+            [
+                g("githerd", ["githerd/test/merge.test.mjs", "githerd/test/other.test.mjs"], {
+                    "githerd/test/merge.test.mjs": ["visual-review/test/helpers.mjs"],
+                    "visual-review/test/helpers.mjs": [],
+                }),
+            ],
+        ],
+    ]);
+    // the Storybook configs no shard runs name story-test.mjs and what it imports (testRefs)
+    const refs = new Map([
+        [
+            "algorithms",
+            [STORY_TEST, COMPARE].map((f) => ({
+                target: "visual-review",
+                prefix: f.replace(/\.mjs$/u, ""),
+                holder: "algorithms/vitest.storybook.config.ts",
+                build: false,
+            })),
+        ],
+        [
+            "graphty-element",
+            [
+                {
+                    target: "visual-review",
+                    prefix: "visual-review/capture/story-test",
+                    holder: "graphty-element/vitest.config.ts",
+                    build: false,
+                },
+            ],
+        ],
+    ]);
+    const run = (changed) =>
+        selectPackages({ changed, packages: real, deps, refs, graphs, rules: loadRules(ROOT) }).packages;
+
+    it("a change to code no dependent loads runs none of them, and no package downstream of them", () => {
+        const sel = run(["visual-review/trusted/cli.mjs"]);
+        for (const d of ["algorithms", "layout", "webgpu-graph-algorithms", "graphty-element", "githerd"]) {
+            assert.equal(sel.get(d).mode, "none", `${d}: ${sel.get(d).reasons.join("; ")}`);
+        }
+    });
+
+    it("a file a vitest config loads runs the shards of that config whole, and never webgpu-graph-algorithms", () => {
+        for (const f of [STORY_TEST, COMPARE]) {
+            const sel = run([f]);
+            assert.equal(sel.get("graphty-element").mode, "all", f);
+            assert.match(
+                sel.get("graphty-element").reasons.join("; "),
+                /vitest config graphty-element\/vitest\.config\.ts/u,
+            );
+            // a config no shard's graph was built with: the package runs whole (the story-tests job needs its shard)
+            assert.equal(sel.get("algorithms").mode, "all", f);
+            assert.equal(sel.get("layout").mode, "none", f);
+            assert.equal(
+                sel.get("webgpu-graph-algorithms").mode,
+                "none",
+                `${f}: ${sel.get("webgpu-graph-algorithms").reasons}`,
+            );
+        }
+    });
+
+    it("a visual-review test helper runs only the dependents' tests that import it", () => {
+        const sel = run(["visual-review/test/helpers.mjs"]);
+        assert.deepEqual([...sel.get("githerd").specs.keys()], ["githerd/test/merge.test.mjs"]);
+        assert.equal(sel.get("graphty-element").mode, "none");
+    });
+
+    it("a package not listed in noBuild keeps its dependents' build answer", () => {
+        const rules = { ...loadRules(ROOT), noBuild: new Set() };
+        const sel = selectPackages({
+            changed: ["visual-review/trusted/cli.mjs"],
+            packages: real,
+            deps,
+            refs,
+            graphs,
+            rules,
+        });
+        assert.equal(sel.packages.get("webgpu-graph-algorithms").mode, "all");
     });
 });
 

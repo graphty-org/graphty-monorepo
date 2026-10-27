@@ -2833,6 +2833,47 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.match(steps[skip + 1], /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/);
     });
 
+    // What the old visual job promised for a skipped project: nothing but the marker and the summary runs.
+    it("skips every other step of a project the story tests skip, but the marker and the summary", () => {
+        const steps = job(ci, "story-tests")
+            .split(/\n(?= {12}- (?:name|uses): )/)
+            .slice(1);
+        const skip = steps.findIndex((t) => /\n {14}id: skip\n/.test(t));
+        for (const step of steps.slice(skip + 2)) {
+            const title = step.trim().split("\n")[0];
+            if (/Write the counts/.test(title)) assert.match(step, /if: always\(\)/, title);
+            else assert.match(step, /\n {14}if: .*steps\.skip\.outputs\.skip != 'true'/, title);
+        }
+    });
+
+    it("uploads every capture, combined or merged, under the one name the gate reads, even after a failed step", () => {
+        const name = /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/;
+        const upload = (j) => j.slice(j.indexOf("- name: Upload the capture\n"));
+        assert.match(upload(job(ci, "story-tests")), name);
+        assert.match(
+            upload(job(ci, "story-tests")),
+            /if: \$\{\{ steps\.skip\.outputs\.skip != 'true' && !cancelled\(\)/,
+        );
+        assert.match(upload(job(ci, "story-tests-merge")), name);
+        assert.match(
+            upload(job(ci, "story-tests-merge")),
+            /if: \$\{\{ !cancelled\(\) && steps\.found\.outputs\.any != ''/,
+        );
+        // a project split into parts is merged only when the story tests ran at all
+        assert.match(job(ci, "story-tests-merge"), /\n {8}needs: story-tests\n/);
+    });
+
+    it("leaves no job waiting on the removed capture or its parity", () => {
+        for (const [name, j] of Object.entries(parseYaml(workflow("ci.yml")).jobs)) {
+            const needs = [j.needs ?? []].flat();
+            assert.ok(
+                !needs.includes("visual") && !needs.includes("story-tests-parity"),
+                `${name} needs a removed job`,
+            );
+        }
+        assert.doesNotMatch(ci, /needs\.visual\.|needs\.story-tests-parity\./);
+    });
+
     it("writes the marker the trusted gate reads", async () => {
         const { isSkipMarker, SKIPPED_FILE } = await import("../visual-review/trusted/lib/results.mjs");
         const story = job(ci, "story-tests");
@@ -3111,12 +3152,20 @@ describe("Playwright's system packages", () => {
         assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
     });
 
-    it("installs through the action in ci.yml's test job, never with apt directly", () => {
+    it("installs through the action in ci.yml's test and story-tests jobs, never with apt directly", () => {
         const ci = workflow("ci.yml").replace(/^\s*#.*$/gm, "");
         const test = job(ci, "test");
         assert.doesNotMatch(test, /--with-deps|install-deps/);
         assert.match(test, /if: matrix\.needs-browser\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n/);
         assert.match(test, /run: pnpm exec playwright install chromium\n/);
+        // the story tests took over the old visual job's capture, and its install rule with it
+        const story = job(ci, "story-tests");
+        assert.doesNotMatch(story, /--with-deps|install-deps/);
+        assert.match(
+            story,
+            /\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n\s+with:\n\s+browsers: chromium\n/,
+        );
+        assert.match(story, /run: pnpm exec playwright install chromium\n/);
     });
 
     // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers

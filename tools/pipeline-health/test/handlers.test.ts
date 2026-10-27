@@ -183,6 +183,14 @@ describe("ingest: what it stores", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
     });
 
+    it("does not count a Story tests capture (a -shots family) as a pull request bin", async () => {
+        const h = await ingest();
+        const body = invocation({ id: "500.1.graphty-storybook-shots", variant: "graphty-storybook-shots" });
+        expect((await h(event("/v1/invocations", body))).statusCode).toBe(200);
+        const run = mem.items.get("R#shard_run#500.1.graphty-storybook-shots\u0000A#1");
+        expect(run).toMatchObject({ family: "graphty-storybook-shots", bin: false, source: "ci" });
+    });
+
     it("answers 400 when DynamoDB refuses a row's content, so the local collector splits and skips it", async () => {
         const h = await ingest();
         const refused = Object.assign(new Error("Item size has exceeded the maximum allowed size"), {

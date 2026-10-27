@@ -377,6 +377,16 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
             ["state", "state"],
         ],
     },
+    "runner-minutes": {
+        cls: "t-load",
+        cols: [
+            ["kind", "run kind"],
+            ["day", "per merge, 24 h"],
+            ["week", "per merge, 7 d"],
+            ["dayMin", "minutes, 24 h"],
+            ["weekMin", "minutes, 7 d"],
+        ],
+    },
     unit: {
         cls: "t-unit",
         cols: [
@@ -508,6 +518,7 @@ function tree(s: TreeSection): string {
 function sectionHead(s: Section): string {
     const r = here.range;
     const last = isPickerRange(r) ? `last ${rangeLabel(r)}` : rangeLabel(r);
+    const subText = s.sub ? sentence(s.sub) : "";
     const sub = (t: string) => (t ? `<span class="h2sub">${t}</span>` : "");
     const h = (title: string, subtitle = "", extra = "") =>
         `<h2 id="s-${esc(s.id)}" tabindex="-1">${esc(title)}${sub(subtitle)}${extra}</h2>`;
@@ -539,7 +550,7 @@ function sectionHead(s: Section): string {
         case "owner":
             return h("Waiting on the owner", "auto-merge is off by rule");
         case "causes":
-            return h("Why first attempts failed", `${s.sub ? sentence(s.sub) : ""}, ${last}`);
+            return h("Why first attempts failed", `${subText}, ${last}`);
         case "shards": {
             const sh = s as ShardsSection;
             return h(
@@ -555,6 +566,8 @@ function sectionHead(s: Section): string {
                     ]),
             );
         }
+        case "runner-minutes":
+            return h("Runner-minutes per merge", `${subText}; pull request runs include those that never merged`);
         case "jobs":
             return h(
                 "Running and queued jobs",
@@ -579,25 +592,25 @@ function sectionHead(s: Section): string {
         case "quarantine":
             return h("Quarantine");
         case "lanes":
-            return h("Lanes on the candidate", s.sub ? sentence(s.sub) : "");
+            return h("Lanes on the candidate", subText);
         case "trains":
             return h("Train attempts");
         case "workflows":
             return h("Release workflows");
         case "money":
-            return h("Money this month", s.sub ? sentence(s.sub) : "");
+            return h("Money this month", subText);
         case "unit":
             return h("Unit costs", "for comparison; never part of the status");
         case "by-workflow":
             return h("By workflow", "money and list-price value are never summed");
         case "stress":
-            return h("Weekly stress run", s.sub ? sentence(s.sub) : "");
+            return h("Weekly stress run", subText);
         case "sources":
             return h("Sources");
         case "not-set-up":
             return h("Not set up", "no writer or token yet; out of the status until it exists");
         default:
-            return h(s.id, s.sub ? sentence(s.sub) : "");
+            return h(s.id, subText);
     }
 }
 

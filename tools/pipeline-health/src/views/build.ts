@@ -42,6 +42,7 @@ import {
     shared,
     sourcesTable,
     stressTable,
+    runnerMinutes,
     unitCosts,
     byWorkflow,
     superseded,
@@ -266,7 +267,11 @@ class Builder {
                 return [strip ?? notCollected("red"), redSpans(strip, this.reads.now), await shared(this.reads)];
             }
             case "ci":
-                return [await causes(this.reads, range), await shards(this.reads, "7d", "full")];
+                return [
+                    await causes(this.reads, range),
+                    await runnerMinutes(this.reads),
+                    await shards(this.reads, "7d", "full"),
+                ];
             case "runners":
                 return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];
             case "flaky":

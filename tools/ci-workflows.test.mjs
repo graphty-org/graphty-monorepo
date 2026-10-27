@@ -61,7 +61,12 @@ import {
     STORYBOOKS,
     treeWithout,
 } from "./ci-reuse-plan.mjs";
-import { cancelNote as releaseCancelNote, due as releaseDue, toCancel as releaseToCancel } from "./release-due.mjs";
+import {
+    cancelNote as releaseCancelNote,
+    due as releaseDue,
+    lastGreenBuild,
+    toCancel as releaseToCancel,
+} from "./release-due.mjs";
 import { reportsFailure as releaseReportsFailure } from "./release-status.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
@@ -1207,18 +1212,43 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("cancels a pull request's older run, never a push to master, and has no golden-cut exemption (#1108, #3418)", () => {
+    it("cancels a pull request's older run and a superseded master push build, never a dispatch or the release train (#1108, #3418, #3850)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
-            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}\n" +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}\n" +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}\n",
         );
-        const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
-        const cancels = (event) => Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event });
-        assert.equal(cancels("pull_request"), true, "a pull request");
-        assert.equal(cancels("push"), false, "a push to master");
+        // GitHub's expressions read like JavaScript's here: && and || return an operand, a missing input is falsy
+        const evaluate = (field, { event, pr, ref, sha = "abc", attempt = "1" }) => {
+            const expr = new RegExp(`^ {4}${field}: (.*)$`, "m").exec(block[1])[1];
+            const js = expr.replace(/\$\{\{ (.+?) \}\}/g, (_, e) => `\${${e.replaceAll("'", '"')}}`);
+            const format = (f, a) => f.replace("{0}", a);
+            return Function(
+                "github",
+                "inputs",
+                "format",
+                `return \`${js}\`;`,
+            )(
+                { event_name: event, sha, run_attempt: attempt, event: { pull_request: { number: pr } } },
+                { ref },
+                format,
+            );
+        };
+        const run = (o) => ({ group: evaluate("group", o), cancels: evaluate("cancel-in-progress", o) === "true" });
+        assert.deepEqual(run({ event: "pull_request", pr: 12 }), { group: "ci-12", cancels: true }, "a pull request");
+        // every master push shares one group: a newer push cancels the unfinished older build
+        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: true }, "a push");
+        assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
+        // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
+        // build nor is cancelled: its commit's own group
+        assert.deepEqual(run({ event: "push", sha: "a1", attempt: "2" }), { group: "ci-a1", cancels: false });
+        // a dispatch keeps its commit's own group and is never cancelled
+        assert.deepEqual(run({ event: "workflow_dispatch", sha: "a1" }), { group: "ci-a1", cancels: false });
+        // the release train's call: its own group, never cancelled, even if a caller were a push
+        assert.deepEqual(run({ event: "workflow_dispatch", ref: "c3" }), { group: "ci-release-c3", cancels: false });
+        assert.deepEqual(run({ event: "push", ref: "c3" }), { group: "ci-release-c3", cancels: false });
     });
 
     it("fails, never skips, the summary checks when Build did not run", () => {
@@ -1436,6 +1466,74 @@ describe("ci.yml", () => {
         assert.doesNotMatch(due, /concurrency:/);
         // a failed dispatch must not turn master red: that skips the deploy and has master-guard revert the merge
         assert.match(due, /\n {8}continue-on-error: true\n/);
+    });
+
+    // ci.yml cancels an unfinished master build when a newer push starts (#3850), and release-due runs only in a
+    // green build, so a cancelled build's merge must still be read by the next green build's release-due.
+    it("restarts from a merge whose master build a newer push cancelled", () => {
+        const order = ["h", "c2", "c1", "g", "older"];
+        const ancestor = (sha) => order.includes(sha);
+        assert.equal(lastGreenBuild("h", ["h", "g", "older"], ancestor), "g", "this build's own run is never the base");
+        assert.equal(lastGreenBuild("h", ["elsewhere", "g"], ancestor), "g", "only a commit in this history");
+        assert.equal(lastGreenBuild("h", [], ancestor), null);
+        // the cancelled merge's Fixes closed the issue more than an hour before this build's release-due ran
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [
+            { number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt: "2026-10-25T10:40:00Z" },
+        ];
+        assert.equal(releaseDue(closed, "Fixes #9001", now), null, "an hour's window alone misses it");
+        assert.equal(releaseDue(closed, "Fixes #9001", now, Date.parse("2026-10-25T10:30:00Z"))?.issue, 9001);
+
+        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was cancelled, then this build's
+        // merge M2 with no reference. Reading only HEAD^1..HEAD would miss M1.
+        const dir = mkdtempSync(join(TMP, "release-due-"));
+        const g = (...args) =>
+            spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+                cwd: dir,
+                encoding: "utf8",
+            }).stdout.trim();
+        g("init", "-q", "-b", "master");
+        g("commit", "-q", "--allow-empty", "-m", "green base");
+        const green = g("rev-parse", "HEAD");
+        const merge = (msg) => {
+            g("switch", "-q", "-c", `b${msg.length}`);
+            g("commit", "-q", "--allow-empty", "-m", msg);
+            g("switch", "-q", "master");
+            g("merge", "-q", "--no-ff", "-m", `Merge pull request #${msg.length}`, `b${msg.length}`);
+        };
+        merge("fix(ci): the red lane\n\nRefs #9001");
+        merge("feat: unrelated work");
+        const bin = join(dir, "bin");
+        mkdirSync(bin);
+        const issue = JSON.stringify({ number: 9001, title: "Full run red: ci on abc", state: "OPEN" });
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$*" in\n` +
+                `"run list"*) echo '${JSON.stringify([{ headSha: green }])}';;\n` +
+                `*state=open*) echo '${issue}';;\n` +
+                `*) ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const out = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname, "--dry-run"], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
+        });
+        assert.equal(out.status, 0, out.stderr);
+        assert.match(out.stdout, new RegExp(`since the last green master build ${green.slice(0, 7)}`));
+        assert.match(out.stdout, /references red issue #9001: release\.yml mode=restart/);
+        // without a green build to read from, only this merge counts: nothing due
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$*" in\n"run list"*) echo '[]';;\n*state=open*) echo '${issue}';;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const alone = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname, "--dry-run"], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
+        });
+        assert.match(alone.stdout, /nothing due/);
     });
 
     it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
@@ -3196,10 +3294,18 @@ describe("master-guard", () => {
         };
         const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
 
-        // cancelled by its timeout: a later push five minutes in did not stop it, so it alarms
-        let fake = lister([newer("2026-10-25T10:05:00Z")]);
+        // cancelled by its timeout: the next push came only after it had ended, so it alarms
+        let fake = lister([newer("2026-10-25T10:13:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), false);
         assert.equal(fake.calls.length, 1, "one runs-list call");
+        // a push five minutes in cancels it (ci.yml's master-push group, #3850), however long the cancel's cleanup
+        // (post steps, always() jobs) takes before the run ends: superseded, no red-master issue
+        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, stopped), true);
+        // a re-run is in its commit's own group, so a newer push never cancels it: a stopped re-run alarms
+        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, { ...stopped, run_attempt: 2 }), false);
+        assert.equal(fake.calls.length, 0, "no runs-list call");
         // no newer run at all, or only a re-run of the same commit
         assert.equal(await superseded(lister([]).gh, stopped), false);
         assert.equal(

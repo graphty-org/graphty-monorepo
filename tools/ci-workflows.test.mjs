@@ -1217,13 +1217,13 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("cancels a pull request's older run and a superseded master push build, never a dispatch or the release train (#1108, #3418, #3850)", () => {
+    it("cancels a pull request's older run, never a running master push build, a dispatch or the release train (#1108, #3418, #3850, #3938)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
             "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}\n" +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}\n",
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
         // GitHub's expressions read like JavaScript's here: && and || return an operand, a missing input is falsy
         const evaluate = (field, { event, pr, ref, sha = "abc", attempt = "1" }) => {
@@ -1243,8 +1243,9 @@ describe("ci.yml", () => {
         };
         const run = (o) => ({ group: evaluate("group", o), cancels: evaluate("cancel-in-progress", o) === "true" });
         assert.deepEqual(run({ event: "pull_request", pr: 12 }), { group: "ci-12", cancels: true }, "a pull request");
-        // every master push shares one group: a newer push cancels the unfinished older build
-        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: true }, "a push");
+        // every master push shares one group but cancels nothing: a running build finishes, and a newer push only
+        // replaces the waiting one, so master never goes without a finished build (#3938)
+        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: false }, "a push");
         assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
         // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
         // build nor is cancelled: its commit's own group
@@ -3535,8 +3536,8 @@ describe("master-guard", () => {
         let fake = lister([newer("2026-10-25T10:13:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), false);
         assert.equal(fake.calls.length, 1, "one runs-list call");
-        // a push five minutes in cancels it (ci.yml's master-push group, #3850), however long the cancel's cleanup
-        // (post steps, always() jobs) takes before the run ends: superseded, no red-master issue
+        // a newer push queued while it was unfinished (a waiting build that ci.yml's master-push group replaced,
+        // #3850, #3938), however long the cancel's cleanup (post steps, always() jobs) takes: superseded, no red-master issue
         fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), true);
         // a re-run is in its commit's own group, so a newer push never cancels it: a stopped re-run alarms

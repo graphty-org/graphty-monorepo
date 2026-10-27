@@ -502,9 +502,10 @@ runner-minutes of work.
 under about $1,000 a month. So the plan cuts work instead, in this order (plan step 5a), and the full
 run stays first in line for runners, as today:
 
-1. **Stop work nobody uses.** (a) A newer master push build cancels an unfinished older one: only
-   the newest build's site matters for canary, and the full run picks the newest commit with a kept
-   site, so a cancelled build only means it picks a newer commit. This replaces "a push to master
+1. **Stop work nobody uses.** (a) A newer push replaces a waiting master build; a running one
+   finishes (#3938: cancelling running builds left master with no finished build while merges came
+   faster than one build). Only the newest build's site matters for canary, and the full run picks the
+   newest commit with a kept site, so a replaced waiting build only means a newer commit is built. This replaces "a push to master
    never cancels" for superseded master builds only; nothing else on master is cancelled, and
    master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is

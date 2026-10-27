@@ -11,8 +11,8 @@
 //   files the issue with the evidence.
 // - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
-//   failed step names a culprit. Not when a newer master push cancelled it (superseded): ci.yml cancels an
-//   unfinished master build when a newer one starts, which is expected and never a red master.
+//   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
+//   replace a waiting master build (a running one finishes, #3938), which is expected and never a red master.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
 // - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own

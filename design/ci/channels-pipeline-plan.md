@@ -462,8 +462,8 @@ Runners, not merging, are the bottleneck at about 76 merges a day, and more capa
 available for under about $1,000 a month (design section 7.1). The items cut work, in this order;
 the full run stays first in line for runners. Each item's Proof gives its runner-minutes saved.
 
-**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` cancels an unfinished
-master push build when a newer one starts (push to master only; pull request, dispatch and
+**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` makes a newer push replace a waiting
+master build; a running one finishes (#3938) (push to master only; pull request, dispatch and
 release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
 `master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
 `release-due.mjs` reads every merge since the last master build that finished, so a cancelled

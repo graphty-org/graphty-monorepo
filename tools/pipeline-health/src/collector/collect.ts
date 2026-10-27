@@ -16,6 +16,7 @@ import {
     codeownerPatterns,
     fixedCosts,
     llmCost,
+    loadKind,
     masterState,
     npmName,
     ownerWait,
@@ -332,7 +333,7 @@ async function writeRuns(
         );
         if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
-            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false));
+            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run)));
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
                 c.items.push(...toStepItems(j, repo, workflow));
             if (j.status === "completed") {

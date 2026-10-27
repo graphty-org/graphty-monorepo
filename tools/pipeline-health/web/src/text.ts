@@ -306,6 +306,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         short: "shards over budget",
         def: "medians past their budget",
     },
+    "ci.runner_minutes": {
+        name: "Runner-minutes per merge",
+        short: "runner-minutes per merge",
+        def: "job minutes, every run kind, / pull requests merged into master; slow measure, 7 d",
+        nOf: "merged",
+    },
     "ci.superseded": {
         name: "Superseded runs running",
         short: "superseded runs running",
@@ -440,6 +446,11 @@ export const LABEL: Record<string, string> = {
     "cost.total": "<b>Total</b>",
     "cost.sentry_usage": "Sentry usage",
     "cost.cloudflare_usage": "Cloudflare usage",
+    "load.pr": "Pull request runs",
+    "load.master": "Master push builds",
+    "load.full": "Full runs",
+    "load.other": "Other",
+    "load.total": "<b>Total</b>",
     "unit.train": "Money per release train",
     "unit.pr_value": "GitHub Actions list-price value per merged pull request",
     "source.collector": "Collector",
@@ -662,6 +673,8 @@ const S: Record<string, (p: P) => string> = {
     "owner.fixes": (p) => `fixes Releases: ${str(p, "workflow")} failing`,
 
     // CI and runners
+    "runner_minutes.sub": (p) =>
+        `slow measure; ${plural(num(p, "day"), "merge")} in 24 h, ${plural(num(p, "week"), "merge")} in 7 d`,
     "ci.causes.sub": (p) => `${plural(num(p, "suites"), "failed pull request suite")}`,
     "runners.running_now": (p) => `Running now, ${plural(num(p, "jobs"), "job")}`,
     "runners.queued_now": (p) => `Queued now, ${plural(num(p, "jobs"), "job")}`,

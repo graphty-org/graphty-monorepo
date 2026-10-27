@@ -418,6 +418,21 @@
             "sources": ["ci-results"]
         },
         {
+            "id": "ci.runner_minutes_per_merge",
+            "category": "ci",
+            "label": "Runner-minutes per merge",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.runner_minutes"
+            },
+            "ok": ["<=", 400],
+            "fail": [">", 600],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "ci.superseded_running",
             "category": "ci",
             "label": "Superseded runs running",

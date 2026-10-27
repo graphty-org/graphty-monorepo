@@ -7,6 +7,7 @@ import {
     family,
     fixedCosts,
     llmCost,
+    loadKind,
     masterState,
     oldestUntested,
     pool,
@@ -68,6 +69,22 @@ describe("runs and jobs", () => {
         const s = toJobItem(skipped, REPO, "ci.yml");
         expect(s.startedAt).toBeUndefined();
         expect(s.completedAt).toBeUndefined();
+    });
+
+    it("sorts runs by the load they put on the runners, and stamps it on their jobs", () => {
+        const at = (path: string, event: string, head_branch: string | null = "fix/x") =>
+            loadKind({ path: `.github/workflows/${path}`, event, head_branch });
+        expect(at("ci.yml", "pull_request")).toBe("pr");
+        expect(at("pr-issue-link.yml", "pull_request_target")).toBe("pr");
+        expect(at("ci.yml", "push", "master")).toBe("master");
+        expect(at("release.yml", "workflow_dispatch", "master")).toBe("full");
+        expect(at("release.yml", "schedule", "master")).toBe("full");
+        expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
+        expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
+        expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
+        expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {

@@ -231,6 +231,19 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
+    // 4.3 Runner-minutes per merge: job minutes (unrounded) by the kind of run that spent them, over the pull
+    // requests merged into master in the same buckets; a job stored without its kind is left out.
+    {
+        id: "ci.runner_minutes",
+        from: [
+            src("job", "completedAt", (j) =>
+                j.load && j.startedAt !== undefined && j.completedAt !== undefined
+                    ? { n: 0, sum: (j.completedAt - j.startedAt) / MIN, dim: j.load }
+                    : null,
+            ),
+            src("pr", "mergedAt", (p) => (p.mergedAt !== undefined && isMaster(p.base) ? { n: 1 } : null)),
+        ],
+    },
     // Section 7, unit costs: release train attempts that tested a candidate.
     {
         id: "release.trains",

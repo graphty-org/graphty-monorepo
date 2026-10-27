@@ -37,22 +37,31 @@ interface ProjectFileState {
     reading: boolean;
 }
 
-/** Where a file being opened came from. */
-interface FileSource {
+/** Where a file being opened came from, and what to do when graphty-element reads it as data. */
+export interface FileSource {
     /** Its handle, where the browser keeps them. */
     handle?: FileSystemFileHandle;
-    /** Its Recent projects entry, for a remembered file. */
+    /** Its Recent projects entry, when opened from there. */
     recentId?: string;
     /** Its `browserProjects` id, for a project kept in this browser. */
     storedId?: string;
+    /** The new project's name until the file names it, when it opens from the start screen. */
+    name?: string;
+    /**
+     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
+     * project; `fresh` when it opens a new project from the start screen.
+     */
+    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
 }
 
-/** A file waiting to open, where it came from, and whether its project is new. */
+/** A file waiting to open, and whether it opens a new project from the start screen. */
 interface PendingFile extends FileSource {
     file: File;
-    /** Opened from the start screen: a data file loads as the new project, not into one. */
     fresh?: boolean;
 }
+
+/** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
+const DATA_REFUSALS: ReadonlySet<string> = new Set(["E_UNKNOWN_FORMAT", "E_PARSE_FAILED"]);
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
 
@@ -470,7 +479,7 @@ async function openInSession(
     pending: PendingFile,
     discard: boolean,
 ): Promise<boolean> {
-    const { file, fresh = false } = pending;
+    const { file, onData, fresh = false } = pending;
     const focusLater = focusOpenedGraphLater();
     try {
         // From the start screen a document opens as a new graph, so it starts the history.
@@ -479,6 +488,13 @@ async function openInSession(
             fileName: file.name,
             ...(fresh ? { history: "start" as const } : {}),
         });
+        if (report.opened === "graph" && onData !== undefined) {
+            // A data file: imported the way the caller imports one, not as the element's draft.
+            focusLater(false);
+            report.draft?.dispose();
+            await onData(ctx, fresh);
+            return true;
+        }
         if (report.opened !== "project") {
             openedData(ctx.workspace, report, file, fresh, focusLater);
             return true;
@@ -486,6 +502,11 @@ async function openInSession(
         await openedProject(ctx.workspace, session, report, pending, focusLater);
     } catch (error) {
         focusLater(false);
+        if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
+            // A data file the element could not read: the data import says why, in its own words.
+            await onData(ctx, fresh);
+            return true;
+        }
         return openFailed(ctx, session, pending, error);
     }
     return true;
@@ -498,17 +519,19 @@ async function openInSession(
  * reads the file once it is up, and a data file then opens the Data page as a new graph.
  * @param ctx - the command context.
  * @param file - the file.
- * @param source - where it came from: its handle, Recent projects entry or browser-kept project.
+ * @param source - where it came from: its handle, Recent projects entry or browser-kept project;
+ *     the new project's name; and how to import it as data (`onData`), in place of the Data page.
  */
 export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
-    const pending: PendingFile = { file, ...source };
+    const { name = withoutExtension(file.name), ...from } = source;
+    const pending: PendingFile = { file, ...from };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
     fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: withoutExtension(file.name), id: newProjectId(state) },
+        project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,

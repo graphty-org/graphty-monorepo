@@ -221,6 +221,16 @@ describe("views", () => {
         expect(runners.sections[0]).toMatchObject({ kind: "jobs", step: "1h" });
     });
 
+    it("Flaky shows every flaky source: CI detections, the quarantine list, the stress run and the rerun rate", async () => {
+        const store = await world([]);
+        await writeViews(store, T0);
+        const page = (await readViewJson(store, { kind: "page", page: "flaky", range: "1h" })) as PageResponse;
+        expect(page.sections.map((s) => s.id)).toEqual(expect.arrayContaining(["hotspots", "quarantine", "stress"]));
+        expect(page.members.map((m) => m.id)).toEqual(
+            expect.arrayContaining(["flaky.flake_rate", "ci.reruns", "data-sources.stress_run"]),
+        );
+    });
+
     it("Local runs: an informational page is IDLE, and a posted backlog fills the 24 h trend", async () => {
         const run = (id: string, at: number): RawItem => ({
             kind: "local_run",

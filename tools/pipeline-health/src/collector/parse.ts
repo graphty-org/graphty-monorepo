@@ -1,7 +1,17 @@
 // Pure mapping from GitHub's responses to the model's raw items and the values the collector observes
 // (design/ci/health-dashboard.md section 4). No I/O here, so every rule is tested on recorded responses.
 
-import type { CostItem, IssueItem, JobItem, PrStages, PullRequestItem, RunItem, StepItem } from "../model/items.js";
+import type {
+    CostItem,
+    IssueItem,
+    JobItem,
+    LoadKind,
+    PrStages,
+    PullRequestItem,
+    RunItem,
+    StepItem,
+    TestItem,
+} from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
 import type { LaneJob, OwnerWait, WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
@@ -121,7 +131,19 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 /** A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration. */
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false): JobItem {
+/**
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * @param run the run
+ * @returns full for release.yml (whose called workflows run inside it), pr, master for a push to master, else other
+ */
+export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
+    if (workflowFile(run.path) === "release.yml") return "full";
+    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
+    if (run.event === "push" && run.head_branch === "master") return "master";
+    return "other";
+}
+
+export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -135,6 +157,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         ...opt("family", fam),
         pool: pool(j.labels),
         ...opt("os", runnerOs(j.labels)),
+        ...opt("load", load),
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
@@ -594,6 +617,25 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     if (full) {
         lanes.land = "not in this mode";
         lanes.publish = "not in this mode";
+        // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
+        // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
+        // so a lane whose Red early job skipped passed. Not in a cancelled run (!cancelled() skips every Red early
+        // job) and not over a cancelled or timed-out job, which continue-on-error does not cover.
+        for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
+            const early = jobs.find((j) => j.name === `Red early (${name})`);
+            const onlyFailures = jobsOf(jobs, name).every(
+                (j) => !BAD.has(j.conclusion ?? "") || j.conclusion === "failure",
+            );
+            if (
+                lanes[lane] === "failed" &&
+                run.conclusion !== "cancelled" &&
+                onlyFailures &&
+                early?.status === "completed" &&
+                early.conclusion === "skipped"
+            ) {
+                lanes[lane] = "passed";
+            }
+        }
     }
     const tested = TESTING.some((l) => lanes[l] !== "skipped" && lanes[l] !== "absent");
     const red = (Object.keys(lanes) as Lane[]).filter((l) => lanes[l] === "failed");
@@ -761,4 +803,91 @@ export const npmName = (project: string): string => (project.startsWith("@") ? p
 /** Tags whose version npm does not list; `times` maps npm name to its packument `time` (undefined: 404). */
 export function taggedNotOnNpm(tags: Tag[], times: Map<string, Record<string, string> | undefined>): Tag[] {
     return tags.filter((t) => !NOT_ON_NPM.has(t.project) && !times.get(npmName(t.project))?.[t.version]);
+}
+
+/** A compare (base...master) commit: its sha, parents and committer date. */
+export interface CompareCommit {
+    sha: string;
+    parents: { sha: string }[];
+    commit: { committer: { date: string } };
+}
+
+/**
+ * The commit date of the oldest commit on master's first-parent line after the tested base, or undefined when master
+ * is the base. Only that line landed on master: a pull request branch's own merge of master (a second-parent ancestor)
+ * can be a day older than its landing and must not age master.
+ * @param commits the compare's commits, oldest first, master's head last
+ * @returns the oldest first-parent commit's date in ms
+ */
+export function oldestUntested(commits: CompareCommit[]): number | undefined {
+    const bySha = new Map(commits.map((c) => [c.sha, c]));
+    let at = commits.at(-1);
+    let oldest: number | undefined;
+    while (at) {
+        oldest = Date.parse(at.commit.committer.date);
+        at = bySha.get(at.parents[0]?.sha ?? "");
+    }
+    return oldest;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Flaky tests from CI annotations (the flaky-history backfill).
+
+/**
+ * The jobs that run test shards through tools/test-quarantine.mjs: the check run's name, its job key (GITHUB_JOB,
+ * the third part of the invocation id tools/results/run-group.mjs baseId() makes) and the family suffix
+ * (run-group.mjs groupFamily(): the story-tests job takes screenshots, `<family>-shots`).
+ */
+const SHARD_JOBS: [RegExp, string, string][] = [
+    [/(?:^|\/ )Test \(/, "test", ""],
+    [/(?:^|\/ )Story tests \(/, "story-tests", "-shots"],
+    [/(?:^|\/ )Restricted CPU \(/, "stress", ""],
+];
+
+/**
+ * A test that failed on try 1 and passed its retry, as tools/test-quarantine.mjs prints it (printDecision) and
+ * tools/results/run-group.mjs prJudge() rewords it: `[FLAKY] <shard>: <file> > <test> failed and passed on the same
+ * inputs, ...`, `[FLAKY-UNRELATED] ... failed and passed; ...`, `[QUARANTINED] ... failed and passed; ...`. A
+ * `[QUARANTINED] ... failed again` test failed both times: not flaky. A file name holds no " > "; a test name may.
+ */
+const FLAKY_LINE =
+    /^\[(?:FLAKY|FLAKY-UNRELATED|QUARANTINED)\] (\S+): (.+?) > (.+) failed and passed(?: on the same inputs,|;)/;
+
+/**
+ * The live feed's row (ingest.ts failureItems() for tools/results/client.mjs postFlaky()) for one annotation of a
+ * test shard's check run, or undefined when the annotation is not a flaky test or the check run is no test shard.
+ * Same id, so a backfilled row and a live one are the same row. The annotation carries no failure message, so the
+ * signature is empty.
+ * @param message the annotation's message
+ * @param checkRun the check run's name ("Test (layout)", "CI / Test (layout)")
+ * @param runId the workflow run's id
+ * @param attempt the run attempt the check run belongs to
+ * @param seenAt when the check run completed
+ */
+export function flakyTestItem(
+    message: string,
+    checkRun: string,
+    runId: number,
+    attempt: number,
+    seenAt: number,
+): TestItem | undefined {
+    const job = SHARD_JOBS.find(([re]) => re.test(checkRun));
+    const m = FLAKY_LINE.exec(message);
+    if (!job || !m) return undefined;
+    const [, shard, file, name] = m;
+    const invocation = `${runId}.${attempt}.${job[1]}.${shard}.1`;
+    return {
+        kind: "test",
+        id: `${invocation}#${file}#${name}`,
+        attempt: 1,
+        source: "ci",
+        invocation,
+        family: shard.replace(/-\d+$/, "") + job[2],
+        file,
+        name,
+        outcome: "flaky",
+        status: "fail",
+        signature: "",
+        seenAt,
+    };
 }

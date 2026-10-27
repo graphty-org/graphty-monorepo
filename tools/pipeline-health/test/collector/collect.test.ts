@@ -89,12 +89,48 @@ describe("collector with the GitHub App", () => {
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);
+        // Flaky tests (4.4): nothing seen flaky yet, so every "now" member reads 0 rather than no value.
+        for (const m of ["flaky.no_issue", "flaky.blocked_prs", "flaky.blocked_oldest_ms", "flaky.net_change"])
+            expect(observed(store, m), m).toBe(0);
 
         for (const s of ["collector", "release", "npm", "coverage", "billing"])
             expect((await store.get(sourceKey(s)))?.error, s).toBeUndefined();
         expect(await getCursor(store, "runs#graphty-org/graphty-monorepo")).toBe("2026-10-26T00:35:00Z");
         expect(JSON.parse((await getCursor(store, "open#graphty-org/graphty-monorepo"))!)).toContain(40238975833);
         expect(await getCursor(store, "cycle")).toBe(String(NOW));
+    });
+
+    it("a 502 on one run's jobs skips that run only, keeps every other value, and reads it again next cycle", async () => {
+        // 2026-10-27: one 502 on one run's jobs failed the whole cycle and grayed every member reading the collector.
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        let down = true;
+        const JOBS = "/actions/runs/40249709094/jobs";
+        const hits: string[] = [];
+        fake.fetch = async (url, init) => {
+            if (url.includes(JOBS)) hits.push(url);
+            return down && url.includes(JOBS) ? new Response("{}", { status: 502 }) : base(url, init);
+        };
+        const report = await collect(deps(store, fake));
+        expect(report.errors).toEqual({});
+        expect(report.skipped).toEqual([
+            "jobs of graphty-org/graphty-monorepo run 40249709094: GitHub repos/graphty-org/graphty-monorepo/actions/runs/40249709094/jobs: HTTP 502",
+        ]);
+        expect(hits).toHaveLength(3); // tried, then retried twice
+        expect(observed(store, "master.red_builds")).toBe(1);
+        expect(observed(store, "release.lanes_red")).toBe(3);
+        const src = await store.get(sourceKey("collector"));
+        expect(src).toMatchObject({ lastOkAt: NOW, partial: expect.stringContaining("run 40249709094") });
+        expect(src?.error).toBeUndefined();
+        expect(JSON.parse((await getCursor(store, "open#graphty-org/graphty-monorepo"))!)).toContain(40249709094);
+        expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(false);
+
+        down = false;
+        const next = await collect(deps(store, fake, NOW + 5 * MIN));
+        expect(next.skipped).toEqual([]);
+        expect(hits).toHaveLength(4);
+        expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(true);
     });
 
     it("rewrites the same items on a second cycle without duplicating them, and skips finished runs", async () => {

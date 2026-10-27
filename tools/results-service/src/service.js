@@ -32,6 +32,8 @@ const MASTER_KINDS = {
     "gpu.yml": "full",
     "hosts.yml": "full",
     "work-protection-macos.yml": "full",
+    // a full run's same-commit re-run decider: files and holds a red attempt 1 it does not re-run
+    "release-rerun.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
@@ -412,7 +414,9 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+// deferred: an attempt-1 red waiting for its same-commit re-run, which the pick does not take as judged
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected", "deferred"]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {
@@ -448,6 +452,24 @@ async function postSite(body, who, db, nowMs) {
         .bind(body.sha, nowMs, Number(who.claims.run_id))
         .run();
     return { stored: meta.changes === 1, sha: body.sha };
+}
+
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
+async function postBaseCheck(body, who, db, nowMs) {
+    if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
+    if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
+    for (const field of ["file", "variant"]) {
+        if (typeof body[field] !== "string" || !body[field] || body[field].length > 300) {
+            refuse(400, `${field} must be a string of 1 to 300 characters`);
+        }
+    }
+    const pr = Number.isInteger(body.pr) ? body.pr : null;
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .run();
+    return { dispatch: meta.changes === 1 };
 }
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -492,13 +514,40 @@ async function postChannelMove(body, who, db, nowMs) {
     return { stored: true };
 }
 
+// The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
+// is not green-clean, a fix forward moves its head, a promotion or the owner's abandon clears it ({ clear: true }).
+// Only master's own release.yml writes it, and release-rerun.yml for a red run it does not re-run.
+async function postHold(body, who, db, nowMs) {
+    const ref = String(who.claims?.job_workflow_ref);
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@"))) {
+        refuse(403, "only master's own release.yml or release-rerun.yml holds a candidate");
+    }
+    if (body?.clear === true) {
+        const { meta } = await db.prepare("DELETE FROM candidate WHERE id = 1").run();
+        return { cleared: meta.changes === 1 };
+    }
+    if (!SHA.test(body?.base ?? "") || !SHA.test(body?.head ?? ""))
+        refuse(400, "base and head must be full commit ids");
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const held = await db.prepare("SELECT base FROM candidate WHERE id = 1").first();
+    // one hold at a time: a new base replaces a hold only after it is cleared
+    if (held && held.base !== body.base) refuse(409, `nightly is already held on ${held.base}`);
+    await db
+        .prepare("INSERT OR REPLACE INTO candidate (id, base, head, issue, at) VALUES (1, ?, ?, ?, ?)")
+        .bind(body.base, body.head, body.issue ?? null, nowMs)
+        .run();
+    return { held: true };
+}
+
 const ROUTES = {
+    "POST /v1/hold": postHold,
     "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
+    "POST /v1/base-checks": postBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,

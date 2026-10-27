@@ -79,7 +79,7 @@
         },
         "flaky-feed": {
             "label": "Feed of CI's flaky detections",
-            "notSetUp": "no writer yet; tracked in its own issue (design section 14)"
+            "idle": "writes only when a CI shard's retry proves a test flaky (tools/test-quarantine.mjs)"
         },
         "local": {
             "label": "Local writer (test ledger, push log)",
@@ -106,7 +106,7 @@
         "pr": 20,
         "pr-wide": 35
     },
-    "dailyRowLimit": 300000,
+    "dailyRowLimit": 1000000,
     "members": [
         {
             "id": "master.red_now",
@@ -249,6 +249,20 @@
             "ok": [">=", 0.9],
             "fail": ["<", 0.7],
             "minN": 5,
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.caused_failures",
+            "category": "pull_requests",
+            "label": "Runs failed by their change",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.caused_failures"
+            },
+            "ok": ["<", 0.05],
+            "minN": 20,
+            "slowWindow": "7d",
             "sources": ["collector"]
         },
         {
@@ -418,6 +432,21 @@
             "sources": ["ci-results"]
         },
         {
+            "id": "ci.runner_minutes_per_merge",
+            "category": "ci",
+            "label": "Runner-minutes per merge",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.runner_minutes"
+            },
+            "ok": ["<=", 400],
+            "fail": [">", 600],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "ci.superseded_running",
             "category": "ci",
             "label": "Superseded runs running",
@@ -482,7 +511,7 @@
             "label": "Net new flaky",
             "window": "slow",
             "measure": {
-                "type": "sum",
+                "type": "last",
                 "metric": "flaky.net_change"
             },
             "ok": ["<=", 0],

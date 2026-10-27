@@ -270,6 +270,18 @@ describe("options and failures", () => {
     });
 });
 
+/** The plain name each Graphviz engine's catalogue entry carries. */
+const GRAPHVIZ_NAMES: Readonly<Record<(typeof GRAPHVIZ_ENGINES)[number], string>> = {
+    dot: "Layered",
+    neato: "Stress",
+    fdp: "Spring embedder",
+    sfdp: "Multilevel spring",
+    circo: "Circles",
+    twopi: "Rings",
+    osage: "Clusters",
+    patchwork: "Treemap",
+};
+
 describe("the catalogue", () => {
     it("always lists the eight engines, two-dimensional, each naming the package it needs", () => {
         for (const engine of GRAPHVIZ_ENGINES) {
@@ -277,7 +289,7 @@ describe("the catalogue", () => {
 
             assert.isDefined(descriptor, engine);
             assert.strictEqual(descriptor?.engine, `graphviz-${engine}`);
-            assert.strictEqual(descriptor?.plainName, `Graphviz ${engine}`);
+            assert.strictEqual(descriptor?.plainName, GRAPHVIZ_NAMES[engine]);
             assert.strictEqual(descriptor?.maxDimensions, 2);
             assert.deepEqual(descriptor?.requires, { package: "@hpcc-js/wasm-graphviz" });
             const names = descriptor?.options.map((option) => option.name) ?? [];

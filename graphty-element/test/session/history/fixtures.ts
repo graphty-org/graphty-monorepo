@@ -188,6 +188,25 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
     },
     {
+        name: "data.issues",
+        tags: BOTH,
+        command: {
+            op: "data.issues",
+            state: {
+                facts: {
+                    s1: {
+                        unknownEnds: ["n9"],
+                        repeatedIds: [],
+                        blankIds: { nodes: 0, edges: 0, examples: [] },
+                        refusedRows: [{ line: 4, issue: "E_CSV_FIELD_COUNT" }],
+                    },
+                },
+                ignored: ["refused-row"],
+                kept: [],
+            },
+        },
+    },
+    {
         name: "data.import replacing the graph",
         variant: "replace",
         tags: BOTH,
@@ -555,6 +574,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.steps", steps: [] },
     },
     {
+        name: "visibility.playback",
+        tags: BOTH,
+        command: { op: "visibility.playback", playback: { mode: "cumulative", step: "week", results: "keep" } },
+    },
+    {
         name: "visibility.window",
         tags: BOTH,
         command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },
@@ -729,6 +753,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
     },
     {
+        name: "data.columns",
+        tags: BOTH,
+        command: {
+            op: "data.columns",
+            settings: { hidden: ["node:name"], types: { "node:name": "category" }, renamed: {} },
+        },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {
@@ -800,6 +832,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "selectionStyle",
         tags: BOTH,
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
+    },
+    {
+        name: "config.set pinnedStyle",
+        variant: "pinnedStyle",
+        tags: BOTH,
+        command: { op: "config.set", values: { pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } } },
     },
     {
         name: "config.set startingRows",

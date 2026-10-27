@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
+import { patchId } from "./pr-integrity.mjs";
 
 const script = fileURLToPath(new URL("./pr-open.sh", import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), "pr-open-test-"));
@@ -147,17 +148,48 @@ describe("pr-open.sh", () => {
         assert.match(body, /^## Proof\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
     });
 
-    it("writes Refs with --refs, and merges master in when the branch is behind", () => {
-        branch("ci/3418-thing");
+    it("keeps a Proof file's own headings inside the Proof section", () => {
+        branch("fix/1241-headings");
+        const titled = join(dir, "titled.md");
+        writeFileSync(titled, "## Proof\n\n# Run\n\nnode tools/x.test.mjs: 3 pass\n");
+        const r = run(["--proof", titled]);
+        assert.equal(r.code, 0, r.out);
+        const body = readFileSync(join(dir, "body.md"), "utf8");
+        assert.match(body, /^## Proof\n\n### Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+        assert.equal(body.match(/^##[ \t]/gm).length, 1, "only pr-open's own Proof heading is level 2");
+    });
+
+    let moves = 0;
+    const moveMaster = (b) => {
         git(work, "checkout", "-q", "master");
-        writeFileSync(join(work, "m.txt"), "m\n");
+        writeFileSync(join(work, `m${(moves += 1)}.txt`), "m\n");
         git(work, "add", ".");
         git(work, "commit", "-q", "-m", "chore: master moved");
         git(work, "push", "-q", "origin", "master");
-        git(work, "checkout", "-q", "ci/3418-thing");
+        git(work, "checkout", "-q", b);
+    };
+
+    it("writes Refs with --refs, and pushes a branch that is only behind master without merging it", () => {
+        branch("ci/3418-thing");
+        moveMaster("ci/3418-thing");
+        const head = git(work, "rev-parse", "HEAD");
+        // The review's marker, computed before the run as tools/pr-review.sh does.
+        const marker = patchId(work, git(work, "merge-base", "origin/master", "HEAD"), head);
         const r = run(["--proof", proof, "--refs"]);
         assert.equal(r.code, 0, r.out);
         assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^Refs #3418$/m);
+        assert.equal(git(work, "rev-parse", "HEAD"), head, "no merge of master");
+        assert.equal(git(work, "rev-parse", "origin/ci/3418-thing"), head);
+        // PR Integrity recomputes it from the pushed head and master, which may have moved again.
+        moveMaster("ci/3418-thing");
+        assert.equal(patchId(work, git(work, "merge-base", "origin/master", head), head), marker);
+    });
+
+    it("merges master in when --merge-master asks", () => {
+        branch("ci/3419-thing");
+        moveMaster("ci/3419-thing");
+        const r = run(["--proof", proof, "--merge-master"]);
+        assert.equal(r.code, 0, r.out);
         assert.equal(
             spawnSync("git", ["merge-base", "--is-ancestor", "origin/master", "HEAD"], { cwd: work, env: setupEnv })
                 .status,
@@ -236,6 +268,7 @@ describe("pr-open.sh", () => {
         assert.equal(r.code, 2, r.out);
         assert.match(r.out, /does not merge cleanly/);
         assert.equal(git(work, "status", "--porcelain"), "");
+        assert.equal(git(work, "ls-remote", "origin", "refs/heads/fix/1240-clash"), "", "nothing pushed");
     });
 
     it("refuses without the agent's git config, never falling back to the owner's", () => {

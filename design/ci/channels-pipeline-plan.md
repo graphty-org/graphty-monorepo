@@ -49,6 +49,9 @@ the item named corrects the design's text in its own branch.
     freeze switch": three lines that refuse a top-level `land` or `sync`, never `cut-fix`.
 12. **Root CLAUDE.md's target is 12,000 words** after step 5, not migration's 9,000, because the
     golden sections stay until step 10 as the undo; step 10's deletion reaches 9,000.
+13. **Nightly holds and fixes its candidate** (owner, 2026-10-26, issue #3741), replacing the
+    oldest-candidate offer and the dropped rejected candidate; #3737 (newest first) is superseded.
+    Design sections 3 and 5 say how; `candidate-hold` corrects channels section 7.
 
 ## 2. How to read an item
 
@@ -96,7 +99,9 @@ Storybook 9 upgrade.
 5. Step 6, overlapping step 5: `bisect-workflow`, `full-run-calls`, `full-run-release`,
    `version-dry-run`, `light-check-workflow` (c) -> `step-6-acceptance` (needs `step-5-acceptance`).
 6. Step 7: `nightly-publish-environment` -> `nightly-site` (publishing on) -> `owner-npm-bind` at
-   once -> `nightly-approval` -> `step-7-acceptance`.
+   once -> `nightly-approval` -> `nightly-resume` -> `step-7-acceptance`. Beside step 8, not
+   before it: `same-commit-rerun` -> `candidate-hold` -> `candidate-fix-forward` ->
+   `candidate-fix-acceptance`.
 7. Step 8: `promote-workflow` -> `owner-dist-tag-token` -> `owner-domain-swap` -> `canary-deploy`
    -> `step-8-acceptance`.
 8. 7 days without undo, #3318 closed -> `deletion` (three pull requests) -> `local-cleanup`.
@@ -451,6 +456,76 @@ marks out of `test-slots.mjs`, the sync merge out of `branch-push.sh`, the gate-
 `with-browser.sh`, the sync fields out of `branch-note.mjs`. Done: their tests pass; two local
 vitest runs still share slots. Undo: revert.
 
+### Step 5a: runner load (after step 5; owner, 2026-10-26)
+
+Runners, not merging, are the bottleneck at about 76 merges a day, and more capacity is not
+available for under about $1,000 a month (design section 7.1). The items cut work, in this order;
+the full run stays first in line for runners. Each item's Proof gives its runner-minutes saved.
+
+**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` makes a newer push replace a waiting
+master build; a running one finishes (#3938) (push to master only; pull request, dispatch and
+release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
+`master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
+`release-due.mjs` reads every merge since the last master build that finished, so a cancelled
+build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: two quick master
+merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
+restart asked for by the cancelled merge started. Undo: revert.
+
+**fewer-pushes-per-pr** (#3850) -- agent, S. On 2026-10-26 (07:00Z on, 244 pull request ci.yml
+runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6 minutes
+later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 cancelled
+run-minutes a day. Two causes: `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit,
+so every commit on a branch with an open pull request started a run; and `tools/pr-open.sh` merged
+`origin/master` into a branch that was only behind, one more push, though a pull request is tested
+as merged with master and the required checks are not strict. So `branch-push.sh` does not push a
+branch with an open pull request (the status broker's file when fresh, else one cached `gh pr list`;
+unsure, it pushes) and says so, and `pr-open.sh` merges master only on a conflict or
+`--merge-master`. Needs: nothing. Done: over a day, pull request runs cancelled by a newer push to
+the same branch fall well below the 99 measured. Undo: revert.
+
+**stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
+Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).
+Needs: nothing. Done: on 5 pull requests no capture job runs past `All Checks Pass`. Undo: revert.
+
+**old-capture-removal** (#3473, step 9) -- the largest single saving; no new work here, only its
+order: it goes as soon as story-test parity holds for each project.
+
+**selection-for-whole-shard-packages** -- agent, M. The packages whose pull requests still run whole
+shards join `fileLevel` after a clean `test-select-mutate.mjs` run, as `file-level-selection` did for
+the first ones. Needs: `file-level-selection`. Done: no `run:ci.yml:pr-<package>` budget key left.
+Undo: drop the package from `fileLevel`.
+
+**nx-cache-hit-rate** -- agent, S. Measure the nx remote build cache's hit rate per task on pull
+requests from the `timings` rows, then fix the largest misses (inputs that change on every commit).
+Needs: `nx-cache-worker`. Done: the hit rate is shown per task and the top three misses are fixed or
+explained. Undo: revert.
+
+**tools-docs-fast-path** -- agent, S. A change only to `tools/` (outside the selector's inputs) or
+only to docs runs only the checks that read it, with no package build or test shard. Needs:
+`light-check-workflow`. Done: a tools-only and a docs-only pull request each finish under 5 runner-
+minutes with `All Checks Pass` green. Undo: revert.
+
+**runner-minutes-per-merge** -- agent, S. The health dashboard shows runner-minutes per merged pull
+request per day, split by kind (pull request run, master build, full run, other). Needs: the results
+store's job rows; the dashboard is `design/ci/health-dashboard.md`. Done: the dashboard shows the last 14 days, and each item above can read its
+saving from it. Undo: revert.
+
+**merge-queue-batching-replay** -- agent, M, only if runners are still saturated after the items
+above. Replay a day of merges through GitHub's native merge queue with merge groups, and measure
+tests per batch, batch failure rate and bisect cost; the owner decides from the numbers. Mergify's
+record (809 CI runs for 761 merges, 197 wasted) is why it is measured first. Needs:
+`runner-minutes-per-merge`. Done: the measurements recorded in design section 7.1 and a decision on
+#3418. Undo: none needed (a replay changes nothing).
+
+Done 2026-10-27. The replay (2026-10-26) found 279 runner-minutes per merged pull request; 1.9% of
+pull request runs failed on tests the pull request broke, 4.6% on a failure shared with master, 1%
+on a flaky test and 16% on a cheap check. Running the full suite once saves 31% for 14 more minutes
+of median time to merge; Mergify batches of 4 save 51% at an 83-minute median. The owner chose
+neither for now. Mergify batching (batches of 4, at most 30 minutes' wait, cheap checks before queue
+entry) is turned back on when, over 7 days, fewer than 5% of queue entries have a pull request run
+that failed on tests the pull request touched, and the rule that lets unrelated failures through
+(#3925) is live. Design section 7.1 has the numbers; #3951 puts the trigger rate on the health dashboard.
+
 ### Step 6: the full run every 6 hours, publishing nothing
 
 **bisect-core** (#3450) -- agent, M. `tools/bisect-core.mjs` with tests: `verify.mjs`'s rules (channels
@@ -535,11 +610,55 @@ binding (a publisher with no environment accepts any), so every publisher is use
 its edit and none can expire; a refused publish is a publish hold, cleared with `gh run rerun <run
 id> --failed`. Done: the next `next` publish succeeds from `release`.
 
-**nightly-approval** (#3463) -- agent, M. The review page and server (not `trusted/`): offer the oldest
-unpromoted green-images candidate, frozen, decisions by hash; Finish opens the accept-only pull
-request whose merge resumes it (`promote-nightly`); live via `tools/live.sh visual-review`. Needs:
-`nightly-site`. Done: a candidate with a changed image waits; Finish's pull request merges and the
-candidate promotes. Undo: revert.
+**nightly-approval** (#3463) -- agent, M. The review page and server (not `trusted/`): offer the
+candidate, decisions by hash; Finish opens the accept-only pull request; live via `tools/live.sh
+visual-review`. Merged as #3653; the resume it named is `nightly-resume`. Needs: `nightly-site`.
+
+Order below: the smallest piece that unblocks nightly first. Each is part of #3741; those that
+change release.yml are owned.
+
+**nightly-resume** (#3741) -- agent, M, CP. `mode: promote-nightly` (design section 5): refuse unless
+the approval (the accept pull request's head) is the candidate plus accept-only commits and the
+candidate's latest verdict is green-images; gate on its `visual-final-*` with `--head <approval>`;
+version, land (with the version-only `release-diff` of the master merge), publish, site on the
+approval; store `approved`; `release-due` dispatches it on an accept merge naming the held candidate
+(or any green-images one while nothing is held), and every full slot catches up on one. Needs:
+`nightly-site`. Done: an approved green-images run promotes to `next` and nightly.graphty.app; a
+second dispatch, or one for a red run, does nothing. Undo: revert; candidates wait as today.
+
+**same-commit-rerun** (#3741) -- agent, M. The `recapture` job and `visual-final-*`,
+`release-rerun.yml` (absorbing `gpu-rerun-on-runner-loss.yml`; modes and jobs as design section 3),
+no red issue or bisect on attempt 1, `release-rerun.yml` filing when it starts no attempt 2, "Flaky in
+full run" filing in `full-run.mjs verdict`. First check on a scratch run that `--failed` re-runs a
+failed job inside the called ci.yml and its dependents. Needs: none. Done: a seeded one-time lane
+failure and a seeded one-time story difference each end green with one flaky issue; a consistent
+failure ends red with one issue and one bisect; a failed publish is never re-run. Undo: revert.
+
+**candidate-hold** (#3741) -- agent, M. `channel/candidate`, the store's `candidate` table read by
+`release-state`, `offered`, `candidates.mjs` and the stall alarm; `pick()` serves the hold first;
+`offeredCandidate()` offers only its head, once green-images; `mode: abandon`; the hold issue;
+channels section 7. Needs: `nightly-resume`, `same-commit-rerun`, the owner adding
+`channel/candidate` to the deploy-key ruleset. Done: a seeded red C stays held across two master
+slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the newest again.
+
+**candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
+(the fix commit, the newer-master and partial-fix refusals, a conflict), release.yml's
+`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` (input
+`fix_pr`, from `release-due` on a merge that references the hold issue), the run's own build and
+`site-<H>` (`deploy-pages.yml` called). First version (owner, 2026-10-26): the run on H re-tests
+H whole, every lane and the whole screenshot capture, about 1 to 1.5 hours per fix, so fix forward
+works now instead of after #3592 and #3472. The narrower re-test (the affected shards and lanes,
+the `recapture` job shooting the affected Storybooks whole and carrying the rest over) is built
+behind the repository variable `CANDIDATE_RETEST=affected`, off until those land; switching it on
+changes nothing for a fix author. Fix authors use `worktree-new.sh` from
+`origin/channel/candidate` and `pr-open.sh` unchanged. Needs: `candidate-hold`. Done: a scratch
+fix from C merges into master and `channel/candidate`, the run on H re-tests it whole and
+promotes (or waits for the owner's screenshot approval and then promotes); a fix made from newer
+master is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+Follow-up, after #3592 and #3472: set `CANDIDATE_RETEST=affected` and check one fix forward's run.
+
+**candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
+recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.
 
 **immutable-release-probe** (#3464) -- agent, S. On a scratch repository with immutable releases on, check
 that `gh release edit --prerelease` and `--latest` work; report on #3418.

@@ -11,7 +11,8 @@
 //   files the issue with the evidence.
 // - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
-//   failed step names a culprit. Not when a newer master run superseded it (superseded).
+//   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
+//   replace a waiting master build (a running one finishes, #3938), which is expected and never a red master.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
 // - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
@@ -29,9 +30,6 @@ export const DEPLOY_PREFIX = "canary deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // A run that ended without a verdict: master has no green build, but nothing failed to point at.
 const STOPPED = new Set(["cancelled", "startup_failure"]);
-// A run superseded by a newer one is cancelled the moment the newer run is queued.
-// ponytail: a time window, not GitHub's cancel reason (the API has none); a push in the last minute of a timeout reads as superseded
-const SUPERSEDE_MS = 60 * 1000;
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
 // A log line naming an outside service's failure: an HTTP 5xx (lychee prints "[502] <url> | ..."), a network
@@ -130,19 +128,28 @@ export function decide(run) {
 }
 
 /**
- * Whether a stopped master CI run was superseded: a run for a later commit was queued just before it ended.
+ * Whether a stopped master CI run was superseded: it was still waiting, with no job started, when a push run for
+ * another commit replaced it. Every first attempt of a master push run shares one concurrency group (ci.yml) that
+ * never cancels a running build (#3938): a newer push only replaces the waiting one. So a run that started a job and
+ * then stopped (a job ran into its timeout, or a person cancelled it) is never superseded, and alarms. A re-run has
+ * its commit's own group, so it is never superseded either.
  * @param gh - Calls the repository's REST API: gh(path, init).
  * @param run - The workflow_run payload's run.
  * @returns True when superseded.
  */
 export async function superseded(gh, run) {
+    // a re-run runs in its commit's own concurrency group (ci.yml): nothing newer replaces it
+    if ((run.run_attempt ?? 1) > 1) {
+        return false;
+    }
+    // a run that started any job was running, and ci.yml never cancels a running master build
+    const { total_count: jobs } = await gh(`/actions/runs/${run.id}/jobs?per_page=1`);
+    if (jobs > 0) {
+        return false;
+    }
     const { workflow_runs: runs } = await gh("/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20");
     const start = Date.parse(run.created_at);
-    const end = Date.parse(run.updated_at);
-    return runs.some((r) => {
-        const at = Date.parse(r.created_at);
-        return r.head_sha !== run.head_sha && at > start && at <= end && end - at <= SUPERSEDE_MS;
-    });
+    return runs.some((r) => r.head_sha !== run.head_sha && Date.parse(r.created_at) > start);
 }
 
 /**

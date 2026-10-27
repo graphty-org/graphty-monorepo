@@ -470,6 +470,7 @@ export function isKeptGraphtyProperty(note: LossNote, exporter: GraphExporter): 
 
 /**
  * The losses of an export with styles: W_STYLE_NOT_WRITTEN for every property the format does not write natively
+ * that at least one element carries a value of
  * (all of them for an exporter without a `styles` member), and W_STYLE_RULES_NOT_KEPT when the block is not kept.
  * @param extracted - the styles
  * @param exporter - the exporter
@@ -496,7 +497,11 @@ function lossNotes(
                     notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
                 }
             } else {
-                notes.push(notWrittenNote(target, property, exporter, picture));
+                // a rule whose property no element ends up carrying loses nothing
+                const note = notWrittenNote(target, property, exporter, picture);
+                if (note.count !== 0) {
+                    notes.push(note);
+                }
             }
         }
     }

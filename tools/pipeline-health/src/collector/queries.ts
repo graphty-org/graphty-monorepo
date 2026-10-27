@@ -12,7 +12,7 @@ const PR_BASE = `
 const PR_CHECKS = `
   commits(last: 1) { nodes { commit { oid committedDate statusCheckRollup { state
     contexts(first: 100) { nodes { __typename
-      ... on CheckRun { name status conclusion startedAt }
+      ... on CheckRun { name status conclusion startedAt detailsUrl }
       ... on StatusContext { context state createdAt } } } } } } }`;
 
 /**
@@ -43,6 +43,19 @@ export const SUITE_QUERY = `query($ids: [ID!]!) {
   nodes(ids: $ids) {
     ... on CheckSuite { id
       checkRuns(first: 100) { nodes { name conclusion annotations(first: 5) { nodes { message } } } } }
+  }
+}`;
+
+/**
+ * Every check run of a batch of check suites (all attempts) with its annotations, for the flaky-history backfill:
+ * tools/test-quarantine.mjs leaves a warning annotation per test it let through. GitHub keeps at most 50 annotations
+ * of each level per job, so 50 holds them all.
+ */
+export const FLAKY_SUITE_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on CheckSuite { id
+      checkRuns(first: 100, filterBy: {checkType: ALL}) { nodes { databaseId name completedAt
+        annotations(first: 50) { nodes { message } } } } }
   }
 }`;
 

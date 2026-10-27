@@ -6,7 +6,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,10 +31,8 @@ export default defineConfig({
     // re-optimizes and reloads the page mid-run (vitest.config.ts, browserOptimizeDeps).
     optimizeDeps: { include: ["react-dom/client", "react/jsx-dev-runtime", "react/jsx-runtime"] },
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
+        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         name: "storybook",
-        reporters: ["default", ...ciReporters(), ...(VISUAL ? [VISUAL.reporter] : [])],
         browser: {
             enabled: true,
             headless: true,

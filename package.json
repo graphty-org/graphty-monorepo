@@ -61,6 +61,7 @@
         "coverage:preview:graph-io": "npx serve graph-io/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:webgpu-graph-algorithms": "npx serve webgpu-graph-algorithms/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "coverage:preview:babylonjs-map": "npx serve babylonjs-map/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:cytoscape-extensions": "npx serve cytoscape-extensions/coverage -p ${PORT:?start it through servherd, which sets PORT}"
     },
     "engines": {

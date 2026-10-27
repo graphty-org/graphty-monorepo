@@ -17,6 +17,7 @@ import {
     blameChange,
     closeFinished,
     decide,
+    failedFirst,
     emptyState,
     PASSES_TO_LEAVE,
     quarantineEnabled,
@@ -51,6 +52,23 @@ const entry = (t, extra = {}) => ({
     since: DAY,
     expires: LATER,
     ...extra,
+});
+
+describe("failedFirst", () => {
+    it("keeps only the flaky tests that failed on the first run", () => {
+        const first = { failures: [{ file: "a.ts", name: "t1" }] };
+        const second = { failures: [{ file: "a.ts", name: "t2" }] };
+        const d = decide({ family: "graphty", first, firstOutcome: "failed", second, list: [] });
+        assert.deepEqual(
+            d.flaky.map((f) => f.name),
+            ["t1", "t2"],
+        );
+        assert.deepEqual(
+            failedFirst(d.flaky, first).map((f) => f.name),
+            ["t1"],
+        );
+        assert.deepEqual(failedFirst(d.flaky, undefined), []);
+    });
 });
 
 describe("decide", () => {
@@ -114,7 +132,7 @@ describe("the list", () => {
 // `suite`: the first run fails as a whole file (a hook timed out), so vitest counts it under "Failed Suites", not
 // under "Tests N failed". `oldNaming`: the checkout predates the run-id JUnit names (vitest.ci-junit.mjs before
 // e3f94aced7) and writes junit-<package>-<pid>.xml whatever TEST_LEDGER_RUN says.
-function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false }) {
+function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false, retryReport = "full" }) {
     const root = fresh();
     mkdirSync(join(root, "tools"));
     mkdirSync(join(root, "test-results"));
@@ -132,11 +150,14 @@ function checkout({ retryFails, quarantine = [], suite = false, oldNaming = fals
             )
             .join("")}</testsuite></testsuites>`;
     writeFileSync(join(root, "first.xml"), junit([T1]));
-    writeFileSync(join(root, "retry.xml"), junit(retryFails ? [T1] : []));
+    writeFileSync(
+        join(root, "retry.xml"),
+        retryReport === "empty" ? "<testsuites></testsuites>" : junit(retryFails ? [T1] : []),
+    );
     // the retry: `bash tools/run-tests.sh --command graphty-1 '<files command>'`
     writeFileSync(
         join(root, "tools/run-tests.sh"),
-        `echo "$3" > retry-command; cp retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
+        `echo "$3" > retry-command; ${retryReport === "none" ? "true" : "cp"} retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
     );
     const counts = suite
         ? "echo ' Failed Suites 1 '; echo ' Test Files  1 failed | 1 passed (2)'; echo '      Tests  1 passed (1)'"
@@ -253,6 +274,18 @@ describe("runShard", () => {
         );
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
     });
+
+    // A story leg once retried its stories under the unit config, which found no test files: with no report
+    // the failure was never judged, and an empty report called every failure flaky and passed the leg.
+    for (const retryReport of ["none", "empty"]) {
+        it(`fails the shard when the retry wrote ${retryReport === "none" ? "no report" : "an empty report"}`, async () => {
+            const { code, result } = await run(checkout({ retryFails: false, retryReport }));
+            assert.equal(code, 1);
+            assert.equal(result.retried, true);
+            assert.equal(result.retryRan, false);
+            assert.deepEqual(result.flaky, []);
+        });
+    }
 
     // #3323: a graphty shard whose file failed as a whole (a setup hook timed out) was never retried: vitest's
     // "Tests" line counts no failed test, so the run looked like an error rather than test failures.

@@ -38,6 +38,9 @@ import {
     selectShards,
     selectStories,
     storyBins,
+    STORY_BIN_LIMIT_MS,
+    STORY_MS,
+    storyCount,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -377,6 +380,7 @@ describe("the rules file", () => {
             "algorithms",
             "compact-mantine",
             "cytoscape-extensions",
+            "githerd",
             "graph-format",
             "graph-io",
             "graph-samples",
@@ -384,6 +388,7 @@ describe("the rules file", () => {
             "graphty-element",
             "layout",
             "remote-logger",
+            "visual-review",
         ]);
         assert.deepEqual([...real.fileLevelBrowser].sort(), [
             "algorithms",
@@ -870,6 +875,19 @@ describe("mutation testing of the selection", () => {
             fidelity.some((f) => f.startsWith("graphty-element/src/")),
             "a drawnBy package's source",
         );
+        // the fidelity stories draw with test-side helpers and corpus files: breaking them must count too
+        assert.ok(fidelity.includes("graph-io/fidelity-stories/stories/fidelity.ts"), "the shared story helper");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/test/fidelity/")),
+            "a test-side helper a story imports",
+        );
+        assert.ok(
+            fidelity.some((f) => /^graph-io\/test\/corpus\/.+\.cx2$/u.test(f)),
+            "a corpus file a story imports with ?url",
+        );
+        assert.ok(fidelity.includes("graphty-element/index.ts"), "a bare side-effect import");
+        assert.ok(!fidelity.some((f) => f.includes("/.storybook/")), "never the Storybook setup");
+        assert.equal(new Set(fidelity).size, fidelity.length, "each file once");
     });
 
     it("gives runs with different names their own worktree and report", () => {
@@ -1897,7 +1915,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
         })[dir] ?? [];
 
-    it("packs selected story files into bins of at most 8 minutes by their storybook family's times", () => {
+    it("packs selected story files into bins of at most 4 minutes by their storybook family's times", () => {
         const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
         const durations = {
             "graphty-element-storybook": {
@@ -1909,11 +1927,40 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.deepEqual(
             bins.map((b) => [b.name, b.files, b.ms]),
             [
-                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
-                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000 + FILE_OVERHEAD_MS],
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
+        const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
+        const perFile = 30 * STORY_MS["graph-io-fidelity"];
+        const bins = storyBins(
+            [entry("graph-io-fidelity", "files", files)],
+            projects,
+            list,
+            { "graph-io-storybook": { [files[0]]: 1_000 } },
+            () => 30,
+        );
+        // 30 stories a file: two files fit in 4 minutes, a third starts the next bin
+        assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files.length, b.ms]),
+            [
+                ["graph-io-fidelity-1", 2, 2 * perFile],
+                ["graph-io-fidelity-2", 2, 2 * perFile],
+                ["graph-io-fidelity-3", 1, perFile],
+            ],
+        );
+    });
+
+    it("counts a story file's capitalized exports as its stories, at least one", () => {
+        const src =
+            "export default meta;\nexport const One = {};\nexport const Two: Story = {};\nexport const helper = 1;\n";
+        assert.equal(storyCount(src), 2);
+        assert.equal(storyCount("export default {};\n"), 1);
     });
 
     it("bins every story file of a project selected whole, and nothing for one selected none", () => {

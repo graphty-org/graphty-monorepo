@@ -87,6 +87,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     batch: "data",
     "config.set": "config",
     "data.apply": "data",
+    "data.issues": "data",
     "data.declare": "data",
     "data.expand": "data",
     "data.source-expand": "data",
@@ -96,6 +97,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.setSource": "data",
     "data.label": "data",
     "data.setFileStyles": "data",
+    "data.columns": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
     "layout.transport": "layout",
@@ -122,6 +124,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "visibility.context": "filter",
     "visibility.set": "filter",
     "visibility.steps": "filter",
+    "visibility.playback": "window",
     "visibility.window": "window",
 };
 

@@ -12,8 +12,20 @@ import { SOURCE_ENTITY_ATTR, SOURCE_STUB_ATTR } from "@graphty/graph-io";
 /** The project-file member that holds the source load records. Experimental. */
 export const SOURCE_RECORD_MEMBER = "graphty-sources";
 
-/** The version of that member's shape; a newer one is refused, an older one upgraded. Experimental. */
+/**
+ * The version of the experimental load record shape graphty-element 3.x wrote, which
+ * `data.loads()` still lists its records in. Experimental.
+ * @deprecated A project file's `graphty-sources` member is written at
+ *     {@link SOURCES_MEMBER_VERSION}; a version 1 member is read and upgraded.
+ */
 export const SOURCE_RECORD_VERSION = 1;
+
+/**
+ * The version of the `graphty-sources` member a project file is written with
+ * (design/documents/sources.md). Experimental.
+ * @since 3.30.0
+ */
+export const SOURCES_MEMBER_VERSION = 2;
 
 /**
  * The reserved node attributes a source load and click-to-expand write: neutral facts, never

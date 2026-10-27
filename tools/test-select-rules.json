@@ -84,7 +84,9 @@
             "graph-samples",
             "layout",
             "algorithms",
-            "cytoscape-extensions"
+            "cytoscape-extensions",
+            "visual-review",
+            "githerd"
         ]
     },
     "fileLevelBrowser": {

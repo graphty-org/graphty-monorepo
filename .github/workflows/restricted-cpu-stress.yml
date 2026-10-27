@@ -30,6 +30,8 @@ concurrency:
     cancel-in-progress: true
 
 env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
     # The restriction, calibrated once (2026-10-10) and recorded here. A cgroup v2 CPU quota on every
     # process of the shard: cpu.max "200000 100000" is 200 ms of CPU per 100 ms, two CPUs' worth of
     # time on the four-vCPU ubuntu-24.04 runner CI's test job uses. A quota, not `taskset`: vitest sizes
@@ -39,8 +41,9 @@ env:
     # failed. Half, not less: the dev machine's failures came from two or three gates sharing it, and
     # every vitest default timeout (5 s per test, 10 s per hook) is many times what a healthy test takes
     # on a CI runner, so a healthy suite is expected to pass at half speed; a tighter quota would mostly
-    # find the suite's startup limits. If a run finds more than tools/restricted-cpu-stress.mjs's
-    # MAX_FILED failing tests it files none and fails: the quota is too tight, loosen it here.
+    # find the suite's startup limits. A test file with more than tools/restricted-cpu-stress.mjs's
+    # MAX_FILED failing tests is reported as suite broken and none of its tests is filed; many such
+    # files mean the quota is too tight, loosen it here.
     CPU_MAX: "200000 100000"
     RESTRICTION: "cgroup v2 cpu.max 200000 100000 (two CPUs of time for every process of the shard) on a four-vCPU ubuntu-24.04 GitHub-hosted runner"
 
@@ -52,12 +55,12 @@ jobs:
         outputs:
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -96,6 +99,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -115,14 +119,14 @@ jobs:
             fail-fast: false
             matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -137,6 +141,12 @@ jobs:
               with:
                   name: stress-build-packages
                   path: .
+
+            # The style fidelity scorecard compares the canvas with oracle PNGs held in Git LFS; without them every
+            # one of its tests fails and the run's cap files nothing (#3539). Same files ci.yml's test job pulls.
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
@@ -225,9 +235,9 @@ jobs:
             contents: read
             issues: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 

@@ -19,18 +19,18 @@ secret (runs, pull requests, test names and truncated failure messages are alrea
 A left navigation lists the overview and seven categories. Each category link carries a colored bar
 with that category's state, so every page repeats the status line.
 
-| Page          | What it shows                                                                                                                                       |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                       |
-| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.  |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                    |
-| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; and **Shard times**: median and p90 per shard against budget. |
-| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.          |
-| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.             |
-| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.      |
-| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                          |
-| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                     |
-| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.           |
+| Page          | What it shows                                                                                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                 |
+| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                            |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                              |
+| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; and **Shard times**: median and p90 per shard against budget. |
+| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                    |
+| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                       |
+| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                |
+| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                    |
+| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                                                               |
+| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                     |
 
 Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
 (its flaky and failed results, newest first). The page, section and range are in the URL
@@ -228,16 +228,27 @@ the SNS topic `graphty-health-alarms` when that happens.
 
 ## Backfill
 
-To load the last 28 days of runs, jobs, pull requests and issues (it needs the GitHub App's parameters):
+To load the last 28 days of flaky tests, runs, jobs, pull requests and issues (it needs the GitHub App's
+parameters):
 
 ```bash
 aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
     --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
 ```
 
+The backfill also records each job's run kind, which "Runner-minutes per merge" needs: jobs stored before it was
+recorded are left out of that measure until a backfill rewrites them.
+
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;
 invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
 backfill -- --days 28` runs the same from a workstation.
+
+It loads newest first, so a call that stops early has loaded the most recent days. Flaky tests come first:
+each warning annotation `[FLAKY]`, `[FLAKY-UNRELATED]` or `[QUARANTINED] ... failed and passed` that the test
+shards leave on their check runs (the `Test`, `Story tests` and `Restricted CPU` jobs) becomes the same row the
+live feed writes for that test, and a row already there is left alone. CI prints those annotations since
+2026-10-22, when the quarantine began, so the flaky history starts then. Then runs and jobs from yesterday back,
+then pull requests and issues.
 
 ## Running the tests and the page
 

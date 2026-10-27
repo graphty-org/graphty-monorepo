@@ -5,8 +5,10 @@
  *
  * release.yml's version_dry_run job versions the candidate locally (tools/release-version.sh) and runs
  * `dry-run` on that version commit. Every project the commit releases is compared with its last
- * `{projectName}@{version}` tag reachable from the candidate: a higher major number is a major, no tag at all
- * is a first publish (npm sets `latest` on a package's first publish whatever the dist-tag). Each needs an
+ * `{projectName}@{version}` tag reachable from the candidate: a higher major number is a major, and a package
+ * npm has no version of is a first publish, tagged or not (npm sets `latest` on a package's first publish whatever
+ * the dist-tag; @graphty/graphty and @graphty/githerd were versioned and tagged for months without ever reaching
+ * npm), as is one with no tag at all. Each needs an
  * entry in the code-owned release-approvals.json, so the pull request adding it is the owner's approval:
  *
  *   { "approve": [{ "project": "graphty-element", "kind": "major", "merge": "<sha>",
@@ -21,9 +23,11 @@
  *        node tools/release-approvals.mjs dry-run <candidate> <version-commit>   (exit 1 on an unapproved one)
  */
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { readPolicy } from "./release-hold.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KINDS = new Set(["major", "first"]);
@@ -105,8 +109,45 @@ function lastTagged(project, candidate) {
     return tag ? tag.slice(project.length + 1) : null;
 }
 
+/**
+ * Whether npm has any version of a package. Only npm's 404 means none: any other failure (the network, the
+ * registry) throws, so the dry run fails rather than guess.
+ * @param name - the npm package name
+ * @param [view] - (name) => `npm view <name> versions --json`'s output; throws like execFileSync
+ * @returns boolean
+ */
+export function onNpm(name, view = npmVersions) {
+    try {
+        return JSON.parse(view(name) || "[]").length > 0;
+    } catch (error) {
+        if (/E404|404 Not Found/.test(`${error.stderr ?? ""}${error.stdout ?? ""}${error.message}`)) return false;
+        throw error;
+    }
+}
+const npmVersions = (name) =>
+    execFileSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+/**
+ * The npm package name of each nx project: the workspace's top-level folders with a package.json, named by their
+ * project.json (else the package name without its scope).
+ * @param [root] - the repository
+ * @returns Map of project name to package name
+ */
+export function packageNames(root = ROOT) {
+    const out = new Map();
+    for (const dir of readdirSync(root, { withFileTypes: true })) {
+        const pkgFile = join(root, dir.name, "package.json");
+        if (!dir.isDirectory() || !existsSync(pkgFile)) continue;
+        const pkg = JSON.parse(readFileSync(pkgFile, "utf8"));
+        const projectFile = join(root, dir.name, "project.json");
+        const project = existsSync(projectFile) ? JSON.parse(readFileSync(projectFile, "utf8")).name : undefined;
+        out.set(project ?? pkg.name.replace(/^@[^/]+\//, ""), pkg.name);
+    }
+    return out;
+}
+
 function readApprovals() {
-    const file = JSON.parse(readFileSync(join(ROOT, "release-approvals.json"), "utf8"));
+    const file = readPolicy("release-approvals.json");
     const wrong = problems(file);
     if (wrong.length) {
         for (const p of wrong) console.error(`::error::${p}`);
@@ -117,9 +158,11 @@ function readApprovals() {
 
 function dryRun(candidate, commit) {
     const approvals = readApprovals();
+    const names = packageNames();
     const plan = released(git("log", "-1", "--format=%b", commit)).map((r) => ({
         ...r,
-        previous: lastTagged(r.project, candidate),
+        // a package npm never had is a first publish whatever its tags say
+        previous: onNpm(names.get(r.project) ?? r.project) ? lastTagged(r.project, candidate) : null,
     }));
     const inHistory = (sha) => {
         try {
@@ -129,7 +172,7 @@ function dryRun(candidate, commit) {
             return false;
         }
     };
-    for (const r of plan) console.log(`${r.project}: ${r.previous ?? "(no tag)"} -> ${r.version}`);
+    for (const r of plan) console.log(`${r.project}: ${r.previous ?? "(first publish)"} -> ${r.version}`);
     const missing = unapproved(plan, approvals, inHistory);
     if (process.env.GITHUB_OUTPUT) {
         appendFileSync(process.env.GITHUB_OUTPUT, `held=${missing.map((r) => r.project).join(",")}\n`);

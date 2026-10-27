@@ -13,11 +13,22 @@ import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { call, config, EVENT_MS, flushHealth, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
+import {
+    call,
+    config,
+    EVENT_MS,
+    flushHealth,
+    postFailures,
+    postFlaky,
+    postInvocation,
+    readPlan,
+    RECORD_MS,
+} from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
@@ -293,6 +304,28 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+        // a retry that ran none of the failed files (an empty report under the wrong command) is no pass
+        const empty = recordsOf({
+            id: "9.1.job.pkg",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "pkg|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 1,
+            result: {
+                firstCode: 1,
+                firstOutcome: "failed",
+                retried: true,
+                retryCode: 0,
+                retryRan: false,
+                retryAt: 7000,
+            },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir,
+            runId: "run1",
+        });
+        assert.equal(empty[1].outcome, "error");
         // a first try that exited 0 and still failed the shard (its output over the budget) is no pass
         const flood = recordsOf({
             id: "9.1.job.pkg",
@@ -572,7 +605,41 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
-    it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {
+    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const out = join(dir, "checks");
+        const plan = { quarantine: [], failingOnBase: [], affected: [] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("flips"), fail("broken", "b.test.ts")),
+            firstOutcome: "failed",
+            second: report(fail("broken", "b.test.ts")),
+            list: storeList(plan),
+        });
+        prJudge(plan, { ...o, base: "abc1234", out })(d, { firstOutcome: "failed" });
+        const variant = o.variant;
+        // a line from the pull request's code that would inject an argument, and a duplicate, are dropped
+        writeFileSync(
+            join(dir, "checks", "evil.jsonl"),
+            `${JSON.stringify({ base: "abc1234", file: "a.test.ts' -f x='1", variant, repeat: 5 })}\nnot json\n` +
+                `${JSON.stringify({ base: "abc1234", file: "a.test.ts", variant, repeat: 1 })}\n`,
+        );
+        const checks = readChecks(join(dir, "checks"));
+        assert.deepEqual(checks, [
+            { base: "abc1234", file: "a.test.ts", variant, repeat: 5 },
+            { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
+        ]);
+        const calls = [];
+        assert.equal(await dispatchChecks(checks, (args) => calls.push(args.join(" "))), 2);
+        assert.equal(
+            calls[0],
+            `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5`,
+        );
+        assert.deepEqual(readChecks(join(dir, "none")), []);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("says [KNOWN] when master failed it the same way on the base, and passes it as [UNRELATED] otherwise", () => {
         const { key } = failureHashes("AssertionError: known", "a.test.ts");
         const row = {
             variant: `${FAMILY}|flags=off|whole`,
@@ -585,16 +652,61 @@ describe("the pull request rules", () => {
         const plan = { quarantine: [], failingOnBase: [row, { ...row, name: "other key", key: "nope" }], affected: [] };
         const both = report(fail("known"), fail("other key"));
         const d = judge(plan, both, both);
-        assert.deepEqual(tags(d), ["warn [KNOWN]", "fail [KNOWN?]"]);
+        assert.deepEqual(tags(d), ["warn [KNOWN]", "warn [UNRELATED]"]);
+        assert.equal(d.pass, true);
         assert.match(d.lines[0].text, /fails the same way on master b1, issue #31/);
         assert.match(d.lines[1].text, /-f repeat=1/);
         assert.equal(judge(plan, report(fail("known")), report(fail("known"))).pass, true);
-        // nor does one with other flags
+        // master evidence with other flags or from another family is not [KNOWN]; untouched, it is [UNRELATED]
         const flagsOn = { ...plan, failingOnBase: [{ ...row, variant: `${FAMILY}|flags=on|whole` }] };
-        assert.equal(judge(flagsOn, report(fail("known")), report(fail("known"))).pass, false);
-        // another family's base failure excuses nothing
+        assert.deepEqual(tags(judge(flagsOn, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
         const elsewhere = { ...plan, failingOnBase: [{ ...row, variant: "layout|flags=off|whole" }] };
-        assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
+        assert.deepEqual(tags(judge(elsewhere, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
+    });
+
+    it("#3925: passes an untouched failure as [UNRELATED] with a summary line; never a touched, GPU or crashed one", () => {
+        const dir = mkdtempSync(join(tmpdir(), "unrelated-"));
+        const env = { GITHUB_STEP_SUMMARY: join(dir, "summary.md") };
+        const plan = { quarantine: [], failingOnBase: [], affected: ["touched.test.ts"] };
+        const run = (p, opts, first) => {
+            const d = decide({ family: opts.family, first, firstOutcome: "failed", second: first, list: [] });
+            return prJudge(p, { ...opts, env })(d, { firstOutcome: "failed" });
+        };
+        const both = report(fail("theirs"), fail("mine", "touched.test.ts"));
+        const d = run(plan, o, both);
+        assert.deepEqual(tags(d), ["warn [UNRELATED]", "fail [FAIL]"]);
+        assert.equal(d.pass, false);
+        assert.deepEqual(
+            d.failing.map((f) => f.name),
+            ["mine"],
+        );
+        assert.equal(run(plan, o, report(fail("theirs"))).pass, true);
+        assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^- \[UNRELATED\] .*a\.test\.ts > theirs/m);
+        // a GPU family is never excused, touched or not
+        const gpu = { ...o, family: "webgpu-graph-algorithms-node", shard: "webgpu-graph-algorithms-node" };
+        assert.deepEqual(tags(run(plan, gpu, report(fail("theirs")))), ["fail [FAIL]"]);
+        // a crash, an unhandled error or coverage is not a test failure: the judge leaves it failing
+        const crashed = { pass: false, flaky: [], excused: [], failing: [fail("theirs")] };
+        assert.equal(prJudge(plan, { ...o, env })(crashed, { firstOutcome: "error" }).pass, false);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
+        const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
+        const seen = new Set();
+        const claim = async (c) => {
+            const k = `${c.base} ${c.file} ${c.variant}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        };
+        const calls = [];
+        const gh = (args) => calls.push(args.join(" "));
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 42 }), 1);
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 43 }), 0);
+        assert.match(calls[0], / -f repeat=1 -f pr=42$/);
+        // a store that cannot answer does not stop the check
+        assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
 
     it("lets the store's quarantine through", () => {
@@ -631,6 +743,10 @@ describe("the pull request rules", () => {
 
     it("keeps repeated runs of one job apart", () => {
         assert.equal(baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "check", RESULTS_REPEAT: "3" }), "5.1.check.s.r3");
+        assert.equal(
+            baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "story-tests", RESULTS_PART: "2" }),
+            "5.1.story-tests.s.p2",
+        );
     });
 });
 
@@ -1041,6 +1157,31 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_RUN_ID: "9", GITHUB_JOB: "test", GITHUB_SHA: "abc" };
+        postFlaky(env, "x-2", "x", []);
+        postFlaky({ ...env, HEALTH_API_URL: "" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky({ ...env, GRAPHTY_RESULTS: "0" }, "x-2", "x", [{ file: "a.ts", name: "t" }]);
+        postFlaky(env, "x-2", "x", [
+            { file: "a.ts", name: "t", text: "boom" },
+            { file: "b.ts", name: "u" },
+        ]);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/failures");
+        assert.deepEqual(post.body, {
+            invocation: "9.1.test.x-2.1",
+            flaky: true,
+            family: "x",
+            sha: "abc",
+            failures: [
+                { file: "a.ts", name: "t", message: "boom" },
+                { file: "b.ts", name: "u", message: "" },
+            ],
+        });
+        assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

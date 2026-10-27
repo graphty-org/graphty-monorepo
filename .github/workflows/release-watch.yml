@@ -6,8 +6,9 @@
 # It runs as its own workflow run, so a broken or cancelled release run still triggers it.
 #
 # Not news, so silent: success, skipped and neutral runs; a pending run the release-train concurrency group
-# replaced with a newer one (cancelled before any job started); a first attempt that only lost its T4 spot
-# runner, which gpu-rerun-on-runner-loss.yml re-runs and whose re-run announces itself.
+# replaced with a newer one (cancelled before any job started); a first attempt release-rerun.yml re-runs on the same
+# commit or files itself (tools/release-rerun.mjs decides the same way for both), whose re-run announces itself; a
+# second attempt cancelled before its verdict, whose deferred red release-rerun.yml files.
 # A shadow release run (run name "Release (shadow)", release.yml's default mode) is never announced: it publishes
 # nothing, and its own held job comments on #3418 when it goes red.
 name: Release watch
@@ -30,13 +31,10 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: master
-                  sparse-checkout: |
-                      tools/release-status.mjs
-                      tools/gpu-runner-lost.sh
-                  sparse-checkout-cone-mode: false
+                  sparse-checkout: tools
 
             - name: Comment on the Release status issue
               env:
@@ -51,10 +49,16 @@ jobs:
                   CONCLUSION: ${{ github.event.workflow_run.conclusion }}
                   HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
                   STARTED: ${{ github.event.workflow_run.run_started_at }}
+                  TITLE: ${{ github.event.workflow_run.display_title }}
               run: |
                   set -euo pipefail
-                  if [ "$ATTEMPT" = 1 ] && [ "$CONCLUSION" = failure ] && tools/gpu-runner-lost.sh "$RUN_ID" 1; then
-                      echo "run ${RUN_ID} only lost its T4 runner; its re-run announces itself"
+                  # the decision release-rerun.yml takes on this run: anything but none, and that run announces it
+                  out=$(mktemp)
+                  RUN="$RUN_ID" WORKFLOW=Release GITHUB_OUTPUT="$out" node tools/release-rerun.mjs --dry ||
+                      echo "::warning::could not ask tools/release-rerun.mjs; announcing"
+                  decision=$(sed -n 's/^decision=//p' "$out")
+                  if [ -n "$decision" ] && [ "$decision" != none ]; then
+                      echo "run ${RUN_ID}: release-rerun.yml decides (${decision}); it announces itself"
                       exit 0
                   fi
                   node tools/release-status.mjs run-ended --run "$RUN_URL" --attempt "$ATTEMPT" \

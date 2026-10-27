@@ -258,6 +258,53 @@
                 "unit": "d"
             },
             "n": 2
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci",
+            "id": "ci.reruns",
+            "value": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "n": 294,
+            "minN": 10
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.passed_and_filed"
+                },
+                "red": {
+                    "code": "sla.filing_failed"
+                }
+            },
+            "link": "/data-sources/stress",
+            "id": "data-sources.stress_run",
+            "value": {
+                "word": "filed",
+                "n": 0
+            }
         }
     ],
     "sections": [
@@ -418,6 +465,101 @@
             "fact": {
                 "code": "flaky.quarantine.empty"
             }
+        },
+        {
+            "kind": "table",
+            "id": "stress",
+            "sub": {
+                "code": "data.stress.sub",
+                "params": {
+                    "workflow": "restricted-cpu-stress.yml"
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "run": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-25T08:42:00Z"
+                                },
+                                {
+                                    "t": "run",
+                                    "id": 40177689577
+                                }
+                            ]
+                        },
+                        "result": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "stress.filing_failed",
+                                    "params": {
+                                        "step": "File the load-sensitive tests",
+                                        "failures": 27,
+                                        "cap": 25,
+                                        "file": "oracle-scorecard.test.ts",
+                                        "cause": "Git LFS pictures missing"
+                                    }
+                                }
+                            }
+                        },
+                        "filed": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.filed_tracked",
+                                "params": {
+                                    "filed": 0,
+                                    "issue": 3539
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "run": {
+                            "t": "time",
+                            "at": "2026-10-18T08:19:00Z"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.found_nothing"
+                            }
+                        },
+                        "filed": {
+                            "t": "num",
+                            "n": 0
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "run": {
+                            "t": "time",
+                            "at": "2026-10-11T10:18:00Z"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.found_nothing"
+                            }
+                        },
+                        "filed": {
+                            "t": "num",
+                            "n": 0
+                        }
+                    }
+                }
+            ]
         }
     ]
 }

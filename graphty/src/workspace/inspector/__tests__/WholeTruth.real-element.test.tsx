@@ -13,6 +13,7 @@ import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -110,8 +111,8 @@ describe("summaries that tell the whole truth", () => {
         });
         assert.notInclude(document.body.textContent ?? "", "1 to 1");
 
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
-        await userEvent.click(await screen.findByRole("treeitem", { name: "role, node attribute" }));
+        // An attribute's Details, from its column header in the table (the Data place lists no attributes).
+        await columnVerb("node", "role", "Details");
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
             assert.include(screen.getByRole("group", { name: "staff" }).textContent ?? "", "3");

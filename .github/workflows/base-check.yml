@@ -2,9 +2,10 @@ name: Base check
 
 # Runs one test file on master's code at a pull request's base and writes each run to the results store as kind
 # `base`, which only master's own copy of this workflow may write. The pipeline round dispatches it:
-# - `[KNOWN?]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. When the
-#   file fails here the same way, the round re-runs the pull request's failed job, whose plan now excuses it, and
-#   this run files one `Failing on master` issue per signature.
+# - `[UNRELATED]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. The pull
+#   request already passed (#3925). When the file fails here the same way, this run files one priority:critical
+#   `Failing on master` issue per signature; when it passes, it comments on the pull request (`pr`), so the round
+#   looks at a failure master does not share.
 # - `[FLAKY-UNRELATED]`: a pull request saw a test it did not touch fail and pass; repeat 5. A pass and a fail here
 #   quarantine the test, and this run files its priority:critical issue.
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
@@ -24,6 +25,9 @@ on:
             repeat:
                 description: How many times to run the file
                 default: "1"
+            pr:
+                description: The pull request that asked (optional); a pass here comments on it
+                required: false
 
 permissions:
     contents: read
@@ -31,6 +35,10 @@ permissions:
 concurrency:
     group: base-check-${{ inputs.base }}-${{ inputs.file }}-${{ inputs.variant }}-${{ inputs.repeat }}
     cancel-in-progress: false
+
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
 
 jobs:
     check:
@@ -42,13 +50,14 @@ jobs:
             contents: read
             id-token: write
             issues: write
+            pull-requests: write
         env:
             RESULTS_URL: ${{ vars.RESULTS_URL }}
             HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
             GH_TOKEN: ${{ github.token }}
             HUSKY: "0"
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.base }}
                   fetch-depth: 2
@@ -60,6 +69,16 @@ jobs:
                   git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
                   mkdir -p "$RUNNER_TEMP/trusted"
                   git archive FETCH_HEAD tools | tar -x -C "$RUNNER_TEMP/trusted"
+
+            # the workflow's .github/actions/ only: the base's own tools/ run the base's tests, master's run from
+            # $RUNNER_TEMP/trusted above (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)
             - name: Refuse a base that is not on master
@@ -75,7 +94,7 @@ jobs:
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -117,3 +136,13 @@ jobs:
                   VARIANT: ${{ inputs.variant }}
                   REPEAT: ${{ inputs.repeat }}
               run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"
+
+            - name: Tell the pull request that master passes it
+              if: ${{ success() && inputs.pr != '' && inputs.repeat == '1' }}
+              env:
+                  PR: ${{ inputs.pr }}
+                  FILE: ${{ inputs.file }}
+                  BASE: ${{ inputs.base }}
+              run: |
+                  [[ "$PR" =~ ^[0-9]+$ ]] || exit 0
+                  gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "[UNRELATED] base check: \`$FILE\` passes on master at $BASE ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID), so the failure this pull request saw is not master's. Look for a flaky test or a cause in this pull request."

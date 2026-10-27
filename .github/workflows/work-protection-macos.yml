@@ -38,16 +38,20 @@ concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     bundle:
         name: Build the bundle
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
@@ -71,10 +75,10 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
@@ -99,10 +103,10 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
@@ -127,7 +131,7 @@ jobs:
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - name: Xcode 26
               run: |
@@ -137,7 +141,7 @@ jobs:
                   xcodebuild -version
                   xcrun simctl list runtimes
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
@@ -171,7 +175,7 @@ jobs:
             actions: read
             id-token: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: |
                       tools

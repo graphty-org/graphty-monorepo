@@ -14,15 +14,17 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    type InstancedMesh,
     NullEngine,
     Observable,
     PointerEventTypes,
     Quaternion,
+    RenderingGroup,
     Scene,
+    type SubMesh,
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
-    WebXRState,
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
@@ -31,7 +33,10 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
+import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { LocationMapFrame } from "./layout/locationMap/place";
 import { GraphtyLogger, type Logger } from "./logging";
+import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -590,6 +595,8 @@ export class Graph implements GraphContext {
      * A consumer's own `zoomToFit()` still lands.
      */
     readonly #readerMovedCamera = (): void => {
+        // A pan or a zoom of the reader's own is kept: the camera stops gliding back to the selection.
+        this.updateManager.holdSelectionFollow();
         if (this.#cameraPlaced) {
             return;
         }
@@ -645,11 +652,7 @@ export class Graph implements GraphContext {
     /** This graph's loads still holding a place in the session's load line. */
     private readonly turns = new Set<LoadTurn>();
     private readonly resizeHandler = (): void => {
-        this.engine.resize();
-        // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
-        // if (this.updateManager.zoomToFitCompleted) {
-        //     this.updateManager.enableZoomToFit();
-        // }
+        this.renderManager.resize();
     };
 
     /**
@@ -659,19 +662,7 @@ export class Graph implements GraphContext {
      * @internal
      */
     resize(): void {
-        const width = this.engine.getRenderWidth();
-        const height = this.engine.getRenderHeight();
-        this.engine.resize();
-        // The camera's projection follows the new aspect ratio before the frame is drawn.
-        this.camera.onResize();
-        // Only a canvas whose size changed was cleared; the observer's first delivery, a box
-        // change that keeps the render size, or a window resize the loop already drew are not.
-        // An XR session draws in its own frames, so nothing is drawn outside them.
-        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
-        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
-        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
-            this.renderManager.drawNow();
-        }
+        this.renderManager.resize();
     }
 
     /**
@@ -715,6 +706,8 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
+    /** Draws the map under a geographic layout. */
+    private readonly basemapManager: BasemapManager;
     private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
@@ -846,6 +839,20 @@ export class Graph implements GraphContext {
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
+
+        this.basemapManager = new BasemapManager(
+            () => this.scene,
+            this.element,
+            () => {
+                // The map made or showed meshes, usually just before the scene draws: a frozen list
+                // of what is drawn would leave them out of this frame and the frames after it.
+                this.updateManager.thawActiveMeshes();
+                this.renderManager.requestFrame();
+            },
+            (status) => {
+                this.eventManager.emit("basemap-status", status);
+            },
+        );
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -1315,7 +1322,10 @@ export class Graph implements GraphContext {
                 nodes: () => this.session.selection.nodeMembers(),
             },
             showContext: () => this.session.visibility.showContext,
-            visibility: this.session.visibility.masks,
+            // What is drawn: the visible elements, plus the ghosts outside the time window when
+            // the timeline draws them. Visible stays the data scope everything else reads.
+            visibility: this.session.visibility.drawnMasks,
+            ghost: () => this.session.visibility.ghosting,
         };
         this.updateManager.bindViewMasks(viewMasks);
 
@@ -1490,6 +1500,7 @@ export class Graph implements GraphContext {
         this.#unwatchXrButtons?.();
         this.#unwatchXrButtons = null;
         this.xrAvailability.dispose();
+        this.basemapManager.dispose();
         this.xrUIManager?.dispose();
         this.xrUIManager = null;
         this.xrSessionManager?.dispose();
@@ -2000,6 +2011,22 @@ export class Graph implements GraphContext {
                 this.updateManager.update(frameMs);
             });
 
+            // The map follows the layout's frame and its `map` option; nothing happens unless one changed.
+            const frame = this.#geoFrame();
+            this.basemapManager.sync(frame, this.#mapOption());
+            if (frame !== this.#followedFrame) {
+                // A map swapped for one on the other surface (an undo of flat to globe) is framed
+                // again: the camera stood for a globe many times the flat map's size, or the reverse.
+                if (frame !== null && this.#followedFrame !== null && frame.surface !== this.#followedFrame.surface) {
+                    this.updateManager.enableZoomToFit();
+                }
+
+                this.#followedFrame = frame;
+                this.#followFrame(frame);
+            }
+
+            this.#drawOverMap(frame);
+
             this.statsManager.measure("Graph.settlementCheck", () => {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
@@ -2115,6 +2142,29 @@ export class Graph implements GraphContext {
         // Checked here so the throw reaches the caller, rather than a rejection nobody awaits.
         GraphBackground.parse(background);
         this.setProjectConfig({ background });
+    }
+
+    /**
+     * What the map under a geographic layout is doing: its source, whether it is loading, drawn or
+     * fell back to the bundled world image, and the credits that must be shown with it.
+     * @returns The status; `state` is `off` while no geographic layout is active.
+     * @since 3.31.0
+     */
+    get basemapStatus(): BasemapStatus {
+        // Follow the layout's frame first: a frame published since the last frame drawn is a map
+        // still to draw, which is loading, not the old map's ready.
+        this.basemapManager.sync(this.#geoFrame(), this.#mapOption());
+        return this.basemapManager.status;
+    }
+
+    /**
+     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels, so they clear
+     * controls the page draws over that edge. A view setting, not saved with the project.
+     * @param pixels - The offset; 0 (the default) is the corner.
+     * @since 3.31.0
+     */
+    setAttributionOffset(pixels: number): void {
+        this.basemapManager.attributionOffset = pixels;
     }
 
     /**
@@ -4380,7 +4430,179 @@ export class Graph implements GraphContext {
      */
     setZoomToPointer(on: boolean): void {
         this.#zoomToPointer = on;
-        this.camera.setZoomToPointer(on);
+        // On a map the wheel always zooms toward the pointer, as every map does.
+        this.camera.setZoomToPointer(on || this.#geoFrame() !== null);
+    }
+
+    /**
+     * The geographic frame the active layout published, or null under any other layout.
+     * @returns The frame.
+     */
+    #geoFrame(): LocationMapFrame | null {
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        return engine?.geoFrame ?? null;
+    }
+
+    /**
+     * The map the active geographic layout draws under the graph: its `map` option.
+     * @returns The map, or undefined for the bundled world image.
+     */
+    #mapOption(): BasemapConfig | undefined {
+        const engine = this.layoutManager.layoutEngine as { config?: { map?: BasemapConfig | null } } | undefined;
+        return engine?.config?.map ?? undefined;
+    }
+
+    /** Whether the graph is now drawn over a map (edges under nodes); null before the first frame. */
+    #overMap: boolean | null = null;
+
+    /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
+    readonly #edgeMeshes = new Set<AbstractMesh>();
+
+    /** The edge meshes drawn under the lines (outline and underlay bands), likewise. */
+    readonly #edgeBandMeshes = new Set<AbstractMesh>();
+
+    /** The meshes the nodes are drawn from (an instance draws through its source), likewise. */
+    readonly #nodeMeshes = new Set<AbstractMesh>();
+
+    /**
+     * While a map is drawn, nodes are drawn after edges with edges writing no depth, so an arc
+     * passing in front of a node never hides it. Undone when the map goes. Nodes and edges look as
+     * their style layers paint them, as in every layout: a map adds no outline of its own.
+     *
+     * With or without a map, the opaque and alpha-tested edges are drawn after every other mesh (but
+     * the nodes over a map): in 2D an edge and a group's border lie in one plane and the later drawn
+     * wins where they cross, and Babylon's own order follows material creation, which for the node
+     * and group shapes is async and so varied between loads, drawing a different picture each time.
+     * @param frame - The active geographic frame, or null.
+     */
+    #drawOverMap(frame: LocationMapFrame | null): void {
+        const mapped = frame !== null;
+        this.#edgeMeshes.clear();
+        this.#edgeBandMeshes.clear();
+        this.#nodeMeshes.clear();
+        if (mapped) {
+            for (const node of this.dataManager.nodes.values()) {
+                const { mesh } = node;
+                this.#nodeMeshes.add("sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh);
+            }
+        }
+
+        for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
+            this.#edgeMeshes.add(batch.mesh);
+            // A band under the line (an outline a layer drew) must draw before it: with no depth written
+            // the later of two meshes at one depth wins, and a band drawn last hid its line.
+            if (key.includes("-outline") || key.includes("-underlay")) {
+                this.#edgeBandMeshes.add(batch.mesh);
+            }
+
+            const { material } = batch.mesh;
+            if (material !== null && material.disableDepthWrite !== mapped) {
+                material.disableDepthWrite = mapped;
+            }
+        }
+
+        if (mapped === this.#overMap) {
+            return;
+        }
+
+        this.#overMap = mapped;
+        const rank = (mesh: AbstractMesh): number => {
+            if (mesh.name.startsWith("graphty-flat-map") || mesh.name.startsWith("graphty-globe")) {
+                return 1;
+            }
+
+            if (this.#edgeBandMeshes.has(mesh)) {
+                return 2;
+            }
+
+            if (this.#edgeMeshes.has(mesh)) {
+                return 3;
+            }
+
+            return this.#nodeMeshes.has(mesh) ? 4 : 0;
+        };
+        // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
+        // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
+        // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
+        const byRank =
+            (then: (a: SubMesh, b: SubMesh) => number) =>
+            (a: SubMesh, b: SubMesh): number =>
+                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        this.scene.setRenderingOrder(
+            0,
+            opaque,
+            opaque,
+            mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
+        );
+        this.renderManager.requestFrame();
+    }
+
+    /** The frame the camera last followed; see {@link #followFrame}. */
+    #followedFrame: LocationMapFrame | null = null;
+
+    /**
+     * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
+     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii).
+     * @param frame - The frame now active, or null.
+     */
+    #followFrame(frame: LocationMapFrame | null): void {
+        this.camera.setZoomToPointer(this.#zoomToPointer || frame !== null);
+        const orbit = this.camera.getActiveController();
+        if (orbit instanceof OrbitCameraController) {
+            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
+            orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
+        }
+    }
+
+    /**
+     * How long the camera takes to move to a view it is sent to, in milliseconds; see
+     * {@link setCameraTransitionDuration}.
+     * @returns The duration, or undefined when each move keeps its own.
+     */
+    getCameraTransitionDuration(): number | undefined {
+        return this.#cameraTransitionMs;
+    }
+
+    /**
+     * How long every animated camera move takes -- a fit, a preset view, a glide to a picked node --
+     * in milliseconds, whatever the move asked for. 0 moves the camera at once, which a page sets
+     * when its reader prefers reduced motion. Undefined (the default) lets each move keep its own.
+     * A preference of the view, not saved in a project file.
+     * @param ms - The duration, or undefined.
+     * @since 3.31.0
+     */
+    setCameraTransitionDuration(ms: number | undefined): void {
+        this.#cameraTransitionMs = ms === undefined ? undefined : Math.max(0, ms);
+        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+    }
+
+    /** See {@link setCameraTransitionDuration}. */
+    #cameraTransitionMs: number | undefined = undefined;
+
+    /**
+     * Where the active map layout read its locations, and how it lays the map, as plain facts:
+     * the surface, the box or the globe's radius, the location columns (with the half of a pair
+     * it found itself) or the location column and its format, and the nodes it could not place.
+     * Null when no map layout has published a frame.
+     * @returns The facts.
+     * @since 3.31.0
+     */
+    get mapFrame(): MapFrameFact | null {
+        const frame = this.#geoFrame();
+        if (frame === null) {
+            return null;
+        }
+
+        const common = {
+            dimensions: frame.dimensions,
+            location: frame.location,
+            unplaced: [...frame.unplacedIds] as readonly (string | number)[],
+            warnings: frame.warnings,
+        };
+        return frame.surface === "globe"
+            ? { ...common, surface: "globe", radius: frame.radius }
+            : { ...common, surface: "flat", projection: frame.projection, bounds: frame.bounds, size: frame.size };
     }
 
     /**
@@ -5586,8 +5808,9 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
+        const cameraPath = options.tour ? this.tourPath(options.tour, options.duration) : options.cameraPath;
         // Validate cameraPath is provided
-        if (!options.cameraPath || options.cameraPath.length < 2) {
+        if (!cameraPath || cameraPath.length < 2) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
         }
 
@@ -5606,7 +5829,7 @@ export class Graph implements GraphContext {
         });
 
         // Create animations from waypoints
-        animator.createCameraAnimations(options.cameraPath);
+        animator.createCameraAnimations(cameraPath);
 
         // Start recording and animation simultaneously
         const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
@@ -5623,6 +5846,30 @@ export class Graph implements GraphContext {
         this.handleVideoDownload(result, options);
 
         return result;
+    }
+
+    /**
+     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
+     * duration split evenly between the legs.
+     * @param names - Camera view ids or saved view names, in order.
+     * @param duration - The whole tour, in milliseconds.
+     * @returns The waypoints.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
+     */
+    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
+        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
+        return names.map((name, index) => {
+            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
+            if (!position || !target) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `the view "${name}" has no camera position and target to fly to`,
+                    source: "view",
+                    details: { view: name },
+                });
+            }
+            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
+        });
     }
 
     /**
@@ -5874,8 +6121,13 @@ export class Graph implements GraphContext {
             this.#initialCameraStateOwed = false;
         }
 
-        // For immediate (non-animated) updates or skipQueue, apply directly
-        if (!options || !options.animate || options.skipQueue) {
+        // The view's own transition time, when set, wins over the move's.
+        if (options !== undefined && this.#cameraTransitionMs !== undefined) {
+            options = { ...options, duration: this.#cameraTransitionMs };
+        }
+
+        // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly
+        if (!options || !options.animate || options.skipQueue || options.duration === 0) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
             this.eventManager.emit("camera-state-changed", { state: resolvedState });
@@ -6842,7 +7094,14 @@ export class Graph implements GraphContext {
                 ? this.getNodes()
                 : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
 
-        return measureBounds(nodes.map((node) => node.getPosition()));
+        const points = nodes.map((node) => node.getPosition());
+        // The whole graph on a map is the map too: its edges, or the globe.
+        const frame = nodeIds === undefined ? this.#geoFrame() : null;
+        if (frame !== null && points.length > 0) {
+            points.push(...mapCorners(frame));
+        }
+
+        return measureBounds(points);
     }
 
     /**
@@ -6881,8 +7140,20 @@ export class Graph implements GraphContext {
             insets: { top: top * ratio, right: right * ratio, bottom: bottom * ratio, left: left * ratio },
             ...(fov === undefined ? {} : { fov }),
             current: this.getCameraState(),
+            ...(this.#facing() === undefined ? {} : { facing: this.#facing() }),
             ...(options === undefined ? {} : { options }),
         };
+    }
+
+    /**
+     * The side the active layout's drawing is meant to be seen from: -z while a map layout draws a
+     * flat map or a globe in 3D, the side the map is laid out to face.
+     * @returns The unit direction toward the viewer, or undefined when every side will do.
+     */
+    #facing(): CameraViewContext["facing"] {
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame;
+        return frame?.dimensions === 3 ? { x: 0, y: 0, z: -1 } : undefined;
     }
 
     /**

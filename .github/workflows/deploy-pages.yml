@@ -7,6 +7,10 @@ name: Deploy to GitHub Pages
 # nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
 # (promote.yml, and the full run's nightly promotion). The deploy job always deploys master's newest green build's
 # site, so re-running any run redeploys canary's newest site when canary is behind it.
+#
+# release.yml also calls it (input sha and run_id) for a held nightly candidate's head past its commit (a fix forward,
+# design/ci/channels-pipeline.md section 3), which master never built: then it only assembles and keeps site-<sha>
+# from that run's artifacts; it records nothing in the results store and deploys nothing.
 run-name: Deploy ${{ github.event.workflow_run.head_sha }}
 on:
     workflow_run:
@@ -15,10 +19,20 @@ on:
             - completed
         branches:
             - master
+    workflow_call:
+        inputs:
+            sha:
+                description: "the commit whose site to assemble"
+                type: string
+                required: true
+            run_id:
+                description: "the run that built it (its build-* and build-storybook-* artifacts)"
+                type: string
+                required: true
 
 env:
-    RUN_ID: ${{ github.event.workflow_run.id }}
-    SHA: ${{ github.event.workflow_run.head_sha }}
+    RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+    SHA: ${{ inputs.sha || github.event.workflow_run.head_sha }}
 
 permissions:
     contents: read
@@ -29,15 +43,26 @@ permissions:
 jobs:
     build:
         name: Assemble Site
-        # Only a green CI run of a push to master assembles a site
-        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+        # Only a green CI run of a push to master assembles a site, or release.yml's call for a held head
+        if: ${{ inputs.sha || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
         runs-on: ubuntu-24.04
         steps:
             # The deployed commit, with history and tags, so the stamp below can name the app's release.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ env.SHA }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # Download all artifacts from CI workflow
             - name: Download graphty app build
@@ -93,7 +118,7 @@ jobs:
               with:
                   name: build-storybook-cytoscape-extensions
                   path: ./cytoscape-extensions/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graph-io-fidelity Storybook
@@ -166,7 +191,7 @@ jobs:
               run: mkdir -p graph-io/node_modules/@graphty && ln -s ../../../graph-format graph-io/node_modules/@graphty/graph-format
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -180,6 +205,13 @@ jobs:
             # Fails the deploy rather than publishing a site without the data fetchDataset() loads
             - name: Build graph-samples hosted datasets
               run: node graph-samples/scripts/build-hosted.mjs --reuse-published
+
+            # The gazetteer the location map reads place names with (Natural Earth and GeoNames),
+            # published at /data/gazetteer/v1/. Its sources are downloaded fresh on every deploy (no
+            # cache: a cache restored into this privileged job could be poisoned), and a failed
+            # download fails the deploy rather than publishing a site whose place names cannot be read.
+            - name: Build the gazetteer
+              run: node graphty-element/scripts/build-gazetteer.mjs
 
             # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
             # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which
@@ -216,6 +248,7 @@ jobs:
             # site. Fails open, like every call to the store: a missed record only delays that commit's full run. The
             # pipeline health API (HEALTH_API_URL) then gets the same record with its own token (audience graphty-health).
             - name: Record the site in the results store
+              if: ${{ !inputs.sha }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
@@ -246,6 +279,8 @@ jobs:
     deploy:
         name: Deploy
         needs: build
+        # release.yml's call only assembles a site
+        if: ${{ !inputs.sha }}
         # One deploy at a time; a later queued deploy replaces a pending one, which is harmless, since each deploys
         # the newest site. On this job, not the workflow, so every build still assembles and keeps its own site-<sha>.
         concurrency:
@@ -324,7 +359,7 @@ jobs:
             # master's tip, like promote.yml: graphty/sites/canary.json may not exist at an older deployed commit
             - name: Check out canary's site.json
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   sparse-checkout: graphty/sites
                   path: ./repo/
@@ -341,11 +376,11 @@ jobs:
 
             - name: Setup Pages
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/configure-pages@v4
+              uses: actions/configure-pages@v6
 
             - name: Upload Pages artifact
               if: ${{ steps.live.outputs.deploy == 'true' }}
-              uses: actions/upload-pages-artifact@v3
+              uses: actions/upload-pages-artifact@v5
               with:
                   path: ./public
 

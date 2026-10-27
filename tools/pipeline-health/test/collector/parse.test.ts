@@ -7,7 +7,9 @@ import {
     family,
     fixedCosts,
     llmCost,
+    loadKind,
     masterState,
+    oldestUntested,
     pool,
     prOfRun,
     prStocks,
@@ -67,6 +69,22 @@ describe("runs and jobs", () => {
         const s = toJobItem(skipped, REPO, "ci.yml");
         expect(s.startedAt).toBeUndefined();
         expect(s.completedAt).toBeUndefined();
+    });
+
+    it("sorts runs by the load they put on the runners, and stamps it on their jobs", () => {
+        const at = (path: string, event: string, head_branch: string | null = "fix/x") =>
+            loadKind({ path: `.github/workflows/${path}`, event, head_branch });
+        expect(at("ci.yml", "pull_request")).toBe("pr");
+        expect(at("pr-issue-link.yml", "pull_request_target")).toBe("pr");
+        expect(at("ci.yml", "push", "master")).toBe("master");
+        expect(at("release.yml", "workflow_dispatch", "master")).toBe("full");
+        expect(at("release.yml", "schedule", "master")).toBe("full");
+        expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
+        expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
+        expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
+        expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {
@@ -261,6 +279,43 @@ describe("release lanes", () => {
             version: "skipped",
         });
         expect(a.red.sort()).toEqual(["audit", "ci", "t4"]);
+    });
+
+    it("passes a full-run lane whose Red early job skipped, though a non-gating job in it failed", () => {
+        const run = { ...runs[0], display_title: "Release (full)" };
+        const j = (name: string, conclusion: string) =>
+            ({ name, status: "completed", conclusion, completed_at: "2026-10-26T16:00:00Z" }) as GhJob;
+        const a = releaseAttempt(run, [
+            j("CI / Build", "success"),
+            j("CI / Performance Benchmarks", "failure"),
+            j("CI / Story tests parity (graphty)", "failure"),
+            j("Red early (CI)", "skipped"),
+            j("T4 GPU / Test", "success"),
+            j("Red early (T4 GPU)", "skipped"),
+        ]);
+        expect(a.lanes.ci).toBe("passed");
+        expect(a.red).toEqual([]);
+        const red = releaseAttempt(run, [j("CI / Build", "failure"), j("Red early (CI)", "success")]);
+        expect(red.lanes.ci).toBe("failed");
+        const skippedEarly = [j("CI / Build", "cancelled"), j("Red early (CI)", "skipped")];
+        expect(releaseAttempt({ ...run, conclusion: "cancelled" }, skippedEarly).lanes.ci).toBe("failed");
+        expect(releaseAttempt(run, skippedEarly).lanes.ci).toBe("failed");
+    });
+
+    it("ages untested master by its first-parent line, not a branch's own merge of master", () => {
+        const c = (sha: string, date: string, ...parents: string[]) => ({
+            sha,
+            parents: parents.map((p) => ({ sha: p })),
+            commit: { committer: { date } },
+        });
+        // base <- m1 (landed 17:00) <- m2 (landed 18:00); m2's branch side holds b1, its merge of master a day ago.
+        const commits = [
+            c("b1", "2026-10-25T20:00:00Z", "old", "base"),
+            c("m1", "2026-10-26T17:00:00Z", "base", "x"),
+            c("m2", "2026-10-26T18:00:00Z", "m1", "b1"),
+        ];
+        expect(oldestUntested(commits)).toBe(Date.parse("2026-10-26T17:00:00Z"));
+        expect(oldestUntested([])).toBeUndefined();
     });
 
     it("counts failures in a row, newest first", () => {

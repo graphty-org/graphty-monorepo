@@ -82,12 +82,9 @@ function retryWait(res: Response, delay: number): number | undefined {
         res.status === 429 ||
         (res.status === 403 && (res.headers.has("retry-after") || res.headers.get("x-ratelimit-remaining") === "0"));
     if (!limited) return res.status >= 500 ? delay : undefined;
-    const after = Number(res.headers.get("retry-after"));
+    const after = Number(res.headers.get("retry-after")) * 1000;
     const reset = Number(res.headers.get("x-ratelimit-reset")) * 1000 - Date.now();
-    const wait = Math.max(
-        delay,
-        Number.isFinite(after) && after > 0 ? after * 1000 : Number.isFinite(reset) ? reset : 0,
-    );
+    const wait = Math.max(delay, after > 0 ? after : reset || 0);
     return wait <= MAX_WAIT_MS ? wait : undefined;
 }
 

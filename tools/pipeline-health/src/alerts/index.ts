@@ -117,7 +117,7 @@ async function member(ctx: Ctx, m: MemberStatus): Promise<void> {
 async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus): Promise<void> {
     if (mark.open === SENT && mark.clear !== SENT) {
         const ended = ctx.evaluation.episodes.filter((x) => x.member === m.id && x.endedAt !== undefined);
-        const e = ended.sort((a, b) => b.start - a.start)[0] ?? {
+        const e = ended.reduce<Episode | undefined>((a, b) => (a && a.start > b.start ? a : b), undefined) ?? {
             member: m.id,
             category: m.category,
             worst: "FAILING",

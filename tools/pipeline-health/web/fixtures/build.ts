@@ -115,6 +115,7 @@ const SLA = {
     bins: { target: cmp("<=", 10, "pct"), red: cmp(">", 25, "pct"), needs6h: true } satisfies Sla,
     reruns: { target: cmp("<", 5, "pct"), red: cmp(">", 15, "pct"), needs6h: true } satisfies Sla,
     shardsOver: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    runnerMinutes: { target: cmp("<=", 400, "min"), red: cmp(">", 600, "min") } satisfies Sla,
     blocked: { target: cmp("==", 0), red: f("sla.blocked") } satisfies Sla,
     noIssue: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
     flakeRate: { target: cmp("<", 2, "per1000"), red: cmp(">", 10, "per1000"), needs6h: true } satisfies Sla,
@@ -360,6 +361,16 @@ const ciMembers: Member[] = [
         value: num(1),
         sla: SLA.shardsOver,
         link: "/ci/shards",
+    }),
+    member({
+        id: "ci.runner_minutes",
+        window: "7d",
+        state: "slow",
+        value: num(387, "min"),
+        n: 146,
+        minN: 10,
+        sla: SLA.runnerMinutes,
+        link: "/ci/runner-minutes",
     }),
     member({
         id: "ci.bins_over",
@@ -1090,6 +1101,29 @@ const ciSections: Section[] = [
                 ],
             },
         ],
+    },
+    {
+        kind: "table",
+        id: "runner-minutes",
+        sub: f("runner_minutes.sub", { day: 83, week: 146 }),
+        rows: (
+            [
+                ["pr", 398, 291, 33046, 42474],
+                ["master", 28, 20, 2285, 2974],
+                ["full", 33, 33, 2777, 4857],
+                ["other", 52, 39, 4313, 5706],
+                ["total", 511, 387, 42421, 56546],
+            ] as const
+        ).map(([k, day, week, dayMin, weekMin]) => ({
+            cells: {
+                kind: { t: "label", code: `load.${k}` },
+                day: { t: "num", n: day, unit: "min" },
+                week: { t: "num", n: week, unit: "min" },
+                dayMin: { t: "num", n: dayMin, unit: "min" },
+                weekMin: { t: "num", n: weekMin, unit: "min" },
+            },
+            ...(k === "total" ? { total: true } : {}),
+        })),
     },
     shardsSection("7d", "full"),
 ];

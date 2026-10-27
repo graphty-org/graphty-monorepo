@@ -172,6 +172,7 @@ export const MEMBER_IDS = [
     "ci.bins_over",
     "ci.reruns",
     "ci.shards_over",
+    "ci.runner_minutes",
     "ci.superseded",
     "flaky.blocked",
     "flaky.no_issue",

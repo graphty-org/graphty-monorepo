@@ -181,13 +181,14 @@ const FONT_BOX_REFERENCE = 1000;
 const fontBoxes = new Map<string, readonly [number, number]>();
 
 /**
- * A font's ascent and descent at a size, unrounded. Chromium reports the font box in whole pixels, rounded
+ * A font's ascent and descent at a size, the same with hinted and unhinted glyphs. Chromium reports the font box in whole pixels, rounded
  * differently with hinted glyphs and with unhinted ones (`textRendering = "geometricPrecision"`), so a 10 px
- * Verdana ascent read 10 or 9 and the label's baseline moved by up to a pixel. Read at 1000 px and scaled, the
- * rounding is a thousandth of a pixel whichever glyphs are drawn.
+ * Verdana ascent read 10 or 9 and the label's baseline moved by up to a pixel. Read at 1000 px, scaled and rounded
+ * to the nearest pixel (as Chromium rounds it for hinted glyphs), the box is the same whichever glyphs are drawn,
+ * so a label keeps the whole-pixel height, and a node sized to its label the size, it had with hinted glyphs.
  * @param ctx - Canvas rendering context for measurement (its font is changed)
  * @param style - The run's style
- * @returns ascent and descent above and below the alphabetic baseline, in pixels at the style's size
+ * @returns ascent and descent above and below the alphabetic baseline, in whole pixels at the style's size
  */
 function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): readonly [number, number] {
     const key = `${style.style} ${style.weight} ${style.font}`;
@@ -198,7 +199,10 @@ function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): re
         box = [m.fontBoundingBoxAscent || 0, m.fontBoundingBoxDescent || 0];
         fontBoxes.set(key, box);
     }
-    return [(box[0] * style.size) / FONT_BOX_REFERENCE, (box[1] * style.size) / FONT_BOX_REFERENCE];
+    return [
+        Math.round((box[0] * style.size) / FONT_BOX_REFERENCE),
+        Math.round((box[1] * style.size) / FONT_BOX_REFERENCE),
+    ];
 }
 
 /**

@@ -75,7 +75,7 @@ export function tooOldToRetest(openedAt, now = Date.now()) {
  */
 export function attemptOf(raw) {
     const n = Number.parseInt(String(raw ?? ""), 10);
-    return n >= 1 ? n : 1;
+    return Math.max(n || 1, 1);
 }
 
 /**

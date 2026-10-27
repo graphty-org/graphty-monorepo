@@ -177,6 +177,30 @@ export interface LineOptions {
     runAlign?: RunAlign;
 }
 
+const FONT_BOX_REFERENCE = 1000;
+const fontBoxes = new Map<string, readonly [number, number]>();
+
+/**
+ * A font's ascent and descent at a size, unrounded. Chromium reports the font box in whole pixels, rounded
+ * differently with hinted glyphs and with unhinted ones (`textRendering = "geometricPrecision"`), so a 10 px
+ * Verdana ascent read 10 or 9 and the label's baseline moved by up to a pixel. Read at 1000 px and scaled, the
+ * rounding is a thousandth of a pixel whichever glyphs are drawn.
+ * @param ctx - Canvas rendering context for measurement (its font is changed)
+ * @param style - The run's style
+ * @returns ascent and descent above and below the alphabetic baseline, in pixels at the style's size
+ */
+function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): readonly [number, number] {
+    const key = `${style.style} ${style.weight} ${style.font}`;
+    let box = fontBoxes.get(key);
+    if (box === undefined) {
+        ctx.font = `${style.style} ${style.weight} ${FONT_BOX_REFERENCE}px ${style.font}`;
+        const m = ctx.measureText("");
+        box = [m.fontBoundingBoxAscent || 0, m.fontBoundingBoxDescent || 0];
+        fontBoxes.set(key, box);
+    }
+    return [(box[0] * style.size) / FONT_BOX_REFERENCE, (box[1] * style.size) / FONT_BOX_REFERENCE];
+}
+
 /**
  * Measures one line of segments from the font's own metrics.
  *
@@ -207,8 +231,8 @@ export function measureLine(
         const metrics = ctx.measureText(text);
         width += metrics.width;
         maxSize = Math.max(maxSize, style.size);
-        const fontAscent = metrics.fontBoundingBoxAscent || 0;
-        const fontDescent = metrics.fontBoundingBoxDescent || 0;
+        const [fontAscent, fontDescent] = fontBox(ctx, style);
+        ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return {
             // The font box keeps every label in one font the same height whatever its letters; the
             // glyph box covers a face (a script font, say) whose ink overflows its own font box.

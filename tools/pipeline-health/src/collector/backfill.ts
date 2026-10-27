@@ -61,6 +61,8 @@ export interface BackfillOptions {
     rowLimit?: number;
     /** Runs per page; the cursor counts pages of this size. */
     perPage?: number;
+    /** Runs GitHub lists for one query (LISTED_RUNS; tests lower it). */
+    listedRuns?: number;
     log?: (line: string) => void;
     sleep?: (ms: number) => Promise<void>;
     /** The clock the throttle and the deadline read (tests pass a fake one). */
@@ -95,12 +97,20 @@ class Stop extends Error {
     }
 }
 
-/** A cursor's `{ day, page }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent). */
-async function readCursor(store: Store, name: string): Promise<{ day: number; page: number } | undefined> {
+/** A runs cursor: the next day and page to load, and the hour when that day is read an hour at a time. */
+interface RunsCursor {
+    day: number | string;
+    page: number;
+    hour?: number;
+}
+
+/** A cursor's `{ day, page, hour }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent). */
+async function readCursor(store: Store, name: string): Promise<(RunsCursor & { day: number }) | undefined> {
     try {
         const raw = await getCursor(store, name);
-        const c = raw ? (JSON.parse(raw) as { day: string; page: number }) : undefined;
-        if (c && Number.isFinite(Date.parse(c.day))) return { day: Date.parse(c.day), page: c.page };
+        const c = raw ? (JSON.parse(raw) as RunsCursor & { day: string }) : undefined;
+        if (c && Number.isFinite(Date.parse(c.day)))
+            return { day: Date.parse(c.day), page: c.page, ...(c.hour === undefined ? {} : { hour: c.hour }) };
     } catch {
         // unreadable
     }
@@ -176,27 +186,60 @@ async function repoRuns(c: Ctx, repo: string, first: number): Promise<void> {
         day: Math.floor(c.o.now / DAY) * DAY - DAY,
         page: 1,
     };
-    for (let day = at.day; day >= floor; day -= DAY) await dayRuns(c, repo, day, day === at.day ? at.page : 1);
+    for (let day = at.day; day >= floor; day -= DAY)
+        await dayRuns(c, repo, day, day === at.day ? at : { day, page: 1 });
 }
 
-/** One day's runs (a day already over: no page shifts), a page at a time from `fromPage`; the cursor moves after each. */
-async function dayRuns(c: Ctx, repo: string, day: number, fromPage: number): Promise<void> {
-    // ponytail: GitHub answers at most 1,000 runs per query; a day past that loses its tail.
-    for (let page = fromPage; page <= Math.ceil(1000 / c.perPage); page++) {
+/** GitHub lists at most this many runs for one query; past it a page comes back empty. */
+export const LISTED_RUNS = 1000;
+
+/**
+ * One day's runs (a day already over: no page shifts), a page at a time from the cursor's page; the cursor moves
+ * after each. A day with more runs than GitHub lists for one query (1,945 on 2026-10-12, whose 945 oldest runs and
+ * their T4 jobs were lost) is read an hour at a time instead, newest first, with the hour in the cursor.
+ */
+async function dayRuns(c: Ctx, repo: string, day: number, from: RunsCursor): Promise<void> {
+    if (from.hour !== undefined) return hourRuns(c, repo, day, from.hour, from.page);
+    const limit = c.o.listedRuns ?? LISTED_RUNS;
+    for (let page = from.page; page <= Math.ceil(limit / c.perPage); page++) {
         const res = await c.get<{ total_count: number; workflow_runs: GhRun[] }>(
             `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=${c.perPage}&page=${page}`,
         );
-        const list = res?.workflow_runs ?? [];
-        const out: RawItem[] = [];
-        for (const run of list) out.push(...(await runItems(c.get, repo, run)));
-        await c.write(out);
-        c.r.runs += list.length;
-        c.log(`${repo} ${isoDay(day)} page ${page}: ${out.length} items, ${c.o.gh.calls} calls`);
-        const last = list.length < c.perPage;
+        if ((res?.total_count ?? 0) > limit) return hourRuns(c, repo, day, 23, 1);
+        const last = await runsPage(c, repo, res?.workflow_runs ?? [], `${isoDay(day)} page ${page}`);
         const next = last ? { day: isoDay(day - DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
         await setCursor(c.o.store, runsCursor(repo), JSON.stringify(next), c.o.now);
         if (last) return;
     }
+}
+
+/** A day's runs an hour at a time from `hour` down to midnight. ponytail: an hour past the listed limit loses its tail. */
+async function hourRuns(c: Ctx, repo: string, day: number, hour: number, fromPage: number): Promise<void> {
+    const limit = c.o.listedRuns ?? LISTED_RUNS;
+    for (let h = hour; h >= 0; h--) {
+        const hh = `${isoDay(day)}T${String(h).padStart(2, "0")}`;
+        const range = encodeURIComponent(`${hh}:00:00Z..${hh}:59:59Z`);
+        for (let page = h === hour ? fromPage : 1; page <= Math.ceil(limit / c.perPage); page++) {
+            const res = await c.get<{ total_count: number; workflow_runs: GhRun[] }>(
+                `repos/${repo}/actions/runs?created=${range}&per_page=${c.perPage}&page=${page}`,
+            );
+            const last = await runsPage(c, repo, res?.workflow_runs ?? [], `${hh}h page ${page}`);
+            let next: RunsCursor & { day: string } = { day: isoDay(day), page: page + 1, hour: h };
+            if (last) next = h > 0 ? { day: isoDay(day), page: 1, hour: h - 1 } : { day: isoDay(day - DAY), page: 1 };
+            await setCursor(c.o.store, runsCursor(repo), JSON.stringify(next), c.o.now);
+            if (last) break;
+        }
+    }
+}
+
+/** Writes one listed page of runs with their items; true when it was the query's last page. */
+async function runsPage(c: Ctx, repo: string, list: GhRun[], what: string): Promise<boolean> {
+    const out: RawItem[] = [];
+    for (const run of list) out.push(...(await runItems(c.get, repo, run)));
+    await c.write(out);
+    c.r.runs += list.length;
+    c.log(`${repo} ${what}: ${out.length} items, ${c.o.gh.calls} calls`);
+    return list.length < c.perPage;
 }
 
 interface FlakySuite {

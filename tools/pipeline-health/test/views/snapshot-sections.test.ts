@@ -46,7 +46,12 @@ describe("parsers", () => {
     });
     it("workflowState counts the last hour and the failing streak", () => {
         const run = (min: number, conclusion: string) =>
-            ({ status: "completed", conclusion, created_at: new Date(NOW - min * MIN).toISOString() }) as GhRun;
+            ({
+                event: "workflow_dispatch",
+                status: "completed",
+                conclusion,
+                created_at: new Date(NOW - min * MIN).toISOString(),
+            }) as GhRun;
         const w = workflowState("promote.yml", [run(5, "failure"), run(20, "failure"), run(90, "success")], NOW);
         expect(w).toMatchObject({ workflow: "promote.yml", runs: 2, failed: 2, inRow: 2, since: NOW - 20 * MIN });
     });

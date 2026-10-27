@@ -52,7 +52,14 @@ type Suite = {
 
 /** The collector's fake, with the runs list answered by day and page, jobs renumbered per run, and `suites` by node id. */
 function fake(
-    opts: { remaining?: number; runs?: GhRun[]; suites?: Record<string, Suite>; jobs?: Record<number, GhJob[]> } = {},
+    opts: {
+        remaining?: number;
+        runs?: GhRun[];
+        suites?: Record<string, Suite>;
+        jobs?: Record<number, GhJob[]>;
+        /** Runs GitHub lists for one query. */
+        listed?: number;
+    } = {},
 ) {
     const base = fakeGitHub();
     const runs = opts.runs ?? history();
@@ -68,10 +75,16 @@ function fake(
             };
             const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
             if (/\/actions\/runs$/.test(u.pathname) && u.searchParams.get("created")) {
-                const day = runs.filter((r) => r.created_at.startsWith(u.searchParams.get("created")!));
+                // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
+                const created = u.searchParams.get("created")!;
+                const [from, to] = created.split("..");
+                const day = runs
+                    .filter((r) => (to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created)))
+                    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
                 const per = Number(u.searchParams.get("per_page"));
                 const page = Number(u.searchParams.get("page"));
-                return reply({ total_count: day.length, workflow_runs: day.slice((page - 1) * per, page * per) });
+                const shown = day.slice(0, opts.listed ?? Infinity);
+                return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
             }
             const ids =
                 opts.suites &&
@@ -173,6 +186,41 @@ describe("backfill", () => {
         const ids = homes(store, "run").map((i) => Number(/(\d+)$/.exec(i.pk)![1]));
         expect(ids.sort()).toEqual([1000, 1001, 1002, 1003, 1004, 1005, 1006]);
         expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-24", page: 1 });
+    });
+
+    it("reads a day with more runs than GitHub lists an hour at a time, so its oldest runs are not lost", async () => {
+        // 2026-10-12 had 1,945 runs; GitHub listed the newest 1,000 and the T4 jobs of the morning's trains were lost.
+        // Here GitHub lists 4 runs a query and the closed day has 7, one an hour from 10:00.
+        const store = new MemoryStore();
+        const f = fake({ listed: 4 });
+        const r = await backfill({ ...options(store, f), listedRuns: 4 });
+        expect(r.done).toBe(true);
+        expect(
+            homes(store, "run")
+                .map((i) => Number(/(\d+)$/.exec(i.pk)![1]))
+                .sort(),
+        ).toEqual([1000, 1001, 1002, 1003, 1004, 1005, 1006]);
+        const created = listCalls(f.urls).map((u) => new URL(u).searchParams.get("created")!);
+        expect(created[0]).toBe("2026-10-25");
+        expect(created).toContain("2026-10-25T10:00:00Z..2026-10-25T10:59:59Z");
+        expect(created).toContain("2026-10-25T16:00:00Z..2026-10-25T16:59:59Z");
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-23", page: 1 });
+    });
+
+    it("continues an hour-at-a-time day from the hour in its cursor", async () => {
+        const store = new MemoryStore();
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-10-25", page: 1, hour: 12 }), NOW);
+        const f = fake({ listed: 4 });
+        expect((await backfill({ ...options(store, f), listedRuns: 4 })).done).toBe(true);
+        // 10:00 to 12:00: runs 1000 to 1002; the later hours were loaded before the stop.
+        expect(
+            homes(store, "run")
+                .map((i) => Number(/(\d+)$/.exec(i.pk)![1]))
+                .sort(),
+        ).toEqual([1000, 1001, 1002]);
+        expect(new URL(listCalls(f.urls)[0]).searchParams.get("created")).toBe(
+            "2026-10-25T12:00:00Z..2026-10-25T12:59:59Z",
+        );
     });
 
     it("keeps what the live collector stored on a run or job it re-reads (cause, cancelClass, hang)", async () => {

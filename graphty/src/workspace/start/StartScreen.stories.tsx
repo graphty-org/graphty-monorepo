@@ -146,13 +146,19 @@ export const NetworkData: Story = {
             storyWaitOptions(1000),
         );
 
-        // The dialog focuses its close button on open, which draws a focus ring only when the click
-        // that opened it was not a pointer's (a replayed click in Storybook's own UI). A reader who
-        // clicked sees no ring, so the story ends the same either way: with nothing focused.
-        const focused = canvasElement.ownerDocument.activeElement;
-        if (focused instanceof HTMLElement) {
-            focused.blur();
-        }
+        // The dialog focuses its close button once it has opened, which draws a focus ring only when
+        // the click that opened it was not a pointer's (a replayed click in Storybook's own UI). A
+        // reader who clicked sees no ring, so the story waits for that focus and ends the same either
+        // way: with nothing focused.
+        const doc = canvasElement.ownerDocument;
+        const focused = await waitFor(() => {
+            const active = doc.activeElement;
+            if (!(active instanceof HTMLElement) || active.closest('[role="dialog"]') === null) {
+                throw new Error("the dialog has not taken focus yet");
+            }
+            return active;
+        }, storyWaitOptions(1000));
+        focused.blur();
     },
 };
 

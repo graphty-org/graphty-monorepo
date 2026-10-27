@@ -175,7 +175,6 @@ const meta: Meta<LightingArgs> = {
     },
     parameters: {
         controls: { include: ["lighting"] },
-        chromatic: { delay: 500 },
     },
     args: {
         lighting: "studio",

@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { HOLD_TITLE, holdIssue } from "./hold.mjs";
+import { HOLD_TITLE, autoAbandon, holdIssue } from "./hold.mjs";
 
 describe("holdIssue", () => {
     it("names the commit by 12 characters and says how the hold ends", () => {
@@ -19,7 +19,7 @@ describe("holdIssue", () => {
             body,
             /start the fix from the candidate's head, never from newer master: `worktree-new.sh fix\/<issue>-<topic> origin\/channel\/candidate/,
         );
-        assert.match(body, /-f mode=abandon/);
+        assert.match(body, /gh workflow run nightly-abandon\.yml --ref master -f reason=/);
     });
 });
 
@@ -158,8 +158,8 @@ describe("end", () => {
         const r = await withStore("end", hold, { ABANDONED: "true", WHY: "abandoned by the owner" });
         assert.equal(r.code, 0);
         assert.deepEqual(r.posts, [
+            { url: "/v1/hold", body: { clear: true, base: "d".repeat(40), head: "e".repeat(40) } },
             { url: "/v1/verdicts", body: { sha: "e".repeat(40), state: "rejected", lane: "abandoned" } },
-            { url: "/v1/hold", body: { clear: true } },
         ]);
         assert.match(r.calls, /issue close 5/);
     });
@@ -169,5 +169,66 @@ describe("end", () => {
             r.posts.map((p) => p.url),
             ["/v1/hold"],
         );
+    });
+});
+
+describe("autoAbandon", () => {
+    const B = "b".repeat(40);
+    const N1 = "1".repeat(40);
+    const N2 = "2".repeat(40);
+    const NOW = 10 * 24 * 3600_000;
+    const HOUR = 3600_000;
+    const chain = [N2, N1, B];
+    const hold = (at = NOW - HOUR) => ({ base: B, head: B, issue: 5, at });
+    const facts = (verdict, more = {}) => ({
+        hold: hold(),
+        recent: [{ sha: B, ...verdict }],
+        sites: [N2, N1, B],
+        chain,
+        now: NOW,
+        ...more,
+    });
+    it("abandons a hold only a pipeline defect made, once a newer commit passed that lane", () => {
+        const f = facts({ state: "red", lane: "captures" });
+        assert.equal(autoAbandon(f).abandon, false, "no newer commit was judged yet");
+        f.recent.unshift({ sha: N1, state: "red", lane: "t4" });
+        const r = autoAbandon(f);
+        assert.equal(r.abandon, true);
+        assert.match(r.why, /pipeline defect \(captures\)/);
+    });
+    it("never counts a newer commit whose CI was red, or that inherited its verdict, as the fix", () => {
+        const f = facts({ state: "red", lane: "recapture" });
+        f.recent.unshift({ sha: N1, state: "red", lane: "ci" }, { sha: N2, state: "red", lane: "inherited from x" });
+        assert.equal(autoAbandon(f).abandon, false);
+    });
+    it("keeps a hold a code lane made red until it is 24 hours old and master has a newer green build", () => {
+        assert.equal(autoAbandon(facts({ state: "red", lane: "captures,t4" })).abandon, false);
+        const old = facts({ state: "red", lane: "t4" }, { hold: hold(NOW - 25 * HOUR) });
+        assert.equal(autoAbandon(old).abandon, true);
+        assert.equal(autoAbandon({ ...old, sites: [B] }).abandon, false, "no newer green build");
+        assert.equal(
+            autoAbandon({ ...facts({ state: "owner-item", lane: "llm" }), hold: hold(NOW - 25 * HOUR) }).abandon,
+            true,
+        );
+    });
+    it("never abandons changed screenshots awaiting the owner's review, however old", () => {
+        for (const state of ["green-images", "approved", "rejected"]) {
+            const r = autoAbandon(facts({ state, lane: null }, { hold: hold(NOW - 100 * HOUR) }));
+            assert.equal(r.abandon, false, state);
+        }
+    });
+    it("never abandons a held head no run judged yet", () => {
+        const r = autoAbandon({ ...facts({ state: "red" }, { hold: { ...hold(0), head: N1 } }) });
+        assert.equal(r.abandon, false);
+        assert.match(r.why, /not judged yet/);
+    });
+});
+
+describe("auto", () => {
+    it("is the step before the fixes merge, with the deploy key deleting channel/candidate by lease", () => {
+        const yml = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+        const job = yml.slice(yml.indexOf("    candidate_fix:"), yml.indexOf("    pick:"));
+        assert.ok(job.indexOf("node tools/channel/hold.mjs auto") < job.indexOf("candidate-fix.mjs advance"));
+        assert.match(job, /--force-with-lease=refs\/heads\/channel\/candidate:/);
     });
 });

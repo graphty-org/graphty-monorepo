@@ -613,6 +613,7 @@ none when nothing is newer. An agent adds its fresh review by running `tools/pr-
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it. Never on a master push | The full run (`mode: full`, every scheduled run): full CI, T4, Hosts, audit and LLM regression on the newest green master build, publishing nothing; a red one files `Full run red: <lane> on <sha>` and dispatches `bisect.yml`. `mode=legacy` (owner only) still lands and publishes npm `latest`, never graphty.app. Production goes through `promote.yml` |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that `release-rerun.yml` re-runs on the same commit or files itself (`tools/release-rerun.mjs` decides for both) |
+| `nightly-abandon.yml` | Dispatch (`-f reason="<why>"`), by anyone; no approval | Ends the held nightly candidate without promoting it: clears the results store's hold, records its head rejected, closes the "Nightly held on" issue with the reason and deletes `channel/candidate`. Its own concurrency group, never the release train's |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Assemble the site (app, docs, Storybooks, hosted data), keep it as artifact `site-<sha>` (14 days), recorded in the results store (`POST /v1/sites`), and deploy it to this repository's GitHub Pages, canary.graphty.app (the custom domain is a Pages setting), unless canary already serves that commit or a newer one |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -683,8 +684,11 @@ dispatches with `fix_pr`; every full and restart run does it too) merges the fix
 (about 1 to 1.5 hours; the narrower re-test waits behind the repository variable `CANDIDATE_RETEST=affected`).
 A fix made from newer master, or a fix commit made after
 pr-open's master merge, is refused on the hold issue. A green-clean head promotes to nightly; a green-images one
-when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by the
-owner's `gh workflow run release.yml --ref master -f mode=abandon`.
+when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by an
+abandon, which needs no owner (owner, 2026-10-27: it publishes nothing and the next full run undoes it): anyone's
+`gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`, or the full run's own before it picks, when
+only a pipeline lane (screenshot capture or re-capture) since fixed on master held the head red, or when the hold is
+over 24 hours old and master has a newer green build. Changed screenshots awaiting review never end a hold.
 
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11).
 The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App,

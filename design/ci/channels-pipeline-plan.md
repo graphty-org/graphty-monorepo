@@ -636,7 +636,8 @@ failure ends red with one issue and one bisect; a failed publish is never re-run
 
 **candidate-hold** (#3741) -- agent, M. `channel/candidate`, the store's `candidate` table read by
 `release-state`, `offered`, `candidates.mjs` and the stall alarm; `pick()` serves the hold first;
-`offeredCandidate()` offers only its head, once green-images; `mode: abandon`; the hold issue;
+`offeredCandidate()` offers only its head, once green-images; abandon (now `nightly-abandon.yml`,
+no owner approval, and the automatic abandon in `candidate_fix`: owner, 2026-10-27, #4053); the hold issue;
 channels section 7. Needs: `nightly-resume`, `same-commit-rerun`, the owner adding
 `channel/candidate` to the deploy-key ruleset. Done: a seeded red C stays held across two master
 slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the newest again.

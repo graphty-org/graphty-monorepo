@@ -32,8 +32,9 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   - a deciding verdict that is not green-clean holds its commit while nothing is held: branch channel/candidate,
 #     the results store's hold and a "Nightly held on <sha12>" issue. While a hold stands, a slot first tests the held
 #     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes or
-#     replaces the hold. The held candidate promoting ends the hold (land), and so does the owner's
-#     `-f mode=abandon` (environment production, then the abandon job).
+#     replaces the hold. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
+#     nightly-abandon.yml, or candidate_fix's automatic abandon before a full or restart pick (tools/channel/hold.mjs
+#     autoAbandon; owner, 2026-10-27).
 #   - fix forward (tools/channel/candidate-fix.mjs): a held candidate is fixed on branches made from its head, named
 #     for the hold issue. Before every full, restart and candidate pick, the candidate_fix job merges each such fix
 #     that reached master (its last commit before tools/pr-open.sh merged master in; never master itself) into branch
@@ -135,7 +136,7 @@ on:
                 default: ""
                 type: string
             mode:
-                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. abandon (owner only, environment production): end the held nightly candidate without promoting it. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
+                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
                 required: false
                 default: full
                 type: choice
@@ -144,7 +145,6 @@ on:
                     - restart
                     - shadow
                     - legacy
-                    - abandon
                     - candidate
                     - promote-nightly
             candidate:
@@ -165,11 +165,10 @@ on:
 
 # One train at a time across all its jobs: a second train waits for the first, which has published (or held the
 # release) by then, so the second finds nothing new to release or tries the newer commit, and never pays for a
-# second T4 run on the same commit. Two master pushes in a row therefore never start two trains. The owner's abandon
-# (`-f mode=abandon`) has a group of its own, so its wait for his approval never holds the train; only its abandon
-# job, after the approval, takes release-train (#4039).
+# second T4 run on the same commit. Two master pushes in a row therefore never start two trains. Abandoning the held
+# candidate by hand is nightly-abandon.yml, in a group of its own, so it never waits for or holds the train.
 concurrency:
-    group: ${{ inputs.mode == 'abandon' && 'release-abandon' || 'release-train' }}
+    group: release-train
     cancel-in-progress: false
 
 # What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
@@ -263,6 +262,10 @@ jobs:
     # it (tools/channel/candidate-fix.mjs advance). Every full, restart and candidate run does this, so a candidate
     # run replaced while pending loses nothing. The deploy key pushes channel/candidate; the job runs git, gh and the
     # script only, nothing installed. A failure only leaves the fixes for the next run: the pick still runs.
+    # First, in a full or restart run, the automatic abandon (owner, 2026-10-27; tools/channel/hold.mjs autoAbandon):
+    # a held head judged red or owner-item ends when only a pipeline lane (the screenshot capture or re-capture) held
+    # it and a newer master commit passed that lane, or when the hold is over 24 hours old and master has a newer
+    # green build. Changed screenshots awaiting the owner's review never end it. The pick then picks as usual.
     candidate_fix:
         name: Merge fixes into the held candidate
         if: ${{ github.ref == 'refs/heads/master' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
@@ -281,7 +284,25 @@ jobs:
                   fetch-depth: 0
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            # the runner's own Node: nothing is installed next to the deploy key
+            # the runner's own Node: nothing is installed next to the deploy key. Fails open: a failure abandons nothing
+            - name: Abandon a stale or pipeline-made hold
+              id: auto
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' }}
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  node tools/channel/hold.mjs auto | tee "$RUNNER_TEMP/auto.out"
+                  head=$(sed -n 's/^head=//p' "$RUNNER_TEMP/auto.out")
+                  if grep -qx "abandoned=true" "$RUNNER_TEMP/auto.out" && [ -n "$head" ]; then
+                      # only the branch at the head this abandon ended: a newer hold's branch is never deleted
+                      git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||
+                          echo "::warning::could not delete channel/candidate at ${head}; the hold ended in the results store"
+                  fi
+
             - name: Merge the fixes and move the hold
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -298,7 +319,7 @@ jobs:
         name: Pick the release candidate
         needs: candidate_fix
         # !cancelled(): candidate_fix is skipped in most modes, and its failure only leaves the fixes for the next run
-        if: ${{ !cancelled() && github.ref == 'refs/heads/master' && inputs.mode != 'abandon' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
         # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
@@ -1495,71 +1516,11 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/channel/resume.mjs record
 
-    # The owner ends a held nightly candidate without promoting it (design/ci/channels-pipeline.md section 3):
-    # `gh workflow run release.yml --ref master -f mode=abandon`. Environment production, so it waits for the owner's
-    # approval in GitHub whoever dispatched it, as a legacy release does; then the abandon job clears the results
-    # store's hold, closes the "Nightly held on" issue and deletes branch channel/candidate. The next slot tests
-    # master's newest commit again. The run's own group is release-abandon, so the wait for the approval never holds
-    # the train (#4039); the abandon job takes release-train, so it never runs beside a train, which could start or
-    # move the hold it ends. GitHub keeps one pending job or run per group and cancels the older one, so a train
-    # dispatched while the abandon job waits for a running train cancels it with nothing ended: the hold stands, and
-    # `gh run rerun <run id> --failed` runs the abandon job again without a second approval.
-    abandon_approve:
-        name: Owner approval (abandon the held candidate)
-        if: ${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        environment: production # the owner's approval
-        permissions: {}
-        steps:
-            - run: echo "the owner approved abandoning the held nightly candidate"
-
-    abandon:
-        name: Abandon the held candidate
-        needs: abandon_approve
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        environment: release # the deploy key
-        concurrency:
-            group: release-train
-            cancel-in-progress: false
-        permissions:
-            contents: read
-            issues: write # close the hold issue
-            id-token: write # the results store
-        outputs:
-            base: ${{ steps.end.outputs.base }}
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  sparse-checkout: tools
-                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
-
-            - uses: actions/setup-node@v7
-              with:
-                  node-version: 22.x
-
-            - name: End the hold
-              id: end
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  WHY: abandoned by the owner
-                  ABANDONED: "true"
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-                  RESULTS_URL: ${{ vars.RESULTS_URL }}
-                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-              run: node tools/channel/hold.mjs end
-
-            # in this job, not candidate_branch, so a train cannot push a new hold between the two and lose it here
-            - name: Delete channel/candidate
-              run: |
-                  git push --no-verify origin :refs/heads/channel/candidate ||
-                      echo "::warning::could not delete channel/candidate: add it to the deploy-key ruleset (owner item); the hold ended in the results store"
-
     # Branch channel/candidate (design/ci/channels-pipeline.md section 3), with the deploy key: pushed at the commit a
-    # deciding verdict holds, deleted by the abandon job when the owner abandons the hold (land deletes it in its own
-    # push when the held candidate promotes). It runs git only. The results store's hold is what the slots read, so a refused push (the
-    # deploy-key ruleset does not cover channel/candidate yet: an owner item) only warns.
+    # deciding verdict holds, deleted when the hold is abandoned (nightly-abandon.yml, or candidate_fix's automatic
+    # abandon; land deletes it in its own push when the held candidate promotes). It runs git only. The results store's
+    # hold is what the slots read, so a refused push (the deploy-key ruleset does not cover channel/candidate yet: an
+    # owner item) only warns.
     candidate_branch:
         name: Move branch channel/candidate
         needs: [pick, verdict]

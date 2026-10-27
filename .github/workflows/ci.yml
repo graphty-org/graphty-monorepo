@@ -742,6 +742,10 @@ jobs:
         needs: packages
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        # build-storybook is an nx-cached target (nx.json), so a Storybook whose inputs the pull request leaves
+        # alone comes from the remote cache instead of a 2 to 3 minute build; every Stories bin waits on this
+        # job. Only master writes the cache, through the same environment as the Build job.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
         permissions:
             contents: read
@@ -808,10 +812,29 @@ jobs:
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
                   restore-keys: lfs-fidelity-references-
 
+            - name: Probe the nx remote cache
+              if: needs.packages.outputs.artifacts-run == ''
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
             # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
             # four 49 s together), and every Stories job waits for this job. Each build reads only
-            # the package builds downloaded above, so none waits on another.
+            # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
+            # (nx.json targetDefaults) match a master build is restored from the remote cache instead.
             - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
               run: >-

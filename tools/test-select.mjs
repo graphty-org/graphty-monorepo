@@ -1576,6 +1576,24 @@ export function storyCount(source) {
 }
 
 /**
+ * One story file's binning units: the file, or for a file longer than a bin its parts by story
+ * (`<file>#<k>/<n>`, which ci.yml's pick step resolves), each with its planned ms.
+ * @param file the story file
+ * @param count the stories it declares
+ * @param recordedMs its recorded play-test time, 0 without one
+ * @param rate its project's STORY_MS
+ * @returns `[[unit, ms]]`
+ */
+function storyUnits(file, count, recordedMs, rate) {
+    const ms = Math.max(recordedMs, (STORY_FILE_MS[file] ?? rate) * count);
+    const parts = Math.min(count, Math.ceil(ms / STORY_BIN_LIMIT_MS));
+    if (parts <= 1) {
+        return [[file, ms]];
+    }
+    return Array.from({ length: parts }, (_, i) => [`${file}#${i + 1}/${parts}`, ms / parts]);
+}
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
  * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
@@ -1600,16 +1618,7 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         // a recorded play-test time marks a heavy file; the project's capture rate is the floor
         const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
         const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
-        const fileMs = new Map();
-        for (const f of files) {
-            const count = storiesIn(f);
-            const ms = Math.max(recorded[f] ?? 0, (STORY_FILE_MS[f] ?? rate) * count);
-            // a file longer than a bin is split into parts by story (`<file>#<k>/<n>`, ci.yml's pick step)
-            const parts = Math.min(count, Math.ceil(ms / STORY_BIN_LIMIT_MS));
-            for (let k = 1; k <= parts; k++) {
-                fileMs.set(parts > 1 ? `${f}#${k}/${parts}` : f, ms / parts);
-            }
-        }
+        const fileMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
         const units = [...fileMs.keys()];
         const bins = units.length > 0 ? packBins(units, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>

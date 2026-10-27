@@ -164,8 +164,17 @@ export const DropTarget: Story = {
                 storyWaitOptions(1000),
             );
         } else {
-            // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed.
-            root.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: new DataTransfer() }));
+            // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed: a
+            // drag that enters carrying a file, as the drop hook only lights for files.
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(new File(["{}"], "graph.json", { type: "application/json" }));
+            for (const type of ["dragenter", "dragover"]) {
+                root.dispatchEvent(new DragEvent(type, { bubbles: true, dataTransfer }));
+            }
+            await waitFor(
+                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
+                storyWaitOptions(1000),
+            );
         }
     },
 };

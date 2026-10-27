@@ -77,6 +77,11 @@ export const METRICS: MetricDef[] = [
             src("pr", "mergedAt", (p) => (p.mergedAt === undefined ? null : { n: 0, sum: 1, dim: p.repo })),
         ],
     },
+    // Runs failed on a test their own change touched (#3951): the batching trigger, per pull request run.
+    {
+        id: "pr.caused_failures",
+        from: [src("run", "completedAt", (r) => (r.prCaused === undefined ? null : { sum: r.prCaused ? 1 : 0 }))],
+    },
     // 4.3 CI
     {
         id: "ci.runner_wait",

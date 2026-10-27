@@ -160,6 +160,7 @@ export const MEMBER_IDS = [
     "pull-requests.open",
     "pull-requests.oldest_open",
     "pull-requests.merge_ratio",
+    "pull-requests.caused_failures",
     "pull-requests.automerge_stuck",
     "pull-requests.screenshot_backlog",
     "ci.runner_wait",

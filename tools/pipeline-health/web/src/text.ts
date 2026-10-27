@@ -249,6 +249,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.open": { name: "Open pull requests", short: "open pull requests", def: "not draft" },
     "pull-requests.oldest_open": { name: "Oldest open", short: "oldest open", def: "not waiting on the owner" },
     "pull-requests.merge_ratio": { name: "Merge ratio", short: "merge ratio", def: "merged / created", nOf: "created" },
+    "pull-requests.caused_failures": {
+        name: "Runs failed by their change",
+        short: "runs failed by their change",
+        def: "first runs red on a test the change touched, 7 d",
+        nOf: "runs",
+    },
     "pull-requests.automerge_stuck": {
         name: "Auto-merge stuck",
         short: "auto-merge stuck",

@@ -538,6 +538,19 @@ run stays first in line for runners, as today:
    bisect cost. Mergify's record argues for measuring first: 809 CI runs for 761 merges (it barely
    batched), 197 of them wasted.
 
+**The batching decision (owner, 2026-10-27).** A replay of recorded pull request runs on 2026-10-26
+measured the options. A merged pull request cost 279 runner-minutes. Of pull request runs, 1.9%
+failed on tests the pull request itself broke, 4.6% on a failure shared with master, 1% on a flaky
+test, and 16% on a cheap check (build, lint, the checks job, docs). Running the cheap checks on
+every push and the full suite once saves 31% of runner-minutes and adds 14 minutes to the median
+time to merge. Mergify batches of 4 behind a cheap-check gate save 51% but put the median time to
+merge at 83 minutes; they break even on runner-minutes at about an 18% batch failure rate, and the
+wait is acceptable only below about 5%. The decision: neither run-the-suite-once nor GitHub's merge
+queue now. Mergify batching comes back on (batches of 4, at most 30 minutes' wait for a batch to
+fill, cheap checks required before a pull request enters the queue) when both hold: over 7 days,
+fewer than 5% of queue entries have a pull request run that failed on tests the pull request
+touched, and the rule that lets a failure unrelated to the pull request through (#3925) is live.
+
 ## 8. Feature flags
 
 Detail: [features.md](channels-pipeline/features.md).

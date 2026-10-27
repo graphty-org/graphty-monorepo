@@ -3472,11 +3472,18 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         const hold = jobs.verdict.steps.find((st) => st.id === "hold");
         assert.equal(hold.if, "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}");
         assert.equal(hold.run, 'node tools/channel/hold.mjs "$HOLD"');
-        assert.equal(
-            jobs.candidate_branch.if,
-            "${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.abandon.result == 'success') }}",
-        );
+        assert.equal(jobs.candidate_branch.if, "${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}");
         assert.equal(jobs.abandon.needs, "abandon_approve");
+        // the wait for the owner's approval holds release-abandon, never the train (#4039); the abandon itself takes
+        // release-train, so it never runs beside a train that could start or move the hold, and it deletes
+        // channel/candidate in the same job, so no train slips in between the two
+        assert.equal(jobs.abandon_approve.concurrency, undefined);
+        assert.deepEqual(jobs.abandon.concurrency, { group: "release-train", "cancel-in-progress": false });
+        assert.ok(
+            jobs.abandon.steps.some((st) =>
+                /git push --no-verify origin :refs\/heads\/channel\/candidate/.test(st.run ?? ""),
+            ),
+        );
         assert.equal(jobs.abandon_approve.if, "${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}");
         assert.match(
             jobs.unhold.if,
@@ -3930,7 +3937,9 @@ describe("release.yml", () => {
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
         assert.deepEqual(release.match(/git push[^\n]*/g), [
-            // channel/candidate, pushed at a held commit or deleted on the owner's abandon (candidate_branch)
+            // channel/candidate deleted on the owner's abandon (abandon)
+            "git push --no-verify origin :refs/heads/channel/candidate ||",
+            // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
             // a nightly with nothing versioned moves only the site tag and channel/nightly
             'git push --atomic --no-verify origin "${refs[@]}"',
@@ -3940,8 +3949,8 @@ describe("release.yml", () => {
         ]);
         assert.match(land, /git push --atomic/);
         assert.match(job(release, "site"), /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/);
-        // the key reaches only the land job and the channel/candidate job, which install nothing and run no nx
-        assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 3);
+        // the key reaches only the land job and the channel/candidate jobs (candidate_branch, abandon), which install nothing and run no nx
+        assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 4);
         // the fix forward's merge into channel/candidate: git and the script, nothing installed, and the store's hold
         // it moves in the same step (tools/channel/candidate-fix.mjs advance pushes)
         const fix = job(release, "candidate_fix");
@@ -3991,9 +4000,10 @@ describe("release.yml", () => {
             /\n {8}environment: production # the owner's approval\n {8}permissions: \{\}\n/,
         );
         assert.match(job(release, "candidate_branch"), /\n {8}environment: release # the deploy key\n/);
+        assert.match(job(release, "abandon"), /\n {8}environment: release # the deploy key\n/);
         // and so does the fix forward's merge into it
         assert.match(job(release, "candidate_fix"), /\n {8}environment: release # the deploy key\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 11);
+        assert.equal(release.match(/\n {8}environment: /g).length, 12);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -4237,7 +4247,10 @@ describe("release.yml", () => {
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true'/,
         );
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
-        assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
+        assert.match(
+            release,
+            /^concurrency:\n {4}group: \$\{\{ inputs.mode == 'abandon' && 'release-abandon' \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
+        );
         // coverage comes from the same CI call, and never holds the release
         assert.match(coverage, /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.ci.result == 'success' \}\}/);
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
@@ -4890,7 +4903,10 @@ describe("release.yml", () => {
         });
 
         it("shares the one train group, so two pushes in a row never start two trains", () => {
-            assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
+            assert.match(
+                release,
+                /^concurrency:\n {4}group: \$\{\{ inputs.mode == 'abandon' && 'release-abandon' \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
+            );
         });
 
         it("tells a legacy hold's fix to keep the issue open and dispatch again", () => {

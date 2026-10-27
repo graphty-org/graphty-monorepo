@@ -2029,7 +2029,7 @@ jobs:
     # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
     # promotion.blocked; it stays unset (report only) until the project switches.
     story-tests:
-        name: Story tests (${{ matrix.project }})
+        name: Story tests (${{ matrix.name || matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
@@ -2065,12 +2065,44 @@ jobs:
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
+                    # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                    # so a graphty-element change runs them too (the capture plan's rule for this project).
+                    # Four legs (vitest --shard=N/4): its 575 stories are real rendering work, about 4.5 s each
+                    # one after another (fileParallelism: false), about 44 minutes in one job against the 45-minute
+                    # limit; the old capture is CPU bound too (27 minutes with 4 browsers). A quarter is about 11
+                    # minutes of tests. Each leg uploads its partial capture; story-tests-merge combines them into
+                    # story-tests-graph-io-fidelity-<attempt>, which the parity job reads.
                     - project: graph-io-fidelity
+                      name: graph-io-fidelity-1
+                      part: 1
+                      parts: 4
                       shard: graph-io-browser
-                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
-                      # so a graphty-element change runs them too (the capture plan's rule for this project).
                       also: graphty-element-storybook-1
-                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=1/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-2
+                      part: 2
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=2/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-3
+                      part: 3
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=3/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-4
+                      part: 4
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=4/4
                       lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
@@ -2171,7 +2203,9 @@ jobs:
                   COMMAND: ${{ matrix.command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-${{ matrix.part || 1 }}
+                  # one results record per leg of a project split in parts (run-group.mjs baseId())
+                  RESULTS_PART: ${{ matrix.part }}
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
@@ -2184,17 +2218,27 @@ jobs:
               continue-on-error: true
               uses: actions/upload-artifact@v7
               with:
-                  name: base-checks-stories-${{ matrix.project }}
+                  name: base-checks-stories-${{ matrix.name || matrix.project }}
                   path: ${{ runner.temp }}/base-checks/
                   retention-days: 1
                   if-no-files-found: ignore
 
+            # A project split in parts uploads its partial here and story-tests-merge combines the parts.
+            - name: Upload this part's partial capture
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && matrix.parts }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: story-parts-${{ matrix.name }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/stories/
+                  retention-days: 1
+                  if-no-files-found: ignore
+
             - name: Combine the capture
-              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
-              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
               uses: actions/upload-artifact@v7
               with:
                   name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
@@ -2205,16 +2249,104 @@ jobs:
             - name: Write the counts to the job summary
               if: always()
               env:
-                  PROJECT: ${{ matrix.project }}
+                  PROJECT: ${{ matrix.name || matrix.project }}
+                  PART: ${{ matrix.part }}
               run: |
                   f="$RUNNER_TEMP/stories/merged/results.json"
+                  [[ -z "$PART" ]] || f="$RUNNER_TEMP/stories/part-$PART/results.json"
                   {
                       echo "### Story tests ($PROJECT)"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"complete: \(.complete // "one part"), \(.items | length) of \(.expected // "?") items", "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No capture: the story tests did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
+    # project's single leg would have uploaded (story-tests-<project>-<attempt>, which story-tests-parity reads):
+    # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
+    story-tests-merge:
+        name: Story tests merge (${{ matrix.project }})
+        needs: story-tests
+        if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 10
+        strategy:
+            fail-fast: false
+            matrix:
+                project: [graph-io-fidelity]
+        steps:
+            - name: Download the parts
+              id: parts
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: story-parts-${{ matrix.project }}-*-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/parts
+
+            - name: Find the parts
+              id: found
+              run: echo "any=$(ls -d "$RUNNER_TEMP"/parts/*/part-*/ 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/checkout@v7
+              if: steps.found.outputs.any != ''
+              with:
+                  ref: ${{ inputs.ref }}
+                  persist-credentials: false
+
+            - name: Fetch this project's baseline images from Git LFS
+              if: steps.found.outputs.any != ''
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
+
+            - uses: pnpm/action-setup@v4
+              if: steps.found.outputs.any != ''
+
+            - name: Setup Node.js
+              if: steps.found.outputs.any != ''
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              if: steps.found.outputs.any != ''
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # every leg judged by the same quarantine list; their union is the one the merge judges by
+            - name: Combine the capture
+              if: steps.found.outputs.any != ''
+              run: |
+                  jq -s '{ quarantine: (map(.quarantine // []) | add | unique) }' "$RUNNER_TEMP"/parts/*/quarantine.json > "$RUNNER_TEMP/quarantine.json" 2>/dev/null \
+                      || echo '{ "quarantine": [] }' > "$RUNNER_TEMP/quarantine.json"
+                  node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/quarantine.json" --out "$RUNNER_TEMP/merged" "$RUNNER_TEMP"/parts/*/part-*/
+
+            - name: Upload the capture
+              if: ${{ !cancelled() && steps.found.outputs.any != '' }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/merged/
+                  retention-days: 30
+                  if-no-files-found: ignore
+
+            - name: Write the counts to the job summary
+              if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  f="$RUNNER_TEMP/merged/results.json"
+                  {
+                      echo "### Story tests ($PROJECT, merged)"
                       if [[ -f "$f" ]]; then
                           jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
                       else
-                          echo "No capture: the story tests did not start."
+                          echo "No capture: no part of this project ran."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
@@ -2225,7 +2357,7 @@ jobs:
     # full runs (two zero-difference full runs).
     story-tests-parity:
         name: Story tests parity (${{ matrix.project }})
-        needs: [story-tests, visual]
+        needs: [story-tests, story-tests-merge, visual]
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         runs-on: ubuntu-24.04
         continue-on-error: true

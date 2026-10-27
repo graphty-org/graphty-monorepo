@@ -22,7 +22,8 @@
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
 // switches it off. GRAPHTY_FLAGS=on names the feature-flag variant; RESULTS_VARIANT names the whole variant
-// (base-check.yml asks for the pull request's); RESULTS_REPEAT=<n> keeps repeated runs of one job apart.
+// (base-check.yml asks for the pull request's); RESULTS_REPEAT=<n> keeps repeated runs of one job apart, and
+// RESULTS_PART=<n> the legs of one job's matrix that run parts of one shard (ci.yml's story-tests legs).
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -53,7 +54,8 @@ import { envString, inputsKey } from "./inputs.mjs";
  * @returns the id
  */
 export function baseId(shard, env = process.env) {
-    const group = env.RESULTS_REPEAT ? `${shard}.r${env.RESULTS_REPEAT}` : shard;
+    const part = env.RESULTS_PART ? `${shard}.p${env.RESULTS_PART}` : shard;
+    const group = env.RESULTS_REPEAT ? `${part}.r${env.RESULTS_REPEAT}` : part;
     if (env.GITHUB_RUN_ID)
         return `${env.GITHUB_RUN_ID}.${env.GITHUB_RUN_ATTEMPT ?? 1}.${env.GITHUB_JOB ?? "job"}.${group}`;
     return `local.${Date.now()}.${hostname()}.${process.pid}.${group}`;

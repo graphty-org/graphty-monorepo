@@ -1201,6 +1201,21 @@ exec ${realGit} "$@"
     });
 });
 
+describe("every workflow", () => {
+    // A `needs` entry naming a missing job makes GitHub reject the whole file: the run starts with 0 jobs.
+    it("names only jobs of its own file in every job's needs", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+        assert.ok(files.includes("ci.yml"));
+        for (const file of files) {
+            const jobs = parseYaml(readFileSync(new URL(file, dir), "utf8"))?.jobs ?? {};
+            for (const [name, job] of Object.entries(jobs))
+                for (const need of [job.needs ?? []].flat())
+                    assert.ok(need in jobs, `${file}: job ${name} needs ${need}, which is not a job in the file`);
+        }
+    });
+});
+
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
 
@@ -1300,9 +1315,9 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
-    it("reports flaky screenshots after the visual jobs without gating anything on them", () => {
+    it("reports flaky screenshots after the story tests without gating anything on them", () => {
         const jobs = parseJobs(ci);
-        assert.deepEqual(jobs["visual-flaky"].needs, ["visual"]);
+        assert.deepEqual(jobs["visual-flaky"].needs, ["story-tests", "story-tests-merge"]);
         assert.equal(jobs["visual-flaky"].coe, "true");
         assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
         assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
@@ -1645,7 +1660,7 @@ describe("ci.yml", () => {
             job(ci, "cost-accuracy"),
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
-        for (const name of ["links", "visual"]) {
+        for (const name of ["links"]) {
             assert.match(
                 job(ci, name),
                 /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
@@ -1686,7 +1701,7 @@ describe("ci.yml", () => {
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
         assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
-        for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
+        for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
         assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
@@ -1852,7 +1867,7 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(release, "ci"), /\n {12}ref: \$\{\{ needs\.pick\.outputs\.sha \}\}\n/);
     });
 
-    it("leaves the visual job and the visual gate step exactly as master has them", () => {
+    it("leaves the visual gate step exactly as master has them", () => {
         // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
         // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
@@ -1867,9 +1882,8 @@ describe("verification runs of ci.yml", () => {
         const from = report.indexOf("            - name: Check out the gate");
         const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
         assert.ok(gate.length > 1000, "found the gate steps");
-        // The owner approved on 2026-10-26 (design/ci/channels-pipeline.md section 7.1, #3850) changing the visual job's
-        // scheduling: it no longer runs on a pull request (its `if`).
-        assert.equal(sha(job(ci, "visual")), "fc7d852512fd60414701e4c69df5e87f671de01124524b07ab74c655ac92b16f");
+        // The old visual job is gone (#3473): the story tests' capture replaced it after two zero-difference runs.
+        assert.ok(!parseJobs(ci).visual, "no old visual job");
         assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
     });
 
@@ -1878,11 +1892,11 @@ describe("verification runs of ci.yml", () => {
         assert.ok(!jobs["all-checks"].needs.includes("visual"), "All Checks Pass must not need the visual job");
         assert.ok(!/visual/.test(job(ci, "all-checks")), "All Checks Pass reads nothing of the screenshots");
         const report = job(ci, "visual-report");
-        assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
+        assert.deepEqual(jobs["visual-report"].needs, ["packages", "story-tests", "story-tests-merge"]);
         assert.match(report, /\n {8}name: Visual report\n/);
         assert.match(
             report,
-            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' && needs.visual.result != 'skipped' \}\}\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' && needs.story-tests.result != 'skipped' \}\}\n/,
         );
         assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
         assert.match(
@@ -1893,23 +1907,14 @@ describe("verification runs of ci.yml", () => {
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
     });
 
-    // On a pull request the old full capture ran 15 to 25 minutes past All Checks Pass, holding runners, and nothing
-    // that read it decided anything there (#3850): the full run, a dispatch and a bisect point still capture.
-    it("runs the old full capture, its parity and its report on no pull request", () => {
+    // The story tests are the only capture (#3473): the old built-Storybook capture and its parity job are gone,
+    // and the report and the flaky-screenshot report read the story tests' captures.
+    it("captures with the story tests only, on every kind of run", () => {
         const jobs = parseJobs(ci);
-        assert.match(
-            job(ci, "visual"),
-            /\n {8}if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'\n/,
-        );
-        assert.match(
-            job(ci, "story-tests-parity"),
-            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name != 'pull_request' \}\}\n/,
-        );
-        // the report and the flaky-screenshot report read only that capture, so they skip with it
-        assert.match(job(ci, "visual-report"), /&& needs.visual.result != 'skipped' \}\}\n/);
+        assert.ok(!jobs.visual && !jobs["story-tests-parity"], "no old capture or parity job");
         assert.match(
             job(ci, "visual-flaky"),
-            /\n {8}if: \$\{\{ !cancelled\(\) && needs.visual.result != 'skipped' \}\}\n/,
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs.story-tests.result != 'skipped' \}\}\n/,
         );
         // what a pull request's All Checks Pass needs still runs: its own stories, captured by the Stories jobs
         assert.ok(jobs["all-checks"].needs.includes("stories"));
@@ -1918,10 +1923,9 @@ describe("verification runs of ci.yml", () => {
         assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
     });
 
-    it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
-        // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
+    it("runs the story tests' capture report-only, outside All Checks Pass", () => {
         const jobs = parseJobs(ci);
-        for (const name of ["story-tests", "story-tests-merge", "story-tests-parity"]) {
+        for (const name of ["story-tests", "story-tests-merge"]) {
             assert.ok(jobs[name], `${name} exists`);
             assert.equal(jobs[name].coe, "true", `${name} is report-only`);
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
@@ -1950,9 +1954,8 @@ describe("verification runs of ci.yml", () => {
         );
         // The blocking switch stays off until the project switches.
         assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
-        assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "story-tests-merge", "visual"]);
         // graph-io-fidelity runs in four legs (one job was about 44 of its 45 minutes); story-tests-merge combines
-        // their partials, every leg's file once, into the one capture the parity job reads.
+        // their partials, every leg's file once, into the one capture visual-<project>-<attempt>.
         for (let n = 1; n <= 4; n++) {
             assert.match(
                 job(ci, "story-tests"),
@@ -1965,22 +1968,14 @@ describe("verification runs of ci.yml", () => {
         // every attempt's parts, then each part's newest attempt: a re-run of failed jobs re-runs only the failed parts
         assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*\n/);
         assert.match(job(ci, "story-tests-merge"), /sort -V \| awk .*sub\(\/-\[0-9\]\+\$\/, "", part\)/);
-        // the parity job takes each capture from the newest attempt that made it, by exact name
-        assert.match(job(ci, "story-tests-parity"), /for \(\(a = RUN_ATTEMPT; a >= 1; a--\)\)/);
-        assert.match(job(ci, "story-tests-parity"), /fetch "visual-\$PROJECT" captures\/old\n/);
-        assert.match(job(ci, "story-tests-parity"), /fetch "story-tests-\$PROJECT" captures\/new\n/);
-        assert.match(job(ci, "story-tests-parity"), /actions: read/);
         assert.match(job(ci, "story-tests-merge"), /merge-results --project .* "\$RUNNER_TEMP"\/parts\/\*\/part-\*\//);
         assert.match(
             job(ci, "story-tests-merge"),
-            /name: story-tests-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/,
+            /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/,
         );
-        // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
+        // One matrix leg per project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(
-            job(ci, "story-tests-parity"),
-            /project:\s*\[\s*graphty,\s*graphty-element,\s*algorithms,\s*layout,\s*compact-mantine,\s*cytoscape-extensions,\s*graph-io-fidelity,?\s*\]/,
-        );
+        assert.match(job(ci, "story-tests"), /- project: graphty\n\s+shard: graphty-storybook\n/);
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
@@ -2824,30 +2819,66 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.match(job(ci, "build"), /visual-skip: \$\{\{ needs\.packages\.outputs\.visual-skip \}\}/);
     });
 
-    it("writes the marker in place of a capture and skips every other step but the upload and the summary", () => {
-        const visual = job(ci, "visual");
-        const steps = visual.split(/\n(?= {12}- (?:name|uses): )/).slice(1);
-        assert.match(steps[0], /- name: Skip a Storybook this pull request cannot affect\n {14}id: skip\n/);
+    it("uploads the not-affected marker as the capture of a project the story tests skip", () => {
+        const story = job(ci, "story-tests");
+        const steps = story.split(/\n(?= {12}- (?:name|uses): )/).slice(1);
+        const skip = steps.findIndex((t) => /- name: Skip a project this run does not test\n {14}id: skip\n/.test(t));
+        assert.ok(skip >= 0, "the skip step");
+        assert.match(steps[skip], /\{"skipped":"not affected","project":"%s"\}/);
+        assert.match(steps[skip + 1], /- name: Upload the not-affected marker\n/);
         assert.match(
-            steps[0],
-            /contains\(fromJSON\(needs\.build\.outputs\.visual-skip \|\| '\[\]'\), matrix\.project\)/,
+            steps[skip + 1],
+            /if: .*steps\.skip\.outputs\.skip == 'true' && \(!matrix\.parts \|\| matrix\.part == 1\)/,
         );
-        assert.match(steps[0], /\{"skipped":"not affected","project":"%s"\}/);
-        for (const step of steps.slice(1)) {
+        assert.match(steps[skip + 1], /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/);
+    });
+
+    // What the old visual job promised for a skipped project: nothing but the marker and the summary runs.
+    it("skips every other step of a project the story tests skip, but the marker and the summary", () => {
+        const steps = job(ci, "story-tests")
+            .split(/\n(?= {12}- (?:name|uses): )/)
+            .slice(1);
+        const skip = steps.findIndex((t) => /\n {14}id: skip\n/.test(t));
+        for (const step of steps.slice(skip + 2)) {
             const title = step.trim().split("\n")[0];
-            if (/Upload captures|Write the counts/.test(title)) {
-                assert.match(step, /if: always\(\)/, title);
-            } else {
-                assert.match(step, /\n {14}if: .*steps\.skip\.outputs\.skip != 'true'\n/, title);
-            }
+            if (/Write the counts/.test(title)) assert.match(step, /if: always\(\)/, title);
+            else assert.match(step, /\n {14}if: .*steps\.skip\.outputs\.skip != 'true'/, title);
         }
+    });
+
+    it("uploads every capture, combined or merged, under the one name the gate reads, even after a failed step", () => {
+        const name = /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/;
+        const upload = (j) => j.slice(j.indexOf("- name: Upload the capture\n"));
+        assert.match(upload(job(ci, "story-tests")), name);
+        assert.match(
+            upload(job(ci, "story-tests")),
+            /if: \$\{\{ steps\.skip\.outputs\.skip != 'true' && !cancelled\(\)/,
+        );
+        assert.match(upload(job(ci, "story-tests-merge")), name);
+        assert.match(
+            upload(job(ci, "story-tests-merge")),
+            /if: \$\{\{ !cancelled\(\) && steps\.found\.outputs\.any != ''/,
+        );
+        // a project split into parts is merged only when the story tests ran at all
+        assert.match(job(ci, "story-tests-merge"), /\n {8}needs: story-tests\n/);
+    });
+
+    it("leaves no job waiting on the removed capture or its parity", () => {
+        for (const [name, j] of Object.entries(parseYaml(workflow("ci.yml")).jobs)) {
+            const needs = [j.needs ?? []].flat();
+            assert.ok(
+                !needs.includes("visual") && !needs.includes("story-tests-parity"),
+                `${name} needs a removed job`,
+            );
+        }
+        assert.doesNotMatch(ci, /needs\.visual\.|needs\.story-tests-parity\./);
     });
 
     it("writes the marker the trusted gate reads", async () => {
         const { isSkipMarker, SKIPPED_FILE } = await import("../visual-review/trusted/lib/results.mjs");
-        const visual = job(ci, "visual");
-        assert.ok(visual.includes(`"$RUNNER_TEMP/visual/${SKIPPED_FILE}"`));
-        const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(visual)[1];
+        const story = job(ci, "story-tests");
+        assert.ok(story.includes(`"$RUNNER_TEMP/not-affected/${SKIPPED_FILE}"`));
+        const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(story)[1];
         assert.ok(isSkipMarker(JSON.parse(printf.replace("%s", "layout")), "layout"));
     });
 });
@@ -3121,19 +3152,20 @@ describe("Playwright's system packages", () => {
         assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
     });
 
-    it("installs through the action in ci.yml's test and visual jobs, never with apt directly", () => {
+    it("installs through the action in ci.yml's test and story-tests jobs, never with apt directly", () => {
         const ci = workflow("ci.yml").replace(/^\s*#.*$/gm, "");
         const test = job(ci, "test");
         assert.doesNotMatch(test, /--with-deps|install-deps/);
         assert.match(test, /if: matrix\.needs-browser\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n/);
         assert.match(test, /run: pnpm exec playwright install chromium\n/);
-        const visual = job(ci, "visual");
-        assert.doesNotMatch(visual, /--with-deps|install-deps|install-browser/);
+        // the story tests took over the old visual job's capture, and its install rule with it
+        const story = job(ci, "story-tests");
+        assert.doesNotMatch(story, /--with-deps|install-deps/);
         assert.match(
-            visual,
-            /uses: \.\/\.github\/actions\/playwright-system-deps\n\s+with:\n\s+working-directory: visual-review\n/,
+            story,
+            /\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n\s+with:\n\s+browsers: chromium\n/,
         );
-        assert.match(visual, /working-directory: visual-review\n\s+run: pnpm exec playwright install chromium\n/);
+        assert.match(story, /run: pnpm exec playwright install chromium\n/);
     });
 
     // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers
@@ -3377,10 +3409,11 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.equal(rerunnable("CI / test (graphty-1)"), true);
     });
 
-    it("re-captures every project ci.yml's visual job captures, from this run's artifacts, into visual-final", () => {
+    it("re-captures every project ci.yml's story tests capture, from this run's artifacts, into visual-final", () => {
         const release = parseYaml(workflow("release.yml")).jobs;
-        const visual = parseYaml(workflow("ci.yml")).jobs.visual;
-        assert.deepEqual(release.recapture.strategy.matrix.include, visual.strategy.matrix.include);
+        const story = parseYaml(workflow("ci.yml")).jobs["story-tests"];
+        const projects = (include) => [...new Set(include.map((r) => r.project))].sort();
+        assert.deepEqual(projects(release.recapture.strategy.matrix.include), projects(story.strategy.matrix.include));
         const text = job(workflow("release.yml"), "recapture");
         assert.match(text, /needs: \[pick, ci\]/);
         assert.match(text, /pattern: visual-\$\{\{ matrix.project \}\}-\*/);
@@ -3390,7 +3423,7 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             /pnpm exec visual-review capture --project "\$PROJECT" --out "\$RUNNER_TEMP\/second" --stories "\$STORIES"/,
         );
         assert.match(text, /name: visual-final-\$\{\{ matrix.project \}\}-\$\{\{ github.run_attempt \}\}/);
-        // ci.yml's visual job and gate step are untouched: the re-capture is release.yml's own job
+        // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
     });
 

@@ -2559,11 +2559,13 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
         }
     });
 
-    it("fails the job, loudly, when the limit does not reset in time (#3857)", () => {
-        const { status, stdout, log } = runClear("all-checks", { failList: 99, resetIn: 7200 });
+    it("fails the job, loudly, when every try fails (#3857)", () => {
+        const { status, stdout, log } = runClear("all-checks", { failList: 99, resetIn: 30 });
         assert.equal(status, 1);
         assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
-        assert.doesNotMatch(log, /PATCH|^sleep/m);
+        assert.doesNotMatch(log, /PATCH/);
+        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^sleep /gm).length, 3);
     });
 
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {

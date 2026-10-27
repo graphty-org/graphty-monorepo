@@ -2573,20 +2573,20 @@ jobs:
                           echo "cleared early verdict $id"
                       done
                   }
-                  deadline=$(( $(date +%s) + 3600 ))
-                  until clear; do
-                      # rate_limit itself is free; an exhausted limit waits for its reset, any other failure a minute
-                      now=$(date +%s)
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
                       read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
                       wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - now + 5 )); fi
-                      if (( now + wait > deadline )); then
-                          echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
-                          exit 1
-                      fi
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
                       echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
                       sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
     # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
@@ -2641,20 +2641,20 @@ jobs:
                           echo "cleared early verdict $id"
                       done
                   }
-                  deadline=$(( $(date +%s) + 3600 ))
-                  until clear; do
-                      # rate_limit itself is free; an exhausted limit waits for its reset, any other failure a minute
-                      now=$(date +%s)
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
                       read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
                       wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - now + 5 )); fi
-                      if (( now + wait > deadline )); then
-                          echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
-                          exit 1
-                      fi
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
                       echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
                       sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
     # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails

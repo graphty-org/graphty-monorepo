@@ -218,3 +218,20 @@ describe("panel shadow", () => {
         assert.approximately(height(shadowed), height(plain), 1e-6);
     });
 });
+
+describe("a label's glyphs (#3472)", () => {
+    // Chromium hints a font's glyphs, or not, by the device pixel ratio in force when the page
+    // first loaded that font at that size, and keeps it for the page's life, so the same label
+    // drew one pixel taller or shorter depending on what the page drew earlier. A page loads a
+    // font only once, so the check is that the label asks for unhinted glyphs, which Chromium
+    // draws the same at every ratio.
+    it("are drawn and measured unhinted", () => {
+        const label = new RichTextLabel(scene, { text: "Adj", fontSize: 53.4127, textColor: "black" });
+        labels.push(label);
+        const ctx = (
+            label.labelMesh?.material as unknown as { diffuseTexture: { getContext(): CanvasRenderingContext2D } }
+        ).diffuseTexture.getContext();
+
+        assert.strictEqual(ctx.textRendering, "geometricPrecision");
+    });
+});

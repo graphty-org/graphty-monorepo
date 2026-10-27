@@ -1268,7 +1268,11 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
 
     pictures.set(family, drawnHere);
 
-    const twin = [...drawnHere.entries()].find(([, existing]) => existing === digest)?.[0];
+    // A story drawn a second time (visual review renders a story again to confirm a changed
+    // picture, and once per mode) is not its own sibling: compare only with the other stories.
+    const twin = [...drawnHere.entries()].find(
+        ([story, existing]) => story !== scene.story && existing === digest,
+    )?.[0];
 
     await holds(
         twin === undefined,
@@ -1357,7 +1361,9 @@ export async function assertDistinctArrangement(scene: Drawn, family: string, mi
 
     arrangements.set(family, arrangedHere);
 
+    // A story arranged again (a confirming render, another mode) is not its own sibling.
     const offenders = [...arrangedHere.entries()]
+        .filter(([story]) => story !== scene.story)
         .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
         .filter(([, distance]) => distance < minimum);
 

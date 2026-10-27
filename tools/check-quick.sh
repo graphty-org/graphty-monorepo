@@ -9,7 +9,13 @@
 # 2. nx affected -t build lint typecheck (lint needs the builds of what it imports; local nx cache);
 # 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage;
 # 4. tools/sonar-gate.mjs: SonarQube on the changed lines (off the owner's network it passes, warning);
-# 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card.
+# 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card;
+# 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, owned closure, breaking
+#    commits, baselines signed; Proof and the fresh review need the pull request and are left to CI);
+# 7. the documentation site build CI's Docs job runs (npm run docs:build), when the change reaches the
+#    site (tools/docs-affected.sh, the pre-push gate's rule);
+# 8. the bundle size checks ci.yml's Checks job runs, for graphty-element and cytoscape-extensions when
+#    affected or their script changed.
 #
 # It runs every step, prints a summary and exits 1 when any failed. No tool self-tests, no screenshots.
 set -uo pipefail
@@ -65,8 +71,21 @@ step "SonarQube (changed lines)" node tools/sonar-gate.mjs
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
 # GPU step, and a failing nx must not read as "not affected".
 AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
-if grep -qx webgpu-graph-algorithms <<<"$AFFECTED"; then
+affected() { grep -qx "$1" <<<"$AFFECTED"; }
+if affected webgpu-graph-algorithms; then
     step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
+fi
+step "PR Integrity (local)" node tools/pr-integrity.mjs --local --base "$BASE"
+source tools/docs-affected.sh
+if docs_site_affected; then
+    step "Docs site (npm run docs:build)" pnpm run docs:build
+fi
+# ci.yml's "Plan the package-only checks": the package is affected or the check's own script changed.
+if affected graphty-element || git diff --name-only "$MB" | grep -q '^tools/check-bundle-size'; then
+    step "Bundle size (graphty-element)" pnpm run check:bundle-size
+fi
+if affected cytoscape-extensions; then
+    step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
 fi
 
 echo "========================================"

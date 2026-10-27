@@ -741,3 +741,41 @@ describe("the verdict reads the hold from the store when it decides", () => {
         assert.equal(verdict.body.state, "deferred");
     });
 });
+
+describe("file-deferred", () => {
+    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+        const dir = mkdtempSync(join(tmpdir(), "file-deferred-"));
+        const log = join(dir, "calls.log");
+        const sha = "abcdef1234";
+        const closed = JSON.stringify({
+            number: 77,
+            title: `Full run red: T4 GPU on ${sha.slice(0, 7)}`,
+            state: "CLOSED",
+            closedAt: new Date().toISOString(),
+            stateReason: "completed",
+        });
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\nexit 0\n`,
+            { mode: 0o755 },
+        );
+        const record = join(dir, "verdict-1.json");
+        writeFileSync(
+            record,
+            JSON.stringify({ sha, good: "", runId: "5", runUrl: "u", red: ["t4"], lanes: {}, deferred: true }),
+        );
+        const r = spawnSync(process.execPath, ["tools/full-run.mjs", "file-deferred", record], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                RESULTS_URL: "",
+                HEALTH_API_URL: "",
+                GITHUB_OUTPUT: "",
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /^fixed=77$/m);
+        assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+    });
+});

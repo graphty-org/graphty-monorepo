@@ -220,6 +220,8 @@ function fileDeferred(env, f) {
         env: { ...env, GITHUB_OUTPUT: "" },
     });
     const field = (k) => new RegExp(`^${k}=(.*)$`, "m").exec(out)?.[1] ?? "";
+    // release-due cancelled the run to restart on a merged fix: nothing to announce or hold
+    if (field("fixed")) return;
     execFileSync(
         "node",
         [

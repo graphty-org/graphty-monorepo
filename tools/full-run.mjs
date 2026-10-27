@@ -17,7 +17,8 @@
 //           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE (attempt 1 of a re-runnable mode files nothing)
 //   node tools/full-run.mjs file-deferred <file>
 //                                     files the red issue and dispatches the bisect an attempt-1 verdict deferred
-//                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all
+//                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all;
+//                                     nothing when a fix closed the commit's red issue in the last hour (fixed=<n>)
 //
 // Same-commit re-run, once (design/ci/channels-pipeline.md section 3): attempt 1 of a full or restart run that ends
 // red on a lane that failed (or was cancelled) records its verdict but files no red issue, dispatches no bisect and
@@ -859,6 +860,19 @@ async function fileDeferredMain(file, env) {
     const facts = readJson(file);
     if (!facts?.deferred || facts.forward) {
         console.log(`::notice::${file} defers nothing to file`);
+        return;
+    }
+    // a fix merged for this commit's red issue in the last hour: release-due cancelled the run on purpose to restart
+    // on the fix, so its deferred red is that fix's, not a red to file again (or a commit to hold)
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const fixed = bestEffort(
+        () => fixedRecently(listRedIssues("closed", since), facts.sha),
+        "reading the red issues a fix closed",
+        () => null,
+    );
+    if (fixed) {
+        console.log(`::notice::#${fixed} was fixed by a merge that cancelled this run: filing nothing`);
+        output({ issue: "", bisect: "", sha: facts.sha, fixed: String(fixed) });
         return;
     }
     const { issue, bisect } = await fileRedVerdict(config(env), facts);

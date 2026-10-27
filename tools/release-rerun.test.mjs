@@ -107,7 +107,15 @@ describe("decide", () => {
 });
 
 // main() in a directory whose gh and tools/ are stubs that log how they were called
-function runMain({ failed, rerunFails, record, downloadFails = false, attempt = "1", conclusion = "failure" }) {
+function runMain({
+    failed,
+    rerunFails,
+    record,
+    downloadFails = false,
+    attempt = "1",
+    conclusion = "failure",
+    fixed = "",
+}) {
     const dir = mkdtempSync(join(tmpdir(), "release-rerun-"));
     const log = join(dir, "calls.log");
     writeFileSync(log, "");
@@ -130,7 +138,10 @@ function runMain({ failed, rerunFails, record, downloadFails = false, attempt = 
     );
     const stub = (name) =>
         `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(log)}, \`${name} \${process.argv.slice(2).join(" ")} \${process.env.SHA ?? ""}\\n\`);\n`;
-    writeFileSync(join(dir, "tools", "full-run.mjs"), stub("full-run"));
+    writeFileSync(
+        join(dir, "tools", "full-run.mjs"),
+        stub("full-run") + (fixed ? `console.log(${JSON.stringify(`fixed=${fixed}`)});\n` : ""),
+    );
     writeFileSync(join(dir, "tools", "release-status.mjs"), stub("release-status"));
     writeFileSync(join(dir, "tools", "channel", "hold.mjs"), stub("hold"));
     const r = spawnSync(process.execPath, [new URL("./release-rerun.mjs", import.meta.url).pathname], {
@@ -179,6 +190,18 @@ describe("a red run that is not re-run", () => {
         assert.equal(r.status, 0);
         assert.doesNotMatch(r.calls, /gh run rerun/);
         assert.match(r.calls, /^full-run file-deferred .*verdict-1\.json/m);
+    });
+    it("holds and announces nothing when a merged fix cancelled the re-run attempt to restart (release-due)", () => {
+        const r = runMain({
+            failed: ["T4 GPU / T4 tests"],
+            record,
+            attempt: "2",
+            conclusion: "cancelled",
+            fixed: "77",
+        });
+        assert.equal(r.status, 0);
+        assert.match(r.calls, /^full-run file-deferred /m);
+        assert.doesNotMatch(r.calls, /^(hold|release-status) /m);
     });
     it("fails, deciding nothing, when the verdict record cannot be downloaded (a GitHub 5xx is not 'no record')", () => {
         const r = runMain({ failed: ["T4 GPU / T4 tests"], record, downloadFails: true });

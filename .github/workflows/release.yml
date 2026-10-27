@@ -165,9 +165,11 @@ on:
 
 # One train at a time across all its jobs: a second train waits for the first, which has published (or held the
 # release) by then, so the second finds nothing new to release or tries the newer commit, and never pays for a
-# second T4 run on the same commit. Two master pushes in a row therefore never start two trains.
+# second T4 run on the same commit. Two master pushes in a row therefore never start two trains. The owner's abandon
+# (`-f mode=abandon`) has a group of its own, so its wait for his approval never holds the train; only its abandon
+# job, after the approval, takes release-train (#4039).
 concurrency:
-    group: release-train
+    group: ${{ inputs.mode == 'abandon' && 'release-abandon' || 'release-train' }}
     cancel-in-progress: false
 
 # What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
@@ -1496,8 +1498,12 @@ jobs:
     # The owner ends a held nightly candidate without promoting it (design/ci/channels-pipeline.md section 3):
     # `gh workflow run release.yml --ref master -f mode=abandon`. Environment production, so it waits for the owner's
     # approval in GitHub whoever dispatched it, as a legacy release does; then the abandon job clears the results
-    # store's hold and closes the "Nightly held on" issue, and candidate_branch deletes branch channel/candidate.
-    # The next slot tests master's newest commit again.
+    # store's hold, closes the "Nightly held on" issue and deletes branch channel/candidate. The next slot tests
+    # master's newest commit again. The run's own group is release-abandon, so the wait for the approval never holds
+    # the train (#4039); the abandon job takes release-train, so it never runs beside a train, which could start or
+    # move the hold it ends. GitHub keeps one pending job or run per group and cancels the older one, so a train
+    # dispatched while the abandon job waits for a running train cancels it with nothing ended: the hold stands, and
+    # `gh run rerun <run id> --failed` runs the abandon job again without a second approval.
     abandon_approve:
         name: Owner approval (abandon the held candidate)
         if: ${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}
@@ -1513,6 +1519,10 @@ jobs:
         needs: abandon_approve
         runs-on: ubuntu-24.04
         timeout-minutes: 10
+        environment: release # the deploy key
+        concurrency:
+            group: release-train
+            cancel-in-progress: false
         permissions:
             contents: read
             issues: write # close the hold issue
@@ -1523,6 +1533,7 @@ jobs:
             - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
             - uses: actions/setup-node@v7
               with:
@@ -1539,14 +1550,20 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/channel/hold.mjs end
 
+            # in this job, not candidate_branch, so a train cannot push a new hold between the two and lose it here
+            - name: Delete channel/candidate
+              run: |
+                  git push --no-verify origin :refs/heads/channel/candidate ||
+                      echo "::warning::could not delete channel/candidate: add it to the deploy-key ruleset (owner item); the hold ended in the results store"
+
     # Branch channel/candidate (design/ci/channels-pipeline.md section 3), with the deploy key: pushed at the commit a
-    # deciding verdict holds, deleted when the owner abandons the hold (land deletes it in its own push when the held
-    # candidate promotes). It runs git only. The results store's hold is what the slots read, so a refused push (the
+    # deciding verdict holds, deleted by the abandon job when the owner abandons the hold (land deletes it in its own
+    # push when the held candidate promotes). It runs git only. The results store's hold is what the slots read, so a refused push (the
     # deploy-key ruleset does not cover channel/candidate yet: an owner item) only warns.
     candidate_branch:
         name: Move branch channel/candidate
-        needs: [pick, verdict, abandon]
-        if: ${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.abandon.result == 'success') }}
+        needs: [pick, verdict]
+        if: ${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: release # the deploy key
@@ -1554,21 +1571,16 @@ jobs:
             contents: read # the push goes over SSH with the deploy key, not with this token
         env:
             SHA: ${{ needs.pick.outputs.sha }}
-            ABANDON: ${{ needs.abandon.result == 'success' }}
         steps:
             - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            - name: Push or delete channel/candidate
+            - name: Push channel/candidate
               run: |
-                  if [ "$ABANDON" = true ]; then
-                      ref=:refs/heads/channel/candidate
-                  else
-                      git fetch --quiet origin "$SHA"
-                      ref="${SHA}:refs/heads/channel/candidate"
-                  fi
+                  git fetch --quiet origin "$SHA"
+                  ref="${SHA}:refs/heads/channel/candidate"
                   git push --no-verify origin "$ref" ||
                       echo "::warning::could not push ${ref}: add channel/candidate to the deploy-key ruleset (owner item); the hold stands in the results store"
 

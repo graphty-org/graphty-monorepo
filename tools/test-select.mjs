@@ -1545,7 +1545,9 @@ export const STORY_BIN_LIMIT_MS = 4 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    "graph-io-fidelity": 2_800,
+    // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
+    // bin 543 s against a 240 s plan
+    "graph-io-fidelity": 4_500,
     graphty: 6_000,
     "cytoscape-extensions": 1_600,
     "graphty-element": 1_400,
@@ -1562,6 +1564,9 @@ export const STORY_MS = {
 // ponytail: a hand-kept table (#4041 makes this file fast); record capture time per story in the results store when more files drift
 export const STORY_FILE_MS = {
     "graphty/src/workspace/start/StartScreen.stories.tsx": 52_000,
+    // PR run 40567162255, Stories (graphty-1): 458 s for these two files' 40 stories, planned at 240 s
+    "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
+    "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;

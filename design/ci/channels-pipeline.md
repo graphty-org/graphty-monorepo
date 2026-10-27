@@ -122,10 +122,18 @@ Detail: [merging.md](channels-pipeline/merging.md).
   temporary repository. A real-GPU look on a pull request is opt-in: `pr-open.sh` prints a reminder
   when webgpu-graph-algorithms is affected, and the full run's T4 catches what it misses within 6 h. `hosts.yml` keeps its
   advisory pull request trigger and loses its nightly cron at step 6.
-- **Dependabot** targets master; `dependabot-automerge.yml` arms auto-merge with an agent token
-  scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept `dependabot[bot]`
-  without an issue line, Proof or review; test integrity still applies.
-  Actions updates wait for the owner by design.
+- **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
+  (`open-pull-requests-limit: 0` in `.github/dependabot.yml`) because they failed many pull requests at
+  once several times (Storybook bumped out of lockstep, Actions bumps of the generated visual-seed.yml,
+  #3898). A security fix arrives as one grouped pull request (Storybook's group first, then all other npm
+  packages; one for Actions), targets master, and `dependabot-automerge.yml` arms its auto-merge with an
+  agent token scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept
+  `dependabot[bot]` without an issue line, Proof or review; test integrity still applies. Actions updates
+  wait for the owner by design. Routine refreshes happen once per production promotion: `promote.yml`'s
+  `Refresh dependencies` job, after production is served, runs `tools/dependency-refresh.mjs`, which opens
+  one "chore(deps): refresh dependencies after promotion <tag>" pull request as graphty-agent (npm within
+  the existing ranges, Actions within their major, visual-seed.yml regenerated from its template), or none
+  when nothing is newer. It carries a Proof; an agent adds the fresh review with `tools/pr-open.sh`.
 - **No merge queue at first.** The bisect records skew breaks. Two in 7 days, or one that kept canary
   red over 6 hours: the pipeline round proposes Mergify (`merge_group` is the alternative).
 - **Red master build:** `master-guard.yml` opens a revert pull request as the agent account.

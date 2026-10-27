@@ -2167,18 +2167,27 @@ describe("dependabot.yml", () => {
         const actions = text.slice(text.indexOf("package-ecosystem: github-actions"));
         assert.match(actions, /\n {6}exclude-paths: \[".github\/workflows\/visual-seed.yml"\]\n/);
     });
-    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
-        const npm = text.slice(
-            text.indexOf("package-ecosystem: npm"),
-            text.indexOf("package-ecosystem: github-actions"),
-        );
-        const groups = npm.slice(npm.indexOf("groups:"));
-        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
-        // Dependabot puts a dependency in the first group that matches
-        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
-        for (const kind of ["version-updates", "security-updates"]) {
-            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+    const section = (eco) => {
+        const start = text.indexOf(`package-ecosystem: ${eco}`);
+        const next = text.indexOf("package-ecosystem:", start + 1);
+        return text.slice(start, next === -1 ? undefined : next);
+    };
+    const groupsOf = (eco) => parseYaml(text).updates.find((u) => u["package-ecosystem"] === eco).groups;
+    it("opens no routine version update: limit 0 stops them, security updates continue (owner, 2026-10-27)", () => {
+        for (const eco of ["npm", "github-actions"]) {
+            assert.match(section(eco), /\n {6}open-pull-requests-limit: 0\n/, eco);
+            for (const [name, g] of Object.entries(groupsOf(eco))) {
+                assert.equal(g["applies-to"], "security-updates", `${eco} group ${name}`);
+            }
         }
+    });
+    it("groups security updates: Storybook together first, then all other npm packages, then all actions", () => {
+        const npm = groupsOf("npm");
+        // Dependabot puts a dependency in the first group that matches (#3294 and #3295 bumped Storybook apart)
+        assert.deepEqual(Object.keys(npm), ["storybook-security", "npm-security"]);
+        assert.deepEqual(npm["storybook-security"].patterns, ["storybook", "@storybook/*", "eslint-plugin-storybook"]);
+        assert.deepEqual(npm["npm-security"].patterns, ["*"]);
+        assert.deepEqual(groupsOf("github-actions")["actions-security"].patterns, ["*"]);
     });
 });
 

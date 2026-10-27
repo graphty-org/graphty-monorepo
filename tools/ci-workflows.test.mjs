@@ -1962,7 +1962,14 @@ describe("verification runs of ci.yml", () => {
         }
         assert.match(job(ci, "story-tests"), /RESULTS_PART: \$\{\{ matrix\.part \}\}/);
         assert.match(job(ci, "story-tests"), /name: story-parts-\$\{\{ matrix\.name \}\}-/);
-        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*-/);
+        // every attempt's parts, then each part's newest attempt: a re-run of failed jobs re-runs only the failed parts
+        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*\n/);
+        assert.match(job(ci, "story-tests-merge"), /sort -V \| awk .*sub\(\/-\[0-9\]\+\$\/, "", part\)/);
+        // the parity job takes each capture from the newest attempt that made it, by exact name
+        assert.match(job(ci, "story-tests-parity"), /for \(\(a = RUN_ATTEMPT; a >= 1; a--\)\)/);
+        assert.match(job(ci, "story-tests-parity"), /fetch "visual-\$PROJECT" captures\/old\n/);
+        assert.match(job(ci, "story-tests-parity"), /fetch "story-tests-\$PROJECT" captures\/new\n/);
+        assert.match(job(ci, "story-tests-parity"), /actions: read/);
         assert.match(job(ci, "story-tests-merge"), /merge-results --project .* "\$RUNNER_TEMP"\/parts\/\*\/part-\*\//);
         assert.match(
             job(ci, "story-tests-merge"),

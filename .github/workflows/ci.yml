@@ -2284,12 +2284,18 @@ jobs:
               continue-on-error: true
               uses: actions/download-artifact@v8
               with:
-                  pattern: story-parts-${{ matrix.project }}-*-${{ github.run_attempt }}
+                  pattern: story-parts-${{ matrix.project }}-*
                   path: ${{ runner.temp }}/parts
 
+            # Every attempt's parts are downloaded (a re-run of failed jobs re-runs this job and the failed parts,
+            # not the parts that passed): keep each part's newest attempt only.
             - name: Find the parts
               id: found
-              run: echo "any=$(ls -d "$RUNNER_TEMP"/parts/*/part-*/ 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
+              run: |
+                  cd "$RUNNER_TEMP/parts" 2>/dev/null && ls -d story-parts-*-*/ 2>/dev/null | sed 's#/$##' \
+                      | sort -V | awk '{ part = $0; sub(/-[0-9]+$/, "", part); if (part in seen) print seen[part]; seen[part] = $0 }' \
+                      | xargs -r rm -rf || true
+                  echo "any=$(ls -d "$RUNNER_TEMP"/parts/*/part-*/ 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v7
               if: steps.found.outputs.any != ''
@@ -2360,6 +2366,10 @@ jobs:
         needs: [story-tests, story-tests-merge, visual]
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         runs-on: ubuntu-24.04
+        # actions: read for gh run download of an earlier attempt's capture
+        permissions:
+            contents: read
+            actions: read
         continue-on-error: true
         timeout-minutes: 10
         strategy:
@@ -2390,19 +2400,28 @@ jobs:
                   mkdir -p visual-review/node_modules
                   ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
 
-            - name: Download the old capture
+            # Each capture from the newest attempt that made it: a re-run of failed jobs (the full run's same-commit
+            # re-run) re-runs this job but not a capture job that passed, whose artifact keeps its own attempt's
+            # suffix. Exact names: a pattern visual-graphty-* would also match visual-graphty-element-*.
+            - name: Download the two captures
               continue-on-error: true
-              uses: actions/download-artifact@v8
-              with:
-                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: captures/old
-
-            - name: Download the story tests' capture
-              continue-on-error: true
-              uses: actions/download-artifact@v8
-              with:
-                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: captures/new
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PROJECT: ${{ matrix.project }}
+                  RUN_ID: ${{ github.run_id }}
+                  RUN_ATTEMPT: ${{ github.run_attempt }}
+              run: |
+                  fetch() {
+                      for ((a = RUN_ATTEMPT; a >= 1; a--)); do
+                          if gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$1-$a" -D "$2" 2>/dev/null; then
+                              echo "$1-$a -> $2"
+                              return 0
+                          fi
+                      done
+                      echo "no $1-<attempt> artifact in this run"
+                  }
+                  fetch "visual-$PROJECT" captures/old
+                  fetch "story-tests-$PROJECT" captures/new
 
             - name: Compare
               env:

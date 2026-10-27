@@ -252,6 +252,20 @@
             "sources": ["collector"]
         },
         {
+            "id": "pr.caused_failures",
+            "category": "pull_requests",
+            "label": "Runs failed by their change",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.caused_failures"
+            },
+            "ok": ["<", 0.05],
+            "minN": 20,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "pr.automerge_stuck",
             "category": "pull_requests",
             "label": "Auto-merge stuck",

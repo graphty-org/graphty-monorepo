@@ -2,7 +2,7 @@
 // Run: node tools/channel/hold.test.mjs
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -24,7 +24,7 @@ describe("holdIssue", () => {
 });
 
 describe("start", () => {
-    it("opens the issue, and fails the job when the store cannot record the hold", () => {
+    it("fails the job, opening no issue, when the store cannot say what is held", () => {
         const dir = mkdtempSync(join(tmpdir(), "hold-"));
         const log = join(dir, "calls.log");
         writeFileSync(join(dir, "gh"), `#!/bin/bash\necho "$*" >> "${log}"\necho https://github.com/o/r/issues/31\n`, {
@@ -43,12 +43,9 @@ describe("start", () => {
                 RUN_URL: "https://run",
             },
         });
-        assert.match(
-            readFileSync(log, "utf8"),
-            /^issue create --title Nightly held on bbbbbbbbbbbb --label bug --label priority:high/m,
-        );
+        assert.ok(!existsSync(log), "no hold issue the store does not hold");
         assert.notEqual(r.status, 0, "a hold the store did not record is no hold");
-        assert.match(r.stderr, /POST \/v1\/hold failed/);
+        assert.match(r.stderr, /the results store did not answer/);
     });
 });
 
@@ -71,9 +68,10 @@ async function withStore(cmd, hold, env) {
     writeFileSync(join(dir, "gh"), `#!/bin/bash\necho "$*" >> "${log}"\necho https://github.com/o/r/issues/31\n`, {
         mode: 0o755,
     });
+    let stdout = "";
     const code = await new Promise((resolve) => {
         const child = spawn(process.execPath, ["tools/channel/hold.mjs", cmd], {
-            stdio: "ignore",
+            stdio: ["ignore", "pipe", "ignore"],
             env: {
                 ...process.env,
                 PATH: `${dir}:${process.env.PATH}`,
@@ -85,10 +83,11 @@ async function withStore(cmd, hold, env) {
                 ...env,
             },
         });
-        child.on("exit", resolve);
+        child.stdout.on("data", (d) => (stdout += d));
+        child.on("close", resolve);
     });
     server.close();
-    return { code, posts, calls: readFileSync(log, "utf8") };
+    return { code, posts, calls: readFileSync(log, "utf8"), stdout };
 }
 
 describe("start for a red run that was not re-run", () => {
@@ -106,6 +105,36 @@ describe("start for a red run that was not re-run", () => {
         assert.equal(r.code, 0);
         assert.equal(r.calls, "");
         assert.deepEqual(r.posts, []);
+    });
+});
+
+describe("start for a verdict, which read the hold when its run was picked", () => {
+    const env = { SHA: "c".repeat(40), STATE: "red", WHAT: "CI, T4 GPU" };
+    it("holds the commit when nothing is held", async () => {
+        const r = await withStore("start", null, env);
+        assert.equal(r.code, 0);
+        assert.match(r.calls, /issue create --title Nightly held on cccccccccccc/);
+        assert.equal(r.posts.length, 1);
+        assert.match(r.stdout, /^action=start$/m);
+    });
+    it("opens no second hold issue when another run held its commit since the pick", async () => {
+        const r = await withStore("start", { base: "d".repeat(40), head: "d".repeat(40), issue: 5 }, env);
+        assert.equal(r.code, 0);
+        assert.equal(r.calls, "");
+        assert.deepEqual(r.posts, []);
+        assert.match(r.stdout, /^action=none$/m, "so channel/candidate is not moved to this commit");
+    });
+    it("comments on the hold issue when the commit is the one held", async () => {
+        const r = await withStore("start", { base: "c".repeat(40), head: "c".repeat(40), issue: 5 }, env);
+        assert.equal(r.code, 0);
+        assert.match(r.calls, /^issue comment 5 /);
+        assert.doesNotMatch(r.calls, /issue create/);
+        assert.deepEqual(r.posts, []);
+        assert.match(r.stdout, /^action=update$/m);
+    });
+    it("is what the jobs after the verdict follow", () => {
+        const yml = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+        assert.match(yml, /^ {12}hold: \$\{\{ steps\.hold\.outputs\.action \|\| steps\.verdict\.outputs\.hold \}\}$/m);
     });
 });
 

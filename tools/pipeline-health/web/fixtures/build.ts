@@ -36,7 +36,8 @@ import type {
     Value,
 } from "../src/contract";
 
-const OUT = dirname(fileURLToPath(import.meta.url));
+// HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
+const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
 
 /** A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25"). */
@@ -102,6 +103,7 @@ const SLA = {
     sameCheck: { target: cmp("<=", 1), red: cmp(">=", 3) } satisfies Sla,
     untested: { target: cmp("<=", 7, "h"), red: cmp(">", 13, "h") } satisfies Sla,
     reverts: { target: cmp("<", 5, "pct"), red: cmp(">", 10, "pct") } satisfies Sla,
+    prCaused: { target: cmp("<", 5, "pct") } satisfies Sla,
     ttm: { target: cmp("<=", 60, "min"), red: cmp(">", 180, "min"), needs6h: true } satisfies Sla,
     openPrs: { target: cmp("<=", 15), red: cmp(">", 25) } satisfies Sla,
     age24: { target: cmp("<", 24, "h"), red: cmp(">", 72, "h") } satisfies Sla,
@@ -239,6 +241,14 @@ const prMembers: Member[] = [
         n: 3,
         minN: 5,
         sla: SLA.mergeRatio,
+        link: "/pull-requests",
+    }),
+    member({
+        id: "pull-requests.caused_failures",
+        window: "7d",
+        state: "slow",
+        value: { n: 9, of: 112 },
+        sla: SLA.prCaused,
         link: "/pull-requests",
     }),
     member({ id: "pull-requests.automerge_stuck", value: num(0), sla: SLA.stuck, link: "/pull-requests" }),
@@ -1801,8 +1811,9 @@ const pages: PageResponse[] = [
         page: "flaky",
         ...head("flaky"),
         notes: [f("flaky.note.judged_again", { since: t("20:42") })],
-        members: flakyMembers,
-        sections: flakySections,
+        // Every flaky source (design 4.4): CI's rerun rate and the stress run are shown here too, judged elsewhere.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns"), byId(dataMembers, "data-sources.stress_run")],
+        sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
     }),
     page({
         page: "releases",

@@ -1,1 +1,11 @@
-{ "approve": [] }
+{
+    "approve": [
+        {
+            "project": "babylonjs-map",
+            "kind": "first",
+            "merge": "8d483cfa4f080ed0078d6b2dd3e766d14fff46b2",
+            "approval": "https://github.com/graphty-org/graphty-monorepo/issues/4013",
+            "since": "2026-10-27"
+        }
+    ]
+}

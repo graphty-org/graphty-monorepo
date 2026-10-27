@@ -224,6 +224,23 @@
             "minN": 5
         },
         {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.caused_failures",
+            "value": {
+                "n": 9,
+                "of": 112
+            }
+        },
+        {
             "state": "ok",
             "window": "now",
             "sla": {

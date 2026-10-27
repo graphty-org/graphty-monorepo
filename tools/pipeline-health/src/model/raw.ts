@@ -118,7 +118,7 @@ function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
     );
     return { ...r, ...live } as RawItem;
 }
-const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages", "tested"] as const;
+const LIVE_ONLY = ["cause", "prCaused", "cancelClass", "hang", "stages", "tested"] as const;
 
 export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {

@@ -88,6 +88,8 @@ export interface CycleReport {
     items: number;
     calls: number;
     errors: Record<string, string>;
+    /** Items skipped because one GitHub request kept failing (section 10.4). */
+    skipped: string[];
 }
 
 const iso = (t: number) => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -123,6 +125,8 @@ const STEP_WORKFLOWS = new Set(["release.yml", "restricted-cpu-stress.yml"]);
 class Cycle {
     readonly items: RawItem[] = [];
     readonly errors: Record<string, string> = {};
+    /** Items skipped because one GitHub request kept failing; the cycle wrote everything else. */
+    readonly skipped: string[] = [];
     /** Unfinished runs of this cycle, for the superseded list (pull requests part). */
     openRuns?: GhRun[];
     /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
@@ -249,23 +253,15 @@ interface Collected {
  */
 async function collectRuns(c: Cycle, gh: GitHub, repos: string[], extra: Collected[]): Promise<Collected[]> {
     const out: Collected[] = [...extra];
+    const done: string[] = [];
     for (const repo of repos) {
-        const since = (await c.cursor(`runs#${repo}`)) ?? iso(c.now - 15 * MIN);
-        const from = iso(Date.parse(since) - 5 * MIN);
-        const fresh = await runsPages(gh, `repos/${repo}/actions/runs?created=${encodeURIComponent(`>=${from}`)}`);
-        const running = await runsPages(gh, `repos/${repo}/actions/runs?status=in_progress`, 2);
-        const queued = await runsPages(gh, `repos/${repo}/actions/runs?status=queued`, 2);
-        const byId = new Map<number, GhRun>();
-        for (const r of [...fresh, ...running, ...queued]) byId.set(r.id, r);
-        const prevOpen = await c.json<number[]>(`open#${repo}`, []);
-        const gone = prevOpen.filter((id) => !byId.has(id));
-        for (const r of await mapPool(gone, 8, (id) => gh.rest<GhRun>(`repos/${repo}/actions/runs/${id}`)))
-            if (r) byId.set(r.id, r);
-        for (const run of byId.values()) out.push({ run, repo });
-        await c.setJson(
-            `open#${repo}`,
-            [...byId.values()].filter((r) => r.status !== "completed").map((r) => r.id),
-        );
+        try {
+            await repoRuns(c, gh, repo, out);
+            done.push(repo);
+        } catch (e) {
+            // This repository's runs are read again next cycle: its cursor stays put.
+            c.skipped.push(`runs of ${repo}: ${message(e)}`);
+        }
     }
     // Skip completed runs already stored complete (their jobs are final).
     const keep: Collected[] = [];
@@ -282,11 +278,42 @@ async function collectRuns(c: Cycle, gh: GitHub, repos: string[], extra: Collect
         }
         keep.push(x);
     }
+    const failed: Collected[] = [];
     await mapPool(keep, 8, async (x) => {
-        x.jobs = await allJobs(gh, x.repo, x.run.id);
+        try {
+            x.jobs = await allJobs(gh, x.repo, x.run.id);
+        } catch (e) {
+            failed.push(x);
+            c.skipped.push(`jobs of ${x.repo} run ${x.run.id}: ${message(e)}`);
+        }
     });
-    for (const repo of repos) await setCursor(c.d.store, `runs#${repo}`, iso(c.now), c.now);
-    return keep;
+    // A run whose jobs could not be read is left out of this cycle and kept open, so the next cycle reads it again.
+    for (const x of failed) {
+        const open = await c.json<number[]>(`open#${x.repo}`, []);
+        if (!open.includes(x.run.id)) await c.setJson(`open#${x.repo}`, [...open, x.run.id]);
+    }
+    for (const repo of done) await setCursor(c.d.store, `runs#${repo}`, iso(c.now), c.now);
+    return keep.filter((x) => !failed.includes(x));
+}
+
+/** One repository's runs since its cursor, unfinished, and unfinished last cycle, into `out`. */
+async function repoRuns(c: Cycle, gh: GitHub, repo: string, out: Collected[]): Promise<void> {
+    const since = (await c.cursor(`runs#${repo}`)) ?? iso(c.now - 15 * MIN);
+    const from = iso(Date.parse(since) - 5 * MIN);
+    const fresh = await runsPages(gh, `repos/${repo}/actions/runs?created=${encodeURIComponent(`>=${from}`)}`);
+    const running = await runsPages(gh, `repos/${repo}/actions/runs?status=in_progress`, 2);
+    const queued = await runsPages(gh, `repos/${repo}/actions/runs?status=queued`, 2);
+    const byId = new Map<number, GhRun>();
+    for (const r of [...fresh, ...running, ...queued]) byId.set(r.id, r);
+    const prevOpen = await c.json<number[]>(`open#${repo}`, []);
+    const gone = prevOpen.filter((id) => !byId.has(id));
+    for (const r of await mapPool(gone, 8, (id) => gh.rest<GhRun>(`repos/${repo}/actions/runs/${id}`)))
+        if (r) byId.set(r.id, r);
+    for (const run of byId.values()) out.push({ run, repo });
+    await c.setJson(
+        `open#${repo}`,
+        [...byId.values()].filter((r) => r.status !== "completed").map((r) => r.id),
+    );
 }
 
 /** Cancel class and hangs of every cancelled run in `xs`, from one GraphQL query per 20 runs. */
@@ -634,7 +661,11 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     // An attempt seen before lanes were kept is read once more.
     const todo = runs.filter((r) => r.status === "completed" && !seen[`${r.id}.${r.run_attempt}`]?.lanes);
     await mapPool(todo, 4, async (r) => {
-        const a = releaseAttempt(r, await allJobs(gh, repo, r.id));
+        const jobs = await allJobs(gh, repo, r.id).catch((e: unknown) => {
+            c.skipped.push(`jobs of release run ${r.id}: ${message(e)}`); // not seen: read again next cycle
+        });
+        if (!jobs) return;
+        const a = releaseAttempt(r, jobs);
         seen[`${r.id}.${r.run_attempt}`] = {
             sha: r.head_sha,
             at: Date.parse(r.updated_at),
@@ -922,7 +953,8 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     const builds = d.deploy;
     if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
     if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
-    if (ok) await recordSource(d.store, "collector", d.now, { ok: true });
+    const partial = c.skipped.join("; ").slice(0, 300);
+    if (ok) await recordSource(d.store, "collector", d.now, { ok: true, ...(partial ? { partial } : {}) });
 }
 
 export async function collect(d: Deps): Promise<CycleReport> {
@@ -943,5 +975,11 @@ export async function collect(d: Deps): Promise<CycleReport> {
     await setCursor(d.store, "cycle", String(d.now), d.now);
     if (hourly) await setCursor(d.store, "hourly", String(d.now), d.now);
     if (daily && !c.errors.costs) await setCursor(d.store, "daily", String(d.now), d.now);
-    return { github: gh ? "collected" : "not set up", items: items.length, calls: gh?.calls ?? 0, errors: c.errors };
+    return {
+        github: gh ? "collected" : "not set up",
+        items: items.length,
+        calls: gh?.calls ?? 0,
+        errors: c.errors,
+        skipped: c.skipped,
+    };
 }

@@ -234,7 +234,7 @@ export async function recordSource(
     store: Store,
     source: string,
     nowMs: number,
-    result: { ok: true } | { ok: false; error: string },
+    result: { ok: true; partial?: string } | { ok: false; error: string },
     since?: number,
 ): Promise<void> {
     const key: Key = sourceKey(source);
@@ -248,6 +248,7 @@ export async function recordSource(
     };
     if (result.ok) {
         item.lastOkAt = nowMs;
+        if (result.partial) item.partial = result.partial;
     } else {
         item.error = result.error;
         item.errorSince = old?.error ? (old.errorSince ?? nowMs) : nowMs;

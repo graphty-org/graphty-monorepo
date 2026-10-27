@@ -43,4 +43,28 @@ describe("GitHub App", () => {
         expect(gh.rate).toEqual({ remaining: 4000, limit: 5000 });
         expect(gh.calls).toBe(1);
     });
+
+    it("retries a 5xx and a short rate limit, and gives up at once on a rate limit that resets later", async () => {
+        const answers = [502, 429, 200, 403];
+        const seen: number[] = [];
+        const gh = new GitHub(
+            async () => "ghs_test",
+            async () => {
+                const status = answers.shift() ?? 500;
+                seen.push(status);
+                const later = String(Math.floor(Date.now() / 1000) + 3600);
+                const headers: Record<string, string> =
+                    status === 429
+                        ? { "retry-after": "0" }
+                        : status === 403
+                          ? { "x-ratelimit-remaining": "0", "x-ratelimit-reset": later }
+                          : {};
+                return new Response(status === 200 ? "{}" : "", { status, headers });
+            },
+        );
+        expect(await gh.rest("repos/o/r")).toEqual({});
+        expect(seen).toEqual([502, 429, 200]);
+        await expect(gh.rest("repos/o/r")).rejects.toThrow("HTTP 403");
+        expect(seen).toEqual([502, 429, 200, 403]);
+    });
 });

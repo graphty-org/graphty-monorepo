@@ -248,6 +248,11 @@ jobs:
             - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
+            # The script imports semver and runs visual-review init, both from the workspace's install.
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
             - name: Refresh and open the pull request
               env:
                   HUSKY: "0"

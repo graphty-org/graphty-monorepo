@@ -1,6 +1,7 @@
 name: Dependabot auto-merge
 
-# Arms auto-merge on Dependabot's pull requests (design/ci/channels-pipeline/merging.md). Dependabot cannot
+# Arms auto-merge on Dependabot's pull requests, which are security updates only (.github/dependabot.yml;
+# routine refreshes come from promote.yml after each production promotion) (design/ci/channels-pipeline/merging.md). Dependabot cannot
 # arm it itself, and a merge armed with GITHUB_TOKEN would start no master build, so it is armed as
 # graphty-agent with AGENT_AUTOMERGE_TOKEN (fine-grained, this repository only, Contents and Pull requests
 # write) from the master-only environment `dependabot-automerge`. pull_request_target runs master's copy of

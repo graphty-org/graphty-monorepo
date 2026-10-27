@@ -74,6 +74,6 @@
         "typescript": "^5.9.3",
         "vite": "^7.3.7",
         "vitest": "catalog:",
-        "webgpu": "^0.6.1"
+        "webgpu": "^0.6.2"
     }
 }

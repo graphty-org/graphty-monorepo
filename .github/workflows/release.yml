@@ -182,6 +182,13 @@ env:
     DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
+    # The owner's release policy (release-hold.json, release-approvals.json) is master's, whatever commit a job
+    # checks out: a candidate older than master or a held head must not use the holds and approvals it was cut with
+    # (tools/release-hold.mjs readPolicy). Every job that reads them checks out with fetch-depth 0.
+    RELEASE_POLICY_REF: refs/remotes/origin/master
+    # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
+    # job that keeps or publishes them: a package missing here is published with no dist
+    PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -1335,7 +1342,7 @@ jobs:
             - name: Download the tested commit's builds
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the promotion after approval
@@ -1727,7 +1734,7 @@ jobs:
               if: ${{ needs.pick.outputs.resume != 'true' }}
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             # a promotion after approval: the builds the judging run kept for its held head (its keep_builds job);

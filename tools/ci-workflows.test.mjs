@@ -4172,7 +4172,7 @@ describe("release.yml", () => {
         assert.match(dryRun, /held: \$\{\{ steps.approvals.outputs.held \}\}/);
         assert.doesNotMatch(dryRun, /environment:|git push|upload-artifact|id-token/);
         // the release ships the builds of its own CI call, not a master run's
-        assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
+        assert.match(version, /pattern: \$\{\{ env.PACKAGE_BUILDS \}\}\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
         assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
         // the projects the dry run held are left out of this run's versioning alone (#4021); a promotion after
@@ -6918,7 +6918,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
             .map((x) => x.with?.name)
             .filter((n) => typeof n === "string" && n.startsWith("build-"));
         const pattern = steps.version.steps.find((x) => x.name === "Download the tested commit's builds").with.pattern;
-        const downloaded = /^build-\{(.+)\}$/.exec(pattern)[1].split(",");
+        assert.equal(pattern, "${{ env.PACKAGE_BUILDS }}");
+        const downloaded = /^build-\{(.+)\}$/.exec(parseYaml(workflow("release.yml")).env.PACKAGE_BUILDS)[1].split(",");
         assert.ok(downloaded.includes("cytoscape-extensions"));
         for (const name of downloaded) assert.ok(uploaded.includes(`build-${name}`), `ci.yml uploads build-${name}`);
     });
@@ -8008,5 +8009,35 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
         assert.doesNotMatch(workflow("deploy-pages.yml"), /run-id: \$\{\{ github.event.workflow_run.id \}\}/);
         // the site job finds site-<sha> whichever run kept it
         assert.match(job(release, "site"), /actions\/artifacts\?name=site-\$\{SHA\}/);
+    });
+});
+
+describe("the package builds release.yml keeps and publishes", () => {
+    const release = workflow("release.yml");
+    const env = parseYaml(release).env;
+    it("are one list, exactly ci.yml's build-<package> uploads, used by every job that downloads builds", () => {
+        const uploaded = [...workflow("ci.yml").matchAll(/name: build-([a-z-]+)\n\s+path: \1\/dist\//g)].map(
+            (m) => m[1],
+        );
+        const listed = /^build-\{([a-z,-]+)\}$/.exec(env.PACKAGE_BUILDS)[1].split(",");
+        assert.deepEqual([...listed].sort(), [...new Set(uploaded)].sort());
+        assert.ok(listed.includes("babylonjs-map"));
+        // keep_builds (a held candidate promoted after approval) and version (every promotion)
+        assert.equal(release.match(/pattern: \$\{\{ env.PACKAGE_BUILDS \}\}/g)?.length, 2);
+        assert.doesNotMatch(release, /pattern: "build-\{/, "no second, hand-kept list");
+    });
+});
+
+describe("the release policy files release.yml reads", () => {
+    it("are master's, from a checkout that has origin/master, whatever commit the job versions", () => {
+        const release = workflow("release.yml");
+        assert.equal(parseYaml(release).env.RELEASE_POLICY_REF, "refs/remotes/origin/master");
+        const jobs = parseYaml(release).jobs;
+        for (const [name, j] of Object.entries(jobs)) {
+            const runs = (j.steps ?? []).map((st) => st.run ?? "").join("\n");
+            if (!/release-version\.sh|release-hold\.mjs|release-approvals\.mjs/.test(runs)) continue;
+            const checkout = j.steps.find((st) => String(st.uses ?? "").startsWith("actions/checkout@"));
+            assert.equal(checkout?.with?.["fetch-depth"], 0, `${name} needs origin/master to read the policy`);
+        }
     });
 });

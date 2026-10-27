@@ -37,6 +37,11 @@
  * (owner decision, 2026-10-23), and npm refuses to publish a private package. The workspace root's
  * package.json is not an nx release project and stays private.
  *
+ * RELEASE_POLICY_REF (a git ref; release.yml sets origin/master) makes this read release-hold.json, and
+ * tools/release-approvals.mjs read release-approvals.json, from that ref instead of the checkout: a release run
+ * checks out the tested candidate, which may be older than master or a held head, and the owner's holds and
+ * approvals are master's, whatever commit is versioned.
+ *
  * Usage: node tools/release-hold.mjs check   (exit 1 when release-hold.json is invalid)
  *        node tools/release-hold.mjs apply   (check, then leave the held projects out of nx.json)
  *        node tools/release-hold.mjs apply --only <project>[,<project>...]
@@ -48,6 +53,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * A release policy file at the repository root, parsed: from RELEASE_POLICY_REF when it is set, else the checkout.
+ * @param name - the file name, e.g. release-hold.json
+ * @param [env] - the environment
+ * @param [root] - the repository
+ * @returns the parsed file
+ */
+export function readPolicy(name, env = process.env, root = ROOT) {
+    const ref = env.RELEASE_POLICY_REF;
+    const text = ref
+        ? execFileSync("git", ["show", `${ref}:${name}`], { cwd: root, encoding: "utf8" })
+        : readFileSync(join(root, name), "utf8");
+    return JSON.parse(text);
+}
 
 /**
  * Everything wrong with a parsed release-hold.json.
@@ -213,7 +233,7 @@ function fail(found) {
 }
 
 function main(mode, only, also) {
-    let hold = JSON.parse(readFileSync(join(ROOT, "release-hold.json"), "utf8"));
+    let hold = readPolicy("release-hold.json");
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
     );

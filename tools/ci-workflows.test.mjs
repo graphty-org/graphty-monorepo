@@ -1586,7 +1586,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1805,7 +1805,9 @@ describe("verification runs of ci.yml", () => {
         const from = report.indexOf("            - name: Check out the gate");
         const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
         assert.ok(gate.length > 1000, "found the gate steps");
-        assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
+        // The owner approved on 2026-10-26 (design/ci/channels-pipeline.md section 7.1, #3850) changing the visual job's
+        // scheduling: it no longer runs on a pull request (its `if`).
+        assert.equal(sha(job(ci, "visual")), "fc7d852512fd60414701e4c69df5e87f671de01124524b07ab74c655ac92b16f");
         assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
     });
 
@@ -1816,7 +1818,10 @@ describe("verification runs of ci.yml", () => {
         const report = job(ci, "visual-report");
         assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
         assert.match(report, /\n {8}name: Visual report\n/);
-        assert.match(report, /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' \}\}\n/);
+        assert.match(
+            report,
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' && needs.visual.result != 'skipped' \}\}\n/,
+        );
         assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
         assert.match(
             report,
@@ -1824,6 +1829,31 @@ describe("verification runs of ci.yml", () => {
         );
         assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
+    });
+
+    // On a pull request the old full capture ran 15 to 25 minutes past All Checks Pass, holding runners, and nothing
+    // that read it decided anything there (#3850): the full run, a dispatch and a bisect point still capture.
+    it("runs the old full capture, its parity and its report on no pull request", () => {
+        const jobs = parseJobs(ci);
+        assert.match(
+            job(ci, "visual"),
+            /\n {8}if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'\n/,
+        );
+        assert.match(
+            job(ci, "story-tests-parity"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name != 'pull_request' \}\}\n/,
+        );
+        // the report and the flaky-screenshot report read only that capture, so they skip with it
+        assert.match(job(ci, "visual-report"), /&& needs.visual.result != 'skipped' \}\}\n/);
+        assert.match(
+            job(ci, "visual-flaky"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs.visual.result != 'skipped' \}\}\n/,
+        );
+        // what a pull request's All Checks Pass needs still runs: its own stories, captured by the Stories jobs
+        assert.ok(jobs["all-checks"].needs.includes("stories"));
+        assert.match(job(ci, "stories"), /github.event_name == 'pull_request'/);
+        // the story tests feed the results store's flaky-story detection on a pull request too
+        assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
     });
 
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
@@ -2502,13 +2532,74 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
-            assert.equal(last.coe, "true", name);
+            // a clear that cannot finish fails the job, so the pull request is not left blocked in silence (#3857)
+            assert.equal(last.coe, undefined, name);
             assert.match(job(ci, name), new RegExp(`\\n {18}CHECK: ${check}\\n`), name);
         }
     });
 
+    // The step's script run against a stand-in gh (and sleep), the way the run's token answered on
+    // 2026-10-26: "API rate limit exceeded for installation" on the first listing (#3857).
+    const runClear = (jobName, { failList, resetIn }) => {
+        const dir = mkdtempSync(join(tmpdir(), "early-verdict-"));
+        const step = parseYaml(ci).jobs[jobName].steps.at(-1);
+        writeFileSync(
+            join(dir, "gh"),
+            [
+                "#!/bin/bash",
+                'echo "gh $*" >> "$LOG"',
+                'case "$*" in',
+                '    *rate_limit*) echo "0 $(( $(date +%s) + RESET_IN ))" ;;',
+                '    *"check-runs?filter"*)',
+                '        n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) > "$STATE"',
+                '        if (( n < FAIL_LIST )); then echo "gh: API rate limit exceeded for installation." >&2; exit 1; fi',
+                "        echo 1 ;;",
+                "esac",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+        writeFileSync(join(dir, "sleep"), '#!/bin/bash\necho "sleep $*" >> "$LOG"\n', { mode: 0o755 });
+        const result = spawnSync("bash", ["-e", "-c", step.run], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                LOG: join(dir, "log"),
+                STATE: join(dir, "state"),
+                FAIL_LIST: String(failList),
+                RESET_IN: String(resetIn),
+                ...step.env,
+                GITHUB_REPOSITORY: "o/r",
+                SHA: "abc",
+                RUN_URL: "https://x/actions/runs/7",
+            },
+        });
+        const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+        rmSync(dir, { recursive: true, force: true });
+        return { ...result, log };
+    };
+
+    it("waits for an exhausted API limit to reset and then clears, on any attempt (#3857)", () => {
+        for (const name of ["all-checks", "queue-checks"]) {
+            const { status, stdout, log } = runClear(name, { failList: 1, resetIn: 30 });
+            assert.equal(status, 0, name);
+            assert.match(stdout, /cleared early verdict 1/, name);
+            assert.match(log, /^sleep (3[0-5])$/m, name);
+            assert.match(log, /gh api -X PATCH repos\/o\/r\/check-runs\/1 /, name);
+        }
+    });
+
+    it("fails the job, loudly, when every try fails (#3857)", () => {
+        const { status, stdout, log } = runClear("all-checks", { failList: 99, resetIn: 30 });
+        assert.equal(status, 1);
+        assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
+        assert.doesNotMatch(log, /PATCH/);
+        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^sleep /gm).length, 3);
+    });
+
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "queue-checks"))[1];
         const page = {
             check_runs: [
                 { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },

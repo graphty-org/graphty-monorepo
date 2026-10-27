@@ -15,7 +15,6 @@ export default defineConfig({
         globals: true,
         environment: "node",
         pool: "forks",
-        testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
         coverage: {

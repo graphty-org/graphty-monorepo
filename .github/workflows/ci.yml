@@ -2046,7 +2046,8 @@ jobs:
                   path: ${{ matrix.storybook }}/
 
             # The bin's story files as story ids, from the built Storybook's index (an entry's importPath is
-            # relative to its Storybook's directory), plus the ids whose baseline image the change touched.
+            # relative to its Storybook's directory), plus the ids whose baseline image the change touched. A file
+            # longer than a bin comes as "<file>#<k>/<n>": the k-th of every n of its stories in the index's order.
             - name: Pick the selected stories
               id: pick
               env:
@@ -2055,9 +2056,12 @@ jobs:
                   STORYBOOK: ${{ matrix.storybook }}
               run: |
                   ids=$(jq -r --argjson files "$FILES" --argjson ids "$IDS" '
-                      [.entries[] | select(.type == "story")
-                          | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | any($files[]; . == $p or endswith("/" + $p)))
-                          | .id] + $ids | unique | join(",")' "$STORYBOOK/index.json")
+                      . as $index | [$files[] | capture("^(?<f>[^#]+)(#(?<k>[0-9]+)/(?<n>[0-9]+))?$") as $s
+                          | [$index.entries[] | select(.type == "story")
+                              | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | $s.f == $p or ($s.f | endswith("/" + $p)))
+                              | .id]
+                          | to_entries[] | select($s.k == null or .key % ($s.n | tonumber) == ($s.k | tonumber) - 1)
+                          | .value] + $ids | unique | join(",")' "$STORYBOOK/index.json")
                   echo "stories=$ids" >> "$GITHUB_OUTPUT"
                   echo "selected stories: ${ids:-none}"
 

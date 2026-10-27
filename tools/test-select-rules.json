@@ -112,13 +112,14 @@
         "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\(|promisify\\(|\\bexecFile\\b|\\bspawn\\b|child_process|node:fs|new ESLint\\(|loadESLint|calculateConfigForFile|\\bfetch\\(|page\\.goto"
     },
     "stories": {
-        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package). selectProjects: the projects whose stories are selected at all; every other project runs every story on every change. A project joins only after a clean run of node tools/test-select-mutate.mjs --stories <project>, which breaks its files one at a time, captures the whole Storybook and requires every story whose picture or play result changed to have been selected.",
+        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package). selectProjects: the projects whose stories are selected at all; every other project runs every story on every change. A project joins only after a clean run of node tools/test-select-mutate.mjs --stories <project>, which breaks its files one at a time, captures the whole Storybook and requires every story whose picture or play result changed to have been selected. storyless: CI and tool files no story reads; a change only to these, with no storybook shard selected, runs no story in any project, proven or not. A tools/ file a Storybook or story-test config imports (directly or through another tools/ file) stays out of it; tools/test-select.test.mjs checks that.",
         "global": [
             "^visual-review\\.config\\.json$",
             "^visual-fonts/",
             "^visual-review/capture/",
             "^visual-review/trusted/lib/compare\\.mjs$"
         ],
+        "storyless": ["^\\.github/", "^tools/(?!(features-on|storybook-brand-theme|test-slots|wait-log)\\.mjs$)"],
         "projectGlobal": ["^{dir}/\\.storybook/", "^{dir}/vitest(\\.[\\w-]+)?\\.config\\.[cm]?[jt]s$"],
         "lockfile": "playwright|chromium|storybook|vitest|font",
         "theme": {

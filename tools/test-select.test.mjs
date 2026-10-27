@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +39,7 @@ import {
     selectStories,
     storyBins,
     STORY_BIN_LIMIT_MS,
+    STORY_FILE_MS,
     STORY_MS,
     storyCount,
     selectedCommand,
@@ -1817,6 +1818,75 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         );
     });
 
+    it("runs no story for a change only to CI and tool files no story reads, proven project or not", () => {
+        const unproven = { ...stories, selectProjects: [] };
+        const ciOnly = [".github/workflows/release.yml", "tools/ci-workflows.test.mjs"];
+        const run = (changed, selection = none) =>
+            selectStories({
+                projects,
+                changed,
+                everything: null,
+                shards,
+                selection,
+                rules: unproven,
+                lockMoved: false,
+            });
+        assert.ok(run(ciOnly).every((p) => p.mode === "none"));
+        assert.ok(
+            run([...ciOnly, "graphty/src/App.tsx"]).every((p) => p.mode === "all"),
+            "a package file runs them",
+        );
+        assert.ok(
+            run(["tools/features-on.mjs"]).every((p) => p.mode === "all"),
+            "a tool a Storybook imports",
+        );
+        assert.ok(
+            run(["visual-review/capture/capture.mjs"]).every((p) => p.mode === "all"),
+            "the capture code",
+        );
+        const storybook = none.map((s) => (s.shard === "graphty-storybook" ? sel(s.shard, "all") : s));
+        assert.ok(
+            run(ciOnly, storybook).every((p) => p.mode === "all"),
+            "a selected storybook shard runs them",
+        );
+        const baseline = run([...ciOnly, "visual-baselines/graphty/a--b.png"]);
+        assert.ok(
+            baseline.every((p) => p.mode === "all"),
+            "a baseline is not a CI file",
+        );
+    });
+
+    it("keeps every tools/ file a Storybook or story-test config imports out of storyless", () => {
+        const storyless = loadRules(ROOT).stories.storyless;
+        const configs = Object.values(projects).flatMap((cfg) => {
+            const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
+            return execFileSync("git", ["ls-files", "--", `${dir}/.storybook`, `${dir}/vitest*.config.*`], {
+                cwd: ROOT,
+                encoding: "utf8",
+            })
+                .split("\n")
+                .filter(Boolean);
+        });
+        const seen = new Set();
+        const walk = (file) => {
+            for (const [, spec] of readFileSync(join(ROOT, file), "utf8").matchAll(
+                /from\s+["'](\.{1,2}\/[^"']+)["']/gu,
+            )) {
+                const target = relative(ROOT, resolve(ROOT, dirname(file), spec));
+                if (target.startsWith("tools/") && !seen.has(target)) {
+                    seen.add(target);
+                    walk(target);
+                }
+            }
+        };
+        for (const f of ["vitest.shared.config.ts", ...configs]) walk(f);
+        assert.ok(seen.has("tools/test-slots.mjs"), "the walk finds the configs' tools");
+        assert.deepEqual(
+            [...seen].filter((f) => storyless.some((re) => re.test(f))),
+            [],
+        );
+    });
+
     it("runs every story on a global input, the project's own Storybook setup, the theme or a lockfile move", () => {
         assert.ok(Object.values(pick(none, ["visual-fonts/fonts.conf"])).every((p) => p.mode === "all"));
         const own = pick(none, ["graphty/.storybook/preview.tsx"]);
@@ -1907,6 +1977,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         "graphty-element": { storybook: "graphty-element/storybook-static" },
         layout: { storybook: "layout/storybook-static" },
         "graph-io-fidelity": { storybook: "graph-io/fidelity-stories/storybook-static" },
+        graphty: { storybook: "graphty/storybook-static" },
     };
     const entry = (project, mode, files = [], baselines = []) => ({ project, mode, files, baselines, reasons: [] });
     const list = (dir) =>
@@ -1932,6 +2003,23 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             ],
         );
         assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("splits a story file longer than a bin into parts by story, so no bin is the long pole", () => {
+        const slow = "graphty/src/workspace/start/StartScreen.stories.tsx";
+        const other = "graphty/src/workspace/Other.stories.tsx";
+        const bins = storyBins([entry("graphty", "files", [slow, other])], projects, list, {}, (f) =>
+            f === slow ? 12 : 3,
+        );
+        const parts = bins.flatMap((b) => b.files).filter((f) => f.startsWith(`${slow}#`));
+        const n = Math.ceil((12 * STORY_FILE_MS[slow]) / STORY_BIN_LIMIT_MS);
+        assert.ok(n > 1, "the Start screen is longer than one bin");
+        assert.deepEqual(parts.sort(), Array.from({ length: n }, (_, i) => `${slow}#${i + 1}/${n}`).sort());
+        assert.ok(
+            bins.every((b) => b.ms <= STORY_BIN_LIMIT_MS),
+            "every bin fits",
+        );
+        assert.ok(bins.flatMap((b) => b.files).includes(other), "a short file stays whole");
     });
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {

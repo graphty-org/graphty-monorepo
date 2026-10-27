@@ -517,6 +517,15 @@ record (809 CI runs for 761 merges, 197 wasted) is why it is measured first. Nee
 `runner-minutes-per-merge`. Done: the measurements recorded in design section 7.1 and a decision on
 #3418. Undo: none needed (a replay changes nothing).
 
+Done 2026-10-27. The replay (2026-10-26) found 279 runner-minutes per merged pull request; 1.9% of
+pull request runs failed on tests the pull request broke, 4.6% on a failure shared with master, 1%
+on a flaky test and 16% on a cheap check. Running the full suite once saves 31% for 14 more minutes
+of median time to merge; Mergify batches of 4 save 51% at an 83-minute median. The owner chose
+neither for now. Mergify batching (batches of 4, at most 30 minutes' wait, cheap checks before queue
+entry) is turned back on when, over 7 days, fewer than 5% of queue entries have a pull request run
+that failed on tests the pull request touched, and the rule that lets unrelated failures through
+(#3925) is live. Design section 7.1 has the numbers; #3951 puts the trigger rate on the health dashboard.
+
 ### Step 6: the full run every 6 hours, publishing nothing
 
 **bisect-core** (#3450) -- agent, M. `tools/bisect-core.mjs` with tests: `verify.mjs`'s rules (channels

@@ -23,6 +23,9 @@ import { Workspace } from "../../Workspace";
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
+/** Enough simulation steps for the samples' force layout to settle before it is drawn. */
+const PRE_STEPS = 1000;
+
 /** The office email sample: 48 people, 2,102 emails, each edge with its `sent` time in 2025. */
 const OFFICE_EMAIL = `${import.meta.env.BASE_URL}samples/office-email.json`;
 /** The paper citations sample: 159 papers, each with its `year`. */
@@ -51,6 +54,10 @@ async function open(
     if (session === undefined) {
         throw new Error("the element never came up");
     }
+    // The force layout settled before the first frame: these tests are about time, not the
+    // layout, and a layout left to settle on screen draws a frame per step -- about 80 frames of
+    // 2,102 edges on a software GPU, each one holding up the next click or keystroke.
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
     await session.data.import({ config: { url }, name: "Sample" });
     return { session, store };
 }

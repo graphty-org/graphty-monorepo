@@ -53,6 +53,7 @@ import {
     type SuiteNode,
     type Tag,
 } from "./parse.js";
+import { markPrCaused } from "./pr-caused.js";
 import { ISSUE_QUERY, ownerFilesQuery, PR_QUERY, REPO_FILES_QUERY, SUITE_QUERY, TAG_QUERY } from "./queries.js";
 import {
     failureCause,
@@ -312,6 +313,7 @@ async function classify(
 
 async function writeRuns(
     c: Cycle,
+    gh: GitHub,
     xs: Collected[],
     cancels: Map<number, { cls: RunItem["cancelClass"]; hung: Set<string> }>,
 ) {
@@ -321,6 +323,7 @@ async function writeRuns(
             .filter((r) => r.end === undefined)
             .map((r) => r.check),
     );
+    const runItems: RunItem[] = [];
     for (const { run, repo, jobs } of xs) {
         const cancel = cancels.get(run.id);
         const workflow = workflowFile(run.path);
@@ -328,9 +331,12 @@ async function writeRuns(
             workflow === "ci.yml" && run.status === "completed"
                 ? failureCause(run, jobs ?? [], cancel?.hung ?? new Set(), shared)
                 : undefined;
-        c.items.push(
-            toRunItem(run, repo, { ...(cancel?.cls ? { cancelClass: cancel.cls } : {}), ...(cause ? { cause } : {}) }),
-        );
+        const item = toRunItem(run, repo, {
+            ...(cancel?.cls ? { cancelClass: cancel.cls } : {}),
+            ...(cause ? { cause } : {}),
+        });
+        runItems.push(item);
+        c.items.push(item);
         if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
             c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run)));
@@ -344,6 +350,7 @@ async function writeRuns(
             }
         }
     }
+    await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now);
 }
 
 /** A rerun that passed makes its first attempt's "the change" failure flaky (reclassified as evidence arrives). */
@@ -352,7 +359,7 @@ async function flaky(c: Cycle, run: GhRun, repo: string) {
         RunItem | undefined;
     if (first?.cause === "change") {
         const { pk: _pk, sk: _sk, ttl: _ttl, ...item } = first as RunItem & { pk: string; sk: string; ttl?: number };
-        c.items.push({ ...item, cause: "flaky" });
+        c.items.push({ ...item, cause: "flaky", ...(item.prCaused === undefined ? {} : { prCaused: false }) });
     }
 }
 
@@ -888,7 +895,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         // Pending is persisted now, before putRaw stores the runs complete at the end of the cycle.
         await prRuns(c, xs);
         const cancels = await classify(gh, [...xs, ...masterList]);
-        await writeRuns(c, xs, cancels);
+        await writeRuns(c, gh, xs, cancels);
         await runners(c, xs, elapsed);
         await master(c, masterList, cancels, elapsed);
     });

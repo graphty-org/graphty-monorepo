@@ -335,14 +335,15 @@ row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 Times leave out pull requests waiting on the owner (auto-merge off by rule).
 
-| Member             | Measure                                            | Window          | Min n     | Target    | Red    |
-| ------------------ | -------------------------------------------------- | --------------- | --------- | --------- | ------ |
-| Time to merge (H)  | median of merged minus ready, pull requests merged | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
-| Open pull requests | open, not draft                                    | now             | --        | <= 15     | > 25   |
-| Oldest open        | age of the oldest open, not waiting on the owner   | now             | --        | < 24 h    | > 72 h |
-| Merge ratio        | merged / created                                   | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
-| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h        | now             | --        | 0         | >= 3   |
-| Screenshot backlog | oldest pictures waiting for the owner              | now             | --        | < 24 h    | > 72 h |
+| Member                      | Measure                                                  | Window          | Min n     | Target    | Red    |
+| --------------------------- | -------------------------------------------------------- | --------------- | --------- | --------- | ------ |
+| Time to merge (H)           | median of merged minus ready, pull requests merged       | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
+| Open pull requests          | open, not draft                                          | now             | --        | <= 15     | > 25   |
+| Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
+| Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
+| Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
+| Auto-merge stuck            | armed, green and unmerged 2 h, or armed 6 h              | now             | --        | 0         | >= 3   |
+| Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
 
 On a quiet hour (2026-10-25, 22:30 to 23:30: 2 merged, 3 created) both rates are gray "too few"
 with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, is red in CI.

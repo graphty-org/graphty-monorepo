@@ -66,6 +66,8 @@ export interface RunItem extends RawBase {
     cancelClass?: "superseded" | "by-hand" | "red";
     /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
     cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
+    /** A finished attempt-1 ci.yml pull request run: it failed on a test its change touched (pr-caused.ts). */
+    prCaused?: boolean;
     /** The run's kind for its duration budget (`pr`, `pr-wide`), and that budget. */
     runKind?: string;
     budgetMs?: number;

@@ -3331,10 +3331,10 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.equal(existsSync(new URL("../.github/workflows/gpu-rerun-on-runner-loss.yml", import.meta.url)), false);
     });
 
-    it("looks only at a failed first attempt and leaves the decision to tools/release-rerun.mjs", () => {
+    it("looks only at a first attempt that failed or was cancelled (a job timeout) and leaves the decision to tools/release-rerun.mjs", () => {
         assert.match(
             rerun,
-            /if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1\n/,
+            /if: contains\(fromJSON\('\["failure","cancelled","timed_out"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.run_attempt == 1\n/,
         );
         assert.match(rerun, /run: node tools\/release-rerun.mjs\n/);
         assert.doesNotMatch(

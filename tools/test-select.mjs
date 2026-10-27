@@ -1497,12 +1497,10 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
-    // CI and tool files (test-select-rules stories.storyless) with no storybook shard selected: no story reads them
+    // CI and tool files no story reads (test-select-rules stories.storyless); a test that names one selects its
+    // package, which says nothing about a story reading it
     const storyless =
-        !everything &&
-        changed.length > 0 &&
-        changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f))) &&
-        !known.some((p) => storyShard(p.shard) && p.sel.mode !== "none");
+        !everything && changed.length > 0 && changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f)));
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
         const pkg = dir.split("/")[0];

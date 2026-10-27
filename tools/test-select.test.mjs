@@ -1844,10 +1844,10 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
             run(["visual-review/capture/capture.mjs"]).every((p) => p.mode === "all"),
             "the capture code",
         );
-        const storybook = none.map((s) => (s.shard === "graphty-storybook" ? sel(s.shard, "all") : s));
+        const named = none.map((s) => (s.shard === "graphty-storybook" ? sel(s.shard, "all") : s));
         assert.ok(
-            run(ciOnly, storybook).every((p) => p.mode === "all"),
-            "a selected storybook shard runs them",
+            run(ciOnly, named).every((p) => p.mode === "none"),
+            "a test naming the file selects no story",
         );
         const baseline = run([...ciOnly, "visual-baselines/graphty/a--b.png"]);
         assert.ok(
@@ -1856,17 +1856,17 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         );
     });
 
-    it("keeps every tools/ file a Storybook or story-test config imports out of storyless", () => {
+    it("keeps every tools/ file a Storybook, story-test config or story code imports out of storyless", () => {
         const storyless = loadRules(ROOT).stories.storyless;
-        const configs = Object.values(projects).flatMap((cfg) => {
-            const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
-            return execFileSync("git", ["ls-files", "--", `${dir}/.storybook`, `${dir}/vitest*.config.*`], {
-                cwd: ROOT,
-                encoding: "utf8",
-            })
-                .split("\n")
-                .filter(Boolean);
-        });
+        // every file of a project's package that imports from tools/, but its tests and lint config: Storybook and vitest configs,
+        // stories and the code they draw
+        const dirs = Object.values(projects).map((cfg) => cfg.storybook.replace(/\/storybook-static$/u, ""));
+        const configs = execFileSync("git", ["grep", "-l", "-E", String.raw`from ['"](\.\./)+tools/`, "--", ...dirs], {
+            cwd: ROOT,
+            encoding: "utf8",
+        })
+            .split("\n")
+            .filter((f) => f && !/\.test\.|\/tests?\/|eslint\.config\./u.test(f));
         const seen = new Set();
         const walk = (file) => {
             for (const [, spec] of readFileSync(join(ROOT, file), "utf8").matchAll(

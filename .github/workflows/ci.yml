@@ -50,9 +50,11 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A newer push to master cancels an unfinished older master push run (design/ci/channels-pipeline.md section
-# 7.1): only the newest build's site matters for canary, and the full run picks the newest commit with a kept
-# site, so a cancelled build only means it picks a newer one. tools/master-guard.mjs reads such a run as
+# Master push runs share one group but never cancel a running build (design/ci/channels-pipeline.md section
+# 7.1, #3938): a running master build always finishes, and a newer push replaces only the waiting one, so
+# master always finishes building its newest commit however often merges land. Cancelling the running build
+# starved master of any finished build while merges came faster than one build (2026-10-26). A replaced
+# waiting build only means the newest one is built instead. tools/master-guard.mjs reads such a run as
 # superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
 # build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
 # (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
@@ -60,7 +62,7 @@ on:
 # group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
 concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
 # .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals

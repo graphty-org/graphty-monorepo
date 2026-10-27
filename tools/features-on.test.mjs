@@ -235,7 +235,10 @@ describe("the On screenshot capture", () => {
         const capture = on.steps.find((s) => s.name === "Capture the On configuration");
         assert.equal(capture.env.VISUAL_REVIEW_STORY_QUERY, ON_CAPTURE_QUERY);
         assert.match(on.steps.find((s) => s.name === "Upload the On captures").with.name, /^features-on-visual-/);
-        // the owner's visual job, which pull requests run, never gets the query
-        assert.ok(!JSON.stringify(ci.jobs.visual).includes("VISUAL_REVIEW_STORY_QUERY"));
+        // the story-tests jobs, whose capture is the owner's and which pull requests run, never get the query
+        for (const job of ["story-tests", "story-tests-merge"]) {
+            assert.ok(ci.jobs[job], `ci.yml has the ${job} job`);
+            assert.ok(!JSON.stringify(ci.jobs[job]).includes("VISUAL_REVIEW_STORY_QUERY"), job);
+        }
     });
 });

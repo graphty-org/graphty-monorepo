@@ -3009,9 +3009,9 @@ jobs:
     # The On configuration's screenshots (design/ci/channels-pipeline/features.md 7.3): in a full run only, while
     # graphty-element declares an experiment (visual-on, tools/visual-capture-plan.mjs), graphty-element's stories
     # captured again with every experiment switched on (VISUAL_REVIEW_STORY_QUERY=features=all, which the
-    # Storybook preview reads) and compared with the same baselines. A job of its own beside the visual job, which
-    # is the owner's; uploaded as features-on-visual-*, never visual-*, so the gate and the flaky-screenshot job
-    # never read it and pull request captures and their baselines are unchanged.
+    # Storybook preview reads) and compared with the same baselines. A job of its own beside the story-tests jobs,
+    # whose capture is the owner's; uploaded as features-on-visual-*, never visual-*, so the gate and the
+    # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
     features-on-visual:
         name: visual (graphty-element, features on)
         needs: build

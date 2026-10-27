@@ -192,14 +192,34 @@ interface Computed {
     n6h?: number;
     failExtra?: boolean;
     since?: number;
+    /** Whole days of a slow window the store holds history for. */
+    covered?: number;
 }
 
 const slowDays = (c: MemberConfig) => (c.slowWindow === "28d" ? 28 : 7);
+
+/**
+ * Whole days of a slow window with history: from the earliest daily bucket of the member's metrics or the first
+ * write of its sources, whichever is older, so a backfill still running shows how far back it has reached.
+ * @param ctx
+ * @param c
+ * @param today
+ */
+function coveredDays(ctx: Ctx, c: MemberConfig, today: number): number {
+    const days = slowDays(c);
+    const starts = [
+        ...metricsOf(c.measure).flatMap((m) => [...(ctx.daily.get(m)?.keys() ?? [])]),
+        ...c.sources.map((s) => ctx.metas.get(s)?.firstAt ?? Infinity),
+    ];
+    const first = Math.min(...starts);
+    return Number.isFinite(first) ? Math.max(0, Math.min(days, (today - floorTo(first, "1d")) / DAY + 1)) : 0;
+}
 
 function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     const days = slowDays(c);
     const today = floorTo(end, "1d");
     const from = today - (days - 1) * DAY;
+    const covered = coveredDays(ctx, c, today);
     const m = c.measure;
     if (m.type === "dims_median_over") {
         const dims = new Map<string, Bucket>();
@@ -216,10 +236,11 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
         return {
             value: judged.filter((a) => (a.hist ? (quantile(a.hist, 0.5) ?? 0) : 0) > m.over).length,
             n: judged.length,
+            covered,
         };
     }
     const b = merged(ctx.daily.get(metricsOf(m)[0]), from, today);
-    return { value: measureValue(m, b, days * DAY), n: b.n };
+    return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
 /**
@@ -531,7 +552,15 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };
     }
-    const out = verdict(c, v);
+    // A slow window the history does not yet cover still shows its value, labelled with the days it covers,
+    // and is never gray only for too few samples while history is short.
+    const short = c.window === "slow" && v.value !== undefined && (v.covered ?? 0) < slowDays(c);
+    const out = short
+        ? {
+              ...verdict({ ...c, minN: 0 }, v),
+              reason: { code: "partial" as const, params: { days: v.covered ?? 0, of: slowDays(c) } },
+          }
+        : verdict(c, v);
     const judged = c.window !== "slow" && ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
     return {
         ...status,

@@ -66,6 +66,7 @@ import {
     due as releaseDue,
     fixForwardDispatch as releaseFixForwardDispatch,
     fixForwardDue as releaseFixForwardDue,
+    lastGreenBuild,
     resumesDue as releaseResumesDue,
     toCancel as releaseToCancel,
 } from "./release-due.mjs";
@@ -1215,18 +1216,43 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("cancels a pull request's older run, never a push to master, and has no golden-cut exemption (#1108, #3418)", () => {
+    it("cancels a pull request's older run and a superseded master push build, never a dispatch or the release train (#1108, #3418, #3850)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
-            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}\n" +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}\n" +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}\n",
         );
-        const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
-        const cancels = (event) => Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event });
-        assert.equal(cancels("pull_request"), true, "a pull request");
-        assert.equal(cancels("push"), false, "a push to master");
+        // GitHub's expressions read like JavaScript's here: && and || return an operand, a missing input is falsy
+        const evaluate = (field, { event, pr, ref, sha = "abc", attempt = "1" }) => {
+            const expr = new RegExp(`^ {4}${field}: (.*)$`, "m").exec(block[1])[1];
+            const js = expr.replace(/\$\{\{ (.+?) \}\}/g, (_, e) => `\${${e.replaceAll("'", '"')}}`);
+            const format = (f, a) => f.replace("{0}", a);
+            return Function(
+                "github",
+                "inputs",
+                "format",
+                `return \`${js}\`;`,
+            )(
+                { event_name: event, sha, run_attempt: attempt, event: { pull_request: { number: pr } } },
+                { ref },
+                format,
+            );
+        };
+        const run = (o) => ({ group: evaluate("group", o), cancels: evaluate("cancel-in-progress", o) === "true" });
+        assert.deepEqual(run({ event: "pull_request", pr: 12 }), { group: "ci-12", cancels: true }, "a pull request");
+        // every master push shares one group: a newer push cancels the unfinished older build
+        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: true }, "a push");
+        assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
+        // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
+        // build nor is cancelled: its commit's own group
+        assert.deepEqual(run({ event: "push", sha: "a1", attempt: "2" }), { group: "ci-a1", cancels: false });
+        // a dispatch keeps its commit's own group and is never cancelled
+        assert.deepEqual(run({ event: "workflow_dispatch", sha: "a1" }), { group: "ci-a1", cancels: false });
+        // the release train's call: its own group, never cancelled, even if a caller were a push
+        assert.deepEqual(run({ event: "workflow_dispatch", ref: "c3" }), { group: "ci-release-c3", cancels: false });
+        assert.deepEqual(run({ event: "push", ref: "c3" }), { group: "ci-release-c3", cancels: false });
     });
 
     it("fails, never skips, the summary checks when Build did not run", () => {
@@ -1496,6 +1522,74 @@ describe("ci.yml", () => {
         assert.equal(releaseFixForwardDispatch("fix(x): a squash").at(-1), "mode=candidate");
     });
 
+    // ci.yml cancels an unfinished master build when a newer push starts (#3850), and release-due runs only in a
+    // green build, so a cancelled build's merge must still be read by the next green build's release-due.
+    it("restarts from a merge whose master build a newer push cancelled", () => {
+        const order = ["h", "c2", "c1", "g", "older"];
+        const ancestor = (sha) => order.includes(sha);
+        assert.equal(lastGreenBuild("h", ["h", "g", "older"], ancestor), "g", "this build's own run is never the base");
+        assert.equal(lastGreenBuild("h", ["elsewhere", "g"], ancestor), "g", "only a commit in this history");
+        assert.equal(lastGreenBuild("h", [], ancestor), null);
+        // the cancelled merge's Fixes closed the issue more than an hour before this build's release-due ran
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [
+            { number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt: "2026-10-25T10:40:00Z" },
+        ];
+        assert.equal(releaseDue(closed, "Fixes #9001", now), null, "an hour's window alone misses it");
+        assert.equal(releaseDue(closed, "Fixes #9001", now, Date.parse("2026-10-25T10:30:00Z"))?.issue, 9001);
+
+        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was cancelled, then this build's
+        // merge M2 with no reference. Reading only HEAD^1..HEAD would miss M1.
+        const dir = mkdtempSync(join(TMP, "release-due-"));
+        const g = (...args) =>
+            spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+                cwd: dir,
+                encoding: "utf8",
+            }).stdout.trim();
+        g("init", "-q", "-b", "master");
+        g("commit", "-q", "--allow-empty", "-m", "green base");
+        const green = g("rev-parse", "HEAD");
+        const merge = (msg) => {
+            g("switch", "-q", "-c", `b${msg.length}`);
+            g("commit", "-q", "--allow-empty", "-m", msg);
+            g("switch", "-q", "master");
+            g("merge", "-q", "--no-ff", "-m", `Merge pull request #${msg.length}`, `b${msg.length}`);
+        };
+        merge("fix(ci): the red lane\n\nRefs #9001");
+        merge("feat: unrelated work");
+        const bin = join(dir, "bin");
+        mkdirSync(bin);
+        const issue = JSON.stringify({ number: 9001, title: "Full run red: ci on abc", state: "OPEN" });
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$*" in\n` +
+                `"run list"*) echo '${JSON.stringify([{ headSha: green }])}';;\n` +
+                `*state=open*) echo '${issue}';;\n` +
+                `*) ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const out = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname, "--dry-run"], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
+        });
+        assert.equal(out.status, 0, out.stderr);
+        assert.match(out.stdout, new RegExp(`since the last green master build ${green.slice(0, 7)}`));
+        assert.match(out.stdout, /references red issue #9001: release\.yml mode=restart/);
+        // without a green build to read from, only this merge counts: nothing due
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$*" in\n"run list"*) echo '[]';;\n*state=open*) echo '${issue}';;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const alone = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname, "--dry-run"], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
+        });
+        assert.match(alone.stdout, /nothing due/);
+    });
+
     it("deletes superseded cache keys on green master pushes only, with no write permission but actions", () => {
         const hygiene = job(ci, "cache-hygiene");
         assert.match(
@@ -1546,7 +1640,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1765,7 +1859,9 @@ describe("verification runs of ci.yml", () => {
         const from = report.indexOf("            - name: Check out the gate");
         const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
         assert.ok(gate.length > 1000, "found the gate steps");
-        assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
+        // The owner approved on 2026-10-26 (design/ci/channels-pipeline.md section 7.1, #3850) changing the visual job's
+        // scheduling: it no longer runs on a pull request (its `if`).
+        assert.equal(sha(job(ci, "visual")), "fc7d852512fd60414701e4c69df5e87f671de01124524b07ab74c655ac92b16f");
         assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
     });
 
@@ -1776,7 +1872,10 @@ describe("verification runs of ci.yml", () => {
         const report = job(ci, "visual-report");
         assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
         assert.match(report, /\n {8}name: Visual report\n/);
-        assert.match(report, /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' \}\}\n/);
+        assert.match(
+            report,
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' && needs.visual.result != 'skipped' \}\}\n/,
+        );
         assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
         assert.match(
             report,
@@ -1784,6 +1883,31 @@ describe("verification runs of ci.yml", () => {
         );
         assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
+    });
+
+    // On a pull request the old full capture ran 15 to 25 minutes past All Checks Pass, holding runners, and nothing
+    // that read it decided anything there (#3850): the full run, a dispatch and a bisect point still capture.
+    it("runs the old full capture, its parity and its report on no pull request", () => {
+        const jobs = parseJobs(ci);
+        assert.match(
+            job(ci, "visual"),
+            /\n {8}if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'\n/,
+        );
+        assert.match(
+            job(ci, "story-tests-parity"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name != 'pull_request' \}\}\n/,
+        );
+        // the report and the flaky-screenshot report read only that capture, so they skip with it
+        assert.match(job(ci, "visual-report"), /&& needs.visual.result != 'skipped' \}\}\n/);
+        assert.match(
+            job(ci, "visual-flaky"),
+            /\n {8}if: \$\{\{ !cancelled\(\) && needs.visual.result != 'skipped' \}\}\n/,
+        );
+        // what a pull request's All Checks Pass needs still runs: its own stories, captured by the Stories jobs
+        assert.ok(jobs["all-checks"].needs.includes("stories"));
+        assert.match(job(ci, "stories"), /github.event_name == 'pull_request'/);
+        // the story tests feed the results store's flaky-story detection on a pull request too
+        assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
     });
 
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
@@ -2462,13 +2586,74 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
-            assert.equal(last.coe, "true", name);
+            // a clear that cannot finish fails the job, so the pull request is not left blocked in silence (#3857)
+            assert.equal(last.coe, undefined, name);
             assert.match(job(ci, name), new RegExp(`\\n {18}CHECK: ${check}\\n`), name);
         }
     });
 
+    // The step's script run against a stand-in gh (and sleep), the way the run's token answered on
+    // 2026-10-26: "API rate limit exceeded for installation" on the first listing (#3857).
+    const runClear = (jobName, { failList, resetIn }) => {
+        const dir = mkdtempSync(join(tmpdir(), "early-verdict-"));
+        const step = parseYaml(ci).jobs[jobName].steps.at(-1);
+        writeFileSync(
+            join(dir, "gh"),
+            [
+                "#!/bin/bash",
+                'echo "gh $*" >> "$LOG"',
+                'case "$*" in',
+                '    *rate_limit*) echo "0 $(( $(date +%s) + RESET_IN ))" ;;',
+                '    *"check-runs?filter"*)',
+                '        n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) > "$STATE"',
+                '        if (( n < FAIL_LIST )); then echo "gh: API rate limit exceeded for installation." >&2; exit 1; fi',
+                "        echo 1 ;;",
+                "esac",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+        writeFileSync(join(dir, "sleep"), '#!/bin/bash\necho "sleep $*" >> "$LOG"\n', { mode: 0o755 });
+        const result = spawnSync("bash", ["-e", "-c", step.run], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                LOG: join(dir, "log"),
+                STATE: join(dir, "state"),
+                FAIL_LIST: String(failList),
+                RESET_IN: String(resetIn),
+                ...step.env,
+                GITHUB_REPOSITORY: "o/r",
+                SHA: "abc",
+                RUN_URL: "https://x/actions/runs/7",
+            },
+        });
+        const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+        rmSync(dir, { recursive: true, force: true });
+        return { ...result, log };
+    };
+
+    it("waits for an exhausted API limit to reset and then clears, on any attempt (#3857)", () => {
+        for (const name of ["all-checks", "queue-checks"]) {
+            const { status, stdout, log } = runClear(name, { failList: 1, resetIn: 30 });
+            assert.equal(status, 0, name);
+            assert.match(stdout, /cleared early verdict 1/, name);
+            assert.match(log, /^sleep (3[0-5])$/m, name);
+            assert.match(log, /gh api -X PATCH repos\/o\/r\/check-runs\/1 /, name);
+        }
+    });
+
+    it("fails the job, loudly, when every try fails (#3857)", () => {
+        const { status, stdout, log } = runClear("all-checks", { failList: 99, resetIn: 30 });
+        assert.equal(status, 1);
+        assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
+        assert.doesNotMatch(log, /PATCH/);
+        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^sleep /gm).length, 3);
+    });
+
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "queue-checks"))[1];
         const page = {
             check_runs: [
                 { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
@@ -2668,16 +2853,35 @@ describe("pr-title.yml", () => {
         assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.equal(pr.split(QUEUE).length, 2);
     });
-    // The breaking-change step's script, against a stub gh: the commits, the labels and who added them.
-    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [] } = {}) => {
+    // The breaking-change step's script, against a stub gh: one GraphQL page with the commits, the labels and
+    // who added them; `fail` is gh's error output for a failed call.
+    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [], fail = "" } = {}) => {
         const pr = workflow("pr-title.yml");
         const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
         const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
         const dir = mkdtempSync(join(tmpdir(), "pr-breaking-"));
+        const page = {
+            data: {
+                repository: {
+                    pullRequest: {
+                        labels: { nodes: labels.map((name) => ({ name })) },
+                        timelineItems: {
+                            nodes: by.map((login) => ({ label: { name: "breaking-go" }, actor: { login } })),
+                        },
+                        commits: {
+                            pageInfo: { hasNextPage: false, endCursor: null },
+                            nodes: commits.map((message) => ({ commit: { message } })),
+                        },
+                    },
+                },
+            },
+        };
+        writeFileSync(join(dir, "page.json"), JSON.stringify(page));
+        writeFileSync(join(dir, "fail.txt"), fail);
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\ncase "$2" in\n*/commits) printf '%s\\n' ${commits.map((c) => `$'${c.replaceAll("\n", "\\n")}'`).join(" ")};;\n` +
-                `*/labels) printf '%s\\n' ${labels.join(" ")};;\n*/events) printf '%s\\n' ${by.join(" ")};;\nesac\n`,
+            `#!/bin/bash\n[ "$1 $2" = "api graphql" ] || exit 9\n` +
+                `if [ -s "${dir}/fail.txt" ]; then cat "${dir}/fail.txt" >&2; exit 1; fi\ncat "${dir}/page.json"\n`,
             { mode: 0o755 },
         );
         const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
@@ -2688,10 +2892,12 @@ describe("pr-title.yml", () => {
                 PR_TITLE: title,
                 OWNER: "apowers313",
                 GITHUB_REPOSITORY: "o/r",
+                RUNNER_TEMP: dir,
                 PATH: `${dir}:${process.env.PATH}`,
             },
         });
         rmSync(dir, { recursive: true, force: true });
+        breaking.stdout = r.stdout;
         return r.status;
     };
     it("fails a breaking change until the owner adds breaking-go, and re-checks on a label", () => {
@@ -2703,6 +2909,12 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
         assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
+    it("fails closed, naming the cause, when the GitHub API cannot be asked", () => {
+        assert.equal(breaking({ fail: "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" }), 1);
+        assert.match(breaking.stdout, /::error::GitHub API rate limit for this repository ran out; re-run this check/);
+        assert.equal(breaking({ fail: "HTTP 502: Bad Gateway" }), 1);
+        assert.match(breaking.stdout, /::error::could not read this pull request's commits and labels/);
     });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
@@ -3308,10 +3520,18 @@ describe("master-guard", () => {
         };
         const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
 
-        // cancelled by its timeout: a later push five minutes in did not stop it, so it alarms
-        let fake = lister([newer("2026-10-25T10:05:00Z")]);
+        // cancelled by its timeout: the next push came only after it had ended, so it alarms
+        let fake = lister([newer("2026-10-25T10:13:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), false);
         assert.equal(fake.calls.length, 1, "one runs-list call");
+        // a push five minutes in cancels it (ci.yml's master-push group, #3850), however long the cancel's cleanup
+        // (post steps, always() jobs) takes before the run ends: superseded, no red-master issue
+        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, stopped), true);
+        // a re-run is in its commit's own group, so a newer push never cancels it: a stopped re-run alarms
+        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        assert.equal(await superseded(fake.gh, { ...stopped, run_attempt: 2 }), false);
+        assert.equal(fake.calls.length, 0, "no runs-list call");
         // no newer run at all, or only a re-run of the same commit
         assert.equal(await superseded(lister([]).gh, stopped), false);
         assert.equal(

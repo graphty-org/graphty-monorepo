@@ -5,7 +5,8 @@
 #   outside service's error, a lost runner, the same job red on an earlier commit) it re-runs the failed jobs
 #   instead of freezing and reverting, and the issue names the evidence;
 # - CI cancelled or never started (a job past its timeout ends the run cancelled): the same priority:critical
-#   issue, no freeze and no revert; not when a newer master run superseded it;
+#   issue, no freeze and no revert; not when a newer master push cancelled it
+#   (ci.yml cancels an unfinished master build when a newer one starts: expected, never a red master);
 # - CI green at or after a frozen red commit: lifts the freeze;
 # - either way: closes its own revert pull requests that master CI shows are no longer needed;
 # - Deploy to GitHub Pages red (canary.graphty.app did not get the green master build): opens, or adds to, one
@@ -47,7 +48,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: master, fetch-depth: 0 }
             - uses: actions/setup-node@v7
               with: { node-version: 22.x }

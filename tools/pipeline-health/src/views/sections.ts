@@ -20,7 +20,7 @@ import type {
 import rates from "../../config/rates.json" with { type: "json" };
 import type { StressCursorRun } from "../collector/parse.js";
 import { quantile } from "../model/histogram.js";
-import { type Agg, type Bucket, DAY, floorTo, MIN, STEP_MS } from "../model/items.js";
+import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
 import { SHARD_BASE_MS } from "../model/metrics.js";
 import { getCursor } from "../model/raw.js";
 import { emptyAgg, mergeAgg } from "../model/rollup.js";
@@ -614,6 +614,62 @@ async function countOver(reads: Reads, metric: string, days: number): Promise<nu
         n += b.n;
     }
     return n;
+}
+
+const LOADS: LoadKind[] = ["pr", "master", "full", "other"];
+
+/**
+ * Runner-minutes per merge (4.3), by the kind of run that spent them, over the last 24 h (hourly buckets) and 7 d
+ * (the member's window: today and the 6 days before it), so each change to the CI load shows its saving.
+ * @param reads the store reads
+ * @returns one row per kind and a total, or empty with no job minutes in 7 d
+ */
+export async function runnerMinutes(reads: Reads): Promise<Section> {
+    const hour = floorTo(reads.now, "1h");
+    const today = floorTo(reads.now, "1d");
+    const [day, week] = await Promise.all([
+        reads.series("ci.runner_minutes", "1h", hour - 23 * HOUR, hour),
+        reads.series("ci.runner_minutes", "1d", today - 6 * DAY, today),
+    ]);
+    const total = (got: Map<number, Bucket>) => {
+        const by = new Map<string, number>();
+        let merged = 0;
+        for (const b of got.values()) {
+            merged += b.n;
+            for (const [d, a] of Object.entries(b.dims ?? {})) by.set(d, (by.get(d) ?? 0) + a.sum);
+        }
+        by.set(
+            "total",
+            [...by.values()].reduce((t, v) => t + v, 0),
+        );
+        return { merged, by };
+    };
+    const d = total(day);
+    const w = total(week);
+    if (!w.by.get("total")) return { kind: "empty", id: "runner-minutes", fact: f("section.no_events") };
+    const per = (x: { merged: number; by: Map<string, number> }, k: string): Cell =>
+        x.merged > 0 ? { t: "num", n: Math.round((x.by.get(k) ?? 0) / x.merged), unit: "min" } : none;
+    const mins = (x: { by: Map<string, number> }, k: string): Cell => ({
+        t: "num",
+        n: Math.round(x.by.get(k) ?? 0),
+        unit: "min",
+    });
+    const rows: TableRow[] = [...LOADS, "total"].map((k) => ({
+        cells: {
+            kind: { t: "label", code: `load.${k}` },
+            day: per(d, k),
+            week: per(w, k),
+            dayMin: mins(d, k),
+            weekMin: mins(w, k),
+        },
+        ...(k === "total" ? { total: true } : {}),
+    }));
+    return {
+        kind: "table",
+        id: "runner-minutes",
+        sub: f("runner_minutes.sub", { day: d.merged, week: w.merged }),
+        rows,
+    };
 }
 
 /**

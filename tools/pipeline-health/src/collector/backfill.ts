@@ -27,6 +27,7 @@ import type { GitHub } from "./github.js";
 import {
     flakyTestItem,
     llmCost,
+    loadKind,
     t4Cost,
     toIssueItem,
     toJobItem,
@@ -301,7 +302,7 @@ async function runItems(
         if (earlier) out.push(toRunItem(earlier, repo));
     }
     for (const j of jobs) {
-        out.push(toJobItem(j, repo, workflow));
+        out.push(toJobItem(j, repo, workflow, false, loadKind(run)));
         if (j.status !== "completed") continue;
         if (STEP_WORKFLOWS.has(workflow)) out.push(...toStepItems(j, repo, workflow));
         const t4 = t4Cost(j, repo, rates as unknown as Rates, workflow);

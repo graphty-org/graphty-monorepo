@@ -77,11 +77,40 @@ async function shootFrame(page, frame) {
     await page.screenshot({ ...SHOT, clip: { x: 0, y: 0, width: 1, height: 1 } });
     await twoFrames(frame);
     const size = await measure(frame);
-    const view = { x: 0, y: 0, ...VIEWPORT };
-    if (size.width <= VIEWPORT.width && size.height <= VIEWPORT.height) {
-        return page.screenshot({ ...SHOT, clip: { ...view, ...size } });
+    await frame.evaluate(scrollLikeTopFrame, true);
+    try {
+        await twoFrames(frame);
+        const view = { x: 0, y: 0, ...VIEWPORT };
+        if (size.width <= VIEWPORT.width && size.height <= VIEWPORT.height) {
+            return await page.screenshot({ ...SHOT, clip: { ...view, ...size } });
+        }
+        return await shootTiles(page, frame, size, VIEWPORT);
+    } finally {
+        await frame.evaluate(scrollLikeTopFrame, false);
     }
-    return shootTiles(page, frame, size, VIEWPORT);
+}
+
+/**
+ * Makes the tester iframe's document scrollable by one pixel below everything it draws, or takes
+ * that back. iframe.html, the top frame capture.mjs shoots, always scrolls on the compositor, so
+ * Chromium draws its `position: fixed` elements (a popover, a menu, a toast) in layers of their
+ * own, apart from the scrolling page; an iframe whose content fits does not scroll, so it drew
+ * them into the page's layer and their blurred shadows came out one level darker. The pixel is
+ * added after the frame was measured and lies outside every shot; headless Chromium draws no
+ * scrollbar, so nothing moves.
+ * @param {boolean} on add the pixel, or remove it
+ * @returns {void}
+ */
+function scrollLikeTopFrame(on) {
+    const ID = "visual-review-scroll-pixel";
+    document.getElementById(ID)?.remove();
+    if (on) {
+        const pixel = document.createElement("div");
+        pixel.id = ID;
+        const root = document.documentElement;
+        pixel.style.cssText = `position:absolute;left:0;top:${Math.max(root.scrollHeight, root.clientHeight)}px;width:1px;height:1px;visibility:hidden`;
+        root.append(pixel);
+    }
 }
 
 /**
@@ -287,7 +316,10 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         /**
          * Moves the pointer off the page and gives the tester iframe the focus: iframe.html is its
          * page's only document, so it has the focus a story's play gives an element, and the focus
-         * ring that shows it.
+         * ring that shows it. Then a Shift press: every story shares the tester iframe, and a real
+         * click in an earlier story leaves Chromium's input modality on "mouse", which hides the
+         * focus ring of a script focus() (a dialog's autofocus); capture.mjs loads each story fresh,
+         * where that ring shows, and a key press puts the modality back to that.
          * @param {{ page: import("playwright").Page, frame: () => Promise<import("playwright").Frame> }} ctx
          *     the command's context
          * @returns {Promise<void>} once done
@@ -295,6 +327,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         async visualPark(ctx) {
             await park(ctx.page);
             await (await (await ctx.frame()).frameElement()).focus();
+            await ctx.page.keyboard.press("Shift");
         },
         /**
          * What the browser side does for one story: its modes, the project's wait and the delay.

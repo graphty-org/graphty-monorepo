@@ -92,6 +92,7 @@ export const SPEC: Record<string, Spec> = {
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
+    "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
     "flaky.rate": { id: "flaky.flake_rate", unit: "per1000", link: "/flaky/hotspots" },
     "flaky.blocked": { id: "flaky.blocked", link: "/flaky/hotspots", red: f("sla.blocked") },
@@ -473,6 +474,9 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         }
         if (state === "partial" && s.reason) {
             out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
+        }
+        if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
+            out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
         }
     }
     if (windowed(c)) {

@@ -145,6 +145,14 @@ export const NetworkData: Story = {
             () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
             storyWaitOptions(1000),
         );
+
+        // The dialog focuses its close button on open, which draws a focus ring only when the click
+        // that opened it was not a pointer's (a replayed click in Storybook's own UI). A reader who
+        // clicked sees no ring, so the story ends the same either way: with nothing focused.
+        const focused = canvasElement.ownerDocument.activeElement;
+        if (focused instanceof HTMLElement) {
+            focused.blur();
+        }
     },
 };
 

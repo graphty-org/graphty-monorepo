@@ -32,6 +32,7 @@
 /ci-budgets.json @graphty-org/code-owners
 /nx.json @graphty-org/code-owners
 /vitest.shared.config.ts @graphty-org/code-owners
+/vitest.base.mjs @graphty-org/code-owners
 /vitest.ci-junit.mjs @graphty-org/code-owners
 **/.storybook/vitest.setup.* @graphty-org/code-owners
 /graphty/sites/canary.json @graphty-org/code-owners

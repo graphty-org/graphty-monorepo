@@ -32,6 +32,10 @@ concurrency:
     group: base-check-${{ inputs.base }}-${{ inputs.file }}-${{ inputs.variant }}-${{ inputs.repeat }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     check:
         name: Base check

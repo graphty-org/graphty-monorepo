@@ -6,8 +6,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { workerShare } from "../tools/test-slots.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from
@@ -240,12 +239,7 @@ const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-libra
 export default defineConfig({
     plugins: [react()],
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
-        // projects keep their own maxWorkers or fileParallelism.
-        maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters()],
+        ...baseTest(),
         projects: [
             // Default project - runs in JSDOM
             {

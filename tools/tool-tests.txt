@@ -17,6 +17,7 @@ tools/check-owned-closure.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
+tools/chromium-env.test.mjs
 tools/ci-budgets.test.mjs
 tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
@@ -57,5 +58,6 @@ tools/test-select.test.mjs
 tools/test-slots.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
+tools/vitest-base.test.mjs
 tools/vitest-time-budget.test.mjs
 tools/worktree-cleanup.test.mjs

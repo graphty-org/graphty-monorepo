@@ -180,6 +180,8 @@ env:
     TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
     MODE: ${{ inputs.mode || 'full' }}
     DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).

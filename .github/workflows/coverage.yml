@@ -17,7 +17,7 @@ jobs:
         name: Merge Test Reports
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 
@@ -50,7 +50,7 @@ jobs:
         needs: merge-reports
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
 

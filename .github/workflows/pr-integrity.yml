@@ -25,7 +25,7 @@ jobs:
         steps:
             # The head itself, not the merge ref: every rule is measured from the merge base with master.
             # Full history, for the merge base, the commits and the revert check.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
                   fetch-depth: 0

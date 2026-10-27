@@ -49,6 +49,14 @@ describe("headline", () => {
     });
 });
 
+describe("stateChip", () => {
+    it("labels a slow measure with the days of history it covers, and not when the history covers it", () => {
+        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };
+        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain("covers 2 of 7 days");
+        expect(stateChip(slow)).not.toContain("covers");
+    });
+});
+
 describe("episode facts", () => {
     it("never say cleared, so an ongoing episode does not read cleared and ongoing at once", () => {
         const text = sentence({

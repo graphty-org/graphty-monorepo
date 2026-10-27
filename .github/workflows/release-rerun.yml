@@ -20,7 +20,8 @@ permissions: { actions: write, checks: read, contents: read, issues: write, id-t
 jobs:
     rerun:
         name: Re-run once on the same commit
-        if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+        # a job that hits its timeout-minutes ends cancelled, and so does its run
+        if: contains(fromJSON('["failure","cancelled","timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt == 1
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:

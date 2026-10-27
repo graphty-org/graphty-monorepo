@@ -628,6 +628,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Decide whether the LLM regression tests are due today
               id: due
               env:
@@ -698,6 +709,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -993,14 +1015,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's re-capture and
-            # capture code, as of the run's start (channels design, section 5): the picked commit may predate them,
-            # as the first nightly run's did (#3952), and its copy is never what judges it.
-            - name: Use master's re-capture and capture code
+            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's tools, actions,
+            # re-capture and capture code, as of the run's start (channels design, section 5): the picked commit may
+            # predate them, as the first nightly run's did (#3952), and its copy is never what judges it.
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
               run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
-                  rm -rf tools/channel visual-review/capture visual-review/trusted
-                  git archive "$GITHUB_SHA" tools/channel visual-review/capture visual-review/trusted | tar -x
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/setup-node@v7
               with:
@@ -1714,6 +1739,17 @@ jobs:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
             # publish (gh run rerun <id> --failed) still finds them (CI keeps its own for a day).
             - name: Download the tested commit's builds
@@ -2076,6 +2112,17 @@ jobs:
               with:
                   ref: ${{ needs.version.outputs.commit }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A re-run (gh run rerun <id> --failed) tells the owner's phone it is retrying.
             - name: Announce a re-run of the publish

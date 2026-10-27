@@ -124,7 +124,11 @@ export function activeList(committed, state, day = today()) {
  * @param t `{ file, name }`
  * @returns the entry, or undefined
  */
-export const quarantined = (list, family, t) => list.find((q) => keyOf(q) === keyOf({ ...t, family }));
+export const quarantined = (list, family, t) => {
+    // an On shard (tools/features-on.mjs) runs its Off family's tests: that family's entries excuse them too
+    const off = family.replace(/-features-on$/u, "");
+    return list.find((q) => keyOf(q) === keyOf({ ...t, family }) || keyOf(q) === keyOf({ ...t, family: off }));
+};
 
 // ---------------------------------------------------------------- one shard run
 

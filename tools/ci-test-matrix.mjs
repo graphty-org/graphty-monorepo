@@ -18,7 +18,8 @@
  *   matrix entry of its own, named `<family>-<n>`, with a `files` field and the command that runs only those
  *   files without coverage, replacing the shard it came from; a shard the plan selects nothing for is left
  *   out; a shard it runs whole stays as it is.
- *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run.
+ *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run
+ *   (the features-on twins, FEATURES_ON_SHARDS, and graphty-element-lifecycle), unless --only names them.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -46,12 +47,17 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { STORYBOOKS } from "./ci-reuse-plan.mjs";
+import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
 
-export const SHARDS = [
+// The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
+const ELEMENT_REPORTERS =
+    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+
+const OFF_SHARDS = [
     // graph-format - single shard (Node.js, no browser)
     {
         shard: "graph-format",
@@ -203,7 +209,8 @@ export const SHARDS = [
     // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
     // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
     // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
-    // where for the upload.
+    // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
+    // these commands never set, so "!storybook" never runs them.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
@@ -255,8 +262,7 @@ export const SHARDS = [
     {
         shard: "graphty-element-default",
         package: "graphty-element",
-        "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -264,7 +270,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -282,8 +288,7 @@ export const SHARDS = [
     {
         shard: "graphty-element-lifecycle",
         package: "graphty-element",
-        "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         browsers: "chromium firefox webkit",
         // Minutes of three engines for a change a pull request rarely makes: the 6-hour full run tests it
@@ -306,13 +311,59 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.
         "local-paths": ["graphty-element/.storybook/", "graphty-element/stories/"],
     })),
 ];
+
+const on = (...projects) => projects.map((p) => `--project=${p}-${ON_SUFFIX}`).join(" ");
+
+/**
+ * The "On" configuration (design/ci/channels-pipeline/features.md, section 7.3): the graphty-element and
+ * graphty shards again with every declared experiment switched on, through the "<project>-features-on"
+ * vitest projects (tools/features-on.mjs), which exist only under GRAPHTY_FEATURES_ON=1. The same commands as their Off twins without coverage (judged on
+ * the Off run) or a blob report (the Off run's reports are the ones merged). "full-run-only": planned only
+ * in a full run, never on a pull request (plan()). They exist only while graphty-element declares an
+ * experiment: with none, On would equal Off, and SHARDS holds no On shard at all. `flags: "on"` makes
+ * tools/results/run-group.mjs file their results under the store's flags=on variant.
+ */
+export const FEATURES_ON_SHARDS = [
+    {
+        shard: `graphty-element-default-${ON_SUFFIX}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("default", "mesh")} ${ELEMENT_REPORTERS}`,
+        "needs-browser": false,
+    },
+    ...[1, 2, 3, 4, 5].map((n) => ({
+        shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "interactions", "xr")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+    })),
+    ...[1, 2, 3, 4, 5].map((n) => ({
+        shard: `graphty-element-storybook-${ON_SUFFIX}-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")} --shard=${n}/5 ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+    })),
+    ...[1, 2, 3, 4, 5].map((n) => ({
+        shard: `graphty-${ON_SUFFIX}-${n}`,
+        package: "graphty",
+        "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("browser", "real-element")} --shard=${n}/5`,
+        "needs-browser": true,
+    })),
+    {
+        shard: `graphty-storybook-${ON_SUFFIX}`,
+        package: "graphty",
+        "test-command": `cd graphty && ${ON_ENV}=1 pnpm exec vitest run ${on("storybook")}`,
+        "needs-browser": true,
+    },
+].map((s) => ({ ...s, "full-run-only": true, local: "never", flags: "on" }));
+
+export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
 /**
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
@@ -359,7 +410,13 @@ export const GROUPS = {
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
 // package); graphty-storybook writes none (the graphty shards measure graphty); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
-const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook", "graph-io-browser"]);
+// Nor do the On shards: coverage is judged on the Off run.
+const NO_COVERAGE = new Set([
+    "webgpu-graph-algorithms-browser",
+    "graphty-storybook",
+    "graph-io-browser",
+    ...FEATURES_ON_SHARDS.map((s) => s.shard),
+]);
 // Packages whose coverage ci.yml uploads in steps of their own.
 const OWN_UPLOAD = new Set(["graphty-element", "webgpu-graph-algorithms"]);
 
@@ -413,44 +470,51 @@ export function ciCommand(shard) {
  * @param affected package directory names
  * @param [only] shard names: when given, every other shard is left out
  * @param [light] tools/test-select.mjs --plan output: its bins replace their shards, its `none` shards are left out
- * @param [pullRequest] leave out the "full-run-only" shards and their bins
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins (--only naming one plans it either way)
+ * @param [shards] the shards to plan from (for tests)
  * @returns the matrix's include list
  */
-export function plan(affected, only, light, pullRequest = false) {
-    const fullRunOnly = new Set(pullRequest ? SHARDS.filter((s) => s["full-run-only"]).map((s) => s.shard) : []);
+export function plan(affected, only, light, pullRequest = false, shards = SHARDS) {
     const grouped = new Set(Object.values(GROUPS).flat());
     // a light plan's binned and empty shards run as bins, or not at all
     const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
+    const runs = (s) => !s?.["full-run-only"] || !pullRequest || only !== undefined;
     const wanted = (s) =>
         affected.includes(s.package) &&
         (only === undefined || only.includes(s.shard)) &&
         !replaced.has(s.shard) &&
-        !fullRunOnly.has(s.shard);
+        runs(s);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
-    const include = SHARDS.filter((s) => !grouped.has(s.shard) && wanted(s)).map((s) => {
-        const e = { ...s, "test-command": ciCommand(s) };
-        return OWN_UPLOAD.has(s.package) || NO_COVERAGE.has(s.shard)
-            ? e
-            : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
-    });
-    for (const [name, shards] of Object.entries(GROUPS)) {
-        const members = shards.map((n) => SHARDS.find((s) => s.shard === n)).filter(wanted);
+    const include = shards
+        .filter((s) => !grouped.has(s.shard) && wanted(s))
+        .map((s) => {
+            const e = { ...s, "test-command": ciCommand(s) };
+            return OWN_UPLOAD.has(s.package) || NO_COVERAGE.has(s.shard)
+                ? e
+                : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
+        });
+    for (const [name, names] of Object.entries(GROUPS)) {
+        const members = names.map((n) => shards.find((s) => s.shard === n)).filter(wanted);
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
     }
-    return [...include, ...(light?.bins ?? []).filter((b) => !fullRunOnly.has(b.shard)).map(binEntry)];
+    // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
+    const bins = (light?.bins ?? []).filter((b) => runs(shards.find((s) => s.shard === b.shard)));
+    const all = [...include, ...bins.map((b) => binEntry(b, shards))];
+    return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];
 }
 
 /**
  * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
  * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
  * @param bin a lightPlan() bin
+ * @param [shards] the shards to look its shard up in (plan()'s)
  * @returns a matrix entry with `files` and `members` fields
  */
-export function binEntry(bin) {
-    const shard = SHARDS.find((s) => s.shard === bin.shard);
+export function binEntry(bin, shards = SHARDS) {
+    const shard = shards.find((s) => s.shard === bin.shard);
     if (!shard || !bin.command) {
         throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
     }
@@ -498,10 +562,17 @@ export function storiesPlan(light) {
  */
 export function parseOnly(arg) {
     if (arg === undefined) return undefined;
-    const only = JSON.parse(arg);
-    if (!Array.isArray(only) || only.length === 0) {
+    const asked = JSON.parse(arg);
+    if (!Array.isArray(asked) || asked.length === 0) {
         throw new Error("--only needs a non-empty JSON array of shard names");
     }
+    // "features-on" names every On shard: ci.yml's dispatch with shards='["features-on"]' runs the On
+    // configuration for one branch on demand.
+    const on = SHARDS.filter((s) => s.flags === "on").map((s) => s.shard);
+    if (asked.includes(ON_SUFFIX) && on.length === 0) {
+        throw new Error("--only features-on: graphty-element declares no experiment, so there is no On shard");
+    }
+    const only = asked.flatMap((n) => (n === ON_SUFFIX ? on : [n]));
     const unknown = only.filter((n) => !SHARDS.some((s) => s.shard === n));
     if (unknown.length > 0) {
         throw new Error(`--only names shards that do not exist: ${unknown.join(", ")}`);

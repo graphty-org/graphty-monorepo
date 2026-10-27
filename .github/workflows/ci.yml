@@ -185,6 +185,7 @@ jobs:
             stories-count: ${{ steps.bins.outputs.stories-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            visual-on: ${{ steps.plan.outputs.visual-on }}
             docs: ${{ steps.optional.outputs.docs }}
             cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
@@ -754,6 +755,7 @@ jobs:
             test-count: ${{ needs.packages.outputs.test-count }}
             advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
             visual-skip: ${{ needs.packages.outputs.visual-skip }}
+            visual-on: ${{ needs.packages.outputs.visual-on }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1365,6 +1367,9 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
+            # A full run with the features-on shards is over 40 jobs; they come last in the matrix
+            # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
+            max-parallel: 40
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
@@ -1508,12 +1513,13 @@ jobs:
 
             # The shard's recent test durations, which the slow-test report compares each test with (its
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
+            # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
               uses: actions/cache@v4
               with:
                   path: test-durations
-                  key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
-                  restore-keys: test-durations-${{ matrix.shard }}-
+                  key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: test-durations-${{ matrix.shard }}--
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
@@ -2999,6 +3005,100 @@ jobs:
               run: |
                   mkdir -p "$RUNNER_TEMP/visual"
                   node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # The On configuration's screenshots (design/ci/channels-pipeline/features.md 7.3): in a full run only, while
+    # graphty-element declares an experiment (visual-on, tools/visual-capture-plan.mjs), graphty-element's stories
+    # captured again with every experiment switched on (VISUAL_REVIEW_STORY_QUERY=features=all, which the
+    # Storybook preview reads) and compared with the same baselines. A job of its own beside the story-tests jobs,
+    # whose capture is the owner's; uploaded as features-on-visual-*, never visual-*, so the gate and the
+    # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
+    features-on-visual:
+        name: visual (graphty-element, features on)
+        needs: build
+        if: contains(fromJSON(needs.build.outputs.visual-on || '[]'), 'graphty-element')
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        continue-on-error: true
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Restore graphty-element's baseline images
+              uses: actions/cache/restore@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-graphty-element-${{ hashFiles('visual-baselines/graphty-element/**/*.png', 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-graphty-element-
+
+            - name: Fetch graphty-element's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/graphty-element/**,visual-fonts/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
+            - name: Install Chromium
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - name: Capture the On configuration
+              env:
+                  VISUAL_REVIEW_STORY_QUERY: features=all
+              run: pnpm exec visual-review capture --project graphty-element --out "$RUNNER_TEMP/visual-features-on"
+
+            - name: Upload the On captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: features-on-visual-graphty-element-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual-features-on/
+                  retention-days: 30
 
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
     # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own

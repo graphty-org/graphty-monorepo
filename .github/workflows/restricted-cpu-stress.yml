@@ -75,7 +75,14 @@ jobs:
               id: plan
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  node tools/ci-test-matrix.mjs "$all" "$all" | tee -a "$GITHUB_OUTPUT"
+                  out=$(node tools/ci-test-matrix.mjs "$all" "$all")
+                  # the Off configuration only: an On twin (flags "on") would stress and file the same tests again
+                  matrix=$(sed -n 's/^test-matrix=//p' <<<"$out" | jq -c '.include |= map(select(.flags != "on"))')
+                  {
+                      grep -v -e '^test-matrix=' -e '^test-count=' <<<"$out"
+                      echo "test-matrix=$matrix"
+                      echo "test-count=$(jq '.include | length' <<<"$matrix")"
+                  } | tee -a "$GITHUB_OUTPUT"
 
             - name: Build all
               run: pnpm exec nx run-many -t build --parallel=3

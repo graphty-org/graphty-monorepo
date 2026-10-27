@@ -64,6 +64,9 @@
 /tools/check-owned-closure.mjs @graphty-org/code-owners
 /tools/pr-integrity.mjs @graphty-org/code-owners
 /tools/check-features.mjs @graphty-org/code-owners
+/tools/features-on.mjs @graphty-org/code-owners
+# the experiment list the CI matrix and test selection import and run (tools/features-on.mjs)
+/graphty-element/src/features/registry.ts @graphty-org/code-owners
 /tools/pr-open.sh @graphty-org/code-owners
 /tools/pr-review.sh @graphty-org/code-owners
 /tools/check-quick.sh @graphty-org/code-owners

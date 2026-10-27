@@ -8,6 +8,7 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
+import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -121,7 +122,7 @@ const chromium = () => ({
     commands: { chooseNextFile, failRequests, ...mapTileCommands },
 });
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react(), sampleDataPlugin()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
@@ -308,3 +309,16 @@ export default defineConfig({
         },
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["browser", "real-element", "storybook"],
+        "./src/test/setup-features-on.ts",
+    ),
+};
+
+export default config;

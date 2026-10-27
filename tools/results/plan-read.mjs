@@ -21,13 +21,16 @@ import { config, readPlan } from "./client.mjs";
 const familyOf = (shard) => shard.replace(/-\d+$/, "");
 
 /**
- * The variants a light check reads for its affected packages: each shard family, flags off, both run shapes.
+ * The variants a light check reads for its affected packages: each shard family a pull request runs (never a
+ * full-run-only one, such as the On shards), flags off, both run shapes.
  * @param shards SHARDS entries
  * @param affected package directory names
  * @returns variant names, sorted
  */
 export function variantsOf(shards, affected) {
-    const families = new Set(shards.filter((s) => affected.includes(s.package)).map((s) => familyOf(s.shard)));
+    const families = new Set(
+        shards.filter((s) => !s["full-run-only"] && affected.includes(s.package)).map((s) => familyOf(s.shard)),
+    );
     // a story shard's screenshot run (ci.yml's story-tests job) is a family of its own, `<family>-shots`
     return [...families]
         .sort()

@@ -245,7 +245,9 @@ export function shardRuns(shard) {
 }
 
 /**
- * Whether a vitest project is one a run's --project filters select (`!name` excludes).
+ * Whether a vitest project is one a run's --project filters select (`!name` excludes). An On twin
+ * (`<name>-features-on`, tools/features-on.mjs) is selected only by name: it exists only in a run that sets
+ * GRAPHTY_FEATURES_ON=1, which only the On shards do, so an Off shard's `!storybook` never runs it.
  * @param name the project's name
  * @param filters the run's --project values (empty: every project)
  * @returns boolean
@@ -256,6 +258,9 @@ export function projectSelected(name, filters) {
     const negated = filters.filter((f) => f.startsWith("!")).map((f) => f.slice(1));
     if (negated.includes(base)) {
         return false;
+    }
+    if (base.endsWith("-features-on")) {
+        return plain.includes(base);
     }
     return plain.length === 0 || plain.includes(base);
 }
@@ -1155,12 +1160,14 @@ function plainRun(root, shard) {
         // an nx target of its own in project.json must only run that script
         const target = JSON.parse(safeRead(join(root, dir, "project.json")) || "{}").targets?.coverage;
         const viaScript = !target || target.options?.command === "npm run coverage";
-        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, args: [] } : null;
+        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, env: [], args: [] } : null;
     }
     const m = PLAIN_VITEST.exec(cmd);
-    // COVERAGE_DIR only moves a coverage report this run does not write; any other variable picks a lane
+    // COVERAGE_DIR only moves a coverage report this run does not write, and GRAPHTY_FEATURES_ON=1 (kept) adds
+    // the On projects the shard names (tools/features-on.mjs); any other variable picks a lane
     const env = m?.[2].trim().split(/\s+/u).filter(Boolean) ?? [];
-    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR="))) {
+    const keep = env.filter((e) => e === "GRAPHTY_FEATURES_ON=1");
+    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR=") && !keep.includes(e))) {
         return null;
     }
     const args = m[3]
@@ -1168,7 +1175,7 @@ function plainRun(root, shard) {
         .trim()
         .split(/\s+/u)
         .filter((a) => a && !DROPPED.test(a));
-    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, args } : null;
+    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, env: keep, args } : null;
 }
 
 /**
@@ -1186,7 +1193,8 @@ export function selectedCommand(root, shard, files) {
         return null;
     }
     const rel = (files ?? []).map((f) => quote(f.slice(run.dir.length + 1)));
-    return `cd ${run.dir} && pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
+    const env = run.env.map((e) => `${e} `).join("");
+    return `cd ${run.dir} && ${env}pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
 }
 
 /**
@@ -2135,13 +2143,14 @@ export function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
-        const configs = new Set(
-            shards.filter((s) => s.package === dir).flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)),
-        );
+        const mine = shards.filter((s) => s.package === dir);
+        const configs = new Set(mine.flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)));
+        // the -features-on projects exist only under GRAPHTY_FEATURES_ON=1 (tools/features-on.mjs)
+        const on = mine.some((s) => s.flags === "on");
         graphs.set(
             dir,
             [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config)),
+                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
             ),
         );
     }
@@ -2152,7 +2161,7 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build) => graph`
+ * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2168,13 +2177,13 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build) => {
+    return (dir, config, build, variant = "") => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
+                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
@@ -2526,7 +2535,7 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config) {
+function graphChild(root, dir, config, on = false) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
@@ -2534,7 +2543,13 @@ function graphChild(root, dir, config) {
         const out = execFileSync(
             process.execPath,
             [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
-            { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] },
+            {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 1 << 30,
+                stdio: ["ignore", "pipe", "pipe"],
+                env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
+            },
         );
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {
@@ -2725,13 +2740,15 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"), {
+    // a pull request's selection: the full-run-only On shards are never in it, nor in its import graphs
+    const shards = SHARDS.filter((s) => !s["full-run-only"]);
+    const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,
         head,
     });
     if (argv.includes("--plan")) {
         const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
-        console.log(JSON.stringify(planOf(root, { changed, selection, shards: SHARDS, base, head, durations })));
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations })));
         return;
     }
     if (argv.includes("--json")) {

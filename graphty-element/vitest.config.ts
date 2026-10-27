@@ -32,6 +32,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -301,7 +302,7 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         onConsoleLog: appendBenchRow,
@@ -978,3 +979,16 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["default", "mesh", "browser", "interactions", "xr", "storybook"],
+        "./test/setup-features-on.ts",
+    ),
+};
+
+export default config;

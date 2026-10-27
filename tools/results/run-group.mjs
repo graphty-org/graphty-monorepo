@@ -21,9 +21,10 @@
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
-// switches it off. GRAPHTY_FLAGS=on names the feature-flag variant; RESULTS_VARIANT names the whole variant
-// (base-check.yml asks for the pull request's); RESULTS_REPEAT=<n> keeps repeated runs of one job apart, and
-// RESULTS_PART=<n> the legs of one job's matrix that run parts of one shard (ci.yml's story-tests legs).
+// switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
+// variant flags=on; RESULTS_VARIANT names the whole variant (base-check.yml asks for the pull request's);
+// RESULTS_REPEAT=<n> keeps repeated runs of one job apart, and RESULTS_PART=<n> the legs of one job's matrix
+// that run parts of one shard (ci.yml's story-tests legs).
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -493,10 +494,8 @@ export async function runGroup(
         console.error(`run-group: unknown shard ${shardName} and no command`);
         return 2;
     }
-    const flags = env.GRAPHTY_FLAGS === "on" ? "on" : "off";
-    const selected = command !== undefined && command !== shard?.["test-command"];
+    const { variant } = groupShape({ shardName, shard, command, env });
     const family = groupFamily(shardName, env);
-    const variant = env.RESULTS_VARIANT || `${family}|flags=${flags}|${runShape(env, selected)}`;
     const head = headFacts(root, env);
     // no file (the full path), an unreadable one or a store outage: the committed list stands
     let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
@@ -545,12 +544,47 @@ export async function runGroup(
     const endedAt = Date.now();
     try {
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
-        await record(shard, { ...facts, flags, selected, variant, head, gh });
+        await record(shardName, shard, { ...facts, command, head, gh });
     } catch (e) {
         // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
         console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
     }
     return code;
+}
+
+/**
+ * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
+ * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
+ * RESULTS_VARIANT overrides the variant.
+ * @param o the facts
+ * @param o.shardName the shard
+ * @param o.shard its SHARDS entry, or undefined
+ * @param o.command the narrower command, if any (run shape `selected`)
+ * @param o.env the environment
+ * @returns `{ flags, selected, variant }`
+ */
+export function groupShape({ shardName, shard, command, env }) {
+    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const selected = command !== undefined && command !== shard?.["test-command"];
+    const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
+    return { flags, selected, variant };
+}
+
+/**
+ * A group's variant and inputs key (groupShape()).
+ * @param o the facts
+ * @param o.shardName the shard
+ * @param o.shard its SHARDS entry, or undefined
+ * @param o.command the narrower command, if any (run shape `selected`)
+ * @param o.cmd the command run
+ * @param o.env the environment
+ * @param o.shardKey the shard's input key
+ * @returns `{ variant, inputs }`
+ */
+export function groupKeys({ shardName, shard, command, cmd, env, shardKey }) {
+    const { flags, selected, variant } = groupShape({ shardName, shard, command, env });
+    const extra = (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? "\nshots" : "");
+    return { variant, inputs: inputsKey({ shardKey, env: envString(env), flags, extra }) };
 }
 
 /**
@@ -584,24 +618,19 @@ export function runShape(env, selected) {
 /**
  * Builds a finished group's records, posts them (spooling what the store does not take) and files the
  * quarantine issues the store asks for.
+ * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
  * @param o runGroup()'s facts: `cmd`, `root`, `env`, `id`, `runId`, `code`, `resultFile`, `startedAt`,
- *   `endedAt`, `flags`, `selected`, `variant`, `head`, `gh`
+ *   `endedAt`, `command`, `head`, `gh`
  */
-async function record(shard, o) {
-    const { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, flags, selected, variant, head, gh } = o;
+async function record(shardName, shard, o) {
+    const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, head, gh } = o;
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const result = readResult(resultFile);
     const facts = { id, head, code, result, startedAt, endedAt, runId };
     const recs = recordsOf({
         ...facts,
-        variant,
-        inputs: inputsKey({
-            shardKey,
-            env: envString(env),
-            flags,
-            extra: (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? "\nshots" : ""),
-        }),
+        ...groupKeys({ shardName, shard, command, cmd, env, shardKey }),
         env: envString(env),
         dir: join(root, "test-results"),
     });

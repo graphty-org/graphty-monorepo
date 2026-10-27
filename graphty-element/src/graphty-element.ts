@@ -3244,11 +3244,11 @@ export class Graphty extends LitElement {
     /**
      * How the 3D nodes are lit.
      * @remarks
-     * - `"studio"` (the default): a key light from above the camera, a soft fill, and a rim that
-     *   lifts each node's own color toward its edge. Round shapes read as round, and no pixel is
-     *   lifted to white: the brightest is about 1.13 times the style color's lightness.
-     * - `"headlight"`: one light from beside the camera and a soft fill. Never brighter than the
-     *   style color.
+     * - `"studio"` (the default): a light that follows the camera, a soft fill with a light ground,
+     *   and a rim that lifts each node's own color toward its edge. No side of a node goes dark from
+     *   any angle, and no pixel is lifted to white: the brightest is about 1.07 times the style
+     *   color's lightness.
+     * - `"headlight"`: the same lights without the rim. Never brighter than the style color.
      * - `"matte"`: one soft light from above, no highlight. A lit face is exactly the style color
      *   at most; shapes read flatter and darker than `"studio"`.
      * - `"flat"`: unlit. Every pixel of a node is exactly its style color, with a thin dark

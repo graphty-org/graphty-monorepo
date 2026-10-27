@@ -7,7 +7,8 @@
 #
 # Not news, so silent: success, skipped and neutral runs; a pending run the release-train concurrency group
 # replaced with a newer one (cancelled before any job started); a first attempt release-rerun.yml re-runs on the same
-# commit or files itself (tools/release-rerun.mjs decides the same way for both), whose re-run announces itself.
+# commit or files itself (tools/release-rerun.mjs decides the same way for both), whose re-run announces itself; a
+# second attempt cancelled before its verdict, whose deferred red release-rerun.yml files.
 # A shadow release run (run name "Release (shadow)", release.yml's default mode) is never announced: it publishes
 # nothing, and its own held job comments on #3418 when it goes red.
 name: Release watch

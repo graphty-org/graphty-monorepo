@@ -876,7 +876,8 @@ describe("POST /v1/verdicts", () => {
         }
         assert.equal((await post(master("release.yml"), { ...body, state: "maybe" })).status, 400);
         // the promotion after the owner's screenshot approval records its outcome on the tested head
-        for (const state of ["approved", "rejected"]) {
+        // and attempt 1's red that waits for its same-commit re-run (tools/full-run.mjs)
+        for (const state of ["approved", "rejected", "deferred"]) {
             assert.deepEqual((await post(master("release.yml"), { sha: `c-${state}`, state })).body, { stored: true });
         }
         assert.equal((await post(master("release.yml"), { ...body, issue: "12" })).status, 400);

@@ -83,6 +83,17 @@ async function start(env) {
         output({ issue: "", action: "none" });
         return;
     }
+    // the store first: it is what the next slot reads, so a hold it did not record is no hold and fails the job,
+    // and a hold another run took since the read above (409) is that run's. Only then the issue, so neither leaves
+    // a "Nightly held" issue for a hold the store does not have
+    const cfg = config(env);
+    const r = cfg ? await call(cfg, "POST", "/v1/hold", { base: env.SHA, head: env.SHA, issue: null }) : null;
+    if (r && !r.ok && /\b409\b/.test(r.why)) {
+        console.log(`::notice::another run held its commit just now: ${env.SHA} is not held`);
+        output({ issue: "", action: "none" });
+        return;
+    }
+    if (!r?.ok) throw new Error(`POST /v1/hold failed (${r?.why ?? "no store configured"})`);
     const { title, body } = holdIssue({ sha: env.SHA, state: env.STATE, what: env.WHAT, run: env.RUN_URL });
     const labels = ["bug", "priority:high", "effort:medium"].flatMap((l) => ["--label", l]);
     let issue = null;
@@ -92,11 +103,11 @@ async function start(env) {
                 .split("/")
                 .pop(),
         );
+        // the same base again only records the issue on the hold the store already has
+        await post(cfg, { base: env.SHA, head: env.SHA, issue });
     } catch (error) {
-        console.log(`::warning::opening the hold issue failed: ${error.message.split("\n")[0]}`);
+        console.log(`::warning::the hold stands, but its issue is not recorded: ${error.message.split("\n")[0]}`);
     }
-    // the store is what the next slot reads: a hold it did not record is no hold, so this fails the job
-    await post(config(env), { base: env.SHA, head: env.SHA, issue });
     output({ issue: issue ?? "", action: "start" });
 }
 

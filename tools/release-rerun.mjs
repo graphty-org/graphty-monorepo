@@ -55,19 +55,21 @@ export const modeOf = (title) => /^Release \(([a-z-]+)\)$/.exec(title ?? "")?.[1
  * @param o.workflow its workflow's name
  * @param o.title its display title
  * @param o.attempt its attempt
- * @param o.conclusion its conclusion
+ * @param o.conclusion its conclusion (failure, cancelled when a job timed out, timed_out)
  * @param o.record its attempt-1 verdict record (verdict-1.json), or null
  * @param o.failed the names of its failed or cancelled jobs
  * @param o.lostRunner () => whether every failed job only lost its runner
  * @returns "rerun", "file" or "none"
  */
 export function decide({ workflow, title, attempt, conclusion, record, failed, lostRunner }) {
-    if (conclusion !== "failure" || Number(attempt) !== 1) return "none";
+    if (Number(attempt) !== 1) return "none";
     if (workflow === "Release" && RERUN_MODES.has(modeOf(title))) {
-        if (!record?.deferred) return "none";
+        // a job that hits its timeout-minutes ends cancelled, and so does the run: a deferred verdict is acted on
+        // whatever the run's conclusion, or nothing re-runs it and nothing files it
+        if (!record?.deferred || conclusion === "success") return "none";
         return failed.length && failed.every(rerunnable) ? "rerun" : "file";
     }
-    return lostRunner() ? "rerun" : "none";
+    return conclusion === "failure" && lostRunner() ? "rerun" : "none";
 }
 
 // stdio "ignore" returns null, not ""

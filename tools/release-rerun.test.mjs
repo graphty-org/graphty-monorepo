@@ -28,6 +28,31 @@ describe("decide", () => {
             "rerun",
         );
     });
+    it("re-runs a full run that ended cancelled because a CI job hit its timeout (run 40448487922)", () => {
+        const timedOut = {
+            ...full,
+            title: "Release (restart)",
+            conclusion: "cancelled",
+            record: { deferred: true, red: ["ci"] },
+            failed: [
+                "CI / Story tests (graph-io-fidelity)",
+                "CI / visual (graph-io-fidelity)",
+                "CI / Story tests parity (graphty)",
+            ],
+        };
+        assert.equal(decide(timedOut), "rerun");
+        assert.equal(decide({ ...timedOut, conclusion: "timed_out" }), "rerun");
+        assert.equal(decide({ ...timedOut, failed: [...timedOut.failed, "Publish the release"] }), "file");
+        assert.equal(
+            decide({ ...timedOut, record: null }),
+            "none",
+            "cancelled before the verdict: release-watch announces",
+        );
+    });
+    it("re-runs a GPU run that lost its runner only when it failed, never one that was cancelled", () => {
+        const gpu = { ...full, workflow: "GPU", title: "GPU", lostRunner: () => true };
+        assert.equal(decide({ ...gpu, conclusion: "cancelled" }), "none");
+    });
     it("never re-runs a second attempt, a success, or a verdict that decided at once", () => {
         assert.equal(decide({ ...full, attempt: 2 }), "none");
         assert.equal(decide({ ...full, conclusion: "success" }), "none");

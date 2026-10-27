@@ -1057,9 +1057,6 @@ through servherd; its log prints the URL with the session token at every start:
 servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
   command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} node visual-review/trusted/cli.mjs serve",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
-// Beside it, from the same checkout: one batched push notification when pull requests become ready.
-servherd_start({ name: "visual-review-notify", cwd: "<repo>", command: "node visual-review/trusted/cli.mjs notify",
-  env: { VISUAL_REVIEW_NOTIFY: "[\"/home/apowers/.claude/scripts/claude-notify.sh\",\"waiting\",\"{message}\",\"{title}\"]" } })
 ```
 
 The owner's review page runs from the visual-review live copy (`tools/live-tools.json`): put a
@@ -1091,11 +1088,9 @@ that starts the same server from the owner's own shell, which is how the owner s
   job summary. The old full capture (the `visual` jobs) runs in the full run, a dispatch and a bisect point,
   not on a pull request, so the review page has no pull request capture to show; the owner approves changed
   pictures on the full run's candidate (`serve --candidate next`).
-- Ask the owner, with a final `ACTION NEEDED:` line, for anything you are actually blocked on,
-  including a screenshot review that is holding up your work. Ask once per item: do not repeat the
-  same request in later messages. A review that is not blocking anything needs no request:
-  `visual-review notify` (under
-  servherd, beside the review server) sends one batched push notification when they become ready.
+- Never ask the owner to review a pull request's screenshots. He reviews changed pictures only on the
+  held nightly candidate, which release.yml announces on the `Release status` issue and by push
+  notification; a changed picture holds the promotion to nightly, not the pull request.
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. Such an ad hoc capture

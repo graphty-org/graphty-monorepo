@@ -179,9 +179,10 @@ export function autoAbandon({ hold, recent = [], sites = [], chain = [], now = D
     const built = new Set(sites);
     const green = newer.find((sha) => built.has(sha));
     if (now - (hold.at ?? now) > DAY_MS && green) {
+        const what = [verdict.state, ...red].join(" ");
         return {
             abandon: true,
-            why: `it was held over 24 hours (${verdict.state}${red.length ? `: ${red.join(", ")}` : ""}) and master has a newer commit with a green build, ${green.slice(0, 12)}`,
+            why: `it was held over 24 hours (${what}) and master has a newer commit with a green build, ${green.slice(0, 12)}`,
         };
     }
     return { abandon: false, why: `the hold on ${s} stands` };

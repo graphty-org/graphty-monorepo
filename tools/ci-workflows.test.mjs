@@ -644,14 +644,24 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
-    // The DOCS_API_PACKAGES line and the docs site functions, cut out of prepush.sh to run alone.
+    // The DOCS_API_PACKAGES line and docs_site_affected live in tools/docs-affected.sh, which prepush.sh
+    // and check-quick.sh both source; docs_site_step is prepush.sh's. Cut out to run alone.
+    const docsAffected = () => {
+        assert.match(code(tool("prepush.sh")), /\nsource "\$SCRIPT_DIR\/docs-affected\.sh"\n/, "prepush.sh sources it");
+        return code(tool("docs-affected.sh"));
+    };
+    const docsApiLine = () => docsAffected().match(/\nDOCS_API_PACKAGES=.*\n/)[0];
     const docsSetup = (prepush) => {
-        const fn = (name) => {
-            const at = prepush.indexOf(`\n${name}() {\n`);
-            assert.ok(at > 0, `${name} is in tools/prepush.sh`);
-            return prepush.slice(at, prepush.indexOf("\n}\n", at) + 3);
+        const fn = (text, file, name) => {
+            const at = text.indexOf(`\n${name}() {\n`);
+            assert.ok(at > 0, `${name} is in tools/${file}`);
+            return text.slice(at, text.indexOf("\n}\n", at) + 3);
         };
-        return prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0] + fn("docs_site_affected") + fn("docs_site_step");
+        return (
+            docsApiLine() +
+            fn(docsAffected(), "docs-affected.sh", "docs_site_affected") +
+            fn(prepush, "prepush.sh", "docs_site_step")
+        );
     };
 
     it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
@@ -665,7 +675,7 @@ describe("the pre-push gate matches CI", () => {
                 [
                     "-c",
                     `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
-                        `run_step() { echo "$2"; }\n${prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0]}${loop}`,
+                        `run_step() { echo "$2"; }\n${docsApiLine()}${loop}`,
                 ],
                 { cwd: new URL("..", import.meta.url), encoding: "utf8" },
             ).stdout;

@@ -1242,7 +1242,7 @@ jobs:
             # The graphs resolve the other packages through their dist folders.
             - name: Download all package builds
               if: steps.graphs.outputs.cache-hit != 'true'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1891,7 +1891,7 @@ jobs:
               run: pnpm exec playwright install chromium
 
             - name: Download Storybook build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.storybook }}/
@@ -2112,14 +2112,14 @@ jobs:
               if: steps.skip.outputs.skip != 'true'
               id: download-packages
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Download all package builds (retry)
               if: ${{ steps.skip.outputs.skip != 'true' && (steps.download-packages.outcome == 'failure') }}
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -2252,14 +2252,14 @@ jobs:
 
             - name: Download the old capture
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: captures/old
 
             - name: Download the story tests' capture
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: captures/new
@@ -2422,7 +2422,7 @@ jobs:
 
             - name: Download Storybook build
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
@@ -2716,7 +2716,7 @@ jobs:
             - name: Download visual captures
               if: github.event_name == 'pull_request'
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual

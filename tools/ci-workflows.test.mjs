@@ -2145,6 +2145,10 @@ describe("dependabot.yml", () => {
     it("opens every version update against master, the default branch (golden is retired, #3418)", () => {
         assert.doesNotMatch(text, /target-branch:/);
     });
+    it("never bumps visual-seed.yml, which init generates from visual-review's template (#3898)", () => {
+        const actions = text.slice(text.indexOf("package-ecosystem: github-actions"));
+        assert.match(actions, /\n {6}exclude-paths: \[".github\/workflows\/visual-seed.yml"\]\n/);
+    });
     it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
         const npm = text.slice(
             text.indexOf("package-ecosystem: npm"),

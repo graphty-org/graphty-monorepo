@@ -7,7 +7,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
@@ -290,20 +290,15 @@ const nodeForks = Math.min(
 
 export default defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
-        // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
-        maxWorkers: nodeForks,
+        ...baseTest({
+            // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
+            // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
+            maxWorkers: nodeForks,
+            reporters: [localVerbose()],
+            junit: process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
+        }),
         // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
         fileParallelism: serialRun ? false : undefined,
-        // verbose prints a line per test: useful locally, needless noise in CI
-        reporters: [
-            ...(process.env.CI ? ["default"] : ["verbose"]),
-            ...ciReporters(
-                process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
-            ),
-        ],
         coverage: {
             provider: "v8",
             // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and

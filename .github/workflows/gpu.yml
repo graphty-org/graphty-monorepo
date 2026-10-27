@@ -73,6 +73,10 @@ concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || 'gpu-lane' }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     test-gpu:
         name: Test (NVIDIA T4)

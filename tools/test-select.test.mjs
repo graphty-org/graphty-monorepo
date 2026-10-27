@@ -1849,6 +1849,18 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
             run(ciOnly, named).every((p) => p.mode === "none"),
             "a test naming the file selects no story",
         );
+        for (const job of [
+            ".github/workflows/ci.yml",
+            ".github/actions/playwright-system-deps/action.yml",
+            "tools/test-select.mjs",
+            "tools/ci-test-matrix.mjs",
+            "tools/results/run-group.mjs",
+        ]) {
+            assert.ok(
+                run([job]).every((p) => p.mode === "all"),
+                `${job} defines the Stories job, so it runs it`,
+            );
+        }
         const baseline = run([...ciOnly, "visual-baselines/graphty/a--b.png"]);
         assert.ok(
             baseline.every((p) => p.mode === "all"),

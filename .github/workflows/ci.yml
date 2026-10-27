@@ -1220,7 +1220,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1864,7 +1864,7 @@ jobs:
                   rm -rf visual-review/capture visual-review/trusted
                   git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -2132,7 +2132,7 @@ jobs:
               if: steps.skip.outputs.skip != 'true'
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**${{ matrix.lfs }}"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
@@ -2301,7 +2301,7 @@ jobs:
               if: steps.found.outputs.any != ''
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: steps.found.outputs.any != ''
 
             - name: Setup Node.js
@@ -2515,7 +2515,7 @@ jobs:
                   rm -rf visual-review/capture visual-review/trusted
                   git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js

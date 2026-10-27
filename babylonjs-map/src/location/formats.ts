@@ -59,8 +59,9 @@ const ISO =
     /^([+-])(\d{2}(?:\d{2}){0,2})(\.\d+)?([+-])(\d{3}(?:\d{2}){0,2})(\.\d+)?(?:[+-]\d+(?:\.\d+)?)?(?:CRS[\w:.]+)?\/?$/;
 const GEOHASH = /^[0-9b-hjkmnp-z]{1,12}$/i;
 const MGRS = /^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d\d){0,5}$/i;
-const UTM =
-    /^\s*(\d{1,2})\s*([C-HJ-NP-X])\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?E?\s*[,;]?\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?N?\s*$/i; // NOSONAR(S5852): matched only against text whose whitespace runs are collapsed to one space (singleSpaced), so the adjacent \s quantifiers cannot backtrack
+// Matched only against singleSpaced text, so every optional space is a literal " ?" and no two
+// quantifiers can trade the same characters: the match is linear on any input.
+const UTM = /^(\d{1,2}) ?([C-HJ-NP-X]) (\d+(?:\.\d+)?) ?(?:m ?)?E? ?[,;]? (\d+(?:\.\d+)?) ?(?:m ?)?N?$/i;
 
 /**
  * ISO 6709 degrees from a sign, integer digits (degrees, then minutes and seconds) and a fraction.
@@ -110,7 +111,7 @@ function geojson(value: unknown): LatLon | LocationError {
  * @returns The text with single spaces.
  */
 function singleSpaced(text: string): string {
-    return text.split(/\s+/).join(" ");
+    return text.trim().split(/\s+/).join(" ");
 }
 
 function fromString(value: unknown, read: (text: string) => LatLon | LocationError): LatLon | LocationError {
@@ -229,7 +230,7 @@ export function parseLocation(value: unknown, format: LocationFormat | "auto" = 
 }
 
 /** A number with an optional hemisphere letter before or after it, and a decimal point or comma. */
-const HEMISPHERE_NUMBER = /^\s*([NSEW])?\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?\s*$/i; // NOSONAR(S5852): matched only against singleSpaced text, so the adjacent \s quantifiers cannot backtrack
+const HEMISPHERE_NUMBER = /^([NSEW])? ?([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)) ?\u00b0? ?([NSEW])?$/i; // matched only against singleSpaced text
 
 /**
  * Reads one angle of a latitude or longitude column: a number, or text holding a number with an

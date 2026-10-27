@@ -196,20 +196,9 @@ jobs:
               run: node graph-samples/scripts/build-hosted.mjs --reuse-published
 
             # The gazetteer the location map reads place names with (Natural Earth and GeoNames),
-            # published at /data/gazetteer/v1/. GeoNames republishes its cities daily, so the cache
-            # key carries the date: the files follow GeoNames within a day, and fail the deploy rather
-            # than publishing a site whose place names cannot be read.
-            - name: Date for the gazetteer sources
-              id: gazetteer-date
-              run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-
-            - name: Cache gazetteer sources
-              uses: actions/cache@v4
-              with:
-                  path: tmp/gazetteer-sources
-                  key: gazetteer-sources-${{ hashFiles('graphty-element/scripts/build-gazetteer.mjs') }}-${{ steps.gazetteer-date.outputs.day }}
-                  restore-keys: gazetteer-sources-${{ hashFiles('graphty-element/scripts/build-gazetteer.mjs') }}-
-
+            # published at /data/gazetteer/v1/. Its sources are downloaded fresh on every deploy (no
+            # cache: a cache restored into this privileged job could be poisoned), and a failed
+            # download fails the deploy rather than publishing a site whose place names cannot be read.
             - name: Build the gazetteer
               run: node graphty-element/scripts/build-gazetteer.mjs
 

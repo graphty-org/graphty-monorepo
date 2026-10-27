@@ -2532,13 +2532,74 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
-            assert.equal(last.coe, "true", name);
+            // a clear that cannot finish fails the job, so the pull request is not left blocked in silence (#3857)
+            assert.equal(last.coe, undefined, name);
             assert.match(job(ci, name), new RegExp(`\\n {18}CHECK: ${check}\\n`), name);
         }
     });
 
+    // The step's script run against a stand-in gh (and sleep), the way the run's token answered on
+    // 2026-10-26: "API rate limit exceeded for installation" on the first listing (#3857).
+    const runClear = (jobName, { failList, resetIn }) => {
+        const dir = mkdtempSync(join(tmpdir(), "early-verdict-"));
+        const step = parseYaml(ci).jobs[jobName].steps.at(-1);
+        writeFileSync(
+            join(dir, "gh"),
+            [
+                "#!/bin/bash",
+                'echo "gh $*" >> "$LOG"',
+                'case "$*" in',
+                '    *rate_limit*) echo "0 $(( $(date +%s) + RESET_IN ))" ;;',
+                '    *"check-runs?filter"*)',
+                '        n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) > "$STATE"',
+                '        if (( n < FAIL_LIST )); then echo "gh: API rate limit exceeded for installation." >&2; exit 1; fi',
+                "        echo 1 ;;",
+                "esac",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+        writeFileSync(join(dir, "sleep"), '#!/bin/bash\necho "sleep $*" >> "$LOG"\n', { mode: 0o755 });
+        const result = spawnSync("bash", ["-e", "-c", step.run], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                LOG: join(dir, "log"),
+                STATE: join(dir, "state"),
+                FAIL_LIST: String(failList),
+                RESET_IN: String(resetIn),
+                ...step.env,
+                GITHUB_REPOSITORY: "o/r",
+                SHA: "abc",
+                RUN_URL: "https://x/actions/runs/7",
+            },
+        });
+        const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+        rmSync(dir, { recursive: true, force: true });
+        return { ...result, log };
+    };
+
+    it("waits for an exhausted API limit to reset and then clears, on any attempt (#3857)", () => {
+        for (const name of ["all-checks", "queue-checks"]) {
+            const { status, stdout, log } = runClear(name, { failList: 1, resetIn: 30 });
+            assert.equal(status, 0, name);
+            assert.match(stdout, /cleared early verdict 1/, name);
+            assert.match(log, /^sleep (3[0-5])$/m, name);
+            assert.match(log, /gh api -X PATCH repos\/o\/r\/check-runs\/1 /, name);
+        }
+    });
+
+    it("fails the job, loudly, when every try fails (#3857)", () => {
+        const { status, stdout, log } = runClear("all-checks", { failList: 99, resetIn: 30 });
+        assert.equal(status, 1);
+        assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
+        assert.doesNotMatch(log, /PATCH/);
+        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^sleep /gm).length, 3);
+    });
+
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "queue-checks"))[1];
         const page = {
             check_runs: [
                 { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },

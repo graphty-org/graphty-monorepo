@@ -77,7 +77,7 @@
     "targetDefaults": {
         "build": {
             "dependsOn": ["^build"],
-            "inputs": ["production", "^production", { "runtime": "node --version" }],
+            "inputs": ["buildSources", "^buildSources", { "runtime": "node --version" }],
             "outputs": ["{projectRoot}/dist"],
             "cache": true
         },
@@ -106,6 +106,19 @@
             "!{projectRoot}/vitest.config.ts",
             "!{projectRoot}/eslint.config.js",
             "!{projectRoot}/**/*.md"
+        ],
+        "buildSources": [
+            "production",
+            "!{projectRoot}/test/**/*",
+            "!{projectRoot}/tests/**/*",
+            "!{projectRoot}/**/__tests__/**/*",
+            "!{projectRoot}/stories/**/*",
+            "!{projectRoot}/**/*.stories.*",
+            "!{projectRoot}/benchmarks/**/*",
+            "!{workspaceRoot}/eslint.config.js",
+            "!{workspaceRoot}/vitest.shared.config.ts",
+            "!{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.ci-junit.d.mts"
         ],
         "sharedGlobals": [
             "{workspaceRoot}/tsconfig.base.json",

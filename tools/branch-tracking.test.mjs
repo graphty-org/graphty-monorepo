@@ -55,6 +55,10 @@ if (args[1] === "graphql") {
             comments: { nodes: i.comments.map((c) => ({ databaseId: c.id, body: c.body })) } };
     }
     out = JSON.stringify({ data: { repository } });
+} else if (args[0] === "pr" && args[1] === "list") {
+    if (s.prListFails) process.exit(1);
+    const head = args[args.indexOf("--head") + 1];
+    out = JSON.stringify((s.openPrs ?? []).includes(head) ? [{ number: 1 }] : []);
 } else if ((m = /issues\\/(\\d+)\\/comments$/.exec(path))) {
     const id = ++s.nextId;
     s.issues[m[1]].comments.push({ id, body: field("body") });
@@ -275,6 +279,68 @@ describe("the post-commit push", () => {
         // The hook returns before it starts anything in the background for these.
         assert.equal(logText(), before);
         assert.equal(run(repo, "git", "rev-parse", "-q", "--verify", "origin/golden").status, 1);
+    });
+});
+
+describe("the post-commit push of a branch with an open pull request", () => {
+    let repo;
+    let log;
+    before(() => {
+        repo = repoWith("open", ["post-commit"]);
+        log = join(repo, "tmp/branch-push.log");
+        mkdirSync(join(repo, "tmp/pr-status"), { recursive: true });
+    });
+    const logText = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+    const finished = (n) => () => (logText().match(/^finished /gm) ?? []).length >= n;
+    const status = (ageMs, heads) =>
+        writeFileSync(
+            join(repo, "tmp/pr-status/status.json"),
+            JSON.stringify({
+                fetchedAt: new Date(Date.now() - ageMs).toISOString(),
+                pullRequests: heads.map((head, i) => ({ number: i + 1, head, base: "master" })),
+            }),
+        );
+    const setGh = (patch) => writeFileSync(state, JSON.stringify({ ...gh(), ...patch }));
+    const prLists = () => gh().calls.filter((a) => a[0] === "pr" && a[1] === "list").length;
+    const remoteHas = (b) => run(repo, "git", "ls-remote", "--exit-code", "origin", `refs/heads/${b}`).status === 0;
+    let commits = 0;
+    const commit = async (b) => {
+        git(repo, "checkout", "-q", "-B", b);
+        commits += 1;
+        writeFileSync(join(repo, `o${commits}.txt`), "x\n");
+        git(repo, "add", ".");
+        const r = run(repo, "git", "commit", "-q", "-m", `feat: o${commits}`);
+        assert.equal(r.status, 0, r.stderr);
+        await until(dirname(log), finished(commits));
+        return r.stdout + r.stderr; // git hands a hook's output to stderr
+    };
+
+    it("does not push when the status broker's fresh file lists one, says so, and still refreshes the note", async () => {
+        status(0, ["feat/512-open"]);
+        const out = await commit("feat/512-open");
+        assert.match(out, /did not push feat\/512-open: it has an open pull request.*tools\/pr-open\.sh/);
+        assert.ok(!remoteHas("feat/512-open"));
+        assert.equal(prLists(), 0, "the fresh file answers; no GitHub call");
+        assert.match(gh().issues[512].comments[0].body, /^<!-- branch-note: feat\/512-open -->/);
+    });
+
+    it("asks gh once when the file is stale, and keeps its answer for five minutes", async () => {
+        status(10 * 60 * 1000, []);
+        setGh({ openPrs: ["feat/512-stale"] });
+        await commit("feat/512-stale");
+        await commit("feat/512-stale");
+        assert.ok(!remoteHas("feat/512-stale"));
+        assert.equal(prLists(), 1);
+    });
+
+    it("pushes as before when no pull request is open, or when neither the file nor gh can tell", async () => {
+        status(0, ["feat/512-open"]);
+        await commit("feat/512-none");
+        assert.ok(remoteHas("feat/512-none"));
+        status(10 * 60 * 1000, []);
+        setGh({ prListFails: true });
+        await commit("feat/512-unsure");
+        assert.ok(remoteHas("feat/512-unsure"));
     });
 });
 

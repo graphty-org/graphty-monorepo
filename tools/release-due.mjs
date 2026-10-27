@@ -245,20 +245,50 @@ export function fixForwardDue(merge, store) {
     return issue && referencesHold(merge, issue) ? issue : null;
 }
 
-async function dispatchFixForward(subject, messages, dryRun) {
-    const cfg = config(process.env);
-    const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
-    const issue = fixForwardDue({ subject, messages }, r.ok ? r.data : null);
-    if (!issue) return;
-    console.log(`release-due: this merge fixes the held candidate forward (#${issue}): release.yml mode=candidate`);
-    if (!dryRun) run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=candidate"]);
+/**
+ * The fix merges among the merges since the last green build: each merge is judged on its own subject, messages and
+ * pull request description, so a newer unrelated merge is never named for an older fix.
+ * @param merges `[{ subject, messages }]`, one per master commit
+ * @param store `GET /v1/candidate`'s answer, or null
+ * @returns `{ issue, prs }` (the fixes' pull request numbers), or null
+ */
+export function fixForwardMerges(merges, store) {
+    const fixes = merges.filter((m) => fixForwardDue(m, store));
+    if (!fixes.length) return null;
+    const prs = fixes.map((m) => /^Merge pull request #(\d+) /.exec(m.subject ?? "")?.[1]).filter(Boolean);
+    return { issue: store.hold.issue, prs };
 }
 
-async function main() {
-    const dryRun = process.argv.includes("--dry-run");
-    const now = Date.now();
-    const head = run("git", ["rev-parse", "HEAD"]);
-    let base = null;
+/**
+ * The dispatch of a fix forward's candidate run, naming the fixes' pull requests (`fix_pr`, comma-separated):
+ * release.yml's candidate_fix job takes their merges as fixes even when only a description references the hold issue.
+ * @param prs the fixes' pull request numbers
+ * @returns the `gh` arguments
+ */
+export function fixForwardDispatch(prs) {
+    return [
+        "workflow",
+        "run",
+        "release.yml",
+        "--ref",
+        "master",
+        "-f",
+        "mode=candidate",
+        ...(prs.length ? ["-f", `fix_pr=${prs.join(",")}`] : []),
+    ];
+}
+
+async function dispatchFixForward(merges, dryRun) {
+    const cfg = config(process.env);
+    const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
+    const due = fixForwardMerges(merges, r.ok ? r.data : null);
+    if (!due) return;
+    console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
+    if (!dryRun) run("gh", fixForwardDispatch(due.prs));
+}
+
+// the last green master build HEAD descends from, or null
+function lastGreenBase(head) {
     try {
         const green = JSON.parse(
             run("gh", [
@@ -278,7 +308,7 @@ async function main() {
                 "headSha",
             ]),
         ).map((r) => r.headSha);
-        base = lastGreenBuild(head, green, (sha) => {
+        return lastGreenBuild(head, green, (sha) => {
             try {
                 run("git", ["merge-base", "--is-ancestor", sha, head]);
                 return true;
@@ -289,6 +319,37 @@ async function main() {
     } catch (error) {
         console.log(`::warning::finding the last green master build failed: ${String(error.message).split("\n")[0]}`);
     }
+    return null;
+}
+
+// each master commit's pull request description (one call each), and each commit on its own for the fix forward
+function readMerges(commits) {
+    let bodies = "";
+    const merges = []; // each master commit on its own, for the fix forward
+    for (const sha of commits) {
+        let body = "";
+        try {
+            const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
+            body = run("gh", ["api", path, "--jq", ".[].body // empty"]);
+        } catch (error) {
+            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+        }
+        bodies += body + "\n";
+        const own =
+            run("git", ["rev-list", "--parents", "-1", sha]).split(" ").length > 2 ? [`${sha}^1..${sha}`] : ["-1", sha];
+        merges.push({
+            subject: run("git", ["log", "-1", "--format=%s", sha]),
+            messages: `${run("git", ["log", "--format=%B", ...own])}\n${body}`,
+        });
+    }
+    return { bodies, merges };
+}
+
+async function main() {
+    const dryRun = process.argv.includes("--dry-run");
+    const now = Date.now();
+    const head = run("git", ["rev-parse", "HEAD"]);
+    const base = lastGreenBase(head);
     // Every merge since the last green build; without one, a merge commit brings in HEAD^1..HEAD and a plain commit
     // is only itself.
     let range = ["-1", "HEAD"];
@@ -309,15 +370,7 @@ async function main() {
     // GitHub closes an issue from the pull request's description too, which the merge commit does not carry.
     // ponytail: one call per master commit since the base, capped; a longer run of cancelled builds reads the newest 20
     const commits = base ? run("git", ["rev-list", "--first-parent", "-20", `${base}..HEAD`]).split("\n") : [head];
-    let bodies = "";
-    for (const sha of commits) {
-        try {
-            const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
-            bodies += run("gh", ["api", path, "--jq", ".[].body // empty"]) + "\n";
-        } catch (error) {
-            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
-        }
-    }
+    const { bodies, merges } = readMerges(commits);
     // this merge alone: a merge commit brings in HEAD^1..HEAD and its pull request's head is HEAD^2
     let ownRange = ["-1", "HEAD"];
     let approval = head;
@@ -336,7 +389,7 @@ async function main() {
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below
     try {
-        await dispatchFixForward(run("git", ["log", "-1", "--format=%s", "HEAD"]), messages, dryRun);
+        await dispatchFixForward(merges, dryRun);
     } catch (error) {
         console.log(`::warning::the fix-forward check failed: ${String(error.message).split("\n")[0]}`);
     }

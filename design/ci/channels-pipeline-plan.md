@@ -622,15 +622,19 @@ slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the 
 
 **candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
 (the fix commit, the newer-master and partial-fix refusals, a conflict), release.yml's
-`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` with T4 and
-the affected lanes on H, the `recapture` job shooting the affected Storybooks whole and carrying
-the rest over (ci.yml's visual job and gate untouched; ci.yml gets no new input), the run's own
-build and `site-<H>` (`deploy-pages.yml` called), `release-due` on a merge that references the hold
-issue. Fix authors use `worktree-new.sh` from `origin/channel/candidate` and `pr-open.sh`
-unchanged. Needs: `candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a
-scratch fix from C merges into master and `channel/candidate`, the run on H re-tests the selected
-shards, T4 and the affected projects' stories and promotes; a fix made from newer master is
-refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` (input
+`fix_pr`, from `release-due` on a merge that references the hold issue), the run's own build and
+`site-<H>` (`deploy-pages.yml` called). First version (owner, 2026-10-26): the run on H re-tests
+H whole, every lane and the whole screenshot capture, about 1 to 1.5 hours per fix, so fix forward
+works now instead of after #3592 and #3472. The narrower re-test (the affected shards and lanes,
+the `recapture` job shooting the affected Storybooks whole and carrying the rest over) is built
+behind the repository variable `CANDIDATE_RETEST=affected`, off until those land; switching it on
+changes nothing for a fix author. Fix authors use `worktree-new.sh` from
+`origin/channel/candidate` and `pr-open.sh` unchanged. Needs: `candidate-hold`. Done: a scratch
+fix from C merges into master and `channel/candidate`, the run on H re-tests it whole and
+promotes (or waits for the owner's screenshot approval and then promotes); a fix made from newer
+master is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+Follow-up, after #3592 and #3472: set `CANDIDATE_RETEST=affected` and check one fix forward's run.
 
 **candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
 recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.

@@ -234,7 +234,14 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   made again from the head), when a non-merge commit of the pull request is not in F (a fix commit
   made after the master merge), and on a conflict. Every run does this, so the `mode: candidate`
   run `release-due` dispatches on such a merge loses nothing when another dispatch replaces it
-  while pending. The pick then tests H first (it is unjudged) and plans the re-test from C..H
+  while pending. `release-due` names the fix's pull request in that run (input `fix_pr`), so a fix
+  whose description alone references the hold issue is taken too. The pick then tests H first (it
+  is unjudged). **First version (owner, 2026-10-26): H is re-tested whole**, a full run's every
+  lane and whole screenshot capture, judged by the same verdict: one full run per fix, about 1 to
+  1.5 hours, so fix forward works now rather than after the story-test parity work (#3472) and
+  #3592, which the narrower re-test's carried-over captures lean on. The narrower re-test below is
+  built and switched on by the repository variable `CANDIDATE_RETEST=affected`; a fix author does
+  the same either way. With it on, the pick plans the re-test from C..H
   (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
   as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
   graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile

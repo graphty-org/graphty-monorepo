@@ -140,7 +140,7 @@ describe("candidate-fix.mjs advance, on real repositories, a stand-in store and 
         return { dir, origin, git, run, c, one, two, bad, root };
     }
 
-    async function advance({ dir, root }, hold, said = "") {
+    async function advance({ dir, root }, hold, said = "", extra = {}) {
         const posts = [];
         const server = createServer((req, res) => {
             let body = "";
@@ -175,6 +175,7 @@ describe("candidate-fix.mjs advance, on real repositories, a stand-in store and 
                     RESULTS_URL: `http://127.0.0.1:${server.address().port}`,
                     GRAPHTY_RESULTS_TOKEN: "t",
                     GITHUB_OUTPUT: out,
+                    ...extra,
                 },
             });
             child.on("exit", resolve);
@@ -211,6 +212,26 @@ describe("candidate-fix.mjs advance, on real repositories, a stand-in store and 
         const again = await advance(r, { base: r.c, head: first.out.head, issue: 900 }, REFUSED(r.bad));
         assert.deepEqual([again.code, again.out.moved, again.out.head], [0, "false", first.out.head]);
         assert.deepEqual([again.posts, again.gh], [[], ""]);
+    });
+
+    it("takes the merge of fix_pr as a fix when only its description references the hold issue", async () => {
+        const r = repos();
+        r.git("switch", "-q", "-c", "feat/960-described", r.c);
+        writeFileSync(join(r.dir, "described.txt"), "described\n");
+        r.git("add", "described.txt");
+        r.git("commit", "-q", "-m", "fix(x): described in the pull request only");
+        const f = r.git("rev-parse", "HEAD");
+        r.git("switch", "-q", "master");
+        r.git("merge", "-q", "--no-ff", "-m", "Merge pull request #15 from graphty-org/feat/960-described", f);
+        r.git("push", "-q", "origin", "master");
+        const inHead = (head) => r.git("rev-list", head, `^${r.c}`).split("\n").includes(f);
+        const without = await advance(r, { base: r.c, head: r.c, issue: 900 });
+        assert.equal(inHead(without.out.head), false);
+        r.git("switch", "-q", "master"); // advance leaves the checkout on the head; the job's checkout is master
+        const named = await advance(r, { base: r.c, head: without.out.head, issue: 900 }, REFUSED(r.bad), {
+            FIX_PR: "14,15",
+        });
+        assert.deepEqual([named.code, named.out.moved, inHead(named.out.head)], [0, "true", true]);
     });
 
     it("with nothing held, merges nothing", async () => {

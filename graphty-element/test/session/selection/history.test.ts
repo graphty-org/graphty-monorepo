@@ -8,6 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../../session";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
 import type { SelectionDelta } from "../../../src/session/selection";
@@ -40,6 +41,17 @@ function selectionChanges(session: GraphSession): SelectionDelta[] {
     });
     return seen;
 }
+
+/**
+ * A file, as a dropped file arrives.
+ * @param text - its text
+ * @param name - its name
+ * @returns the source
+ */
+const csv = (text: string, name: string): { config: { file: File }; name: string } => ({
+    config: { file: new File([text], name) },
+    name,
+});
 
 describe("selection after undo and redo", () => {
     it("undoing a removal selects the restored nodes and their edges", async () => {
@@ -114,6 +126,43 @@ describe("selection after undo and redo", () => {
 
         assert.lengthOf(changes, 0);
         assert.strictEqual(session.selection.size, 0);
+    });
+
+    it("undoing or redoing a type change, a join or a replace leaves the selection unchanged", async () => {
+        const session = createGraphSession();
+        await (await session.data.prepare(csv("id,amount\nv0,1\nv1,2\nv2,3\nv3,N/A", "nodes.csv"))).load();
+        await (
+            await session.data.prepare(csv("from,to,w\nv0,v1,1\nv1,v2,2\nv2,v3,3", "edges.csv"))
+        ).load({
+            mode: "merge",
+        });
+
+        await session.data.setType({ kind: "node", name: "amount" }, "number");
+        const join = await session.data.prepare(csv("id,tier\nv0,a\nv1,b\nv2,c", "tiers.csv"), { onto: "graph" });
+        await join.load({ join: { keys: join.suggestJoin().keys } });
+        const edges = session.data.sources().find((each) => each.name === "edges.csv");
+        assert.isDefined(edges);
+        await session.data.replaceSource(edges.key, csv("from,to,w\nv0,v1,9\nv2,v3,3\nv3,v0,4", "edges-2.csv"));
+        const added = session.data.edges().find((each) => each.source === "v3" && each.target === "v0");
+        assert.isDefined(added);
+        await session.selection.apply({ nodes: ["v3"], edges: [added.id] });
+        const changes = selectionChanges(session);
+
+        await session.undo(); // the replace: the selected edge goes with the newer copy
+        assert.deepEqual([...session.selection.nodes], ["v3"]);
+        assert.lengthOf(session.selection.edges, 0, "an edge that no longer exists is not selected");
+        await session.undo(); // the join
+        await session.undo(); // the type change
+        await session.redo();
+        await session.redo();
+        await session.redo();
+
+        assert.deepEqual([...session.selection.nodes], ["v3"]);
+        assert.isTrue(
+            changes.every((delta) => delta.cause !== "history"),
+            "no undo or redo of a dataset-wide step selects what it changed",
+        );
+        session.dispose();
     });
 
     it("selection never changes the digest", async () => {

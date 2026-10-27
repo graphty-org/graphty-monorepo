@@ -1,0 +1,232 @@
+{
+    "workflow_runs": [
+        {
+            "id": 40555956340,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "8b8e1928fc7c9b6c95b59e4f88098d97f754688b",
+            "event": "workflow_dispatch",
+            "status": "in_progress",
+            "conclusion": null,
+            "run_attempt": 2,
+            "created_at": "2026-10-27T18:00:52Z",
+            "run_started_at": "2026-10-27T20:39:38Z",
+            "updated_at": "2026-10-27T20:47:31Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZmBooMA",
+            "triggering_actor": {
+                "login": "github-actions[bot]"
+            }
+        },
+        {
+            "id": 40510717919,
+            "name": "Release (restart)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "ca74f788e56445704f36de2d11304527600f04c5",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:17:21Z",
+            "run_started_at": "2026-10-27T13:17:21Z",
+            "updated_at": "2026-10-27T18:00:55Z",
+            "display_title": "Release (restart)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkHuZUg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40509683220,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "312b51c537209d86eeeb9bb447d8b33c39e8ec29",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:10:11Z",
+            "run_started_at": "2026-10-27T13:10:11Z",
+            "updated_at": "2026-10-27T13:17:24Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkE9l8Q",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40508956687,
+            "name": "Release (abandon)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "818ff7f7c942b78da471bb966ad702d3b65314bc",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:05:04Z",
+            "run_started_at": "2026-10-27T13:05:04Z",
+            "updated_at": "2026-10-27T19:46:25Z",
+            "display_title": "Release (abandon)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkC-lHQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40507160819,
+            "name": "Release (candidate)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "7f1ed32ebe5f154739fa1f887b9e4006b0a94b62",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T12:51:59Z",
+            "run_started_at": "2026-10-27T12:51:59Z",
+            "updated_at": "2026-10-27T13:05:09Z",
+            "display_title": "Release (candidate)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZj-Igmw",
+            "triggering_actor": {
+                "login": "github-actions[bot]"
+            }
+        },
+        {
+            "id": 40500440346,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T12:00:47Z",
+            "run_started_at": "2026-10-27T12:00:47Z",
+            "updated_at": "2026-10-27T12:52:02Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZjsHoIw",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            }
+        },
+        {
+            "id": 40483915699,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 2,
+            "created_at": "2026-10-27T09:50:59Z",
+            "run_started_at": "2026-10-27T11:48:17Z",
+            "updated_at": "2026-10-27T13:07:23Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZjA1xaw",
+            "triggering_actor": {
+                "login": "github-actions[bot]"
+            }
+        },
+        {
+            "id": 40476709992,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "2490aa3b4add9775f78f1d6631e243dad3689a81",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 2,
+            "created_at": "2026-10-27T08:53:38Z",
+            "run_started_at": "2026-10-27T09:50:10Z",
+            "updated_at": "2026-10-27T10:55:21Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZiuOutw",
+            "triggering_actor": {
+                "login": "github-actions[bot]"
+            }
+        },
+        {
+            "id": 40458556009,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "e2145e4a4d9cf5f605d650705a643fd0c7364f27",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T06:00:36Z",
+            "run_started_at": "2026-10-27T06:00:36Z",
+            "updated_at": "2026-10-27T08:03:30Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZh_1hAA",
+            "triggering_actor": {
+                "login": "graphty-release-scheduler[bot]"
+            }
+        },
+        {
+            "id": 40457379258,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "c2dd46f73b6fe6ec6fe15ffbd0c0d8ce46911ec8",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 2,
+            "created_at": "2026-10-27T05:48:11Z",
+            "run_started_at": "2026-10-27T06:41:03Z",
+            "updated_at": "2026-10-27T08:51:25Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZh83pHw",
+            "triggering_actor": {
+                "login": "github-actions[bot]"
+            }
+        },
+        {
+            "id": 40448487922,
+            "name": "Release (restart)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "4fb819fd4b2ae37640bb9328e6d43605152a6633",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T04:12:51Z",
+            "run_started_at": "2026-10-27T04:12:51Z",
+            "updated_at": "2026-10-27T05:36:37Z",
+            "display_title": "Release (restart)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZhmeatg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40445512679,
+            "name": "Release (full)",
+            "path": ".github/workflows/release.yml",
+            "head_branch": "master",
+            "head_sha": "0c72abc0edc70bae3336325c4ee8f8a1ecd7e596",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T03:40:51Z",
+            "run_started_at": "2026-10-27T03:40:51Z",
+            "updated_at": "2026-10-27T04:44:00Z",
+            "display_title": "Release (full)",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZhe8Enw",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        }
+    ]
+}

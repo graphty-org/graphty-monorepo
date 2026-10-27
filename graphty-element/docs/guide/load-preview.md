@@ -287,6 +287,47 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
 reader refused is not one, and is in `errors` instead.
 
+## Joining onto the graph
+
+A second file often describes the graph already loaded: an expression table with one row per
+gene, or a shipments table whose rows are edges between suppliers the graph holds. Prepare it
+with `{ onto: "graph" }` and the draft can join it instead of loading it on its own.
+
+```ts
+const draft = await session.data.prepare({ config: { file } }, { onto: "graph" });
+const { shape, keys, confident } = draft.suggestJoin();
+// shape "node-values", keys [{ file: "symbol", graph: "id" }]
+const report = draft.joinReport({ keys });
+// { matched: 52, notInGraph: 10, withoutValue: 8, repeatedKeys: 1, extraIgnoringCase: 6, ... }
+await draft.load({ join: { keys, ignoreCase: true } });
+```
+
+`suggestJoin()` reads what the rows are -- values for nodes (`"node-values"`), values for edges
+(`"edge-values"`) or edges between nodes (`"edges"`, two keys: source then target) -- and which
+column matches which graph value (`"id"` or `"data.<column>"`). `confident` is false when most
+key values match nothing; ask the reader then.
+
+`joinReport(choices)` counts without changing anything, so a picker can show the counts as the
+reader changes the key or the options:
+
+| Choice         | What it does                                                                          |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `ignoreCase`   | `tp53` matches `TP53`. `extraIgnoringCase` says how many more would match             |
+| `ignoreSpaces` | `"TP53 "` matches `TP53`. `extraIgnoringSpaces` says how many more would match        |
+| `columns`      | The columns to bring; every column but the keys by default                            |
+| `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
+| `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
+| `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
+
+`load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
+`kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The
+join is saved with the project; `data.editJoin(key, choices)` takes it back and joins the table
+again, with new choices or, after the graph changed, with its own (`join.choices`).
+
+A plain merge can update the nodes it names too: `import(source, { mode: "merge", existing:
+"update" })` writes the incoming values onto nodes the graph already holds, where the default,
+`"keep"`, leaves them as they are.
+
 ## Errors
 
 Every failure is a `GraphtyError` with a `code` and a `details` object. `isGraphtyError` narrows a

@@ -50,10 +50,18 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A push to master never cancels (each master commit is deployed from its own run). The release train's
-# call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
+# Master push runs share one group but never cancel a running build (design/ci/channels-pipeline.md section
+# 7.1, #3938): a running master build always finishes, and a newer push replaces only the waiting one, so
+# master always finishes building its newest commit however often merges land. Cancelling the running build
+# starved master of any finished build while merges came faster than one build (2026-10-26). A replaced
+# waiting build only means the newest one is built instead. tools/master-guard.mjs reads such a run as
+# superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
+# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
+# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
@@ -82,12 +90,14 @@ concurrency:
 # `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
 # summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
-# (its "Clear this check's early verdicts" step). The visual job asks for its own.
+# (its "Clear this check's early verdicts" step).
 permissions:
     contents: read
     checks: write
 
 env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
@@ -116,6 +126,18 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools/ci-run-cap.mjs
                   sparse-checkout-cone-mode: false
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              if: github.event_name == 'pull_request'
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Wait for a turn
               if: github.event_name == 'pull_request'
               env:
@@ -163,6 +185,7 @@ jobs:
             stories-count: ${{ steps.bins.outputs.stories-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            visual-on: ${{ steps.plan.outputs.visual-on }}
             docs: ${{ steps.optional.outputs.docs }}
             cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
@@ -173,6 +196,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
             # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
@@ -226,7 +260,7 @@ jobs:
             - name: Restore the selector's import graphs
               if: steps.graphs-key.outputs.key != ''
               continue-on-error: true
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -505,7 +539,7 @@ jobs:
             - name: Upload the results plan
               if: steps.bins.outcome == 'success'
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: results-plan
                   path: ${{ runner.temp }}/results-plan/
@@ -581,6 +615,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -628,6 +663,13 @@ jobs:
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-map build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-babylonjs-map
+                  path: babylonjs-map/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -691,9 +733,8 @@ jobs:
                   job: packages
                   advisory: ${{ steps.advisory.outputs.checks }}
 
-    # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the visual job
-    # screenshots them). This job keeps the id "build": the visual job (whose steps follow
-    # visual-review's template, and which this workflow leaves alone) needs build and reads its outputs,
+    # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the Stories job
+    # screenshots their stories). This job keeps the id "build": jobs that need the Storybooks read its outputs,
     # so the job that uploads the Storybooks is the one called build, and it hands on the packages job's
     # plan unchanged.
     build:
@@ -714,11 +755,23 @@ jobs:
             test-count: ${{ needs.packages.outputs.test-count }}
             advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
             visual-skip: ${{ needs.packages.outputs.visual-skip }}
+            visual-on: ${{ needs.packages.outputs.visual-on }}
         steps:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
               if: needs.packages.outputs.artifacts-run == ''
@@ -744,12 +797,12 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
+            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
@@ -757,7 +810,7 @@ jobs:
 
             # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
-            # four 49 s together), and every Stories and visual job waits for this job. Each build reads only
+            # four 49 s together), and every Stories job waits for this job. Each build reads only
             # the package builds downloaded above, so none waits on another.
             - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
@@ -766,7 +819,7 @@ jobs:
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
-            # Storybooks, built from the same tree, instead of building them again; the visual job
+            # Storybooks, built from the same tree, instead of building them again; the Stories job
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
               if: needs.packages.outputs.artifacts-run != ''
@@ -857,6 +910,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -937,6 +1001,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -1120,6 +1195,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1202,6 +1288,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v4
 
             - name: Setup Node.js
@@ -1223,7 +1320,7 @@ jobs:
             # superseded ones of earlier commits, so the entry does not grow.
             - name: Look up the import graphs
               id: graphs
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1232,7 +1329,7 @@ jobs:
             # The graphs resolve the other packages through their dist folders.
             - name: Download all package builds
               if: steps.graphs.outputs.cache-hit != 'true'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1244,7 +1341,7 @@ jobs:
 
             - name: Save the import graphs
               if: steps.graphs.outputs.cache-hit != 'true'
-              uses: actions/cache/save@v4
+              uses: actions/cache/save@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1270,6 +1367,9 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
+            # A full run with the features-on shards is over 40 jobs; they come last in the matrix
+            # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
+            max-parallel: 40
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
@@ -1280,6 +1380,17 @@ jobs:
                   # the job may write issues; the token is not left in .git/config for a pull request's code
                   # (the repository is public, so the Git LFS pull below needs no credential)
                   persist-credentials: false
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -1315,10 +1426,10 @@ jobs:
 
             # The style fidelity scorecard (graphty-element/test/browser/oracle-scorecard.test.ts) compares graphty's
             # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
-            # names (about 3 MB), cached like the visual job's baselines.
+            # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
@@ -1330,7 +1441,7 @@ jobs:
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -1402,12 +1513,13 @@ jobs:
 
             # The shard's recent test durations, which the slow-test report compares each test with (its
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
+            # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: test-durations
-                  key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
-                  restore-keys: test-durations-${{ matrix.shard }}-
+                  key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: test-durations-${{ matrix.shard }}--
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
@@ -1433,7 +1545,7 @@ jobs:
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
-                  # the base checks its [FLAKY-UNRELATED] and [KNOWN?] tests need; the base-checks job dispatches them
+                  # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
@@ -1447,6 +1559,7 @@ jobs:
                   path: ${{ runner.temp }}/base-checks/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
             # failing test files and run only those on this machine. continue-on-error: a report that did
@@ -1460,6 +1573,7 @@ jobs:
                   path: test-results/junit-*.xml
                   retention-days: 7
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
@@ -1470,6 +1584,7 @@ jobs:
                   include-hidden-files: true
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && startsWith(matrix.shard, 'graphty-element') }}
@@ -1479,6 +1594,7 @@ jobs:
                   path: graphty-element/coverage/lcov.info
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # A shard group (tools/ci-test-matrix.mjs, GROUPS) uploads one artifact holding a
             # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
@@ -1503,6 +1619,7 @@ jobs:
                   path: ${{ runner.temp }}/coverage/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
@@ -1555,6 +1672,17 @@ jobs:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1663,6 +1791,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1700,7 +1839,7 @@ jobs:
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
               if: ${{ !cancelled() }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -1751,6 +1890,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1799,7 +1949,7 @@ jobs:
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
     # packed into bins of about 4 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
-    # each captured with the old visual-review capture exactly as the visual job captures, but only those stories
+    # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
     # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
@@ -1829,8 +1979,19 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Restore this project's baseline images
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -1839,12 +2000,15 @@ jobs:
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
-            # As the visual job: a pull request runs the base branch's capture code, never its own.
+            # A pull request runs the base branch's capture code, never its own; a candidate or an
+            # older commit (the full run's call) runs the workflow's, which the step above fetched.
             - name: Use the base branch's capture code
-              if: github.event_name == 'pull_request'
               run: |
+                  if [ "$GITHUB_EVENT_NAME" = pull_request ]; then src=HEAD^1
+                  elif [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then src=$GITHUB_SHA
+                  else exit 0; fi
                   rm -rf visual-review/capture visual-review/trusted
-                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
+                  git archive "$src" visual-review/capture visual-review/trusted | tar -x
 
             - uses: pnpm/action-setup@v4
 
@@ -1864,7 +2028,7 @@ jobs:
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -1881,13 +2045,14 @@ jobs:
               run: pnpm exec playwright install chromium
 
             - name: Download Storybook build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.storybook }}/
 
             # The bin's story files as story ids, from the built Storybook's index (an entry's importPath is
-            # relative to its Storybook's directory), plus the ids whose baseline image the change touched.
+            # relative to its Storybook's directory), plus the ids whose baseline image the change touched. A file
+            # longer than a bin comes as "<file>#<k>/<n>": the k-th of every n of its stories in the index's order.
             - name: Pick the selected stories
               id: pick
               env:
@@ -1896,9 +2061,12 @@ jobs:
                   STORYBOOK: ${{ matrix.storybook }}
               run: |
                   ids=$(jq -r --argjson files "$FILES" --argjson ids "$IDS" '
-                      [.entries[] | select(.type == "story")
-                          | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | any($files[]; . == $p or endswith("/" + $p)))
-                          | .id] + $ids | unique | join(",")' "$STORYBOOK/index.json")
+                      . as $index | [$files[] | capture("^(?<f>[^#]+)(#(?<k>[0-9]+)/(?<n>[0-9]+))?$") as $s
+                          | [$index.entries[] | select(.type == "story")
+                              | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | $s.f == $p or ($s.f | endswith("/" + $p)))
+                              | .id]
+                          | to_entries[] | select($s.k == null or .key % ($s.n | tonumber) == ($s.k | tonumber) - 1)
+                          | .value] + $ids | unique | join(",")' "$STORYBOOK/index.json")
                   echo "stories=$ids" >> "$GITHUB_OUTPUT"
                   echo "selected stories: ${ids:-none}"
 
@@ -1920,7 +2088,7 @@ jobs:
 
             - name: Upload captures
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: stories-${{ matrix.name }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/visual/
@@ -1985,33 +2153,19 @@ jobs:
                   job: stories
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
-    # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
-    # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
-    # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
-    # job of the package's workflow template (visual-review/templates/visual-review.yml) with two
-    # differences: the matrix is written out here, and the Storybook is downloaded from this run's
-    # build job instead of built again. A test (visual-review/test/workflows.test.mjs) keeps the
-    # commands the same as the template's. The owner reviews
-    # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
-    # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
-    # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
-    # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
-    # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
-    # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
-    # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
-    # 4-worker development machine; CI runners are slower and not yet measured.
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
-    # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
-    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
-    # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
+    # the review page and the gate read. Every project has switched (two full runs with zero parity differences
+    # against the old built-Storybook capture, CI 40515529497 and 40524757006), so this is the capture: it is
+    # uploaded as visual-<project>-<attempt>, the artifact `visual-review serve`, the gate (visual-report) and
+    # release.yml read. Report-only, outside All Checks Pass.
     # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
     # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
     # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
     # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
     # promotion.blocked; it stays unset (report only) until the project switches.
     story-tests:
-        name: Story tests (${{ matrix.project }})
+        name: Story tests (${{ matrix.name || matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
@@ -2047,20 +2201,67 @@ jobs:
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
+                    # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
+                    # so a graphty-element change runs them too (the capture plan's rule for this project).
+                    # Four legs (vitest --shard=N/4): its 575 stories are real rendering work, about 4.5 s each
+                    # one after another (fileParallelism: false), about 44 minutes in one job against the 45-minute
+                    # limit; the old capture is CPU bound too (27 minutes with 4 browsers). A quarter is about 11
+                    # minutes of tests. Each leg uploads its partial capture; story-tests-merge combines them into
+                    # visual-graph-io-fidelity-<attempt>.
                     - project: graph-io-fidelity
+                      name: graph-io-fidelity-1
+                      part: 1
+                      parts: 4
                       shard: graph-io-browser
-                      # The fidelity stories draw with graphty-element's source, which graph-io does not depend on,
-                      # so a graphty-element change runs them too (the capture plan's rule for this project).
                       also: graphty-element-storybook-1
-                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=1/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-2
+                      part: 2
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=2/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-3
+                      part: 3
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=3/4
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
+                    - project: graph-io-fidelity
+                      name: graph-io-fidelity-4
+                      part: 4
+                      parts: 4
+                      shard: graph-io-browser
+                      also: graphty-element-storybook-1
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --shard=4/4
                       lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
-            # every step below but the summary is.
+            # every step below but the summary is. It uploads the not-affected marker in place of a capture
+            # (once per project: a split project's first leg), so the gate can tell a project left out on
+            # purpose from one whose capture failed.
             - name: Skip a project this run does not test
               id: skip
               if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
-              run: echo "skip=true" >> "$GITHUB_OUTPUT"
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/not-affected"
+                  printf '{"skipped":"not affected","project":"%s"}\n' "$PROJECT" > "$RUNNER_TEMP/not-affected/skipped.json"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+
+            - name: Upload the not-affected marker
+              if: ${{ steps.skip.outputs.skip == 'true' && (!matrix.parts || matrix.part == 1) }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/not-affected/
+                  retention-days: 30
 
             - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
@@ -2070,9 +2271,32 @@ jobs:
                   # the token is not left in .git/config for a pull request's code
                   persist-credentials: false
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              if: steps.skip.outputs.skip != 'true'
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # A pull request's screenshots are taken and written by the base branch's capture code, never its
+            # own, so a pull request cannot change how its pictures are taken or judged (CLAUDE.md, Visual
+            # review). HEAD^1 is the merge commit's first parent, the base branch (fetch-depth 0 above).
+            - name: Use the base branch's capture code
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              env:
+                  CAPTURE_CODE: visual-review/capture visual-review/trusted
+              run: |
+                  rm -rf $CAPTURE_CODE
+                  git archive HEAD^1 $CAPTURE_CODE | tar -x
+
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -2102,21 +2326,21 @@ jobs:
               if: steps.skip.outputs.skip != 'true'
               id: download-packages
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Download all package builds (retry)
               if: ${{ steps.skip.outputs.skip != 'true' && (steps.download-packages.outcome == 'failure') }}
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Cache Playwright browsers
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -2153,7 +2377,9 @@ jobs:
                   COMMAND: ${{ matrix.command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-${{ matrix.part || 1 }}
+                  # one results record per leg of a project split in parts (run-group.mjs baseId())
+                  RESULTS_PART: ${{ matrix.part }}
                   # the quarantine list this run judges by, which the combine step must judge by too
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   RESULTS_QUARANTINE_OUT: ${{ runner.temp }}/stories/quarantine.json
@@ -2166,20 +2392,30 @@ jobs:
               continue-on-error: true
               uses: actions/upload-artifact@v7
               with:
-                  name: base-checks-stories-${{ matrix.project }}
+                  name: base-checks-stories-${{ matrix.name || matrix.project }}
                   path: ${{ runner.temp }}/base-checks/
                   retention-days: 1
                   if-no-files-found: ignore
 
+            # A project split in parts uploads its partial here and story-tests-merge combines the parts.
+            - name: Upload this part's partial capture
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && matrix.parts }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: story-parts-${{ matrix.name }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/stories/
+                  retention-days: 1
+                  if-no-files-found: ignore
+
             - name: Combine the capture
-              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
-              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
-              uses: actions/upload-artifact@v4
+              if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
+              uses: actions/upload-artifact@v7
               with:
-                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/stories/merged/
                   retention-days: 30
                   if-no-files-found: ignore
@@ -2187,265 +2423,114 @@ jobs:
             - name: Write the counts to the job summary
               if: always()
               env:
-                  PROJECT: ${{ matrix.project }}
+                  PROJECT: ${{ matrix.name || matrix.project }}
+                  PART: ${{ matrix.part }}
               run: |
                   f="$RUNNER_TEMP/stories/merged/results.json"
+                  [[ -z "$PART" ]] || f="$RUNNER_TEMP/stories/part-$PART/results.json"
                   {
                       echo "### Story tests ($PROJECT)"
                       if [[ -f "$f" ]]; then
-                          jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
+                          jq -r '"complete: \(.complete // "one part"), \(.items | length) of \(.expected // "?") items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
                       else
                           echo "No capture: the story tests did not start."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
-    # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
-    # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
-    story-tests-parity:
-        name: Story tests parity (${{ matrix.project }})
-        needs: [story-tests, visual]
-        if: ${{ !cancelled() }}
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
+    # project's single leg would have uploaded (visual-<project>-<attempt>):
+    # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
+    story-tests-merge:
+        name: Story tests merge (${{ matrix.project }})
+        needs: story-tests
+        if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 10
         strategy:
             fail-fast: false
             matrix:
-                project:
-                    [
-                        graphty,
-                        graphty-element,
-                        algorithms,
-                        layout,
-                        compact-mantine,
-                        cytoscape-extensions,
-                        graph-io-fidelity,
-                    ]
+                project: [graph-io-fidelity]
         steps:
-            - uses: actions/checkout@v7
-              with:
-                  ref: ${{ inputs.ref }}
-                  sparse-checkout: visual-review
-
-            # parity decodes PNGs with pngjs (visual-review's only runtime dependency it needs); the
-            # sparse checkout has no lockfile, so install that one package, at visual-review's version.
-            - name: Install pngjs
-              run: |
-                  version=$(node -p 'require("./visual-review/package.json").dependencies.pngjs')
-                  npm install --prefix "$RUNNER_TEMP/deps" --no-save --no-package-lock "pngjs@$version"
-                  mkdir -p visual-review/node_modules
-                  ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
-
-            - name: Download the old capture
+            - name: Download the parts
+              id: parts
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
-                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: captures/old
+                  pattern: story-parts-${{ matrix.project }}-*
+                  path: ${{ runner.temp }}/parts
 
-            - name: Download the story tests' capture
-              continue-on-error: true
-              uses: actions/download-artifact@v4
-              with:
-                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: captures/new
-
-            - name: Compare
-              env:
-                  PROJECT: ${{ matrix.project }}
+            # download-artifact@v8 extracts a single matching artifact straight into path, with no <artifact>/ folder
+            # (#4015): nest it, so one part is found like several. Every attempt's parts are downloaded (a re-run of
+            # failed jobs re-runs this job and the failed parts, not the parts that passed): keep each part's newest.
+            - name: Find the parts
+              id: found
               run: |
-                  set -o pipefail
-                  if [[ ! -f captures/old/results.json || ! -f captures/new/results.json ]]; then
-                      echo "Not compared: one of the two captures is missing (the project was not affected, or a job failed)." | tee "$RUNNER_TEMP/parity.txt"
-                      exit 0
+                  if ls -d "$RUNNER_TEMP"/parts/part-*/ >/dev/null 2>&1; then
+                      mkdir "$RUNNER_TEMP/one" && mv "$RUNNER_TEMP/parts" "$RUNNER_TEMP/one/only" && mv "$RUNNER_TEMP/one" "$RUNNER_TEMP/parts"
                   fi
-                  node visual-review/trusted/cli.mjs parity --project "$PROJECT" captures/old captures/new | tee "$RUNNER_TEMP/parity.txt"
+                  cd "$RUNNER_TEMP/parts" 2>/dev/null && ls -d story-parts-*-*/ 2>/dev/null | sed 's#/$##' \
+                      | sort -V | awk '{ part = $0; sub(/-[0-9]+$/, "", part); if (part in seen) print seen[part]; seen[part] = $0 }' \
+                      | xargs -r rm -rf || true
+                  echo "any=$(ls -d "$RUNNER_TEMP"/parts/*/part-*/ 2>/dev/null | head -1)" >> "$GITHUB_OUTPUT"
 
-            - name: Write the comparison to the job summary
-              if: always()
-              env:
-                  PROJECT: ${{ matrix.project }}
-              run: |
-                  {
-                      echo "### Story tests parity ($PROJECT)"
-                      echo '```'
-                      tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
-                      echo '```'
-                  } >> "$GITHUB_STEP_SUMMARY"
-
-    visual:
-        name: visual (${{ matrix.project }})
-        needs: build
-        if: needs.build.outputs.light != 'true'
-        runs-on: ubuntu-24.04
-        permissions:
-            contents: read
-            # To download master's newest capture (the reference step below).
-            actions: read
-        continue-on-error: true
-        timeout-minutes: 45
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - project: compact-mantine
-                      artifact: build-storybook-compact-mantine
-                    - project: graphty-element
-                      artifact: build-storybook-element
-                    - project: layout
-                      artifact: build-storybook-layout
-                    - project: algorithms
-                      artifact: build-storybook-algorithms
-                    - project: graphty
-                      artifact: build-storybook-app
-                    - project: cytoscape-extensions
-                      artifact: build-storybook-cytoscape-extensions
-                    # Its Storybook is not at <project>/storybook-static, so the row names where it is.
-                    - project: graph-io-fidelity
-                      artifact: build-storybook-graph-io-fidelity
-                      storybook: graph-io/fidelity-stories/storybook-static
-        steps:
-            # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
-            # writes the not-affected marker in place of results.json and uploads it as the capture, so the
-            # gate can tell a project left out on purpose from one whose capture failed. Every step below
-            # but the upload and the summary is skipped then.
-            - name: Skip a Storybook this pull request cannot affect
-              id: skip
-              if: contains(fromJSON(needs.build.outputs.visual-skip || '[]'), matrix.project)
-              env:
-                  PROJECT: ${{ matrix.project }}
-              run: |
-                  mkdir -p "$RUNNER_TEMP/visual"
-                  printf '{"skipped":"not affected","project":"%s"}\n' "$PROJECT" > "$RUNNER_TEMP/visual/skipped.json"
-                  echo "skip=true" >> "$GITHUB_OUTPUT"
-
-            # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
-            # LFS objects by default); this job alone fetches them, and only its own project's, plus the
-            # pinned fonts every capture draws with (visual-fonts/, the config's "fontconfig"). The objects
-            # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
-            # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
-            # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
-            # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
-            # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
             - uses: actions/checkout@v7
-              if: steps.skip.outputs.skip != 'true'
+              if: steps.found.outputs.any != ''
               with:
                   ref: ${{ inputs.ref }}
-                  fetch-depth: 2
+                  persist-credentials: false
 
-            - name: Restore this project's baseline images
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
-              with:
-                  path: .git/lfs/objects
-                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
-                  restore-keys: lfs-${{ matrix.project }}-
-
-            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
-              if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
-
-            # A pull request runs the base branch's copy of the tool (capture and the trusted code it
-            # imports), never its own: code that wrote "unchanged" for everything would otherwise pass
-            # the gate. A change to capture is first exercised here by the pull request after it.
-            - name: Use the base branch's capture code
-              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
-              run: |
-                  rm -rf visual-review/capture visual-review/trusted
-                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
+            - name: Fetch this project's baseline images from Git LFS
+              if: steps.found.outputs.any != ''
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
 
             - uses: pnpm/action-setup@v4
-              if: steps.skip.outputs.skip != 'true'
+              if: steps.found.outputs.any != ''
 
             - name: Setup Node.js
-              if: steps.skip.outputs.skip != 'true'
+              if: steps.found.outputs.any != ''
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: steps.skip.outputs.skip != 'true'
+              if: steps.found.outputs.any != ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
-            # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
-            - name: Read the Playwright version
-              if: steps.skip.outputs.skip != 'true'
-              id: playwright
-              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+            # every leg judged by the same quarantine list; their union is the one the merge judges by
+            - name: Combine the capture
+              if: steps.found.outputs.any != ''
+              run: |
+                  jq -s '{ quarantine: (map(.quarantine // []) | add | unique) }' "$RUNNER_TEMP"/parts/*/quarantine.json > "$RUNNER_TEMP/quarantine.json" 2>/dev/null \
+                      || echo '{ "quarantine": [] }' > "$RUNNER_TEMP/quarantine.json"
+                  node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/quarantine.json" --out "$RUNNER_TEMP/merged" "$RUNNER_TEMP"/parts/*/part-*/
 
-            - name: Cache Playwright browsers
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
-              with:
-                  path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-            - uses: ./.github/actions/drop-microsoft-apt-source
-              if: steps.skip.outputs.skip != 'true'
-
-            # `visual-review install-browser` (the template's step) is `playwright install --with-deps
-            # chromium`, apt on each of the five jobs; this installs the same system packages from a cache.
-            - name: Install Playwright system packages
-              if: steps.skip.outputs.skip != 'true'
-              uses: ./.github/actions/playwright-system-deps
-              with:
-                  working-directory: visual-review
-
-            - name: Install Chromium
-              if: steps.skip.outputs.skip != 'true'
-              working-directory: visual-review
-              run: pnpm exec playwright install chromium
-
-            - name: Download Storybook build
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/download-artifact@v4
-              with:
-                  name: ${{ matrix.artifact }}
-                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
-
-            # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
-            # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
-            # Without a reference (none downloaded) every story with no baseline is "new".
-            - name: Download master's newest capture
-              id: reference
-              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
-
-            - name: Capture
-              if: steps.skip.outputs.skip != 'true'
-              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
-
-            # Kept even when capture crashed, so the owner sees the partial results.json.
-            - name: Upload captures
-              if: always()
-              uses: actions/upload-artifact@v4
+            - name: Upload the capture
+              if: ${{ !cancelled() && steps.found.outputs.any != '' }}
+              uses: actions/upload-artifact@v7
               with:
                   name: visual-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: ${{ runner.temp }}/visual/
+                  path: ${{ runner.temp }}/merged/
                   retention-days: 30
+                  if-no-files-found: ignore
 
             - name: Write the counts to the job summary
               if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
               run: |
-                  f="$RUNNER_TEMP/visual/results.json"
+                  f="$RUNNER_TEMP/merged/results.json"
                   {
-                      echo "### Visual review (${{ matrix.project }})"
+                      echo "### Story tests ($PROJECT, merged)"
                       if [[ -f "$f" ]]; then
-                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items, master reference run: \(.reference)",
-                              "", "| status | items |", "|---|---|",
+                          jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
-                      elif [[ -f "$RUNNER_TEMP/visual/skipped.json" ]]; then
-                          echo "Not captured: this pull request cannot affect it."
                       else
-                          echo "No results.json: capture did not start."
+                          echo "No capture: no part of this project ran."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
@@ -2464,7 +2549,7 @@ jobs:
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories]
         if: always()
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 70
         steps:
             - name: Check all jobs passed
               env:
@@ -2542,24 +2627,45 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
+            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
+            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
             - name: Clear this check's early verdicts
               if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
                   CHECK: All Checks Pass
                   SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
+                  # An early verdict is a failure posted through the Checks API: its details link is a run or
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  clear() {
+                      local ids id
+                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      for id in $ids; do
+                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                              -f "output[title]=Superseded by a passing run" \
+                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
+                          echo "cleared early verdict $id"
+                      done
+                  }
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
+                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      wait=60
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
+                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
     # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
@@ -2570,7 +2676,7 @@ jobs:
         needs: [packages, all-checks]
         if: always()
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 70
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
@@ -2589,32 +2695,54 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
+            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
+            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
             - name: Clear this check's early verdicts
               if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
                   CHECK: Queue Checks Pass
                   SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
+                  # An early verdict is a failure posted through the Checks API: its details link is a run or
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  clear() {
+                      local ids id
+                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      for id in $ids; do
+                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                              -f "output[title]=Superseded by a passing run" \
+                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
+                          echo "cleared early verdict $id"
+                      done
+                  }
+                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
+                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  for try in 1 2 3 4; do
+                      if clear; then exit 0; fi
+                      if (( try == 4 )); then break; fi
+                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      wait=60
+                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( wait < 1 )); then wait=1; fi
+                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      sleep "$wait"
                   done
+                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
+                  exit 1
 
     # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
     # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
     # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
+    # It judges the story tests' captures (visual-<project>-<attempt>), so it runs on a pull request that ran them.
     visual-report:
         name: Visual report
-        needs: [packages, visual]
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        needs: [packages, story-tests, story-tests-merge]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         continue-on-error: true
@@ -2654,7 +2782,7 @@ jobs:
             - name: Download visual captures
               if: github.event_name == 'pull_request'
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual
@@ -2710,12 +2838,14 @@ jobs:
         timeout-minutes: 5
         # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
         # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
-        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N.
+        # the merged pull request's description, where tools/pr-open.sh writes Fixes #N; id-token: write to read the held
+        # nightly candidate from the results store when the merge is the owner's screenshot approval.
         permissions:
             contents: read
             actions: write
             issues: write
             pull-requests: read
+            id-token: write
         steps:
             # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
             - uses: actions/checkout@v7
@@ -2725,9 +2855,22 @@ jobs:
                   filter: blob:none
                   sparse-checkout: tools
 
-            - name: Dispatch release.yml when a restart is due
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Dispatch release.yml when a restart or a promotion is due
               env:
                   GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/release-due.mjs
 
     # Actions cache hygiene (#3431): deletes every cache of a closed pull request's ref, and on any other
@@ -2756,6 +2899,17 @@ jobs:
                   # cone mode also checks out the root files, ci-budgets.json among them
                   sparse-checkout: tools
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Delete superseded and closed pull requests' cache keys
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -2769,8 +2923,8 @@ jobs:
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
     # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
     # not need it.
-    # A pull request's [FLAKY-UNRELATED] and [KNOWN?] tests name a base check (tools/results/run-group.mjs prJudge);
-    # this dispatches them, so base-check.yml's master records quarantine a flaky test and file its one issue, or
+    # A pull request's [FLAKY-UNRELATED] and [UNRELATED] tests name a base check (tools/results/run-group.mjs prJudge);
+    # this dispatches each one the results store has not seen for its base, file and variant (#3925), so base-check.yml's master records quarantine a flaky test and file its one issue, or
     # file `Failing on master`, with nobody reading the warnings. The script checks each line against a strict
     # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
     base-checks:
@@ -2783,11 +2937,25 @@ jobs:
         permissions:
             contents: read
             actions: write
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/results
+                  sparse-checkout: |
+                      tools/results
+                      tools/sonar
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Download the base checks
               continue-on-error: true
@@ -2801,12 +2969,15 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  PR: ${{ github.event.pull_request.number }}
               run: node tools/results/dispatch-base-checks.mjs "$RUNNER_TEMP/base-checks"
 
     visual-flaky:
         name: Flaky screenshots
-        needs: visual
-        if: ${{ !cancelled() && needs.visual.result != 'skipped' }}
+        needs: [story-tests, story-tests-merge]
+        if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 10
@@ -2815,6 +2986,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -2833,6 +3015,100 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/visual"
                   node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
 
+    # The On configuration's screenshots (design/ci/channels-pipeline/features.md 7.3): in a full run only, while
+    # graphty-element declares an experiment (visual-on, tools/visual-capture-plan.mjs), graphty-element's stories
+    # captured again with every experiment switched on (VISUAL_REVIEW_STORY_QUERY=features=all, which the
+    # Storybook preview reads) and compared with the same baselines. A job of its own beside the story-tests jobs,
+    # whose capture is the owner's; uploaded as features-on-visual-*, never visual-*, so the gate and the
+    # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
+    features-on-visual:
+        name: visual (graphty-element, features on)
+        needs: build
+        if: contains(fromJSON(needs.build.outputs.visual-on || '[]'), 'graphty-element')
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        continue-on-error: true
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Restore graphty-element's baseline images
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-graphty-element-${{ hashFiles('visual-baselines/graphty-element/**/*.png', 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-graphty-element-
+
+            - name: Fetch graphty-element's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/graphty-element/**,visual-fonts/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
+            - name: Install Chromium
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - name: Capture the On configuration
+              env:
+                  VISUAL_REVIEW_STORY_QUERY: features=all
+              run: pnpm exec visual-review capture --project graphty-element --out "$RUNNER_TEMP/visual-features-on"
+
+            - name: Upload the On captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: features-on-visual-graphty-element-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual-features-on/
+                  retention-days: 30
+
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
     # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own
     # timings job reports the whole run.
@@ -2849,7 +3125,7 @@ jobs:
                 links,
                 performance,
                 cost-accuracy,
-                visual,
+                story-tests-merge,
                 all-checks,
                 queue-checks,
                 visual-flaky,
@@ -2871,6 +3147,17 @@ jobs:
                   sparse-checkout: |
                       tools
                       .github/actions
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: ./.github/actions/timings
               with:

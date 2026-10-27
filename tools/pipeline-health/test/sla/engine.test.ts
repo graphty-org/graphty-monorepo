@@ -150,11 +150,35 @@ describe("data states", () => {
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
     });
 
-    it("a rejected token is NO DATA with its error", async () => {
-        const store = await world([]);
+    it("a rejected token is NO DATA with its error once its last good write is past the age limit", async () => {
+        const store = await world(
+            [],
+            T0,
+            LIVE.filter((s) => s !== "npm"),
+        );
+        await recordSource(store, "npm", T0 - 4 * HOUR, { ok: true }); // npm's limit is 3 h
         await recordSource(store, "npm", T0, { ok: false, error: "token rejected" });
         const m = await member(store, "release.tagged_not_on_npm");
         expect(m).toMatchObject({ state: "NO DATA", reason: { code: "error", params: { error: "token rejected" } } });
+    });
+
+    it("a source error within the age limit keeps the member's value, marked stale since the last good write", async () => {
+        // The 2026-10-27 GitHub 502s: one failed collector cycle grayed every member that reads the collector.
+        const store = await world(hangs(4));
+        await recordSource(store, "collector", T0 + 5 * MIN, { ok: false, error: "GitHub jobs: HTTP 502" });
+        const e = await evaluate(store, T0 + 5 * MIN, only("ci.hangs", "data.sources_age"));
+        expect(e.members.find((m) => m.id === "ci.hangs")).toMatchObject({
+            state: "FAILING",
+            judged: true,
+            value: 4,
+            reason: { code: "stale", params: { source: "collector", since: T0 } },
+        });
+        expect(e.sources.find((s) => s.id === "collector")).toMatchObject({ state: "error", holding: true });
+        expect(e.members.find((m) => m.id === "data.sources_age")).toMatchObject({ state: "OK", value: 0 });
+        // Past the collector's 15-minute limit with no good write, the member grays.
+        await recordSource(store, "collector", T0 + 20 * MIN, { ok: false, error: "GitHub jobs: HTTP 502" });
+        const later = await member(store, "ci.hangs", T0 + 20 * MIN);
+        expect(later).toMatchObject({ state: "NO DATA", reason: { code: "error" } });
     });
 
     it("idle by design is IDLE, out of the rollup, while a broken source is NO DATA", async () => {
@@ -201,6 +225,33 @@ describe("data states", () => {
         expect(await member(store, "master.green_time")).toMatchObject({
             state: "PARTIAL WINDOW",
             reason: { code: "partial", params: { hours: 0.4, of: 1 } },
+        });
+    });
+
+    it("a 7-day window with 2 days of history shows its value, labelled with the days it covers", async () => {
+        const store = await world([obs("flaky.net_change", 2, T0 - DAY), obs("flaky.net_change", 0, T0 - HOUR)]);
+        expect(await member(store, "flaky.net_new")).toMatchObject({
+            state: "OK",
+            value: 0,
+            reason: { code: "partial", params: { days: 2, of: 7 } },
+        });
+    });
+
+    it("a 7-day window the history covers has no coverage label", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "ci-results", T0 - 10 * DAY, { ok: true });
+        await recordSource(store, "ci-results", T0, { ok: true });
+        await putRaw(store, [obs("flaky.net_change", 0, T0 - HOUR)], T0);
+        await recompute(store, T0);
+        const m = await member(store, "flaky.net_new");
+        expect(m).toMatchObject({ state: "OK", value: 0 });
+        expect(m.reason).toBeUndefined();
+    });
+
+    it("a 7-day window with no data at all stays NO DATA", async () => {
+        expect(await member(await world([]), "flaky.net_new")).toMatchObject({
+            state: "NO DATA",
+            reason: { code: "no_value" },
         });
     });
 

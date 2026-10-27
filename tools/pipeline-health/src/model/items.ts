@@ -66,6 +66,8 @@ export interface RunItem extends RawBase {
     cancelClass?: "superseded" | "by-hand" | "red";
     /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
     cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
+    /** A finished attempt-1 ci.yml pull request run: it failed on a test its change touched (pr-caused.ts). */
+    prCaused?: boolean;
     /** The run's kind for its duration budget (`pr`, `pr-wide`), and that budget. */
     runKind?: string;
     budgetMs?: number;
@@ -75,6 +77,12 @@ export interface RunItem extends RawBase {
     startedAt?: number;
     completedAt?: number;
 }
+
+/**
+ * What started a job's run, for runner-minutes per merge (4.3): a pull request run, a master push build, a full run
+ * (release.yml and the workflows it calls), or anything else (bisect, stress, hosts, dependabot, dispatches).
+ */
+export type LoadKind = "pr" | "master" | "full" | "other";
 
 /** A job of a run attempt (the jobs API, filter=latest). */
 export interface JobItem extends RawBase {
@@ -87,6 +95,8 @@ export interface JobItem extends RawBase {
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
     /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
     os?: "linux" | "windows" | "macos";
+    /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
+    load?: LoadKind;
     status: string;
     conclusion?: string;
     /** Ended at its own timeout-minutes, or ran past twice its budget. */
@@ -347,4 +357,6 @@ export interface SourceItem extends Item {
     lastOkAt?: number;
     error?: string;
     errorSince?: number;
+    /** The newest OK write skipped these items (one GitHub request that kept failing); the rest was written. */
+    partial?: string;
 }

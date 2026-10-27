@@ -335,33 +335,35 @@ row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 Times leave out pull requests waiting on the owner (auto-merge off by rule).
 
-| Member             | Measure                                            | Window          | Min n     | Target    | Red    |
-| ------------------ | -------------------------------------------------- | --------------- | --------- | --------- | ------ |
-| Time to merge (H)  | median of merged minus ready, pull requests merged | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
-| Open pull requests | open, not draft                                    | now             | --        | <= 15     | > 25   |
-| Oldest open        | age of the oldest open, not waiting on the owner   | now             | --        | < 24 h    | > 72 h |
-| Merge ratio        | merged / created                                   | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
-| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h        | now             | --        | 0         | >= 3   |
-| Screenshot backlog | oldest pictures waiting for the owner              | now             | --        | < 24 h    | > 72 h |
+| Member                      | Measure                                                  | Window          | Min n     | Target    | Red    |
+| --------------------------- | -------------------------------------------------------- | --------------- | --------- | --------- | ------ |
+| Time to merge (H)           | median of merged minus ready, pull requests merged       | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
+| Open pull requests          | open, not draft                                          | now             | --        | <= 15     | > 25   |
+| Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
+| Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
+| Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
+| Auto-merge stuck            | armed, green and unmerged 2 h, or armed 6 h              | now             | --        | 0         | >= 3   |
+| Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
 
 On a quiet hour (2026-10-25, 22:30 to 23:30: 2 merged, 3 created) both rates are gray "too few"
 with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, is red in CI.
 
 ### 4.3 CI
 
-| Member                       | Measure                                                           | Window          | Min n    | Target   | Red                     |
-| ---------------------------- | ----------------------------------------------------------------- | --------------- | -------- | -------- | ----------------------- |
-| Runner wait (H)              | p90 of job start minus created, organization, jobs started        | 1 h             | 20 jobs  | <= 5 min | > 15                    |
-| Longest queued now           | oldest queued job, or queued run with no job yet                  | now             | --       | <= 5 min | > 15                    |
-| Saturated time               | minutes with jobs queued > 2 min while running >= limit - 3       | 1 h             | --       | 0        | >= 15 min               |
-| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit              | now             | --       | 0 min    | >= 15 min               |
-| First-attempt pass rate      | pull request check suites passing attempt 1, suites finished      | 1 h, 6 h agrees | 8 suites | >= 85%   | < 70%                   |
-| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)      |
-| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                    |
-| Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                   |
-| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                   |
-| Full-run shards over budget  | shards whose median passes their budget (section 6)               | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state) |
-| Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                      |
+| Member                       | Measure                                                           | Window          | Min n    | Target   | Red                      |
+| ---------------------------- | ----------------------------------------------------------------- | --------------- | -------- | -------- | ------------------------ |
+| Runner wait (H)              | p90 of job start minus created, organization, jobs started        | 1 h             | 20 jobs  | <= 5 min | > 15                     |
+| Longest queued now           | oldest queued job, or queued run with no job yet                  | now             | --       | <= 5 min | > 15                     |
+| Saturated time               | minutes with jobs queued > 2 min while running >= limit - 3       | 1 h             | --       | 0        | >= 15 min                |
+| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit              | now             | --       | 0 min    | >= 15 min                |
+| First-attempt pass rate      | pull request check suites passing attempt 1, suites finished      | 1 h, 6 h agrees | 8 suites | >= 85%   | < 70%                    |
+| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)       |
+| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                     |
+| Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                    |
+| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                    |
+| Full-run shards over budget  | shards whose median passes their budget (section 6)               | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state)  |
+| Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600 (never sets state) |
+| Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                       |
 
 Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red. Hangs were "any in
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
@@ -378,6 +380,14 @@ queue: jobs wait while there is room, so the cause is outside the repository; it
 githubstatus.com, so nobody cancels full runs for a GitHub problem. The cost is one jobs call per
 unfinished run each cycle, about 40 calls every 5 minutes on 2026-10-25, well inside the App's
 hourly budget.
+
+"Runner-minutes per merge" adds up every job's minutes (completed minus started, unrounded) by the kind of
+run that spent them -- pull request runs (every attempt, including pull requests that never merged), master
+push builds (cancelled ones too), full runs (`release.yml` and the workflows it calls) and other (bisect,
+stress, hosts, dependabot, dispatches) -- and divides by the pull requests merged into master in the same
+window. The CI page shows each kind over 24 h and 7 d, so every change to the CI load shows its saving. The
+thresholds come from 2026-10-26: 387 over 7 d (511 in the Pacific day so far), so today's value is the edge of
+the target and 1.5 times it is red; as a slow measure it never sets CI's state.
 
 "Superseded runs running" counts only what nothing else cancels: runs of workflows without
 `cancel-in-progress` on `pull_request` (PR Integrity, CodeQL) whose pull request has a newer
@@ -566,8 +576,11 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local
-gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. An
-unreachable source is NO DATA, hatched, never 0; a chart before its source's history is hatched "no
+gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. A
+source that fails while its last good write is within its yellow age keeps its members' values,
+marked stale with that write's time; past the yellow age an unreachable source is NO DATA, hatched,
+never 0. One GitHub request that fails (a 5xx, a timeout, a rate limit) is retried twice with
+backoff and then skipped alone (that run's jobs, read again next cycle), never failing the cycle; a chart before its source's history is hatched "no
 history"; an empty table names what is absent ("no quarantine entries").
 
 ## 10. Backend on AWS
@@ -745,6 +758,12 @@ threshold and page link, once per episode and once when it clears:
 - **Master red: at once.** master-guard is the first alarm; this is the independent backstop for
   when master-guard is wrong, as it was on 2026-10-25.
 - **Any other category red for 30 minutes.**
+
+An episode starts at a member's first red and ends only when the member is judged OK again: a gap
+of NO DATA or a stale source in between neither ends it nor starts another, so a flapping source
+cannot repeat the alert. A member alerts at most once in 6 hours, even when an episode truly ends
+and a new one starts: a new episode's alert waits until 6 hours have passed since the last one and
+is sent then if the member is still red; one that ends before its alert was sent sends no "cleared".
 
 **A dead-man's switch.** The collector both computes the status and sends the alerts, so a paused
 AWS project, the Budget action's deny-all policy or a crashing collector would silence both. A

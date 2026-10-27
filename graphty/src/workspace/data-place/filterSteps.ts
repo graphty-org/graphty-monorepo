@@ -3,11 +3,12 @@
  * one write, and the words Undo and Redo name a step change with. The steps themselves are graphty-element's.
  */
 
-import type { CodedFact, FilterStep, GraphSession, HistoryCode } from "@graphty/graphty-element/session";
+import type { CodedFact, FilterStep, GraphSession, HistoryCode, RuleTree } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Left, type Namer, ruleWords, stepChangeWords } from "./filterWords";
+import { sourceName } from "./words";
 
 /** The inspected kind of the step editor; its id is a step id, or `NEW` for a new step. */
 const STEP_KIND = "filter-step";
@@ -29,6 +30,10 @@ function namerOf(session: GraphSession): Namer {
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
+        source: (key) => {
+            const load = session.data.sources().find((each) => each.key === key);
+            return load === undefined ? "a removed source" : sourceName(load);
+        },
     };
 }
 
@@ -41,6 +46,9 @@ function namerOf(session: GraphSession): Namer {
 export function stepWords(session: GraphSession, step: FilterStep): string {
     return ruleWords(step.rule, namerOf(session));
 }
+
+/** The Filters row, and the editor id, of the time window. */
+export const TIME_ROW = "time-window";
 
 /**
  * Opens the step editor in the inspector on the Data place.
@@ -142,6 +150,28 @@ export function stepChange(session: GraphSession, fact: CodedFact<HistoryCode>):
  * @returns the name.
  */
 export function stepEditorName(session: GraphSession, id: string): string {
+    if (id === TIME_ROW) {
+        return "Time window";
+    }
     const step = session.visibility.steps.find((s) => s.id === id);
     return step === undefined ? "New filter step" : stepWords(session, step);
+}
+
+/**
+ * Selects what a rule holds, replacing the selection: a source row's Select nodes.
+ * @param session - the element's session.
+ * @param rule - the rule.
+ */
+export async function selectRule(session: Pick<GraphSession, "selection">, rule: RuleTree): Promise<void> {
+    await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
+}
+
+/**
+ * Whether the graph has a column to put on a timeline: one designated, or one whose values read
+ * as time.
+ * @param session - the element's session.
+ * @returns true when the editor offers a time window.
+ */
+export function offersTime(session: GraphSession): boolean {
+    return session.time.field !== null || session.time.candidates().length > 0;
 }

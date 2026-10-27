@@ -181,28 +181,22 @@ describe("the Graph place on the real element", () => {
             "node.labelSize": 72,
         });
         await element.waitForStableFrame();
-        // A point on Officer's name: off the sphere's drawn disc -- above, beside, below it or on a diagonal,
-        // wherever the name is placed -- the first one that answers Officer. Off the disc, only
-        // the name can.
+        // A point on Officer's name: off the sphere's drawn disc, in rings around it at every
+        // angle -- the name is placed clear of the node's edges, so it can sit diagonally from the
+        // sphere rather than straight above, beside or below it -- the first one that answers
+        // Officer. Off the disc, only the name can.
         const nameAt = (): { x: number; y: number } | undefined => {
             const at = element.nodeScreenPosition(2);
             if (at?.visible !== true) {
                 return undefined;
             }
-            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off++) {
-                // The label is placed where it fits, so look on the diagonals too.
-                for (const [dx, dy] of [
-                    [0, -1],
-                    [1, 0],
-                    [0, 1],
-                    [-1, 0],
-                    [1, -1],
-                    [-1, -1],
-                    [1, 1],
-                    [-1, 1],
-                ]) {
-                    const point = { x: at.x + dx * off, y: at.y + dy * off };
-                    if (element.elementAt(point)?.id === 2) {
+            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off += 3) {
+                const count = Math.ceil((2 * Math.PI * off) / 3);
+                for (let i = 0; i < count; i++) {
+                    const angle = (2 * Math.PI * i) / count;
+                    const point = { x: at.x + Math.cos(angle) * off, y: at.y + Math.sin(angle) * off };
+                    const hit = element.elementAt(point);
+                    if (hit?.kind === "node" && hit.id === 2) {
                         return point;
                     }
                 }

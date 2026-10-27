@@ -20,9 +20,15 @@ set -euo pipefail
 
 PUBLISH="Release held: publish failed"
 
+# A read tried three times, 5 then 15 seconds apart: GitHub answers a 5xx now and then, and a failed read here fails
+# the pick (or reads a hold as absent). RELEASE_HELD_RETRY_WAIT (seconds) replaces both waits, for tests.
+retry() {
+    "$@" || { sleep "${RELEASE_HELD_RETRY_WAIT:-5}"; "$@"; } || { sleep "${RELEASE_HELD_RETRY_WAIT:-15}"; "$@"; }
+}
+
 # $1: the title prefix (empty: any hold); $2: "train" drops publish holds
 find_held() {
-    gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"${1:-Release held:}\"" --limit 50 \
+    retry gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"${1:-Release held:}\"" --limit 50 \
         --json number,title --jq "[.[] | select(.title | startswith(\"${1:-Release held: }\"))
             | select(\"${2:-}\" != \"train\" or (.title | startswith(\"${PUBLISH}\") | not))][0].number // empty"
 }

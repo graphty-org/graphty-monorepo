@@ -777,6 +777,30 @@ const css = `
 .cm-qa-empty:empty {
     padding: 0;
 }
+
+/* ---- StatusBar: the 24px row along the window's bottom ---- */
+.cm-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 24px;
+    padding: 0 8px;
+    border-top: 1px solid var(--cm-border);
+    background-color: var(--cm-bg);
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    line-height: 16px;
+    flex: none;
+    box-sizing: border-box;
+}
+.cm-status-bar-start,
+.cm-status-bar-end {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
 `;
 
 export default css;

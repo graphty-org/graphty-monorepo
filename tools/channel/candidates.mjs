@@ -4,7 +4,8 @@
 // `[{ commit, runId, waiting, verdict, promoted, at }]`, read from the results store's GET /v1/candidate (every
 // commit's latest verdict of the last 30 days) and GET /v1/release-state (nightly's commit).
 // Design: design/ci/channels-pipeline/channels.md section 7, stories-as-tests.md section 7.
-// `waiting` is the review page's one question: a green-images run not promoted yet. Needs RESULTS_URL and a
+// `waiting` is the review page's one question: a green-images run not promoted yet, and while nightly is held only
+// the held head. Needs RESULTS_URL and a
 // read token (GRAPHTY_RESULTS_TOKEN), from the environment or the repository's .env; fails loudly otherwise.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -18,17 +19,20 @@ import { parseEnvFile } from "../sonar/api.mjs";
  * @returns `[{ commit, runId, waiting, verdict, promoted, at }]`, `at` the verdict's time in milliseconds
  */
 export async function listCandidates(get) {
-    const [{ recent }, { nightly }] = await Promise.all([get("/v1/candidate"), get("/v1/release-state")]);
+    const [{ recent, hold }, { nightly }] = await Promise.all([get("/v1/candidate"), get("/v1/release-state")]);
     // ponytail: ordered by verdict time, not site build time; a run judged out of order would be offered out of order
     return recent.map((v) => {
-        // the store's `approved` state is written by release.yml's resume step; the review page also
-        // treats a candidate whose accept commit reached master as done
+        // the store's `approved` state is written by release.yml's promotion after the approval
+        // (tools/channel/resume.mjs); the review page also treats a candidate whose accept commit reached master as done
         const promoted = v.state === "approved" || v.sha === nightly?.sha;
+        // while nightly is held, only the held head is offered (design/ci/channels-pipeline.md section 5)
+        const offerable = !hold || hold.head === v.sha;
         return {
             commit: v.sha,
             runId: v.runId,
             // an inherited verdict's run captured nothing to review (tools/full-run.mjs records its lane)
-            waiting: v.state === "green-images" && !promoted && !String(v.lane ?? "").startsWith("inherited"),
+            waiting:
+                offerable && v.state === "green-images" && !promoted && !String(v.lane ?? "").startsWith("inherited"),
             verdict: v.state,
             promoted,
             at: v.at,

@@ -32,7 +32,7 @@ function labelRefusalFor(session: GraphSession, column: ColumnRef): string | nul
 /**
  * The verbs on one attribute, the same wherever it is picked (the Data place's row menu and the
  * attribute inspector's "..."): Add label line on a node attribute, Filter to... on a number or
- * category attribute, and Show in table once the table dock is built.
+ * category attribute, Set as time, and Show in table once the table dock is built.
  * @param column - the attribute.
  * @param session - the element's session, or null.
  * @param store - the chrome store.
@@ -74,6 +74,21 @@ function attributeActions(
             disabledReason: null,
             run: () => {
                 openStepEditor(store, `${NEW}:${descriptor.kind}:${descriptor.path}`);
+            },
+        });
+    }
+    // Any column can be the time field; the Time section sets its unit and how the window moves.
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null) {
+        const source = { start: descriptor.name };
+        const isTime =
+            (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;
+        actions.push({
+            label: "Set as time",
+            disabledReason: isTime ? "Already the time field" : null,
+            run: () => {
+                session.time.setField(column.kind === "edge" ? { edges: source } : { nodes: source }).catch(() => {
+                    store.set({ notice: { message: `"${column.name}" cannot be the time field.` } });
+                });
             },
         });
     }

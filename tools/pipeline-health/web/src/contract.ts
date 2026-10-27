@@ -160,6 +160,7 @@ export const MEMBER_IDS = [
     "pull-requests.open",
     "pull-requests.oldest_open",
     "pull-requests.merge_ratio",
+    "pull-requests.caused_failures",
     "pull-requests.automerge_stuck",
     "pull-requests.screenshot_backlog",
     "ci.runner_wait",
@@ -172,6 +173,7 @@ export const MEMBER_IDS = [
     "ci.bins_over",
     "ci.reruns",
     "ci.shards_over",
+    "ci.runner_minutes",
     "ci.superseded",
     "flaky.blocked",
     "flaky.no_issue",
@@ -220,6 +222,8 @@ export interface Member {
     covered?: { h: number; of: number };
     /** How much of the 6 h window its source covers, when less than all of it (hours). */
     covered6h?: { h: number; of: number };
+    /** How many days of a 7- or 28-day window the history covers, when less than all of it (a backfill still running). */
+    coveredDays?: { d: number; of: number };
     sla: Sla | null;
     spark?: Spark;
     /** Why it is NO DATA, not set up or idle ("token rejected since 10-24", "#3418"). */

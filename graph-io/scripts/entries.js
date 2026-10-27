@@ -28,6 +28,7 @@ export const ENTRIES = Object.freeze({
     "sources-ndex": "src/sources/ndex/index.ts",
     "sources-cypher": "src/sources/cypher/index.ts",
     "sources-rest": "src/sources/rest/index.ts",
+    "sources-sparql": "src/sources/sparql/index.ts",
     styles: "src/styles/index.ts",
     positions: "src/positions/index.ts",
 });

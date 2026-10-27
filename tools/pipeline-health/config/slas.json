@@ -252,6 +252,20 @@
             "sources": ["collector"]
         },
         {
+            "id": "pr.caused_failures",
+            "category": "pull_requests",
+            "label": "Runs failed by their change",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "pr.caused_failures"
+            },
+            "ok": ["<", 0.05],
+            "minN": 20,
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "pr.automerge_stuck",
             "category": "pull_requests",
             "label": "Auto-merge stuck",
@@ -416,6 +430,21 @@
             "fail": [">=", 3],
             "slowWindow": "7d",
             "sources": ["ci-results"]
+        },
+        {
+            "id": "ci.runner_minutes_per_merge",
+            "category": "ci",
+            "label": "Runner-minutes per merge",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "ci.runner_minutes"
+            },
+            "ok": ["<=", 400],
+            "fail": [">", 600],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector"]
         },
         {
             "id": "ci.superseded_running",

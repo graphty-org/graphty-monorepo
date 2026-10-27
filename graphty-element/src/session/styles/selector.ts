@@ -103,7 +103,10 @@ export type Selector =
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
-     * ever hovered). View state, never data: the layer follows each change without a step.
+     * ever hovered), or drawn outside the time window (`"ghosted"`, while the timeline setting
+     * `outside` is `"ghost"`), or pinned in place (`"pinned"`, nodes only, as
+     * `session.positions.pinned` holds them). View state, never data: the layer follows each
+     * change without a step.
      * @since 3.26.0
      */
     | { readonly match: "state"; readonly state: ElementState }
@@ -122,10 +125,10 @@ export type Selector =
  * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
  * @since 3.26.0
  */
-export type ElementState = "selected" | "hovered";
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
 
 /** Every element state, for a refusal that lists what was allowed. */
-const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered"];
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);

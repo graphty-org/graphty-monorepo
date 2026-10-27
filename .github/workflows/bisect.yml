@@ -53,6 +53,10 @@ concurrency:
     group: bisect-${{ inputs.bad }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     plan:
         name: Plan the round
@@ -98,6 +102,18 @@ jobs:
         steps:
             - uses: actions/checkout@v7
               with: { ref: "${{ matrix.sha }}" }
+            # the workflow's .github/actions/ only: the point's own tools/ (run-tests.sh, ci-test-matrix.mjs) are what is
+            # bisected, and bisect-ci.mjs runs from the workflow's copy in .bisect-tools (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: actions/checkout@v7
               with: { path: .bisect-tools, sparse-checkout: tools }
             - name: Move the tool out of the tree under test

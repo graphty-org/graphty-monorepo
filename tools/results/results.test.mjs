@@ -34,6 +34,7 @@ import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
+    groupKeys,
     groupFamily,
     junitOf,
     postRecords,
@@ -397,6 +398,36 @@ describe("runGroup", () => {
         assert.equal(rec.sha.length, 40);
     });
 
+    it("files an On shard's record and inputs key under flags=on, a plain shard's under flags=off", async () => {
+        const s = await serve(false);
+        const root = join(TMP, "checkout-on");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            "export const SHARDS = [" +
+                '{ shard: "plain", package: "pkg", "test-command": "exit 3" },' +
+                '{ shard: "pkg-features-on-1", package: "pkg", "test-command": "exit 3", flags: "on" }];\n',
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
+        const spool = join(root, "test-results/results-spool");
+        await runGroup("plain", undefined, { root, env });
+        await runGroup("pkg-features-on-1", undefined, { root, env });
+        const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
+        assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
+        assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
+
+        const e = { PATH: "x" };
+        const on = { flags: "on", "test-command": "c" };
+        const keys = (shard, env = e) => groupKeys({ shardName: "f-1", shard, cmd: "c", env, shardKey: "k" });
+        const key = (flags) => inputsKey({ shardKey: "k", env: envString(e), flags });
+        assert.deepEqual(keys(on), { variant: "f|flags=on|whole", inputs: key("on") });
+        assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
+        assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
+        assert.notEqual(key("on"), key("off"));
+    });
+
     it("keeps a passing verdict when the record cannot even be spooled", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout-nospool");
@@ -485,6 +516,14 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
+    it("never asks about a full-run-only family, such as the On shards", () => {
+        const on = {
+            shard: "graphty-element-browser-features-on-1",
+            package: "graphty-element",
+            "full-run-only": true,
+        };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
     it("also asks for a story shard's screenshot family", () => {
         const stories = [{ shard: "graphty-storybook", package: "graphty" }];
         assert.deepEqual(variantsOf(stories, ["graphty"]), [
@@ -566,7 +605,7 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
-    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", () => {
+    it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
         const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
         const out = join(dir, "checks");
         const plan = { quarantine: [], failingOnBase: [], affected: [] };
@@ -591,10 +630,7 @@ describe("the pull request rules", () => {
             { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
         ]);
         const calls = [];
-        assert.equal(
-            dispatchChecks(checks, (args) => calls.push(args.join(" "))),
-            2,
-        );
+        assert.equal(await dispatchChecks(checks, (args) => calls.push(args.join(" "))), 2);
         assert.equal(
             calls[0],
             `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5`,
@@ -603,7 +639,7 @@ describe("the pull request rules", () => {
         rmSync(dir, { recursive: true, force: true });
     });
 
-    it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {
+    it("says [KNOWN] when master failed it the same way on the base, and passes it as [UNRELATED] otherwise", () => {
         const { key } = failureHashes("AssertionError: known", "a.test.ts");
         const row = {
             variant: `${FAMILY}|flags=off|whole`,
@@ -616,16 +652,61 @@ describe("the pull request rules", () => {
         const plan = { quarantine: [], failingOnBase: [row, { ...row, name: "other key", key: "nope" }], affected: [] };
         const both = report(fail("known"), fail("other key"));
         const d = judge(plan, both, both);
-        assert.deepEqual(tags(d), ["warn [KNOWN]", "fail [KNOWN?]"]);
+        assert.deepEqual(tags(d), ["warn [KNOWN]", "warn [UNRELATED]"]);
+        assert.equal(d.pass, true);
         assert.match(d.lines[0].text, /fails the same way on master b1, issue #31/);
         assert.match(d.lines[1].text, /-f repeat=1/);
         assert.equal(judge(plan, report(fail("known")), report(fail("known"))).pass, true);
-        // nor does one with other flags
+        // master evidence with other flags or from another family is not [KNOWN]; untouched, it is [UNRELATED]
         const flagsOn = { ...plan, failingOnBase: [{ ...row, variant: `${FAMILY}|flags=on|whole` }] };
-        assert.equal(judge(flagsOn, report(fail("known")), report(fail("known"))).pass, false);
-        // another family's base failure excuses nothing
+        assert.deepEqual(tags(judge(flagsOn, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
         const elsewhere = { ...plan, failingOnBase: [{ ...row, variant: "layout|flags=off|whole" }] };
-        assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
+        assert.deepEqual(tags(judge(elsewhere, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
+    });
+
+    it("#3925: passes an untouched failure as [UNRELATED] with a summary line; never a touched, GPU or crashed one", () => {
+        const dir = mkdtempSync(join(tmpdir(), "unrelated-"));
+        const env = { GITHUB_STEP_SUMMARY: join(dir, "summary.md") };
+        const plan = { quarantine: [], failingOnBase: [], affected: ["touched.test.ts"] };
+        const run = (p, opts, first) => {
+            const d = decide({ family: opts.family, first, firstOutcome: "failed", second: first, list: [] });
+            return prJudge(p, { ...opts, env })(d, { firstOutcome: "failed" });
+        };
+        const both = report(fail("theirs"), fail("mine", "touched.test.ts"));
+        const d = run(plan, o, both);
+        assert.deepEqual(tags(d), ["warn [UNRELATED]", "fail [FAIL]"]);
+        assert.equal(d.pass, false);
+        assert.deepEqual(
+            d.failing.map((f) => f.name),
+            ["mine"],
+        );
+        assert.equal(run(plan, o, report(fail("theirs"))).pass, true);
+        assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^- \[UNRELATED\] .*a\.test\.ts > theirs/m);
+        // a GPU family is never excused, touched or not
+        const gpu = { ...o, family: "webgpu-graph-algorithms-node", shard: "webgpu-graph-algorithms-node" };
+        assert.deepEqual(tags(run(plan, gpu, report(fail("theirs")))), ["fail [FAIL]"]);
+        // a crash, an unhandled error or coverage is not a test failure: the judge leaves it failing
+        const crashed = { pass: false, flaky: [], excused: [], failing: [fail("theirs")] };
+        assert.equal(prJudge(plan, { ...o, env })(crashed, { firstOutcome: "error" }).pass, false);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
+        const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
+        const seen = new Set();
+        const claim = async (c) => {
+            const k = `${c.base} ${c.file} ${c.variant}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        };
+        const calls = [];
+        const gh = (args) => calls.push(args.join(" "));
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 42 }), 1);
+        assert.equal(await dispatchChecks([check], gh, { claim, pr: 43 }), 0);
+        assert.match(calls[0], / -f repeat=1 -f pr=42$/);
+        // a store that cannot answer does not stop the check
+        assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
 
     it("lets the store's quarantine through", () => {
@@ -662,6 +743,10 @@ describe("the pull request rules", () => {
 
     it("keeps repeated runs of one job apart", () => {
         assert.equal(baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "check", RESULTS_REPEAT: "3" }), "5.1.check.s.r3");
+        assert.equal(
+            baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "story-tests", RESULTS_PART: "2" }),
+            "5.1.story-tests.s.p2",
+        );
     });
 });
 

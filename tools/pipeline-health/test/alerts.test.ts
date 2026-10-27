@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { RED_FOR_MS, SECRETS, sendAlerts } from "../src/alerts/index.js";
+import { REALERT_MS, RED_FOR_MS, SECRETS, sendAlerts } from "../src/alerts/index.js";
 import { MemoryStore } from "../src/model/store.js";
 import type { Episode, Evaluation, MemberStatus } from "../src/sla/engine.js";
-import { MIN, T0 } from "./model/helpers.js";
+import { HOUR, MIN, T0 } from "./model/helpers.js";
 
 const member = (id: string, category: string, state: MemberStatus["state"] = "FAILING"): MemberStatus => ({
     id,
@@ -89,6 +89,46 @@ describe("sendAlerts", () => {
         expect(r.sent).toEqual([{ member: "master_red", kind: "clear" }]);
         expect(p.calls).toHaveLength(2);
         expect(Object.fromEntries(p.calls[1]).title).toBe("master cat cleared");
+    });
+
+    it("alerts once across red, source error, red, source error, even as the episode's start moves (2026-10-27)", async () => {
+        const store = new MemoryStore();
+        const p = pushover();
+        const m = member("master.red_same_check", "master");
+        const gray: MemberStatus = { ...m, state: "NO DATA", judged: true, value: undefined };
+        for (let i = 0; i < 6; i++) {
+            const now = T0 + i * 5 * MIN;
+            // A member with no history the engine can read restarts its episode at every red step.
+            const ev = i % 2 === 0 ? evaluation(m, { start: now }) : { ...evaluation(gray), episodes: [] };
+            await run(store, ev, now, p.fetch);
+        }
+        expect(p.calls).toHaveLength(1);
+    });
+
+    it("an episode ends only when the member is judged OK, and alerts open at most once in 6 hours", async () => {
+        const store = new MemoryStore();
+        const p = pushover();
+        const m = member("master_red", "master");
+        const ok = (now: number) =>
+            run(store, evaluation({ ...m, state: "OK", value: 0 }, { endedAt: now }), now, p.fetch);
+        await run(store, evaluation(m), T0, p.fetch);
+        await ok(T0 + 10 * MIN);
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["master cat FAILING", "master cat cleared"]);
+        // A new episode an hour later that ends inside the floor sends neither open nor clear.
+        await run(store, evaluation(m, { start: T0 + HOUR }), T0 + HOUR, p.fetch);
+        await ok(T0 + HOUR + 10 * MIN);
+        expect(p.calls).toHaveLength(2);
+        // One that stays red waits for the floor, then alerts once.
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + 2 * HOUR, p.fetch);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS - MIN, p.fetch);
+        expect(p.calls).toHaveLength(2);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS, p.fetch);
+        await run(store, evaluation(m, { start: T0 + 2 * HOUR }), T0 + REALERT_MS + 5 * MIN, p.fetch);
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "master cat FAILING",
+            "master cat cleared",
+            "master cat FAILING",
+        ]);
     });
 
     it("never clears an episode that never alerted", async () => {

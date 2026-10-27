@@ -8,6 +8,7 @@ import {
 import type {
     EdgeRecord,
     GraphSession,
+    IssueId,
     NodeId,
     NodeRecord,
     PageColumn,
@@ -18,6 +19,7 @@ import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
 import { formatNumber } from "../inspector/words";
+import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
 /** How many records past the drawn rows a window reads, above and below. */
@@ -29,6 +31,29 @@ interface Row {
     readonly index: number;
 }
 
+/**
+ * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a time
+ * field's values as dates, anything else as it is.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @param key - the column's attribute or key.
+ * @param record - the row's record.
+ * @returns the cell's value.
+ */
+function cellValue(
+    session: GraphSession,
+    kind: RecordKind,
+    key: string,
+    record: NodeRecord | EdgeRecord,
+): DataTableValue {
+    const value = record[key];
+    if (kind === "edge" && (key === "source" || key === "target")) {
+        const id = value as NodeId;
+        return session.data.name(id) ?? String(id);
+    }
+    return tableValue(timeValue(session, kind, key, value));
+}
+
 /** Props for RecordTable. */
 interface RecordTableProps {
     session: GraphSession;
@@ -37,11 +62,17 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
+    /** Only the records an open issue is on: one issue's id, or "any" for every open issue; null for every record. */
+    issue?: IssueId | null;
+    /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
+    issueColumns?: ReadonlyMap<string, readonly IssueId[]>;
     sort: DataTableSort | null;
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
     /** Moves a column one place left (-1) or right (1) among the columns that are not keys. */
-    onMoveColumn: (id: string, by: -1 | 1) => void;
+    onMoveColumn?: (id: string, by: -1 | 1) => void;
+    /** A column's header parts: its icons, summary, warning and menu. */
+    header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
 }
 
 /**
@@ -74,6 +105,29 @@ function resultValue(column: PageColumn | undefined, index: number): DataTableVa
 }
 
 /**
+ * One header menu from two parts: the header's own items, then the column's Move left and Move
+ * right, with a divider between them.
+ * @param own - the header's items, or undefined.
+ * @param move - the move items, or undefined for a key column.
+ * @returns the menu, or undefined with neither.
+ */
+function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode {
+    if (own === undefined || own === null) {
+        return move;
+    }
+    if (move === undefined) {
+        return own;
+    }
+    return (
+        <>
+            {own}
+            <Menu.Divider />
+            {move}
+        </>
+    );
+}
+
+/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -82,10 +136,13 @@ function resultValue(column: PageColumn | undefined, index: number): DataTableVa
  * @param props.kind - Nodes or edges
  * @param props.columns - The visible columns
  * @param props.scope - Which records
+ * @param props.issue - Only the records an open issue is on
+ * @param props.issueColumns - The issues each column's warning carries
  * @param props.sort - The sorted column
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
  * @param props.onMoveColumn - Moves a column one place
+ * @param props.header - A column's header parts
  * @returns The table
  */
 export function RecordTable({
@@ -93,10 +150,13 @@ export function RecordTable({
     kind,
     columns,
     scope,
+    issue = null,
+    issueColumns,
     sort,
     onSortChange,
     height,
     onMoveColumn,
+    header,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -109,6 +169,7 @@ export function RecordTable({
         limit: range.limit,
         scope,
         columns: runIds,
+        ...(issue === null ? {} : { issue }),
         ...(sorted === undefined ? {} : { sort: elementSort(sorted, sort?.desc ?? false) }),
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =
@@ -120,38 +181,49 @@ export function RecordTable({
     const tableColumns = columns.map((column): DataTableColumn<Row> => {
         const at = column.run === undefined ? -1 : runIds.indexOf(column.run);
         const place = movable.indexOf(column.id);
+        const move =
+            place === -1 || onMoveColumn === undefined ? undefined : (
+                <>
+                    <Menu.Item
+                        disabled={place === 0}
+                        onClick={() => {
+                            onMoveColumn(column.id, -1);
+                        }}
+                    >
+                        Move left
+                    </Menu.Item>
+                    <Menu.Item
+                        disabled={place === movable.length - 1}
+                        onClick={() => {
+                            onMoveColumn(column.id, 1);
+                        }}
+                    >
+                        Move right
+                    </Menu.Item>
+                </>
+            );
+        const parts = header?.(column);
+        const warned = issueColumns?.get(column.id) ?? [];
         return {
+            ...parts,
             id: column.id,
             header: column.header,
             // A group's name is a word ("Group 3"), so it reads from the left like other words.
             align: column.numeric && column.grouping !== true ? "end" : "start",
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
-            menu:
-                place === -1 ? undefined : (
-                    <>
-                        <Menu.Item
-                            disabled={place === 0}
-                            onClick={() => {
-                                onMoveColumn(column.id, -1);
-                            }}
-                        >
-                            Move left
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={place === movable.length - 1}
-                            onClick={() => {
-                                onMoveColumn(column.id, 1);
-                            }}
-                        >
-                            Move right
-                        </Menu.Item>
-                    </>
-                ),
+            menu: joinMenus(parts?.menu, move),
+            // A cell on a record its column's issues are on is drawn in the header warning's tint.
+            ...(warned.length === 0
+                ? {}
+                : {
+                      cellTone: (row: Row) =>
+                          page.issues?.[row.index]?.some((id) => warned.includes(id)) === true ? "warning" : undefined,
+                  }),
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => tableValue(row.record[column.attribute ?? column.id]),
+                    : (row) => cellValue(session, kind, column.attribute ?? column.id, row.record),
         };
     });
 

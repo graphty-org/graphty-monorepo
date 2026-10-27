@@ -77,6 +77,11 @@ export const METRICS: MetricDef[] = [
             src("pr", "mergedAt", (p) => (p.mergedAt === undefined ? null : { n: 0, sum: 1, dim: p.repo })),
         ],
     },
+    // Runs failed on a test their own change touched (#3951): the batching trigger, per pull request run.
+    {
+        id: "pr.caused_failures",
+        from: [src("run", "completedAt", (r) => (r.prCaused === undefined ? null : { sum: r.prCaused ? 1 : 0 }))],
+    },
     // 4.3 CI
     {
         id: "ci.runner_wait",
@@ -229,6 +234,19 @@ export const METRICS: MetricDef[] = [
                     ? { sum: Math.ceil((j.completedAt - j.startedAt) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
                     : null,
             ),
+        ],
+    },
+    // 4.3 Runner-minutes per merge: job minutes (unrounded) by the kind of run that spent them, over the pull
+    // requests merged into master in the same buckets; a job stored without its kind is left out.
+    {
+        id: "ci.runner_minutes",
+        from: [
+            src("job", "completedAt", (j) =>
+                j.load && j.startedAt !== undefined && j.completedAt !== undefined
+                    ? { n: 0, sum: (j.completedAt - j.startedAt) / MIN, dim: j.load }
+                    : null,
+            ),
+            src("pr", "mergedAt", (p) => (p.mergedAt !== undefined && isMaster(p.base) ? { n: 1 } : null)),
         ],
     },
     // Section 7, unit costs: release train attempts that tested a candidate.

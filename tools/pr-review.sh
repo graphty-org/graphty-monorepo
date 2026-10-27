@@ -3,7 +3,7 @@
 # budgets-and-trust.md section 4.3, merging.md section 2.2). A headless `claude -p` that has never seen the
 # author's conversation reviews the change with the /code-review skill at level high, given only:
 #   - the issue (title and body, `gh issue view`),
-#   - the diff, `git diff origin/master...HEAD`,
+#   - the diff, `git diff origin/master...HEAD` (data files named only; over 400 KB, its --stat),
 #   - the Proof file.
 #
 #   tools/pr-review.sh --proof <file> [--issue N] [--base <ref>] [--reuse] [--dry-run]
@@ -118,7 +118,27 @@ EOF
     cat "$proof"
     echo
     echo "===== DIFF (git diff $base...HEAD) ====="
-    git diff --no-color --no-ext-diff "$base...HEAD"
+    # Data and generated files (design records, sample datasets, lockfiles) are named, never inlined; a diff
+    # still larger than PR_REVIEW_INLINE_MAX bytes goes in as its --stat, and the reviewer reads each file's
+    # diff itself with git diff. claude -p refuses stdin over 10 MB, and a few MB already overflow its context.
+    skip=(':(top,glob,exclude)design/**' ':(top,glob,exclude)graphty/public/samples/*.json'
+        ':(top,glob,exclude)**/pnpm-lock.yaml' ':(top,glob,exclude)**/package-lock.json' ':(top,glob,exclude)**/yarn.lock')
+    git diff --no-color --no-ext-diff "$base...HEAD" -- ':(top)' "${skip[@]}" >"$out"
+    if [ "$(wc -c <"$out")" -le "${PR_REVIEW_INLINE_MAX:-400000}" ]; then
+        cat "$out"
+    else
+        echo "This diff is too large to include. Its summary follows; read each file's change yourself with"
+        echo "git diff $base...HEAD -- <file>."
+        echo
+        git diff --no-color --stat=200 "$base...HEAD" -- ':(top)' "${skip[@]}"
+    fi
+    named=$(git diff --name-only "$base...HEAD" -- ':(top)design' ':(top,glob)graphty/public/samples/*.json' ':(top,glob)**/pnpm-lock.yaml' \
+        ':(top,glob)**/package-lock.json' ':(top,glob)**/yarn.lock')
+    if [ -n "$named" ]; then
+        echo
+        echo "Data and generated files also changed (not shown; read one with git diff if it matters):"
+        printf '%s\n' "$named"
+    fi
 } >"$prompt"
 
 if [ "$dry" = 1 ]; then

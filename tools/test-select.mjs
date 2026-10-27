@@ -92,6 +92,7 @@ export function loadRules(root) {
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
             selectProjects: raw.stories.selectProjects ?? [],
+            storyless: (raw.stories.storyless ?? []).map(toRe),
         },
     };
 }
@@ -245,7 +246,9 @@ export function shardRuns(shard) {
 }
 
 /**
- * Whether a vitest project is one a run's --project filters select (`!name` excludes).
+ * Whether a vitest project is one a run's --project filters select (`!name` excludes). An On twin
+ * (`<name>-features-on`, tools/features-on.mjs) is selected only by name: it exists only in a run that sets
+ * GRAPHTY_FEATURES_ON=1, which only the On shards do, so an Off shard's `!storybook` never runs it.
  * @param name the project's name
  * @param filters the run's --project values (empty: every project)
  * @returns boolean
@@ -256,6 +259,9 @@ export function projectSelected(name, filters) {
     const negated = filters.filter((f) => f.startsWith("!")).map((f) => f.slice(1));
     if (negated.includes(base)) {
         return false;
+    }
+    if (base.endsWith("-features-on")) {
+        return plain.includes(base);
     }
     return plain.length === 0 || plain.includes(base);
 }
@@ -1155,12 +1161,14 @@ function plainRun(root, shard) {
         // an nx target of its own in project.json must only run that script
         const target = JSON.parse(safeRead(join(root, dir, "project.json")) || "{}").targets?.coverage;
         const viaScript = !target || target.options?.command === "npm run coverage";
-        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, args: [] } : null;
+        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, env: [], args: [] } : null;
     }
     const m = PLAIN_VITEST.exec(cmd);
-    // COVERAGE_DIR only moves a coverage report this run does not write; any other variable picks a lane
+    // COVERAGE_DIR only moves a coverage report this run does not write, and GRAPHTY_FEATURES_ON=1 (kept) adds
+    // the On projects the shard names (tools/features-on.mjs); any other variable picks a lane
     const env = m?.[2].trim().split(/\s+/u).filter(Boolean) ?? [];
-    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR="))) {
+    const keep = env.filter((e) => e === "GRAPHTY_FEATURES_ON=1");
+    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR=") && !keep.includes(e))) {
         return null;
     }
     const args = m[3]
@@ -1168,7 +1176,7 @@ function plainRun(root, shard) {
         .trim()
         .split(/\s+/u)
         .filter((a) => a && !DROPPED.test(a));
-    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, args } : null;
+    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, env: keep, args } : null;
 }
 
 /**
@@ -1186,7 +1194,8 @@ export function selectedCommand(root, shard, files) {
         return null;
     }
     const rel = (files ?? []).map((f) => quote(f.slice(run.dir.length + 1)));
-    return `cd ${run.dir} && pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
+    const env = run.env.map((e) => `${e} `).join("");
+    return `cd ${run.dir} && ${env}pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
 }
 
 /**
@@ -1472,7 +1481,8 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
  * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
- * proven by `test-select-mutate.mjs --stories`) runs whole on every change.
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change, except a change only to CI and tool
+ * files no story reads (the rules' storyless), which runs none.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1487,6 +1497,10 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
+    // CI and tool files no story reads (test-select-rules stories.storyless); a test that names one selects its
+    // package, which says nothing about a story reading it
+    const storyless =
+        !everything && changed.length > 0 && changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f)));
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
         const pkg = dir.split("/")[0];
@@ -1499,7 +1513,9 @@ export function selectStories({ projects, changed, everything, shards, selection
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
         let sel = { mode: "all", files: [], reasons: [global] };
-        if (!global) {
+        if (!global && storyless) {
+            sel = { mode: "none", files: [], reasons: ["the change touches only files no story reads"] };
+        } else if (!global) {
             sel = rules.selectProjects.includes(project)
                 ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
                 : {
@@ -1529,13 +1545,28 @@ export const STORY_BIN_LIMIT_MS = 4 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    "graph-io-fidelity": 2_800,
+    // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
+    // bin 543 s against a 240 s plan
+    "graph-io-fidelity": 4_500,
     graphty: 6_000,
     "cytoscape-extensions": 1_600,
     "graphty-element": 1_400,
     "compact-mantine": 1_000,
     algorithms: 1_200,
     layout: 900,
+};
+
+/**
+ * A story's capture time for a story file far slower than its project's STORY_MS, measured the same way: the
+ * Start screen's stories each load a sample, run Louvain and wait for a stable frame (PR run 40559883826,
+ * Stories (graphty-4): 624 s for its 12 stories in two modes, against about 6 s for graphty's other stories).
+ */
+// ponytail: a hand-kept table (#4041 makes this file fast); record capture time per story in the results store when more files drift
+export const STORY_FILE_MS = {
+    "graphty/src/workspace/start/StartScreen.stories.tsx": 52_000,
+    // PR run 40567162255, Stories (graphty-1): 458 s for these two files' 40 stories, planned at 240 s
+    "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
+    "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;
@@ -1550,10 +1581,29 @@ export function storyCount(source) {
 }
 
 /**
+ * One story file's binning units: the file, or for a file longer than a bin its parts by story
+ * (`<file>#<k>/<n>`, which ci.yml's pick step resolves), each with its planned ms.
+ * @param file the story file
+ * @param count the stories it declares
+ * @param recordedMs its recorded play-test time, 0 without one
+ * @param rate its project's STORY_MS
+ * @returns `[[unit, ms]]`
+ */
+function storyUnits(file, count, recordedMs, rate) {
+    const ms = Math.max(recordedMs, (STORY_FILE_MS[file] ?? rate) * count);
+    const parts = Math.min(count, Math.ceil(ms / STORY_BIN_LIMIT_MS));
+    if (parts <= 1) {
+        return [[file, ms]];
+    }
+    return Array.from({ length: parts }, (_, i) => [`${file}#${i + 1}/${parts}`, ms / parts]);
+}
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
  * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
- * changed baseline's story id goes into the project's first bin.
+ * changed baseline's story id goes into the project's first bin. A file longer than a bin is split by story into
+ * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
@@ -1573,8 +1623,9 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         // a recorded play-test time marks a heavy file; the project's capture rate is the floor
         const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
         const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
-        const fileMs = new Map(files.map((f) => [f, Math.max(recorded[f] ?? 0, rate * storiesIn(f))]));
-        const bins = files.length > 0 ? packBins(files, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
+        const fileMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
+        const units = [...fileMs.keys()];
+        const bins = units.length > 0 ? packBins(units, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,
@@ -2135,13 +2186,14 @@ export function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
-        const configs = new Set(
-            shards.filter((s) => s.package === dir).flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)),
-        );
+        const mine = shards.filter((s) => s.package === dir);
+        const configs = new Set(mine.flatMap((s) => (shardRuns(s) ?? []).map((r) => r.config)));
+        // the -features-on projects exist only under GRAPHTY_FEATURES_ON=1 (tools/features-on.mjs)
+        const on = mine.some((s) => s.flags === "on");
         graphs.set(
             dir,
             [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config)),
+                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
             ),
         );
     }
@@ -2152,7 +2204,7 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build) => graph`
+ * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2168,13 +2220,13 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build) => {
+    return (dir, config, build, variant = "") => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
+                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
@@ -2526,7 +2578,7 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config) {
+function graphChild(root, dir, config, on = false) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
@@ -2534,7 +2586,13 @@ function graphChild(root, dir, config) {
         const out = execFileSync(
             process.execPath,
             [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
-            { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] },
+            {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 1 << 30,
+                stdio: ["ignore", "pipe", "pipe"],
+                env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
+            },
         );
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {
@@ -2725,13 +2783,15 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"), {
+    // a pull request's selection: the full-run-only On shards are never in it, nor in its import graphs
+    const shards = SHARDS.filter((s) => !s["full-run-only"]);
+    const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,
         head,
     });
     if (argv.includes("--plan")) {
         const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
-        console.log(JSON.stringify(planOf(root, { changed, selection, shards: SHARDS, base, head, durations })));
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards, base, head, durations })));
         return;
     }
     if (argv.includes("--json")) {

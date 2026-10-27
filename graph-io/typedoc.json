@@ -17,6 +17,7 @@
         "./src/sources/ndex/index.ts",
         "./src/sources/cypher/index.ts",
         "./src/sources/rest/index.ts",
+        "./src/sources/sparql/index.ts",
         "./src/styles/index.ts",
         "./src/positions/index.ts",
         "./src/index.ts"

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import rates from "../../config/rates.json" with { type: "json" };
 import { DAY, MIN } from "../../src/model/items.js";
+import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import {
     classifyCancel,
     failedInRow,
     family,
     fixedCosts,
     llmCost,
+    loadKind,
     masterState,
     oldestUntested,
     pool,
@@ -24,6 +26,8 @@ import {
     toJobItem,
     toPrItem,
     toRunItem,
+    trainSkipped,
+    workflowState,
     type GhJob,
     type GhRun,
     type GqlIssue,
@@ -68,6 +72,22 @@ describe("runs and jobs", () => {
         const s = toJobItem(skipped, REPO, "ci.yml");
         expect(s.startedAt).toBeUndefined();
         expect(s.completedAt).toBeUndefined();
+    });
+
+    it("sorts runs by the load they put on the runners, and stamps it on their jobs", () => {
+        const at = (path: string, event: string, head_branch: string | null = "fix/x") =>
+            loadKind({ path: `.github/workflows/${path}`, event, head_branch });
+        expect(at("ci.yml", "pull_request")).toBe("pr");
+        expect(at("pr-issue-link.yml", "pull_request_target")).toBe("pr");
+        expect(at("ci.yml", "push", "master")).toBe("master");
+        expect(at("release.yml", "workflow_dispatch", "master")).toBe("full");
+        expect(at("release.yml", "schedule", "master")).toBe("full");
+        expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
+        expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
+        expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
+        expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {
@@ -125,6 +145,58 @@ describe("master state", () => {
             REPO,
         );
         expect(masterState([g, building]).buildingSince).toBe(Date.parse("2026-10-26T00:20:00Z"));
+    });
+});
+
+// Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were cancelled while they waited
+// because a newer push replaced them (ci.yml's concurrency group, #3940). Their check suites have no check run.
+describe("replaced runs (recorded 2026-10-27)", () => {
+    const master = fixture<{ workflow_runs: GhRun[] }>("runs-master-replaced.json").workflow_runs;
+    const suites = fixture<{ data: { nodes: SuiteNode[] } }>("suites-master-replaced.json").data.nodes;
+    const items = (runs: GhRun[]) =>
+        runs.map((r) => {
+            const node = suites.find((n) => n.id === r.check_suite_node_id);
+            return toRunItem(r, REPO, node ? { cancelClass: classifyCancel(suiteNotes(node)) } : {});
+        });
+
+    it("calls a master build cancelled before any job started superseded", () => {
+        expect(suites.map((n) => classifyCancel(suiteNotes(n)))).toEqual([
+            "superseded",
+            "superseded",
+            "superseded",
+            "superseded",
+        ]);
+    });
+
+    it("keeps master green across a replaced build: the last real verdict carries forward", () => {
+        expect(masterState(items(master))).toMatchObject({ red: false, redBuilds: 0 });
+        // At 20:30, before the newer push's build passed: the build replaced at 20:17 still says nothing.
+        const at2030 = master.filter((r) => Date.parse(r.created_at) <= Date.parse("2026-10-27T20:30:00Z"));
+        const running = at2030.map((r) =>
+            r.id === 40576673438 ? { ...r, status: "in_progress", conclusion: null } : r,
+        );
+        expect(masterState(items(running))).toMatchObject({ red: false, redBuilds: 0 });
+    });
+
+    const releases = fixture<{ workflow_runs: GhRun[] }>("release-runs-replaced.json").workflow_runs;
+    const seen = Object.values(fixture<Record<string, ReleaseSeen>>("release-seen-replaced.json")).sort(
+        (a, b) => b.at - a.at,
+    );
+
+    it("does not call the train skipped when a newer release run replaced the cancelled one", () => {
+        // The newest attempts (a stuck run cancelled by hand at 19:46, a restart replaced at 18:00) were each
+        // replaced by a newer dispatch; the newest real attempt tested its candidate.
+        expect(trainSkipped(seen, releases)).toBe(false);
+    });
+
+    it("still calls the train skipped for a cancelled run nothing replaced", () => {
+        const before = releases.filter((r) => Date.parse(r.created_at) <= Date.parse("2026-10-27T13:05:04Z"));
+        expect(trainSkipped(seen, before)).toBe(true);
+    });
+
+    it("does not count replaced release runs as failed", () => {
+        const w = workflowState("release.yml", releases, Date.parse("2026-10-27T13:30:00Z"));
+        expect(w).toMatchObject({ runs: 4, failed: 0 });
     });
 });
 

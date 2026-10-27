@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import { render, screen, waitFor } from "../test/test-utils";
@@ -45,6 +45,12 @@ async function mountElement(): Promise<HTMLElementTagNameMap["graphty-element"]>
 
 describe("site.json", () => {
     const address = globalThis.location.href;
+
+    // Each test loads its own site.json, from a fresh page's state: the "On" test configuration
+    // (src/test/setup-features-on.ts) has already loaded one before the first test.
+    beforeEach(() => {
+        resetSiteConfig();
+    });
 
     afterEach(() => {
         resetSiteConfig();

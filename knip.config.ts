@@ -23,6 +23,8 @@ const config: KnipConfig = {
                 "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
+                // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
+                "vitest.map-tiles-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
@@ -158,6 +160,12 @@ const config: KnipConfig = {
                 "data/*.ts",
             ],
             project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+        },
+
+        // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
+        "babylonjs-map": {
+            entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
+            project: ["src/**/*.ts!", "test/**/*.ts"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test

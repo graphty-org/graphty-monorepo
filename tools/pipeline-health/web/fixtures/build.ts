@@ -36,7 +36,8 @@ import type {
     Value,
 } from "../src/contract";
 
-const OUT = dirname(fileURLToPath(import.meta.url));
+// HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
+const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
 
 /** A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25"). */
@@ -102,6 +103,7 @@ const SLA = {
     sameCheck: { target: cmp("<=", 1), red: cmp(">=", 3) } satisfies Sla,
     untested: { target: cmp("<=", 7, "h"), red: cmp(">", 13, "h") } satisfies Sla,
     reverts: { target: cmp("<", 5, "pct"), red: cmp(">", 10, "pct") } satisfies Sla,
+    prCaused: { target: cmp("<", 5, "pct") } satisfies Sla,
     ttm: { target: cmp("<=", 60, "min"), red: cmp(">", 180, "min"), needs6h: true } satisfies Sla,
     openPrs: { target: cmp("<=", 15), red: cmp(">", 25) } satisfies Sla,
     age24: { target: cmp("<", 24, "h"), red: cmp(">", 72, "h") } satisfies Sla,
@@ -115,6 +117,7 @@ const SLA = {
     bins: { target: cmp("<=", 10, "pct"), red: cmp(">", 25, "pct"), needs6h: true } satisfies Sla,
     reruns: { target: cmp("<", 5, "pct"), red: cmp(">", 15, "pct"), needs6h: true } satisfies Sla,
     shardsOver: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    runnerMinutes: { target: cmp("<=", 400, "min"), red: cmp(">", 600, "min") } satisfies Sla,
     blocked: { target: cmp("==", 0), red: f("sla.blocked") } satisfies Sla,
     noIssue: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
     flakeRate: { target: cmp("<", 2, "per1000"), red: cmp(">", 10, "per1000"), needs6h: true } satisfies Sla,
@@ -240,6 +243,14 @@ const prMembers: Member[] = [
         sla: SLA.mergeRatio,
         link: "/pull-requests",
     }),
+    member({
+        id: "pull-requests.caused_failures",
+        window: "7d",
+        state: "slow",
+        value: { n: 9, of: 112 },
+        sla: SLA.prCaused,
+        link: "/pull-requests",
+    }),
     member({ id: "pull-requests.automerge_stuck", value: num(0), sla: SLA.stuck, link: "/pull-requests" }),
     member({
         id: "pull-requests.screenshot_backlog",
@@ -360,6 +371,16 @@ const ciMembers: Member[] = [
         value: num(1),
         sla: SLA.shardsOver,
         link: "/ci/shards",
+    }),
+    member({
+        id: "ci.runner_minutes",
+        window: "7d",
+        state: "slow",
+        value: num(387, "min"),
+        n: 146,
+        minN: 10,
+        sla: SLA.runnerMinutes,
+        link: "/ci/runner-minutes",
     }),
     member({
         id: "ci.bins_over",
@@ -1091,6 +1112,29 @@ const ciSections: Section[] = [
             },
         ],
     },
+    {
+        kind: "table",
+        id: "runner-minutes",
+        sub: f("runner_minutes.sub", { day: 83, week: 146 }),
+        rows: (
+            [
+                ["pr", 398, 291, 33046, 42474],
+                ["master", 28, 20, 2285, 2974],
+                ["full", 33, 33, 2777, 4857],
+                ["other", 52, 39, 4313, 5706],
+                ["total", 511, 387, 42421, 56546],
+            ] as const
+        ).map(([k, day, week, dayMin, weekMin]) => ({
+            cells: {
+                kind: { t: "label", code: `load.${k}` },
+                day: { t: "num", n: day, unit: "min" },
+                week: { t: "num", n: week, unit: "min" },
+                dayMin: { t: "num", n: dayMin, unit: "min" },
+                weekMin: { t: "num", n: weekMin, unit: "min" },
+            },
+            ...(k === "total" ? { total: true } : {}),
+        })),
+    },
     shardsSection("7d", "full"),
 ];
 
@@ -1767,8 +1811,9 @@ const pages: PageResponse[] = [
         page: "flaky",
         ...head("flaky"),
         notes: [f("flaky.note.judged_again", { since: t("20:42") })],
-        members: flakyMembers,
-        sections: flakySections,
+        // Every flaky source (design 4.4): CI's rerun rate and the stress run are shown here too, judged elsewhere.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns"), byId(dataMembers, "data-sources.stress_run")],
+        sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
     }),
     page({
         page: "releases",

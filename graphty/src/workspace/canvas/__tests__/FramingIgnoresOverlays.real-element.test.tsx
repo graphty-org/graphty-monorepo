@@ -76,7 +76,7 @@ async function applyCircle(session: GraphSession): Promise<void> {
     });
     await userEvent.click(tool);
     const popover = await screen.findByRole("dialog", { name: "Layout" });
-    await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+    await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
     await waitFor(
         () => {

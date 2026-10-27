@@ -5,6 +5,7 @@ import type {
     CostItem,
     IssueItem,
     JobItem,
+    LoadKind,
     PrStages,
     PullRequestItem,
     RunItem,
@@ -12,7 +13,7 @@ import type {
     TestItem,
 } from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
-import type { LaneJob, OwnerWait, WorkflowState } from "../model/snapshots.js";
+import type { LaneJob, OwnerWait, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -130,7 +131,19 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 /** A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration. */
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false): JobItem {
+/**
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * @param run the run
+ * @returns full for release.yml (whose called workflows run inside it), pr, master for a push to master, else other
+ */
+export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
+    if (workflowFile(run.path) === "release.yml") return "full";
+    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
+    if (run.event === "push" && run.head_branch === "master") return "master";
+    return "other";
+}
+
+export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -144,6 +157,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         ...opt("family", fam),
         pool: pool(j.labels),
         ...opt("os", runnerOs(j.labels)),
+        ...opt("load", load),
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
@@ -184,6 +198,9 @@ export interface CheckRunNote {
 export type CancelClass = NonNullable<RunItem["cancelClass"]>;
 
 export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
+    // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
+    // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
+    if (!checkRuns.length) return "superseded";
     const all = checkRuns.flatMap((c) => c.annotations);
     if (all.some((m) => /Canceling since a higher priority waiting request for/i.test(m))) return "superseded";
     if (all.some((m) => /The run was cancell?ed by @/i.test(m))) return "by-hand";
@@ -645,6 +662,38 @@ export function failedStreak(runs: GhRun[]): GhRun[] {
     return out;
 }
 
+/**
+ * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
+ * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
+ * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ */
+export function replacedRuns(runs: GhRun[]): Set<number> {
+    const created = runs.map((r) => Date.parse(r.created_at));
+    return new Set(
+        runs
+            .filter(
+                (r) =>
+                    r.status === "completed" &&
+                    r.conclusion === "cancelled" &&
+                    created.some((t) => t > Date.parse(r.created_at) && t <= Date.parse(r.updated_at)),
+            )
+            .map((r) => r.id),
+    );
+}
+
+/**
+ * Whether the train skipped a new commit: the newest release attempt that a newer run did not replace did not test,
+ * on a commit other than the candidate's.
+ * @param attempts the seen attempts, newest first
+ * @param runs the release workflow's newest runs
+ */
+export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
+    const replaced = replacedRuns(runs);
+    const candidate = attempts.find((a) => a.tested);
+    const newest = attempts.find((a) => a.run === undefined || !replaced.has(a.run));
+    return !!newest && !newest.tested && newest.sha !== candidate?.sha;
+}
+
 /** Consecutive failed runs, newest first, of one workflow's completed runs. */
 export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
 
@@ -658,10 +707,11 @@ export function workflowState(workflow: string, runs: GhRun[], nowMs: number): W
         (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= HOUR,
     );
     const streak = failedStreak(runs);
+    const replaced = replacedRuns(runs);
     return {
         workflow,
         runs: hour.length,
-        failed: hour.filter((r) => BAD.has(r.conclusion ?? "")).length,
+        failed: hour.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
         inRow: streak.length,
         ...(streak.length ? { since: Date.parse(streak[streak.length - 1].created_at) } : {}),
     };

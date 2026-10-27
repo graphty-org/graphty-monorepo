@@ -3521,10 +3521,14 @@ describe("master-guard", () => {
             created_at: "2026-10-25T10:00:00Z",
             updated_at: "2026-10-25T10:12:30Z",
         };
-        const lister = (runs) => {
+        // jobs: how many jobs the stopped run started (0: it was still waiting when it stopped)
+        const lister = (runs, jobs = 0) => {
             const calls = [];
             const gh = async (path) => {
                 calls.push(path);
+                if (path.startsWith(`/actions/runs/${stopped.id}/jobs`)) {
+                    return { total_count: jobs };
+                }
                 assert.match(path, /^\/actions\/workflows\/ci\.yml\/runs\?branch=master&event=push/);
                 return { workflow_runs: [...runs, stopped] };
             };
@@ -3532,28 +3536,25 @@ describe("master-guard", () => {
         };
         const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
 
-        // cancelled by its timeout: the next push came only after it had ended, so it alarms
-        let fake = lister([newer("2026-10-25T10:13:00Z")]);
-        assert.equal(await superseded(fake.gh, stopped), false);
-        assert.equal(fake.calls.length, 1, "one runs-list call");
-        // a newer push queued while it was unfinished (a waiting build that ci.yml's master-push group replaced,
-        // #3850, #3938), however long the cancel's cleanup (post steps, always() jobs) takes: superseded, no red-master issue
-        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        // a waiting build a newer push replaced (ci.yml's master-push group, #3938): no job started, superseded
+        let fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), true);
-        // a re-run is in its commit's own group, so a newer push never cancels it: a stopped re-run alarms
+        assert.equal(fake.calls.length, 2, "a jobs call and one runs-list call");
+        // a running build that stopped (a job ran into its timeout, or a person cancelled it) alarms, even with a
+        // newer push queued behind it: ci.yml never cancels a running master build, so nothing newer stopped it
+        fake = lister([newer("2026-10-25T10:05:00Z")], 4);
+        assert.equal(await superseded(fake.gh, stopped), false);
+        assert.equal(fake.calls.length, 1, "no runs-list call once a job ran");
+        // a re-run is in its commit's own group, so a newer push never replaces it: a stopped re-run alarms
         fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, { ...stopped, run_attempt: 2 }), false);
-        assert.equal(fake.calls.length, 0, "no runs-list call");
-        // no newer run at all, or only a re-run of the same commit
+        assert.equal(fake.calls.length, 0, "no calls");
+        // no job started, but no newer run at all, or only a re-run of the same commit: alarms
         assert.equal(await superseded(lister([]).gh, stopped), false);
         assert.equal(
             await superseded(lister([{ ...newer("2026-10-25T10:12:20Z"), head_sha: stopped.head_sha }]).gh, stopped),
             false,
         );
-        // cancelled the moment a run for a later commit was queued: superseded, no alarm
-        fake = lister([newer("2026-10-25T10:12:29Z")]);
-        assert.equal(await superseded(fake.gh, stopped), true);
-        assert.equal(fake.calls.length, 1);
     });
 
     it("reports a failed canary deploy, which runs on CI's workflow_run event", () => {

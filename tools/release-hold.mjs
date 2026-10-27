@@ -140,9 +140,10 @@ export function holdAlso(hold, also, since) {
  */
 export function withDependents(names, dependencies) {
     const out = [...new Set(names)];
-    for (let i = 0; i < out.length; i++) {
+    // an array's for-of also visits what is pushed during the loop: the dependents' dependents
+    for (const name of out) {
         for (const [project, deps] of Object.entries(dependencies)) {
-            if (!out.includes(project) && deps.some((d) => d.target === out[i])) out.push(project);
+            if (!out.includes(project) && deps.some((d) => d.target === name)) out.push(project);
         }
     }
     return out;

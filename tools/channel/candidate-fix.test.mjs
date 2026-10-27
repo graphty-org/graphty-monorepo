@@ -229,7 +229,7 @@ describe("candidate-fix.mjs advance, on real repositories, a stand-in store and 
         assert.equal(inHead(without.out.head), false);
         r.git("switch", "-q", "master"); // advance leaves the checkout on the head; the job's checkout is master
         const named = await advance(r, { base: r.c, head: without.out.head, issue: 900 }, REFUSED(r.bad), {
-            FIX_PR: "15",
+            FIX_PR: "14,15",
         });
         assert.deepEqual([named.code, named.out.moved, inHead(named.out.head)], [0, "true", true]);
     });

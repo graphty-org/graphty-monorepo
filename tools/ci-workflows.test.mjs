@@ -65,6 +65,7 @@ import {
     cancelNote as releaseCancelNote,
     due as releaseDue,
     fixForwardDispatch as releaseFixForwardDispatch,
+    fixForwardMerges as releaseFixForwardMerges,
     fixForwardDue as releaseFixForwardDue,
     lastGreenBuild,
     resumesDue as releaseResumesDue,
@@ -1512,14 +1513,20 @@ describe("ci.yml", () => {
         assert.equal(releaseFixForwardDue(named, null), null, "a store that does not answer: the next slot merges it");
     });
 
-    it("names the fix's pull request in the candidate run it dispatches (fix_pr)", () => {
-        assert.deepEqual(releaseFixForwardDispatch("Merge pull request #5 from graphty-org/fix/900-topic").slice(-4), [
-            "-f",
-            "mode=candidate",
-            "-f",
-            "fix_pr=5",
-        ]);
-        assert.equal(releaseFixForwardDispatch("fix(x): a squash").at(-1), "mode=candidate");
+    it("names only the fixes' pull requests in the candidate run it dispatches (fix_pr), never a newer merge", () => {
+        const store = { hold: { base: "a".repeat(40), head: "a".repeat(40), issue: 900 } };
+        // fix #5, described only in its pull request, then unrelated #6 whose green build reads both
+        const fix = {
+            subject: "Merge pull request #5 from graphty-org/feat/950-x",
+            messages: "fix(x): y\n\nRefs #900",
+        };
+        const other = { subject: "Merge pull request #6 from graphty-org/feat/951-z", messages: "feat(z): unrelated" };
+        assert.deepEqual(releaseFixForwardMerges([other, fix], store), { issue: 900, prs: ["5"] });
+        assert.equal(releaseFixForwardMerges([other], store), null);
+        const named = { subject: "Merge pull request #7 from graphty-org/fix/900-topic", messages: "" };
+        assert.deepEqual(releaseFixForwardMerges([named, other, fix], store).prs, ["7", "5"]);
+        assert.deepEqual(releaseFixForwardDispatch(["7", "5"]).slice(-4), ["-f", "mode=candidate", "-f", "fix_pr=7,5"]);
+        assert.equal(releaseFixForwardDispatch([]).at(-1), "mode=candidate");
     });
 
     // ci.yml cancels an unfinished master build when a newer push starts (#3850), and release-due runs only in a

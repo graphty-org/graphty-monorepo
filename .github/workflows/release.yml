@@ -158,7 +158,7 @@ on:
                 default: ""
                 type: string
             fix_pr:
-                description: "candidate: the fix pull request whose merge started this run (ci.yml's release-due job); its merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
+                description: "candidate: the fix pull requests (comma-separated) whose merges started this run (ci.yml's release-due job); each merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
                 required: false
                 default: ""
                 type: string

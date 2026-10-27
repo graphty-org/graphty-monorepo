@@ -13,8 +13,8 @@
 //       store's hold moves to the new head, which the pick then tests first. A fix that cannot enter (none of its
 //       commits starts from the candidate, part of the fix sits on newer master, a conflict) is told on the hold
 //       issue once, and skipped from then on.
-//       The merge of pull request FIX_PR (release.yml's `fix_pr`, set by release-due on a fix whose description alone
-//       references the hold issue) is a fix too.
+//       The merges of the pull requests FIX_PR names (release.yml's `fix_pr`, comma-separated, set by release-due on
+//       fixes whose description alone references the hold issue) are fixes too.
 //       env RESULTS_URL and the job's OIDC token, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL, FIX_PR; git: master's checkout
 //       with full history, pushing with the deploy key; writes head and moved to GITHUB_OUTPUT
 //   node tools/channel/candidate-fix.mjs plan      release.yml's pick job, when it tests a held head past C and the
@@ -212,12 +212,17 @@ function mergeFix(m, pr) {
 }
 
 // merges every waiting fix into HEAD, telling the hold issue once about each that cannot enter
-// fixPr: the pull request release-due dispatched this run for (`fix_pr`), a fix whatever its commits say
+// fixPr: the pull requests release-due dispatched this run for (`fix_pr`, comma-separated), fixes whatever their
+// commits say
 function mergeFixes(hold, merges, said, runUrl, fixPr) {
     const merged = [];
     for (const m of merges) {
         const pr = /#(\d+)/.exec(m.subject)?.[1] ?? m.sha.slice(0, 12);
-        const fix = referencesHold(m, hold.issue) || (!!fixPr && pr === String(fixPr));
+        const fix =
+            referencesHold(m, hold.issue) ||
+            String(fixPr ?? "")
+                .split(",")
+                .includes(pr);
         if (!fix || acceptsIn(m.commits).length || said.includes(REFUSED(m.sha))) continue;
         const r = mergeFix(m, pr);
         if (r?.f) merged.push(`#${pr} (${r.f.slice(0, 12)})`);

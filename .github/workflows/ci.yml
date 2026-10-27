@@ -2268,6 +2268,17 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # A pull request's screenshots are taken and written by the base branch's capture code, never its
+            # own, so a pull request cannot change how its pictures are taken or judged (CLAUDE.md, Visual
+            # review). HEAD^1 is the merge commit's first parent, the base branch (fetch-depth 0 above).
+            - name: Use the base branch's capture code
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              env:
+                  CAPTURE_CODE: visual-review/capture visual-review/trusted
+              run: |
+                  rm -rf $CAPTURE_CODE
+                  git archive HEAD^1 $CAPTURE_CODE | tar -x
+
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
               uses: actions/cache/restore@v4
@@ -3005,7 +3016,7 @@ jobs:
                 links,
                 performance,
                 cost-accuracy,
-                visual,
+                story-tests-merge,
                 all-checks,
                 queue-checks,
                 visual-flaky,

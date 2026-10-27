@@ -1201,6 +1201,21 @@ exec ${realGit} "$@"
     });
 });
 
+describe("every workflow", () => {
+    // A `needs` entry naming a missing job makes GitHub reject the whole file: the run starts with 0 jobs.
+    it("names only jobs of its own file in every job's needs", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+        assert.ok(files.includes("ci.yml"));
+        for (const file of files) {
+            const jobs = parseYaml(readFileSync(new URL(file, dir), "utf8"))?.jobs ?? {};
+            for (const [name, job] of Object.entries(jobs))
+                for (const need of [job.needs ?? []].flat())
+                    assert.ok(need in jobs, `${file}: job ${name} needs ${need}, which is not a job in the file`);
+        }
+    });
+});
+
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
 

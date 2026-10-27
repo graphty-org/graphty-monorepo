@@ -158,6 +158,12 @@ export const NetworkData: Story = {
             }
             return active;
         }, storyWaitOptions(1000));
+        // Mantine's focus trap focuses from two zero-delay timers queued together when the dialog
+        // mounts, so the first focus can be seen before the second timer has run. A zero-delay timer
+        // queued now runs after both: blur then, or the second timer would focus the button again.
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
         focused.blur();
     },
 };

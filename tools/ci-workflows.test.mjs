@@ -3545,6 +3545,7 @@ describe("master-guard", () => {
         fake = lister([newer("2026-10-25T10:05:00Z")], 4);
         assert.equal(await superseded(fake.gh, stopped), false);
         assert.equal(fake.calls.length, 1, "no runs-list call once a job ran");
+        assert.match(fake.calls[0], /^\/actions\/runs\/6\/jobs/, "it asks about the stopped run's own jobs");
         // a re-run is in its commit's own group, so a newer push never replaces it: a stopped re-run alarms
         fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, { ...stopped, run_attempt: 2 }), false);

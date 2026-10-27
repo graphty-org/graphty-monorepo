@@ -126,6 +126,18 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools/ci-run-cap.mjs
                   sparse-checkout-cone-mode: false
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              if: github.event_name == 'pull_request'
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Wait for a turn
               if: github.event_name == 'pull_request'
               env:
@@ -183,6 +195,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
             # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
@@ -738,6 +761,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
               if: needs.packages.outputs.artifacts-run == ''
 
@@ -875,6 +909,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -955,6 +1000,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -1138,6 +1194,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
+            # the workflow's .github/actions/ only: this job checks the commit's own tools/ (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1220,6 +1287,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v4
 
             - name: Setup Node.js
@@ -1298,6 +1376,17 @@ jobs:
                   # the job may write issues; the token is not left in .git/config for a pull request's code
                   # (the repository is public, so the Git LFS pull below needs no credential)
                   persist-credentials: false
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -1574,6 +1663,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Setup Node.js
               uses: actions/setup-node@v7
               with:
@@ -1681,6 +1781,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1769,6 +1880,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
@@ -1847,6 +1969,17 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Restore this project's baseline images
               uses: actions/cache@v4
               with:
@@ -1857,12 +1990,15 @@ jobs:
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
-            # As the visual job: a pull request runs the base branch's capture code, never its own.
+            # As the visual job: a pull request runs the base branch's capture code, never its own; a candidate or an
+            # older commit (the full run's call) runs the workflow's, which the step above fetched.
             - name: Use the base branch's capture code
-              if: github.event_name == 'pull_request'
               run: |
+                  if [ "$GITHUB_EVENT_NAME" = pull_request ]; then src=HEAD^1
+                  elif [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then src=$GITHUB_SHA
+                  else exit 0; fi
                   rm -rf visual-review/capture visual-review/trusted
-                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
+                  git archive "$src" visual-review/capture visual-review/trusted | tar -x
 
             - uses: pnpm/action-setup@v4
 
@@ -2120,6 +2256,18 @@ jobs:
                   # the token is not left in .git/config for a pull request's code
                   persist-credentials: false
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              if: steps.skip.outputs.skip != 'true'
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
               uses: actions/cache/restore@v4
@@ -2287,11 +2435,15 @@ jobs:
                   pattern: story-parts-${{ matrix.project }}-*
                   path: ${{ runner.temp }}/parts
 
-            # Every attempt's parts are downloaded (a re-run of failed jobs re-runs this job and the failed parts,
-            # not the parts that passed): keep each part's newest attempt only.
+            # download-artifact@v8 extracts a single matching artifact straight into path, with no <artifact>/ folder
+            # (#4015): nest it, so one part is found like several. Every attempt's parts are downloaded (a re-run of
+            # failed jobs re-runs this job and the failed parts, not the parts that passed): keep each part's newest.
             - name: Find the parts
               id: found
               run: |
+                  if ls -d "$RUNNER_TEMP"/parts/part-*/ >/dev/null 2>&1; then
+                      mkdir "$RUNNER_TEMP/one" && mv "$RUNNER_TEMP/parts" "$RUNNER_TEMP/one/only" && mv "$RUNNER_TEMP/one" "$RUNNER_TEMP/parts"
+                  fi
                   cd "$RUNNER_TEMP/parts" 2>/dev/null && ls -d story-parts-*-*/ 2>/dev/null | sed 's#/$##' \
                       | sort -V | awk '{ part = $0; sub(/-[0-9]+$/, "", part); if (part in seen) print seen[part]; seen[part] = $0 }' \
                       | xargs -r rm -rf || true
@@ -2948,6 +3100,17 @@ jobs:
                   filter: blob:none
                   sparse-checkout: tools
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Dispatch release.yml when a restart or a promotion is due
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -2980,6 +3143,17 @@ jobs:
                   ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
                   # cone mode also checks out the root files, ci-budgets.json among them
                   sparse-checkout: tools
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Delete superseded and closed pull requests' cache keys
               env:
@@ -3017,6 +3191,17 @@ jobs:
                       tools/results
                       tools/sonar
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Download the base checks
               continue-on-error: true
               uses: actions/download-artifact@v8
@@ -3046,6 +3231,17 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: tools
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -3102,6 +3298,17 @@ jobs:
                   sparse-checkout: |
                       tools
                       .github/actions
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: ./.github/actions/timings
               with:

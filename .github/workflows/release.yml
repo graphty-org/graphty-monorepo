@@ -182,6 +182,13 @@ env:
     DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
+    # The owner's release policy (release-hold.json, release-approvals.json) is master's, whatever commit a job
+    # checks out: a candidate older than master or a held head must not use the holds and approvals it was cut with
+    # (tools/release-hold.mjs readPolicy). Every job that reads them checks out with fetch-depth 0.
+    RELEASE_POLICY_REF: refs/remotes/origin/master
+    # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
+    # job that keeps or publishes them: a package missing here is published with no dist
+    PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -628,6 +635,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             - name: Decide whether the LLM regression tests are due today
               id: due
               env:
@@ -698,6 +716,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -993,14 +1022,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's re-capture and
-            # capture code, as of the run's start (channels design, section 5): the picked commit may predate them,
-            # as the first nightly run's did (#3952), and its copy is never what judges it.
-            - name: Use master's re-capture and capture code
+            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's tools, actions,
+            # re-capture and capture code, as of the run's start (channels design, section 5): the picked commit may
+            # predate them, as the first nightly run's did (#3952), and its copy is never what judges it.
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
               run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
-                  rm -rf tools/channel visual-review/capture visual-review/trusted
-                  git archive "$GITHUB_SHA" tools/channel visual-review/capture visual-review/trusted | tar -x
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/setup-node@v7
               with:
@@ -1176,6 +1208,7 @@ jobs:
             # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
             # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
             hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
+            owner: ${{ steps.verdict.outputs.owner }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}
@@ -1312,6 +1345,20 @@ jobs:
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
                       --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
+            # a green-clean run that promotes without the projects the version dry run held: the announcement above
+            # names them in a red or green-images run's WHAT, so only green-clean needs its own owner item
+            - name: Announce the projects held for the owner's approval
+              if: ${{ steps.verdict.outputs.state == 'green-clean' && steps.verdict.outputs.owner != '' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  OWNER: ${{ steps.verdict.outputs.owner }}
+              run: |
+                  node tools/release-status.mjs owner-item --sha "$SHA" --what "$OWNER" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
     # A held green-images head promotes later, after the owner's approval, from this run's builds (the resume job's
     # run uses them): CI keeps its own for a day, so they are kept here for 30 days, as the version job keeps a
     # promoted candidate's.
@@ -1327,7 +1374,7 @@ jobs:
             - name: Download the tested commit's builds
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the promotion after approval
@@ -1714,13 +1761,24 @@ jobs:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
             # publish (gh run rerun <id> --failed) still finds them (CI keeps its own for a day).
             - name: Download the tested commit's builds
               if: ${{ needs.pick.outputs.resume != 'true' }}
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             # a promotion after approval: the builds the judging run kept for its held head (its keep_builds job);
@@ -1759,11 +1817,16 @@ jobs:
             # release-hold.json is neither versioned nor published -- not even as a dependent of a package that is
             # released. An ad hoc release with `packages` holds every other project too. To stop one package, add
             # it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning"). nx tags,
-            # pushes and creates nothing here: the land job pushes the commit with its tags.
+            # pushes and creates nothing here: the land job pushes the commit with its tags. A project the version
+            # dry run held (a major or a first publish with no release-approvals.json entry) is left out the same
+            # way, for this run only (RELEASE_HOLD_ALSO), with every project that depends on it, and every other
+            # project promotes. A promotion after approval runs no dry run: its version commit is checked here, and
+            # versioned again without the projects the check names.
             - name: Version the packages
               id: version
               env:
                   PACKAGES: ${{ inputs.packages }}
+                  RELEASE_HOLD_ALSO: ${{ needs.version_dry_run.outputs.held }}
                   # the changelog renderer looks up commit authors' GitHub handles
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
@@ -1781,6 +1844,18 @@ jobs:
                       # the pick job versioned this same commit and found something to release
                       echo "::error::nx versioned nothing on ${SHA}, although the pick job did"
                       exit 1
+                  fi
+                  if ! GITHUB_OUTPUT="$RUNNER_TEMP/approvals" node tools/release-approvals.mjs dry-run "$SHA" "$commit"; then
+                      more=$(sed -n 's/^held=//p' "$RUNNER_TEMP/approvals" | tail -1)
+                      [ -n "$more" ] || exit 1
+                      git reset --hard --quiet "$SHA"
+                      export RELEASE_HOLD_ALSO="${RELEASE_HOLD_ALSO:+${RELEASE_HOLD_ALSO},}${more}"
+                      commit=$(tools/release-version.sh "$PACKAGES")
+                      if [ -z "$commit" ]; then
+                          echo "::notice::nothing to version on ${SHA} without ${RELEASE_HOLD_ALSO}: nightly moves its site only"
+                          exit 0
+                      fi
+                      node tools/release-approvals.mjs dry-run "$SHA" "$commit"
                   fi
                   node tools/release-diff.mjs "$SHA" "$commit"
                   tags=$(git log -1 --format=%b "$commit" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
@@ -2076,6 +2151,17 @@ jobs:
               with:
                   ref: ${{ needs.version.outputs.commit }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A re-run (gh run rerun <id> --failed) tells the owner's phone it is retrying.
             - name: Announce a re-run of the publish

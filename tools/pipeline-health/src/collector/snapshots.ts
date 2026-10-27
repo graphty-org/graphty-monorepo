@@ -19,8 +19,13 @@ const EXCLUDED = new Set([
     "Visual report",
     "Draft state",
 ]);
-/** Excluded checks that summarize others: one failing while every check it summarizes passed is shared (4). */
-const AGGREGATORS = new Set(["All Checks Pass", "Queue Checks Pass"]);
+/**
+ * Excluded checks that summarize others: one failing while every check it summarizes passed is shared (4). Queue
+ * Checks Pass belonged to the retired Mergify queue and is not counted at all.
+ */
+const AGGREGATORS = new Set(["All Checks Pass"]);
+/** A pull request whose newest check started longer ago than this is left out: its checks say nothing about now. */
+export const STALE_CHECKS_MS = 2 * DAY;
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
 
 export interface FailingCheck {
@@ -32,9 +37,14 @@ export interface FailingCheck {
     startedAt?: number;
 }
 
-/** One open pull request's failing checks, bins folded; an aggregator only when it failed alone. */
-export function failingChecks(p: GqlPr): FailingCheck[] {
+/**
+ * One open pull request's failing checks, bins folded; an aggregator only when it failed alone. With `now`, none
+ * when its newest check started over STALE_CHECKS_MS before it (an abandoned pull request's old red).
+ */
+export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
     const ctx = p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [];
+    const newest = Math.max(...ctx.map((c) => ms(c.startedAt) ?? -Infinity));
+    if (now !== undefined && Number.isFinite(newest) && now - newest > STALE_CHECKS_MS) return [];
     const failed = ctx.filter((c) => c.__typename === "CheckRun" && c.name && FAILED.has(c.conclusion ?? ""));
     const own = failed.filter((c) => !EXCLUDED.has(c.name!));
     const pick = own.length ? own : failed.filter((c) => AGGREGATORS.has(c.name!));
@@ -81,11 +91,12 @@ export interface SharedSnapshot {
 /** The checks failing in 3 or more open, ready pull requests, or failing alone, with the pull requests and start. */
 export function sharedChecks(
     open: GqlPr[],
+    now?: number,
 ): { check: string; bins: number; alone: boolean; prs: number[]; startedAt?: number }[] {
     const by = new Map<string, { names: Set<string>; alone: boolean; prs: Set<number>; startedAt?: number }>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) continue;
-        for (const f of failingChecks(p)) {
+        for (const f of failingChecks(p, now)) {
             const g = by.get(f.check) ?? { names: new Set<string>(), alone: f.alone, prs: new Set<number>() };
             by.set(f.check, g);
             g.names.add(f.name);
@@ -124,7 +135,7 @@ export function nextShared(
     const mergeList = [...merges.values()].filter((m) => now - m.at <= 2 * DAY).sort((a, b) => b.at - a.at);
     const active = new Map((prev?.rows ?? []).filter((r) => r.end === undefined).map((r) => [r.check, r]));
     const rows: SharedRow[] = [];
-    for (const c of sharedChecks(open)) {
+    for (const c of sharedChecks(open, now)) {
         const old = active.get(c.check);
         active.delete(c.check);
         const since = old?.since ?? Math.min(c.startedAt ?? now, now);

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { type CostItem, DAILY_ROW_LIMIT, DAY, floorTo, type RawItem } from "../../src/model/items.js";
+import {
+    type CostItem,
+    DAILY_ROW_LIMIT,
+    DAY,
+    floorTo,
+    type RawItem,
+    type ShardRunItem,
+} from "../../src/model/items.js";
 import { putRaw, recordSource, takeQuota } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js";
-import { evaluate } from "../../src/sla/engine.js";
+import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
 const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
@@ -132,6 +139,55 @@ describe("thresholds", () => {
         expect(t4.value).toBeCloseTo(310);
         expect(t4.state).toBe("FAILING");
         expect((await member(store, "cost.llm")).value).toBe(0);
+    });
+
+    it("projects from the trailing 7 days, not the month-to-date average", async () => {
+        // October's T4 line as the job list prices it: $162 in its first week (the GPU triggers since removed), then
+        // a few dollars a day.
+        const monthStart = Date.UTC(2026, 9, 1);
+        const early = [10.48, 27.11, 24.71, 28.69, 17.0, 53.91];
+        const usd = (d: number) => early[d] ?? 2;
+        const lines: CostItem[] = Array.from({ length: 24 }, (_, d) => ({
+            kind: "cost",
+            id: `t4#${d}`,
+            attempt: 1,
+            line: "t4",
+            day: monthStart + d * DAY,
+            usd: usd(d),
+        }));
+        const spent = lines.reduce((a, l) => a + l.usd, 0);
+        const t4 = await member(await world(lines), "cost.t4");
+        // Spent through the 24th, then 7 days left (the 25th to the 31st) at $2 a day.
+        expect(t4.value).toBeCloseTo(spent + 7 * 2);
+        // The month-to-date average carried the first week to the month's end.
+        expect((spent / 24) * 31).toBeGreaterThan(200);
+        expect(projectMonth((t) => (t < monthStart ? 0 : usd((t - monthStart) / DAY)), T0)).toBeCloseTo(spent + 14);
+    });
+
+    it("judges full-run shards by the events' median against their budget, not by a histogram bin", async () => {
+        const shard = (variant: string, i: number, secs: number): ShardRunItem => ({
+            kind: "shard_run",
+            id: `40400000000.1.${variant}.${i}`,
+            attempt: 1,
+            source: "ci",
+            variant,
+            family: variant.split("|")[0],
+            bin: false,
+            full: true,
+            sha: "abc",
+            outcome: "passed",
+            startedAt: T0 - (i + 1) * HOUR - secs * 1000,
+            endedAt: T0 - (i + 1) * HOUR,
+            secs,
+            files: [],
+        });
+        // Under the 900 s budget, but in the histogram bin whose middle is 932 s; and one really over it.
+        const under = [861, 870, 880, 885, 890].map((s, i) =>
+            shard("webgpu-graph-algorithms-node|flags=off|whole", i, s),
+        );
+        const over = [940, 950, 960, 980, 990].map((s, i) => shard("graphty-storybook-shots|flags=off|shots", i, s));
+        const m = await member(await world([...under, ...over]), "ci.full_shards_over_budget");
+        expect(m.value).toBe(1);
     });
 });
 
@@ -335,8 +391,8 @@ describe("episodes", () => {
     it("a state member's episode runs from its first bad step until it is OK again", async () => {
         const items = [
             obs("pr.open", 10, T0 - 3 * HOUR),
-            obs("pr.open", 20, T0 - 2 * HOUR),
-            obs("pr.open", 30, T0 - 90 * MIN),
+            obs("pr.open", 25, T0 - 2 * HOUR),
+            obs("pr.open", 35, T0 - 90 * MIN),
             obs("pr.open", 10, T0 - 30 * MIN),
         ];
         const e = await evaluate(await world(items), T0, only("pr.open"));
@@ -348,7 +404,7 @@ describe("episodes", () => {
                 start: T0 - 2 * HOUR,
                 clearedAt: T0 - 30 * MIN,
                 endedAt: T0 - 30 * MIN,
-                peak: 30,
+                peak: 35,
             },
         ]);
     });

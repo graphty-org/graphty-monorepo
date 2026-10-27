@@ -177,7 +177,7 @@
                 "type": "last",
                 "metric": "master.untested_age_ms"
             },
-            "ok": ["<=", 25200000],
+            "ok": ["<=", 28800000],
             "fail": [">", 46800000],
             "sources": ["collector"]
         },
@@ -220,8 +220,8 @@
                 "type": "last",
                 "metric": "pr.open"
             },
-            "ok": ["<=", 15],
-            "fail": [">", 25],
+            "ok": ["<=", 20],
+            "fail": [">", 30],
             "sources": ["collector"]
         },
         {
@@ -423,7 +423,6 @@
             "measure": {
                 "type": "dims_median_over",
                 "metric": "ci.full_shard_time",
-                "over": 3600000,
                 "minPerDim": 5
             },
             "ok": ["<=", 0],

@@ -297,13 +297,22 @@ fails test T in file F:
 1. T stays failing if the pull request changes F or its import closure.
 2. T is excused if the plan's `failingOnBase` has T with the same key, from `full`, `bisect` or `base`
    records only.
-3. Otherwise the job fails and says `[KNOWN?] no master evidence`. The pipeline round dispatches
-   `base-check.yml` on master (`workflow_dispatch`, inputs `base`, `file`, `variant`, `repeat`), which
-   checks out the base, builds the package from nx's cache, runs F and posts kind `base`. If F fails
-   there with the same key (for an expired wait: fails there at all), the round re-runs the pull
-   request's failed job, whose plan now excuses T. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's
-   code. It costs one file's run, only when a pull request fails, and the result serves every later
-   pull request on that base.
+3. Otherwise T passes anyway, loudly, as `[UNRELATED] <test> ... this pull request did not touch it`: a
+   warning annotation and a line in the job summary (2026-10-27, #3925: a failure with another source must
+   not block merges -- every open pull request was red on one master defect, and the old `[KNOWN?]` wait
+   needed a base check nothing dispatched; the full run with bisect and revert is the net). In the background
+   ci.yml's `base-checks` job dispatches `base-check.yml` on master (`workflow_dispatch`, inputs `base`,
+   `file`, `variant`, `repeat`, `pr`) once per test file, variant and base: it asks the store first
+   (`POST /v1/base-checks`, kind `pr`, which answers `dispatch: true` only the first time), so later pull
+   requests and re-runs on the same base reuse the one check. The base check checks out the base, builds the
+   package from nx's cache, runs F and posts kind `base`. If F fails there, it files or updates one
+   priority:critical `Failing on master` issue per signature (the same failure on several pull requests
+   lands on that one issue); if F passes there, it comments on the pull request so the round looks for a
+   flaky test or a cause in it. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's code.
+   It costs one file's run per test per base.
+4. Still failing, whatever the store says: a test the pull request touched (rule 1), a crash, an unhandled
+   error, a coverage or build failure (none is a test failure the judge sees), any GPU family
+   (`webgpu-graph-algorithms*`), and the screenshot gate.
 
 An excused failure prints `[KNOWN] <test> fails the same way on master <sha>, issue #N`; the base-check
 run files or updates one `Failing on master: <first line>` issue per signature (`bug`, `priority:high`,

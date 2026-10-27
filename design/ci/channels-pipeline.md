@@ -234,7 +234,14 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   made again from the head), when a non-merge commit of the pull request is not in F (a fix commit
   made after the master merge), and on a conflict. Every run does this, so the `mode: candidate`
   run `release-due` dispatches on such a merge loses nothing when another dispatch replaces it
-  while pending. The pick then tests H first (it is unjudged) and plans the re-test from C..H
+  while pending. `release-due` names the fix's pull request in that run (input `fix_pr`), so a fix
+  whose description alone references the hold issue is taken too. The pick then tests H first (it
+  is unjudged). **First version (owner, 2026-10-26): H is re-tested whole**, a full run's every
+  lane and whole screenshot capture, judged by the same verdict: one full run per fix, about 1 to
+  1.5 hours, so fix forward works now rather than after the story-test parity work (#3472) and
+  #3592, which the narrower re-test's carried-over captures lean on. The narrower re-test below is
+  built and switched on by the repository variable `CANDIDATE_RETEST=affected`; a fix author does
+  the same either way. With it on, the pick plans the re-test from C..H
   (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
   as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
   graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile
@@ -296,8 +303,14 @@ tools/results/run-group.mjs <group>`: compute the inputs key, run, retry failed 
   computed at read time; never GPU tests or the screenshot gate. Full runs and bisects excuse nothing.
 - **Evidence only from master's code:** kinds `full`, `bisect` and `base` are accepted only when the
   OIDC `ref` is `refs/heads/master` and `job_workflow_ref` names master's workflow file. A pull
-  request's failure is excused only by such records; when none exists the job says `[KNOWN?]` and the
-  round dispatches `base-check.yml`, then re-runs the failed job if the base fails the same way.
+  request's failure is excused as `[KNOWN]` only by such records. When none exists and the pull request did
+  not touch the test (not its file, not its import closure), it passes anyway as `[UNRELATED]`, loudly (a
+  warning annotation and a job summary line), and CI dispatches `base-check.yml` once per test per base
+  (deduplicated in the results store), which files one priority:critical `Failing on master` issue when
+  master fails it too and comments on the pull request when master passes it. Reason (2026-10-27, #3925): a
+  failure with another source must not block merges (every open pull request was red on one master
+  defect); the full run with bisect and revert is the net. A touched test, a crash, a coverage or build
+  failure, GPU tests and the screenshot gate still fail the pull request.
   `restricted-cpu-stress.yml` writes kind `stress`, never evidence.
 - **Fail open:** 5 s for plan and record, 2 s for a failure event. No plan means no reuse, no
   quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled and re-posted.
@@ -502,7 +515,10 @@ run stays first in line for runners, as today:
    master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
    in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
-   parity holds (section 5, step 9): the largest single saving.
+   parity holds (section 5, step 9): the largest single saving. (d) Fewer pushes per pull request:
+   on 2026-10-26, 99 of 244 pull request runs were cancelled by a newer push to the same branch, a
+   median 6 minutes later, because every commit was pushed and `pr-open.sh` merged master into a branch
+   that was only behind; a branch with an open pull request is now pushed only on purpose.
 2. **Make each run smaller.** File-level test selection for the packages that still run whole
    shards on a pull request; measure the nx remote build cache's hit rate and raise it; a real fast
    path for a change to tools only or docs only.

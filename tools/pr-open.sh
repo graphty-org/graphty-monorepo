@@ -3,7 +3,7 @@
 # It replaces `node tools/land.mjs land <branch>` (design/ci/channels-pipeline/merging.md, section 2.2)
 # and runs no tests: CI is the only gate. It returns in seconds and never waits for CI.
 #
-#   tools/pr-open.sh --proof <file> [--refs] [--title "<header>"] [--issue N] [--review-answered]
+#   tools/pr-open.sh --proof <file> [--refs] [--title "<header>"] [--issue N] [--review-answered] [--merge-master]
 #
 # Keep the Proof file under tmp/<task>/ (gitignored): an untracked file in the worktree is refused.
 #
@@ -13,7 +13,11 @@
 #      prefix, as in fix/1234-topic), a branch with nothing master lacks, an empty or missing Proof file, and a
 #      title commitlint rejects (Lint PR Title is a required check);
 #   2. merges origin/<branch> when GitHub's copy has commits this one lacks (the owner's screenshot approvals),
-#      then origin/master when the branch is behind (never a rebase); a conflict stops it, exit 2;
+#      then checks that origin/master merges cleanly (git merge-tree); a conflict stops it, exit 2: merge it by hand.
+#      A branch that is only behind master is not merged: CI tests the pull request as merged with master and the
+#      required checks are not strict, so that merge was one more push and one more CI run for nothing
+#      (design/ci/channels-pipeline-plan.md, step 5a, fewer-pushes-per-pr). --merge-master merges it anyway (never
+#      a rebase);
 #   3. runs the fresh-context review (tools/pr-review.sh; reused when its report already carries the branch's
 #      patch id) and stops, exit 3, on a blocking finding: fix it, or answer each finding in the Proof and run
 #      again with --review-answered;
@@ -43,7 +47,7 @@ die() {
     exit "${code:-1}"
 }
 
-proof="" refs=0 title="" issue="" answered=0
+proof="" refs=0 title="" issue="" answered=0 merge_master=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --proof) proof="${2:-}"; shift 2 ;;
@@ -51,7 +55,8 @@ while [ $# -gt 0 ]; do
         --title) title="${2:-}"; shift 2 ;;
         --issue) issue="${2:-}"; shift 2 ;;
         --review-answered) answered=1; shift ;;
-        *) die "unknown argument: $1 (usage: tools/pr-open.sh --proof <file> [--refs] [--title \"<header>\"] [--issue N] [--review-answered])" ;;
+        --merge-master) merge_master=1; shift ;;
+        *) die "unknown argument: $1 (usage: tools/pr-open.sh --proof <file> [--refs] [--title \"<header>\"] [--issue N] [--review-answered] [--merge-master])" ;;
     esac
 done
 
@@ -84,11 +89,17 @@ if git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/
     fi
 fi
 git fetch -q origin master
-if ! git merge-base --is-ancestor origin/master HEAD; then
+clash="origin/master does not merge cleanly into $branch; merge it by hand (git merge origin/master), resolve, commit, run again"
+if [ "$merge_master" = 0 ]; then
+    # Exit 1 is a conflict; anything else (an old git) is not ours to judge, and CI will say.
+    rc=0
+    git merge-tree --write-tree origin/master HEAD >/dev/null 2>&1 || rc=$?
+    [ "$rc" != 1 ] || code=2 die "$clash"
+elif ! git merge-base --is-ancestor origin/master HEAD; then
     # The merge runs without hooks: its message is git's own, and post-commit would push in the background.
     if ! git -c core.hooksPath=/dev/null merge -q --no-edit origin/master; then
         git merge --abort >/dev/null 2>&1 || true
-        code=2 die "origin/master does not merge cleanly into $branch; merge it by hand (git merge origin/master), resolve, commit, run again"
+        code=2 die "$clash"
     fi
 fi
 [ -n "$(git rev-list -1 origin/master..HEAD)" ] || die "$branch has nothing master lacks"

@@ -471,6 +471,18 @@ build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: 
 merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
 restart asked for by the cancelled merge started. Undo: revert.
 
+**fewer-pushes-per-pr** (#3850) -- agent, S. On 2026-10-26 (07:00Z on, 244 pull request ci.yml
+runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6 minutes
+later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 cancelled
+run-minutes a day. Two causes: `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit,
+so every commit on a branch with an open pull request started a run; and `tools/pr-open.sh` merged
+`origin/master` into a branch that was only behind, one more push, though a pull request is tested
+as merged with master and the required checks are not strict. So `branch-push.sh` does not push a
+branch with an open pull request (the status broker's file when fresh, else one cached `gh pr list`;
+unsure, it pushes) and says so, and `pr-open.sh` merges master only on a conflict or
+`--merge-master`. Needs: nothing. Done: over a day, pull request runs cancelled by a newer push to
+the same branch fall well below the 99 measured. Undo: revert.
+
 **stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
 Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).
 Needs: nothing. Done: on 5 pull requests no capture job runs past `All Checks Pass`. Undo: revert.
@@ -622,15 +634,19 @@ slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the 
 
 **candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
 (the fix commit, the newer-master and partial-fix refusals, a conflict), release.yml's
-`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` with T4 and
-the affected lanes on H, the `recapture` job shooting the affected Storybooks whole and carrying
-the rest over (ci.yml's visual job and gate untouched; ci.yml gets no new input), the run's own
-build and `site-<H>` (`deploy-pages.yml` called), `release-due` on a merge that references the hold
-issue. Fix authors use `worktree-new.sh` from `origin/channel/candidate` and `pr-open.sh`
-unchanged. Needs: `candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a
-scratch fix from C merges into master and `channel/candidate`, the run on H re-tests the selected
-shards, T4 and the affected projects' stories and promotes; a fix made from newer master is
-refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` (input
+`fix_pr`, from `release-due` on a merge that references the hold issue), the run's own build and
+`site-<H>` (`deploy-pages.yml` called). First version (owner, 2026-10-26): the run on H re-tests
+H whole, every lane and the whole screenshot capture, about 1 to 1.5 hours per fix, so fix forward
+works now instead of after #3592 and #3472. The narrower re-test (the affected shards and lanes,
+the `recapture` job shooting the affected Storybooks whole and carrying the rest over) is built
+behind the repository variable `CANDIDATE_RETEST=affected`, off until those land; switching it on
+changes nothing for a fix author. Fix authors use `worktree-new.sh` from
+`origin/channel/candidate` and `pr-open.sh` unchanged. Needs: `candidate-hold`. Done: a scratch
+fix from C merges into master and `channel/candidate`, the run on H re-tests it whole and
+promotes (or waits for the owner's screenshot approval and then promotes); a fix made from newer
+master is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+Follow-up, after #3592 and #3472: set `CANDIDATE_RETEST=affected` and check one fix forward's run.
 
 **candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
 recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.

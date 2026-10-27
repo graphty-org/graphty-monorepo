@@ -13,10 +13,14 @@
 //       store's hold moves to the new head, which the pick then tests first. A fix that cannot enter (none of its
 //       commits starts from the candidate, part of the fix sits on newer master, a conflict) is told on the hold
 //       issue once, and skipped from then on.
-//       env RESULTS_URL and the job's OIDC token, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL; git: master's checkout
+//       The merges of the pull requests FIX_PR names (release.yml's `fix_pr`, comma-separated, set by release-due on
+//       fixes whose description alone references the hold issue) are fixes too.
+//       env RESULTS_URL and the job's OIDC token, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL, FIX_PR; git: master's checkout
 //       with full history, pushing with the deploy key; writes head and moved to GITHUB_OUTPUT
-//   node tools/channel/candidate-fix.mjs plan      release.yml's pick job, when it tests a held head past C
-//       What the re-test of head H runs: only the test shards of the projects nx calls affected by C..H, Hosts and
+//   node tools/channel/candidate-fix.mjs plan      release.yml's pick job, when it tests a held head past C and the
+//       repository variable CANDIDATE_RETEST is `affected`. Unset (the first version, owner 2026-10-26), the step is
+//       skipped and the head is re-tested whole: every lane and the whole screenshot capture, a full run's.
+//       What the narrower re-test of head H runs: only the test shards of the projects nx calls affected by C..H, Hosts and
 //       work protection (macOS) only when their packages or the lockfile changed, and the screenshots of the
 //       affected Storybooks shot again whole; every other project's screenshots are carried over from the run that
 //       judged the head before (its visual-final-* captures), with their changed and new stories shot again. A lane
@@ -208,11 +212,18 @@ function mergeFix(m, pr) {
 }
 
 // merges every waiting fix into HEAD, telling the hold issue once about each that cannot enter
-function mergeFixes(hold, merges, said, runUrl) {
+// fixPr: the pull requests release-due dispatched this run for (`fix_pr`, comma-separated), fixes whatever their
+// commits say
+function mergeFixes(hold, merges, said, runUrl, fixPr) {
     const merged = [];
     for (const m of merges) {
-        if (!referencesHold(m, hold.issue) || acceptsIn(m.commits).length || said.includes(REFUSED(m.sha))) continue;
         const pr = /#(\d+)/.exec(m.subject)?.[1] ?? m.sha.slice(0, 12);
+        const fix =
+            referencesHold(m, hold.issue) ||
+            String(fixPr ?? "")
+                .split(",")
+                .includes(pr);
+        if (!fix || acceptsIn(m.commits).length || said.includes(REFUSED(m.sha))) continue;
         const r = mergeFix(m, pr);
         if (r?.f) merged.push(`#${pr} (${r.f.slice(0, 12)})`);
         if (!r?.why) continue;
@@ -238,7 +249,7 @@ async function advance(env) {
     // master's merges first: the checkout leaves master's tip
     const merges = mergesSince(hold.base);
     git(["checkout", "--quiet", "--detach", start]);
-    const merged = mergeFixes(hold, merges, said, env.RUN_URL ?? "");
+    const merged = mergeFixes(hold, merges, said, env.RUN_URL ?? "", env.FIX_PR);
     const head = git(["rev-parse", "HEAD"]);
     if (head === hold.head) {
         output({ head, moved: "false" });

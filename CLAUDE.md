@@ -387,7 +387,7 @@ The `tools/` directory contains build scripts:
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
 | `worktree-new.sh` | `<branch> [base] [name]`: hands itself to the live copy in `.worktrees/land-live` (as `land.mjs` does), so its fixes take effect before master. A worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done. It needs the branch's issue (a number of three or more digits in the branch name, `--issue N`, or `--new-issue "<title>"`), pushes the new branch, labels the issue `in-progress` and writes the branch's progress note on it. The `design/**` images (the design studio's screenshots and the mockups, about 10 GB of Git LFS PNGs) are checked out as small LFS pointer files, which nothing outside the design studio reads; every other LFS file (`visual-baselines/`, `visual-fonts/`) is checked out in full. `--full-images` checks them out too; in an existing worktree, `git lfs pull --include "design/**"` |
 | `branch-note.mjs` | The branch's progress note on its issue, one comment edited in place: branch, worktree, owning session, latest commit, what is done, left and next. `update --done <t> --left <t> --next <t>` when you stop working |
-| `branch-push.sh` | Run by `.husky/post-commit`: pushes the current branch to GitHub in the background after every commit (no gate; never golden, golden-cut or master) and refreshes its note's latest commit at most every 10 minutes. A branch that moved on GitHub is not merged: its push fails and is logged, and `git pull` in the worktree brings the commits in. Log: `tmp/branch-push.log` in the main checkout |
+| `branch-push.sh` | Run by `.husky/post-commit`: pushes the current branch to GitHub in the background after every commit (no gate; never golden, golden-cut or master), except once the branch has an open pull request (every push there starts a CI run; it says so, and `tools/pr-open.sh` or `git push` publishes the finished fix), and refreshes its note's latest commit at most every 10 minutes. A branch that moved on GitHub is not merged: its push fails and is logged, and `git pull` in the worktree brings the commits in. Log: `tmp/branch-push.log` in the main checkout |
 | `no-copy.sh` | Run by `.husky/pre-commit`, `prepare-commit-msg` and `pre-rebase`: refuses a cherry-pick or a rebase. Never copy, always merge |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
@@ -670,8 +670,10 @@ and a "Nightly held on <sha12>" issue. Master keeps merging and its slots still 
 the held commit. Fix it forward from the candidate's head, never from newer master:
 `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`, `Refs #<hold issue>` in the commit
 message, then `tools/pr-open.sh` as usual. When it merges, release.yml (`mode: candidate`, which `release-due`
-dispatches; every full and restart run does it too) merges the fix commit, never master, into `channel/candidate`
-and re-tests the new head only where the fix reaches. A fix made from newer master, or a fix commit made after
+dispatches with `fix_pr`; every full and restart run does it too) merges the fix commit, never master, into
+`channel/candidate` and re-tests the new head as a whole full run, every lane and the whole screenshot capture
+(about 1 to 1.5 hours; the narrower re-test waits behind the repository variable `CANDIDATE_RETEST=affected`).
+A fix made from newer master, or a fix commit made after
 pr-open's master merge, is refused on the hold issue. A green-clean head promotes to nightly; a green-images one
 when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by the
 owner's `gh workflow run release.yml --ref master -f mode=abandon`.
@@ -1241,7 +1243,7 @@ rollout: issue #3418.
 1. Work on a branch in your own worktree: `./tools/worktree-new.sh <branch>` starts it from
    `origin/master`. Every branch belongs to an issue: its number in the name (`fix/1234-topic`), or
    `--issue N`, or `--new-issue "<title>"`. Every commit pushes the branch (`.husky/post-commit`), which
-   runs no CI. When you stop, `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
+   runs no CI, until its pull request is open; after that commits stay local until you push. When you stop, `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
 2. Before opening it, run what CI would: the affected packages' lint, build and tests
    (`pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`), and `node tools/sonar-gate.mjs` (the
    SonarQube changed-lines check; nothing else runs it now). Long runs go in the background.
@@ -1249,12 +1251,12 @@ rollout: issue #3418.
    a Proof file (the commands you ran and what they showed) under `tmp/<task>/` (an untracked file in the
    worktree is refused) and run `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for `Refs #N`
    instead of `Fixes #N`; `--title` when the first commit's header is not a good title). It merges
-   `origin/master` if the branch is behind (never a rebase; a conflict exits 2: merge by hand, resolve,
-   commit, run again), pushes, opens the pull request into master or reuses the open one, arms
+   `origin/master` only when they conflict (exit 2: merge by hand, resolve, commit, run again) or with
+   `--merge-master`, never because the branch is behind (CI tests the merge anyway), pushes, opens the pull request into master or reuses the open one, arms
    auto-merge and prints the URL. It returns in seconds and never waits for CI. A subagent opens its own
    pull request this way and stops.
-4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch; each
-   push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
+4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch, then
+   push them once with `tools/pr-open.sh` again (or `git push`); each push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
 5. `pr-open.sh` leaves auto-merge off, and the owner merges, only for a breaking (`!` or `BREAKING CHANGE`)
    commit, for a change to a file that guards the owner (`GUARD_PATHS` in `pr-open.sh`: the screenshot
    approval keys and trusted gate, `release-*.json`, the credential guard, `.claude/settings.json`, the

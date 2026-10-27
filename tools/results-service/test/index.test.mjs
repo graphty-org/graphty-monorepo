@@ -551,6 +551,34 @@ describe("GET /v1/plan", () => {
     });
 });
 
+describe("POST /v1/base-checks", () => {
+    const ask = { base: "b".repeat(40), file: "a.test.ts", variant: "graphty-1|flags=off|selected", pr: 7 };
+
+    it("answers dispatch once per base, file and variant, whoever asks again", async () => {
+        const { call } = service();
+        assert.deepEqual(await call("POST", "/v1/base-checks", { token: pr(), body: ask }), {
+            status: 200,
+            body: { dispatch: true },
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, pr: 8 } })).body, {
+            dispatch: false,
+        });
+        const other = { ...ask, variant: "graphty-2|flags=off|selected" };
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: other })).body, {
+            dispatch: true,
+        });
+    });
+
+    it("refuses master's runs, a local token and a malformed ask", async () => {
+        const { call } = service();
+        for (const token of [master("ci.yml"), LOCAL_TOKEN]) {
+            assert.equal((await call("POST", "/v1/base-checks", { token, body: ask })).status, 403);
+        }
+        assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, base: "x" } })).status, 400);
+        assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, file: "" } })).status, 400);
+    });
+});
+
 describe("POST /v1/sites", () => {
     const SHA = "a".repeat(40);
     const deployPages = (claims = {}) =>

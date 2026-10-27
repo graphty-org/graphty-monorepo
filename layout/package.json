@@ -103,7 +103,7 @@
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.3.3",
-        "vite": "^7.3.7",
+        "vite": "^8.1.6",
         "vitepress": "^1.6.3",
         "vitest": "catalog:"
     }

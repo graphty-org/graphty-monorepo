@@ -52,6 +52,43 @@ import { call, config } from "./results/client.mjs";
 // how long after its close a red issue still restarts: the merge that closed it ran this job minutes later
 const CLOSED_WITHIN_MS = 60 * 60 * 1000;
 
+// A red or hold issue open longer than this no longer starts a re-test of its own: each one pays for the paid lanes
+// (the T4 GPU lane on machine.dev), and a blocker left that long is not fixed by testing it again. The scheduled
+// 6-hour full run still tests master and merges waiting fixes, so a fix is never left untested.
+export const PAID_RETEST_MAX_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether an issue is too old to start a re-test on the paid lanes.
+ * @param openedAt when it was opened: milliseconds or an ISO date; unknown is never too old
+ * @param [now] milliseconds
+ * @returns true past PAID_RETEST_MAX_MS
+ */
+export function tooOldToRetest(openedAt, now = Date.now()) {
+    const t = typeof openedAt === "number" ? openedAt : Date.parse(openedAt ?? "");
+    return Number.isFinite(t) && now - t > PAID_RETEST_MAX_MS;
+}
+
+/**
+ * A run attempt as read from GitHub: a positive integer, else 1 (an older gh has no `attempt` field).
+ * @param raw the field's value or the command's output
+ * @returns the attempt
+ */
+export function attemptOf(raw) {
+    const n = Number.parseInt(String(raw ?? ""), 10);
+    return n >= 1 ? n : 1;
+}
+
+/**
+ * The restart's dispatch: it tests `sha`, the commit of the green master build this job runs in, never master's
+ * tip at dispatch time, which may be a newer merge whose build is still running or red.
+ * @param mode the plan's mode
+ * @param sha the green build's commit
+ * @returns the `gh` arguments
+ */
+export function restartDispatch(mode, sha) {
+    return ["workflow", "run", "release.yml", "--ref", "master", "-f", `mode=${mode}`, "-f", `sha=${sha}`];
+}
+
 /**
  * The red issue a merge references, if any: open, or closed in the last hour (by this merge's `Fixes`).
  * @param redIssues the issues, as listRedIssues returns them; one with no state is open
@@ -59,8 +96,9 @@ const CLOSED_WITHIN_MS = 60 * 60 * 1000;
  * @param [now] milliseconds
  * @param [closedSince] milliseconds: an issue closed at or after this still counts (by default an hour before now; a
  *   cancelled build's merge may have closed it earlier)
- * @returns the dispatch to make ({ mode, issue, cancel }), or null when nothing is due; `cancel` when the merge says
- *   it fixes the issue, not only refers to it
+ * @returns the dispatch to make ({ mode, issue, cancel, stale }), or null when nothing is due; `cancel` when the merge
+ *   says it fixes the issue, not only refers to it; `stale` when the issue is too old to re-test (tooOldToRetest),
+ *   which dispatches nothing
  */
 export function due(redIssues, messages, now = Date.now(), closedSince = now - CLOSED_WITHIN_MS) {
     const keywords = new Map();
@@ -71,8 +109,10 @@ export function due(redIssues, messages, now = Date.now(), closedSince = now - C
         keywords.set(n, [...(keywords.get(n) ?? []), m[1].toLowerCase()]);
     }
     const live = (i) => (i.state ?? "OPEN") === "OPEN" || (i.closedAt && Date.parse(i.closedAt) >= closedSince);
-    const red = redIssues.find((i) => i.title.startsWith(RED_TITLE) && keywords.has(i.number) && live(i));
+    const reds = redIssues.filter((i) => i.title.startsWith(RED_TITLE) && keywords.has(i.number) && live(i));
+    const red = reds.find((i) => !tooOldToRetest(i.createdAt, now)) ?? reds[0];
     if (!red) return null;
+    if (tooOldToRetest(red.createdAt, now)) return { mode: "restart", issue: red.number, cancel: false, stale: true };
     const cancel = keywords.get(red.number).some((k) => !["refs", "part of"].includes(k));
     return { mode: "restart", issue: red.number, cancel };
 }
@@ -138,6 +178,15 @@ export function lastGreenBuild(head, greenShas, isAncestor) {
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
 
+// the run's attempt through the REST API (`gh run list --json attempt` needs gh 2.48 or later); 1 when unreadable
+function runAttempt(id) {
+    try {
+        return attemptOf(run("gh", ["api", `repos/{owner}/{repo}/actions/runs/${id}`, "--jq", ".run_attempt"]));
+    } catch {
+        return 1;
+    }
+}
+
 function cancelRedRun(issue, dryRun) {
     const inProgress = JSON.parse(
         run("gh", [
@@ -148,7 +197,7 @@ function cancelRedRun(issue, dryRun) {
             "--status",
             "in_progress",
             "--json",
-            "databaseId,displayTitle,url,attempt",
+            "databaseId,displayTitle,url",
         ]),
     );
     const issueText = run("gh", [
@@ -178,7 +227,7 @@ function cancelRedRun(issue, dryRun) {
                 "-q",
                 ".[0].number",
             ]);
-            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, r.attempt)]);
+            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))]);
         } catch (error) {
             console.log(
                 `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
@@ -250,12 +299,15 @@ export function fixForwardDue(merge, store) {
  * pull request description, so a newer unrelated merge is never named for an older fix.
  * @param merges `[{ subject, messages }]`, one per master commit
  * @param store `GET /v1/candidate`'s answer, or null
- * @returns `{ issue, prs }` (the fixes' pull request numbers), or null
+ * @param [now] milliseconds
+ * @returns `{ issue, prs, stale }` (the fixes' pull request numbers; stale when the hold is too old to re-test, which
+ *   dispatches nothing), or null
  */
-export function fixForwardMerges(merges, store) {
+export function fixForwardMerges(merges, store, now = Date.now()) {
     const fixes = merges.filter((m) => fixForwardDue(m, store));
     if (!fixes.length) return null;
     const prs = fixes.map((m) => /^Merge pull request #(\d+) /.exec(m.subject ?? "")?.[1]).filter(Boolean);
+    if (tooOldToRetest(store.hold.at, now)) return { issue: store.hold.issue, prs, stale: true };
     return { issue: store.hold.issue, prs };
 }
 
@@ -283,6 +335,12 @@ async function dispatchFixForward(merges, dryRun) {
     const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
     const due = fixForwardMerges(merges, r.ok ? r.data : null);
     if (!due) return;
+    if (due.stale) {
+        console.log(
+            `release-due: the hold #${due.issue} is over 30 days old: no candidate re-test of its own (it would pay for the T4 GPU lane); the scheduled full run merges the fixes`,
+        );
+        return;
+    }
     console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
     if (!dryRun) run("gh", fixForwardDispatch(due.prs));
 }
@@ -399,6 +457,12 @@ async function main() {
         console.log("release-due: nothing due (no open red issue referenced by these merges)");
         return;
     }
+    if (plan.stale) {
+        console.log(
+            `release-due: red issue #${plan.issue} is over 30 days old: no restart of its own (it would pay for the T4 GPU lane); the scheduled full run tests the fix`,
+        );
+        return;
+    }
     console.log(`release-due: this merge references red issue #${plan.issue}: release.yml mode=${plan.mode}`);
     // Best effort: a failure here (a 5xx, a rate limit) must never stop the restart dispatch below.
     try {
@@ -407,7 +471,7 @@ async function main() {
         console.log(`::warning::cancelling the red run failed: ${String(error.message).split("\n")[0]}`);
     }
     if (!dryRun) {
-        run("gh", ["workflow", "run", "release.yml", "--ref", "master", "-f", `mode=${plan.mode}`]);
+        run("gh", restartDispatch(plan.mode, head));
     }
 }
 

@@ -44,6 +44,7 @@ tools/publish-hold.test.mjs
 tools/push-queue.test.mjs
 tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
+tools/release-due.test.mjs
 tools/release-dry-run.test.mjs
 tools/release-rerun.test.mjs
 tools/release-scheduler/test/index.test.mjs

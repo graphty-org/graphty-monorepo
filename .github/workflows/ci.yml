@@ -90,7 +90,7 @@ concurrency:
 # `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
 # summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
-# (its "Clear this check's early verdicts" step). The visual job asks for its own.
+# (its "Clear this check's early verdicts" step).
 permissions:
     contents: read
     checks: write
@@ -732,9 +732,8 @@ jobs:
                   job: packages
                   advisory: ${{ steps.advisory.outputs.checks }}
 
-    # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the visual job
-    # screenshots them). This job keeps the id "build": the visual job (whose steps follow
-    # visual-review's template, and which this workflow leaves alone) needs build and reads its outputs,
+    # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the Stories job
+    # screenshots their stories). This job keeps the id "build": jobs that need the Storybooks read its outputs,
     # so the job that uploads the Storybooks is the one called build, and it hands on the packages job's
     # plan unchanged.
     build:
@@ -796,7 +795,7 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
+            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
@@ -809,7 +808,7 @@ jobs:
 
             # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
-            # four 49 s together), and every Stories and visual job waits for this job. Each build reads only
+            # four 49 s together), and every Stories job waits for this job. Each build reads only
             # the package builds downloaded above, so none waits on another.
             - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
@@ -818,7 +817,7 @@ jobs:
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
-            # Storybooks, built from the same tree, instead of building them again; the visual job
+            # Storybooks, built from the same tree, instead of building them again; the Stories job
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
               if: needs.packages.outputs.artifacts-run != ''
@@ -1422,7 +1421,7 @@ jobs:
 
             # The style fidelity scorecard (graphty-element/test/browser/oracle-scorecard.test.ts) compares graphty's
             # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
-            # names (about 3 MB), cached like the visual job's baselines.
+            # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
               uses: actions/cache@v4
@@ -1939,7 +1938,7 @@ jobs:
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
     # packed into bins of about 4 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
-    # each captured with the old visual-review capture exactly as the visual job captures, but only those stories
+    # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
     # pictures on the same inputs (`unstable`, an [UNSTABLE] story; the quarantine list names story tests, which a capture has not), or a
@@ -1990,7 +1989,7 @@ jobs:
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
-            # As the visual job: a pull request runs the base branch's capture code, never its own; a candidate or an
+            # A pull request runs the base branch's capture code, never its own; a candidate or an
             # older commit (the full run's call) runs the workflow's, which the step above fetched.
             - name: Use the base branch's capture code
               run: |
@@ -2139,26 +2138,12 @@ jobs:
                   job: stories
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
-    # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
-    # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
-    # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
-    # job of the package's workflow template (visual-review/templates/visual-review.yml) with two
-    # differences: the matrix is written out here, and the Storybook is downloaded from this run's
-    # build job instead of built again. A test (visual-review/test/workflows.test.mjs) keeps the
-    # commands the same as the template's. The owner reviews
-    # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
-    # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
-    # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
-    # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
-    # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
-    # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
-    # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
-    # 4-worker development machine; CI runners are slower and not yet measured.
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
-    # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
-    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
-    # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
+    # the review page and the gate read. Every project has switched (two full runs with zero parity differences
+    # against the old built-Storybook capture, CI 40515529497 and 40524757006), so this is the capture: it is
+    # uploaded as visual-<project>-<attempt>, the artifact `visual-review serve`, the gate (visual-report) and
+    # release.yml read. Report-only, outside All Checks Pass.
     # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
     # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
     # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
@@ -2207,7 +2192,7 @@ jobs:
                     # one after another (fileParallelism: false), about 44 minutes in one job against the 45-minute
                     # limit; the old capture is CPU bound too (27 minutes with 4 browsers). A quarter is about 11
                     # minutes of tests. Each leg uploads its partial capture; story-tests-merge combines them into
-                    # story-tests-graph-io-fidelity-<attempt>, which the parity job reads.
+                    # visual-graph-io-fidelity-<attempt>.
                     - project: graph-io-fidelity
                       name: graph-io-fidelity-1
                       part: 1
@@ -2242,11 +2227,26 @@ jobs:
                       lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
-            # every step below but the summary is.
+            # every step below but the summary is. It uploads the not-affected marker in place of a capture
+            # (once per project: a split project's first leg), so the gate can tell a project left out on
+            # purpose from one whose capture failed.
             - name: Skip a project this run does not test
               id: skip
               if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) && (!matrix.also || !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.also))) }}
-              run: echo "skip=true" >> "$GITHUB_OUTPUT"
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/not-affected"
+                  printf '{"skipped":"not affected","project":"%s"}\n' "$PROJECT" > "$RUNNER_TEMP/not-affected/skipped.json"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+
+            - name: Upload the not-affected marker
+              if: ${{ steps.skip.outputs.skip == 'true' && (!matrix.parts || matrix.part == 1) }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/not-affected/
+                  retention-days: 30
 
             - uses: actions/checkout@v7
               if: steps.skip.outputs.skip != 'true'
@@ -2267,6 +2267,17 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # A pull request's screenshots are taken and written by the base branch's capture code, never its
+            # own, so a pull request cannot change how its pictures are taken or judged (CLAUDE.md, Visual
+            # review). HEAD^1 is the merge commit's first parent, the base branch (fetch-depth 0 above).
+            - name: Use the base branch's capture code
+              if: steps.skip.outputs.skip != 'true' && github.event_name == 'pull_request'
+              env:
+                  CAPTURE_CODE: visual-review/capture visual-review/trusted
+              run: |
+                  rm -rf $CAPTURE_CODE
+                  git archive HEAD^1 $CAPTURE_CODE | tar -x
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
@@ -2389,7 +2400,7 @@ jobs:
               if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
               uses: actions/upload-artifact@v7
               with:
-                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/stories/merged/
                   retention-days: 30
                   if-no-files-found: ignore
@@ -2413,7 +2424,7 @@ jobs:
                   } >> "$GITHUB_STEP_SUMMARY"
 
     # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
-    # project's single leg would have uploaded (story-tests-<project>-<attempt>, which story-tests-parity reads):
+    # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     story-tests-merge:
         name: Story tests merge (${{ matrix.project }})
@@ -2487,7 +2498,7 @@ jobs:
               if: ${{ !cancelled() && steps.found.outputs.any != '' }}
               uses: actions/upload-artifact@v7
               with:
-                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/merged/
                   retention-days: 30
                   if-no-files-found: ignore
@@ -2505,277 +2516,6 @@ jobs:
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
                       else
                           echo "No capture: no part of this project ran."
-                      fi
-                  } >> "$GITHUB_STEP_SUMMARY"
-
-    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
-    # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
-    # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
-    # Not on a pull request, where the old capture does not run (the visual job below); the switch is judged on
-    # full runs (two zero-difference full runs).
-    story-tests-parity:
-        name: Story tests parity (${{ matrix.project }})
-        needs: [story-tests, story-tests-merge, visual]
-        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
-        runs-on: ubuntu-24.04
-        # actions: read for gh run download of an earlier attempt's capture
-        permissions:
-            contents: read
-            actions: read
-        continue-on-error: true
-        timeout-minutes: 10
-        strategy:
-            fail-fast: false
-            matrix:
-                project:
-                    [
-                        graphty,
-                        graphty-element,
-                        algorithms,
-                        layout,
-                        compact-mantine,
-                        cytoscape-extensions,
-                        graph-io-fidelity,
-                    ]
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  ref: ${{ inputs.ref }}
-                  sparse-checkout: visual-review
-
-            # parity decodes PNGs with pngjs (visual-review's only runtime dependency it needs); the
-            # sparse checkout has no lockfile, so install that one package, at visual-review's version.
-            - name: Install pngjs
-              run: |
-                  version=$(node -p 'require("./visual-review/package.json").dependencies.pngjs')
-                  npm install --prefix "$RUNNER_TEMP/deps" --no-save --no-package-lock "pngjs@$version"
-                  mkdir -p visual-review/node_modules
-                  ln -s "$RUNNER_TEMP/deps/node_modules/pngjs" visual-review/node_modules/pngjs
-
-            # Each capture from the newest attempt that made it: a re-run of failed jobs (the full run's same-commit
-            # re-run) re-runs this job but not a capture job that passed, whose artifact keeps its own attempt's
-            # suffix. Exact names: a pattern visual-graphty-* would also match visual-graphty-element-*.
-            - name: Download the two captures
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  PROJECT: ${{ matrix.project }}
-                  RUN_ID: ${{ github.run_id }}
-                  RUN_ATTEMPT: ${{ github.run_attempt }}
-              run: |
-                  fetch() {
-                      for ((a = RUN_ATTEMPT; a >= 1; a--)); do
-                          if gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$1-$a" -D "$2" 2>/dev/null; then
-                              echo "$1-$a -> $2"
-                              return 0
-                          fi
-                      done
-                      echo "no $1-<attempt> artifact in this run"
-                  }
-                  fetch "visual-$PROJECT" captures/old
-                  fetch "story-tests-$PROJECT" captures/new
-
-            - name: Compare
-              env:
-                  PROJECT: ${{ matrix.project }}
-              run: |
-                  set -o pipefail
-                  if [[ ! -f captures/old/results.json || ! -f captures/new/results.json ]]; then
-                      echo "Not compared: one of the two captures is missing (the project was not affected, or a job failed)." | tee "$RUNNER_TEMP/parity.txt"
-                      exit 0
-                  fi
-                  node visual-review/trusted/cli.mjs parity --project "$PROJECT" captures/old captures/new | tee "$RUNNER_TEMP/parity.txt"
-
-            - name: Write the comparison to the job summary
-              if: always()
-              env:
-                  PROJECT: ${{ matrix.project }}
-              run: |
-                  {
-                      echo "### Story tests parity ($PROJECT)"
-                      echo '```'
-                      tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
-                      echo '```'
-                  } >> "$GITHUB_STEP_SUMMARY"
-
-    # The old full capture of every Storybook: the full run (release.yml's call), a dispatch and a bisect point.
-    # Not on a pull request (design/ci/channels-pipeline.md section 7.1, #3850): All Checks Pass does not need it
-    # and nothing that reads it decides anything there. A pull request's own stories are captured by the Stories
-    # jobs above, which All Checks Pass needs; the owner approves changed pictures on the full run's candidate
-    # (section 5), whose capture this job makes; story-test parity is judged on full runs; the flaky-screenshot
-    # report and the Visual report only reported. On a pull request these captures ran 15 to 25 minutes past
-    # All Checks Pass, about 36 runner-minutes a run.
-    visual:
-        name: visual (${{ matrix.project }})
-        needs: build
-        if: needs.build.outputs.light != 'true' && github.event_name != 'pull_request'
-        runs-on: ubuntu-24.04
-        permissions:
-            contents: read
-            # To download master's newest capture (the reference step below).
-            actions: read
-        continue-on-error: true
-        timeout-minutes: 45
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - project: compact-mantine
-                      artifact: build-storybook-compact-mantine
-                    - project: graphty-element
-                      artifact: build-storybook-element
-                    - project: layout
-                      artifact: build-storybook-layout
-                    - project: algorithms
-                      artifact: build-storybook-algorithms
-                    - project: graphty
-                      artifact: build-storybook-app
-                    - project: cytoscape-extensions
-                      artifact: build-storybook-cytoscape-extensions
-                    # Its Storybook is not at <project>/storybook-static, so the row names where it is.
-                    - project: graph-io-fidelity
-                      artifact: build-storybook-graph-io-fidelity
-                      storybook: graph-io/fidelity-stories/storybook-static
-        steps:
-            # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
-            # writes the not-affected marker in place of results.json and uploads it as the capture, so the
-            # gate can tell a project left out on purpose from one whose capture failed. Every step below
-            # but the upload and the summary is skipped then.
-            - name: Skip a Storybook this pull request cannot affect
-              id: skip
-              if: contains(fromJSON(needs.build.outputs.visual-skip || '[]'), matrix.project)
-              env:
-                  PROJECT: ${{ matrix.project }}
-              run: |
-                  mkdir -p "$RUNNER_TEMP/visual"
-                  printf '{"skipped":"not affected","project":"%s"}\n' "$PROJECT" > "$RUNNER_TEMP/visual/skipped.json"
-                  echo "skip=true" >> "$GITHUB_OUTPUT"
-
-            # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
-            # LFS objects by default); this job alone fetches them, and only its own project's, plus the
-            # pinned fonts every capture draws with (visual-fonts/, the config's "fontconfig"). The objects
-            # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
-            # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
-            # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
-            # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
-            # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
-            - uses: actions/checkout@v7
-              if: steps.skip.outputs.skip != 'true'
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 2
-
-            - name: Restore this project's baseline images
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
-              with:
-                  path: .git/lfs/objects
-                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
-                  restore-keys: lfs-${{ matrix.project }}-
-
-            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
-              if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
-
-            # A pull request runs the base branch's copy of the tool (capture and the trusted code it
-            # imports), never its own: code that wrote "unchanged" for everything would otherwise pass
-            # the gate. A change to capture is first exercised here by the pull request after it.
-            - name: Use the base branch's capture code
-              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
-              run: |
-                  rm -rf visual-review/capture visual-review/trusted
-                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
-
-            - uses: pnpm/action-setup@v4
-              if: steps.skip.outputs.skip != 'true'
-
-            - name: Setup Node.js
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/setup-node@v7
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              if: steps.skip.outputs.skip != 'true'
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
-            - name: Read the Playwright version
-              if: steps.skip.outputs.skip != 'true'
-              id: playwright
-              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
-
-            - name: Cache Playwright browsers
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
-              with:
-                  path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-            - uses: ./.github/actions/drop-microsoft-apt-source
-              if: steps.skip.outputs.skip != 'true'
-
-            # `visual-review install-browser` (the template's step) is `playwright install --with-deps
-            # chromium`, apt on each of the five jobs; this installs the same system packages from a cache.
-            - name: Install Playwright system packages
-              if: steps.skip.outputs.skip != 'true'
-              uses: ./.github/actions/playwright-system-deps
-              with:
-                  working-directory: visual-review
-
-            - name: Install Chromium
-              if: steps.skip.outputs.skip != 'true'
-              working-directory: visual-review
-              run: pnpm exec playwright install chromium
-
-            - name: Download Storybook build
-              if: steps.skip.outputs.skip != 'true'
-              uses: actions/download-artifact@v8
-              with:
-                  name: ${{ matrix.artifact }}
-                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
-
-            # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
-            # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
-            # Without a reference (none downloaded) every story with no baseline is "new".
-            - name: Download master's newest capture
-              id: reference
-              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
-
-            - name: Capture
-              if: steps.skip.outputs.skip != 'true'
-              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
-
-            # Kept even when capture crashed, so the owner sees the partial results.json.
-            - name: Upload captures
-              if: always()
-              uses: actions/upload-artifact@v7
-              with:
-                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
-                  path: ${{ runner.temp }}/visual/
-                  retention-days: 30
-
-            - name: Write the counts to the job summary
-              if: always()
-              run: |
-                  f="$RUNNER_TEMP/visual/results.json"
-                  {
-                      echo "### Visual review (${{ matrix.project }})"
-                      if [[ -f "$f" ]]; then
-                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items, master reference run: \(.reference)",
-                              "", "| status | items |", "|---|---|",
-                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
-                      elif [[ -f "$RUNNER_TEMP/visual/skipped.json" ]]; then
-                          echo "Not captured: this pull request cannot affect it."
-                      else
-                          echo "No results.json: capture did not start."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
@@ -2983,11 +2723,11 @@ jobs:
     # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
     # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
     # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
-    # A pull request runs no old capture (the visual job), so this job runs only on a pull request that has one.
+    # It judges the story tests' captures (visual-<project>-<attempt>), so it runs on a pull request that ran them.
     visual-report:
         name: Visual report
-        needs: [packages, visual]
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.visual.result != 'skipped' }}
+        needs: [packages, story-tests, story-tests-merge]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         continue-on-error: true
@@ -3221,8 +2961,8 @@ jobs:
 
     visual-flaky:
         name: Flaky screenshots
-        needs: visual
-        if: ${{ !cancelled() && needs.visual.result != 'skipped' }}
+        needs: [story-tests, story-tests-merge]
+        if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 10
@@ -3276,7 +3016,7 @@ jobs:
                 links,
                 performance,
                 cost-accuracy,
-                visual,
+                story-tests-merge,
                 all-checks,
                 queue-checks,
                 visual-flaky,

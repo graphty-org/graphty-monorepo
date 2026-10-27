@@ -597,7 +597,7 @@ writes `Fixes #N` (or `Refs #N`) from the branch's issue number.
 | `golden-verify.yml` | Retired with golden (nothing pushes its branches now). Push to `golden-candidate`, `golden-cut-candidate`, `golden-bisect-1` or `golden-bisect-2` (moved only by `tools/verify.mjs`); dispatch with `ref` and `shards` | CI verification of golden: one job, `Verify`, that calls `ci.yml` as a full run (every shard, Lint, Checks, Docs, Links, cost accuracy, the captures; no Performance), so every check is named `Verify / ...` and none can satisfy master's required `All Checks Pass`. It gates no merge: `verify.mjs` reads the result and moves `golden-verified` |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it. Never on a master push | The full run (`mode: full`, every scheduled run): full CI, T4, Hosts, audit and LLM regression on the newest green master build, publishing nothing; a red one files `Full run red: <lane> on <sha>` and dispatches `bisect.yml`. `mode=legacy` (owner only) still lands and publishes npm `latest`, never graphty.app. Production goes through `promote.yml` |
-| `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
+| `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that `release-rerun.yml` re-runs on the same commit or files itself (`tools/release-rerun.mjs` decides for both) |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Assemble the site (app, docs, Storybooks, hosted data), keep it as artifact `site-<sha>` (14 days), recorded in the results store (`POST /v1/sites`), and deploy it to this repository's GitHub Pages, canary.graphty.app (the custom domain is a Pages setting), unless canary already serves that commit or a newer one |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -656,6 +656,18 @@ Every run also has a `Version dry run` lane (`tools/release-approvals.mjs`): it 
 fails when a project would publish a major (below 1.0.0, a minor: nx's breaking bump there) or its first version without an entry in the code-owned
 `release-approvals.json` (`project`, `kind` major or first, `merge`, `approval` URL, `since`), naming each such
 project in its `held` output. A legacy run then lands nothing; `pnpm run check:release-hold` validates the file.
+
+**The held nightly candidate (#3741).** A full run that is still not green-clean after its one automatic
+same-commit re-run (`release-rerun.yml`) holds its commit: branch `channel/candidate`, the results store's hold
+and a "Nightly held on <sha12>" issue. Master keeps merging and its slots still run, but none promotes or replaces
+the held commit. Fix it forward from the candidate's head, never from newer master:
+`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`, `Refs #<hold issue>` in the commit
+message, then `tools/pr-open.sh` as usual. When it merges, release.yml (`mode: candidate`, which `release-due`
+dispatches; every full and restart run does it too) merges the fix commit, never master, into `channel/candidate`
+and re-tests the new head only where the fix reaches. A fix made from newer master, or a fix commit made after
+pr-open's master merge, is refused on the hold issue. A green-clean head promotes to nightly; a green-images one
+when the owner's screenshot approval merges (`mode: promote-nightly`). The hold ends on that promotion, or by the
+owner's `gh workflow run release.yml --ref master -f mode=abandon`.
 
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11).
 The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App,

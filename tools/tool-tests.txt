@@ -1,10 +1,14 @@
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/channel/candidate-fix.test.mjs
 tools/channel/candidates.test.mjs
+tools/channel/hold.test.mjs
 tools/channel/nightly.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
+tools/channel/recapture.test.mjs
+tools/channel/resume.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs
@@ -37,6 +41,7 @@ tools/push-queue.test.mjs
 tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
 tools/release-dry-run.test.mjs
+tools/release-rerun.test.mjs
 tools/release-scheduler/test/index.test.mjs
 tools/release-status.test.mjs
 tools/restricted-cpu-stress.test.mjs

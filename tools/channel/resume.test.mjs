@@ -161,6 +161,14 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
         assert.equal((await check({ cwd: dir, MODE: "full" }, { ...store, hold: null })).out.resume, "false");
     });
 
+    it("a full slot's catch-up that errors (git, a GitHub 5xx) tests as it would have", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "resume-nogit-"));
+        const store = { hold: { head: "a".repeat(40), issue: null }, recent: [] };
+        const full = await check({ cwd: dir, MODE: "full" }, store);
+        assert.deepEqual([full.code, full.out.resume], [0, "false"]);
+        assert.match(full.out.why, /^no catch-up: /);
+    });
+
     it("promote-nightly promotes the approval once, and does nothing once nightly holds it", async () => {
         const { dir, h, p, git } = repo();
         const store = { hold: null, recent: [{ sha: h, state: "green-images", runId: 42 }] };

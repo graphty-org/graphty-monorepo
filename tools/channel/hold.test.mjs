@@ -50,7 +50,7 @@ describe("start", () => {
 });
 
 // hold.mjs against a store on localhost and a gh that only logs
-async function withStore(cmd, hold, env) {
+async function withStore(cmd, hold, env, postStatus = 200) {
     const posts = [];
     const server = createServer((req, res) => {
         let body = "";
@@ -58,6 +58,7 @@ async function withStore(cmd, hold, env) {
         req.on("end", () => {
             if (req.method === "POST") posts.push({ url: req.url, body: JSON.parse(body) });
             res.setHeader("content-type", "application/json");
+            if (req.method === "POST") res.statusCode = postStatus;
             res.end(JSON.stringify(req.method === "POST" ? { ok: true } : { hold, recent: [] }));
         });
     });
@@ -91,12 +92,13 @@ async function withStore(cmd, hold, env) {
 }
 
 describe("start for a red run that was not re-run", () => {
-    const env = { ONLY_IF_FREE: "true", SHA: "c".repeat(40), STATE: "red", WHAT: "T4 GPU" };
+    const env = { SHA: "c".repeat(40), STATE: "red", WHAT: "T4 GPU" };
     it("holds the commit when nothing is held", async () => {
         const r = await withStore("start", null, env);
         assert.equal(r.code, 0);
         assert.match(r.calls, /issue create --title Nightly held on cccccccccccc/);
         assert.deepEqual(r.posts, [
+            { url: "/v1/hold", body: { base: "c".repeat(40), head: "c".repeat(40), issue: null } },
             { url: "/v1/hold", body: { base: "c".repeat(40), head: "c".repeat(40), issue: 31 } },
         ]);
     });
@@ -114,8 +116,20 @@ describe("start for a verdict, which read the hold when its run was picked", () 
         const r = await withStore("start", null, env);
         assert.equal(r.code, 0);
         assert.match(r.calls, /issue create --title Nightly held on cccccccccccc/);
-        assert.equal(r.posts.length, 1);
+        assert.equal(r.posts.length, 2);
         assert.match(r.stdout, /^action=start$/m);
+    });
+    it("opens no hold issue when the store refuses the hold (another run held its commit after the read)", async () => {
+        const r = await withStore("start", null, env, 409);
+        assert.equal(r.code, 0);
+        assert.equal(r.calls, "", "the issue is opened only after the store recorded the hold");
+        assert.equal(r.posts.length, 1);
+        assert.match(r.stdout, /^action=none$/m);
+    });
+    it("fails the job, opening no issue, when the store cannot record the hold", async () => {
+        const r = await withStore("start", null, env, 500);
+        assert.notEqual(r.code, 0);
+        assert.equal(r.calls, "");
     });
     it("opens no second hold issue when another run held its commit since the pick", async () => {
         const r = await withStore("start", { base: "d".repeat(40), head: "d".repeat(40), issue: 5 }, env);

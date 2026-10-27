@@ -256,7 +256,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     try {
         await cmd(process.env);
     } catch (error) {
-        console.log(`::error::${error.message}`);
-        process.exitCode = 1;
+        // a full slot's catch-up is a side trip: an error there (a GitHub 5xx, git) leaves the slot to test as it
+        // would have, and the next slot asks again; promote-nightly exists to promote, so it fails
+        if (process.argv[2] === "check" && process.env.MODE !== "promote-nightly") {
+            console.log(`::warning::no catch-up this slot: ${error.message.split("\n")[0]}`);
+            output({ resume: "false", why: `no catch-up: ${error.message.split("\n")[0]}` });
+        } else {
+            console.log(`::error::${error.message}`);
+            process.exitCode = 1;
+        }
     }
 }

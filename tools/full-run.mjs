@@ -17,7 +17,8 @@
 //           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE (attempt 1 of a re-runnable mode files nothing)
 //   node tools/full-run.mjs file-deferred <file>
 //                                     files the red issue and dispatches the bisect an attempt-1 verdict deferred
-//                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all
+//                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all;
+//                                     nothing when a fix closed the commit's red issue in the last hour (fixed=<n>)
 //
 // Same-commit re-run, once (design/ci/channels-pipeline.md section 3): attempt 1 of a full or restart run that ends
 // red on a lane that failed (or was cancelled) records its verdict but files no red issue, dispatches no bisect and
@@ -28,7 +29,10 @@
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
-// any other commit's verdict leaves the hold alone and never promotes (tools/channel/nightly.mjs).
+// any other commit's verdict leaves the hold alone and never promotes (tools/channel/nightly.mjs). The verdict reads
+// the hold from the store when it decides (output held), never from the pick: a re-run attempt keeps attempt 1's pick
+// outputs, and another run may have held its commit since. An attempt-1 red that waits for its re-run is recorded as
+// `deferred`, which the pick does not count as judged, so a re-run that never runs leaves the commit to be tested.
 //
 // The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
 // not answer makes the slot test master's head and makes the verdict skip only its own record.
@@ -48,6 +52,8 @@ export const FLAKY_TITLE = "Flaky in full run:";
 /** The modes whose attempt 1 is re-run once by release-rerun.yml instead of filing at once. */
 export const RERUN_MODES = new Set(["full", "restart", "candidate"]);
 const GREEN = new Set(["green-clean", "green-images", "approved"]);
+/** The state an attempt-1 verdict that waits for its same-commit re-run records: not a verdict, so pick ignores it. */
+export const DEFERRED = "deferred";
 const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
 /** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
@@ -110,6 +116,9 @@ export function pick({
             why: "the results store did not answer: testing master's head",
         };
     }
+    // an attempt-1 red that waits for its same-commit re-run decided nothing: a re-run that never ran (a newer
+    // dispatch replaced it while pending) must leave its commit to be tested again, not judged red
+    store = { ...store, recent: (store.recent ?? []).filter((v) => v.state !== DEFERRED) };
     const held = store.hold?.head ?? "";
     // a held candidate's head no run judged yet is tested first (catch-up order, channels-pipeline.md section 3);
     // a judged one leaves the slot to master, whose verdict never promotes or replaces it. A head past the held
@@ -279,8 +288,8 @@ export function holdAction({ held, sha, state }) {
  * capture there (one that crashed before writing results.json is not "nothing differs").
  * @param dir the directory
  * @param [expected] the projects a full run captures (visual-review.config.json)
- * @returns `{ changed, missing }`: changed lists `<project>/<file>`; missing lists projects, or ["every project"]
- *   when the directory holds no capture at all
+ * @returns `{ changed, missing }`: changed lists `<project>/<file>`; missing lists projects (a capture that is not
+ *   complete is missing too), or ["every project"] when the directory holds no capture at all
  */
 export function differingImages(dir, expected = []) {
     // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
@@ -291,12 +300,18 @@ export function differingImages(dir, expected = []) {
         if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
     }
     if (!newest.size) return { changed: [], missing: expected.length ? expected : ["every project"] };
-    const changed = [];
-    for (const [project, { f }] of newest) {
-        const items = JSON.parse(readFileSync(join(dir, f), "utf8")).items ?? [];
-        for (const i of items) if (!PASSING_IMAGES.has(i.status)) changed.push(`${project}/${i.file ?? i.id}`);
-    }
-    return { changed: changed.sort(), missing: expected.filter((p) => !newest.has(p)) };
+    const read = [...newest].map(([project, { f }]) => ({
+        project,
+        results: JSON.parse(readFileSync(join(dir, f), "utf8")),
+    }));
+    const changed = read.flatMap(({ project, results }) =>
+        (results.items ?? []).filter((i) => !PASSING_IMAGES.has(i.status)).map((i) => `${project}/${i.file ?? i.id}`),
+    );
+    // a capture that stopped part way (complete false: a crash, a shard missing from the merge) is not "nothing
+    // else differs": its project counts as missing, as the gate refuses it
+    const incomplete = read.filter(({ results }) => results.complete !== true).map(({ project }) => project);
+    const missing = [...new Set([...expected.filter((p) => !newest.has(p)), ...incomplete])];
+    return { changed: changed.sort(), missing };
 }
 
 /**
@@ -399,6 +414,24 @@ export function laneRedIssue({ lane, result, sha, run }) {
     return redIssue({ sha, red: [lane], lanes, run, bisect });
 }
 
+/**
+ * Runs fn up to three times, 5 then 15 seconds apart: GitHub answers a 5xx now and then.
+ * @param fn the call
+ * @param [waits] the waits in milliseconds
+ * @returns fn's value; throws its last error
+ */
+export function retry(fn, waits = process.env.RELEASE_RERUN_RETRY_MS ? [0, 0] : [5000, 15000]) {
+    for (let i = 0; ; i++) {
+        try {
+            return fn();
+        } catch (error) {
+            if (i >= waits.length) throw error;
+            console.log(`::warning::retrying after: ${String(error?.message ?? error).split("\n")[0]}`);
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waits[i]);
+        }
+    }
+}
+
 const MAX_TARGETS = 100;
 const short = (sha) => (sha ?? "").slice(0, 7);
 const sh = (cmd, args, input) =>
@@ -413,6 +446,17 @@ const read = async (cfg, path) => {
     if (!r.ok) console.log(`::warning::results store: GET ${path} did not answer (${r.why})`);
     return r.ok ? r.data : null;
 };
+/**
+ * The held candidate's head as the store has it now: "" none, "unknown" when the store does not answer.
+ * @param cfg the store's config, or null
+ * @param fallback what to use with no store configured (the pick's output)
+ * @returns the head
+ */
+export async function heldNow(cfg, fallback) {
+    if (!cfg) return fallback ?? "unknown";
+    const store = await read(cfg, "/v1/candidate");
+    return store ? (store.hold?.head ?? "") : "unknown";
+}
 const record = async (cfg, verdict) => {
     const r = await call(cfg, "POST", "/v1/verdicts", verdict);
     console.log(
@@ -445,23 +489,26 @@ export function isOnNightly(sha, nightly, cwd) {
 // The publish hold's state for the pick; an unreadable one counts as open, so the pick spends nothing on a guess
 function publishHold() {
     try {
+        // release-held.sh retries its own read; this one is retried here (GitHub answers a 5xx now and then)
         const open = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
-        const closed = sh("gh", [
-            "issue",
-            "list",
-            "-R",
-            process.env.GITHUB_REPOSITORY,
-            "--state",
-            "closed",
-            "--limit",
-            "20",
-            "--search",
-            `in:title "${PUBLISH_HOLD}"`,
-            "--json",
-            "closedAt",
-            "-q",
-            '[.[].closedAt] | max // ""',
-        ]);
+        const closed = retry(() =>
+            sh("gh", [
+                "issue",
+                "list",
+                "-R",
+                process.env.GITHUB_REPOSITORY,
+                "--state",
+                "closed",
+                "--limit",
+                "20",
+                "--search",
+                `in:title "${PUBLISH_HOLD}"`,
+                "--json",
+                "closedAt",
+                "-q",
+                '[.[].closedAt] | max // ""',
+            ]),
+        );
         return { open, closedAt: closed ? Date.parse(closed) : 0 };
     } catch (error) {
         return { open: `(unknown: ${error.message.split("\n")[0]})`, closedAt: 0 };
@@ -790,12 +837,18 @@ async function verdictMain(env) {
     if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
     if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
-    // a failed pick judged no commit: recording red on one would make the next slot skip it
-    if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
+    // a failed pick judged no commit: recording red on one would make the next slot skip it. A deferred red is
+    // recorded as deferred, which the pick ignores, until the re-run (or release-rerun.yml) decides
+    const recorded = wait ? DEFERRED : state;
+    if (cfg && red[0] !== "pick")
+        await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
-    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held: env.HELD ?? "unknown", sha: env.SHA, state });
+    // the hold as the store has it now, not as the pick saw it: a re-run attempt keeps attempt 1's pick outputs, and
+    // another run may have held its commit since
+    const held = await heldNow(cfg, env.HELD);
+    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state });
     const owner = heldLine(env.VERSION_HELD);
-    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner });
+    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner, held });
 }
 
 /**
@@ -807,6 +860,19 @@ async function fileDeferredMain(file, env) {
     const facts = readJson(file);
     if (!facts?.deferred || facts.forward) {
         console.log(`::notice::${file} defers nothing to file`);
+        return;
+    }
+    // a fix merged for this commit's red issue in the last hour: release-due cancelled the run on purpose to restart
+    // on the fix, so its deferred red is that fix's, not a red to file again (or a commit to hold)
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const fixed = bestEffort(
+        () => fixedRecently(listRedIssues("closed", since), facts.sha),
+        "reading the red issues a fix closed",
+        () => null,
+    );
+    if (fixed) {
+        console.log(`::notice::#${fixed} was fixed by a merge that cancelled this run: filing nothing`);
+        output({ issue: "", bisect: "", sha: facts.sha, fixed: String(fixed) });
         return;
     }
     const { issue, bisect } = await fileRedVerdict(config(env), facts);

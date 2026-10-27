@@ -349,6 +349,9 @@ jobs:
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
+                  # GitHub answers a 5xx now and then: a read is tried three times before it fails the pick
+                  # (tools/release-held.sh retries its own)
+                  retry() { "$@" || { sleep 5; "$@"; } || { sleep 15; "$@"; }; }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   # A publish hold opened only because npm was slow to list versions it had accepted ends here, once
                   # npm lists them all; one npm refused stays for a person (tools/publish-hold.mjs). npm sends no
@@ -363,7 +366,7 @@ jobs:
                   # Cut-over from the release pull request design (2026-10-11): a release/train-* pull request still
                   # open would, if it merged, put a version commit on master that nothing tags or publishes. This
                   # train releases its commits instead. ponytail: delete this loop once no such pull request is left.
-                  for number in $(gh pr list --state open --limit 200 --json number,headRefName \
+                  for number in $(retry gh pr list --state open --limit 200 --json number,headRefName \
                       --jq '.[] | select(.headRefName | startswith("release/train-")) | .number'); do
                       gh pr close "$number" --delete-branch --comment \
                           "Closed: releases no longer go through a pull request. ${run_url} tests master's newest commit and publishes it directly."
@@ -378,7 +381,7 @@ jobs:
                   # A scheduled shadow run releases nothing, so master's tip stays releasable: without this, an
                   # unchanged master paid for the full suite, the T4, macOS and the LLM lane four times a day.
                   if [ "${MODE:-}" = shadow ] && [ "$TRIGGER" = schedule ]; then
-                      tested=$(gh run list --workflow release.yml --commit "$CANDIDATE" --status success --limit 20 \
+                      tested=$(retry gh run list --workflow release.yml --commit "$CANDIDATE" --status success --limit 20 \
                           --json displayTitle --jq '[.[] | select(.displayTitle == "Release (shadow)")] | length')
                       [ "${tested:-0}" = 0 ] || skip "a shadow run already passed on ${CANDIDATE}; nothing new to test"
                   fi
@@ -438,10 +441,11 @@ jobs:
                       git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
                   fi
                   node tools/full-run.mjs pick
+                  retry() { "$@" || { sleep 5; "$@"; } || { sleep 15; "$@"; }; }
                   sha=$(sed -n 's/^sha=//p' "$GITHUB_OUTPUT" | tail -1)
                   # a held head past its commit is on channel/candidate, not on master
                   git cat-file -e "${sha}^{commit}" 2>/dev/null || git fetch --quiet origin "$sha"
-                  build=$(gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 1 \
+                  build=$(retry gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 1 \
                       --json databaseId --jq '.[0].databaseId // empty') || build=""
                   echo "build_run=${build}" >> "$GITHUB_OUTPUT"
 
@@ -1205,6 +1209,8 @@ jobs:
             promote: ${{ steps.promote.outputs.promote }}
             screenshots: ${{ steps.gate.outputs.screenshots }}
             deferred: ${{ steps.verdict.outputs.deferred }}
+            # the held head as the store had it when the verdict decided ("" none, "unknown" no answer)
+            held: ${{ steps.verdict.outputs.held }}
             # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
             # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
             hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
@@ -1324,7 +1330,8 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
                   FIRST: ${{ steps.gate.outputs.first }}
-                  HELD: ${{ needs.pick.outputs.held }}
+                  # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick)
+                  HELD: ${{ steps.verdict.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 
             # green-images too: it waits for the owner's screenshot review, and without this the run ends green

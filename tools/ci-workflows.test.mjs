@@ -3338,10 +3338,10 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.equal(existsSync(new URL("../.github/workflows/gpu-rerun-on-runner-loss.yml", import.meta.url)), false);
     });
 
-    it("looks only at a first attempt that failed or was cancelled (a job timeout) and leaves the decision to tools/release-rerun.mjs", () => {
+    it("looks at a first attempt that failed or was cancelled (a job timeout), and a second one that was cancelled, and leaves the decision to tools/release-rerun.mjs", () => {
         assert.match(
             rerun,
-            /if: contains\(fromJSON\('\["failure","cancelled","timed_out"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.run_attempt == 1\n/,
+            /if: \(contains\(fromJSON\('\["failure","cancelled","timed_out"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.run_attempt == 1\) \|\| \(github.event.workflow_run.conclusion == 'cancelled' && github.event.workflow_run.run_attempt == 2\)\n/,
         );
         assert.match(rerun, /run: node tools\/release-rerun.mjs\n/);
         assert.doesNotMatch(
@@ -4338,7 +4338,11 @@ describe("release.yml", () => {
             /- name: Close the failed-deploy and failed-promotion issues\n[^\n]*\n\s+continue-on-error: true\n[\s\S]*release-held.sh close "[^"]*" "Nightly promotion failed:" \|\| rc=\$\?\n\s+tools\/release-held.sh close "[^"]*" "Nightly blocked:" \|\| rc=\$\?\n\s+exit "\$rc"/,
         );
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
-        assert.match(helper, /--search "in:title \\"\$\{1:-Release held:\}\\""/, "searches by the prefix");
+        assert.match(
+            helper,
+            /retry gh issue list[^\n]*--search "in:title \\"\$\{1:-Release held:\}\\""/,
+            "searches by the prefix, retrying a 5xx",
+        );
         assert.match(helper, /startswith\(\\"\$\{1:-Release held: \}\\"\)/);
         assert.match(helper, /gh issue edit "\$open"[^\n]*--title "\$2"/);
         assert.match(helper, /gh issue comment "\$open"/);
@@ -6959,8 +6963,9 @@ describe("release.yml's nightly promotion (#1020)", () => {
             STATE: "${{ steps.verdict.outputs.state }}",
             GATE: "${{ steps.gate.outputs.outcome }}",
             FIRST: "${{ steps.gate.outputs.first }}",
-            // while a candidate is held, only it promotes (channels-pipeline.md section 3)
-            HELD: "${{ needs.pick.outputs.held }}",
+            // while a candidate is held, only it promotes (channels-pipeline.md section 3): the hold as the store had it
+            // at the verdict, not the pick's, which a re-run attempt keeps from attempt 1
+            HELD: "${{ steps.verdict.outputs.held }}",
         });
         const order = steps.verdict.steps.map((st) => st.id ?? st.name);
         assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));
@@ -8019,6 +8024,38 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
         assert.doesNotMatch(workflow("deploy-pages.yml"), /run-id: \$\{\{ github.event.workflow_run.id \}\}/);
         // the site job finds site-<sha> whichever run kept it
         assert.match(job(release, "site"), /actions\/artifacts\?name=site-\$\{SHA\}/);
+    });
+});
+
+describe("the full run's pick rides out a GitHub 5xx", () => {
+    it("tools/release-held.sh find tries a failed issue listing again", () => {
+        const dir = mkdtempSync(join(tmpdir(), "release-held-"));
+        const count = join(dir, "count");
+        writeFileSync(count, "0");
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\nn=$(($(cat "${count}") + 1)); echo "$n" > "${count}"\n[ "$n" -ge 3 ] || { echo "HTTP 502" >&2; exit 1; }\necho 42\n`,
+            { mode: 0o755 },
+        );
+        const out = execFileSync("tools/release-held.sh", ["find"], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                GITHUB_REPOSITORY: "o/r",
+                RELEASE_HELD_RETRY_WAIT: "0",
+            },
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        assert.equal(out.trim(), "42");
+        assert.equal(readFileSync(count, "utf8").trim(), "3");
+    });
+    it("retries the pick's other GitHub reads", () => {
+        const pick = job(workflow("release.yml"), "pick");
+        assert.match(pick, /for number in \$\(retry gh pr list /);
+        assert.match(pick, /tested=\$\(retry gh run list /);
+        assert.match(pick, /build=\$\(retry gh run list /);
+        assert.equal(pick.match(/^\s+retry\(\) \{ "\$@" \|\| /gm).length, 2);
     });
 });
 

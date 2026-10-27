@@ -508,8 +508,8 @@ blocks canary and every light check's cache; the red full run second._
 2. **Red master build or a master-guard revert pull request.** As today's section 1.
 3. **Flaky or load-sensitive tests** (`priority:critical`, from the store: passed and failed on the
    same commit and inputs). Find the mechanism; never a longer wait. Also the base checks: for each
-   `[KNOWN?]` pull request failure with no master evidence, dispatch `base-check.yml` and re-run the
-   pull request's failed job if the base fails the same way; for each `[FLAKY-UNRELATED]` test,
+   `[UNRELATED]` pull request failure, CI already dispatched `base-check.yml` once (#3925): act on its
+   `Failing on master` issue, or on its comment that master passes; for each `[FLAKY-UNRELATED]` test,
    dispatch `base-check.yml` with `repeat: 5`, whose master records can quarantine it.
 4. **CI budget alarms** (`ci-budget` issues). Read the suspect range, find the task's cause, revert
    or fix. A budget raise is its own pull request with its measurement, for the owner to review.

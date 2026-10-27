@@ -2,9 +2,10 @@ name: Base check
 
 # Runs one test file on master's code at a pull request's base and writes each run to the results store as kind
 # `base`, which only master's own copy of this workflow may write. The pipeline round dispatches it:
-# - `[KNOWN?]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. When the
-#   file fails here the same way, the round re-runs the pull request's failed job, whose plan now excuses it, and
-#   this run files one `Failing on master` issue per signature.
+# - `[UNRELATED]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. The pull
+#   request already passed (#3925). When the file fails here the same way, this run files one priority:critical
+#   `Failing on master` issue per signature; when it passes, it comments on the pull request (`pr`), so the round
+#   looks at a failure master does not share.
 # - `[FLAKY-UNRELATED]`: a pull request saw a test it did not touch fail and pass; repeat 5. A pass and a fail here
 #   quarantine the test, and this run files its priority:critical issue.
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
@@ -24,6 +25,9 @@ on:
             repeat:
                 description: How many times to run the file
                 default: "1"
+            pr:
+                description: The pull request that asked (optional); a pass here comments on it
+                required: false
 
 permissions:
     contents: read
@@ -42,6 +46,7 @@ jobs:
             contents: read
             id-token: write
             issues: write
+            pull-requests: write
         env:
             RESULTS_URL: ${{ vars.RESULTS_URL }}
             HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
@@ -117,3 +122,13 @@ jobs:
                   VARIANT: ${{ inputs.variant }}
                   REPEAT: ${{ inputs.repeat }}
               run: node "$RUNNER_TEMP/trusted/tools/results/cli.mjs" base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"
+
+            - name: Tell the pull request that master passes it
+              if: ${{ success() && inputs.pr != '' && inputs.repeat == '1' }}
+              env:
+                  PR: ${{ inputs.pr }}
+                  FILE: ${{ inputs.file }}
+                  BASE: ${{ inputs.base }}
+              run: |
+                  [[ "$PR" =~ ^[0-9]+$ ]] || exit 0
+                  gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "[UNRELATED] base check: \`$FILE\` passes on master at $BASE ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID), so the failure this pull request saw is not master's. Look for a flaky test or a cause in this pull request."

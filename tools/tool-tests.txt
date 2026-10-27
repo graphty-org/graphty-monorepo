@@ -8,6 +8,7 @@ tools/channel/nightly.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
 tools/channel/recapture.test.mjs
+tools/channel/rehearse.test.mjs
 tools/channel/resume.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs

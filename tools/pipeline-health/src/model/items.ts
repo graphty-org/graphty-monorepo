@@ -357,4 +357,6 @@ export interface SourceItem extends Item {
     lastOkAt?: number;
     error?: string;
     errorSince?: number;
+    /** The newest OK write skipped these items (one GitHub request that kept failing); the rest was written. */
+    partial?: string;
 }

@@ -70,6 +70,16 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/trusted"
                   git archive FETCH_HEAD tools | tar -x -C "$RUNNER_TEMP/trusted"
 
+            # the workflow's .github/actions/ only: the base's own tools/ run the base's tests, master's run from
+            # $RUNNER_TEMP/trusted above (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)
             - name: Refuse a base that is not on master
               env:

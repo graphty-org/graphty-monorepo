@@ -229,7 +229,7 @@ jobs:
             # wrong shared libraries. HOME is the container's, so the path is consistent within the job.
             - name: Cache Playwright browsers
               id: pw
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   {
                       path: ~/.cache/ms-playwright,

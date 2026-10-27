@@ -1,0 +1,1364 @@
+{
+    "40508956687.1": {
+        "sha": "818ff7f7c942b78da471bb966ad702d3b65314bc",
+        "at": 1793130385000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40508956687,
+        "created": 1793106304000,
+        "ok": false,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {},
+        "failedJob": "Owner approval (abandon the held candidate)"
+    },
+    "40510717919.1": {
+        "sha": "ca74f788e56445704f36de2d11304527600f04c5",
+        "at": 1793124055000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40510717919,
+        "created": 1793107041000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {}
+    },
+    "40509683220.1": {
+        "sha": "312b51c537209d86eeeb9bb447d8b33c39e8ec29",
+        "at": 1793107044000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40509683220,
+        "created": 1793106611000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {}
+    },
+    "40483915699.2": {
+        "sha": "70f16583b21037cdee7df863da54759bea3d013e",
+        "at": 1793106443000,
+        "tested": true,
+        "red": ["version"],
+        "ciFailed": false,
+        "run": 40483915699,
+        "created": 1793101697000,
+        "ok": false,
+        "lanes": {
+            "ci": "passed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "failed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 62,
+                "s": 5356,
+                "redAt": 1793103572000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2889
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2567
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 1250
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 21
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 764
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1933,
+                "redAt": 1793103635000
+            }
+        },
+        "failedJob": "CI / Performance Benchmarks"
+    },
+    "40507160819.1": {
+        "sha": "7f1ed32ebe5f154739fa1f887b9e4006b0a94b62",
+        "at": 1793106309000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40507160819,
+        "created": 1793105519000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "absent",
+            "publish": "absent"
+        },
+        "jobs": {}
+    },
+    "40500440346.1": {
+        "sha": "70f16583b21037cdee7df863da54759bea3d013e",
+        "at": 1793105522000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40500440346,
+        "created": 1793102447000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {}
+    },
+    "40457379258.2": {
+        "sha": "c2dd46f73b6fe6ec6fe15ffbd0c0d8ce46911ec8",
+        "at": 1793091085000,
+        "tested": true,
+        "red": ["ci", "t4", "version"],
+        "ciFailed": true,
+        "run": 40457379258,
+        "created": 1793083263000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "failed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "skipped",
+            "version": "failed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 62,
+                "s": 10848,
+                "redAt": 1793090962000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2387,
+                "redAt": 1793090635000
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2537
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 992
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 23
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1707,
+                "redAt": 1793089920000
+            }
+        },
+        "failedJob": "Version dry run"
+    },
+    "40458556009.1": {
+        "sha": "e2145e4a4d9cf5f605d650705a643fd0c7364f27",
+        "at": 1793088210000,
+        "tested": true,
+        "red": ["t4", "version"],
+        "ciFailed": false,
+        "run": 40458556009,
+        "created": 1793080836000,
+        "ok": false,
+        "lanes": {
+            "ci": "passed",
+            "t4": "failed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "failed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 62,
+                "s": 2682,
+                "redAt": 1793086014000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2388,
+                "redAt": 1793085755000
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2535
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 402
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 27
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 32
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1741,
+                "redAt": 1793085073000
+            }
+        },
+        "failedJob": "Version dry run"
+    },
+    "40448487922.1": {
+        "sha": "4fb819fd4b2ae37640bb9328e6d43605152a6633",
+        "at": 1793079397000,
+        "tested": true,
+        "red": ["ci"],
+        "ciFailed": true,
+        "run": 40448487922,
+        "created": 1793074371000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "skipped",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 58,
+                "s": 2943,
+                "redAt": 1793079263000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2942
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2537
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 565
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 24
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1368
+            }
+        },
+        "failedJob": "CI / Story tests (graph-io-fidelity)"
+    },
+    "40445512679.1": {
+        "sha": "0c72abc0edc70bae3336325c4ee8f8a1ecd7e596",
+        "at": 1793076240000,
+        "tested": true,
+        "red": ["ci"],
+        "ciFailed": true,
+        "run": 40445512679,
+        "created": 1793072451000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "skipped",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 58,
+                "s": 3350,
+                "redAt": 1793076159000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2889
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 1861
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 600
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 22
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1152
+            }
+        },
+        "failedJob": "CI / Performance Benchmarks"
+    },
+    "40436295457.1": {
+        "sha": "c3a0deaeeec01f07686142d7927bff974928927d",
+        "at": 1793071548000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40436295457,
+        "created": 1793066669000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {}
+    },
+    "40436208072.1": {
+        "sha": "c3a0deaeeec01f07686142d7927bff974928927d",
+        "at": 1793071304000,
+        "tested": true,
+        "red": [],
+        "ciFailed": false,
+        "run": 40436208072,
+        "created": 1793066615000,
+        "ok": false,
+        "lanes": {
+            "ci": "passed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 58,
+                "s": 3527,
+                "redAt": 1793070213000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3031
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2565
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 538
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 22
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 665
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1438
+            }
+        },
+        "failedJob": "CI / Story tests parity (compact-mantine)"
+    },
+    "40423614862.1": {
+        "sha": "4489a824466792ec7d672cba8302f1bd1d145a44",
+        "at": 1793065650000,
+        "tested": true,
+        "red": [],
+        "ciFailed": false,
+        "run": 40423614862,
+        "created": 1793059258000,
+        "ok": true,
+        "lanes": {
+            "ci": "passed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 58,
+                "s": 4322,
+                "redAt": 1793064697000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3087
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 1792
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 1023
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 24
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 720
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1791
+            }
+        },
+        "failedJob": "CI / Story tests (cytoscape-extensions)"
+    },
+    "40395969507.1": {
+        "sha": "129999fee697366a5eac1a9baac016f12fa31557",
+        "at": 1793051822000,
+        "tested": true,
+        "red": [],
+        "ciFailed": false,
+        "run": 40395969507,
+        "created": 1793046517000,
+        "ok": true,
+        "lanes": {
+            "ci": "passed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 58,
+                "s": 4376,
+                "redAt": 1793050952000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3055
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2537
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 630
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 24
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 683
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1384
+            }
+        },
+        "failedJob": "CI / Story tests (cytoscape-extensions)"
+    },
+    "40373901559.1": {
+        "sha": "782f2c99c2eba3c4f16e57c989c785b9cb1b9ef4",
+        "at": 1793042454000,
+        "tested": true,
+        "red": [],
+        "ciFailed": false,
+        "run": 40373901559,
+        "created": 1793037637000,
+        "ok": true,
+        "lanes": {
+            "ci": "passed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 54,
+                "s": 3970,
+                "redAt": 1793041774000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3129
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2056
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 980
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 22
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 27
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1630
+            }
+        },
+        "failedJob": "CI / Story tests parity (compact-mantine)"
+    },
+    "40354962497.1": {
+        "sha": "d6b2fb404d0fe0c9f3621847349ae81cf8f035d4",
+        "at": 1793033726000,
+        "tested": true,
+        "red": ["ci"],
+        "ciFailed": true,
+        "run": 40354962497,
+        "created": 1793030448000,
+        "ok": true,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 52,
+                "s": 2021,
+                "redAt": 1793032531000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3127
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 1969
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 1407
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 24
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 780
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1810
+            }
+        },
+        "failedJob": "CI / Performance Benchmarks"
+    },
+    "40342458043.1": {
+        "sha": "c9b52daf3f3bdbe03cdefa7f6cb9e0664108b8bf",
+        "at": 1793029412000,
+        "tested": true,
+        "red": ["ci", "autosave_macos"],
+        "ciFailed": true,
+        "run": 40342458043,
+        "created": 1793025872000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "failed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 52,
+                "s": 2609,
+                "redAt": 1793028595000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3134
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2164
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 744,
+                "redAt": 1793026677000
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 21
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 27
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1549
+            }
+        },
+        "failedJob": "Work protection (macOS) / Safari on iOS (Simulator)"
+    },
+    "40347808161.1": {
+        "sha": "0ffbd9f169e9ed4fe0ae54c4b98c92a8953d621b",
+        "at": 1793027827000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40347808161,
+        "created": 1793027827000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "absent",
+            "publish": "absent"
+        },
+        "jobs": {}
+    },
+    "40319269255.1": {
+        "sha": "9e411128bb0ea413c902ff8feb327a89c542cd03",
+        "at": 1793019194000,
+        "tested": true,
+        "red": ["ci", "autosave_macos"],
+        "ciFailed": true,
+        "run": 40319269255,
+        "created": 1793016036000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "failed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 52,
+                "s": 1784,
+                "redAt": 1793017882000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3010
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2561
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 599,
+                "redAt": 1793016697000
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 28
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 28
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1702
+            }
+        },
+        "failedJob": "Work protection (macOS) / Safari on iOS (Simulator)"
+    },
+    "40277363108.1": {
+        "sha": "95c5930c67beb96798bc404486f14c6493962847",
+        "at": 1792997532000,
+        "tested": true,
+        "red": ["ci"],
+        "ciFailed": true,
+        "run": 40277363108,
+        "created": 1792994443000,
+        "ok": true,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 50,
+                "s": 1795,
+                "redAt": 1792996286000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2935
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 1829
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 625
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 23
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 20
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1548
+            }
+        },
+        "failedJob": "CI / Performance Benchmarks"
+    },
+    "40271955574.1": {
+        "sha": "7b4c4dedf43cf7b6863713d0238e94e373e96403",
+        "at": 1792993970000,
+        "tested": true,
+        "red": ["ci"],
+        "ciFailed": true,
+        "run": 40271955574,
+        "created": 1792990827000,
+        "ok": true,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "passed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 49,
+                "s": 1719,
+                "redAt": 1792992592000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3022
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2541
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 724
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 22
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 684
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 1508
+            }
+        },
+        "failedJob": "CI / Performance Benchmarks"
+    },
+    "40271957019.1": {
+        "sha": "7b4c4dedf43cf7b6863713d0238e94e373e96403",
+        "at": 1792990861000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40271957019,
+        "created": 1792990828000,
+        "ok": false,
+        "lanes": {
+            "ci": "absent",
+            "t4": "absent",
+            "hosts": "absent",
+            "autosave_macos": "absent",
+            "audit": "absent",
+            "llm": "absent",
+            "version": "absent",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {}
+    },
+    "40257099973.1": {
+        "sha": "36d2cd1d3658d015a72a1175c05c79d82f6bb6c9",
+        "at": 1792985923000,
+        "tested": true,
+        "red": ["ci", "version"],
+        "ciFailed": true,
+        "run": 40257099973,
+        "created": 1792980129000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "passed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "passed",
+            "version": "failed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 49,
+                "s": 2243,
+                "redAt": 1792985177000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 3016
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2928
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 1326
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 19
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 714
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 916,
+                "redAt": 1792983774000
+            }
+        },
+        "failedJob": "Version dry run"
+    },
+    "40247287810.1": {
+        "sha": "6e5546dd1f1b92b3cb3838f2bf8aa9712b13e522",
+        "at": 1792980600000,
+        "tested": true,
+        "red": ["ci", "t4", "llm", "version"],
+        "ciFailed": true,
+        "run": 40247287810,
+        "created": 1792972846000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "failed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "passed",
+            "llm": "failed",
+            "version": "failed",
+            "land": "not in this mode",
+            "publish": "not in this mode"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 50,
+                "s": 5922,
+                "redAt": 1792980146000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 95,
+                "redAt": 1792973316000
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 1810
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 1031
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 22
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 0,
+                "redAt": 1792980146000
+            },
+            "version": {
+                "job": "Version dry run",
+                "n": 1,
+                "s": 916,
+                "redAt": 1792974532000
+            },
+            "land": {
+                "job": "Land the release on master",
+                "n": 1,
+                "s": -1,
+                "redAt": 1792980146000
+            },
+            "publish": {
+                "job": "Publish the release",
+                "n": 1,
+                "s": -1,
+                "redAt": 1792980146000
+            }
+        },
+        "failedJob": "T4 GPU / Test (NVIDIA T4)"
+    },
+    "40219199147.1": {
+        "sha": "1fa254bf396f585ceaac0c0c4e61763c16c378ab",
+        "at": 1792951347000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40219199147,
+        "created": 1792951245000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40191260152.1": {
+        "sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+        "at": 1792929673000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40191260152,
+        "created": 1792929646000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40167547801.1": {
+        "sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+        "at": 1792908052000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40167547801,
+        "created": 1792908024000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40144982225.1": {
+        "sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+        "at": 1792886450000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40144982225,
+        "created": 1792886425000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40119894804.1": {
+        "sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+        "at": 1792871314000,
+        "tested": true,
+        "red": ["ci", "t4", "audit"],
+        "ciFailed": true,
+        "run": 40119894804,
+        "created": 1792865749000,
+        "ok": false,
+        "lanes": {
+            "ci": "failed",
+            "t4": "failed",
+            "hosts": "passed",
+            "autosave_macos": "passed",
+            "audit": "failed",
+            "llm": "passed",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {
+            "ci": {
+                "job": "CI",
+                "n": 43,
+                "s": 3691,
+                "redAt": 1792871228000
+            },
+            "t4": {
+                "job": "T4 GPU / Test (NVIDIA T4)",
+                "n": 1,
+                "s": 2327,
+                "redAt": 1792869897000
+            },
+            "hosts": {
+                "job": "Hosts",
+                "n": 2,
+                "s": 2554
+            },
+            "autosave_macos": {
+                "job": "Work protection (macOS)",
+                "n": 4,
+                "s": 430
+            },
+            "audit": {
+                "job": "Security audit",
+                "n": 1,
+                "s": 20,
+                "redAt": 1792867557000
+            },
+            "llm": {
+                "job": "LLM regression",
+                "n": 1,
+                "s": 597
+            }
+        },
+        "failedJob": "Security audit"
+    },
+    "40118698380.1": {
+        "sha": "a870943efb47d667cfc38f53d4be8a2d09edcf83",
+        "at": 1792864854000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40118698380,
+        "created": 1792864825000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40092146969.1": {
+        "sha": "77154dddc3a96020fbbd2da1c160226ccc492464",
+        "at": 1792843271000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false,
+        "run": 40092146969,
+        "created": 1792843225000,
+        "ok": true,
+        "lanes": {
+            "ci": "skipped",
+            "t4": "skipped",
+            "hosts": "skipped",
+            "autosave_macos": "skipped",
+            "audit": "skipped",
+            "llm": "skipped",
+            "version": "skipped",
+            "land": "skipped",
+            "publish": "skipped"
+        },
+        "jobs": {}
+    },
+    "40068470319.1": {
+        "sha": "77154dddc3a96020fbbd2da1c160226ccc492464",
+        "at": 1792821659000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false
+    },
+    "40042746756.1": {
+        "sha": "77154dddc3a96020fbbd2da1c160226ccc492464",
+        "at": 1792800101000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false
+    },
+    "40009798033.1": {
+        "sha": "77154dddc3a96020fbbd2da1c160226ccc492464",
+        "at": 1792782892000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false
+    },
+    "39999737436.1": {
+        "sha": "cd99c55f2618c2c8e828b858d01bbc9c250f54bc",
+        "at": 1792778475000,
+        "tested": false,
+        "red": [],
+        "ciFailed": false
+    }
+}

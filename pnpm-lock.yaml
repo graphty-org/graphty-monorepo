@@ -50,6 +50,9 @@ importers:
 
   .:
     devDependencies:
+      '@actions/expressions':
+        specifier: 0.3.61
+        version: 0.3.61
       '@commitlint/cli':
         specifier: ^19.8.1
         version: 19.8.1(@types/node@20.19.43)(typescript@5.9.3)
@@ -1207,6 +1210,10 @@ packages:
 
   '@actions/exec@3.0.0':
     resolution: {integrity: sha512-6xH/puSoNBXb72VPlZVm7vQ+svQpFyA96qdDBvhB8eNZOE8LtPf9L4oAsfzK/crCL8YZ+19fKYVnM63Sl+Xzlw==}
+
+  '@actions/expressions@0.3.61':
+    resolution: {integrity: sha512-Ig+tXELvTjlqxQAWBQnLNn2dPpNraLMdSnT+vDzDPmJtbNUhIAH/Z9kVT8pZ8UtJi9vUGs8hwHE8JFJmbOnLEA==}
+    engines: {node: '>= 20'}
 
   '@actions/http-client@4.0.1':
     resolution: {integrity: sha512-+Nvd1ImaOZBSoPbsUtEhv+1z99H12xzncCkz0a3RuehINE81FZSe2QTj3uvAPTcJX/SCzUQHQ0D1GrPMbrPitg==}
@@ -10572,6 +10579,8 @@ snapshots:
   '@actions/exec@3.0.0':
     dependencies:
       '@actions/io': 3.0.2
+
+  '@actions/expressions@0.3.61': {}
 
   '@actions/http-client@4.0.1':
     dependencies:

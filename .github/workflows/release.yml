@@ -157,6 +157,11 @@ on:
                 required: false
                 default: ""
                 type: string
+            sha:
+                description: "restart: the commit to test, the green master build that started it (ci.yml's release-due job); empty: the commit this run started on"
+                required: false
+                default: ""
+                type: string
             fix_pr:
                 description: "candidate: the fix pull requests (comma-separated) whose merges started this run (ci.yml's release-due job); each merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
                 required: false
@@ -433,7 +438,7 @@ jobs:
               id: candidate
               if: ${{ steps.pending.outputs.pending == 'false' && (env.MODE == 'full' || env.MODE == 'restart' || env.MODE == 'candidate') && steps.resume.outputs.resume != 'true' }}
               env:
-                  HEAD_SHA: ${{ github.sha }}
+                  HEAD_SHA: ${{ inputs.mode == 'restart' && inputs.sha || github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
@@ -1087,7 +1092,7 @@ jobs:
             # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
             - name: Restore this project's baseline images
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -1113,7 +1118,7 @@ jobs:
 
             - name: Restore the cached Playwright browsers
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

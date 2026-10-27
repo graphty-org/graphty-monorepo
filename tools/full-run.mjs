@@ -575,7 +575,7 @@ export const listRedIssues = (state = "open", since = "") =>
         "api",
         `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
         "--jq",
-        String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), closedAt: .closed_at, stateReason: .state_reason} | tojson`,
+        String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), createdAt: .created_at, closedAt: .closed_at, stateReason: .state_reason} | tojson`,
         // every page: an issue left open for weeks must not drop out of the listing
         "--paginate",
     ])

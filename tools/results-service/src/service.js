@@ -450,6 +450,24 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
+async function postBaseCheck(body, who, db, nowMs) {
+    if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
+    if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
+    for (const field of ["file", "variant"]) {
+        if (typeof body[field] !== "string" || !body[field] || body[field].length > 300) {
+            refuse(400, `${field} must be a string of 1 to 300 characters`);
+        }
+    }
+    const pr = Number.isInteger(body.pr) ? body.pr : null;
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .run();
+    return { dispatch: meta.changes === 1 };
+}
+
 const SHA = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -499,6 +517,7 @@ const ROUTES = {
     "POST /v1/durations": postDurations,
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
+    "POST /v1/base-checks": postBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,

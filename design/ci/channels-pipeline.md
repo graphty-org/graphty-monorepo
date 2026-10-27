@@ -282,8 +282,14 @@ tools/results/run-group.mjs <group>`: compute the inputs key, run, retry failed 
   computed at read time; never GPU tests or the screenshot gate. Full runs and bisects excuse nothing.
 - **Evidence only from master's code:** kinds `full`, `bisect` and `base` are accepted only when the
   OIDC `ref` is `refs/heads/master` and `job_workflow_ref` names master's workflow file. A pull
-  request's failure is excused only by such records; when none exists the job says `[KNOWN?]` and the
-  round dispatches `base-check.yml`, then re-runs the failed job if the base fails the same way.
+  request's failure is excused as `[KNOWN]` only by such records. When none exists and the pull request did
+  not touch the test (not its file, not its import closure), it passes anyway as `[UNRELATED]`, loudly (a
+  warning annotation and a job summary line), and CI dispatches `base-check.yml` once per test per base
+  (deduplicated in the results store), which files one priority:critical `Failing on master` issue when
+  master fails it too and comments on the pull request when master passes it. Reason (2026-10-27, #3925): a
+  failure with another source must not block merges (every open pull request was red on one master
+  defect); the full run with bisect and revert is the net. A touched test, a crash, a coverage or build
+  failure, GPU tests and the screenshot gate still fail the pull request.
   `restricted-cpu-stress.yml` writes kind `stress`, never evidence.
 - **Fail open:** 5 s for plan and record, 2 s for a failure event. No plan means no reuse, no
   quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled and re-posted.

@@ -91,6 +91,8 @@
 /tools/claude-area-rules.mjs @graphty-org/code-owners
 /tools/claude-no-foreground-wait.mjs @graphty-org/code-owners
 /tools/copy-docs-content.js @graphty-org/code-owners
+/tools/docs-affected.sh @graphty-org/code-owners
+/tools/sanitize-api-docs.js @graphty-org/code-owners
 /tools/dependency-refresh.mjs @graphty-org/code-owners
 /tools/eslint-rules/no-test-timing.mjs @graphty-org/code-owners
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners

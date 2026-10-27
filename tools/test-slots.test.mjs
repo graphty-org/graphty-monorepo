@@ -331,14 +331,13 @@ describe("test-slots", () => {
                     .map((f) => join(d.name, f)),
             );
         assert.ok(configs.length >= 12, `found ${configs.length} configs`);
-        const missing = configs.filter((f) => !readFileSync(join(ROOT, f), "utf8").includes("../tools/test-slots.mjs"));
-        assert.deepEqual(missing, [], "these vitest configs do not take a test slot");
-        const uncapped = configs.filter(
-            (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
-        );
-        assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
+        // All three come from baseTest() in vitest.base.mjs (tools/vitest-base.test.mjs checks every config imports it).
+        const base = readFileSync(join(ROOT, "vitest.base.mjs"), "utf8");
+        assert.match(base, /tools\/test-slots\.mjs/, "vitest.base.mjs takes a test slot");
+        assert.match(base, /maxWorkers = workerShare\(\)/, "vitest.base.mjs caps the Node workers at workerShare()");
         // The CI JUnit report and the time-budget check (tools/vitest-time-budget.mjs) come from ciReporters().
-        const unreported = configs.filter((f) => !/\.\.\.ciReporters\(/.test(readFileSync(join(ROOT, f), "utf8")));
-        assert.deepEqual(unreported, [], "these vitest configs do not add ciReporters() to their reporters");
+        assert.match(base, /\.\.\.ciReporters\(/, "vitest.base.mjs adds ciReporters() to the reporters");
+        const missing = configs.filter((f) => !/\.\.\.baseTest\(/.test(readFileSync(join(ROOT, f), "utf8")));
+        assert.deepEqual(missing, [], "these vitest configs do not spread baseTest() into their test block");
     });
 });

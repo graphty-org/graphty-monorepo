@@ -14,15 +14,17 @@
 // `base`, `affected` (the test files whose file or import closure the pull request changed) and `unknownFamilies`
 // (families the selector has no file-level answer for: every file touched)), the store's
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
-// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. A re-run attempt reads the quarantine and the master
+// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[UNRELATED]`. A re-run attempt reads the quarantine and the master
 // evidence again, so a base check made after the first attempt counts. An unreadable or unavailable plan (a store
 // outage) changes nothing: the committed list stands, as it does elsewhere. When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
-// switches it off. GRAPHTY_FLAGS=on names the feature-flag variant; RESULTS_VARIANT names the whole variant
-// (base-check.yml asks for the pull request's); RESULTS_REPEAT=<n> keeps repeated runs of one job apart.
+// switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
+// variant flags=on; RESULTS_VARIANT names the whole variant (base-check.yml asks for the pull request's);
+// RESULTS_REPEAT=<n> keeps repeated runs of one job apart, and RESULTS_PART=<n> the legs of one job's matrix
+// that run parts of one shard (ci.yml's story-tests legs).
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -53,7 +55,8 @@ import { envString, inputsKey } from "./inputs.mjs";
  * @returns the id
  */
 export function baseId(shard, env = process.env) {
-    const group = env.RESULTS_REPEAT ? `${shard}.r${env.RESULTS_REPEAT}` : shard;
+    const part = env.RESULTS_PART ? `${shard}.p${env.RESULTS_PART}` : shard;
+    const group = env.RESULTS_REPEAT ? `${part}.r${env.RESULTS_REPEAT}` : part;
     if (env.GITHUB_RUN_ID)
         return `${env.GITHUB_RUN_ID}.${env.GITHUB_RUN_ATTEMPT ?? 1}.${env.GITHUB_JOB ?? "job"}.${group}`;
     return `local.${Date.now()}.${hostname()}.${process.pid}.${group}`;
@@ -66,8 +69,9 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
  * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
- * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else fails as
- * `[KNOWN?]`. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
+ * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else passes
+ * loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
  * @param plan the plan file (no `affected`: every test touched)
@@ -77,12 +81,16 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * @param o.variant its variant
  * @param o.base the pull request's base commit
  * @param [o.out] the directory the base checks to dispatch are written to
+ * @param [o.env] the environment (GITHUB_STEP_SUMMARY)
  * @returns the judge
  */
-export function prJudge(plan, { shard, family, variant, base, out }) {
+export function prJudge(plan, { shard, family, variant, base, out, env = process.env }) {
+    const summary = (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
     const affected = plan?.affected ? new Set(plan.affected) : null;
     const unknown = (plan?.unknownFamilies ?? []).includes(family);
-    const touched = (f) => !affected || unknown || affected.has(f.file);
+    // GPU tests are never excused (CLAUDE.md, WebGPU): they judge as touched
+    const gpu = /^webgpu-graph-algorithms/.test(family);
+    const touched = (f) => gpu || !affected || unknown || affected.has(f.file);
     // master's evidence counts only from the same family and the same flags as this job
     const flagsOf = (v) => v.split("|")[1];
     const onBase = (plan?.failingOnBase ?? []).filter(
@@ -126,11 +134,13 @@ export function prJudge(plan, { shard, family, variant, base, out }) {
             const k = !touched(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} failed every time`);
-            else
-                fail(
-                    f,
-                    `[KNOWN?] ${shard}: ${idOf(f)} failed every time; no master evidence. Base check: ${check(f, 1)}`,
-                );
+            else {
+                // #3925: a failure this pull request did not cause must not block it; the base check (dispatched
+                // in the background) files `Failing on master`, and the full run with bisect and revert is the net
+                const text = `[UNRELATED] ${shard}: ${idOf(f)} failed every time; this pull request did not touch it. Base check: ${check(f, 1)}`;
+                warn(text);
+                summary(`- ${text}`);
+            }
         }
         return { ...d, flaky: d.flaky.filter((f) => !failing.includes(f)), failing, pass: failing.length === 0, lines };
     };
@@ -484,10 +494,8 @@ export async function runGroup(
         console.error(`run-group: unknown shard ${shardName} and no command`);
         return 2;
     }
-    const flags = env.GRAPHTY_FLAGS === "on" ? "on" : "off";
-    const selected = command !== undefined && command !== shard?.["test-command"];
+    const { variant } = groupShape({ shardName, shard, command, env });
     const family = groupFamily(shardName, env);
-    const variant = env.RESULTS_VARIANT || `${family}|flags=${flags}|${runShape(env, selected)}`;
     const head = headFacts(root, env);
     // no file (the full path), an unreadable one or a store outage: the committed list stands
     let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
@@ -536,12 +544,47 @@ export async function runGroup(
     const endedAt = Date.now();
     try {
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
-        await record(shard, { ...facts, flags, selected, variant, head, gh });
+        await record(shardName, shard, { ...facts, command, head, gh });
     } catch (e) {
         // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
         console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
     }
     return code;
+}
+
+/**
+ * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
+ * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
+ * RESULTS_VARIANT overrides the variant.
+ * @param o the facts
+ * @param o.shardName the shard
+ * @param o.shard its SHARDS entry, or undefined
+ * @param o.command the narrower command, if any (run shape `selected`)
+ * @param o.env the environment
+ * @returns `{ flags, selected, variant }`
+ */
+export function groupShape({ shardName, shard, command, env }) {
+    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const selected = command !== undefined && command !== shard?.["test-command"];
+    const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
+    return { flags, selected, variant };
+}
+
+/**
+ * A group's variant and inputs key (groupShape()).
+ * @param o the facts
+ * @param o.shardName the shard
+ * @param o.shard its SHARDS entry, or undefined
+ * @param o.command the narrower command, if any (run shape `selected`)
+ * @param o.cmd the command run
+ * @param o.env the environment
+ * @param o.shardKey the shard's input key
+ * @returns `{ variant, inputs }`
+ */
+export function groupKeys({ shardName, shard, command, cmd, env, shardKey }) {
+    const { flags, selected, variant } = groupShape({ shardName, shard, command, env });
+    const extra = (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? "\nshots" : "");
+    return { variant, inputs: inputsKey({ shardKey, env: envString(env), flags, extra }) };
 }
 
 /**
@@ -575,24 +618,19 @@ export function runShape(env, selected) {
 /**
  * Builds a finished group's records, posts them (spooling what the store does not take) and files the
  * quarantine issues the store asks for.
+ * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
  * @param o runGroup()'s facts: `cmd`, `root`, `env`, `id`, `runId`, `code`, `resultFile`, `startedAt`,
- *   `endedAt`, `flags`, `selected`, `variant`, `head`, `gh`
+ *   `endedAt`, `command`, `head`, `gh`
  */
-async function record(shard, o) {
-    const { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, flags, selected, variant, head, gh } = o;
+async function record(shardName, shard, o) {
+    const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, head, gh } = o;
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const result = readResult(resultFile);
     const facts = { id, head, code, result, startedAt, endedAt, runId };
     const recs = recordsOf({
         ...facts,
-        variant,
-        inputs: inputsKey({
-            shardKey,
-            env: envString(env),
-            flags,
-            extra: (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? "\nshots" : ""),
-        }),
+        ...groupKeys({ shardName, shard, command, cmd, env, shardKey }),
         env: envString(env),
         dir: join(root, "test-results"),
     });

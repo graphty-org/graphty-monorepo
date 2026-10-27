@@ -71,10 +71,31 @@ export class HttpError extends Error {
     }
 }
 
+/** Waits before each retry of a request GitHub answered 5xx, rate-limited or timed out on; tests set them to 0. */
+export const RETRY = { delaysMs: [1000, 3000], timeoutMs: 15_000 };
+/** A rate-limit reset further away than this is not waited for: the request fails and its item is skipped. */
+const MAX_WAIT_MS = 10_000;
+
+/** How long to wait before retrying `res`, or undefined when retrying cannot help. */
+function retryWait(res: Response, delay: number): number | undefined {
+    const limited =
+        res.status === 429 ||
+        (res.status === 403 && (res.headers.has("retry-after") || res.headers.get("x-ratelimit-remaining") === "0"));
+    if (!limited) return res.status >= 500 ? delay : undefined;
+    const after = Number(res.headers.get("retry-after")) * 1000;
+    const reset = Number(res.headers.get("x-ratelimit-reset")) * 1000 - Date.now();
+    const wait = Math.max(delay, after > 0 ? after : reset || 0);
+    return wait <= MAX_WAIT_MS ? wait : undefined;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export class GitHub {
     /** Requests left in the App's hour, from the newest response. */
     rate?: { remaining: number; limit: number };
     calls = 0;
+    /** Requests that still failed after their retries; past 3, later requests are not retried (an outage). */
+    failures = 0;
 
     private readonly token: () => Promise<string>;
     private readonly f: Fetch;
@@ -84,9 +105,35 @@ export class GitHub {
         this.f = f;
     }
 
+    /** One request, retried on a 5xx, a short rate limit, a timeout or a network error (RETRY). */
     private async send(url: string, init: RequestInit): Promise<Response> {
+        const delays = this.failures < 3 ? RETRY.delaysMs : [];
+        for (let attempt = 0; ; attempt++) {
+            const delay = delays[attempt];
+            let res: Response;
+            try {
+                res = await this.once(url, init);
+            } catch (e) {
+                if (delay === undefined) {
+                    this.failures++;
+                    throw e;
+                }
+                await sleep(delay);
+                continue;
+            }
+            const wait = res.ok || delay === undefined ? undefined : retryWait(res, delay);
+            if (wait === undefined) {
+                if (!res.ok && res.status !== 404) this.failures++;
+                return res;
+            }
+            await sleep(wait);
+        }
+    }
+
+    private async once(url: string, init: RequestInit): Promise<Response> {
         this.calls++;
         const res = await this.f(url, {
+            signal: AbortSignal.timeout(RETRY.timeoutMs),
             ...init,
             headers: { ...HEADERS, ...init.headers, authorization: `Bearer ${await this.token()}` },
         });

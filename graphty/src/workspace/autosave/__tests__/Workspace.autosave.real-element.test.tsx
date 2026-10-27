@@ -9,9 +9,10 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { pickSample } from "../../../test/samples-dialog";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { WORKSPACE_AUTOSAVE_KEY } from "../autosave";
@@ -26,6 +27,39 @@ const SAMPLE = { name: "Florentine families", nodes: 15 };
 
 /** The name the reader gives the project. */
 const RENAMED = "Medici study";
+
+/**
+ * The relative luminance of a CSS rgb() or rgba() color (WCAG 2), alpha ignored.
+ * @param css - the computed color.
+ * @returns the luminance, 0 to 1.
+ */
+function luminance(css: string): number {
+    const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The WCAG contrast ratio of an element's text against the first opaque background behind it.
+ * @param element - the element.
+ * @returns the ratio, 1 to 21.
+ */
+function textContrast(element: HTMLElement): number {
+    let behind: HTMLElement | null = element;
+    let background = "rgb(255, 255, 255)";
+    while (behind !== null) {
+        const color = getComputedStyle(behind).backgroundColor;
+        if (color !== "transparent" && !/rgba\(.*,\s*0\)$/.test(color)) {
+            background = color;
+            break;
+        }
+        behind = behind.parentElement;
+    }
+    const [hi, lo] = [luminance(getComputedStyle(element).color), luminance(background)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
 
 /**
  * Deletes autosave's database and this tab's own-entry record, so each test starts with nothing
@@ -78,13 +112,14 @@ async function openElement(): Promise<{ element: ElementUnderTest; session: Grap
 }
 
 /**
- * Opens the sample, renames it with the keyboard, waits until autosave has written it, and
- * unmounts the workspace: the visit a reload ends.
+ * Opens the sample, renames it with the keyboard (or, told not to, changes its layout), waits
+ * until autosave has written it, and unmounts the workspace: the visit a reload ends.
+ * @param rename - whether the reader renames the project.
  * @returns the entry id autosave wrote.
  */
-async function workThenLeave(): Promise<string> {
+async function workThenLeave(rename = true): Promise<string> {
     const first = mountWorkspace();
-    await userEvent.click(screen.getByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
+    await pickSample(SAMPLE.name);
     const { element, session } = await openElement();
     await waitFor(
         () => {
@@ -93,15 +128,46 @@ async function workThenLeave(): Promise<string> {
         { timeout: TIMEOUT_MS },
     );
 
-    await userEvent.keyboard("{F2}");
-    const field = await screen.findByRole("textbox", { name: "Project name" });
-    await userEvent.clear(field);
-    await userEvent.type(field, `${RENAMED}{Enter}`);
+    // The data's arrival is announced once, politely, as a short fact.
     await waitFor(() => {
-        assert.equal(session.project.name, RENAMED);
+        assert.include(screen.getByTestId("workspace-status").textContent, `${String(SAMPLE.nodes)} nodes, `);
     });
+    assert.strictEqual(screen.getByTestId("workspace-status").getAttribute("aria-live"), "polite");
+    // The region lives in the status bar along the bottom, with the autosave chip.
+    const bar = screen.getByRole("contentinfo", { name: "Status" });
+    assert.isNotNull(within(bar).getByTestId("workspace-status"));
 
-    // Work is saved: the element says so, and the header's chip shows it.
+    if (rename) {
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, `${RENAMED}{Enter}`);
+        await waitFor(() => {
+            assert.equal(session.project.name, RENAMED);
+        });
+    } else {
+        // An untouched sample is not unsaved work, so the reader makes one real change that is not
+        // a rename: a circle layout, through the toolbar's Layout popover. In the project's default
+        // narrow frame the side panels cover the toolbar, so the frame is the reader's desktop.
+        await page.viewport(1440, 900);
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(session.layout.id, "circular");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await userEvent.keyboard("{Escape}");
+    }
+
+    // Work is saved: the element says so, and the status bar's chip shows it.
     await waitFor(
         () => {
             assert.strictEqual(element.autosaver.status.state, "saved");
@@ -109,7 +175,10 @@ async function workThenLeave(): Promise<string> {
         },
         { timeout: TIMEOUT_MS },
     );
-    assert.strictEqual(screen.getByTestId("autosave-chip").textContent, "Autosave: saved");
+    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+    assert.strictEqual(chip.textContent, "Autosave: saved");
+    // The chip's words are readable: 4.5:1 or more against what is behind them.
+    assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
     if (entry === null) {
         throw new Error("autosave wrote no entry");
@@ -176,11 +245,29 @@ describe("Workspace autosave with the real graphty-element", () => {
         );
         assert.equal(second.store.get().project?.name, RENAMED);
         // The toast; the status line speaks the same words (state/store.ts).
-        await screen.findByText(/^Restored your work from/, { selector: ".cm-toast-message" });
+        await screen.findByText(/^Restored: /, { selector: ".cm-toast-message" });
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(element.autosaver.status.entry, entry);
         });
+        second.view.unmount();
+    });
+
+    it("keeps the project's name on Restore when the reader never renamed it", async () => {
+        await workThenLeave(false);
+
+        const second = mountWorkspace();
+        await offer();
+        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+        const { session } = await openElement();
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
+                assert.equal(second.store.get().project?.name, SAMPLE.name);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isNull(screen.queryByText("Recovered work"));
         second.view.unmount();
     });
 
@@ -207,7 +294,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         // Nothing is offered on the next visit.
         const third = mountWorkspace();
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
+            assert.isNotNull(screen.queryByRole("button", { name: /^Open a file/ }));
         });
         assert.deepEqual(await listAutosaves(WORKSPACE_AUTOSAVE_KEY), []);
         assert.isNull(third.store.get().recovered);

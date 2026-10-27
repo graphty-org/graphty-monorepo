@@ -93,26 +93,50 @@ export interface RetryOptions {
 export const ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the account";
 
 /**
+ * A failure's HTTP status and words: an AI SDK APICallError's, or the plain Error the AiController
+ * keeps in its place (toSafeError: only name, message and statusCode survive, never the body).
+ * @param error - A failure, or its cause.
+ * @returns The status and the text to search, or null when it carries no HTTP status.
+ */
+function httpFailureOf(error: unknown): { status: number | undefined; text: string } | null {
+    if (APICallError.isInstance(error)) {
+        return { status: error.statusCode, text: `${error.message} ${error.responseBody ?? ""}` };
+    }
+
+    const { statusCode } = (error ?? {}) as { statusCode?: unknown };
+    if (error instanceof Error && typeof statusCode === "number") {
+        return { status: statusCode, text: error.message };
+    }
+
+    return null;
+}
+
+/**
  * Why the provider refused the account behind a request, or null when it refused only the request.
  * @param error - What the request failed with.
  * @returns A short reason, such as "HTTP 401", or null.
  */
 export function accountRefusalOf(error: unknown): string | null {
     const last = RetryError.isInstance(error) ? error.lastError : error;
-    const cause = last instanceof Error && !APICallError.isInstance(last) ? last.cause : last;
-    if (!APICallError.isInstance(cause)) {
+    const failure = httpFailureOf(last) ?? (last instanceof Error ? httpFailureOf(last.cause) : null);
+    if (failure === null) {
         return null;
     }
 
-    const status = cause.statusCode;
-    if (status === 401 || status === 403) {
+    const { status } = failure;
+    if (status === 401 || status === 402 || status === 403) {
         return `HTTP ${status}`;
     }
 
     // Anthropic answers an empty balance with 400 ("credit balance is too low"), OpenAI with 429
-    // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota.
-    const text = `${cause.message} ${cause.responseBody ?? ""}`.toLowerCase();
-    if (/credit balance|insufficient_quota|no credits|billing|exceeded your current quota/.test(text)) {
+    // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota, or 402 when its
+    // prepayment credits are depleted.
+    const text = failure.text.toLowerCase();
+    if (
+        /credit balance|insufficient_quota|no credits|credits are depleted|billing|exceeded your current quota/.test(
+            text,
+        )
+    ) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }
 

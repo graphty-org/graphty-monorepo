@@ -174,7 +174,11 @@ export interface SelectorSource {
      * @param index - The dense index.
      * @returns True when the element is in that state.
      */
-    readonly inState?: (state: "selected" | "hovered", target: SelectorTarget, index: number) => boolean;
+    readonly inState?: (
+        state: "selected" | "hovered" | "ghosted" | "pinned",
+        target: SelectorTarget,
+        index: number,
+    ) => boolean;
     /**
      * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
      * a `{match:"hover"}` selector is refused.

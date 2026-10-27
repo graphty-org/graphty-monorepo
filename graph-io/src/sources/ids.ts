@@ -43,6 +43,12 @@ export const REST_SOURCE_ID = "rest";
 export const OPENALEX_SOURCE_ID = "openalex";
 
 /**
+ * The SPARQL source, for any SPARQL 1.1 endpoint. Experimental.
+ * @category Network sources
+ */
+export const SPARQL_SOURCE_ID = "sparql";
+
+/**
  * The prefix of the reserved attribute namespace sources and graphty-element write facts under.
  * @category Network sources
  */

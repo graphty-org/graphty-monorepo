@@ -1,10 +1,14 @@
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/channel/candidate-fix.test.mjs
 tools/channel/candidates.test.mjs
+tools/channel/hold.test.mjs
 tools/channel/nightly.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
+tools/channel/recapture.test.mjs
+tools/channel/resume.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs
@@ -13,6 +17,7 @@ tools/check-owned-closure.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
+tools/chromium-env.test.mjs
 tools/ci-budgets.test.mjs
 tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
@@ -20,6 +25,8 @@ tools/claude-area-rules.test.mjs
 tools/claude-no-foreground-wait.test.mjs
 tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
+tools/features-on.test.mjs
+tools/dependency-refresh.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
 tools/land.test.mjs
@@ -27,7 +34,9 @@ tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/llm-due.test.mjs
+tools/nightly-scenarios.test.mjs
 tools/nx-cache-worker/test/index.test.mjs
+tools/own-tools-overlay.test.mjs
 tools/pipeline-round-skill.test.mjs
 tools/pr-integrity.test.mjs
 tools/pr-open.test.mjs
@@ -36,7 +45,9 @@ tools/publish-hold.test.mjs
 tools/push-queue.test.mjs
 tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
+tools/release-due.test.mjs
 tools/release-dry-run.test.mjs
+tools/release-rerun.test.mjs
 tools/release-scheduler/test/index.test.mjs
 tools/release-status.test.mjs
 tools/restricted-cpu-stress.test.mjs
@@ -52,5 +63,6 @@ tools/test-select.test.mjs
 tools/test-slots.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
+tools/vitest-base.test.mjs
 tools/vitest-time-budget.test.mjs
 tools/worktree-cleanup.test.mjs

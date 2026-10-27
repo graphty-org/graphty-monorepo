@@ -32,6 +32,7 @@
 /ci-budgets.json @graphty-org/code-owners
 /nx.json @graphty-org/code-owners
 /vitest.shared.config.ts @graphty-org/code-owners
+/vitest.base.mjs @graphty-org/code-owners
 /vitest.ci-junit.mjs @graphty-org/code-owners
 **/.storybook/vitest.setup.* @graphty-org/code-owners
 /graphty/sites/canary.json @graphty-org/code-owners
@@ -51,6 +52,7 @@
 /tools/release-dry-run.mjs @graphty-org/code-owners
 /tools/release-held.sh @graphty-org/code-owners
 /tools/release-hold.mjs @graphty-org/code-owners
+/tools/release-rerun.mjs @graphty-org/code-owners
 /tools/release-status.mjs @graphty-org/code-owners
 /tools/release-version.sh @graphty-org/code-owners
 /tools/publish-hold.mjs @graphty-org/code-owners
@@ -62,6 +64,9 @@
 /tools/check-owned-closure.mjs @graphty-org/code-owners
 /tools/pr-integrity.mjs @graphty-org/code-owners
 /tools/check-features.mjs @graphty-org/code-owners
+/tools/features-on.mjs @graphty-org/code-owners
+# the experiment list the CI matrix and test selection import and run (tools/features-on.mjs)
+/graphty-element/src/features/registry.ts @graphty-org/code-owners
 /tools/pr-open.sh @graphty-org/code-owners
 /tools/pr-review.sh @graphty-org/code-owners
 /tools/check-quick.sh @graphty-org/code-owners
@@ -77,6 +82,7 @@
 /graph-samples/scripts/graph-io-source.mjs @graphty-org/code-owners
 /graph-samples/scripts/hosted-sources.mjs @graphty-org/code-owners
 /graph-samples/scripts/refresh-sources.mjs @graphty-org/code-owners
+/graphty-element/scripts/build-gazetteer.mjs @graphty-org/code-owners
 /tools/assemble-pages-site.sh @graphty-org/code-owners
 /tools/bisect-ci.mjs @graphty-org/code-owners
 /tools/cache-hygiene.mjs @graphty-org/code-owners
@@ -85,6 +91,7 @@
 /tools/claude-area-rules.mjs @graphty-org/code-owners
 /tools/claude-no-foreground-wait.mjs @graphty-org/code-owners
 /tools/copy-docs-content.js @graphty-org/code-owners
+/tools/dependency-refresh.mjs @graphty-org/code-owners
 /tools/eslint-rules/no-test-timing.mjs @graphty-org/code-owners
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners
 /tools/full-run.mjs @graphty-org/code-owners
@@ -117,6 +124,8 @@
 /tsconfig.base.json @graphty-org/code-owners
 /vite.shared.config.ts @graphty-org/code-owners
 /vitest.browser-coverage-setup.ts @graphty-org/code-owners
+/vitest.map-tiles-setup.ts @graphty-org/code-owners
+/vitest.map-tiles.mjs @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/bench-compare.js @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/bench-targets.js @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/gpu-policy.js @graphty-org/code-owners

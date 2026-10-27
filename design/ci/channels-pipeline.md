@@ -122,10 +122,18 @@ Detail: [merging.md](channels-pipeline/merging.md).
   temporary repository. A real-GPU look on a pull request is opt-in: `pr-open.sh` prints a reminder
   when webgpu-graph-algorithms is affected, and the full run's T4 catches what it misses within 6 h. `hosts.yml` keeps its
   advisory pull request trigger and loses its nightly cron at step 6.
-- **Dependabot** targets master; `dependabot-automerge.yml` arms auto-merge with an agent token
-  scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept `dependabot[bot]`
-  without an issue line, Proof or review; test integrity still applies.
-  Actions updates wait for the owner by design.
+- **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
+  (`open-pull-requests-limit: 0` in `.github/dependabot.yml`) because they failed many pull requests at
+  once several times (Storybook bumped out of lockstep, Actions bumps of the generated visual-seed.yml,
+  #3898). A security fix arrives as one grouped pull request (Storybook's group first, then all other npm
+  packages; one for Actions), targets master, and `dependabot-automerge.yml` arms its auto-merge with an
+  agent token scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept
+  `dependabot[bot]` without an issue line, Proof or review; test integrity still applies. Actions updates
+  wait for the owner by design. Routine refreshes happen once per production promotion: `promote.yml`'s
+  `Refresh dependencies` job, after production is served, runs `tools/dependency-refresh.mjs`, which opens
+  one "chore(deps): refresh dependencies after promotion <tag>" pull request as graphty-agent (npm within
+  the existing ranges, Actions within their major, visual-seed.yml regenerated from its template), or none
+  when nothing is newer. It carries a Proof; an agent adds the fresh review with `tools/pr-open.sh`.
 - **No merge queue at first.** The bisect records skew breaks. Two in 7 days, or one that kept canary
   red over 6 hours: the pipeline round proposes Mergify (`merge_group` is the alternative).
 - **Red master build:** `master-guard.yml` opens a revert pull request as the agent account.
@@ -196,8 +204,12 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   on attempt 1 of a `full`, `restart` or `candidate` run whose failed jobs are all lanes or the
   verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
   `release-train` group like any run (every run catches up first, so a pending run it replaces
-  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does,
-  and `release-watch.yml` files the red issue when attempt 1 ended red and no attempt 2 started. A
+  loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does.
+  `release-rerun.yml` is the one decider (`tools/release-rerun.mjs`, which `release-watch.yml` asks
+  too, so the two never race): when it does not re-run an attempt that deferred, it files that
+  attempt's red issue and bisect itself, and holds its commit when nothing is held (a failed job it
+  does not re-run, or a `gh run rerun` that did not start). A re-shot story with no second shot, or
+  whose second shot failed, is `failed`, never `changed`: only two matching shots make a change. A
   test, lane or story that failed and then passed is filed "Flaky in full run: <name>" (bug,
   priority:critical, effort:medium; a comment when it recurs) and does not block. It is a
   confirmation, not a quarantine: nothing joins a quarantine list, so the screenshot gate and GPU
@@ -210,29 +222,46 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
-  only); newer master supersedes it only through that abandon.
-- **Fix forward into the candidate.** A fix branch never contains master. It starts from the
-  candidate head (`./tools/worktree-new.sh fix/<n>-<topic> <head> --issue <n>`), its commits say
-  `Refs #<hold issue>`, and `pr-open.sh --candidate` opens it into master without merging
-  origin/master (required checks are not strict, so GitHub merges it as is); later fix commits go
-  on the same branch. If it conflicts with master, the author merges the fix branch and master on a
-  second branch `<branch>-master` and opens that one instead, still committing fixes on the first
-  and merging them across. On the merge into master `release-due` dispatches `mode: candidate`
-  (input `fix_pr`). `tools/channel/candidate-fix.mjs` takes F, the newest commit of that pull
-  request with no master merge in its ancestry since the candidate, and merges F into
-  `channel/candidate` (a merge, never a cherry-pick). It refuses, commenting on the hold issue, when
-  any commit in `channel/candidate..F` is reachable from M0, the master tip before the fix merged
-  (first parent of its merge commit), or is not in the pull request's own commit list; a conflict
-  comments too, and the round opens a new fix branch from the head. A defect already fixed on
-  master from a newer base therefore cannot enter without a copy: the refusal says so and names the
-  owner's choice, abandon (the next slot holds a commit with the fix) or a fix forward from the
-  head. The run re-tests the new head H with nothing newer from master: ci.yml with `shards` (the
-  shards `test-select.mjs` picks for C..H plus every red one), T4, the audit, and Hosts and macOS
-  work protection when their paths or the lockfile changed in C..H; LLM regression keeps its daily
-  rule. A release.yml `candidate-capture` job re-shoots every story of each project nx calls
-  affected by C..H (every project for root files, the lockfile or Storybook config) plus the
-  stories still changed, and builds `visual-final-*` with C's captures for the rest. H has no
-  master build, so the run builds it and assembles `site-<H>` itself.
+  only); newer master supersedes it only through that abandon, which records `rejected` on the held
+  head, so an approval of it that merges later promotes nothing.
+- **Fix forward into the candidate.** A fix never brings master into the candidate. Its branch
+  starts from the candidate head (`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate
+--issue <n>`), a commit says `Refs #<hold issue>` (or the branch is named for the hold issue,
+  `fix/<hold issue>-<topic>`), and it opens and merges into master as usual (`tools/pr-open.sh`,
+  unchanged: the merge of origin/master it adds on top is simply never taken). A further fix commit
+  for the same pull request goes on a branch from its last fix commit, merged into the pull
+  request's branch. Before every full, restart and candidate pick, release.yml's `candidate_fix` job
+  (deploy key, nothing installed; `tools/channel/candidate-fix.mjs advance`) walks master's merges
+  since C: for each one that references the hold issue and holds no accept commit, F is the newest
+  of its pull request's commits (the merge's second-parent side) whose history past the candidate
+  head holds only that pull request's own commits. F is merged into the head (a fast-forward when
+  it starts from the head; never a cherry-pick), `channel/candidate` is pushed and the store's hold
+  moves to the new head H. It refuses, once, with a marked comment on the hold issue, when no
+  commit qualifies (the branch holds master commits the candidate lacks: a defect already fixed on
+  master from a newer base cannot enter without a copy, so the owner abandons the hold or the fix is
+  made again from the head), when a non-merge commit of the pull request is not in F (a fix commit
+  made after the master merge), and on a conflict. Every run does this, so the `mode: candidate`
+  run `release-due` dispatches on such a merge loses nothing when another dispatch replaces it
+  while pending. `release-due` names the fix's pull request in that run (input `fix_pr`), so a fix
+  whose description alone references the hold issue is taken too. The pick then tests H first (it
+  is unjudged). **First version (owner, 2026-10-26): H is re-tested whole**, a full run's every
+  lane and whole screenshot capture, judged by the same verdict: one full run per fix, about 1 to
+  1.5 hours, so fix forward works now rather than after the story-test parity work (#3472) and
+  #3592, which the narrower re-test's carried-over captures lean on. The narrower re-test below is
+  built and switched on by the repository variable `CANDIDATE_RETEST=affected`; a fix author does
+  the same either way. With it on, the pick plans the re-test from C..H
+  (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
+  as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
+  graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile
+  changed, and any lane the head's previous verdict found red; LLM regression keeps its daily rule.
+  A red CI lane or screenshot capture before, or no earlier run to carry captures from, re-runs
+  everything. The `recapture` job shoots every story of an affected Storybook and carries the
+  other projects' `visual-final-*` over from the run that judged the head before, shooting their
+  changed and new stories again; ci.yml's visual job and gate are untouched and ci.yml gets no new
+  input. H has no master build, so the run's CI call builds it and `candidate_site` assembles
+  `site-<H>` with `deploy-pages.yml` (called: it assembles and keeps the artifact, records and
+  deploys nothing); a site that fails to assemble counts against the CI lane. A red re-test is
+  reported on the hold issue only: no "Full run red" issue, no early red issue, no bisect.
 - **Nightly promotion** reuses today's `version`, `land` (deploy key, version merge and tags, the
   site tag, `channel/nightly`) and `publish` (`--tag next`) jobs, then `site`. A held candidate's
   merge brings candidate merge commits into master, so `land` first runs `release-diff.mjs` over
@@ -282,8 +311,14 @@ tools/results/run-group.mjs <group>`: compute the inputs key, run, retry failed 
   computed at read time; never GPU tests or the screenshot gate. Full runs and bisects excuse nothing.
 - **Evidence only from master's code:** kinds `full`, `bisect` and `base` are accepted only when the
   OIDC `ref` is `refs/heads/master` and `job_workflow_ref` names master's workflow file. A pull
-  request's failure is excused only by such records; when none exists the job says `[KNOWN?]` and the
-  round dispatches `base-check.yml`, then re-runs the failed job if the base fails the same way.
+  request's failure is excused as `[KNOWN]` only by such records. When none exists and the pull request did
+  not touch the test (not its file, not its import closure), it passes anyway as `[UNRELATED]`, loudly (a
+  warning annotation and a job summary line), and CI dispatches `base-check.yml` once per test per base
+  (deduplicated in the results store), which files one priority:critical `Failing on master` issue when
+  master fails it too and comments on the pull request when master passes it. Reason (2026-10-27, #3925): a
+  failure with another source must not block merges (every open pull request was red on one master
+  defect); the full run with bisect and revert is the net. A touched test, a crash, a coverage or build
+  failure, GPU tests and the screenshot gate still fail the pull request.
   `restricted-cpu-stress.yml` writes kind `stress`, never evidence.
 - **Fail open:** 5 s for plan and record, 2 s for a failure event. No plan means no reuse, no
   quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled and re-posted.
@@ -321,15 +356,25 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   exactly H is `green-images` (every lane green, no owner item), never an older or newer run;
   `visual-review notify` tells the owner once. Finish commits accept commit A parented on H, on
   branch `visual/approve-<sha12>`, writing every accept carried by hash from an earlier head into
-  A's tree, and opens a pull request touching only `visual-baselines/` and
-  `visual-review-approvals/`. When it merges, `release-due` matches its subject ("approve visual
-  baselines at <sha12>") to H and dispatches release.yml `mode: promote-nightly` (inputs
-  `candidate`, `accept`); an accept for a head no longer current dispatches nothing and comments on
-  the hold issue. `promote-nightly` refuses unless A's parent is H and H's latest verdict is
-  `green-images`; then the gate runs unchanged on H's `visual-final-*` (30 days) against A's
-  baselines (byte copies, so `capture_sha == baseline_sha`), with `--base channel/nightly --head A`;
-  then version, land, publish and site on A; the store records `approved`, the branch is deleted and
-  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. The gate and
+  A's tree, then commits his signed approval of that tree on A, and opens a pull request touching
+  only `visual-baselines/` and `visual-review-approvals/`; its head P is the approval. When it
+  merges, `release-due` matches A's subject ("approve visual baselines at <sha12>") to H and
+  dispatches release.yml `mode: promote-nightly` (inputs `candidate` H, `accept` P, the merge's
+  second parent); an approval for a head no longer current dispatches nothing and comments on the
+  hold issue. `promote-nightly` refuses unless P is H plus accept-only commits (no merge, nothing
+  outside those two directories) and H's latest verdict is `green-images`; then the gate runs
+  unchanged on H's `visual-final-*` (30 days) against P's baselines and P's signed approval, after
+  `tools/channel/recapture.mjs accepted` marks each story whose captured PNG is P's baseline byte for
+  byte (its LFS oid equals the capture's SHA-256, as the accept commit writes it) unchanged, as a
+  capture of P would find it, and drops a removed story whose baseline P deleted, with `--base channel/nightly --head P`; then version,
+  land, publish and site on P; the store records `approved`, the branch is deleted and
+  the hold issue closed. A rejection keeps the hold: rejected images are fixed forward. Every `full`
+  slot first catches up on such an approval (a held head whose approval is on master, with no
+  publish hold open), so a slot that replaced a pending `promote-nightly` run loses nothing. The run
+  that holds a green-images head keeps its builds as `release-builds-<H>` (30 days), which the
+  promotion ships, and the site deployed is H's own `site-<H>`, which master built; P changes only
+  baselines and approvals. A gate refusal records `rejected` on H and comments on the hold issue, so
+  no later slot retries that approval; an open publish hold only delays it. The gate and
   capture code come from master's tip at the run's start (code-owned paths), recorded in
   `channel.json`.
 - **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;
@@ -471,14 +516,18 @@ runner-minutes of work.
 under about $1,000 a month. So the plan cuts work instead, in this order (plan step 5a), and the full
 run stays first in line for runners, as today:
 
-1. **Stop work nobody uses.** (a) A newer master push build cancels an unfinished older one: only
-   the newest build's site matters for canary, and the full run picks the newest commit with a kept
-   site, so a cancelled build only means it picks a newer commit. This replaces "a push to master
+1. **Stop work nobody uses.** (a) A newer push replaces a waiting master build; a running one
+   finishes (#3938: cancelling running builds left master with no finished build while merges came
+   faster than one build). Only the newest build's site matters for canary, and the full run picks the
+   newest commit with a kept site, so a replaced waiting build only means a newer commit is built. This replaces "a push to master
    never cancels" for superseded master builds only; nothing else on master is cancelled, and
    master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
    in (today they run 15 to 25 minutes past it). (c) The old screenshot capture goes once story-test
-   parity holds (section 5, step 9): the largest single saving.
+   parity holds (section 5, step 9): the largest single saving. (d) Fewer pushes per pull request:
+   on 2026-10-26, 99 of 244 pull request runs were cancelled by a newer push to the same branch, a
+   median 6 minutes later, because every commit was pushed and `pr-open.sh` merged master into a branch
+   that was only behind; a branch with an open pull request is now pushed only on purpose.
 2. **Make each run smaller.** File-level test selection for the packages that still run whole
    shards on a pull request; measure the nx remote build cache's hit rate and raise it; a real fast
    path for a change to tools only or docs only.
@@ -488,6 +537,19 @@ run stays first in line for runners, as today:
    GitHub's native merge queue with merge groups and measure tests per batch, batch failure rate and
    bisect cost. Mergify's record argues for measuring first: 809 CI runs for 761 merges (it barely
    batched), 197 of them wasted.
+
+**The batching decision (owner, 2026-10-27).** A replay of recorded pull request runs on 2026-10-26
+measured the options. A merged pull request cost 279 runner-minutes. Of pull request runs, 1.9%
+failed on tests the pull request itself broke, 4.6% on a failure shared with master, 1% on a flaky
+test, and 16% on a cheap check (build, lint, the checks job, docs). Running the cheap checks on
+every push and the full suite once saves 31% of runner-minutes and adds 14 minutes to the median
+time to merge. Mergify batches of 4 behind a cheap-check gate save 51% but put the median time to
+merge at 83 minutes; they break even on runner-minutes at about an 18% batch failure rate, and the
+wait is acceptable only below about 5%. The decision: neither run-the-suite-once nor GitHub's merge
+queue now. Mergify batching comes back on (batches of 4, at most 30 minutes' wait for a batch to
+fill, cheap checks required before a pull request enters the queue) when both hold: over 7 days,
+fewer than 5% of queue entries have a pull request run that failed on tests the pull request
+touched, and the rule that lets a failure unrelated to the pull request through (#3925) is live.
 
 ## 8. Feature flags
 

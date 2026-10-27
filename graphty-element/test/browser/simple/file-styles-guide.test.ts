@@ -70,7 +70,8 @@ describe("the styles-from-files guide's first example", () => {
 
         const element = await mount();
         // The example is typed against the published declarations, this element against the source.
-        const graphml = await openAndSave(element as unknown as PublishedGraphty, "https://example.com/teams.gexf");
+        const published: unknown = element;
+        const graphml = await openAndSave(published as PublishedGraphty, "https://example.com/teams.gexf");
 
         const fileLayers = element.session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
         assert.isNotEmpty(fileLayers);

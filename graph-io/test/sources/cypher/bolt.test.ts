@@ -162,6 +162,7 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
         const session = fake.sessions[before];
         expect(session.config).toEqual({ defaultAccessMode: "READ" });
         expect(session.runs.map((r) => r.statement.slice(0, 40))).toEqual([
+            "MATCH (n) RETURN count(n) AS c",
             "MATCH (n) WITH n, id(n) AS key RETURN n,",
             "MATCH (n) WITH n, id(n) AS key WHERE key",
             "MATCH (a)-[r]->(b) WITH a, r, b, id(r) A",

@@ -551,6 +551,34 @@ describe("GET /v1/plan", () => {
     });
 });
 
+describe("POST /v1/base-checks", () => {
+    const ask = { base: "b".repeat(40), file: "a.test.ts", variant: "graphty-1|flags=off|selected", pr: 7 };
+
+    it("answers dispatch once per base, file and variant, whoever asks again", async () => {
+        const { call } = service();
+        assert.deepEqual(await call("POST", "/v1/base-checks", { token: pr(), body: ask }), {
+            status: 200,
+            body: { dispatch: true },
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, pr: 8 } })).body, {
+            dispatch: false,
+        });
+        const other = { ...ask, variant: "graphty-2|flags=off|selected" };
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: other })).body, {
+            dispatch: true,
+        });
+    });
+
+    it("refuses master's runs, a local token and a malformed ask", async () => {
+        const { call } = service();
+        for (const token of [master("ci.yml"), LOCAL_TOKEN]) {
+            assert.equal((await call("POST", "/v1/base-checks", { token, body: ask })).status, 403);
+        }
+        assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, base: "x" } })).status, 400);
+        assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, file: "" } })).status, 400);
+    });
+});
+
 describe("POST /v1/sites", () => {
     const SHA = "a".repeat(40);
     const deployPages = (claims = {}) =>
@@ -809,6 +837,7 @@ describe("GET /v1/candidate", () => {
             judged: null,
             recent: [],
             sites: [],
+            hold: null,
         });
         s.site("c1", NOW - 2 * HOUR);
         s.site("c2", NOW - HOUR);
@@ -817,6 +846,7 @@ describe("GET /v1/candidate", () => {
             judged: null,
             recent: [],
             sites: ["c2", "c1"],
+            hold: null,
         });
         s.verdict("c1", "red", NOW - 40 * DAY);
         s.verdict("c1", "green-images", NOW - 20);
@@ -844,12 +874,66 @@ describe("POST /v1/verdicts", () => {
         for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
             assert.equal((await post(token)).status, 403);
         }
-        assert.equal((await post(master("release.yml"), { ...body, state: "approved" })).status, 400);
+        assert.equal((await post(master("release.yml"), { ...body, state: "maybe" })).status, 400);
+        // the promotion after the owner's screenshot approval records its outcome on the tested head
+        // and attempt 1's red that waits for its same-commit re-run (tools/full-run.mjs)
+        for (const state of ["approved", "rejected", "deferred"]) {
+            assert.deepEqual((await post(master("release.yml"), { sha: `c-${state}`, state })).body, { stored: true });
+        }
         assert.equal((await post(master("release.yml"), { ...body, issue: "12" })).status, 400);
-        const [v] = env.DB.sqlite.prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict").all();
+        const [v] = env.DB.sqlite
+            .prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict WHERE sha = ?")
+            .all("c9");
         assert.deepEqual({ ...v }, { run_id: 4010, attempt: 1, sha: "c9", state: "red", lane: "ci", issue: 12 });
         const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
         assert.equal(judged, null, "a verdict without a site is no candidate");
+    });
+});
+
+describe("POST /v1/hold", () => {
+    const C = "c".repeat(40);
+    const H = "d".repeat(40);
+    const N = "e".repeat(40);
+    it("holds one candidate from master's release.yml, moves its head, and clears it", async () => {
+        const { call } = service();
+        const post = (body, token = master("release.yml")) => call("POST", "/v1/hold", { token, body });
+        const hold = async () => (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body.hold;
+        for (const token of [master("ci.yml"), pr(), LOCAL_TOKEN]) {
+            assert.equal((await post({ base: C, head: C }, token)).status, 403);
+        }
+        assert.equal((await post({ base: "c1", head: C })).status, 400, "a short sha");
+        assert.deepEqual((await post({ base: C, head: C, issue: 41 })).body, { held: true });
+        assert.deepEqual(await hold(), { base: C, head: C, issue: 41, at: NOW });
+        assert.equal((await post({ base: N, head: N })).status, 409, "a second base never replaces the hold");
+        assert.deepEqual((await post({ base: C, head: H, issue: 41 })).body, { held: true }, "a fix moves its head");
+        assert.equal((await hold()).head, H);
+        assert.deepEqual((await post({ clear: true })).body, { cleared: true });
+        assert.equal(await hold(), null);
+        assert.deepEqual((await post({ base: N, head: N })).body, { held: true }, "once cleared, a new base holds");
+    });
+    it("lets release-rerun.yml hold a red run it does not re-run, and no other lane", async () => {
+        const { call } = service();
+        const post = (token) => call("POST", "/v1/hold", { token, body: { base: C, head: C, issue: 7 } });
+        assert.equal((await post(master("gpu.yml"))).status, 403);
+        assert.equal((await call("GET", "/v1/candidate", { token: master("release-rerun.yml") })).status, 200);
+        assert.deepEqual((await post(master("release-rerun.yml"))).body, { held: true });
+    });
+    it("offers only the held head, once it is green-images, and reports nightly as held", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("c1", NOW - 40 * HOUR);
+        s.verdict("c1", "green-images", NOW - 39 * HOUR);
+        s.site(C, NOW - 30 * HOUR);
+        s.verdict(C, "red", NOW - 29 * HOUR, { lane: "ci", issue: 5 });
+        await call("POST", "/v1/hold", { token: master("release.yml"), body: { base: C, head: C, issue: 6 } });
+        const state = async () => (await call("GET", "/v1/release-state", { token: master("ci.yml") })).body;
+        let st = await state();
+        assert.equal(st.offered, null, "an older green-images run is not offered while a red candidate is held");
+        assert.equal(st.blocking, "held");
+        assert.equal(st.hold.base, C);
+        s.verdict(C, "green-images", NOW - HOUR);
+        st = await state();
+        assert.equal(st.offered.sha, C);
     });
 });
 

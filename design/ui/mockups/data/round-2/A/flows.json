@@ -1,0 +1,144 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my file, get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-drawn-on-drop.html",
+                "caption": "A clean file dropped on the canvas is drawn at once, the panel shows the roles the app read as property rows, and the drop notice offers Undo."
+            },
+            {
+                "file": "open-file-2-unsure-name-weight.html",
+                "caption": "A file the app is unsure about opens the Data page with only the Name and Weight rows marked, the Name dropdown already open on the likely pair, and the rest folded away."
+            },
+            {
+                "file": "open-file-3-drawn-named.html",
+                "caption": "The drawing has its nodes named by gene, the canvas shows the counts chip, and the Data place shows each role as a property row."
+            }
+        ]
+    },
+    {
+        "flow": "see-fix",
+        "title": "See what loaded, fix what is wrong",
+        "screens": [
+            {
+                "file": "see-fix-1-warnings-section.html",
+                "caption": "After loading, the Data place shows one Warnings row per kind of problem with its count and its fix (a dropdown or Show), and the attribute rows carry the same counts."
+            },
+            {
+                "file": "see-fix-2-column-menu-change-type.html",
+                "caption": "Right-clicking the opened attribute row offers Rename, Change type, Use as and Hide, and each type says how many values will not convert before it is applied."
+            }
+        ]
+    },
+    {
+        "flow": "filter",
+        "title": "Filter: show only what matches",
+        "screens": [
+            {
+                "file": "filter-1-toolbar-opens-filters.html",
+                "caption": "Pressing Filters on the toolbar opens the Data place's Filters section with one blank condition row and its attribute list already open."
+            },
+            {
+                "file": "filter-2-condition-row.html",
+                "caption": "One condition row reads padj, less than, 0.05; the live chip says 60 of 318 nodes and Highlight rings the matches before anything is hidden."
+            },
+            {
+                "file": "filter-3-filtered-drawing.html",
+                "caption": "Show only leaves the 60 matching nodes on the canvas, the header and the toolbar's Filters button show the filter is on, and the table dock lists the same 60 rows for viewing only."
+            }
+        ]
+    },
+    {
+        "flow": "join",
+        "title": "Join a second file onto this graph",
+        "screens": [
+            {
+                "file": "join-1-dropped-join-chosen.html",
+                "caption": "A second file dropped on the graph opens a Join section in the panel, already matched gene_symbol to preferredName, with the match chips, the case-insensitive extra and the four columns it adds."
+            },
+            {
+                "file": "join-2-join-button-menu.html",
+                "caption": "The Join button's arrow holds the other things a second file can do: add its rows as new nodes and edges, open it as a separate graph, or replace the data."
+            },
+            {
+                "file": "join-3-joined-result.html",
+                "caption": "After the join the panel lists both sources, the four new node attributes carry the join icon, the Joins row keeps its counts and Show for the 6 nodes without a value, and the inspector names the origin."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Replace with a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-source-row-menu.html",
+                "caption": "The suppliers.csv source row's menu offers Replace file... and Refresh from source, beside Edit source..., Rename and Remove."
+            },
+            {
+                "file": "replace-2-replaced-then-undo.html",
+                "caption": "Choosing the October file replaces the data at once, keeping styles, runs and filters; the source row shows +12, -3 and 40 changed, its pop-over lists what was kept, new nodes are ringed, and Undo is one click."
+            },
+            {
+                "file": "replace-3-missing-column-warning.html",
+                "caption": "The one thing replace could not carry over becomes a warning row: the Tier style's column tier is gone, and Map to offers the renamed tier_level."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Export the filtered numbers (common Export)",
+        "screens": [
+            {
+                "file": "export-1-common-export-scope.html",
+                "caption": "Main menu Export... is the one export for the app; Node table (CSV) sits beside Image and Graph file, and a Scope row picks All, Filtered (60 of 318) or Selection."
+            }
+        ]
+    },
+    {
+        "flow": "event-table",
+        "title": "One event table, several kinds of node",
+        "screens": [
+            {
+                "file": "event-table-1-kinds-from-columns.html",
+                "caption": "One event table opens with a Nodes section listing each entity column and the kind of node it makes, edge rows between them typed by event_type, and repeated events counted."
+            },
+            {
+                "file": "event-table-2-drawn-with-kinds.html",
+                "caption": "The drawing colors each kind of node, kind chips with counts sit on the canvas, and the Data place lists node kinds and edge kinds with their counts."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Query a database, load more, expand a node",
+        "screens": [
+            {
+                "file": "server-1-connect-and-test.html",
+                "caption": "Open network data shows the connection as property rows, and Test runs the query live: 40,000 match and the first 20 real rows appear beside the form before Load."
+            },
+            {
+                "file": "server-2-load-more.html",
+                "caption": "The database source row says 5,000 of 40,000, and Load more with its batch size sits right under it."
+            },
+            {
+                "file": "server-3-expand-node.html",
+                "caption": "Right-clicking acct-4471 on the canvas offers Expand from source; its pop-over sets Depth 1 and Limit 50, says 50 of 212 neighbors came back, and the new nodes are ringed green."
+            }
+        ]
+    },
+    {
+        "flow": "filter-steps",
+        "title": "Filter steps, sets and a time window",
+        "screens": [
+            {
+                "file": "filter-steps-1-two-steps-and-sets.html",
+                "caption": "Two filter steps run in order, each with its own toggle and count (60 of 318, then 38 of 60); the second uses In largest connected part from the attribute list, and Save as set adds to the Sets list."
+            },
+            {
+                "file": "filter-steps-2-time-window.html",
+                "caption": "A date attribute gives a window condition: a histogram with the 30-day window marked, step arrows that move it a week, and counts of 120 of 200 nodes and 340 of 612 edges."
+            }
+        ]
+    }
+]

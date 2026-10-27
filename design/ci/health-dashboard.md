@@ -335,14 +335,15 @@ row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 Times leave out pull requests waiting on the owner (auto-merge off by rule).
 
-| Member             | Measure                                            | Window          | Min n     | Target    | Red    |
-| ------------------ | -------------------------------------------------- | --------------- | --------- | --------- | ------ |
-| Time to merge (H)  | median of merged minus ready, pull requests merged | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
-| Open pull requests | open, not draft                                    | now             | --        | <= 15     | > 25   |
-| Oldest open        | age of the oldest open, not waiting on the owner   | now             | --        | < 24 h    | > 72 h |
-| Merge ratio        | merged / created                                   | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
-| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h        | now             | --        | 0         | >= 3   |
-| Screenshot backlog | oldest pictures waiting for the owner              | now             | --        | < 24 h    | > 72 h |
+| Member                      | Measure                                                  | Window          | Min n     | Target    | Red    |
+| --------------------------- | -------------------------------------------------------- | --------------- | --------- | --------- | ------ |
+| Time to merge (H)           | median of merged minus ready, pull requests merged       | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
+| Open pull requests          | open, not draft                                          | now             | --        | <= 15     | > 25   |
+| Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
+| Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
+| Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
+| Auto-merge stuck            | armed, green and unmerged 2 h, or armed 6 h              | now             | --        | 0         | >= 3   |
+| Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
 
 On a quiet hour (2026-10-25, 22:30 to 23:30: 2 merged, 3 created) both rates are gray "too few"
 with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, is red in CI.
@@ -575,8 +576,11 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local
-gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. An
-unreachable source is NO DATA, hatched, never 0; a chart before its source's history is hatched "no
+gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. A
+source that fails while its last good write is within its yellow age keeps its members' values,
+marked stale with that write's time; past the yellow age an unreachable source is NO DATA, hatched,
+never 0. One GitHub request that fails (a 5xx, a timeout, a rate limit) is retried twice with
+backoff and then skipped alone (that run's jobs, read again next cycle), never failing the cycle; a chart before its source's history is hatched "no
 history"; an empty table names what is absent ("no quarantine entries").
 
 ## 10. Backend on AWS
@@ -754,6 +758,12 @@ threshold and page link, once per episode and once when it clears:
 - **Master red: at once.** master-guard is the first alarm; this is the independent backstop for
   when master-guard is wrong, as it was on 2026-10-25.
 - **Any other category red for 30 minutes.**
+
+An episode starts at a member's first red and ends only when the member is judged OK again: a gap
+of NO DATA or a stale source in between neither ends it nor starts another, so a flapping source
+cannot repeat the alert. A member alerts at most once in 6 hours, even when an episode truly ends
+and a new one starts: a new episode's alert waits until 6 hours have passed since the last one and
+is sent then if the member is still red; one that ends before its alert was sent sends no "cleared".
 
 **A dead-man's switch.** The collector both computes the status and sends the alerts, so a paused
 AWS project, the Budget action's deny-all policy or a crashing collector would silence both. A

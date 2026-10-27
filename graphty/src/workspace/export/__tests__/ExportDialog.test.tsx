@@ -8,7 +8,6 @@ import { page, userEvent } from "vitest/browser";
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { SAVED_LOCALLY } from "../choices";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
 
@@ -19,11 +18,21 @@ describe("the Export dialog", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
-        assert.isNotNull(within(dialog).getByText(/^One row for every edge/));
-        assert.isNotNull(within(dialog).getByText(SAVED_LOCALLY));
+        assert.isNotNull(within(dialog).getByRole("combobox", { name: "Format" }));
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         assert.isNull(store.get().dialog);
+    });
+
+    it("lists every output", async () => {
+        render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
+
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        const list = within(dialog).getByRole("grid", { name: "What to export" });
+        for (const name of ["Image", "Video", "Data", "Styles", "Recipe", "Project"]) {
+            await userEvent.click(within(list).getByText(name));
+            assert.isNotNull(within(dialog).getByRole("heading", { name }));
+        }
     });
 
     it("switches between Image and Data from the list", async () => {
@@ -39,15 +48,16 @@ describe("the Export dialog", () => {
         assert.isNull(within(dialog).queryByRole("heading", { name: "Image" }));
     });
 
-    it("lists its two kinds in the shared page list, the current one marked", async () => {
+    it("lists its outputs in the shared page list, the current one marked", async () => {
         render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const kinds = within(dialog).getByRole("grid", { name: "What to export" });
         const rows = within(kinds).getAllByRole("gridcell");
+        // The one Export dialog's outputs (the data prototype), in tier 3's page list.
         assert.deepEqual(
             rows.map((row) => row.textContent),
-            ["Image", "Data"],
+            ["Image", "Video", "Data", "Styles", "Recipe", "Project"],
         );
         assert.strictEqual(rows[0].getAttribute("aria-current"), "page");
         assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));

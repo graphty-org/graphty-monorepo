@@ -294,6 +294,7 @@ describe("the legend card's words", () => {
             scope: { spec: "graph" },
             status: "succeeded",
             stale: null as Run["stale"],
+            caveats: {},
         };
         const summary = { visibleNodes: 15, totalNodes: 20 };
         const session = {
@@ -330,6 +331,7 @@ describe("the legend card's words", () => {
             scope: { spec: "graph" },
             status: "succeeded",
             stale: null,
+            caveats: {},
         };
         const session = {
             runs: { get: () => run },

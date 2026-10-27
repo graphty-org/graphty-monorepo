@@ -462,14 +462,26 @@ Runners, not merging, are the bottleneck at about 76 merges a day, and more capa
 available for under about $1,000 a month (design section 7.1). The items cut work, in this order;
 the full run stays first in line for runners. Each item's Proof gives its runner-minutes saved.
 
-**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` cancels an unfinished
-master push build when a newer one starts (push to master only; pull request, dispatch and
+**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` makes a newer push replace a waiting
+master build; a running one finishes (#3938) (push to master only; pull request, dispatch and
 release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
 `master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
 `release-due.mjs` reads every merge since the last master build that finished, so a cancelled
 build's `Fixes #N` or `Refs #N` still starts its restart. Needs: nothing. Done: two quick master
 merges leave the older build cancelled with no red-master issue, the newer deployed to canary, and a
 restart asked for by the cancelled merge started. Undo: revert.
+
+**fewer-pushes-per-pr** (#3850) -- agent, S. On 2026-10-26 (07:00Z on, 244 pull request ci.yml
+runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6 minutes
+later (38 within 5 minutes), after running a median 8 minutes (p90 42): about 1,800 cancelled
+run-minutes a day. Two causes: `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit,
+so every commit on a branch with an open pull request started a run; and `tools/pr-open.sh` merged
+`origin/master` into a branch that was only behind, one more push, though a pull request is tested
+as merged with master and the required checks are not strict. So `branch-push.sh` does not push a
+branch with an open pull request (the status broker's file when fresh, else one cached `gh pr list`;
+unsure, it pushes) and says so, and `pr-open.sh` merges master only on a conflict or
+`--merge-master`. Needs: nothing. Done: over a day, pull request runs cancelled by a newer push to
+the same branch fall well below the 99 measured. Undo: revert.
 
 **stop-unneeded-pr-captures** -- agent, S. A pull request's screenshot capture jobs that `All
 Checks Pass` does not need stop once its verdict is in (today they run 15 to 25 minutes past it).
@@ -504,6 +516,15 @@ tests per batch, batch failure rate and bisect cost; the owner decides from the 
 record (809 CI runs for 761 merges, 197 wasted) is why it is measured first. Needs:
 `runner-minutes-per-merge`. Done: the measurements recorded in design section 7.1 and a decision on
 #3418. Undo: none needed (a replay changes nothing).
+
+Done 2026-10-27. The replay (2026-10-26) found 279 runner-minutes per merged pull request; 1.9% of
+pull request runs failed on tests the pull request broke, 4.6% on a failure shared with master, 1%
+on a flaky test and 16% on a cheap check. Running the full suite once saves 31% for 14 more minutes
+of median time to merge; Mergify batches of 4 save 51% at an 83-minute median. The owner chose
+neither for now. Mergify batching (batches of 4, at most 30 minutes' wait, cheap checks before queue
+entry) is turned back on when, over 7 days, fewer than 5% of queue entries have a pull request run
+that failed on tests the pull request touched, and the rule that lets unrelated failures through
+(#3925) is live. Design section 7.1 has the numbers; #3951 puts the trigger rate on the health dashboard.
 
 ### Step 6: the full run every 6 hours, publishing nothing
 
@@ -597,16 +618,17 @@ Order below: the smallest piece that unblocks nightly first. Each is part of #37
 change release.yml are owned.
 
 **nightly-resume** (#3741) -- agent, M, CP. `mode: promote-nightly` (design section 5): refuse unless
-the accept's parent is the candidate and its latest verdict is green-images; gate on its
-`visual-*` with `--head <accept>`; version, land (with the version-only `release-diff` of the master
-merge), publish, site on the accept commit; store `approved`; `release-due` dispatches it on an
-accept merge naming a waiting candidate (the oldest waiting one until `candidate-hold`). Needs:
+the approval (the accept pull request's head) is the candidate plus accept-only commits and the
+candidate's latest verdict is green-images; gate on its `visual-final-*` with `--head <approval>`;
+version, land (with the version-only `release-diff` of the master merge), publish, site on the
+approval; store `approved`; `release-due` dispatches it on an accept merge naming the held candidate
+(or any green-images one while nothing is held), and every full slot catches up on one. Needs:
 `nightly-site`. Done: an approved green-images run promotes to `next` and nightly.graphty.app; a
 second dispatch, or one for a red run, does nothing. Undo: revert; candidates wait as today.
 
 **same-commit-rerun** (#3741) -- agent, M. The `recapture` job and `visual-final-*`,
 `release-rerun.yml` (absorbing `gpu-rerun-on-runner-loss.yml`; modes and jobs as design section 3),
-no red issue or bisect on attempt 1, `release-watch.yml` filing when no attempt 2 started, "Flaky in
+no red issue or bisect on attempt 1, `release-rerun.yml` filing when it starts no attempt 2, "Flaky in
 full run" filing in `full-run.mjs verdict`. First check on a scratch run that `--failed` re-runs a
 failed job inside the called ci.yml and its dependents. Needs: none. Done: a seeded one-time lane
 failure and a seeded one-time story difference each end green with one flaky issue; a consistent
@@ -620,14 +642,20 @@ channels section 7. Needs: `nightly-resume`, `same-commit-rerun`, the owner addi
 slots; abandon frees the next slot. Undo: delete the branch; `pick()` takes the newest again.
 
 **candidate-fix-forward** (#3741) -- agent, M. `tools/channel/candidate-fix.mjs` with tests
-(reachability refusals, the conflict branch), `pr-open.sh --candidate` (a guarded path: the owner
-merges it), `mode: candidate` with T4 and the affected lanes on H, the release.yml
-`candidate-capture` job (ci.yml's visual job and gate untouched; ci.yml gets no new input), the
-run's own build and `site-<H>`, `release-due` on a merge with `Refs #<hold issue>`. Needs:
-`candidate-hold`; #3592 and #3472 (stories blocking again) merged first. Done: a scratch fix from C
-merges into master and `channel/candidate`, the run on H re-tests the selected shards, T4 and the
-affected projects' stories and promotes; a fix whose range holds a commit reachable from the
-earlier master tip is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+(the fix commit, the newer-master and partial-fix refusals, a conflict), release.yml's
+`candidate_fix` job before every full, restart and candidate pick, `mode: candidate` (input
+`fix_pr`, from `release-due` on a merge that references the hold issue), the run's own build and
+`site-<H>` (`deploy-pages.yml` called). First version (owner, 2026-10-26): the run on H re-tests
+H whole, every lane and the whole screenshot capture, about 1 to 1.5 hours per fix, so fix forward
+works now instead of after #3592 and #3472. The narrower re-test (the affected shards and lanes,
+the `recapture` job shooting the affected Storybooks whole and carrying the rest over) is built
+behind the repository variable `CANDIDATE_RETEST=affected`, off until those land; switching it on
+changes nothing for a fix author. Fix authors use `worktree-new.sh` from
+`origin/channel/candidate` and `pr-open.sh` unchanged. Needs: `candidate-hold`. Done: a scratch
+fix from C merges into master and `channel/candidate`, the run on H re-tests it whole and
+promotes (or waits for the owner's screenshot approval and then promotes); a fix made from newer
+master is refused with a hold-issue comment. Undo: revert; a hold waits for abandon.
+Follow-up, after #3592 and #3472: set `CANDIDATE_RETEST=affected` and check one fix forward's run.
 
 **candidate-fix-acceptance** (#3741) -- agent, S. One held candidate promoted after a fix forward,
 recorded on #3741. Needs: `candidate-fix-forward`. Not a step-7 or step-8 gate.

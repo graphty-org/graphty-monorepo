@@ -50,6 +50,13 @@ describe("a page that is not a secure context", () => {
         await expect(sha256Hex(text)).resolves.toBe(expected);
     });
 
+    it("hashes bytes exactly as given, with the same digest as Node's", async () => {
+        const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x61, 0x2c, 0x62, 0x0a, 0x00, 0xff]);
+        const expected = createHash("sha256").update(bytes).digest("hex");
+        insecurePage();
+        await expect(sha256Hex(bytes)).resolves.toBe(expected);
+    });
+
     it("refuses to sign with a coded runtime error", async () => {
         insecurePage();
         const request = new Request("https://db.example.com:8182/openCypher", { method: "GET" });

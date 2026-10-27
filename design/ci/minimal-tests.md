@@ -478,7 +478,33 @@ webgpu-graph-algorithms has no shard the selector can run file by file: every co
 always run whole and it stays off the lists. cytoscape-extensions-cytoscape-versions runs whole for
 the same reason.
 
-### 5.5 visual-review's dependents, 2026-10-27
+### 5.5 visual-review and githerd, 2026-10-26
+
+The last two packages off `fileLevel` with a plain vitest shard. Each run broke 15 files, five at a
+time (`--batch 5`), and ran the package's shard whole. None found a miss, so both joined
+`fileLevel`.
+
+| Package       | Seeds and files                                       | Test files one file selects        | Result                                     |
+| ------------- | ----------------------------------------------------- | ---------------------------------- | ------------------------------------------ |
+| githerd       | seed 3850                                             | 81 or 82 of 82                     | no miss                                    |
+| visual-review | seed 3850 (10 files), then 15 named files (`--files`) | 25 of 27; all 27 for setup helpers | no miss; 4 batches inconclusive, see below |
+
+A batch that broke a file the suite's setup reaches (`trusted/gate.mjs`, `trusted/lib/compare.mjs`,
+`trusted/lib/config.mjs` or `trusted/vendor/pixelmatch.mjs`, imported by `test/helpers.mjs`, which
+the global setup loads) stopped the whole run before any test reported, so the script called it
+inconclusive. Each such file selects all 27 test files, so it cannot be missed; the 15 named files
+are the rest of the two seeded picks.
+
+Neither package saves much: most of their tests read files or run programs at run time, so almost
+any change selects nearly every test file, and a selected shard runs as a bin job of its own
+(about 0.8 minutes of setup) instead of inside its group job. On the 79 pull request runs of
+2026-10-26 15:59 to 23:00 UTC, visual-review ran whole only because it was off `fileLevel` in 21,
+githerd in 1. The shards that run whole on a pull request for other reasons cost far more: in 19 of
+the same 79 runs a visual-review change ran every package that depends on it whole ("depends on
+visual-review, whose build changed"), the four webgpu-graph-algorithms node shards among them,
+although visual-review has no build and its dependents only load it in test and story configs.
+
+### 5.6 visual-review's dependents, 2026-10-27
 
 visual-review has no build, and its dependents load it only from their vitest configs, story setups and
 a few tests. The selector had treated any change to it as a change to every dependent's build. On

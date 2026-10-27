@@ -26,6 +26,8 @@ import { count, formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { sourceName } from "../style/row";
 import { channelWord } from "../style/words";
+import { unitOf } from "../time/timeActions";
+import { rangeWords } from "../time/timeWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
@@ -662,10 +664,16 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     }
     // The algorithm's name as the reader picked it, as the style tree names the run's row.
     const name = runName(session, run);
+    // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
+    const ran = run.caveats.window;
+    if (ran !== undefined) {
+        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session))}`;
+        return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;
+    }
     if (run.status !== "succeeded" || run.stale === null) {
         return name;
     }
-    if (run.stale.reason === "data-changed") {
+    if (run.stale.reason === "data-changed" || run.stale.reason === "window-moved") {
         return `${name}, out of date`;
     }
     const { ranOn } = run.stale;

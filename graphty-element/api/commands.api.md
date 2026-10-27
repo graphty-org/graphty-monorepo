@@ -39,6 +39,9 @@ export const COMMANDS: Readonly<{
     readonly "data.apply": {
         readonly undo: "undoable";
     };
+    readonly "data.issues": {
+        readonly undo: "undoable";
+    };
     readonly "data.import": {
         readonly undo: "undoable";
     };
@@ -66,6 +69,9 @@ export const COMMANDS: Readonly<{
     readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
+    readonly "data.columns": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };
@@ -85,6 +91,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.steps": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.playback": {
         readonly undo: "undoable";
     };
     readonly "set.create": {
@@ -159,7 +168,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

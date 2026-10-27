@@ -75,12 +75,14 @@ async function sha256(data: Uint8Array | ArrayBuffer): Promise<string> {
 }
 
 /**
- * SHA-256 of a text's UTF-8 bytes, as lowercase hex (the Cypher source's content hash).
- * @param text - the text
+ * SHA-256 as 64 lowercase hexadecimal digits: of bytes exactly as given, or of a text's UTF-8 bytes
+ * (the Cypher source's content hash, a project file's record of a file it loaded). Web Crypto where
+ * there is one, else plain JavaScript (a page that is not a secure context). Experimental.
+ * @param data - the bytes or the text
  * @returns the digest
  */
-export function sha256Hex(text: string): Promise<string> {
-    return sha256(utf8(text));
+export function sha256Hex(data: string | Uint8Array): Promise<string> {
+    return sha256(typeof data === "string" ? utf8(data) : data);
 }
 
 /**

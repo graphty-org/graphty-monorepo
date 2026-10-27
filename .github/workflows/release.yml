@@ -1169,7 +1169,9 @@ jobs:
             promote: ${{ steps.promote.outputs.promote }}
             screenshots: ${{ steps.gate.outputs.screenshots }}
             deferred: ${{ steps.verdict.outputs.deferred }}
-            hold: ${{ steps.verdict.outputs.hold }}
+            # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
+            # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
+            hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}

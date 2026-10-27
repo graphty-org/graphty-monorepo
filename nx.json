@@ -86,7 +86,19 @@
             "cache": true
         },
         "build-storybook": {
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build"],
+            "cache": true,
+            "outputs": ["{projectRoot}/storybook-static"],
+            "inputs": [
+                "default",
+                "^production",
+                { "input": "default", "projects": ["graph-format", "graph-io", "graph-samples", "graphty-element"] },
+                "{workspaceRoot}/tools/storybook-brand-theme/**/*",
+                "{workspaceRoot}/visual-review/capture/**/*",
+                "{workspaceRoot}/docs/examples/**/*",
+                "{workspaceRoot}/algorithms/stories/**/*",
+                { "runtime": "node --version" }
+            ]
         },
         "lint": {
             "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],

@@ -2489,6 +2489,18 @@ jobs:
         assert.equal(r.stdout.trim(), '["links","build/Lint"]');
     });
 
+    it("probes the nx remote cache in the Storybooks job the same way, writing only on master", () => {
+        // build-storybook is cached (nx.json), so the Storybooks job reads the cache; its probe must be the
+        // Build job's, tested below, and only master's runs may hold the write environment.
+        const probe = (name) =>
+            /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, name))[1];
+        assert.equal(probe("build"), probe("packages"));
+        const env = (name) => /\n {8}environment: (.*)\n/.exec(job(ci, name))[1];
+        assert.equal(env("build"), env("packages"));
+        const nx = JSON.parse(readFileSync(new URL("../nx.json", import.meta.url), "utf8"));
+        assert.equal(nx.targetDefaults["build-storybook"].cache, true);
+    });
+
     it("turns the nx remote cache on only when the Worker accepts the token", async () => {
         // nx fails the whole build on a 401 from the cache, so a wrong or unregistered token must turn it off.
         const run = /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(

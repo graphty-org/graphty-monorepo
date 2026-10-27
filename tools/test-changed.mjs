@@ -134,8 +134,24 @@ function build(plan) {
     return r.status === 0;
 }
 
+// The CPUs a file-level run of a browser shard may use here (graphty's real-element tests, graphty-element's
+// browser projects): its Node workers are capped at 4, and its browser projects keep their own lower limits.
+export const BROWSER_MAX_WORKERS = 4;
+
+/**
+ * The run-tests.sh arguments for one run: a file-level run is its own command (a browser shard's capped at
+ * BROWSER_MAX_WORKERS), a whole shard runs by name as CI runs it.
+ * @param p a planRuns() entry
+ * @returns arguments after tools/run-tests.sh
+ */
+export function runArgs(p) {
+    if (p.mode !== "files") return [p.shard.shard];
+    const cap = p.shard["needs-browser"] ? ` --maxWorkers=${BROWSER_MAX_WORKERS}` : "";
+    return ["--command", p.shard.shard, p.command + cap];
+}
+
 function run(p) {
-    const args = p.mode === "files" ? ["--command", p.shard.shard, p.command] : [p.shard.shard];
+    const args = runArgs(p);
     const t0 = Date.now();
     const r = spawnSync(process.execPath, ["tools/test-slots.mjs", "bash", "tools/run-tests.sh", ...args], {
         cwd: ROOT,

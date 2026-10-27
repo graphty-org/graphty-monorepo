@@ -327,16 +327,19 @@ const READER_INPUT_EVENTS = [
  * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
  * is white, toward +x+y), and the key light's intensity and direction in camera space.
  *
- * - studio: fill 0.45 and key 0.55 from above-right of the camera, plus the node rim (NodeLighting).
- *   Measured: no pixel clipped to white, brightest 1.13x the style lightness, median 0.88x, sphere
- *   lightness spread 0.282.
- * - headlight: fill 0.4 with a lighter ground, and a 0.45 light from just beside the camera.
- *   Brightest 0.99x the style lightness, median 0.88x, spread 0.226.
+ * - studio: the headlight's lights (below) plus the node rim (NodeLighting): a 0.45 light from just
+ *   above and left of the camera, a 0.4 fill with ground gray 0.65, no specular, and a rim in the
+ *   node's own color (fresnel bias 0.1, power 2.5, boost 1.8). Because the main light follows the
+ *   camera and the ground is light, no side goes dark: in the lighting experiment the darkest face
+ *   seen from the front, back or below was about 0.51-0.53 of the style lightness, the median
+ *   0.89-0.92, and no pixel clipped to white.
+ * - headlight: the same lights without the rim. Brightest 0.99x the style lightness, median 0.88x,
+ *   spread 0.226.
  * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
  * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
  */
 const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
-    studio: { fill: 0.45, ground: 0.35, key: 0.55, keyDirection: new Vector3(0.6, -0.6, 1) },
+    studio: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
     flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },

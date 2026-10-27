@@ -246,7 +246,11 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "median, ready to merged, owner waits left out",
         nOf: "merged",
     },
-    "pull-requests.open": { name: "Open pull requests", short: "open pull requests", def: "not draft" },
+    "pull-requests.open": {
+        name: "Open pull requests",
+        short: "open pull requests",
+        def: "not draft, not waiting on the owner",
+    },
     "pull-requests.oldest_open": { name: "Oldest open", short: "oldest open", def: "not waiting on the owner" },
     "pull-requests.merge_ratio": { name: "Merge ratio", short: "merge ratio", def: "merged / created", nOf: "created" },
     "pull-requests.caused_failures": {

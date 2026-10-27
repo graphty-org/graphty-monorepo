@@ -20,7 +20,8 @@ export type Measure =
     | { type: "sum"; metric: string; scale?: number }
     | { type: "share"; metric: string; complement?: boolean } // sum / the window's ms
     | { type: "last"; metric: string; scale?: number } // a stock's newest value
-    | { type: "dims_median_over"; metric: string; over: number; minPerDim: number } // dimensions whose median > over
+    // Dimensions whose median (from the events) passes `over`, or without it each dimension's own budget (sum / n).
+    | { type: "dims_median_over"; metric: string; over?: number; minPerDim: number }
     | { type: "month"; metric: string; dim?: string; projected: boolean } // month to date, or projected to month end
     | { type: "engine"; name: EngineMeasure };
 

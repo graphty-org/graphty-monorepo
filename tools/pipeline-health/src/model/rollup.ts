@@ -2,7 +2,7 @@
 // into it, then its 15-minute, hourly and daily parents from their children. A parent whose children have expired
 // (a backfill of an old day) is rebuilt from below, down to the raw items.
 
-import { addValue, emptyHistogram, mergeInto } from "./histogram.js";
+import { addValue, emptyHistogram, mergeInto, quantile } from "./histogram.js";
 import {
     type Agg,
     type Bucket,
@@ -29,6 +29,19 @@ export type Buckets = Map<string, Bucket>; // metric -> bucket
 
 export const emptyAgg = (): Agg => ({ n: 0, sum: 0 });
 
+/**
+ * The q-quantile of an aggregate's values: from the events themselves when it kept every one (Agg.vals; nearest
+ * rank, as the histogram ranks), else from its histogram, whose bins are about 44 % wide (a shard's median read as
+ * a bin's middle, 932 s, put it over a 900 s budget it was under).
+ */
+export function aggQuantile(a: Agg, q: number): number | undefined {
+    if (a.vals?.length && a.vals.length === a.n) {
+        const v = a.vals.toSorted((x, y) => x - y);
+        return v[Math.max(1, Math.ceil(q * v.length)) - 1];
+    }
+    return a.hist && quantile(a.hist, q);
+}
+
 function addTo(agg: Agg, c: Contribution, at: number): void {
     agg.n += c.n ?? 1;
     agg.sum += c.sum ?? 0;
@@ -37,6 +50,10 @@ function addTo(agg: Agg, c: Contribution, at: number): void {
     }
     agg.hist ??= emptyHistogram();
     addValue(agg.hist, c.value);
+    if (c.exact) {
+        agg.vals ??= [];
+        agg.vals.push(c.value);
+    }
     agg.max = Math.max(agg.max ?? -Infinity, c.value);
     if (agg.lastAt === undefined || at >= agg.lastAt) {
         agg.last = c.value;
@@ -55,6 +72,10 @@ export function mergeAgg(into: Agg, from: Agg): void {
     if (from.hist) {
         into.hist ??= emptyHistogram();
         mergeInto(into.hist, from.hist);
+    }
+    if (from.vals) {
+        into.vals ??= [];
+        into.vals.push(...from.vals);
     }
     if (from.max !== undefined) {
         into.max = Math.max(into.max ?? -Infinity, from.max);
@@ -83,10 +104,11 @@ export function mergeBucket(into: Bucket, from: Bucket): void {
     }
 }
 
-const pick = ({ n, sum, hist, max, last, lastAt, dims }: Bucket): Bucket => ({
+const pick = ({ n, sum, hist, vals, max, last, lastAt, dims }: Bucket): Bucket => ({
     n,
     sum,
     ...(hist ? { hist } : {}),
+    ...(vals ? { vals } : {}),
     ...(max === undefined ? {} : { max }),
     ...(last === undefined ? {} : { last, lastAt }),
     ...(dims ? { dims } : {}),

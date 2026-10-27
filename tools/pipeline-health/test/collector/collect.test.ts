@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import rates from "../../config/rates.json" with { type: "json" };
 import { collect, type Deps } from "../../src/collector/collect.js";
 import { GitHub } from "../../src/collector/github.js";
-import type { Rates } from "../../src/collector/parse.js";
+import type { GhRun, Rates } from "../../src/collector/parse.js";
 import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { readSnapshot } from "../../src/model/snapshots.js";
@@ -174,10 +174,43 @@ describe("collector with the GitHub App", () => {
     });
 });
 
+type Fake = ReturnType<typeof fakeGitHub>;
+
+/** The open pull requests answer with only as many as `branches`, headed by them (the recorded runs' others closed). */
+function withOpenBranches(fake: Fake, branches: string[]): Fake {
+    const recorded = fake.fetch;
+    fake.fetch = async (url, init) => {
+        const res = await recorded(url, init);
+        if (!url.endsWith("/graphql") || !String(init?.body).includes("pullRequests")) return res;
+        const body = (await res.json()) as { data: { repository: { open: { nodes: { headRefName?: string }[] } } } };
+        const open = body.data.repository.open;
+        open.nodes = open.nodes.slice(0, branches.length).map((p, i) => ({ ...p, headRefName: branches[i] }));
+        return new Response(JSON.stringify(body), { headers: res.headers });
+    };
+    return fake;
+}
+
+/** Adds the recorded ghost: "Lint PR Title" queued since 02:58Z on #3940, which merged at 03:29Z. */
+function withGhost(fake: Fake): Fake {
+    const recorded = fake.fetch;
+    const ghost = fixture<GhRun>("run-ghost-40441556963.json");
+    fake.fetch = async (url, init) => {
+        const u = new URL(url);
+        if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname))
+            return Response.json(fixture("jobs-ghost-40441556963.json"));
+        if (/monorepo\/actions\/runs$/.test(u.pathname) && u.searchParams.get("status") === "queued")
+            return Response.json({ total_count: 1, workflow_runs: [ghost] });
+        return recorded(url, init);
+    };
+    return fake;
+}
+
 describe("runner job counts", () => {
+    const PR_RUN_BRANCH = "ci/3418-design-studio-master-wait";
+
     it("writes ci.jobs_running and ci.jobs_queued from the jobs of unfinished runs", async () => {
         const store = new MemoryStore();
-        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const fake = withOpenBranches(fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" }), [PR_RUN_BRANCH]);
         const recorded = fake.fetch;
         // The in-progress pull request run with two jobs running and three queued (one on machine.dev, which is
         // outside GitHub's limit and so not counted).
@@ -196,6 +229,30 @@ describe("runner job counts", () => {
         await collect(deps(store, fake));
         expect(observed(store, "ci.jobs_running")).toBe(2);
         expect(observed(store, "ci.jobs_queued")).toBe(2);
+    });
+
+    it("leaves out a queued run whose pull request is no longer open", async () => {
+        const now = Date.parse("2026-10-27T20:49:00Z");
+        const ghostAt = Date.parse("2026-10-27T02:58:55Z");
+        const run = async (open: string[], ghost = true) => {
+            const store = new MemoryStore();
+            const fake = withOpenBranches(fakeGitHub(), open);
+            await collect(deps(store, ghost ? withGhost(fake) : fake, now));
+            return {
+                queued: observed(store, "ci.jobs_queued", now),
+                longest: observed(store, "ci.longest_queued_ms", now),
+            };
+        };
+        // No pull request of the recorded runs is open: none of them waits on a runner.
+        const without = await run([], false);
+        expect(without).toEqual({ queued: 0, longest: 0 });
+        // #3940 merged: its branch heads no open pull request, so the ghost changes nothing.
+        expect(await run([])).toEqual(without);
+        // While #3940 was open, the same job was a real wait.
+        expect(await run(["fix/3938-master-builds-finish"])).toEqual({
+            queued: without.queued! + 1,
+            longest: now - ghostAt,
+        });
     });
 });
 

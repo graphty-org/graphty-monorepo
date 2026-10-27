@@ -9,6 +9,10 @@
 //   node tools/channel/recapture.mjs merge --first <dir> --second <dir> --out <dir>
 //       the final capture: the first capture with each re-shot story's verdict replaced, and flaky.json listing the
 //       stories the two shots disagree on
+//   node tools/channel/recapture.mjs nest --captures <dir> --prefix <visual- or visual-final->
+//       after actions/download-artifact with a pattern: when exactly one artifact matched, the action extracts it
+//       straight into <dir> (no <name>/ directory, since v5); this moves it into <prefix><project>-0, the layout
+//       every reader here expects. Several matches are left as they are.
 //   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha>
 //       release.yml's resume job: rewrites each capture's results.json in <dir> so a story whose captured PNG is the
 //       head's (the owner's accept-only pull request's) baseline byte for byte is unchanged; the gate then judges
@@ -25,6 +29,7 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    renameSync,
     writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -91,6 +96,25 @@ const copyIfThere = (from, to) => {
     mkdirSync(dirname(to), { recursive: true });
     copyFileSync(from, to);
 };
+
+/**
+ * Puts one capture that actions/download-artifact extracted straight into a directory (a pattern that matched one
+ * artifact) into its own <prefix><project>-0 directory, as it does for two or more matches.
+ * @param dir the download directory
+ * @param prefix the artifact name's prefix before the project, such as "visual-" or "visual-final-"
+ * @returns the directory it made, or null when there was nothing to move
+ */
+export function nestSingle(dir, prefix) {
+    const file = join(dir, "results.json");
+    if (!existsSync(file)) return null;
+    const { project } = JSON.parse(readFileSync(file, "utf8"));
+    const to = join(dir, `${prefix}${project}-0`);
+    const tmp = `${dir}.nest-${process.pid}`;
+    renameSync(dir, tmp);
+    mkdirSync(dir, { recursive: true });
+    renameSync(tmp, to);
+    return to;
+}
 
 /**
  * Builds the final capture.
@@ -177,7 +201,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const { values } = parseArgs({
         args: rest,
         options: Object.fromEntries(
-            ["project", "captures", "first", "second", "out", "head"].map((k) => [k, { type: "string" }]),
+            ["project", "captures", "first", "second", "out", "head", "prefix"].map((k) => [k, { type: "string" }]),
         ),
     });
     if (cmd === "plan") {
@@ -190,6 +214,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     } else if (cmd === "merge") {
         const flaky = await merge({ first: values.first, second: values.second || null, out: values.out });
         for (const f of flaky) console.log(`::warning::flaky story ${f.file}: ${f.why}`);
+    } else if (cmd === "nest") {
+        const to = nestSingle(values.captures, values.prefix);
+        if (to) console.log(`one artifact was extracted straight into ${values.captures}: moved to ${to}`);
     } else if (cmd === "accepted") {
         const root = JSON.parse(readFileSync("visual-review.config.json", "utf8")).baselines;
         for (const name of readdirSync(values.captures)) {
@@ -201,7 +228,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
             console.log(`${name}: ${n} ${n === 1 ? "story matches" : "stories match"} the approved baselines`);
         }
     } else {
-        console.error("usage: node tools/channel/recapture.mjs plan | merge | accepted (see the head of the file)");
+        console.error(
+            "usage: node tools/channel/recapture.mjs plan | merge | nest | accepted (see the head of the file)",
+        );
         process.exit(2);
     }
 }

@@ -23,8 +23,10 @@
  *
  * RELEASE_HOLD_ALSO (comma separated nx project names) holds those projects for this run only, exactly like a
  * release-hold.json entry, without writing the file: release.yml's version job passes the projects the version dry
- * run held (a major or a first publish with no release-approvals.json entry), so they wait alone and every other
- * project still releases.
+ * run held (a major or a first publish with no release-approvals.json entry), so they wait and every other
+ * project still releases. Every project that depends on one of them (nx's project graph, transitively) is held with
+ * it: published without it, a dependent would name a version npm does not have (a first publish) or ship code
+ * written against changes that are not released (a major).
  *
  * Both modes also check that nx can resolve a current version for every project in nx.json's
  * release.projects: its last `{projectName}@{version}` tag, else the version in its package.json
@@ -124,9 +126,26 @@ export function holdAllBut(hold, projects, only, since) {
  */
 export function holdAlso(hold, also, since) {
     const held = new Set(hold.hold.map((h) => h.project));
-    const reason = "a major or a first publish with no release-approvals.json entry (RELEASE_HOLD_ALSO, this run only)";
+    const reason =
+        "a major or a first publish with no release-approvals.json entry, or a dependent of one (RELEASE_HOLD_ALSO, this run only)";
     const extra = [...new Set(also)].filter((name) => !held.has(name)).map((project) => ({ project, reason, since }));
     return { hold: [...hold.hold, ...extra] };
+}
+
+/**
+ * The named projects and every project that depends on one of them, directly or not.
+ * @param names - the project names
+ * @param dependencies - nx's graph.dependencies: { project: [{ target }] }
+ * @returns the names, then their dependents, each once
+ */
+export function withDependents(names, dependencies) {
+    const out = [...new Set(names)];
+    for (let i = 0; i < out.length; i++) {
+        for (const [project, deps] of Object.entries(dependencies)) {
+            if (!out.includes(project) && deps.some((d) => d.target === out[i])) out.push(project);
+        }
+    }
+    return out;
 }
 
 /**
@@ -162,15 +181,15 @@ export function privateProjects(released) {
 
 /**
  * The projects in nx.json's release.projects, read from nx, their package.json and git tags.
- * @returns the input `unversionable` and `privateProjects` take
+ * @returns `released`, the input `unversionable` and `privateProjects` take, and nx's graph.dependencies
  */
 function releasedProjects() {
     const nx = (...args) => execFileSync("pnpm", ["exec", "nx", ...args], { cwd: ROOT, encoding: "utf8" });
     const patterns = JSON.parse(readFileSync(join(ROOT, "nx.json"), "utf8")).release.projects;
     const names = JSON.parse(nx("show", "projects", "--json", "-p", patterns.join(",")));
-    const nodes = JSON.parse(nx("graph", "--file=stdout")).graph.nodes;
+    const { nodes, dependencies } = JSON.parse(nx("graph", "--file=stdout")).graph;
     const tags = execFileSync("git", ["tag", "-l"], { cwd: ROOT, encoding: "utf8" }).split("\n");
-    return names.map((name) => {
+    const list = names.map((name) => {
         let pkg = {};
         try {
             pkg = JSON.parse(readFileSync(join(ROOT, nodes[name].data.root, "package.json"), "utf8"));
@@ -184,6 +203,7 @@ function releasedProjects() {
             tagged: tags.some((tag) => tag.startsWith(`${name}@`)),
         };
     });
+    return { released: list, dependencies };
 }
 
 function fail(found) {
@@ -196,7 +216,7 @@ function main(mode, only, also) {
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
     );
-    const released = releasedProjects();
+    const { released, dependencies } = releasedProjects();
     let found = [...problems(hold, projects), ...unversionable(released), ...privateProjects(released)];
     if (found.length > 0) fail(found);
     if (only) {
@@ -206,7 +226,7 @@ function main(mode, only, also) {
         hold = widened.hold;
     }
     if (also.length > 0) {
-        hold = holdAlso(hold, also, new Date().toISOString().slice(0, 10));
+        hold = holdAlso(hold, withDependents(also, dependencies), new Date().toISOString().slice(0, 10));
         found = problems(hold, projects);
         if (found.length > 0) fail(found);
     }

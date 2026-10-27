@@ -218,7 +218,10 @@ describe("verdictOf: the pick and the version dry run", () => {
         assert.equal(verdictOf(lanes, 0, "", "").state, "red", "a dry run that failed otherwise is red");
         assert.deepEqual(verdictOf({ ...lanes, ci: "failure" }, 0, "", "babylonjs-map"), { state: "red", red: ["ci"] });
         // the held projects stay the owner's item, named in the verdict's owner output
-        assert.match(heldLine("babylonjs-map"), /^babylonjs-map held alone .*release-approvals\.json/);
+        assert.match(
+            heldLine("babylonjs-map"),
+            /^babylonjs-map held with the projects that depend on it .*release-approvals\.json/,
+        );
         assert.equal(heldLine(""), "");
     });
 

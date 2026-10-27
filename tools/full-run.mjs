@@ -209,7 +209,7 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
  * @param images how many screenshots differ from their baselines (a missing capture is lanes.captures, not this)
  * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
  * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty: the
- *   version job leaves them out (RELEASE_HOLD_ALSO), so they wait alone and the dry run's failure passes
+ *   version job leaves them and their dependents out (RELEASE_HOLD_ALSO), so the dry run's failure passes
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
 export function verdictOf(lanes, images, ownerItem = "", held = "") {
@@ -748,12 +748,14 @@ function whatOf({ state, red, lanes, changed, env }) {
 }
 
 /**
- * The owner's item for the projects the version dry run held: they wait alone, every other project promotes.
+ * The owner's item for the projects the version dry run held: they and their dependents wait, the rest promote.
  * @param held VERSION_HELD, comma separated nx project names, or empty
  * @returns the line, or "" when nothing is held
  */
 export const heldLine = (held) =>
-    held ? `${held} held alone (a major or a first publish): add its release-approvals.json entry to release it` : "";
+    held
+        ? `${held} held with the projects that depend on it (a major or a first publish): add its release-approvals.json entry to release them`
+        : "";
 
 async function verdictMain(env) {
     const cfg = config(env);

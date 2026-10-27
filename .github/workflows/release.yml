@@ -1768,9 +1768,9 @@ jobs:
             # it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning"). nx tags,
             # pushes and creates nothing here: the land job pushes the commit with its tags. A project the version
             # dry run held (a major or a first publish with no release-approvals.json entry) is left out the same
-            # way, for this run only (RELEASE_HOLD_ALSO), so it waits alone and every other project promotes. A
-            # promotion after approval runs no dry run: its version commit is checked here, and versioned again
-            # without the projects the check names.
+            # way, for this run only (RELEASE_HOLD_ALSO), with every project that depends on it, and every other
+            # project promotes. A promotion after approval runs no dry run: its version commit is checked here, and
+            # versioned again without the projects the check names.
             - name: Version the packages
               id: version
               env:

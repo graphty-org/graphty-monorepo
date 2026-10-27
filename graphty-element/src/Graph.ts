@@ -4452,8 +4452,8 @@ export class Graph implements GraphContext {
         return engine?.config?.map ?? undefined;
     }
 
-    /** Whether the graph is now drawn over a map: edges under nodes. */
-    #overMap = false;
+    /** Whether the graph is now drawn over a map (edges under nodes); null before the first frame. */
+    #overMap: boolean | null = null;
 
     /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
     readonly #edgeMeshes = new Set<AbstractMesh>();
@@ -4468,6 +4468,11 @@ export class Graph implements GraphContext {
      * While a map is drawn, nodes are drawn after edges with edges writing no depth, so an arc
      * passing in front of a node never hides it. Undone when the map goes. Nodes and edges look as
      * their style layers paint them, as in every layout: a map adds no outline of its own.
+     *
+     * With or without a map, the opaque and alpha-tested meshes are drawn in a fixed order (by rank,
+     * then by name), not in the order their materials were created: in 2D an edge and a group's
+     * border lie in one plane, and the later drawn wins where they cross, so an order that followed
+     * creation (async, so it varies between loads) drew a different picture from one load to the next.
      * @param frame - The active geographic frame, or null.
      */
     #drawOverMap(frame: LocationMapFrame | null): void {
@@ -4516,17 +4521,27 @@ export class Graph implements GraphContext {
 
             return this.#nodeMeshes.has(mesh) ? 4 : 0;
         };
-        // Everything else in Babylon's own order (as with no map), then the map, then the edges'
-        // bands, their lines, then the nodes over them -- in the blended pass too, where the edge
-        // lines (antialiased) and their outlines are drawn.
+        // Everything else (group regions included), then the map, then the edges' bands, their
+        // lines, then the nodes over them (only over a map) -- in the blended pass too over a map,
+        // where the edge lines (antialiased) and their outlines are drawn. Ties go by name, which
+        // does not depend on creation order, and only then by Babylon's own (material) order.
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+        const byName = (a: SubMesh, b: SubMesh): number => {
+            const nameA = a.getMesh().name;
+            const nameB = b.getMesh().name;
+            if (nameA !== nameB) {
+                return nameA < nameB ? -1 : 1;
+            }
+
+            return RenderingGroup.PainterSortCompare(a, b);
+        };
         this.scene.setRenderingOrder(
             0,
-            mapped ? byRank((a, b) => RenderingGroup.PainterSortCompare(a, b)) : null,
-            null,
+            byRank(byName),
+            byRank(byName),
             mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
         );
         this.renderManager.requestFrame();

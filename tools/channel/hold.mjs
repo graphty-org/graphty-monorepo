@@ -3,12 +3,13 @@
 // store's one-row candidate table and the "Nightly held on <sha12>" issue. release.yml pushes and deletes branch
 // channel/candidate itself, with the deploy key.
 //
-//   node tools/channel/hold.mjs start    the verdict job, hold=start: open the hold issue and hold SHA in the store
+//   node tools/channel/hold.mjs start    the verdict job, hold=start: open the hold issue and hold SHA in the store,
+//       only when the store holds nothing now (a verdict on the held commit comments instead, as update does);
+//       writes issue and action (start, update or none: what it did, which the jobs after the verdict follow)
 //       env SHA, STATE, WHAT, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token
 //       writes issue to GITHUB_OUTPUT
 //   node tools/channel/hold.mjs update   the verdict job, hold=update: a verdict on the held head, as a comment
 //       env SHA, STATE, WHAT, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL
-//       ONLY_IF_FREE=true (release-rerun.yml, a red run it could not re-run): only when nothing is held
 //   node tools/channel/hold.mjs end      the land job (promoted) or the abandon job: clear the hold, close its issue
 //       env WHY, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; writes base (the held commit, empty when none);
 //       ABANDONED=true (the abandon job) first records `rejected` on the held head
@@ -68,10 +69,18 @@ async function post(cfg, body) {
 }
 
 async function start(env) {
-    // release-rerun.yml starts a hold for a red run it could not re-run; a held candidate is never replaced
-    if (env.ONLY_IF_FREE && (await held(config(env)))) {
-        console.log("::notice::a candidate is held already: this red commit is not held");
-        output({ issue: "" });
+    // A held candidate is never replaced, and the store is asked now, not trusted from the pick: a run picked while
+    // nothing was held (or its same-commit re-run, which keeps attempt 1's pick) can end after another run held its
+    // commit. Before any issue is opened, so a hold the store refuses (409) leaves no "Nightly held" issue behind.
+    const hold = await held(config(env));
+    if (hold && (hold.head === env.SHA || hold.base === env.SHA)) {
+        await update(env);
+        output({ issue: "", action: "update" });
+        return;
+    }
+    if (hold) {
+        console.log(`::notice::${hold.head} is held already: ${env.SHA} is not held`);
+        output({ issue: "", action: "none" });
         return;
     }
     const { title, body } = holdIssue({ sha: env.SHA, state: env.STATE, what: env.WHAT, run: env.RUN_URL });
@@ -88,7 +97,7 @@ async function start(env) {
     }
     // the store is what the next slot reads: a hold it did not record is no hold, so this fails the job
     await post(config(env), { base: env.SHA, head: env.SHA, issue });
-    output({ issue: issue ?? "" });
+    output({ issue: issue ?? "", action: "start" });
 }
 
 async function update(env) {

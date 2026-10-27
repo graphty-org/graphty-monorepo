@@ -92,8 +92,22 @@
             "inputs": [
                 "default",
                 "^production",
-                { "input": "default", "projects": ["graph-format", "graph-io", "graph-samples", "graphty-element"] },
-                "{workspaceRoot}/tools/storybook-brand-theme/**/*",
+                {
+                    "input": "default",
+                    "projects": [
+                        "graphty-element",
+                        "@graphty/remote-logger",
+                        "algorithms",
+                        "babylonjs-map",
+                        "graph-format",
+                        "graph-io",
+                        "graph-samples",
+                        "layout",
+                        "visual-review",
+                        "webgpu-graph-algorithms"
+                    ]
+                },
+                "{workspaceRoot}/tools/storybook-brand-theme.*",
                 "{workspaceRoot}/visual-review/capture/**/*",
                 "{workspaceRoot}/docs/examples/**/*",
                 "{workspaceRoot}/algorithms/stories/**/*",

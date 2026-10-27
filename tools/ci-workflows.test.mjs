@@ -2511,6 +2511,45 @@ jobs:
         assert.equal(nx.targetDefaults["build-storybook"].cache, true);
     });
 
+    it("keys every cached Storybook on everything graphty-element bundles", () => {
+        // Storybooks import graphty-element's source by relative path (graph-io's fidelity stories do), which nx's
+        // graph does not see; a workspace package missing here would restore a stale Storybook from the cache.
+        const root = new URL("../", import.meta.url);
+        const read = (p) => JSON.parse(readFileSync(new URL(p, root), "utf8"));
+        const byPackage = new Map();
+        for (const dir of readdirSync(root)) {
+            const pkg = existsSync(new URL(`${dir}/package.json`, root)) && read(`${dir}/package.json`);
+            if (!pkg || dir === "node_modules") continue;
+            const project = existsSync(new URL(`${dir}/project.json`, root))
+                ? read(`${dir}/project.json`).name
+                : pkg.name;
+            byPackage.set(pkg.name, { dir, project });
+        }
+        const closure = new Set();
+        const walk = (name) => {
+            const { dir, project } = byPackage.get(name);
+            const pkg = read(`${dir}/package.json`);
+            for (const dep of Object.keys({
+                ...pkg.dependencies,
+                ...pkg.peerDependencies,
+                ...pkg.optionalDependencies,
+            })) {
+                if (byPackage.has(dep) && !closure.has(byPackage.get(dep).project)) {
+                    closure.add(byPackage.get(dep).project);
+                    walk(dep);
+                }
+            }
+            return project;
+        };
+        closure.add(walk("@graphty/graphty-element"));
+        const nx = read("nx.json");
+        const listed = nx.targetDefaults["build-storybook"].inputs.find((i) => i.projects)?.projects ?? [];
+        assert.deepEqual(
+            [...closure].filter((p) => !listed.includes(p)),
+            [],
+        );
+    });
+
     it("turns the nx remote cache on only when the Worker accepts the token", async () => {
         // nx fails the whole build on a 401 from the cache, so a wrong or unregistered token must turn it off.
         const run = /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(

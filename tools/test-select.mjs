@@ -92,6 +92,7 @@ export function loadRules(root) {
             theme: raw.stories.theme,
             drawnBy: raw.stories.drawnBy,
             selectProjects: raw.stories.selectProjects ?? [],
+            storyless: (raw.stories.storyless ?? []).map(toRe),
         },
     };
 }
@@ -1480,7 +1481,8 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
  * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
- * proven by `test-select-mutate.mjs --stories`) runs whole on every change.
+ * proven by `test-select-mutate.mjs --stories`) runs whole on every change, except a change only to CI and tool
+ * files no story reads (the rules' storyless), which runs none.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1495,6 +1497,10 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
+    // CI and tool files no story reads (test-select-rules stories.storyless); a test that names one selects its
+    // package, which says nothing about a story reading it
+    const storyless =
+        !everything && changed.length > 0 && changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f)));
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
         const pkg = dir.split("/")[0];
@@ -1507,7 +1513,9 @@ export function selectStories({ projects, changed, everything, shards, selection
             ? `${everything} runs everything`
             : storiesGlobal(project, dir, changed, rules, lockMoved);
         let sel = { mode: "all", files: [], reasons: [global] };
-        if (!global) {
+        if (!global && storyless) {
+            sel = { mode: "none", files: [], reasons: ["the change touches only files no story reads"] };
+        } else if (!global) {
             sel = rules.selectProjects.includes(project)
                 ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
                 : {
@@ -1546,6 +1554,16 @@ export const STORY_MS = {
     layout: 900,
 };
 
+/**
+ * A story's capture time for a story file far slower than its project's STORY_MS, measured the same way: the
+ * Start screen's stories each load a sample, run Louvain and wait for a stable frame (PR run 40559883826,
+ * Stories (graphty-4): 624 s for its 12 stories in two modes, against about 6 s for graphty's other stories).
+ */
+// ponytail: a hand-kept table (#4041 makes this file fast); record capture time per story in the results store when more files drift
+export const STORY_FILE_MS = {
+    "graphty/src/workspace/start/StartScreen.stories.tsx": 52_000,
+};
+
 const STORY_EXPORT = /^export const [A-Z]/gmu;
 
 /**
@@ -1558,10 +1576,29 @@ export function storyCount(source) {
 }
 
 /**
+ * One story file's binning units: the file, or for a file longer than a bin its parts by story
+ * (`<file>#<k>/<n>`, which ci.yml's pick step resolves), each with its planned ms.
+ * @param file the story file
+ * @param count the stories it declares
+ * @param recordedMs its recorded play-test time, 0 without one
+ * @param rate its project's STORY_MS
+ * @returns `[[unit, ms]]`
+ */
+function storyUnits(file, count, recordedMs, rate) {
+    const ms = Math.max(recordedMs, (STORY_FILE_MS[file] ?? rate) * count);
+    const parts = Math.min(count, Math.ceil(ms / STORY_BIN_LIMIT_MS));
+    if (parts <= 1) {
+        return [[file, ms]];
+    }
+    return Array.from({ length: parts }, (_, i) => [`${file}#${i + 1}/${parts}`, ms / parts]);
+}
+
+/**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
  * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
- * changed baseline's story id goes into the project's first bin.
+ * changed baseline's story id goes into the project's first bin. A file longer than a bin is split by story into
+ * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
@@ -1581,8 +1618,9 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         // a recorded play-test time marks a heavy file; the project's capture rate is the floor
         const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
         const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
-        const fileMs = new Map(files.map((f) => [f, Math.max(recorded[f] ?? 0, rate * storiesIn(f))]));
-        const bins = files.length > 0 ? packBins(files, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
+        const fileMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
+        const units = [...fileMs.keys()];
+        const bins = units.length > 0 ? packBins(units, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,

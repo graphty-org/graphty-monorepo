@@ -511,7 +511,7 @@ jobs:
             - name: Upload the results plan
               if: steps.bins.outcome == 'success'
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: results-plan
                   path: ${{ runner.temp }}/results-plan/
@@ -1926,7 +1926,7 @@ jobs:
 
             - name: Upload captures
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: stories-${{ matrix.name }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/visual/
@@ -2183,7 +2183,7 @@ jobs:
 
             - name: Upload the capture
               if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/stories/merged/
@@ -2441,7 +2441,7 @@ jobs:
             # Kept even when capture crashed, so the owner sees the partial results.json.
             - name: Upload captures
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/visual/

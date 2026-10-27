@@ -704,6 +704,10 @@ describe("the pull request rules", () => {
 
     it("keeps repeated runs of one job apart", () => {
         assert.equal(baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "check", RESULTS_REPEAT: "3" }), "5.1.check.s.r3");
+        assert.equal(
+            baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "story-tests", RESULTS_PART: "2" }),
+            "5.1.story-tests.s.p2",
+        );
     });
 });
 

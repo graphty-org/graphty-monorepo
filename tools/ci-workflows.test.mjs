@@ -1921,7 +1921,7 @@ describe("verification runs of ci.yml", () => {
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
         // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
         const jobs = parseJobs(ci);
-        for (const name of ["story-tests", "story-tests-parity"]) {
+        for (const name of ["story-tests", "story-tests-merge", "story-tests-parity"]) {
             assert.ok(jobs[name], `${name} exists`);
             assert.equal(jobs[name].coe, "true", `${name} is report-only`);
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
@@ -1950,7 +1950,24 @@ describe("verification runs of ci.yml", () => {
         );
         // The blocking switch stays off until the project switches.
         assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
-        assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
+        assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "story-tests-merge", "visual"]);
+        // graph-io-fidelity runs in four legs (one job was about 44 of its 45 minutes); story-tests-merge combines
+        // their partials, every leg's file once, into the one capture the parity job reads.
+        for (let n = 1; n <= 4; n++) {
+            assert.match(
+                job(ci, "story-tests"),
+                new RegExp(`name: graph-io-fidelity-${n}\\n\\s+part: ${n}\\n\\s+parts: 4\\n`),
+            );
+            assert.match(job(ci, "story-tests"), new RegExp(`vitest\\.storybook\\.config\\.ts --shard=${n}/4\\n`));
+        }
+        assert.match(job(ci, "story-tests"), /RESULTS_PART: \$\{\{ matrix\.part \}\}/);
+        assert.match(job(ci, "story-tests"), /name: story-parts-\$\{\{ matrix\.name \}\}-/);
+        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*-/);
+        assert.match(job(ci, "story-tests-merge"), /merge-results --project .* "\$RUNNER_TEMP"\/parts\/\*\/part-\*\//);
+        assert.match(
+            job(ci, "story-tests-merge"),
+            /name: story-tests-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/,
+        );
         // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
         assert.match(
@@ -1961,7 +1978,10 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
         assert.match(job(ci, "story-tests"), /- project: cytoscape-extensions\n\s+shard: cytoscape-extensions\n/);
-        assert.match(job(ci, "story-tests"), /- project: graph-io-fidelity\n\s+shard: graph-io-browser\n/);
+        assert.match(
+            job(ci, "story-tests"),
+            /- project: graph-io-fidelity\n\s+name: graph-io-fidelity-1\n\s+part: 1\n\s+parts: 4\n\s+shard: graph-io-browser\n/,
+        );
         assert.match(job(ci, "story-tests"), /format\('"\{0\}"', matrix\.shard\)/);
         // Each leg finds its shard in the test matrix as '"<shard>"', also when the shard runs in a group
         // (algorithms-browser is a member of small-browser): for one package alone and for all of them.

@@ -30,6 +30,8 @@ concurrency:
     cancel-in-progress: true
 
 env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
     # The restriction, calibrated once (2026-10-10) and recorded here. A cgroup v2 CPU quota on every
     # process of the shard: cpu.max "200000 100000" is 200 ms of CPU per 100 ms, two CPUs' worth of
     # time on the four-vCPU ubuntu-24.04 runner CI's test job uses. A quota, not `taskset`: vitest sizes

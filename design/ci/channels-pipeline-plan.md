@@ -462,8 +462,8 @@ Runners, not merging, are the bottleneck at about 76 merges a day, and more capa
 available for under about $1,000 a month (design section 7.1). The items cut work, in this order;
 the full run stays first in line for runners. Each item's Proof gives its runner-minutes saved.
 
-**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` cancels an unfinished
-master push build when a newer one starts (push to master only; pull request, dispatch and
+**cancel-superseded-master-builds** -- agent, S. ci.yml's `concurrency` makes a newer push replace a waiting
+master build; a running one finishes (#3938) (push to master only; pull request, dispatch and
 release.yml calls unchanged); the ci.yml comment and its tool test say so. In the same pull request,
 `master-guard.mjs` treats a master build cancelled for a newer one as superseded, not red, and
 `release-due.mjs` reads every merge since the last master build that finished, so a cancelled
@@ -516,6 +516,15 @@ tests per batch, batch failure rate and bisect cost; the owner decides from the 
 record (809 CI runs for 761 merges, 197 wasted) is why it is measured first. Needs:
 `runner-minutes-per-merge`. Done: the measurements recorded in design section 7.1 and a decision on
 #3418. Undo: none needed (a replay changes nothing).
+
+Done 2026-10-27. The replay (2026-10-26) found 279 runner-minutes per merged pull request; 1.9% of
+pull request runs failed on tests the pull request broke, 4.6% on a failure shared with master, 1%
+on a flaky test and 16% on a cheap check. Running the full suite once saves 31% for 14 more minutes
+of median time to merge; Mergify batches of 4 save 51% at an 83-minute median. The owner chose
+neither for now. Mergify batching (batches of 4, at most 30 minutes' wait, cheap checks before queue
+entry) is turned back on when, over 7 days, fewer than 5% of queue entries have a pull request run
+that failed on tests the pull request touched, and the rule that lets unrelated failures through
+(#3925) is live. Design section 7.1 has the numbers; #3951 puts the trigger rate on the health dashboard.
 
 ### Step 6: the full run every 6 hours, publishing nothing
 

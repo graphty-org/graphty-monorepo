@@ -53,6 +53,10 @@ concurrency:
     group: bisect-${{ inputs.bad }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     plan:
         name: Plan the round

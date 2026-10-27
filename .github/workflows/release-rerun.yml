@@ -38,7 +38,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   GITHUB_TOKEN: ${{ github.token }}
                   RUN: ${{ github.event.workflow_run.id }}
-                  WORKFLOW: ${{ github.event.workflow_run.name }}
+                  WORKFLOW: ${{ github.event.workflow.name }} # workflow_run.name is the run-name, "Release (full)"
                   TITLE: ${{ github.event.workflow_run.display_title }}
                   ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
                   CONCLUSION: ${{ github.event.workflow_run.conclusion }}

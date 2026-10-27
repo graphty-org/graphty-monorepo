@@ -596,6 +596,14 @@ pull request or a master push.
 (`pr-issue-link.yml`) fails it otherwise and re-runs when the description is edited. `tools/pr-open.sh`
 writes `Fixes #N` (or `Refs #N`) from the branch's issue number.
 
+**Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
+(`open-pull-requests-limit: 0` in `.github/dependabot.yml`) because they failed many pull requests at once
+several times (Storybook out of lockstep, Actions bumps of the generated visual-seed.yml, #3898). Routine
+refreshes happen once per production promotion: `promote.yml`'s `Refresh dependencies` job runs
+`tools/dependency-refresh.mjs` (`--dry-run` to preview), which opens one grouped
+"chore(deps): refresh dependencies after promotion <tag>" pull request within the existing semver ranges, or
+none when nothing is newer. An agent adds its fresh review by running `tools/pr-open.sh` on its branch.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |

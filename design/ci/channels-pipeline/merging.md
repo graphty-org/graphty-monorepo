@@ -250,6 +250,9 @@ master:
 - **GitHub Actions updates** touch `.github/workflows/`, so each waits for the owner's review, by
   design: an action update can do anything a workflow can.
 - **Security advisories** take the hotfix path (main section 1.2) when production is affected.
+- **Security updates only** (owner, 2026-10-27): `.github/dependabot.yml` sets `open-pull-requests-limit: 0`,
+  so Dependabot opens no routine version update; routine refreshes come from `tools/dependency-refresh.mjs`
+  after each production promotion (main section 2).
 
 ## 5. Build caching
 

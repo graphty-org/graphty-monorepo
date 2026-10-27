@@ -32,6 +32,7 @@
 /ci-budgets.json @graphty-org/code-owners
 /nx.json @graphty-org/code-owners
 /vitest.shared.config.ts @graphty-org/code-owners
+/vitest.base.mjs @graphty-org/code-owners
 /vitest.ci-junit.mjs @graphty-org/code-owners
 **/.storybook/vitest.setup.* @graphty-org/code-owners
 /graphty/sites/canary.json @graphty-org/code-owners
@@ -87,6 +88,7 @@
 /tools/claude-area-rules.mjs @graphty-org/code-owners
 /tools/claude-no-foreground-wait.mjs @graphty-org/code-owners
 /tools/copy-docs-content.js @graphty-org/code-owners
+/tools/dependency-refresh.mjs @graphty-org/code-owners
 /tools/eslint-rules/no-test-timing.mjs @graphty-org/code-owners
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners
 /tools/full-run.mjs @graphty-org/code-owners

@@ -112,6 +112,7 @@
             "{workspaceRoot}/eslint.config.js",
             "{workspaceRoot}/vite.shared.config.ts",
             "{workspaceRoot}/vitest.shared.config.ts",
+            "{workspaceRoot}/vitest.base.mjs",
             "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
             "{workspaceRoot}/vitest.map-tiles.mjs",

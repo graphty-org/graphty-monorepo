@@ -122,10 +122,18 @@ Detail: [merging.md](channels-pipeline/merging.md).
   temporary repository. A real-GPU look on a pull request is opt-in: `pr-open.sh` prints a reminder
   when webgpu-graph-algorithms is affected, and the full run's T4 catches what it misses within 6 h. `hosts.yml` keeps its
   advisory pull request trigger and loses its nightly cron at step 6.
-- **Dependabot** targets master; `dependabot-automerge.yml` arms auto-merge with an agent token
-  scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept `dependabot[bot]`
-  without an issue line, Proof or review; test integrity still applies.
-  Actions updates wait for the owner by design.
+- **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
+  (`open-pull-requests-limit: 0` in `.github/dependabot.yml`) because they failed many pull requests at
+  once several times (Storybook bumped out of lockstep, Actions bumps of the generated visual-seed.yml,
+  #3898). A security fix arrives as one grouped pull request (Storybook's group first, then all other npm
+  packages; one for Actions), targets master, and `dependabot-automerge.yml` arms its auto-merge with an
+  agent token scoped to Contents and Pull requests write. Link PR Issue and PR Integrity accept
+  `dependabot[bot]` without an issue line, Proof or review; test integrity still applies. Actions updates
+  wait for the owner by design. Routine refreshes happen once per production promotion: `promote.yml`'s
+  `Refresh dependencies` job, after production is served, runs `tools/dependency-refresh.mjs`, which opens
+  one "chore(deps): refresh dependencies after promotion <tag>" pull request as graphty-agent (npm within
+  the existing ranges, Actions within their major, visual-seed.yml regenerated from its template), or none
+  when nothing is newer. It carries a Proof; an agent adds the fresh review with `tools/pr-open.sh`.
 - **No merge queue at first.** The bisect records skew breaks. Two in 7 days, or one that kept canary
   red over 6 hours: the pipeline round proposes Mergify (`merge_group` is the alternative).
 - **Red master build:** `master-guard.yml` opens a revert pull request as the agent account.
@@ -508,9 +516,10 @@ runner-minutes of work.
 under about $1,000 a month. So the plan cuts work instead, in this order (plan step 5a), and the full
 run stays first in line for runners, as today:
 
-1. **Stop work nobody uses.** (a) A newer master push build cancels an unfinished older one: only
-   the newest build's site matters for canary, and the full run picks the newest commit with a kept
-   site, so a cancelled build only means it picks a newer commit. This replaces "a push to master
+1. **Stop work nobody uses.** (a) A newer push replaces a waiting master build; a running one
+   finishes (#3938: cancelling running builds left master with no finished build while merges came
+   faster than one build). Only the newest build's site matters for canary, and the full run picks the
+   newest commit with a kept site, so a replaced waiting build only means a newer commit is built. This replaces "a push to master
    never cancels" for superseded master builds only; nothing else on master is cancelled, and
    master-guard and the restart trigger learn to expect it in the same change. (b) A pull
    request's screenshot capture jobs that `All Checks Pass` does not need stop once its verdict is
@@ -528,6 +537,19 @@ run stays first in line for runners, as today:
    GitHub's native merge queue with merge groups and measure tests per batch, batch failure rate and
    bisect cost. Mergify's record argues for measuring first: 809 CI runs for 761 merges (it barely
    batched), 197 of them wasted.
+
+**The batching decision (owner, 2026-10-27).** A replay of recorded pull request runs on 2026-10-26
+measured the options. A merged pull request cost 279 runner-minutes. Of pull request runs, 1.9%
+failed on tests the pull request itself broke, 4.6% on a failure shared with master, 1% on a flaky
+test, and 16% on a cheap check (build, lint, the checks job, docs). Running the cheap checks on
+every push and the full suite once saves 31% of runner-minutes and adds 14 minutes to the median
+time to merge. Mergify batches of 4 behind a cheap-check gate save 51% but put the median time to
+merge at 83 minutes; they break even on runner-minutes at about an 18% batch failure rate, and the
+wait is acceptable only below about 5%. The decision: neither run-the-suite-once nor GitHub's merge
+queue now. Mergify batching comes back on (batches of 4, at most 30 minutes' wait for a batch to
+fill, cheap checks required before a pull request enters the queue) when both hold: over 7 days,
+fewer than 5% of queue entries have a pull request run that failed on tests the pull request
+touched, and the rule that lets a failure unrelated to the pull request through (#3925) is live.
 
 ## 8. Feature flags
 

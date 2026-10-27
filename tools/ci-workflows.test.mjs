@@ -1217,13 +1217,13 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("cancels a pull request's older run and a superseded master push build, never a dispatch or the release train (#1108, #3418, #3850)", () => {
+    it("cancels a pull request's older run, never a running master push build, a dispatch or the release train (#1108, #3418, #3850, #3938)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
             "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}\n" +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && !inputs.ref && github.run_attempt == '1' }}\n",
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
         // GitHub's expressions read like JavaScript's here: && and || return an operand, a missing input is falsy
         const evaluate = (field, { event, pr, ref, sha = "abc", attempt = "1" }) => {
@@ -1243,8 +1243,9 @@ describe("ci.yml", () => {
         };
         const run = (o) => ({ group: evaluate("group", o), cancels: evaluate("cancel-in-progress", o) === "true" });
         assert.deepEqual(run({ event: "pull_request", pr: 12 }), { group: "ci-12", cancels: true }, "a pull request");
-        // every master push shares one group: a newer push cancels the unfinished older build
-        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: true }, "a push");
+        // every master push shares one group but cancels nothing: a running build finishes, and a newer push only
+        // replaces the waiting one, so master never goes without a finished build (#3938)
+        assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: false }, "a push");
         assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
         // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
         // build nor is cancelled: its commit's own group
@@ -2167,18 +2168,27 @@ describe("dependabot.yml", () => {
         const actions = text.slice(text.indexOf("package-ecosystem: github-actions"));
         assert.match(actions, /\n {6}exclude-paths: \[".github\/workflows\/visual-seed.yml"\]\n/);
     });
-    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
-        const npm = text.slice(
-            text.indexOf("package-ecosystem: npm"),
-            text.indexOf("package-ecosystem: github-actions"),
-        );
-        const groups = npm.slice(npm.indexOf("groups:"));
-        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
-        // Dependabot puts a dependency in the first group that matches
-        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
-        for (const kind of ["version-updates", "security-updates"]) {
-            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+    const section = (eco) => {
+        const start = text.indexOf(`package-ecosystem: ${eco}`);
+        const next = text.indexOf("package-ecosystem:", start + 1);
+        return text.slice(start, next === -1 ? undefined : next);
+    };
+    const groupsOf = (eco) => parseYaml(text).updates.find((u) => u["package-ecosystem"] === eco).groups;
+    it("opens no routine version update: limit 0 stops them, security updates continue (owner, 2026-10-27)", () => {
+        for (const eco of ["npm", "github-actions"]) {
+            assert.match(section(eco), /\n {6}open-pull-requests-limit: 0\n/, eco);
+            for (const [name, g] of Object.entries(groupsOf(eco))) {
+                assert.equal(g["applies-to"], "security-updates", `${eco} group ${name}`);
+            }
         }
+    });
+    it("groups security updates: Storybook together first, then all other npm packages, then all actions", () => {
+        const npm = groupsOf("npm");
+        // Dependabot puts a dependency in the first group that matches (#3294 and #3295 bumped Storybook apart)
+        assert.deepEqual(Object.keys(npm), ["storybook-security", "npm-security"]);
+        assert.deepEqual(npm["storybook-security"].patterns, ["storybook", "@storybook/*", "eslint-plugin-storybook"]);
+        assert.deepEqual(npm["npm-security"].patterns, ["*"]);
+        assert.deepEqual(groupsOf("github-actions")["actions-security"].patterns, ["*"]);
     });
 });
 
@@ -3357,6 +3367,32 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
     });
 
+    // #3952: the first nightly run's candidate predated tools/channel/recapture.mjs, so every re-capture failed
+    it("runs master's nightly and capture code, never the picked commit's, in every job that checks the pick out", () => {
+        const nightlyCode = /tools\/channel\/|visual-review (capture|gate)|visual-review\/(trusted|capture)/;
+        const overlay =
+            /git archive "\$GITHUB_SHA" tools\/channel visual-review\/capture visual-review\/trusted \| tar -x/;
+        let checked = 0;
+        for (const [id, j] of Object.entries(parseYaml(workflow("release.yml")).jobs)) {
+            const steps = j.steps ?? [];
+            const at = steps.findIndex((st) => /needs\.(pick|version)\.outputs/.test(st.with?.ref ?? ""));
+            if (at < 0) continue;
+            const uses = steps.findIndex((st, i) => i > at && nightlyCode.test(st.run ?? "") && !overlay.test(st.run));
+            if (uses < 0) continue;
+            checked++;
+            const from = steps.findIndex((st, i) => i > at && overlay.test(st.run ?? ""));
+            assert.ok(from > at && from < uses, `${id}: runs ${steps[uses].name ?? "a step"} from the picked commit`);
+        }
+        assert.ok(checked > 0, "the re-capture job checks out the pick and runs tools/channel");
+    });
+
+    // workflow_run.name is the run-name ("Release (full)"), which never equals the workflow's name "Release",
+    // so the first nightly run's deferred red was neither re-run nor filed
+    it("hands release-rerun.mjs the workflow's name, not the run's", () => {
+        const step = parseYaml(workflow("release-rerun.yml")).jobs.rerun.steps.at(-1);
+        assert.equal(step.env.WORKFLOW, "${{ github.event.workflow.name }}");
+    });
+
     it("keeps each attempt's verdict for the next attempt and for release-rerun.yml", () => {
         const verdict = job(workflow("release.yml"), "verdict");
         assert.match(verdict, /RUN_ATTEMPT: \$\{\{ github.run_attempt \}\}/);
@@ -3520,10 +3556,14 @@ describe("master-guard", () => {
             created_at: "2026-10-25T10:00:00Z",
             updated_at: "2026-10-25T10:12:30Z",
         };
-        const lister = (runs) => {
+        // jobs: how many jobs the stopped run started (0: it was still waiting when it stopped)
+        const lister = (runs, jobs = 0) => {
             const calls = [];
             const gh = async (path) => {
                 calls.push(path);
+                if (path.startsWith(`/actions/runs/${stopped.id}/jobs`)) {
+                    return { total_count: jobs };
+                }
                 assert.match(path, /^\/actions\/workflows\/ci\.yml\/runs\?branch=master&event=push/);
                 return { workflow_runs: [...runs, stopped] };
             };
@@ -3531,28 +3571,26 @@ describe("master-guard", () => {
         };
         const newer = (created_at) => ({ id: 7, head_sha: "d".repeat(40), created_at });
 
-        // cancelled by its timeout: the next push came only after it had ended, so it alarms
-        let fake = lister([newer("2026-10-25T10:13:00Z")]);
-        assert.equal(await superseded(fake.gh, stopped), false);
-        assert.equal(fake.calls.length, 1, "one runs-list call");
-        // a push five minutes in cancels it (ci.yml's master-push group, #3850), however long the cancel's cleanup
-        // (post steps, always() jobs) takes before the run ends: superseded, no red-master issue
-        fake = lister([newer("2026-10-25T10:05:00Z")]);
+        // a waiting build a newer push replaced (ci.yml's master-push group, #3938): no job started, superseded
+        let fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), true);
-        // a re-run is in its commit's own group, so a newer push never cancels it: a stopped re-run alarms
+        assert.equal(fake.calls.length, 2, "a jobs call and one runs-list call");
+        // a running build that stopped (a job ran into its timeout, or a person cancelled it) alarms, even with a
+        // newer push queued behind it: ci.yml never cancels a running master build, so nothing newer stopped it
+        fake = lister([newer("2026-10-25T10:05:00Z")], 4);
+        assert.equal(await superseded(fake.gh, stopped), false);
+        assert.equal(fake.calls.length, 1, "no runs-list call once a job ran");
+        assert.match(fake.calls[0], /^\/actions\/runs\/6\/jobs/, "it asks about the stopped run's own jobs");
+        // a re-run is in its commit's own group, so a newer push never replaces it: a stopped re-run alarms
         fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, { ...stopped, run_attempt: 2 }), false);
-        assert.equal(fake.calls.length, 0, "no runs-list call");
-        // no newer run at all, or only a re-run of the same commit
+        assert.equal(fake.calls.length, 0, "no calls");
+        // no job started, but no newer run at all, or only a re-run of the same commit: alarms
         assert.equal(await superseded(lister([]).gh, stopped), false);
         assert.equal(
             await superseded(lister([{ ...newer("2026-10-25T10:12:20Z"), head_sha: stopped.head_sha }]).gh, stopped),
             false,
         );
-        // cancelled the moment a run for a later commit was queued: superseded, no alarm
-        fake = lister([newer("2026-10-25T10:12:29Z")]);
-        assert.equal(await superseded(fake.gh, stopped), true);
-        assert.equal(fake.calls.length, 1);
     });
 
     it("reports a failed canary deploy, which runs on CI's workflow_run event", () => {

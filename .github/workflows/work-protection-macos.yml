@@ -38,6 +38,10 @@ concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     bundle:
         name: Build the bundle

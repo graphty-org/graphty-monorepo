@@ -991,6 +991,15 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
+            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's re-capture and
+            # capture code, as of the run's start (channels design, section 5): the picked commit may predate them,
+            # as the first nightly run's did (#3952), and its copy is never what judges it.
+            - name: Use master's re-capture and capture code
+              run: |
+                  git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
+                  rm -rf tools/channel visual-review/capture visual-review/trusted
+                  git archive "$GITHUB_SHA" tools/channel visual-review/capture visual-review/trusted | tar -x
+
             - uses: actions/setup-node@v7
               with:
                   node-version: 22.x

@@ -3358,6 +3358,32 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
     });
 
+    // #3952: the first nightly run's candidate predated tools/channel/recapture.mjs, so every re-capture failed
+    it("runs master's nightly and capture code, never the picked commit's, in every job that checks the pick out", () => {
+        const nightlyCode = /tools\/channel\/|visual-review (capture|gate)|visual-review\/(trusted|capture)/;
+        const overlay =
+            /git archive "\$GITHUB_SHA" tools\/channel visual-review\/capture visual-review\/trusted \| tar -x/;
+        let checked = 0;
+        for (const [id, j] of Object.entries(parseYaml(workflow("release.yml")).jobs)) {
+            const steps = j.steps ?? [];
+            const at = steps.findIndex((st) => /needs\.(pick|version)\.outputs/.test(st.with?.ref ?? ""));
+            if (at < 0) continue;
+            const uses = steps.findIndex((st, i) => i > at && nightlyCode.test(st.run ?? "") && !overlay.test(st.run));
+            if (uses < 0) continue;
+            checked++;
+            const from = steps.findIndex((st, i) => i > at && overlay.test(st.run ?? ""));
+            assert.ok(from > at && from < uses, `${id}: runs ${steps[uses].name ?? "a step"} from the picked commit`);
+        }
+        assert.ok(checked > 0, "the re-capture job checks out the pick and runs tools/channel");
+    });
+
+    // workflow_run.name is the run-name ("Release (full)"), which never equals the workflow's name "Release",
+    // so the first nightly run's deferred red was neither re-run nor filed
+    it("hands release-rerun.mjs the workflow's name, not the run's", () => {
+        const step = parseYaml(workflow("release-rerun.yml")).jobs.rerun.steps.at(-1);
+        assert.equal(step.env.WORKFLOW, "${{ github.event.workflow.name }}");
+    });
+
     it("keeps each attempt's verdict for the next attempt and for release-rerun.yml", () => {
         const verdict = job(workflow("release.yml"), "verdict");
         assert.match(verdict, /RUN_ATTEMPT: \$\{\{ github.run_attempt \}\}/);

@@ -1029,17 +1029,21 @@ jobs:
               if: ${{ env.CARRY == 'true' }}
               run: |
                   mkdir -p "$RUNNER_TEMP/first"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/carried" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/carried/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/first/visual-${d##*/visual-final-}"
                   done
                   true
 
             # stories empty: nothing to shoot again; dir empty: the CI lane has no capture, and no final capture is
-            # uploaded, so the verdict says which capture is missing
+            # uploaded, so the verdict says which capture is missing. Every `nest` here: download-artifact extracts a
+            # pattern that matched ONE artifact straight into its path, with no <name>/ directory (#4015)
             - name: Plan the re-capture
               id: plan
               if: ${{ env.WHOLE != 'true' }}
-              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+              run: |
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/first" --prefix visual-
+                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
 
             # Restore only, in this job and every cache step below: it runs code checked out at the picked commit
             # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
@@ -1235,6 +1239,7 @@ jobs:
               run: |
                   set -euo pipefail
                   mkdir -p "$CAPTURES" "$(dirname "$RECORD")"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/final" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
@@ -1407,6 +1412,7 @@ jobs:
               run: |
                   set -euo pipefail
                   mkdir -p "$CAPTURES"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/final" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done

@@ -3,6 +3,7 @@ packages:
     - "graph-io"
     - "webgpu-graph-algorithms"
     - "graph-samples"
+    - "babylonjs-map"
     - "algorithms"
     - "layout"
     - "cytoscape-extensions"

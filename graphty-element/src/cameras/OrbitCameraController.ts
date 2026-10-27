@@ -1,4 +1,8 @@
-import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+// Babylon installs scene.createPickingRay only when this loads.
+import "@babylonjs/core/Culling/ray";
+
+import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import { raySphere } from "babylonjs-map/projection";
 
 import { type FreeArea, freeArea, fullInsets } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
@@ -192,7 +196,7 @@ export class OrbitCameraController {
         // The configured ceiling suits a small graph. A fitted large graph already sits
         // beyond it, so the ceiling follows the graph and a reader can still pull back.
         const ceiling = Math.max(this.config.maxZoomDistance, this.cameraDistance + this.#sceneRadius * 2);
-        this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.config.minZoomDistance, ceiling);
+        this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.#floor(), ceiling);
         this.onReaderMove?.();
     }
 
@@ -237,7 +241,85 @@ export class OrbitCameraController {
      * @returns The distance to use.
      */
     public clampDistance(distance: number): number {
-        return Math.max(distance, this.config.minZoomDistance);
+        return Math.max(distance, this.#floor());
+    }
+
+    /**
+     * A sphere at the origin the camera never enters (a globe under a map layout), as its radius;
+     * null for none.
+     */
+    public surfaceFloor: { readonly radius: number } | null = null;
+
+    /**
+     * A sphere at the origin a drag turns as a globe (the globe under a map layout), as its
+     * radius: the point grabbed stays under the pointer. Null for the ordinary turn.
+     */
+    public grabSphere: { readonly radius: number } | null = null;
+
+    /**
+     * Turn the view so the point of the {@link grabSphere} under one spot of the canvas moves to
+     * another, as a hand turns a globe.
+     * @param from - The pointer's last spot, CSS pixels from the canvas's top-left corner.
+     * @param from.x - Its x.
+     * @param from.y - Its y.
+     * @param to - Its spot now.
+     * @param to.x - Its x.
+     * @param to.y - Its y.
+     * @returns False when there is no sphere or a spot misses it, so the drag turns as usual.
+     */
+    public dragOnSphere(from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+        const sphere = this.grabSphere;
+        const canvas = this.scene.getEngine().getRenderingCanvas();
+        if (sphere === null || canvas === null || canvas.clientWidth === 0) {
+            return false;
+        }
+
+        const ratio = this.scene.getEngine().getRenderWidth() / canvas.clientWidth;
+        const hit = (spot: { x: number; y: number }): Vector3 | null => {
+            const ray = this.scene.createPickingRay(spot.x * ratio, spot.y * ratio, Matrix.Identity(), this.camera);
+            const at = raySphere(ray.origin, ray.direction, sphere.radius);
+            return at === null ? null : new Vector3(at.x, at.y, at.z).normalize();
+        };
+        const a = hit(from);
+        const b = hit(to);
+        if (a === null || b === null) {
+            return false;
+        }
+
+        const angle = Math.acos(Scalar.Clamp(Vector3.Dot(a, b), -1, 1));
+        if (angle > 1e-6) {
+            // The camera turns the other way about the globe's center, so the globe seems to turn a to b.
+            // About the center, not the pivot: a camera framed on data looks at a point near the surface.
+            const { center } = this.pivotController;
+            this.pivotController.center = Vector3.Zero();
+            this.pivotController.rotateAroundAxis(Vector3.Cross(a, b), -angle);
+            this.pivotController.center = center;
+            this.updateCameraPosition();
+        }
+
+        this.onReaderMove?.();
+        return true;
+    }
+
+    /**
+     * The least distance from the pivot: `minZoomDistance`, and, with a {@link surfaceFloor}, the
+     * distance that keeps the camera outside it, looking the way it looks now.
+     * @returns The floor.
+     */
+    #floor(): number {
+        const floor = this.surfaceFloor;
+        if (floor === null) {
+            return this.config.minZoomDistance;
+        }
+
+        // The camera stands at pivot - forward * distance; solve |q - f d| >= R for d.
+        const world = this.pivot.computeWorldMatrix(true);
+        const forward = Vector3.TransformNormal(Vector3.Forward(), world).normalize();
+        const q = this.pivot.position;
+        const along = Vector3.Dot(q, forward);
+        const disc = along * along - q.lengthSquared() + floor.radius * floor.radius;
+        const outside = disc < 0 ? 0 : along + Math.sqrt(disc);
+        return Math.max(this.config.minZoomDistance, outside);
     }
 
     /**

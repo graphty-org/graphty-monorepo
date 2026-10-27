@@ -12,7 +12,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { ColumnRef, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { assertAppKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
@@ -73,10 +73,54 @@ export interface Command {
     readonly tooltip?: (ctx: CommandContext) => string;
     /** Why it cannot run now, or null when it can. Drawn grayed with the reason, still focusable. */
     readonly disabled?: (ctx: CommandContext) => string | null;
+    /**
+     * Whether it is available at all now: false draws no door to it (toolbar button, Quick
+     * actions row) and makes its keys and `run` do nothing. For a command that only makes sense
+     * in some data (Timeline, with a time column), where a grayed door would be noise. Absent
+     * means always.
+     */
+    readonly shown?: (ctx: CommandContext) => boolean;
     /** Does it. */
     readonly run: (ctx: CommandContext) => void | Promise<void>;
     /** Declared but not built: holds the id, drawn nowhere. */
     readonly stub?: boolean;
+}
+
+/**
+ * A command on one Sources row (data prototype spec section 3.2): the row's menu lists every one
+ * registered whose `shown` holds for the row, so a package adds an item to the menu by registering
+ * one, not by editing the Data place. A command with `icon` is also drawn as a button on the row's
+ * hover (Load more, Refresh).
+ */
+export interface SourceRowCommand {
+    /** Stable id, `source.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Refresh"`. */
+    readonly label: string;
+    /** Where the menu lists it: lower first; absent lists it last, in registration order. */
+    readonly order?: number;
+    /** Also a hover button on the row, drawn with this icon. */
+    readonly icon?: "more" | "refresh";
+    /** Whether the row offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, source: LoadedSource) => boolean;
+    /** Does it to the row's load. */
+    readonly run: (ctx: CommandContext, source: LoadedSource) => void | Promise<void>;
+}
+
+/**
+ * A command on a table column's header menu (data prototype spec section 3.5.2): the menu lists
+ * every one registered whose `shown` holds for the column, after the table's own items, so a
+ * package adds an item (the join screen's Match on this) by registering one.
+ */
+export interface ColumnHeaderCommand {
+    /** Stable id, `column.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Match on this"`. */
+    readonly label: string;
+    /** Whether the column offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, column: ColumnRef) => boolean;
+    /** Does it to the column. */
+    readonly run: (ctx: CommandContext, column: ColumnRef) => void | Promise<void>;
 }
 
 /** An inspected kind (tier1-design.md section 2.7): its tabs and which tab it opens on. */
@@ -99,6 +143,10 @@ export interface WorkspaceRegistration {
     readonly commands: readonly Command[];
     /** The inspected kinds it introduces. */
     readonly inspectedKinds?: readonly InspectedKind[];
+    /** Its commands on a Sources row. */
+    readonly sourceRow?: readonly SourceRowCommand[];
+    /** Its commands on a table column's header menu. */
+    readonly columnHeader?: readonly ColumnHeaderCommand[];
 }
 
 /**
@@ -180,6 +228,10 @@ export interface WorkspaceCommands {
     readonly live: readonly Command[];
     /** The inspected kinds, by id. */
     readonly kinds: ReadonlyMap<string, InspectedKind>;
+    /** Every Sources row command, in menu order. */
+    readonly sourceRow: readonly SourceRowCommand[];
+    /** Every table column header command, in registration order. */
+    readonly columnHeader: readonly ColumnHeaderCommand[];
     /**
      * A command by id.
      * @param id - the command id.
@@ -226,8 +278,28 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
     const byId = new Map<string, Command>();
     const byKey = new Map<string, string>();
     const kinds = new Map<string, InspectedKind>();
+    const sourceRow: SourceRowCommand[] = [];
+    const columnHeader: ColumnHeaderCommand[] = [];
 
-    for (const { owner, commands, inspectedKinds = [] } of registrations) {
+    for (const {
+        owner,
+        commands,
+        inspectedKinds = [],
+        sourceRow: rowCommands = [],
+        columnHeader: headerCommands = [],
+    } of registrations) {
+        for (const command of headerCommands) {
+            if (columnHeader.some((each) => each.id === command.id)) {
+                throw new Error(`Column header command "${command.id}" is registered twice (again by ${owner})`);
+            }
+            columnHeader.push(command);
+        }
+        for (const command of rowCommands) {
+            if (sourceRow.some((each) => each.id === command.id)) {
+                throw new Error(`Source row command "${command.id}" is registered twice (again by ${owner})`);
+            }
+            sourceRow.push(command);
+        }
         for (const command of commands) {
             addCommand(byId, byKey, command, owner);
         }
@@ -241,11 +313,15 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
 
     const all = [...byId.values()];
     const live = all.filter((command) => command.stub !== true);
+    // A stable sort keeps registration order among equals.
+    sourceRow.sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
     return {
         all,
         live,
         kinds,
+        sourceRow,
+        columnHeader,
         get: (id) => byId.get(id),
         built: (id) => {
             const command = byId.get(id);

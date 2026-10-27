@@ -197,6 +197,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
+| `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -212,6 +213,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
 | `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped on npm, knows nothing about graphs): `FlatMap` and `Globe` with a raster tile pyramid, zoom level of detail, a bundled public-domain world image, keyless tile sources and their attribution; `babylonjs-map/projection` (Web Mercator, equirectangular, map frames, globe positions) and `babylonjs-map/location` (decimal, GeoJSON, WKT, ISO 6709, DMS, geohash, plus codes, MGRS, UTM) never load Babylon.js |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -229,6 +231,7 @@ graphty-monorepo/
 |-- graph-io/             # @graphty/graph-io package (depends on graph-format)
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
+|-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
@@ -317,6 +320,7 @@ pnpm run coverage:preview:graph-io
 pnpm run coverage:preview:webgpu-graph-algorithms
 pnpm run coverage:preview:graph-samples
 pnpm run coverage:preview:cytoscape-extensions
+pnpm run coverage:preview:babylonjs-map
 ```
 
 Each package also has its own `npm run coverage:preview`.
@@ -514,6 +518,9 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+
+**babylonjs-map:**
+- Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
 
 **cytoscape-extensions:**
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
@@ -775,11 +782,11 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 36 test shards on a manual dispatch or the release train (a push
+The CI runs 37 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 25 test jobs, each planned to take about 15 minutes or less (the measured durations are
-in `tools/ci-test-matrix.mjs`): `small-node` (graph-format, graph-samples, cytoscape-extensions,
+in `tools/ci-test-matrix.mjs`): `small-node` (graph-format, graph-samples, babylonjs-map, cytoscape-extensions,
 cytoscape-extensions-cytoscape-versions, layout, algorithms-default, githerd) and `small-browser`
 (algorithms-browser, graph-io-browser, remote-logger, compact-mantine, visual-review,
 webgpu-graph-algorithms-browser); every other shard has a job of its own. A group job runs every affected member
@@ -790,6 +797,7 @@ shard. The shards:
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
+- `babylonjs-map`
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`

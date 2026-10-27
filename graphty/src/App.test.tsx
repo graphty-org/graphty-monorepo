@@ -26,14 +26,14 @@ describe("App", () => {
     it("renders the workspace, on its start screen", () => {
         render(<App />);
 
-        expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
     });
 
     it("renders the compact component gallery at ?demo", async () => {
         await withSearch("?demo", () => {
             render(<App />);
 
-            expect(screen.queryByRole("region", { name: "Sample library" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: /^Open a file/ })).not.toBeInTheDocument();
         });
     });
 
@@ -42,7 +42,7 @@ describe("App", () => {
             await withSearch(search, () => {
                 render(<App />);
 
-                expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
+                expect(screen.getByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
             });
         });
     }

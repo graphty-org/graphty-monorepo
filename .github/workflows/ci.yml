@@ -591,6 +591,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -638,6 +639,13 @@ jobs:
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-map build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-babylonjs-map
+                  path: babylonjs-map/dist/
                   retention-days: 1
 
             - name: Upload algorithms build

@@ -151,6 +151,21 @@
                     "then": {
                         "$ref": "https://graphty.app/schema/documents/graphty-notes/v1.json"
                     }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-sources"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-sources/v2.json"
+                    }
                 }
             ]
         }

@@ -191,6 +191,7 @@ class Collector {
             case "isolated":
             case "self-loop":
             case "repeated-edge":
+            case "source":
                 this.add({ kind: "topology" });
                 return;
             case "member":

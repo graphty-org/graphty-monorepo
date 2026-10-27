@@ -28,6 +28,7 @@ import type {
     GraphSelectionStyleInput,
     ViewMode,
 } from "./config";
+import type { BasemapStatus, MapFrameFact } from "./config/Basemap";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -2085,6 +2086,103 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * The edge column that says when each edge happened: the designated time field, which
+     * `session.time` indexes and moves a time window along. The column's measurement becomes
+     * time. Nodes follow their edges: a window keeps the nodes at the ends of the edges inside it.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element edge-time-path="sent"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "edge-time-path" })
+    get edgeTimePath(): string | undefined {
+        return this.#setting("data.knownFields.edgeTimePath") as string | undefined;
+    }
+    /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    set edgeTimePath(value: string | undefined) {
+        this.#setKnownField("edgeTimePath", value);
+    }
+
+    /**
+     * The node column that says when each node exists: the designated time field on nodes.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element node-time-path="published"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "node-time-path" })
+    get nodeTimePath(): string | undefined {
+        return this.#setting("data.knownFields.nodeTimePath") as string | undefined;
+    }
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    set nodeTimePath(value: string | undefined) {
+        this.#setKnownField("nodeTimePath", value);
+    }
+
+    /**
+     * How numbers in the edge time column are read: `ms` (epoch milliseconds), `s` (epoch seconds),
+     * `year` (calendar years) or `ordinal` (plain ordered numbers such as steps). Left unset, the
+     * values decide. Text dates ignore it.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "edge-time-unit" })
+    get edgeTimeUnit(): string | undefined {
+        return this.#setting("data.knownFields.edgeTimeUnit") as string | undefined;
+    }
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    set edgeTimeUnit(value: string | undefined) {
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
+
+            return;
+        }
+
+        this.#setKnownField("edgeTimeUnit", value);
+    }
+
+    /**
+     * How numbers in the node time column are read: `ms`, `s`, `year` or `ordinal`; left unset, the
+     * values decide.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "node-time-unit" })
+    get nodeTimeUnit(): string | undefined {
+        return this.#setting("data.knownFields.nodeTimeUnit") as string | undefined;
+    }
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    set nodeTimeUnit(value: string | undefined) {
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: node-time-unit must be ms, s, year or ordinal, not "${value}".`);
+
+            return;
+        }
+
+        this.#setKnownField("nodeTimeUnit", value);
+    }
+
+    /**
      * What a record's own coordinates are measured in, as a multiplier into scene units.
      *
      * A file that places its nodes -- a GraphML with `x`/`y`, a saved layout -- is read in the
@@ -2914,6 +3012,90 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("background", oldValue);
+    }
+
+    /**
+     * What the map under the `location-map` layout is doing: its source, `state` (`off`, `loading`,
+     * `ready`, or `fallback` when its pictures failed and the bundled world image shows instead), and
+     * `attribution`, the credits of everything drawn, which must be visible whenever the map is.
+     * @since 3.31.0
+     * @returns The status
+     */
+    get basemapStatus(): BasemapStatus {
+        return this.#graph.basemapStatus;
+    }
+
+    /**
+     * How the active `location-map` layout lays out its map: the surface, the box a flat map
+     * shows or a globe's radius, where it read the locations (the columns it used, the half of a
+     * pair it found itself, or the column and its format), and the ids of the nodes it could not
+     * place. Null while no map layout has drawn.
+     * @since 3.31.0
+     * @returns The facts, or null
+     */
+    get mapFrame(): MapFrameFact | null {
+        return this.#graph.mapFrame;
+    }
+
+    /**
+     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
+     * @remarks
+     * The element draws the credits of the map under the `location-map` layout in the canvas's
+     * bottom-right corner, as every map source's terms require. A page that draws its own controls
+     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
+     * the corner. A preference of this view, not saved with the project.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element attribution-offset="56"></graphty-element>
+     * ```
+     * @returns The offset
+     */
+    @property({ attribute: "attribution-offset", type: Number })
+    get attributionOffset(): number {
+        return this.#attributionOffset;
+    }
+    /**
+     * Moves the map's credits up from the corner.
+     */
+    set attributionOffset(value: number) {
+        const oldValue = this.#attributionOffset;
+        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
+        this.#graph.setAttributionOffset(this.#attributionOffset);
+        this.requestUpdate("attributionOffset", oldValue);
+    }
+
+    /** See {@link attributionOffset}. */
+    #attributionOffset = 0;
+
+    /**
+     * How long every animated camera move takes, in milliseconds.
+     * @remarks
+     * Fitting the graph, a preset view and the glide to a picked node each animate over their own
+     * time. Set, every one takes this long instead; 0 moves the camera at once, which a page sets
+     * when its reader prefers reduced motion (`matchMedia("(prefers-reduced-motion: reduce)")`).
+     * Unset (the default), each move keeps its own. A preference of this view, not saved with the
+     * project.
+     * @since 3.31.0
+     * @example
+     * ```typescript
+     * element.cameraTransitionDuration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : undefined;
+     * ```
+     * @returns The duration, or undefined
+     */
+    @property({ attribute: "camera-transition-duration", type: Number })
+    get cameraTransitionDuration(): number | undefined {
+        return this.#graph.getCameraTransitionDuration();
+    }
+    /**
+     * Sets how long camera moves take.
+     */
+    set cameraTransitionDuration(value: number | undefined) {
+        const oldValue = this.cameraTransitionDuration;
+        this.#graph.setCameraTransitionDuration(
+            value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
+        );
+        this.requestUpdate("cameraTransitionDuration", oldValue);
     }
 
     /**

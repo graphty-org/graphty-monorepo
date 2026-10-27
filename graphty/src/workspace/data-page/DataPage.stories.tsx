@@ -93,7 +93,7 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * Reads an address typed into From a URL... under Tables "+".
  * @param canvas - the story's canvas.
  * @param address - the address.
- * @param submit - whether to press Read.
+ * @param submit - whether to press Enter.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
     await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }, storyWaitOptions(1000)));
@@ -102,11 +102,8 @@ async function enterUrl(canvas: ReturnType<typeof within>, address: string, subm
     );
     await userEvent.type(
         await within(document.body).findByRole("textbox", { name: "Address" }, storyWaitOptions(1000)),
-        address,
+        submit ? `${address}{Enter}` : address,
     );
-    if (submit) {
-        await userEvent.click(within(document.body).getByRole("button", { name: "Read" }));
-    }
 }
 
 /** New from data... with nothing chosen yet: one gray line with the way in (`#/data-page/empty`). */
@@ -175,7 +172,7 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "/no-such-file.csv", true);
+    await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
     await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
 });
 

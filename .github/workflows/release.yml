@@ -1712,7 +1712,7 @@ jobs:
               if: ${{ needs.pick.outputs.resume != 'true' }}
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
 
             # a promotion after approval: the builds the judging run kept for its held head (its keep_builds job);

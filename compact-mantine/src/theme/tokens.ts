@@ -136,6 +136,13 @@ export const CM_COLORS = {
     "text-onselected": t("var(--cm-text-brand)", "var(--cm-text-brand)"),
     /** an accent graphic that must be seen against the panel (a dot, a meter's fill, a stroke) */
     "graphic-brand": t("var(--cm-bg-brand)", "var(--cm-bg-brand)"),
+    // The node and edge chips' fixed colors (EntityChip): the same in every accent and contrast
+    // mode, so a node always reads blue and an edge orange. Each is 3:1 or more on the panel, its
+    // secondary ground and the chip's own tint, in both schemes.
+    /** a node's icon and tint */
+    "entity-node": t("#0a6fd6", "#6cb8f5"),
+    /** an edge's icon and tint */
+    "entity-edge": t("#b84f00", "#f59a4a"),
 } as const satisfies Record<string, CmColorToken>;
 
 /** The name of a color token, without the `--cm-` prefix. */

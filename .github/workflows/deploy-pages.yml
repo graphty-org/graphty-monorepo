@@ -195,6 +195,13 @@ jobs:
             - name: Build graph-samples hosted datasets
               run: node graph-samples/scripts/build-hosted.mjs --reuse-published
 
+            # The gazetteer the location map reads place names with (Natural Earth and GeoNames),
+            # published at /data/gazetteer/v1/. Its sources are downloaded fresh on every deploy (no
+            # cache: a cache restored into this privileged job could be poisoned), and a failed
+            # download fails the deploy rather than publishing a site whose place names cannot be read.
+            - name: Build the gazetteer
+              run: node graphty-element/scripts/build-gazetteer.mjs
+
             # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
             # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which
             # CI's link check also runs, so every link to graphty.app is checked against this site.

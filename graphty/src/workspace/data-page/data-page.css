@@ -111,10 +111,3 @@
     height: 100%;
     padding: 16px;
 }
-
-.dp-drop-area {
-    height: 100%;
-    justify-content: center;
-    border: 2px dashed var(--cm-border);
-    border-radius: 8px;
-}

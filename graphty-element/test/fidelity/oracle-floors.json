@@ -26485,7 +26485,7 @@
             "edge.arrow": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
+            "frame.zoom": 0,
             "background": 1
         },
         "json-vis-unix": {
@@ -50720,6 +50720,12 @@
             "to": 0,
             "reason": "the merge of golden into this branch: a DOT file that places no node is now laid out by Graphviz (the recommended layout is graphviz-dot when the optional Graphviz package is present), so graphty's drawing is related to the program's and is judged in its frame instead of as an unrelated layout. Graphviz is handed every node as a label-less circle of its drawn size, so the spacing, ranks and rotation it returns differ from the program's, and sizes, zoom and rotation measured against that frame drop. With the Graphviz advice switched off the merged branch scores at the old floors (2026-10-20 run), so this is the layout, not the drawing",
             "date": "2026-10-20"
+        },
+        "json-vis-transparency@matched/frame.zoom": {
+            "from": 1,
+            "to": 0,
+            "reason": "the ngraph engine now gives two nodes one spring however many edges join them (d3fc3a2383), where vis-network springs every edge; this sample's one parallel pair now pulls once, so the force layout spreads wider and fills its canvas 1.23 times as much as the oracle's, past the 1.18 tolerance",
+            "date": "2026-10-24"
         }
     }
 }

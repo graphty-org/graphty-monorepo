@@ -79,6 +79,7 @@
 /graph-samples/scripts/graph-io-source.mjs @graphty-org/code-owners
 /graph-samples/scripts/hosted-sources.mjs @graphty-org/code-owners
 /graph-samples/scripts/refresh-sources.mjs @graphty-org/code-owners
+/graphty-element/scripts/build-gazetteer.mjs @graphty-org/code-owners
 /tools/assemble-pages-site.sh @graphty-org/code-owners
 /tools/bisect-ci.mjs @graphty-org/code-owners
 /tools/cache-hygiene.mjs @graphty-org/code-owners
@@ -120,6 +121,8 @@
 /tsconfig.base.json @graphty-org/code-owners
 /vite.shared.config.ts @graphty-org/code-owners
 /vitest.browser-coverage-setup.ts @graphty-org/code-owners
+/vitest.map-tiles-setup.ts @graphty-org/code-owners
+/vitest.map-tiles.mjs @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/bench-compare.js @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/bench-targets.js @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/gpu-policy.js @graphty-org/code-owners

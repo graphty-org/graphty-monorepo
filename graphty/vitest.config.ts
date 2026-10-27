@@ -11,6 +11,7 @@ import type { BrowserCommand } from "vitest/node";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -18,6 +19,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+/** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
+const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 
 /**
@@ -33,6 +36,20 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     });
+};
+
+/**
+ * Makes every request whose URL holds `fragment` fail with 404, as a code file does on a page
+ * whose build was replaced under it; `false` lets them through again.
+ * @param ctx - the browser command context.
+ * @param fragment - a piece of the URL.
+ * @param failing - whether they fail.
+ */
+const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async (ctx, fragment, failing) => {
+    const glob = `**/*${fragment}*`;
+    await (failing
+        ? ctx.page.route(glob, (route) => route.fulfill({ status: 404, body: "gone" }))
+        : ctx.page.unroute(glob));
 };
 
 /**
@@ -98,9 +115,10 @@ const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
 const chromium = () => ({
     enabled: true,
     headless: true,
-    provider: playwright(),
+    // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
+    provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile },
+    commands: { chooseNextFile, failRequests, ...mapTileCommands },
 });
 
 export default defineConfig({
@@ -154,7 +172,8 @@ export default defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    // Map tiles from a local fixture, never a tile server (vitest.map-tiles.mjs).
+                    setupFiles: [MAP_TILES_SETUP, "./src/test/setup.ts"],
                 },
             },
             {
@@ -166,7 +185,7 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
@@ -198,13 +217,14 @@ export default defineConfig({
                                   ...chromium(),
                                   provider: playwright(VISUAL.providerOptions),
                                   viewport: VISUAL.viewport,
-                                  commands: { chooseNextFile, ...VISUAL.commands },
+                                  commands: { chooseNextFile, ...mapTileCommands, ...VISUAL.commands },
                               }
                             : { ...chromium(), viewport: { width: 1200, height: 900 } }),
                         // addon-vitest 9.1.21 turns write and exec off unless set; real-input cdp() needs them. Loopback only: the project's server.host is true.
                         api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
                     },
                     setupFiles: [
+                        MAP_TILES_SETUP,
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
                         ".storybook/vitest.setup.ts",
                     ],

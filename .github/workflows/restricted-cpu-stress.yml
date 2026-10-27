@@ -92,6 +92,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/

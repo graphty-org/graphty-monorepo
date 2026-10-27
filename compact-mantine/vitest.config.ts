@@ -145,18 +145,25 @@ const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
         tree.childFrames?.forEach(walk);
     };
     walk(frameTree as Tree);
-    const found: { role: string; name: string; value: string | undefined }[] = [];
+    const found: { role: string; name: string; value: string | undefined; valueText: string | undefined }[] = [];
     for (const frameId of ids) {
         const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as {
-            nodes: { role?: { value?: string }; name?: { value?: string }; value?: { value?: unknown } }[];
+            nodes: {
+                role?: { value?: string };
+                name?: { value?: string };
+                value?: { value?: unknown };
+                properties?: { name: string; value?: { value?: unknown } }[];
+            }[];
         };
         for (const node of nodes) {
             if (node.name?.value === name) {
                 const value = node.value?.value;
+                const text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
                 found.push({
                     role: String(node.role?.value),
                     name,
                     value: value === undefined ? undefined : String(value),
+                    valueText: text === undefined ? undefined : String(text),
                 });
             }
         }
@@ -210,6 +217,55 @@ const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => 
     }
 };
 
+/** A file a test hands to the browser: its name, MIME type and text. */
+interface TestFile {
+    name: string;
+    type: string;
+    text: string;
+}
+
+/**
+ * Drop files on the first element `selector` names, as a drag from the desktop delivers them:
+ * dragenter, dragover and drop, each carrying one DataTransfer that holds the files. Playwright
+ * cannot drag from outside the page, so this is its documented way to drop files.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the drop target, inside the test frame
+ * @param files - the files to drop
+ */
+const dropFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (ctx, selector, files) => {
+    const frame = await ctx.frame();
+    const target = frame.locator(selector).first();
+    const dataTransfer = await frame.evaluateHandle((list: TestFile[]) => {
+        const transfer = new DataTransfer();
+        for (const file of list) {
+            transfer.items.add(new File([file.text], file.name, { type: file.type }));
+        }
+        return transfer;
+    }, files);
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        await target.dispatchEvent(type, { dataTransfer });
+    }
+    await dataTransfer.dispose();
+};
+
+/**
+ * Click the first element `selector` names with the real mouse and answer the file picker it opens
+ * with `files`, as a reader choosing them in the browser's dialog.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the control that opens the picker, inside the test frame
+ * @param files - the files to choose
+ */
+const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (ctx, selector, files) => {
+    const frame = await ctx.frame();
+    const [chooser] = await Promise.all([
+        ctx.page.waitForEvent("filechooser"),
+        frame.locator(selector).first().click(),
+    ]);
+    await chooser.setFiles(
+        files.map((file) => ({ name: file.name, mimeType: file.type, buffer: Buffer.from(file.text) })),
+    );
+};
+
 /**
  * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
  * browser projects load that setup file, so both register the same commands.
@@ -226,6 +282,8 @@ const browserCommands = {
     emulateReducedMotion,
     axNodes,
     accessibilityTree,
+    dropFiles,
+    chooseFiles,
 };
 
 // Bundled before a browser run starts, whatever Vite's deps cache holds. A cache an earlier run left

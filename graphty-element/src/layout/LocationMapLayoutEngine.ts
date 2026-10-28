@@ -195,6 +195,8 @@ const LocationMapLayoutConfig = z.strictObject({
     map: Basemap.nullable().default(null),
     gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
     dim: z.number().default(3),
+    /** The view's dimension, set by the element alone; a 3D view may lay the map out with `dim` 2. */
+    view: z.union([z.literal(2), z.literal(3)]).optional(),
 });
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
 
@@ -235,7 +237,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     constructor(opts: Partial<LocationMapLayoutConfigType> = {}) {
         super(opts);
         this.config = LocationMapLayoutConfig.parse(opts);
-        this.dimensions = layoutDim(this.config.dim);
+        // In the 3D view the map type picks the map: a globe needs three coordinates whatever the
+        // layout's own shape (`dim`) asks for.
+        const globe = (this.config.view ?? this.config.dim) === 3 && this.config.mapDimension === "3d";
+        this.dimensions = globe ? 3 : layoutDim(this.config.dim);
     }
 
     /**
@@ -246,7 +251,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      *     layout runs again.
      */
     takeDrawingOptions(options: Readonly<Record<string, unknown>>): boolean {
-        const parsed = LocationMapLayoutConfig.safeParse({ ...options, dim: this.config.dim });
+        const parsed = LocationMapLayoutConfig.safeParse({ ...options, dim: this.config.dim, view: this.config.view });
         if (!parsed.success) {
             return false;
         }
@@ -263,12 +268,12 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     }
 
     /**
-     * The view's dimension, as the layout's `dim`.
+     * The view's dimension, as the layout's `dim` (which a 3D view may set to 2) and as `view`.
      * @param dimension - 2 or 3.
-     * @returns The option.
+     * @returns The options.
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return { dim: dimension };
+        return { dim: dimension, view: dimension };
     }
 
     /**

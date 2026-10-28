@@ -482,9 +482,19 @@ describe("the map's dimension and the view", () => {
         assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the reader's 2D map is kept");
     });
 
-    it("raises arcs above a map laid out flat (Shape 2D) in the 3D view", async () => {
-        // The layout's own shape, dim 2, draws the 2D map; in the 3D view its edges still rise.
+    it("draws the map type asked for in the 3D view whatever the layout's own shape", async () => {
+        // The map type picks the map in the 3D view; the layout's shape (dim 2) does not turn the
+        // globe into a flat map.
         const element = await mounted("3d", { dim: 2 });
+        assert.strictEqual(element.mapFrame?.mapDimension, "3d", "the default 3D map, a globe");
+        await element.session.layout.set("location-map", { options: { dim: 2, mapDimension: "3d" } });
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.mapDimension, "3d", "and when asked for by name");
+    });
+
+    it("raises arcs above a 2D map laid out flat (Shape 2D) in the 3D view", async () => {
+        // The layout's own shape, dim 2, with the 2D map; in the 3D view its edges still rise.
+        const element = await mounted("3d", { dim: 2, mapDimension: "2d" });
         assert.strictEqual(element.mapFrame?.mapDimension, "2d");
         for (const line of edgeLines(element)) {
             assert.isNotNull(line, "each edge is drawn as an arc");

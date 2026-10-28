@@ -1283,6 +1283,10 @@ export class UpdateManager implements Manager {
             return "the layout is still running";
         }
 
+        if (transitionsOf(this.layoutManager)?.moving === true) {
+            return "a layout transition is still moving the nodes";
+        }
+
         const painter = this.graphContext.getStylePainter?.();
 
         if (painter?.hasPending === true) {
@@ -1355,7 +1359,7 @@ export class UpdateManager implements Manager {
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        if (this.layoutIsMoving() || transitionsOf(this.layoutManager)?.active === true) {
+        if (this.layoutIsMoving() || transitionsOf(this.layoutManager)?.moving === true) {
             return false;
         }
 
@@ -1699,7 +1703,7 @@ export class UpdateManager implements Manager {
 
             // Handle zoom to fit if requested; a running transition frames where it lands, once
             // it has landed, rather than the moving picture.
-            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.active !== true) {
+            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.moving !== true) {
                 this.updateNodes();
                 this.updateEdges();
 
@@ -1729,7 +1733,7 @@ export class UpdateManager implements Manager {
         this.frameTransition();
 
         // Handle zoom to fit if needed
-        if (framing && transitionsOf(this.layoutManager)?.active !== true) {
+        if (framing && transitionsOf(this.layoutManager)?.moving !== true) {
             this.applyZoomToFit(this.measure());
         }
 
@@ -1944,8 +1948,9 @@ export class UpdateManager implements Manager {
      * same box it ended on, so the camera never jumps when the move ends.
      */
     private frameTransition(): void {
+        // A held move is a still picture, framed as one by the ordinary framing.
         const transitions = transitionsOf(this.layoutManager);
-        if (transitions?.active !== true) {
+        if (transitions?.moving !== true) {
             this.framingTransition = false;
             return;
         }

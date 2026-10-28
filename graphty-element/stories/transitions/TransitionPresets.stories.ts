@@ -4,9 +4,10 @@
  * in one frame, and every edge and label follows them.
  *
  * Each story switches a grid of four communities to a ring. The capture holds the move at the
- * story's `pose` (half way by default) so the shape of each transition is what is compared; clear
- * `pose` in the controls to watch it run, and turn on `cycle` to switch layouts every few seconds.
- * (A held particle preset shows where its nodes are; its particle cloud plays only while it runs.)
+ * story's `pose` (half way by default, through `layoutTransition.hold`) so the shape of each
+ * transition is what is compared; clear `pose` in the controls to watch it run, and turn on `cycle`
+ * to switch layouts every few seconds. (A held particle preset shows where its nodes are; its
+ * particle cloud plays only while it runs.)
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
@@ -37,29 +38,18 @@ const PRESETS: Readonly<Record<string, TransitionRegistration>> = {
 };
 
 /**
- * The id to name a preset by, registering it under a story id when the catalog does not list it
- * yet. With `pose` set, the registered copy holds every node at that progress and draws no particles.
+ * The id to name a preset by, registering it under a story id when the catalog does not list it yet.
  * @param id - The preset's id.
- * @param pose - The progress to hold at, or undefined to run.
  * @returns The id `layoutTransition` names.
  */
-function idFor(id: string, pose: number | undefined): string {
-    if (pose === undefined && transitionById(id) !== undefined) {
+function idFor(id: string): string {
+    if (transitionById(id) !== undefined) {
         return id;
     }
 
     const preset = PRESETS[id];
-    const named = `story/${id}${pose === undefined ? "" : `-held-${String(Math.round(pose * 100))}`}`;
-    registerTransition(
-        pose === undefined
-            ? { ...preset, descriptor: { ...preset.descriptor, id: named } }
-            : {
-                  // Held: no particle cloud, whose picture depends on the clock, so a capture is
-                  // the same picture every time.
-                  descriptor: { ...preset.descriptor, id: named },
-                  move: (_t, from, to, node, params) => preset.move(pose, from, to, node, params),
-              },
-    );
+    const named = `story/${id}`;
+    registerTransition({ ...preset, descriptor: { ...preset.descriptor, id: named } });
     return named;
 }
 
@@ -76,9 +66,6 @@ const EDGES = [
 
 /** The layouts a cycle moves through. */
 const CYCLE = ["grid", "circular", "spiral", "shell"];
-
-/** A held move lasts this long (the setting's most), so it is still held when the capture is taken. */
-const HELD_SECONDS = 30;
 
 interface Args {
     transition: keyof typeof PRESETS;
@@ -109,10 +96,7 @@ function render(args: Args): Graphty {
         set: { "edge.color": "#8a96a8", "edge.width": 2 },
     });
     void element.session.config.set({
-        layoutTransition: {
-            transition: idFor(args.transition, pose),
-            seconds: pose === undefined ? args.seconds : HELD_SECONDS,
-        },
+        layoutTransition: { transition: idFor(args.transition), seconds: args.seconds, hold: pose },
     });
     element.background = { backgroundType: "color", color: "#06070d" };
     element.nodeData = NODES;

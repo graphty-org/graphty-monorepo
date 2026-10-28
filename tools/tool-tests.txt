@@ -66,5 +66,6 @@ tools/test-slots.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
 tools/vitest-base.test.mjs
+tools/vitest-deps-reload.test.mjs
 tools/vitest-time-budget.test.mjs
 tools/worktree-cleanup.test.mjs

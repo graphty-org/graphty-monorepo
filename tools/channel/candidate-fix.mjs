@@ -79,7 +79,7 @@ export function fixCommit({ commits, rangeOf }) {
     const clean = commits.filter((c) => ranges.get(c.sha).every((s) => own.has(s)));
     if (clean.length === 0) {
         return {
-            refuse: "none of its commits starts from the candidate's head: the branch holds master commits the candidate lacks. A defect already fixed on master from a newer base cannot enter the candidate without a copy: the owner abandons the hold (the next slot holds a commit with the fix), or the fix is made again on a branch from the candidate's head",
+            refuse: "none of its commits starts from the candidate's head: the branch holds master commits the candidate lacks. A defect already fixed on master from a newer base cannot enter the candidate without a copy: abandon the hold (nightly-abandon.yml; the next slot holds a commit with the fix), or the fix is made again on a branch from the candidate's head",
         };
     }
     const f = clean.reduce((a, b) => (ranges.get(b.sha).length > ranges.get(a.sha).length ? b : a));

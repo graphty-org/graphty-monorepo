@@ -271,9 +271,13 @@ jobs:
     # a held head judged red or owner-item ends when only a pipeline lane (the screenshot capture or re-capture) held
     # it and a newer master commit passed that lane, or when the hold is over 24 hours old and master has a newer
     # green build. Changed screenshots awaiting the owner's review never end it. The pick then picks as usual.
+    # The job runs in every mode on master, and its steps do nothing outside full, restart and candidate: a skipped job
+    # here would skip every job after the pick whose `if` names no status function, because GitHub skips a job when any
+    # ancestor was skipped, not only a direct need (run 40630434337: a promote-nightly pick found the approval, and
+    # resume, version, land, publish and site were all skipped).
     candidate_fix:
         name: Merge fixes into the held candidate
-        if: ${{ github.ref == 'refs/heads/master' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # the deploy key
@@ -284,6 +288,7 @@ jobs:
         steps:
             # master's history: the fixes' merges since the held commit
             - uses: actions/checkout@v7
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
@@ -309,6 +314,7 @@ jobs:
                   fi
 
             - name: Merge the fixes and move the hold
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}

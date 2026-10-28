@@ -8119,10 +8119,11 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
 
     it("merges the fixes before the pick, in every full, restart and candidate run, and the pick runs whatever it did", () => {
         const fix = jobs.candidate_fix;
-        assert.equal(
-            fix.if,
-            "${{ github.ref == 'refs/heads/master' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}",
-        );
+        // the job itself runs in every mode on master, so it never skips the jobs after the pick (#4134); its steps do
+        // the work only in a full, restart or candidate run
+        assert.equal(fix.if, "${{ github.ref == 'refs/heads/master' }}");
+        const modes = /inputs\.mode == 'full' \|\| inputs\.mode == 'restart'( \|\| inputs\.mode == 'candidate')?/;
+        for (const st of fix.steps) assert.match(st.if ?? "", modes, st.name ?? st.uses);
         assert.equal(fix.steps.at(-1).run.trim().split("\n").at(-1), "node tools/channel/candidate-fix.mjs advance");
         assert.equal(jobs.pick.needs, "candidate_fix");
         assert.match(jobs.pick.if, /^\$\{\{ !cancelled\(\) && /);

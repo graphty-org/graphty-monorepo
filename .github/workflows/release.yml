@@ -215,6 +215,7 @@ jobs:
                 coverage,
                 candidate_site,
                 recapture,
+                recapture_merge,
                 verdict,
                 keep_builds,
                 resume,
@@ -1019,9 +1020,12 @@ jobs:
     # same picture; one that matches its baseline the second time, or draws a third picture (unstable, never
     # approvable), is listed in its flaky.json, which the verdict files as flaky. The verdict, the gate, the review
     # page and the promotion read only visual-final-*. ci.yml's visual job and gate are untouched. The projects are
-    # ci.yml's visual matrix: a test keeps the two lists equal.
+    # ci.yml's visual matrix: a test keeps the two lists equal. A project too large to shoot again in one job (a
+    # change that touches every story of graph-io-fidelity, #4172) runs in legs, as ci.yml's story tests do: each leg
+    # shoots its share of the stories again (recapture.mjs plan --leg) and uploads it, and recapture_merge builds the
+    # project's one visual-final from the legs.
     recapture:
-        name: Re-capture (${{ matrix.project }})
+        name: Re-capture (${{ matrix.project }}${{ matrix.leg && format(' {0}/{1}', matrix.leg, matrix.legs) || '' }})
         needs: [pick, ci]
         if: ${{ !cancelled() && needs.ci.result == 'success' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
         runs-on: ubuntu-24.04
@@ -1045,11 +1049,30 @@ jobs:
                       artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
+                    # four legs, merged by recapture_merge (its matrix lists every legged project)
                     - project: graph-io-fidelity
                       artifact: build-storybook-graph-io-fidelity
                       storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 1
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 2
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 3
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 4
+                      legs: 4
         env:
             PROJECT: ${{ matrix.project }}
+            LEG: ${{ matrix.leg && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
             # a fix forward's re-test (the pick's source_run and capture): the CI lane shot nothing, so this job shoots
             # every story of a Storybook the fixes reach (WHOLE) and carries the others' final captures over from the
             # run that judged the head before (CARRY), shooting their changed and new stories again
@@ -1113,7 +1136,7 @@ jobs:
               if: ${{ env.WHOLE != 'true' }}
               run: |
                   node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/first" --prefix visual-
-                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first" ${LEG:+--leg "$LEG"}
 
             # Restore only, in this job and every cache step below: it runs code checked out at the picked commit
             # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
@@ -1175,7 +1198,7 @@ jobs:
             - name: Plan the re-capture of that capture
               id: whole
               if: ${{ env.WHOLE == 'true' }}
-              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first" ${LEG:+--leg "$LEG"}
 
             - name: Shoot the changed and new stories again
               if: ${{ steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '' }}
@@ -1183,15 +1206,129 @@ jobs:
                   STORIES: ${{ steps.plan.outputs.stories || steps.whole.outputs.stories }}
               run: pnpm exec visual-review capture --project "$PROJECT" --out "$RUNNER_TEMP/second" --stories "$STORIES"
 
+            # a leg: its share of the stories shot again, and (leg 1) the capture they were planned from, for
+            # recapture_merge; kept one day, only that job reads them
+            - name: Upload this leg's re-capture
+              if: ${{ matrix.leg && (steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-second-${{ matrix.project }}-leg${{ matrix.leg }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/second/
+                  retention-days: 1
+
+            - name: Upload the capture the legs were planned from
+              if: ${{ matrix.leg == 1 && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-first-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ steps.plan.outputs.dir || steps.whole.outputs.dir }}/
+                  retention-days: 1
+
             - name: Build the final capture
-              if: ${{ steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '' }}
+              if: ${{ !matrix.leg && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
               env:
                   FIRST: ${{ steps.plan.outputs.dir || steps.whole.outputs.dir }}
                   SECOND: ${{ (steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '') && format('{0}/second', runner.temp) || '' }}
               run: node tools/channel/recapture.mjs merge --first "$FIRST" --second "$SECOND" --out "$RUNNER_TEMP/final"
 
             - name: Upload the final capture
-              if: ${{ steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '' }}
+              if: ${{ !matrix.leg && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-final-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/final/
+                  retention-days: 30
+
+    # The legged projects' one final capture: the capture leg 1 planned from, with each leg's re-shot stories'
+    # verdicts replaced (recapture.mjs merge, one --second per leg). A leg that shot nothing leaves its stories failed
+    # ("its second shot is missing"), never changed. Each leg's newest attempt is read, so a re-run of only the failed
+    # legs combines with the legs that passed before. No first capture: no final one, as in the recapture job.
+    recapture_merge:
+        name: Re-capture merge (${{ matrix.project }})
+        needs: [pick, recapture]
+        if: ${{ !cancelled() && needs.recapture.result != 'skipped' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            actions: read # the legs' artifacts, of this run
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: graph-io-fidelity
+        env:
+            PROJECT: ${{ matrix.project }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Download the capture the legs were planned from
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-first-${{ matrix.project }}-*
+                  path: ${{ runner.temp }}/firsts
+
+            - name: Download the legs' re-captures
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-second-${{ matrix.project }}-leg*
+                  path: ${{ runner.temp }}/legs
+
+            # visual-first-<p>-<n> is read as visual-<p>-<n>, the name plan looks for
+            - name: Plan the merge
+              id: plan
+              run: |
+                  mkdir -p "$RUNNER_TEMP/first"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/firsts" --prefix visual-first-
+                  for d in "$RUNNER_TEMP"/firsts/visual-first-*; do
+                      [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/first/visual-${d##*/visual-first-}"
+                  done
+                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+
+            - uses: pnpm/action-setup@v6
+              if: ${{ steps.plan.outputs.dir != '' }}
+
+            - name: Install dependencies
+              if: ${{ steps.plan.outputs.dir != '' }}
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every leg's every attempt, oldest first: merge keeps the last picture of a story, so a leg's newest
+            # attempt wins. The nonexistent legs/none makes a re-shot story with no leg's picture failed, even when no
+            # leg uploaded anything
+            - name: Build the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
+              env:
+                  FIRST: ${{ steps.plan.outputs.dir }}
+              run: |
+                  set -euo pipefail
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/legs" --prefix visual-second-
+                  args=(--second "$RUNNER_TEMP/legs/none")
+                  for d in $(ls -d "$RUNNER_TEMP"/legs/visual-second-* 2>/dev/null | sort -V); do
+                      args+=(--second "$d")
+                  done
+                  node tools/channel/recapture.mjs merge --first "$FIRST" "${args[@]}" --out "$RUNNER_TEMP/final"
+
+            - name: Upload the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
               uses: actions/upload-artifact@v7
               with:
                   name: visual-final-${{ matrix.project }}-${{ github.run_attempt }}
@@ -1219,6 +1356,7 @@ jobs:
                 llm,
                 version_dry_run,
                 recapture,
+                recapture_merge,
                 candidate_site,
                 ci_red,
                 t4_red,
@@ -1310,7 +1448,7 @@ jobs:
                       "hosts": "${{ needs.pick.outputs.hosts == 'false' && 'unaffected' || needs.hosts.result }}",
                       "autosave_macos": "${{ needs.pick.outputs.macos == 'false' && 'unaffected' || needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}",
-                      "recapture": "${{ needs.recapture.result }}"}
+                      "recapture": "${{ (needs.recapture_merge.result == 'failure' || needs.recapture_merge.result == 'cancelled') && 'failure' || needs.recapture.result }}"}
               run: |
                   set -euo pipefail
                   mkdir -p "$CAPTURES" "$(dirname "$RECORD")"

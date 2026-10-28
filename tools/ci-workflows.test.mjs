@@ -3578,6 +3578,21 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             /pnpm exec visual-review capture --project "\$PROJECT" --out "\$RUNNER_TEMP\/second" --stories "\$STORIES"/,
         );
         assert.match(text, /name: visual-final-\$\{\{ matrix.project \}\}-\$\{\{ github.run_attempt \}\}/);
+        // a legged project: every leg 1..legs once, and recapture_merge builds its one visual-final (#4172)
+        const legged = release.recapture.strategy.matrix.include.filter((r) => r.leg);
+        for (const p of new Set(legged.map((r) => r.project))) {
+            const legs = legged.filter((r) => r.project === p);
+            assert.deepEqual(
+                legs.map((r) => r.leg),
+                Array.from({ length: legs[0].legs }, (_, k) => k + 1),
+            );
+        }
+        assert.deepEqual(
+            release.recapture_merge.strategy.matrix.include.map((r) => r.project),
+            [...new Set(legged.map((r) => r.project))],
+        );
+        assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
     });
@@ -4202,6 +4217,7 @@ describe("release.yml", () => {
             "pick",
             ...lanes,
             "recapture",
+            "recapture_merge",
             "candidate_site",
             ...lanes.map((l) => `${l}_red`),
         ]);
@@ -4236,7 +4252,11 @@ describe("release.yml", () => {
         // the run's one gated capture is the re-capture's, renamed to what the judge and the gate read
         assert.match(verdict, /pattern: visual-final-\*/);
         assert.match(verdict, /mv "\$d" "\$CAPTURES\/visual-\$\{d##\*\/visual-final-\}"/);
-        assert.match(verdict, /"recapture": "\$\{\{ needs.recapture.result \}\}"/);
+        // a legged project's merge failing fails the re-capture lane too
+        assert.match(
+            verdict,
+            /"recapture": "\$\{\{ \(needs.recapture_merge.result == 'failure' \|\| needs.recapture_merge.result == 'cancelled'\) && 'failure' \|\| needs.recapture.result \}\}"/,
+        );
         // it dispatches the bisect, files the red issue and writes to the store; nothing else
         assert.deepEqual(verdict.match(/\w+(-\w+)?: write/g), ["actions: write", "issues: write", "id-token: write"]);
         assert.match(

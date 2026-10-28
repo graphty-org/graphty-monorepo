@@ -22,6 +22,7 @@ import type {
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
 import { faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
+import { sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
@@ -116,6 +117,37 @@ function rows(names: string[]): { source: PageSource; apply: (session: GraphSess
 }
 
 describe("choosing what to restore", () => {
+    it("restores the models a layer names, from their own parts", async () => {
+        const store = memoryAutosaveStore();
+        const ids: string[] = [];
+        const { id, session: before } = await earlier(store, async (session) => {
+            for (const files of [new Map([["ball.glb", sphereGlb(8, 4)]]), texturedGltfSet()]) {
+                const asset = await session.assets.add({ files });
+                ids.push(asset.id);
+                await session.styles.add({
+                    name: asset.id,
+                    target: "node",
+                    selector: { match: "ids", nodes: [ids.length === 1 ? "a" : "b"] },
+                    set: { "node.model": asset.id },
+                });
+            }
+        });
+        const parts = Object.keys((await raw(store, id))?.parts ?? {});
+        assert.sameMembers(
+            parts.filter((name) => name.startsWith("asset:")),
+            ids,
+            "one part per model, named by its digest",
+        );
+
+        const page = load(store);
+        const restored = await page.saver.recover();
+        assert.strictEqual(restored?.entry.id, id);
+        assert.deepStrictEqual(await saveOf(page.session), await saveOf(before));
+        for (const asset of ids as `asset:${string}`[]) {
+            assert.strictEqual(page.session.assets.get(asset)?.state, "accepted");
+        }
+    });
+
     it("restores the newest entry into a fresh load, as it was saved", async () => {
         const store = memoryAutosaveStore();
         const { id, session: before } = await earlier(store, async (session) => {

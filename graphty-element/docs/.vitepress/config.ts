@@ -90,6 +90,7 @@ export default defineConfig({
                         { text: "Neighbors", link: "/guide/neighbors" },
                         { text: "What Is Under a Point", link: "/guide/element-at" },
                         { text: "Labels", link: "/guide/labels" },
+                        { text: "Drawing Nodes as Models", link: "/guide/node-models" },
                         { text: "Label Size & Number Format", link: "/guide/label-size-and-numbers" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Network Sources", link: "/guide/network-sources" },

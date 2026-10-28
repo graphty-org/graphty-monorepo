@@ -13,6 +13,8 @@ const no = (notOffered: string): Home => ({ notOffered });
 
 /** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
 const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
+/** A node's 3D model or picture: put on nodes by dropping a file on the canvas; the panel has no row for it yet. */
+const MODEL = no("set by dropping a model or a picture on the canvas; the Style panel has no row for it yet");
 /** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
 const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
 
@@ -21,6 +23,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
+    "node.model": MODEL,
+    "node.modelSourceUp": MODEL,
+    "node.modelTurn": MODEL,
+    "node.modelTint": MODEL,
+    "node.modelFit": MODEL,
+    "node.modelCenter": MODEL,
+    "node.texture": MODEL,
     "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
     "node.wireframe": at("Nodes, Rendering, Wireframe"),
     "node.visible": at("Nodes, Visibility, Show"),

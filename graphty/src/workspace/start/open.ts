@@ -11,11 +11,12 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
+import type { AssetSource, DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
+import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
 import { focusOpenedGraphLater } from "../frame/focus";
@@ -445,4 +446,18 @@ export function useDropToOpen(ctx: CommandContext): void {
         openFiles(latest.current, files);
     }, []);
     useFileDrop("window", open, { disabled: !inProject });
+}
+
+/**
+ * Opens a new project, named after a model file dropped on the start screen, that draws every node
+ * as that model: the model is added to the project and one undoable layer names it, so the graph
+ * data the reader adds next is drawn with it.
+ * @param workspace - the workspace store.
+ * @param fileName - the model's main file name.
+ * @param source - the model's files.
+ */
+export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
+    openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
+        await putModelOnNodes(session, workspace, source);
+    });
 }

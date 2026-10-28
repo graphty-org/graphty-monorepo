@@ -123,6 +123,7 @@
 /tools/visual-capture-plan.mjs @graphty-org/code-owners
 /tools/visual-flaky-report.mjs @graphty-org/code-owners
 /tools/visual-preview.sh @graphty-org/code-owners
+/tools/vitest-deps-reload.mjs @graphty-org/code-owners
 /tools/vitest-time-budget.mjs @graphty-org/code-owners
 /tools/wait-log.mjs @graphty-org/code-owners
 /tools/with-browser.sh @graphty-org/code-owners

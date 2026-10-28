@@ -71,7 +71,14 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    channelsFor,
+    labelFieldOf,
+    modelBindingProblem,
+    toColorValue,
+} from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -796,7 +803,9 @@ function checkNumber(descriptor: ChannelDescriptor, value: ChannelValue, path: s
 function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
     const values = descriptor.values ?? [];
 
-    if (typeof value === "string" && values.includes(value)) {
+    // A boolean is read by its name, for a channel such as `node.modelTint` that takes true,
+    // false or a word.
+    if ((typeof value === "string" || typeof value === "boolean") && values.includes(String(value))) {
         return null;
     }
 
@@ -1294,6 +1303,24 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
 }
 
 /**
+ * Report a binding `node.model` or `node.texture` cannot take.
+ * @param descriptor - The channel's descriptor.
+ * @param binding - The binding.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkModelBinding(descriptor: ChannelDescriptor, binding: Binding, path: string, log: ProblemLog): void {
+    if (descriptor.channel !== "node.model" && descriptor.channel !== "node.texture") {
+        return;
+    }
+
+    const blocked = modelBindingProblem(binding, path);
+    if (blocked !== null) {
+        report(log, blocked);
+    }
+}
+
+/**
  * Check every channel the specification writes.
  * @param spec - The specification.
  * @param target - The layer's target, or null when it could not be settled.
@@ -1327,6 +1354,7 @@ function checkChannels(
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
+            checkModelBinding(descriptor, binding, path, log);
         }
     }
 }

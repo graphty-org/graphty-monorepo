@@ -102,14 +102,14 @@ export function renderPanel(mounted: Mounted, row: LayerId[], width = 300): Work
  */
 export async function addNodeLayer(
     session: GraphSession,
-    set: Record<string, unknown> = { "node.opacity": 1 },
+    set?: Record<string, unknown>,
     name = "Top",
 ): Promise<LayerId> {
     const layer = await session.styles.add({
         name,
         target: "node",
         selector: { match: "everything" },
-        set: set,
+        set: set ?? { "node.opacity": 1 },
     });
     return layer.id;
 }

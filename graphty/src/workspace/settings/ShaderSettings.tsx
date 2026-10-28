@@ -199,6 +199,18 @@ export function BackgroundShader({
 }
 
 /**
+ * Where a held shader draws, in words: the Background section's title, or its place on a node or an edge.
+ * @param shader - the held shader
+ * @returns The words
+ */
+function shaderPlaceWords(shader: ReturnType<typeof heldShaders>[number]): string {
+    if (shader.target === "background") {
+        return BACKGROUND_SECTION_WORDS.title;
+    }
+    return placeWords(shader.place, shader.target === "edge" ? "edge" : "node");
+}
+
+/**
  * The Held shaders row: how many shaders from a file wait to run, and a pop-out listing each
  * (name, kind, how many layers use it) with Run and Copy shader, then Run all. Drawn only while
  * one is held.
@@ -253,7 +265,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                                             {shader.plainName}
                                         </Text>
                                         <Text size="xs" c="dimmed" truncate>
-                                            {`${shader.target === "background" ? BACKGROUND_SECTION_WORDS.title : placeWords(shader.place, shader.target === "edge" ? "edge" : "node")}, ${usedByWords(shader.usedBy)}`}
+                                            {`${shaderPlaceWords(shader)}, ${usedByWords(shader.usedBy)}`}
                                         </Text>
                                     </Stack>
                                     <Button

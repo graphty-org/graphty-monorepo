@@ -384,8 +384,7 @@ export class EdgeShaderDrawing {
         const shader = this.shader(id, edge);
         const { renderer, runtime, textures: data } = this;
         if (
-            shader === null ||
-            shader.registration.descriptor.target !== "edge" ||
+            shader?.registration.descriptor.target !== "edge" ||
             !(shader.registration.descriptor.places ?? []).includes(role) ||
             drawingOf(shader.registration.descriptor, role) !== `edge-${role}` ||
             renderer === null ||

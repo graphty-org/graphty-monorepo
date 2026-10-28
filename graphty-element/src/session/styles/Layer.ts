@@ -1636,9 +1636,8 @@ function checkShaderUse(use: unknown, target: "node" | "edge", path: string, cat
         report(log, { code: "E_BAD_LAYER", message: "off is true, or left out.", path: `${path}.off` });
     }
 
-    const shader = catalog
-        ? checkShaderRef(use.shader, target, use.off === true ? undefined : place, `${path}.shader`, log)
-        : null;
+    const checkedPlace = use.off === true ? undefined : place;
+    const shader = catalog ? checkShaderRef(use.shader, target, checkedPlace, `${path}.shader`, log) : null;
     if (use.params !== undefined) {
         checkParamSet(shader, use.params, `${path}.params`, log);
     }

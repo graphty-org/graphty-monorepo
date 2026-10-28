@@ -281,53 +281,58 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
             </Tooltip>
         );
     };
-    const rows: Record<BackgroundKind, () => React.JSX.Element> = {
-        color: () => (
-            <FieldRow trailing={minus("color")}>
-                <CompactColorInput
-                    label="Background color"
-                    valueText={colorWord(backgroundColor)}
-                    color={parts.color}
-                    defaultColor={DEFAULT_BACKGROUND_COLOR}
-                    showOpacity={false}
-                    onChangeEnd={(next) => {
-                        // Once per gesture, so a drag is one step. The reset reports undefined:
-                        // alone, the background returns to the element's default; under an image
-                        // or a shader, the color does.
-                        if (next === undefined && parts.image === undefined && parts.shader === undefined) {
-                            void session.config.set({ background: undefined });
-                        } else {
-                            void write({ color: next ?? DEFAULT_BACKGROUND_COLOR });
-                        }
-                    }}
-                />
-            </FieldRow>
-        ),
-        image: () => (
-            <FieldRow trailing={minus("image")}>
-                <BackgroundImage
-                    address={parts.image !== undefined && !parts.image.startsWith("data:") ? parts.image : ""}
-                    onCommit={(data) => {
-                        settle("image");
-                        void write({ image: data });
-                    }}
-                />
-            </FieldRow>
-        ),
-        shader: () => (
-            <FieldRow trailing={minus("shader")}>
-                <BackgroundShader
-                    session={session}
-                    shader={parts.shader?.id}
-                    params={parts.shader?.params ?? {}}
-                    startOpen={parts.shader === undefined}
-                    onWrite={(id, params, scope = session) => {
-                        settle("shader");
-                        return write({ shader: { id, params } }, scope);
-                    }}
-                />
-            </FieldRow>
-        ),
+    const row = (kind: BackgroundKind): React.JSX.Element => {
+        switch (kind) {
+            case "color":
+                return (
+                    <FieldRow trailing={minus("color")}>
+                        <CompactColorInput
+                            label="Background color"
+                            valueText={colorWord(backgroundColor)}
+                            color={parts.color}
+                            defaultColor={DEFAULT_BACKGROUND_COLOR}
+                            showOpacity={false}
+                            onChangeEnd={(next) => {
+                                // Once per gesture, so a drag is one step. The reset reports undefined:
+                                // alone, the background returns to the element's default; under an image
+                                // or a shader, the color does.
+                                if (next === undefined && parts.image === undefined && parts.shader === undefined) {
+                                    void session.config.set({ background: undefined });
+                                } else {
+                                    void write({ color: next ?? DEFAULT_BACKGROUND_COLOR });
+                                }
+                            }}
+                        />
+                    </FieldRow>
+                );
+            case "image":
+                return (
+                    <FieldRow trailing={minus("image")}>
+                        <BackgroundImage
+                            address={parts.image !== undefined && !parts.image.startsWith("data:") ? parts.image : ""}
+                            onCommit={(data) => {
+                                settle("image");
+                                void write({ image: data });
+                            }}
+                        />
+                    </FieldRow>
+                );
+            default:
+                return (
+                    <FieldRow trailing={minus("shader")}>
+                        <BackgroundShader
+                            session={session}
+                            shader={parts.shader?.id}
+                            params={parts.shader?.params ?? {}}
+                            startOpen={parts.shader === undefined}
+                            onWrite={(id, params, scope = session) => {
+                                settle("shader");
+                                return write({ shader: { id, params } }, scope);
+                            }}
+                        />
+                    </FieldRow>
+                );
+        }
     };
     const addButton = (
         <Menu position="bottom-end">
@@ -381,7 +386,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                     .reverse()
                     .filter(present)
                     .map((kind) => (
-                        <React.Fragment key={kind}>{rows[kind]()}</React.Fragment>
+                        <React.Fragment key={kind}>{row(kind)}</React.Fragment>
                     ))}
             </Stack>
         </ControlSection>

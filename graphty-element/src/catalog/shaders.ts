@@ -47,7 +47,7 @@ export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "
 export const SQUARE_PLACES: readonly ShaderPlace[] = Object.freeze(["replace", "over", "around", "behind"]);
 
 /** The places `minSize` applies at: the square-drawn places that reach outside the node. */
-const MIN_SIZE_PLACES: readonly ShaderPlace[] = ["replace", "around", "behind"];
+const MIN_SIZE_PLACES: ReadonlySet<ShaderPlace> = new Set<ShaderPlace>(["replace", "around", "behind"]);
 
 /** The places each target's shaders may be used at. */
 export const PLACES_BY_TARGET: Readonly<Record<ShaderTarget, readonly ShaderPlace[]>> = Object.freeze({
@@ -73,7 +73,7 @@ export function defaultPlaces(place: ShaderPlace): readonly ShaderPlace[] {
  * @returns True when one of them draws a square reaching outside the node.
  */
 export function minSizeApplies(places: readonly ShaderPlace[]): boolean {
-    return places.some((place) => MIN_SIZE_PLACES.includes(place));
+    return places.some((place) => MIN_SIZE_PLACES.has(place));
 }
 
 /**

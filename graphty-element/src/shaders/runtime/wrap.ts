@@ -592,8 +592,9 @@ function sampleFinish(kind: ShaderDrawing, place?: string): string {
             return `    if (!graphty_onEdge) { graphty_out = vec4(0.0); }
     if (min(length(vUV - vec2(0.16, 0.42)), length(vUV - vec2(0.84, 0.42))) < 0.06) { graphty_out = ${SAMPLE_GRAY}; }`;
         case "group": {
-            const near = GROUP_MEMBERS.map((_, i) => `length(graphty_d${String(i)})`).reduce(
-                (a, b) => `min(${a}, ${b})`,
+            const near = GROUP_MEMBERS.slice(1).reduce(
+                (a: string, _, i) => `min(${a}, length(graphty_d${String(i + 1)}))`,
+                "length(graphty_d0)",
             );
             return `    if (${near} < 0.035) { graphty_out = ${SAMPLE_GRAY}; }`;
         }

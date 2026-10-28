@@ -1798,7 +1798,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 function stableJson(values: ShaderParams): string {
     return JSON.stringify(
         Object.keys(values)
-            .sort()
+            .sort((a, b) => a.localeCompare(b))
             .map((key) => [key, values[key]]),
     );
 }

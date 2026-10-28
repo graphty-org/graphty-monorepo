@@ -1207,12 +1207,7 @@ export class NodeShaderDrawing {
         const id = wanted.use.shader;
         const shader = this.resolved(id, entry.node);
         const descriptor = shader?.registration.descriptor;
-        if (
-            shader === null ||
-            descriptor === undefined ||
-            descriptor.target !== "node" ||
-            !(descriptor.places ?? []).includes(wanted.place)
-        ) {
+        if (shader === null || descriptor?.target !== "node" || !(descriptor.places ?? []).includes(wanted.place)) {
             if (shader === null && this.known.get(id)?.shader === null) {
                 dropped.add(key);
             }

@@ -29,9 +29,9 @@ export function capped(length: string): string {
  * @returns its top and bottom edges
  */
 export function visualBand(): { top: number; bottom: number } {
-    const view = typeof window === "undefined" ? undefined : window.visualViewport;
+    const view = globalThis.window?.visualViewport;
     if (!view) {
-        return { top: 0, bottom: typeof window === "undefined" ? 0 : window.innerHeight };
+        return { top: 0, bottom: globalThis.window?.innerHeight ?? 0 };
     }
     return { top: view.offsetTop, bottom: view.offsetTop + view.height };
 }
@@ -44,7 +44,7 @@ let installed = false;
  * render and during SSR.
  */
 export function installViewportCap(): void {
-    if (installed || typeof window === "undefined" || typeof document === "undefined") {
+    if (installed || globalThis.window === undefined || globalThis.document === undefined) {
         return;
     }
     installed = true;

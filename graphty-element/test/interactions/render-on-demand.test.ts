@@ -464,6 +464,55 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    // A frame drawn again only to check that the one before left nothing moving costs a software
+    // GPU 200 to 800 ms of the page's main thread under load, and a reader's click waits behind it
+    // (#3537). A change made outside a frame is drawn by one frame.
+    it("draws a resize in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        element.style.height = `${String(HEIGHT - 60)}px`;
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the new size");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a camera moved through the API in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.setCameraState({ position: { x: 0, y: 0, z: 40 }, target: { x: 0, y: 0, z: 0 } });
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the moved camera");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("keeps drawing a camera that something moves inside each frame, until it stops", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const { scene } = element.graph;
+        const camera = scene.activeCamera;
+        assert.isNotNull(camera);
+        const STEPS = 10;
+        let steps = 0;
+        // Moves the camera only while a frame is drawn, as an inertia applied in onBeforeRender
+        // does: no tick can see the move before the frame that makes it.
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            if (steps < STEPS) {
+                steps++;
+                camera.position.z -= 1;
+            }
+        });
+        cleanups.push(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+        });
+
+        await restsOnTheCurrentPicture(element);
+        assert.strictEqual(steps, STEPS, "every step of the move was drawn");
+    });
+
     it("draws a selection style set while resting", async () => {
         const element = await mounted(true);
         await click(element, at(element, "b"));

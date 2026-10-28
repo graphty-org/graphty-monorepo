@@ -10,6 +10,7 @@
  * enforces it.
  */
 
+export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
 export type {
     AddAssetOptions,
     AssetId,
@@ -26,7 +27,6 @@ export type {
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
-export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
@@ -133,12 +133,12 @@ export type {
     LoadedWeight,
     LoadMapping,
     LoadMappingRead,
-    ModelChange,
-    ModelState,
     LocationColumns,
     LocationKind,
     LocationUnused,
     LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,

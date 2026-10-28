@@ -1984,6 +1984,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "PendingWork",
+        file: "src/managers/PendingWork.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "StatsManager",
         file: "src/managers/StatsManager.ts",
         half: "renderer",
@@ -3376,6 +3382,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             sync: RENDER,
             status: READ,
+            loading: READ,
             attributionOffset: CAMERA,
             dispose: LIFECYCLE,
         },

@@ -106,7 +106,7 @@ function recordRequests(): Recording {
  * @param urls - What was recorded.
  */
 function assertNoNetwork(urls: string[]): void {
-    const babylon = urls.filter((url) => url.includes("babylonjs.com"));
+    const babylon = urls.filter((url) => /(^|\.)babylonjs\.com$/.test(new URL(url, location.href).hostname));
     assert.deepEqual(babylon, [], "nothing is requested from Babylon's hosts");
     const network = urls.filter((url) => !url.startsWith("blob:") && !url.startsWith("data:"));
     assert.deepEqual(network, [], "nothing is requested but the caller's own blob: URLs");

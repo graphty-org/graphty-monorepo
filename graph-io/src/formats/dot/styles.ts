@@ -782,19 +782,23 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
     if (attrs === null) {
         return null;
     }
-    const length = (name: string, fallback: number): number => {
+    // Graphviz's ranges (lib/common/htmllex.c); a value outside one is ignored, so the default holds
+    const length = (name: string, fallback: number, min = 0, max = 255): number => {
         const v = Number(attrs.get(name) ?? Number.NaN);
-        return Number.isFinite(v) && v >= 0 ? v : fallback;
+        return Number.isFinite(v) && v >= min && v <= max ? v : fallback;
     };
     const border = length("border", 1);
     const size = (name: string): number | null => {
-        const v = length(name, 0);
+        const v = length(name, 0, 0, 65535);
         return v > 0 ? v : null;
     };
+    const inset =
+        border + length("cellspacing", 2, -128, 127) + length("cellborder", border) + length("cellpadding", 2);
     return {
         border,
-        // a cell's border is the table's unless CELLBORDER is given
-        inset: border + length("cellspacing", 2) + length("cellborder", border) + length("cellpadding", 2),
+        // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
+        // the text never sits outside the table
+        inset: Math.max(0, inset),
         color: nonEmpty(attrs.get("color") ?? null),
         style: (attrs.get("style") ?? "").toLowerCase(),
         width: size("width"),
@@ -834,12 +838,43 @@ function tableAttributes(markup: string): Map<string, string> | null {
 }
 
 /**
- * Whether a node draws its table's outline: a table with a border that is not invisible.
+ * Whether a node draws its table's outline: a table with a border that is not invisible, on a node whose box is the
+ * table's -- `plain`, or `plaintext` / `none` with a margin of 0 and a least size no larger than the table's.
  * @param n - the node
  * @returns true when it does
  */
 function drawsTableOutline(n: NodeRead): n is NodeRead & { readonly table: HtmlTableFrame } {
-    return n.table !== null && n.table.border > 0 && !n.table.style.includes("invis");
+    const { table, shape, get } = n;
+    if (table === null || table.border <= 0 || table.style.includes("invis")) {
+        return false;
+    }
+    if (shape === "plain") {
+        return true;
+    }
+    // ponytail: with a margin or a least size larger than the table, Graphviz draws the border inside the node's
+    // box, which graphty cannot draw yet (it draws the node's box), so it draws none
+    // no margin is Graphviz's 8 by 4 points
+    const margin = (get("margin") ?? "1").split(",").map(Number);
+    const least = nodeLeastSize(get, shape);
+    return margin.every((m) => m === 0) && least.w <= (table.width ?? 0) && least.h <= (table.height ?? 0);
+}
+
+/**
+ * A node's own least size in points before it grows to hold its label: its `width` and `height`, else Graphviz's
+ * default; `plain` is 0 by 0.
+ * @param get - the node's attributes
+ * @param shape - its shape, lowercase
+ * @returns the least width and height
+ */
+function nodeLeastSize(get: Attr, shape: string): { w: number; h: number } {
+    const own = (attr: string, fallback: number): number => {
+        const v = Number(get(attr) ?? Number.NaN);
+        if (shape === "plain") {
+            return 0;
+        }
+        return isLength(v) ? v * DOT_POINTS_PER_INCH : fallback;
+    };
+    return { w: own("width", DEFAULT_NODE_SIZE.w), h: own("height", DEFAULT_NODE_SIZE.h) };
 }
 
 /**
@@ -1750,12 +1785,13 @@ function readLabelFit(
     const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
     const padX = marginX + (table?.inset ?? 0);
     const padY = marginY + (table?.inset ?? 0);
-    // a table's WIDTH and HEIGHT are its least size, the margin round it
+    // a table's WIDTH and HEIGHT are its least size, the margin round it; the node's own size is another
+    const least = nodeLeastSize(get, shape);
     if (typeof table?.width === "number") {
-        put("width", num6(table.width + 2 * marginX));
+        put("width", num6(Math.max(table.width + 2 * marginX, least.w)));
     }
     if (typeof table?.height === "number") {
-        put("height", num6(table.height + 2 * marginY));
+        put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
     // a decorated box holds its label as a box does, exactly
     put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");

@@ -755,7 +755,7 @@ export class Graphty extends LitElement {
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
         // A source load given no credential asks this element's store, by source and origin.
-        attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
+        attachCredentials(session.data, (source, origin, slot) => this.credentials.lookup(source, origin, slot));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;

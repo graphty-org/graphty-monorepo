@@ -197,7 +197,7 @@ export interface DataImportCommand {
     readonly joinedOnto?: SourceKey;
     /** For a joined table: the join, kept with the load in `data.sources()`. */
     readonly join?: JoinRecord;
-    /** The load's key, in place of the next one: an edited join keeps its key. */
+    /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
     readonly choices?: LoadChoices;

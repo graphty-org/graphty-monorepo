@@ -119,7 +119,9 @@ export {
     type AwsSigV4Options,
     type CredentialBind,
     credentials,
+    credentialSlots,
     fromStorableCredential,
+    type SlotValue,
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
@@ -166,6 +168,7 @@ export {
     type RetryOptions,
     type SourceBase,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
     type SourceFeature,

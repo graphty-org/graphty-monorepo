@@ -103,6 +103,11 @@ export interface SourceHost {
      */
     directed(): boolean;
     /**
+     * The attribute a node's name is read from: `data.knownFields.nodeLabelPath`.
+     * @returns the path, or null for none
+     */
+    labelPath(): string | null;
+    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */

@@ -401,6 +401,8 @@ class ShaderScene {
     private wanted: ShaderBackground | null = null;
     /** Counts background requests, so a slow resolution never draws over a newer one. */
     private backgroundTicket = 0;
+    /** Background loads in flight: the shader, the runtime, the pass module and the compile. */
+    private backgroundLoads = 0;
     private outlineLoading = false;
     private readonly budget: RenderTargetBudget;
     private readonly stops: (() => void)[] = [];
@@ -479,6 +481,22 @@ class ShaderScene {
         return { background: this.background, outline: this.outline, bloom: this.bloom };
     }
 
+    /**
+     * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
+     * the background or the group outline pass still loading, an outline's shader still resolving
+     * or compiling, or a background that owes a draw with the outlines laid out since. Each of
+     * these ends by asking for a frame (issue #4243).
+     * @returns True while one is on its way.
+     */
+    get picturePending(): boolean {
+        return (
+            this.backgroundLoads > 0 ||
+            this.outlineLoading ||
+            this.outline?.pending === true ||
+            this.background?.owesDraw === true
+        );
+    }
+
     /** Release every pass and listener. */
     dispose(): void {
         this.disposed = true;
@@ -505,6 +523,16 @@ class ShaderScene {
 
     /** Resolve the background shader asked for and draw it, or draw the clear color. */
     private async showBackground(): Promise<void> {
+        this.backgroundLoads++;
+        try {
+            await this.loadBackground();
+        } finally {
+            this.backgroundLoads--;
+        }
+    }
+
+    /** The body of {@link showBackground}. */
+    private async loadBackground(): Promise<void> {
         const ticket = ++this.backgroundTicket;
         const { wanted } = this;
         const controller = shadersControllerOf(this.sources.session);
@@ -1642,6 +1670,15 @@ export class RenderManager implements Manager {
      */
     shaderPasses(): ReturnType<ShaderScene["passes"]> {
         return this.shaderScene?.passes() ?? { background: null, outline: null, bloom: null };
+    }
+
+    /**
+     * Whether a scene shader's picture (the background, a group outline) is still on its way.
+     * @returns True while one is.
+     * @internal
+     */
+    shaderPicturePending(): boolean {
+        return this.shaderScene?.picturePending ?? false;
     }
 
     /**

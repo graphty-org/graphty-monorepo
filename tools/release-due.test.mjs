@@ -1,17 +1,22 @@
 // Pre-mortem guards on the restart path (#4055): the restart tests the green build's commit, an old red or hold issue
 // starts no paid re-test, the run attempt is read whatever gh's version, and a re-run's uploads never clash.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { describe, it } from "node:test";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
 import {
+    approvalsIn,
     attemptOf,
     due,
     fixForwardMerges,
     PAID_RETEST_MAX_MS,
     restartDispatch,
+    resumesDue,
     tooOldToRetest,
 } from "./release-due.mjs";
 
@@ -60,5 +65,120 @@ describe("release-due pre-mortem guards", () => {
             .filter((s) => /actions\/upload-artifact/.test(s.uses ?? "") && /matrix\.shard/.test(s.with?.name ?? ""));
         assert.ok(uploads.length >= 5, `found ${uploads.length} per-shard uploads`);
         for (const s of uploads) assert.equal(s.with.overwrite, true, `${s.name} (${s.with.name})`);
+    });
+});
+
+// #4127: several merges reach master together, the waiting builds are cancelled (#3940), and an approval merge's own
+// build never runs; the next green build must promote it, and no build may promote one approval twice.
+describe("release-due approval merges since the last green build", () => {
+    const dir = mkdtempSync(join(tmpdir(), "release-due-approval-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const g = (...args) =>
+        spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+            cwd: dir,
+            encoding: "utf8",
+        }).stdout.trim();
+    g("init", "-q", "-b", "master");
+    g("commit", "-q", "--allow-empty", "-m", "candidate");
+    const candidate = g("rev-parse", "HEAD");
+    const merge = (branch, ...msgs) => {
+        g("switch", "-q", "-c", branch, msgs.length > 1 ? candidate : "master");
+        for (const m of msgs) g("commit", "-q", "--allow-empty", "-m", m);
+        const tip = g("rev-parse", "HEAD");
+        g("switch", "-q", "master");
+        g("merge", "-q", "--no-ff", "-m", `Merge pull request from ${branch}`, branch);
+        return tip;
+    };
+    g("commit", "-q", "--allow-empty", "-m", "green base");
+    const green = g("rev-parse", "HEAD");
+    // the accept commit on the candidate, then the commit holding the signed approval: the pull request's head
+    const approval = merge(
+        "approve",
+        `test(workspace): approve visual baselines at ${candidate.slice(0, 12)}`,
+        "chore(workspace): the owner's signed approval",
+    );
+    const approvalMerge = g("rev-parse", "HEAD");
+    merge("other", "feat: unrelated work");
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    const dryRun = (greenShas) => {
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$*" in\n"run list"*) echo '${JSON.stringify(greenShas.map((headSha) => ({ headSha })))}';;\n*state=open*) echo '';;\n*) ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const out = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname, "--dry-run"], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", GRAPHTY_RESULTS: "0" },
+        });
+        assert.equal(out.status, 0, out.stderr);
+        return out.stdout;
+    };
+    const promotes = new RegExp(`the approval ${approval} of ${candidate}: `);
+
+    it("promotes an approval whose own build was cancelled from the next green build", () => {
+        assert.match(dryRun([green]), promotes);
+    });
+
+    it("leaves an approval a green build already handled", () => {
+        assert.doesNotMatch(dryRun([approvalMerge, green]), promotes, "the merge is at the base: handled there");
+        const h = candidate;
+        const accept = {
+            sha: "b".repeat(40),
+            parents: [h],
+            subject: `x: approve visual baselines at ${h.slice(0, 12)}`,
+        };
+        const store = { hold: { head: h, issue: 7 }, recent: [{ sha: h, state: "approved" }] };
+        const merges = [{ approval, commits: [accept] }];
+        assert.equal(resumesDue(merges, store)[0].run, false, "the store records it promoted");
+    });
+
+    it("reads only HEAD without a green build to start from", () => {
+        assert.doesNotMatch(dryRun([]), promotes);
+        g("switch", "-q", "-c", "alone", approvalMerge);
+        assert.match(dryRun([]), promotes, "HEAD itself is the approval merge");
+    });
+});
+
+describe("release-due approvals since the last green build", () => {
+    const H = "3ddf13da890926e8fbaaf455b4fa7a14b88541e5";
+    const A = "ec7c3384f9630bc97a23c10b7fda82c98c44d501";
+    const P = "83708329d1d8fa1dac5c36ab6c740ef69aa22aea";
+    const approvalMerge = {
+        approval: P,
+        commits: [
+            { sha: "7510f43c7e", parents: ["ae5c4ce298", P], subject: "Merge pull request #4117 from x/approve" },
+            { sha: P, parents: [A], subject: "test(workspace): approve the visual baselines of the seed" },
+            { sha: A, parents: [H], subject: "test(workspace): approve visual baselines at 3ddf13da8909" },
+        ],
+    };
+    // the build that runs is a later, unrelated merge's: the approval merge's own build was cancelled
+    const unrelated = {
+        approval: "f00d",
+        commits: [
+            { sha: "d6f4798c9b", parents: ["7a70bf3f2c", "f00d"], subject: "Merge pull request #4125 from x/y" },
+            { sha: "f00d", parents: ["beef"], subject: "feat(graphty): something" },
+        ],
+    };
+    const store = { hold: { head: H, issue: 4104 }, recent: [{ sha: H, state: "green-images", runId: 1 }] };
+
+    it("promotes an approval merge whose own build was cancelled, from a later merge's build", () => {
+        const due = resumesDue([unrelated, approvalMerge], store);
+        assert.equal(due.length, 1);
+        assert.equal(due[0].candidate, H);
+        assert.equal(due[0].accept, P);
+        assert.equal(due[0].run, true);
+    });
+
+    it("promotes a candidate once, with its newest approval", () => {
+        const older = { ...approvalMerge, approval: "0ld" };
+        assert.deepEqual(approvalsIn([approvalMerge, unrelated, older]), [{ candidate: H, accept: P }]);
+    });
+
+    it("keeps resumeDecision's refusal of an approval for a head that is not the held one", () => {
+        const due = resumesDue([unrelated, approvalMerge], { ...store, hold: { head: "other", issue: 4104 } });
+        assert.equal(due[0].run, false);
+        assert.equal(due[0].comment, 4104);
     });
 });

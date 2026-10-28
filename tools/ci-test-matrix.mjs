@@ -502,7 +502,10 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
         }
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
-    const bins = (light?.bins ?? []).filter((b) => runs(shards.find((s) => s.shard === b.shard)));
+    // a packed whole family (`whole`: its package) is left out with its package, as its shards would be
+    const bins = (light?.bins ?? []).filter(
+        (b) => runs(shards.find((s) => s.shard === b.shard)) && (!b.whole || affected.includes(b.whole)),
+    );
     const all = [...include, ...bins.map((b) => binEntry(b, shards))];
     return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];
 }

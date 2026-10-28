@@ -3,35 +3,36 @@
  * (the program's own SVG export of the committed file), compared with graphty's drawing of it
  * property by property and region by region (`test/fidelity/oracle/`), each report written to
  * `tmp/oracle-report/` with graphty's canvas, the oracle aligned into graphty's frame and the two
- * overlaid, and every pass rate held to `test/fidelity/oracle-floors.json`. A few large samples
- * take longer than a browser shard's budget, so this runs in the `fidelity` project, by hand:
+ * overlaid. A few large samples take longer than a browser shard's budget, so this runs in the `fidelity` project, by
+ * hand:
  *
  *     npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts
  *     node scripts/oracle-report.mjs            # the report pages
+ *     npm run fidelity:ratchet                  # take what passes now off the known failures, raise the floors
  *
  * Each sample is judged twice: as graphty draws it, and with graphty's nodes moved to where the program drew them
- * (`<sample>@matched`), so style is judged apart from layout. A sample fails when a pass rate falls below its floor or
- * when any element fails a property that `test/fidelity/oracle-known-failures.json` does not list for it.
- * `GRAPHTY_FIDELITY_RECORD=1` records the floors (never lowering one) and the known failures (never adding to a
- * property already recorded). The CI subset is `test/browser/oracle-scorecard.test.ts`.
+ * (`<sample>@matched`), so style is judged apart from layout. A sample fails only when an element fails a property that
+ * `test/fidelity/oracle-known-failures.json` does not list for it (`oracle/floors.ts`). The pass rates are a report
+ * (`tmp/oracle-report/gate.txt`, against `test/fidelity/oracle-floors.json`), never a gate. With
+ * `GRAPHTY_ORACLE_BASELINE=<an earlier run's report directory>` each sample's earlier drawing is judged again by this
+ * comparator, and every change is said to come from the drawing or from the comparator. The CI subset is
+ * `test/browser/oracle-scorecard.test.ts`.
  */
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import { unmount } from "./mount";
+import { gateMessages, type KeyGate } from "./oracle/floors";
 import {
-    checkFloors,
+    gateRun,
     ORACLE_IDS,
-    type OracleRecord,
     oraclesWithoutMetadata,
-    readOracleFloors,
-    recordOf,
+    readOracleStored,
     runOracle,
-    writeOracleFloors,
+    writeOracleGate,
 } from "./oracle/run-oracle";
 
-const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
-const stored = await readOracleFloors();
-const recorded: OracleRecord = {};
+const stored = await readOracleStored();
+const gates: KeyGate[] = [];
 
 afterEach(() => {
     unmount();
@@ -51,19 +52,16 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
                 `${id}: the oracle was drawn from another file than the committed sample`,
             );
         }
-        Object.assign(recorded, recordOf(run));
-        if (RECORD) {
-            return;
-        }
-        const { dropped, unfloored, newlyFailing } = checkFloors(run, stored);
-        assert.deepEqual(dropped, [], `${id}: a property fell below its floor in oracle-floors.json`);
-        assert.deepEqual(unfloored, [], `${id}: a property is judged that has no floor; record the floors`);
-        assert.deepEqual(newlyFailing, [], `${id}: an element fails that oracle-known-failures.json does not list`);
+        const verdicts = gateRun(run, stored);
+        gates.push(...verdicts);
+        assert.deepEqual(
+            verdicts.flatMap(gateMessages),
+            [],
+            `${id}: an element fails that oracle-known-failures.json does not list`,
+        );
     });
 
     afterAll(async () => {
-        if (RECORD) {
-            await writeOracleFloors(stored, recorded);
-        }
+        await writeOracleGate(gates);
     });
 });

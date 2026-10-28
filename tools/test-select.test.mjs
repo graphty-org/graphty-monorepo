@@ -1811,6 +1811,36 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         });
     });
 
+    it("packs a family that runs whole into bins of at most 8 minutes when its test files are known (#4160)", () => {
+        const app = many(30);
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const whole = (shard) => ({ ...sel(shard, "all"), reasons: ["graphty/vite.config.ts changed"], specs: app });
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, MIN])) };
+        const out = lightPlan(ROOT, shards, [whole("graphty-1"), whole("graphty-2")], durations);
+        assert.deepEqual(out.whole, [], "no shard runs unpacked");
+        assert.ok(out.bins.length > 1, "the whole family is split");
+        assert.ok(
+            out.bins.every((b) => b.ms <= 8 * MIN),
+            "every bin is under 8 minutes",
+        );
+        assert.deepEqual(out.bins.flatMap((b) => b.files).sort(), [...app].sort(), "every file runs once");
+        for (const b of out.bins) {
+            assert.deepEqual(b.covers, ["graphty-1", "graphty-2"]);
+            assert.doesNotMatch(b.command, /--coverage|--shard/u);
+            assert.match(b.why[b.files[0]], /runs whole, packed into bins: graphty\/vite\.config\.ts changed/u);
+        }
+        const include = matrixPlan(["graphty"], ["graphty-1", "graphty-2"], out);
+        assert.ok(
+            include.every((e) => e.files),
+            "every graphty entry is a bin, no whole slice beside them",
+        );
+        assert.deepEqual(
+            matrixPlan(["layout"], undefined, out).filter((e) => e.package === "graphty"),
+            [],
+            "a packed whole family of a package nx does not call affected stays out, as its shards would",
+        );
+    });
+
     it("counts every file of a family touched when a shard runs whole on a file-level answer it does not rely on", () => {
         const shards = ["graphty-1", "graphty-2"].map(byName);
         const measured = (shard, why) => ({
@@ -2175,15 +2205,15 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
         const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const perFile = 20 * STORY_MS["graph-io-fidelity"];
+        const perFile = 30 * STORY_MS["graph-io-fidelity"];
         const bins = storyBins(
             [entry("graph-io-fidelity", "files", files)],
             projects,
             list,
             { "graph-io-storybook": { [files[0]]: 1_000 } },
-            () => 20,
+            () => 30,
         );
-        // 20 stories a file: two files fit in 4 minutes, a third starts the next bin
+        // 30 stories a file: two files fit in a bin, a third starts the next one
         assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),

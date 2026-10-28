@@ -6,7 +6,8 @@
 //
 // The model: expressions are evaluated by GitHub's own evaluator (@actions/expressions), with success(), failure(),
 // cancelled() and always() and the implicit success() of an `if:` that names none of them; the needs graph decides
-// what runs (a job whose `if` is false is skipped, a skipped or failed need skips a job that only asks success());
+// what runs (a job whose `if` is false is skipped, and a skipped or failed ancestor, a need's need too, skips a job
+// that only asks success());
 // a job's result comes from the row (default success; a lane can be failure, cancelled or timed_out, which ends a
 // job cancelled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
 // the inputs its `with:` computes, and fails when one of its jobs fails; steps run in order with their `if`, and a
@@ -33,6 +34,7 @@ import { truthy } from "@actions/expressions/result";
 import { parse } from "yaml";
 
 import { captureLane, deferred, differingImages, heldLine, holdAction, verdictOf } from "./full-run.mjs";
+import { autoAbandon } from "./channel/hold.mjs";
 import { promotion } from "./channel/nightly.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import { readPolicy } from "./release-hold.mjs";
@@ -196,8 +198,9 @@ function run(file, sc, inputs, prefix, out) {
         const ctx = { ...base, needs, env: wfEnv };
         const res = (j) => out.jobs[prefix + j].result;
         const status = {
-            success: () =>
-                needsOf(job).every((n) => res(n) === "success") && !ancestors(id).some((a) => FAILED.has(res(a))),
+            // every ancestor, not only the direct needs: a skipped grandparent skips a job that only asks
+            // success() (release.yml run 40630434337: candidate_fix skipped, pick ran, resume was skipped)
+            success: () => ancestors(id).every((a) => res(a) === "success"),
             failure: () => ancestors(id).some((a) => res(a) === "failure"),
             cancelled: () => Boolean(sc.cancelled),
             always: () => true,
@@ -583,7 +586,7 @@ describe("the nightly path's scenario matrix", () => {
         const r = fullRun({ judged: { held: "" } });
         assert.equal(r.title, "Release (full)");
         ran(r, "pick", ...LANE_JOBS, "recapture", "verdict", "version", "land", "publish", "site");
-        skipped(r, ...RED_EARLY, "held", "keep_builds", "candidate_branch", "unhold", "resume", "abandon_approve");
+        skipped(r, ...RED_EARLY, "held", "keep_builds", "candidate_branch", "unhold", "resume");
         assert.equal(r.jobs.verdict.outputs.state, "green-clean");
         assert.equal(r.jobs.verdict.outputs.promote, "true");
         assert.ok(!stepRan(r, "verdict", "hold"), "no hold on a green-clean verdict");
@@ -752,30 +755,40 @@ describe("the nightly path's scenario matrix", () => {
             steps: promoted,
         });
         assert.equal(r.title, "Release (promote-nightly)");
-        skipped(r, ...LANE_JOBS, "recapture", "verdict", "candidate_fix");
-        ran(r, "resume", "version", "land", "publish", "site", "unhold");
+        skipped(r, ...LANE_JOBS, "recapture", "verdict");
+        // candidate_fix runs and does nothing: skipped, it skipped resume and every job after it (run 40630434337)
+        ran(r, "candidate_fix", "resume", "version", "land", "publish", "site", "unhold");
+        assert.ok(
+            Object.values(r.jobs.candidate_fix.steps).every((s) => !s.ran),
+            "candidate_fix merges nothing",
+        );
         const download = r.jobs.version.steps["Download the approved candidate's builds"];
         assert.deepEqual([download.ran, download.with.name, download.with["run-id"]], [true, keptName, "3000"]);
         assert.deepEqual(r.reads, []);
     });
 
-    it("(10) mode abandon waits for the owner's approval outside the train's group; dispatches meanwhile still run", () => {
-        const g = new Groups();
+    it("(10) nightly-abandon.yml: anyone, no approval, its own group; trains and dispatches meanwhile still run", () => {
+        const wf = load("nightly-abandon.yml");
+        // owner, 2026-10-27: abandoning publishes nothing and the next full run undoes it, so it waits for nobody
+        assert.notEqual(wf.jobs.abandon.environment, "production");
+        assert.ok(!load("release.yml").on.workflow_dispatch.inputs.mode.options.includes("abandon"));
+        assert.ok(!Object.keys(load("release.yml").jobs).some((id) => id.startsWith("abandon")));
+        const a = simulate("nightly-abandon.yml", { github: github(), inputs: { reason: "stale" } });
+        assert.equal(a.jobs.abandon.ran, true);
+        assert.notEqual(a.concurrency.group, "release-train");
         const of = (inputs) =>
             simulate("release.yml", { github: github(), inputs, outputs: { pick: pickOutputs({ release: "false" }) } })
                 .concurrency;
-        g.arrive("abandon", of({ mode: "abandon" })); // waits for the approval in its own group
+        const g = new Groups();
+        g.arrive("abandon", a.concurrency);
         g.arrive("full-1", of({ mode: "full", scheduled: true }));
-        assert.equal(g.state("full-1"), "running", "a train never queues behind the abandon's approval wait");
+        g.arrive("abandon-2", a.concurrency);
         g.arrive("full-2", of({ mode: "full" }));
-        assert.equal(g.state("abandon"), "running");
-        // after the approval only the abandon job takes release-train: today a newer dispatch while it is pending
-        // there cancels it with nothing ended, and `gh run rerun <id> --failed` runs it again (release.yml says so)
-        const abandon = load("release.yml").jobs.abandon.concurrency;
-        assert.equal(abandon.group, "release-train");
-        g.arrive("abandon-job", { group: abandon.group, cancel: false });
-        g.arrive("full-3", of({ mode: "full" }));
-        assert.equal(g.state("abandon-job"), "cancelled");
+        assert.deepEqual(
+            ["abandon", "full-1", "abandon-2"].map((n) => g.state(n)),
+            ["running", "running", "pending"],
+            "neither waits for nor cancels the other",
+        );
     });
 
     it("(11) attempt 2 pending and replaced by a full dispatch: attempt 1's deferred red is still filed", () => {
@@ -856,6 +869,37 @@ describe("the nightly path's scenario matrix", () => {
         );
         const v = verdictOf({ ...lanes, captures: captureLane(missing) }, changed.length);
         assert.deepEqual([v.state, v.red], ["red", ["captures"]]);
+    });
+
+    it("(16) the automatic abandon: before a full or restart pick only, failing open, never on changed screenshots", () => {
+        const auto = "Abandon a stale or pipeline-made hold";
+        for (const mode of ["full", "restart"]) {
+            const r = fullRun({ mode, judged: { held: "" } });
+            assert.ok(stepRan(r, "candidate_fix", auto), `${mode} runs it`);
+        }
+        assert.ok(!stepRan(fullRun({ mode: "candidate", judged: { held: H } }), "candidate_fix", auto));
+        // a failure (the store or GitHub down) abandons nothing and the pick still runs
+        const down = fullRun({ judged: { held: "" }, steps: { candidate_fix: { auto: { fail: true } } } });
+        assert.equal(down.jobs.candidate_fix.result, "success");
+        ran(down, "pick", ...LANE_JOBS);
+        // the rule: held red by the screenshot capture only, and a newer master commit passed it
+        const N = "d".repeat(40);
+        const hold = { base: H, head: H, issue: 3994, at: Date.now() };
+        const chain = [N, H];
+        const red = { sha: H, state: "red", lane: "captures" };
+        const fixed = autoAbandon({ hold, chain, recent: [{ sha: N, state: "green-clean", lane: "" }, red] });
+        assert.equal(fixed.abandon, true, fixed.why);
+        assert.equal(autoAbandon({ hold, chain, recent: [red] }).abandon, false, "nothing newer passed it");
+        const code = { sha: H, state: "red", lane: "ci" };
+        assert.equal(
+            autoAbandon({ hold, chain, sites: [N], recent: [code] }).abandon,
+            false,
+            "a fresh code red stands",
+        );
+        const old = { ...hold, at: Date.now() - 25 * 60 * 60 * 1000 };
+        assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [code] }).abandon, true, "a stale red ends");
+        const images = { sha: H, state: "green-images", lane: "" };
+        assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [images] }).abandon, false);
     });
 
     describe("(15) a GitHub 5xx", () => {

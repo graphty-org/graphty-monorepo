@@ -505,6 +505,12 @@ export class Node implements ModelUser {
 
     /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
     private drawnAsGroup = false;
+    /**
+     * How much the last {@link drawAsGroup} grew the group's face for the perspective it was drawn
+     * under, and the camera height it was drawn for; see {@link groupDrawnForAnotherCamera}.
+     */
+    private groupFar = 1;
+    private groupEye: number | undefined = undefined;
     /** The border built for this node drawn as a group at its box's size, while it is the border drawn. */
     private groupBorder: AbstractMesh | null = null;
     /**
@@ -663,7 +669,12 @@ export class Node implements ModelUser {
             return this.size / 2;
         }
 
-        const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+        // A group's face is grown for the camera it was drawn under (see `drawAsGroup`): counted
+        // grown, the framing depended on where the camera stood before it, and the same file was
+        // framed at two zooms (issue #4088). Its box is measured without that growth.
+        const far = this.drawnAsGroup && axis !== "z" ? this.groupFar : 1;
+        const extent =
+            (this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis])) / far;
         // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
         // depends on the zoom, so counting it made the box depend on the camera that frames it.
         // The first framing measured the ring built for the camera before it, the ring was then
@@ -976,9 +987,12 @@ export class Node implements ModelUser {
         const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
-        // corner is still inside it.
-        const round = this.shapeType === "ellipse";
+        // corner is still inside it -- unless the style sizes the group (a Cytoscape.js compound
+        // parent), whose shape is drawn in its box, as Cytoscape.js draws it.
+        const round = this.shapeType === "ellipse" && this.drawnStyle?.group === undefined;
         const grow = round ? far * Math.SQRT2 : far;
+        this.groupFar = far;
+        this.groupEye = eye;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
         const stretch = this.mesh.scaling;
         const before = stretch.clone();
@@ -990,6 +1004,23 @@ export class Node implements ModelUser {
         ) {
             this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
         }
+    }
+
+    /**
+     * Whether this node is drawn as a group grown for a camera height other than the active
+     * camera's: the camera moved (a zoom to fit, a reader's orbit) after the group was last drawn,
+     * so its face no longer covers its members' box on screen until it is drawn again.
+     * @returns True when it should be drawn again.
+     * @internal
+     */
+    get groupDrawnForAnotherCamera(): boolean {
+        if (!this.drawnAsGroup || this.mesh.isDisposed()) {
+            return false;
+        }
+
+        const camera = this.mesh.getScene().activeCamera;
+        const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
+        return eye !== this.groupEye;
     }
 
     /**
@@ -1977,6 +2008,40 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The node's label, when it draws any words.
+     * @returns The label, or null for no label or an empty one.
+     * @internal
+     */
+    get wordedLabel(): RichTextLabel | null {
+        const words = this.drawnLabelText?.trim() ?? "";
+        return words === "" ? null : (this.label ?? null);
+    }
+
+    /**
+     * How the style sizes this node when it is drawn as a group following its members (`node.group*`),
+     * its lengths in the units positions are laid out in (a length of `shape.size` units is drawn
+     * {@link NodeMesh.extentPerSize} of them across, as the node's own size is).
+     * @returns The sizing, or undefined when the style sets none.
+     * @internal
+     */
+    get groupSizing(): NodeStyleConfig["group"] {
+        const group = this.drawnStyle?.group;
+        if (group === undefined) {
+            return undefined;
+        }
+
+        const per = NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        const scaled = (length: number | undefined): number | undefined =>
+            length === undefined ? undefined : length * per;
+        return {
+            ...group,
+            padding: scaled(group.padding),
+            minWidth: scaled(group.minWidth),
+            minHeight: scaled(group.minHeight),
+        };
+    }
+
+    /**
      * Whether the node is drawn as a group following its members: a region behind them, its edges and
      * their labels, stretched over its members' box.
      * @returns True while it is drawn so.
@@ -2022,6 +2087,21 @@ export class Node implements ModelUser {
 
         const fallback = this.drawnRadius;
         return { x: fallback, y: fallback, z: fallback };
+    }
+
+    /**
+     * How far the node's outline -- the size its style gives it -- reaches from its centre along each axis: its drawn
+     * surface ({@link Node.drawnHalfExtents}) plus what a border centered on the outline or inside it took from the
+     * fill. What a file's ports and a self-loop's bends are measured against (`line.sourcePort`, `line.bends`), so
+     * a Gephi loop sized from the node's size is not drawn smaller by the node's inside border.
+     * @returns The half-extents, in the units {@link Node.drawnHalfExtents} gives.
+     * @internal
+     */
+    get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const half = this.drawnHalfExtents;
+        // only a fitted mesh (a flat shape, or one sized to its extents) is drawn in by the border's inset
+        const inset = NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
     }
 
     /**

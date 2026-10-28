@@ -937,6 +937,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Draw again each group grown for a camera other than the one now looking: a group's face is
+     * sized for the perspective it is seen in, and nothing else redraws it once the layout rests,
+     * so the framing's last camera move left it sized for the camera before (issue #4088). Run last
+     * in a pass, after anything in it that moves the camera, so the frame drawn next is consistent.
+     */
+    private redrawGroupsForCamera(): void {
+        for (const { group } of this.dataManager.groups) {
+            const node = this.dataManager.nodes.get(group);
+            if (node?.groupDrawnForAnotherCamera === true) {
+                node.update();
+                // An edge to a group ends on its outline, which just moved.
+                this.forceEdgeWalk();
+            }
+        }
+    }
+
+    /**
      * Place the groups that follow their members on the box the members now make, and draw each
      * over it. A frame that places no node -- the layout stopped, nothing framing -- still applies
      * paint, and paint that resizes a member moves its group's box, while paint that rebuilds a
@@ -1246,6 +1263,10 @@ export class UpdateManager implements Manager {
             return "the camera is still moving to the selection";
         }
 
+        if (!this.dataManager.supportPoints.resting) {
+            return "the curves through their support points are still settling";
+        }
+
         if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
             return "a node's 3D model is still loading";
         }
@@ -1318,6 +1339,11 @@ export class UpdateManager implements Manager {
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
+            return false;
+        }
+
+        // Curves through support points still settling around nodes that have stopped.
+        if (!this.dataManager.supportPoints.resting) {
             return false;
         }
 
@@ -1626,6 +1652,7 @@ export class UpdateManager implements Manager {
                 this.updateStatistics();
             }
 
+            this.redrawGroupsForCamera();
             return;
         }
 
@@ -1649,6 +1676,7 @@ export class UpdateManager implements Manager {
 
         // Update statistics
         this.updateStatistics();
+        this.redrawGroupsForCamera();
     }
 
     /**
@@ -1886,7 +1914,16 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        if (this.edgesNeedWalking()) {
+        const walk = this.edgesNeedWalking();
+        // support points move after their nodes stop, until they come to rest, and their edges with them
+        const bowed = this.dataManager.supportPoints.update(
+            () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
+            this.layoutManager.edges,
+            (edge) => edge.supportEdge(),
+            walk,
+        );
+        this.sceneChanged ||= bowed;
+        if (walk || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             for (const edge of this.layoutManager.edges) {

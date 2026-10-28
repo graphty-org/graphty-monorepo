@@ -543,6 +543,28 @@ export const NodeStyle = z.strictObject({
             color: ColorStyle.optional(),
         })
         .optional(),
+    /**
+     * How a group drawn round its members -- a node other nodes name as their parent, with no box
+     * of its own -- is sized (a Cytoscape.js compound parent). Its members' box, their labels in it
+     * with `includeLabels`, is made at least `minWidth` by `minHeight` (the added width going
+     * `minWidthBiasLeft` of it to the left, 0..1, and the added height `minHeightBiasTop` of it
+     * upward; unset, half each way), then grown by `padding` on every side, or by `paddingRatio`
+     * times the members' box's `paddingOf` side (`width`, `height`, their `average`, the `min` or
+     * the `max` of the two; unset, `width`). Lengths are in the units of `shape.size`. Unset, a
+     * group reaches its largest member's radius past its members.
+     */
+    group: z
+        .strictObject({
+            padding: z.number().nonnegative().optional(),
+            paddingRatio: z.number().nonnegative().optional(),
+            paddingOf: z.enum(["width", "height", "average", "min", "max"]).optional(),
+            minWidth: z.number().nonnegative().optional(),
+            minHeight: z.number().nonnegative().optional(),
+            minWidthBiasLeft: z.number().min(0).max(1).optional(),
+            minHeightBiasTop: z.number().min(0).max(1).optional(),
+            includeLabels: z.boolean().optional(),
+        })
+        .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",

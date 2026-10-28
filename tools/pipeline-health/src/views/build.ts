@@ -25,6 +25,7 @@ import { SLAS, type SlaConfig } from "../sla/config.js";
 import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
+import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
 import { lanesTable, ownerTable, prTime, quarantineTable, trainsTable, workflowsTable } from "./snapshot-sections.js";
 import {
     causes,
@@ -214,6 +215,7 @@ class Builder {
             "hosts",
             "billing",
             "flaky-feed",
+            "benchmarks",
             "local",
         ]);
         return this.reads.ev.sources
@@ -271,6 +273,9 @@ class Builder {
                     await causes(this.reads, range),
                     await runnerMinutes(this.reads),
                     await shards(this.reads, "7d", "full"),
+                    await chronicTable(this.reads),
+                    await nonGatingTable(this.reads),
+                    await benchmarksTable(this.reads),
                 ];
             case "runners":
                 return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];

@@ -1722,9 +1722,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
+            outlineHalfExtents: READ,
+            groupSizing: READ,
+            wordedLabel: READ,
             decorationPieces: READ,
             shapeTextLabels: RENDER,
             isDrawnAsGroup: READ,
+            groupDrawnForAnotherCamera: READ,
         },
     },
     {
@@ -1773,6 +1777,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             transformEdgeMesh: RENDER,
             transformArrowCap: RENDER,
             getInterceptPoints: READ,
+            supportEdge: READ,
         },
     },
     {
@@ -1841,6 +1846,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
+            rankSets: READ,
+            supportPoints: RENDER,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
@@ -1963,6 +1970,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             scopeUser: READ,
             releaseDetachedScope: DERIVED,
         },
+    },
+    {
+        name: "SupportPoints",
+        file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "UpdateManager",

@@ -31,6 +31,7 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import type { BrowserCommand } from "vitest/node";
 
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
@@ -191,6 +192,85 @@ const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-se
  * from a local fixture, never a tile server (vitest.map-tiles.mjs).
  */
 const MAP_TILES_SETUP = path.join(dirname, "../vitest.map-tiles-setup.ts");
+
+/** A request held open: the part of a Playwright route these commands use. */
+interface HeldRoute {
+    continue(): Promise<void>;
+    abort(code?: string): Promise<void>;
+}
+
+/**
+ * Answers a held request as it was released.
+ * @param route - the request.
+ * @param refuse - whether to refuse it, as an unreachable server does.
+ * @returns when it is answered.
+ */
+const answer = (route: HeldRoute, refuse: boolean): Promise<void> =>
+    refuse ? route.abort("connectionrefused") : route.continue();
+
+/** The requests a test holds open, by the piece of URL it named, until it lets them go. */
+const held = new Map<
+    string,
+    {
+        matches: (url: URL) => boolean;
+        routes: HeldRoute[];
+        arrived: Promise<void>;
+        refuse: boolean | null;
+    }
+>();
+
+/**
+ * The commands that hold requests open until a test lets them go, so a test orders two loads by
+ * the page's own requests rather than by a clock. In the `interactions` project's `commands`.
+ */
+const heldRequestCommands: {
+    holdRequests: BrowserCommand<[fragment: string]>;
+    releaseRequests: BrowserCommand<[fragment: string, refuse: boolean]>;
+} = {
+    /**
+     * Holds every request whose URL holds `fragment`, unanswered, until it is released.
+     * @param ctx - the browser command context.
+     * @param fragment - a piece of the URL.
+     */
+    async holdRequests(ctx, fragment) {
+        const routes: HeldRoute[] = [];
+        let arrive = (): void => undefined;
+        const arrived = new Promise<void>((resolve) => {
+            arrive = resolve;
+        });
+        const matches = (url: URL): boolean => url.href.includes(fragment);
+        const entry = { matches, routes, arrived, refuse: null as boolean | null };
+        held.set(fragment, entry);
+        await ctx.page.route(matches, async (route) => {
+            if (entry.refuse === null) {
+                routes.push(route);
+                arrive();
+            } else {
+                // Asked for after the release: answered the same way at once.
+                await answer(route, entry.refuse);
+            }
+        });
+    },
+    /**
+     * Once a held request has come, lets every one go: answered as the page asked, or refused as an
+     * unreachable server refuses it. Later ones are no longer held.
+     * @param ctx - the browser command context.
+     * @param fragment - the piece of the URL they were held by.
+     * @param refuse - whether to refuse them.
+     */
+    async releaseRequests(ctx, fragment, refuse) {
+        const entry = held.get(fragment);
+        if (entry === undefined) {
+            return;
+        }
+
+        held.delete(fragment);
+        await entry.arrived;
+        entry.refuse = refuse;
+        await Promise.all(entry.routes.map((route) => answer(route, refuse)));
+        await ctx.page.unroute(entry.matches);
+    },
+};
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
@@ -823,13 +903,16 @@ const config = defineConfig({
             {
                 // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
                 // fidelity sample with its file styles and writes what was drawn to
-                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
-                // than the browser project's budget to settle, and so it is in no CI shard and not in
-                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
-                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // test/fidelity/out/. It fails a sample only for an element failing that the known
+                // failures do not list (test/fidelity/oracle/floors.ts); a sample's layout can take
+                // longer than the browser project's budget to settle, and so it is in no CI shard and
+                // not in the pre-push gate. Run with: npm run test:fidelity, and on this workstation
+                // with GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
                 // annotation session draws about one frame a second and does not settle.
+                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report> judges that run's
+                // drawings again with this comparator; npm run fidelity:ratchet applies a run.
                 define: { ...define },
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
@@ -901,7 +984,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...heldRequestCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

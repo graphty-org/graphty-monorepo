@@ -134,11 +134,13 @@ const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 /**
  * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
  * @param run the run
- * @returns full for release.yml (whose called workflows run inside it), pr, master for a push to master, else other
+ * @returns full for release.yml (whose called workflows run inside it), pr (a pull request's, including CodeQL's
+ *     default setup scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
     if (workflowFile(run.path) === "release.yml") return "full";
     if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
+    if (run.event === "dynamic" && run.head_branch?.startsWith("refs/pull/")) return "pr";
     if (run.event === "push" && run.head_branch === "master") return "master";
     return "other";
 }
@@ -502,9 +504,22 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
-    autoMergeStuck: number;
+    /** Armed, green and still unmerged 2 h after arming. */
+    autoMergeGreenStuck: number;
+    /** Armed 24 h or more, green or not. */
+    autoMergeArmedLong: number;
     screenshotBacklogMs: number;
     maxFailingSameCheck: number;
+}
+
+/** How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none. */
+function screenshotWaitMs(p: GqlPr, nowMs: number): number {
+    let ms = 0;
+    for (const c of p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) {
+        if (c.__typename === "StatusContext" && c.context === "Visual review" && c.state === "PENDING" && c.createdAt)
+            ms = Math.max(ms, nowMs - Date.parse(c.createdAt));
+    }
+    return ms;
 }
 
 /**
@@ -512,7 +527,14 @@ export interface PrStocks {
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
  */
 export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
-    const s: PrStocks = { open: 0, oldestOpenMs: 0, autoMergeStuck: 0, screenshotBacklogMs: 0, maxFailingSameCheck: 0 };
+    const s: PrStocks = {
+        open: 0,
+        oldestOpenMs: 0,
+        autoMergeGreenStuck: 0,
+        autoMergeArmedLong: 0,
+        screenshotBacklogMs: 0,
+        maxFailingSameCheck: 0,
+    };
     const failing = new Map<string, number>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) continue;
@@ -522,16 +544,9 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 6 * 60 * MIN || (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS")) s.autoMergeStuck++;
-        for (const c of rollup?.contexts.nodes ?? []) {
-            if (
-                c.__typename === "StatusContext" &&
-                c.context === "Visual review" &&
-                c.state === "PENDING" &&
-                c.createdAt
-            )
-                s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, nowMs - Date.parse(c.createdAt));
-        }
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") s.autoMergeGreenStuck++;
+        if (armed >= 24 * 60 * MIN) s.autoMergeArmedLong++;
+        s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
         // An aggregator failing alone counts too (4, "Excluded checks").
         const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
         for (const c of checks) failing.set(c, (failing.get(c) ?? 0) + 1);
@@ -773,6 +788,9 @@ export interface StressRun {
 /** One stress run as the collector's `stress` cursor keeps it (the Data sources page reads it). */
 export type StressCursorRun = StressRun & { at: number; runId: number };
 
+/** The step restricted-cpu-stress.yml runs in a shard job only when that shard's tests failed. */
+export const STRESS_FOUND = "Tests failed under the CPU quota";
+
 /**
  * One stress run's state from its jobs.
  * @param jobs the run's jobs
@@ -783,7 +801,13 @@ export function stressRunState(jobs: GhJob[]): StressRun {
     const report = jobs.find((j) => j.name === REPORT);
     const build = jobs.find((j) => j.name === "Build");
     const stress = jobs.filter((j) => j.name.startsWith("Restricted CPU"));
-    const foundFailures = stress.some((j) => j.conclusion === "failure");
+    // The test step has continue-on-error, so a shard job concludes success even when its tests failed; the
+    // workflow runs a marker step only then. A job that failed outright still counts.
+    const foundFailures = stress.some(
+        (j) =>
+            j.conclusion === "failure" ||
+            (j.steps ?? []).some((s) => s.name === STRESS_FOUND && s.conclusion === "success"),
+    );
     const buildBroke = BAD.has(build?.conclusion ?? "");
     const broke = buildBroke || !report || BAD.has(report.conclusion ?? "");
     if (!broke) {

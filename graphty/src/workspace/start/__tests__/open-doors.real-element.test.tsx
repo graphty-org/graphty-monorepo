@@ -215,8 +215,12 @@ describe("the loading doors on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // The files drew: their problems open the table docked, not over the drawing.
-        assert.strictEqual(dockOf(store.get()), "docked");
+        // The files drew: their problems open the table docked, not over the drawing. The issues are
+        // readable while the element is still settling the load, before draft.load() resolves and
+        // the app opens the dock, so wait for the dock as the single-file tests do.
+        await waitFor(() => {
+            assert.strictEqual(dockOf(store.get()), "docked");
+        });
     });
 
     it("holds a second file for the join screen, with the matches the element counts", async () => {

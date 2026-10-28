@@ -563,6 +563,18 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_UNKNOWN"
     /**
+     * A load an opened project holds has not been run since it opened, so nothing may fetch for it
+     * yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+     * once the reader approved. Nothing was fetched. `details.id`. Experimental.
+     */
+    | "E_SOURCE_PENDING"
+    /**
+     * No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+     * `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+     * `details.key`, `details.known`. Experimental.
+     */
+    | "E_LOAD_UNKNOWN"
+    /**
      * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
      */
     | "E_SOURCE_UNSUPPORTED"
@@ -673,7 +685,11 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_MEMBER"
     /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
     | "W_FUTURE_TIME"
-    /** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+    /**
+     * A member of a kind this reader does not know: skipped, the rest of the file still read
+     * (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+     * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+     */
     | "W_UNKNOWN_KIND"
     /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
     | "W_DATA_DIFFERS"
@@ -791,11 +807,25 @@ export type GraphtyWarningCode =
      */
     | "W_MODEL_NOT_KEPT_BY_URL"
     /**
-     * A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-     * out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-     * `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+     * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+     * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+     * element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+     * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+     */
+    | "W_ROUTES_NOT_LAID"
+    /**
+     * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+     * the `graphty-sources` member: query parameters of a URL load's address, or of a network
+     * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+     * names left out. See the project file guide, "What a save leaves out".
      */
     | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` entry of an opened project names a network source this release has not
+     * registered: its elements are there and the entry is written back, but it is not offered to
+     * run. `params.id` is the entry's id and `params.source` the source id.
+     */
+    | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
      * data applied. `params.graph` names the graph, null for the file's one graph.
@@ -930,6 +960,8 @@ const CODE_TABLE = {
     E_SOURCE_PARAM: "E_SOURCE_PARAM",
     E_SOURCE_LIMIT: "E_SOURCE_LIMIT",
     E_SOURCE_UNKNOWN: "E_SOURCE_UNKNOWN",
+    E_SOURCE_PENDING: "E_SOURCE_PENDING",
+    E_LOAD_UNKNOWN: "E_LOAD_UNKNOWN",
     E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
     E_SOURCE_INVALID: "E_SOURCE_INVALID",
     E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",

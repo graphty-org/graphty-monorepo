@@ -543,6 +543,17 @@ function assertNeighborhoodFilter(filter: Extract<RuleTree, { kind: "neighborhoo
 }
 
 /**
+ * Check a "source" filter's load keys.
+ * @param sources - The keys.
+ * @throws A `GraphtyError` when they are not a list of strings.
+ */
+function assertLoadKeys(sources: unknown): void {
+    if (!Array.isArray(sources) || !sources.every((key) => typeof key === "string")) {
+        throw malformed('A "source" filter needs a list of load keys.', { sources });
+    }
+}
+
+/**
  * Check one filter is a filter, all the way down, without touching the graph.
  *
  * Separate from compiling it so that a malformed filter is refused at the call that offered it
@@ -598,9 +609,7 @@ function assertFilter(filter: RuleTree): void {
         case "repeated-edge":
             return;
         case "source":
-            if (!Array.isArray(filter.sources) || !filter.sources.every((key) => typeof key === "string")) {
-                throw malformed('A "source" filter needs a list of load keys.', { sources: filter.sources });
-            }
+            assertLoadKeys(filter.sources);
 
             assertSide(filter.side, filter.kind);
 

@@ -766,7 +766,7 @@ export class Graphty extends LitElement {
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
         // A source load given no credential asks this element's store, by source and origin.
-        attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
+        attachCredentials(session.data, (source, origin, slot) => this.credentials.lookup(source, origin, slot));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -857,7 +857,11 @@ export class Graphty extends LitElement {
             }),
         );
 
-        this.#graph.engine.resize();
+        // Through the graph, like every other resize, so a size that changed since the first
+        // frame is drawn at once. Resizing the engine directly cleared the canvas with nothing
+        // drawn: a box resized in these two frames reached the ResizeObserver already at its new
+        // size, which then saw nothing to draw, and the page painted an empty canvas (#4122).
+        this.#graph.resize();
     }
 
     /**

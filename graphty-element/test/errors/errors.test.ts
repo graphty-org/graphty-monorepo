@@ -53,6 +53,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOURCE_PARAM",
     "E_SOURCE_LIMIT",
     "E_SOURCE_UNKNOWN",
+    "E_SOURCE_PENDING",
+    "E_LOAD_UNKNOWN",
     "E_SOURCE_UNSUPPORTED",
     "E_SOURCE_INVALID",
     "E_CREDENTIAL_NOT_STORABLE",
@@ -251,6 +253,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOURCE_PARAM":
         case "E_SOURCE_LIMIT":
         case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_PENDING":
+        case "E_LOAD_UNKNOWN":
         case "E_SOURCE_UNSUPPORTED":
         case "E_SOURCE_INVALID":
         case "E_CREDENTIAL_NOT_STORABLE":

@@ -8,6 +8,8 @@ import { DOT_ISSUE, dotImporter } from "../../../src/formats/dot/importer.js";
 import {
     CLUSTER_COLUMN,
     PARENT_COLUMN,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "../../../src/formats/dot/names.js";
@@ -443,12 +445,38 @@ describe("dot importer: the grammar", () => {
     });
 
     it("reports attributes of a subgraph that is not a cluster and keeps its nodes", async () => {
-        const { snapshot, report } = await load("digraph { subgraph s { rank=same; a; b } { c } }");
+        const { snapshot, report } = await load("digraph { subgraph s { rank=same; color=red; a; b } { c } }");
         expect(snapshot.ids.toArray()).toEqual(["a", "b", "c"]);
         expect(codes(report)).toEqual([DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED]);
         expect(report.issues[0].element).toBe("s");
-        expect(report.issues[0].message).toContain("rank");
+        expect(report.issues[0].message).toContain("(color)");
         expect(snapshot.nodes.get(PARENT_COLUMN)).toBeNull();
+    });
+
+    it("keeps a rank subgraph's rank and name on its nodes, nested members included", async () => {
+        const { snapshot, report } = await load(
+            "digraph { subgraph s { rank=same; a; { b } } { rank=min; c } { rank=sink; d } { rank=bogus; e } a -> c }",
+        );
+        expect(snapshot.ids.toArray()).toEqual(["a", "b", "c", "d", "e"]);
+        const rank = (row: number): unknown => snapshot.nodes.get(RANK_COLUMN)?.value(row);
+        const set = (row: number): unknown => snapshot.nodes.get(RANK_SET_COLUMN)?.value(row);
+        expect([0, 1, 2, 3].map(rank)).toEqual(["same", "same", "min", "sink"]);
+        expect([0, 1, 2, 3].map(set)).toEqual(["s", "s", "%0", "%1"]);
+        expect(snapshot.nodes.get(RANK_COLUMN)?.isSet(4)).toBe(false);
+        // a rank Graphviz does not know is dropped like any other subgraph attribute
+        expect(codes(report)).toEqual([DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED]);
+        expect(report.issues[0].message).toContain("(rank)");
+    });
+
+    it("keeps the first rank subgraph of a node in two, with a warning, and merges a reopened one", async () => {
+        const { snapshot, report } = await load(
+            "digraph { subgraph s { rank=same; a } subgraph s { rank=same; b } { rank=max; a } }",
+        );
+        expect(snapshot.nodes.get(RANK_SET_COLUMN)?.value(0)).toBe("s");
+        expect(snapshot.nodes.get(RANK_SET_COLUMN)?.value(1)).toBe("s");
+        expect(snapshot.nodes.get(RANK_COLUMN)?.value(0)).toBe("same");
+        expect(codes(report)).toEqual([DOT_ISSUE.RANK_CONFLICT]);
+        expect(report.issues[0].element).toBe("a");
     });
 
     it("turns a subgraph with cluster=true into a container even when the flag follows its members", async () => {

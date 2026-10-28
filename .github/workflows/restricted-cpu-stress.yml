@@ -199,6 +199,7 @@ jobs:
             # process it starts (vitest workers, Chromium, Dawn) share it. A failing shard does not stop
             # the run: the junit reports below are the result.
             - name: Run tests under the CPU quota
+              id: tests
               continue-on-error: true
               run: |
                   [ "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs ] || { echo "::error::no cgroup v2 on this runner"; exit 1; }
@@ -215,6 +216,13 @@ jobs:
                   TEST_COMMAND: ${{ matrix.test-command }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+
+            # continue-on-error makes the job and the step above conclude success either way, so this step is the
+            # only trace of a failure the jobs API shows: the pipeline health collector (stressRunState in
+            # tools/pipeline-health/src/collector/parse.ts) reads it by name. Keep the name in step with STRESS_FOUND there.
+            - name: Tests failed under the CPU quota
+              if: steps.tests.outcome == 'failure'
+              run: echo "::warning::tests failed in shard ${{ matrix.shard }} under the CPU quota"
 
             - name: Upload the junit reports
               if: always()

@@ -589,6 +589,43 @@
             },
             "n": 294,
             "minN": 10
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.any_no_issue"
+                }
+            },
+            "link": "/ci/chronic",
+            "id": "ci.chronic_jobs",
+            "value": {
+                "n": 1
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/ci/benchmarks",
+            "id": "ci.bench_regressions",
+            "value": {
+                "n": 0
+            }
         }
     ],
     "sections": [
@@ -893,6 +930,216 @@
                 "count": 29,
                 "allWithin": true
             }
+        },
+        {
+            "kind": "table",
+            "id": "chronic",
+            "rows": [
+                {
+                    "cells": {
+                        "job": {
+                            "t": "sub",
+                            "main": {
+                                "t": "name",
+                                "v": "CI / Performance Benchmarks"
+                            },
+                            "sub": {
+                                "t": "name",
+                                "v": "release.yml"
+                            }
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 7,
+                            "of": 10
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 70,
+                            "unit": "pct"
+                        },
+                        "pass": {
+                            "t": "ago",
+                            "at": "2026-10-24T12:31:00Z"
+                        },
+                        "issue": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "ci.no_issue"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "non-gating",
+            "rows": [
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Performance Benchmarks"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 14
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 10
+                        },
+                        "rate": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "num",
+                                "n": 29,
+                                "unit": "pct"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Story tests (${{ matrix.name || matrix.project }})"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 212
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 9
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 96,
+                            "unit": "pct"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Visual report"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 160
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 100,
+                            "unit": "pct"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Flaky screenshots"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "rate": {
+                            "t": "none"
+                        }
+                    },
+                    "past": true
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "benchmarks",
+            "rows": [
+                {
+                    "cells": {
+                        "benchmark": {
+                            "t": "name",
+                            "v": "algorithms: PageRank n=10000"
+                        },
+                        "latest": {
+                            "t": "num",
+                            "n": 51,
+                            "unit": "ms"
+                        },
+                        "ratio": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "num",
+                                "n": 1.27,
+                                "unit": "x"
+                            }
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51],
+                                "breach": [null, null, null, null, null, null, null, null, null, null, null, null, null]
+                            }
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 13
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "benchmark": {
+                            "t": "name",
+                            "v": "algorithms: Dijkstra n=10000"
+                        },
+                        "latest": {
+                            "t": "num",
+                            "n": 18,
+                            "unit": "ms"
+                        },
+                        "ratio": {
+                            "t": "num",
+                            "n": 1,
+                            "unit": "x"
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18],
+                                "breach": [null, null, null, null, null, null, null, null, null, null, null, null, null]
+                            }
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 13
+                        }
+                    }
+                }
+            ]
         }
     ]
 }

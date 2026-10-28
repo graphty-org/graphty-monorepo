@@ -401,13 +401,15 @@ describe("GraphML styles: yEd", () => {
             `${YED_HEAD}<node id="a"/><node id="b"/>
             <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="40" y="60"/></y:Path><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
             <edge source="b" target="a"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#00FF0080" type="dotted" width="1.0"/><y:Arrows source="none" target="none"/><y:BendStyle smoothed="false"/></y:PolyLineEdge></data></edge>
+            <edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:Arrows source="none" target="delta"/></y:PolyLineEdge></data></edge>
             </graph></graphml>`,
         );
-        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, false]);
-        expect(resolveStyles(styles, "edge", "lineStyle", snapshot)).toEqual(["dashed", "dotted"]);
-        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#ff0000", "#00ff00"]);
-        expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([null, 0.501961]);
-        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle", "none"]);
+        expect(resolveStyles(styles, "edge", "curved", snapshot).slice(0, 2)).toEqual([true, false]);
+        expect(resolveStyles(styles, "edge", "lineStyle", snapshot).slice(0, 2)).toEqual(["dashed", "dotted"]);
+        expect(resolveStyles(styles, "edge", "color", snapshot).slice(0, 2)).toEqual(["#ff0000", "#00ff00"]);
+        expect(resolveStyles(styles, "edge", "opacity", snapshot).slice(0, 2)).toEqual([null, 0.501961]);
+        // yEd's standard arrow is a triangle with its back pressed in (a vee); its delta is the plain triangle
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
     });
 
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {

@@ -440,22 +440,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 ### Test Projects by Package
 
-**algorithms:**
-- `default` - Node.js environment
-- `browser` - Playwright browser tests
-
-**layout:**
-- Single test project (Node.js)
-
-**graph-format:**
-- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
-
-**graph-io:**
-- Node.js project (`vitest.config.ts`); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
-- `browser` (`vitest.browser.config.ts`, shard `graph-io-browser`): the network sources in Chromium against a local server on another origin, with and without CORS headers
-
-**graph-samples:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+Each package's test projects are listed in its own CLAUDE.md ("Test projects", or its testing
+section). The two packages without a CLAUDE.md:
 
 **babylonjs-map:**
 - Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
@@ -464,36 +450,10 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
 - Storybook demo (`npm run storybook`, `stories/`): every layout, algorithm, generator, small dataset and file format in a real Cytoscape instance, one story per tile; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The capture browser has no WebGPU, so the screenshots show the CPU path; the GPU path is covered by the package's GPU tests
 
-**webgpu-graph-algorithms:**
-- `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
-- `node-limits` - the GPU lane only (real device limits)
-- `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
-
-**graphty:**
-- `browser` - Browser-based tests (Playwright)
-- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
-- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`): that is the project's screenshot capture
-- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
-
-**graphty-element:**
-- `default` - Node.js tests
-- `browser` - Playwright tests (5 CI shards)
-- `storybook` - Component tests (5 CI shards)
-- `interactions` - Interaction tests
-- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in the CI browser shards
-- `lifecycle` - autosave across reloads, closes, discards, freezes, crashes and kills: Node tests that launch Chromium, Firefox and WebKit (Playwright's library API) and Chrome for Testing over the raw DevTools protocol, on the built `./bundle`; its own CI shard, `graphty-element-lifecycle`, with `autosave-engines`
-- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default; its key in `VITE_GOOGLE_API_KEY`). Runs in the full run once per UTC day (`tools/llm-due.mjs`, which warns at $60 in a month), never on a pull request
-
 ### Running Specific Test Projects
 
-```bash
-# In graphty-element:
-npm test -- --project=browser
-npm test -- --project=storybook
-
-# In algorithms:
-npm test -- --project=browser
-```
+`npm test -- --project=<name>` inside the package; the project names are in its CLAUDE.md, and
+`./tools/run-tests.sh --list` names the CI shards.
 
 ### Coverage Thresholds
 
@@ -547,6 +507,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `release-watch.yml` | Announces on the `Release status` issue a Release run that ended badly without announcing itself |
 | `bisect.yml` | Finds the merge that turned a full run red (`tools/bisect-core.mjs`, `tools/bisect-ci.mjs`) |
 | `base-check.yml` | Runs one test file on master's code at a pull request's base, so a failure the pull request did not cause is known |
+| `nightly-abandon.yml` | Ends the held nightly candidate without promoting it (`-f reason="<why>"`); anyone, no approval, its own concurrency group, never the release train's |
 | `promote.yml` | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`) |
 | `master-guard.yml` | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue |
 | `coverage.yml` | Called by the full run: merges coverage and publishes it to Coveralls |
@@ -605,7 +566,11 @@ from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candi
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`). The hold ends on that promotion, or by the owner's `mode: abandon`.
+(`mode: promote-nightly`). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
+reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
+capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
+has a newer green build. Changed screenshots awaiting review never end a hold.
 
 Every outcome is announced on the one open `Release status` issue (`tools/release-status.mjs`) and pushed to the
 owner's phone through Pushover. A failed publish opens a `Release held: publish failed on <sha>` issue; re-run
@@ -648,56 +613,9 @@ resolved dependencies changed. `graphty-element-lifecycle` runs only in the full
 
 ## Architecture & Key Patterns
 
-### Algorithm Implementation Pattern
-
-```typescript
-// Algorithms in @graphty/algorithms take a frozen @graphty/graph-format snapshot:
-export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
-    // Work over node indices (0..nodeCount-1) and the snapshot's CSR arrays;
-    // return typed arrays indexed by node (or edge) index, plus scalars.
-}
-```
-
-A required per-call input, such as a source node index, sits between the snapshot and the options
-(`dijkstra(snapshot, source, options?)`). Ids appear only at the boundary: `snapshot.ids.requireIndex(id)`
-on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way out.
-
-### Layout Function Interface
-
-```typescript
-// Layouts in @graphty/layout take a snapshot and return a flat position array:
-type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => LayoutResult;
-// LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
-```
-
-### Web Component Architecture (graphty-element)
-
-- **Graph.ts** - Core orchestrator class
-- **Manager pattern** - Side effects handled by dedicated managers
-- **Registry pattern** - Extensible layouts, algorithms, data sources
-- **Babylon.js** - 3D rendering with mesh instancing
-- **Lit** - Web Component framework
-
-### Plugin System
-
-Every extension point is exported from `@graphty/graphty-element/extend`:
-
-```typescript
-import {
-    Algorithm,
-    DataSource,
-    LayoutEngine,
-    registerFormatWriter,
-    registerSnapshotLayout,
-} from "@graphty/graphty-element/extend";
-
-Algorithm.register(MyAlgorithm);                  // a DeclaredAlgorithm subclass
-registerSnapshotLayout({ descriptor, compute });  // a static layout over the snapshot
-LayoutEngine.register(MyIterativeEngine);         // an iterative (step-by-step) layout engine
-DataSource.register(MyDataSource);                // a reader that parses a file itself
-DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
-registerFormatWriter({ descriptor, exporter });   // a graph-io exporter as a file writer
-```
+The algorithm signature is in `algorithms/CLAUDE.md`, the layout function interface in
+`layout/CLAUDE.md`, and graphty-element's architecture and how to register an extension
+(`@graphty/graphty-element/extend`) in `graphty-element/CLAUDE.md`.
 
 ## Key Files to Understand
 
@@ -922,18 +840,36 @@ starts the same server from the owner's own shell.
   them (`git pull`), never rebase.
 - The guide: `visual-review/README.md`, published as https://graphty.app/docs/visual-review/.
 
-### GitHub Pages URLs
+### Sites and channels
 
-**IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):
+The site (app, docs, Storybooks, hosted datasets) is served on three channels, each from its own
+build:
+
+| Channel | URL | Served by | Moves when | npm dist-tag |
+|---------|-----|-----------|------------|--------------|
+| canary | `https://canary.graphty.app` | this repository's GitHub Pages | every green master build (`deploy-pages.yml`) | none |
+| nightly | `https://nightly.graphty.app` | `graphty-org/graphty-nightly` | a full run's commit is promoted (`release.yml`, `promote-nightly`) | `next` |
+| production | `https://graphty.app` | `graphty-org/graphty-site` | only `promote.yml`, on the owner's go | `latest` |
+
+**IMPORTANT**: links in docs, READMEs and code use `graphty.app` (never `graphty-org.github.io`, and
+never a canary or nightly URL, which change under the reader):
 - Documentation: `https://graphty.app/docs/{package}/`
 - Storybook: `https://graphty.app/storybook/{package}/`
+
+Each channel serves its own build's datasets at `/data/graph-samples/v1/`, and the graphty app reads
+the ones of the channel it is on (`graphty/sites/<channel>.json`, written as `site.json`). The
+published graph-samples always downloads from `https://graphty.app/data/graph-samples/v1/`, so a
+production promotion lays the promoted datasets over the ones production already serves and never
+changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ### Build System
 
 - Nx caches build outputs in `.nx/cache`
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
-- A nightly promotion ships the builds of its own CI call on the commit every lane tested (no rebuild)
+- Nothing is rebuilt for a channel: canary deploys the master build's kept site (`site-<sha>`), a
+  nightly promotion publishes to npm `next` the builds of its own CI call on the commit every lane
+  tested, and a production promotion moves npm `latest` and graphty.app to that same nightly
 
 ### Breaking changes and major releases
 

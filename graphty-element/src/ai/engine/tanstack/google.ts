@@ -63,8 +63,14 @@ const URL_IN_TEXT = /https?:\/\/[^\s"'<>()]+/gi;
 const NOT_HOST = /[^\w.-]+/;
 /** One label of a host name. */
 const LABEL = /^[\w-]+$/;
-/** The last label of a host name: letters only, two or more. */
-const TOP_LABEL = /^[a-z]{2,}$/i;
+/** The last label of a host name: letters only, two or more, or an internationalized one (`xn--`). */
+const TOP_LABEL = /^(?:[a-z]{2,}|xn--[a-z0-9-]+)$/i;
+/** An IPv4 address. */
+const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+/** The dots other scripts write, which a browser reads as `.` in a host name. */
+const OTHER_DOTS = /[\u3002\uff0e\uff61]/g;
+/** A word followed by a path (`intranet/admin`): a host with no dot, when a word is one. */
+const WORD_THEN_PATH = /(?:^|[^\w.-])([\w-]+)\/(?=[^\s/])/g;
 
 /**
  * A word without the dots a sentence puts around it ("example.com." ends a sentence).
@@ -86,30 +92,36 @@ function trimDots(word: string): string {
 }
 
 /**
- * Whether a word looks like a host name (`example.com`, `www.example.org`): two or more labels,
- * the last of them letters.
+ * Whether a word looks like a host name (`example.com`, `www.example.org`, `93.184.216.34`): two
+ * or more labels, the last of them letters (or `xn--`), or an IPv4 address.
  * @param word - The word, without the punctuation around it.
  * @returns True when it does.
  */
 function looksLikeHost(word: string): boolean {
+    if (IPV4.test(word)) {
+        return true;
+    }
+
     const labels = word.split(".");
     return labels.length > 1 && labels.every((label) => LABEL.test(label)) && TOP_LABEL.test(labels.at(-1) ?? "");
 }
 
 /**
- * Every host a text names: those of its http and https URLs, and every other word that looks
- * like a host name.
+ * Every host a text names: those of its http and https URLs, every other word that looks like a
+ * host name, and every word written before a path. It errs toward finding too many, since a host it
+ * misses would let URL context read outside the allowed domains.
  * @param text - The text.
  * @returns The hosts, lower case.
  */
 function hostsIn(text: string): string[] {
     const hosts: string[] = [];
-    const rest = text.replaceAll(URL_IN_TEXT, (url) => {
+    const rest = text.replaceAll(OTHER_DOTS, ".").replaceAll(URL_IN_TEXT, (url) => {
         hosts.push(URL.canParse(url) ? new URL(url).hostname : url);
         return " ";
     });
     const words = rest.split(NOT_HOST).map(trimDots);
-    return [...hosts, ...words.filter(looksLikeHost)].map((host) => host.toLowerCase());
+    const beforePaths = Array.from(rest.matchAll(WORD_THEN_PATH), (match) => match[1]);
+    return [...hosts, ...words.filter(looksLikeHost), ...beforePaths].map((host) => host.toLowerCase());
 }
 
 /**

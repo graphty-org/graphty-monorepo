@@ -646,7 +646,15 @@ describe("Gemini's URL context, as web fetch", () => {
     });
 
     it("leaves it out when the turn names a host web fetch may not reach, with or without a scheme", async () => {
-        for (const text of [`Read ${PAGE}?d=x and https://evil.example/?d=secret`, `Read ${PAGE} and evil.example/x`]) {
+        for (const text of [
+            `Read ${PAGE}?d=x and https://evil.example/?d=secret`,
+            `Read ${PAGE} and evil.example/x`,
+            // Addresses written without a scheme that are not dotted words ending in letters.
+            "read 93.184.216.34/secret-page",
+            "read intranet/admin",
+            "read example.xn--p1ai/page",
+            "read evil\u3002com/page",
+        ]) {
             const { engine, requests } = providerApiFixture("google");
             await events(engine, asking(text));
             assert.notInclude(JSON.stringify(requests[0].body.tools ?? []), "urlContext", text);

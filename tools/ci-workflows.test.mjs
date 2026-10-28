@@ -3992,6 +3992,7 @@ describe("release.yml", () => {
     const held = job(release, "held");
     const version = job(release, "version");
     const land = job(release, "land");
+    const landSh = readFileSync(new URL("./channel/land.sh", import.meta.url), "utf8");
     const publish = job(release, "publish");
     const approve = job(release, "approve");
 
@@ -4002,13 +4003,16 @@ describe("release.yml", () => {
             "git push --no-verify origin :refs/heads/channel/candidate ||",
             // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
-            // a nightly with nothing versioned moves only the site tag and channel/nightly
-            'git push --atomic --no-verify origin "${refs[@]}"',
-            'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
             // the site job's deployed.json, in its checkout of graphty-nightly
             "git push --quiet origin HEAD",
         ]);
-        assert.match(land, /git push --atomic/);
+        // the land job's pushes are in its script: a nightly with nothing versioned moves only the site tag and
+        // channel/nightly; a release pushes the merge and its tags together
+        assert.match(land, /run: tools\/channel\/land\.sh\n/);
+        assert.deepEqual(landSh.match(/git push[^\n]*/g), [
+            'git push --atomic --no-verify origin "${refs[@]}"',
+            'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
+        ]);
         assert.match(job(release, "site"), /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/);
         // the key reaches only the land job and the channel/candidate jobs (candidate_branch, abandon), which install nothing and run no nx
         assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 4);
@@ -4461,7 +4465,7 @@ describe("release.yml", () => {
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
         // and the next train that lands closes it, only after the push
         const close = land.indexOf("tools/release-held.sh close");
-        assert.ok(close > land.indexOf("git push --atomic"), "closed only after the release is on master");
+        assert.ok(close > land.indexOf("tools/channel/land.sh"), "closed only after the release is on master");
     });
 
     // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
@@ -5015,10 +5019,7 @@ describe("release.yml", () => {
         // tested commit T, the version commit V made on T and kept as a bundle, and optionally a commit that
         // reached master after T (`moved`) or one that edits the same version line (`conflict`).
         const land_ = (opts = {}) => {
-            const script =
-                /- name: Push the version commit and its tags to master\n\s+id: push\n\s+run: \|\n([\s\S]*?)\n {14}env:/.exec(
-                    land,
-                )[1];
+            const script = landSh;
             const dir = mkdtempSync(join(tmpdir(), "release-land-"));
             const git = (cwd, ...args) => {
                 const r = spawnSync("git", args, { cwd, encoding: "utf8" });

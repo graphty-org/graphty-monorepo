@@ -122,11 +122,22 @@ describe("the driver", () => {
             "fix-forward",
             "approval-promotes",
             "abandon",
+            "land-clean",
+            "land-moved",
+            "land-conflict",
             "donor-lanes",
         ]);
         const out = execFileSync("node", [fileURLToPath(new URL("rehearse.mjs", import.meta.url)), "--list"], {
             encoding: "utf8",
         });
         assert.deepEqual(out.trim().split("\n"), Object.keys(SCENARIOS));
+    });
+    it("lands a release cleanly, after master moved, and holds it on a version conflict", () => {
+        const out = execFileSync(
+            "node",
+            [fileURLToPath(new URL("rehearse.mjs", import.meta.url)), "land-clean", "land-moved", "land-conflict"],
+            { encoding: "utf8" },
+        );
+        assert.deepEqual(out.trim().split("\n"), ["ok land-clean", "ok land-moved", "ok land-conflict"]);
     });
 });

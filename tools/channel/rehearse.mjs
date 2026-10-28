@@ -323,11 +323,18 @@ async function world(clone, sha, origin) {
         );
     };
     // git in the clone, and a commit made from parents and files without touching its checkout
-    const git = (args, env = {}) =>
-        execFileSync("git", ["-C", clone, ...args], {
-            encoding: "utf8",
-            env: { ...process.env, ...IDENTITY, ...env },
-        }).trim();
+    const git = (args, env = {}, mayFail = false) => {
+        try {
+            return execFileSync("git", ["-C", clone, ...args], {
+                encoding: "utf8",
+                env: { ...process.env, ...IDENTITY, ...env },
+                stdio: ["ignore", "pipe", mayFail ? "ignore" : "pipe"],
+            }).trim();
+        } catch (e) {
+            if (mayFail) return null;
+            throw e;
+        }
+    };
     const commit = (parents, files, message, treeOf = parents[0]) => {
         const env = { GIT_INDEX_FILE: join(dir, `index-${++step}`) };
         git(["read-tree", treeOf], env);
@@ -455,7 +462,72 @@ async function world(clone, sha, origin) {
         assert.equal(await check(forged), false, "and refuses a replaced one");
         return JSON.parse(stdout);
     };
-    return { store, tool, verdict, rerun, hold, gh, openIssues, close, commit, setHead, originRef, deploySite };
+    // release.yml's land job (tools/channel/land.sh) in the clone against the scratch origin: version is the version
+    // commit, kept as the bundle the version job uploads; moveTo, when set, is a commit the origin's master moves to
+    // while the land's first push is on its way in, which refuses that push as a lost race does
+    const land = async ({ at, version, tags, moveTo }) => {
+        git(["update-ref", "refs/heads/release", version]);
+        mkdirSync(join(dir, "release"), { recursive: true });
+        git(["bundle", "create", join(dir, "release", "release.bundle"), "release", `^${at}`]);
+        for (const tag of tags) git(["tag", "-d", tag], {}, true);
+        if (moveTo) {
+            git(["push", "--quiet", "--no-verify", "origin", `${moveTo}:refs/rehearsal/moved`]);
+            const hook = join(origin, "hooks", "pre-receive");
+            writeFileSync(
+                hook,
+                `#!/bin/sh\nrm -f "${hook}"\nenv -u GIT_QUARANTINE_PATH git update-ref refs/heads/master ${moveTo}\n` +
+                    'echo "rehearsal: master moved during the push" >&2\nexit 1\n',
+            );
+            chmodSync(hook, 0o755);
+        }
+        const out = join(dir, `out-${++step}`);
+        writeFileSync(out, "");
+        const r = await run("bash", ["tools/channel/land.sh"], {
+            cwd: clone,
+            env: {
+                ...base,
+                GITHUB_OUTPUT: out,
+                RUNNER_TEMP: dir,
+                HUSKY: "0",
+                SHA: at,
+                COMMIT: version,
+                TAGS: tags.join(","),
+                DIST_TAG: "latest",
+                HELD: "",
+                TESTED: at,
+            },
+        }).then(
+            (x) => ({ code: 0, log: x.stdout + x.stderr }),
+            (e) => ({ code: e.code, log: `${e.stdout}${e.stderr}` }),
+        );
+        const tagOnOrigin = (tag) => {
+            try {
+                return execFileSync("git", ["-C", origin, "rev-parse", `refs/tags/${tag}^{commit}`], {
+                    encoding: "utf8",
+                    stdio: ["ignore", "pipe", "ignore"],
+                }).trim();
+            } catch {
+                return null;
+            }
+        };
+        return { ...r, pushed: readFileSync(out, "utf8").includes("pushed=true"), tagOnOrigin };
+    };
+    return {
+        store,
+        tool,
+        verdict,
+        rerun,
+        hold,
+        gh,
+        openIssues,
+        close,
+        commit,
+        setHead,
+        originRef,
+        deploySite,
+        land,
+        git,
+    };
 }
 
 // the slot's pick on a master whose newest kept site is `sha`
@@ -510,6 +582,20 @@ async function endHold(w, why, env = {}) {
 }
 
 /** The scenarios, in the design's order; each gets a fresh scratch world. */
+// a version commit on at: graph-format's version field and changelog, as nx release writes them
+function versionCommit(w, at, version) {
+    const pkg = w
+        .git(["show", `${at}:graph-format/package.json`])
+        .replace(/"version": "[^"]*"/, `"version": "${version}"`);
+    const log = `## ${version}\n\nRehearsal.\n\n${w.git(["show", `${at}:graph-format/CHANGELOG.md`], {}, true) ?? ""}`;
+    return w.commit(
+        [at],
+        { "graph-format/package.json": `${pkg}\n`, "graph-format/CHANGELOG.md": log },
+        `chore(release): publish graph-format@${version}`,
+    );
+}
+const parentsOf = (w, c) => w.git(["rev-parse", `${c}^1`, `${c}^2`]).split("\n");
+
 export const SCENARIOS = {
     // a green run with no changed picture: verdict green-clean, nothing filed, nothing held, nightly promotes
     "green-clean-promote": async (w, sha) => {
@@ -667,6 +753,44 @@ export const SCENARIOS = {
             RUN_URL: runUrl("9602"),
         });
         assert.equal(resume.resume, "false", "an approval of an abandoned head promotes nothing");
+    },
+    // the land job: the version commit merged into master's tip, pushed with its tags in one atomic push, the
+    // tags on the version commit itself
+    "land-clean": async (w, sha) => {
+        const v = versionCommit(w, sha, "9.0.1");
+        const r = await w.land({ at: sha, version: v, tags: ["graph-format@9.0.1"] });
+        assert.equal(r.code, 0, r.log);
+        assert.ok(r.pushed, "the land reports the push");
+        const head = w.originRef("master");
+        assert.deepEqual(parentsOf(w, head), [sha, v], "master is a merge of its old tip and the version commit");
+        assert.equal(r.tagOnOrigin("graph-format@9.0.1"), v, "the tag is on the version commit, not the merge");
+    },
+    // master moves while the land's push is on its way in: the push is refused, and the land merges again on the
+    // new tip and pushes, never forcing
+    "land-moved": async (w, sha) => {
+        const v = versionCommit(w, sha, "9.0.2");
+        const moved = w.commit(
+            [sha],
+            { "tools/channel/REHEARSAL-MOVED.md": "a commit that reached master\n" },
+            "moved",
+        );
+        const r = await w.land({ at: sha, version: v, tags: ["graph-format@9.0.2"], moveTo: moved });
+        assert.equal(r.code, 0, r.log);
+        assert.match(r.log, /try 1: master moved during the push; merging again on its new tip/);
+        assert.deepEqual(parentsOf(w, w.originRef("master")), [moved, v], "merged again on the moved tip");
+        assert.equal(r.tagOnOrigin("graph-format@9.0.2"), v);
+    },
+    // a commit on master since the candidate changed the same version line: the release is held, nothing pushed
+    "land-conflict": async (w, sha) => {
+        const v = versionCommit(w, sha, "9.0.3");
+        const other = versionCommit(w, sha, "8.8.8");
+        w.git(["push", "--quiet", "--no-verify", "origin", `${other}:refs/heads/master`]);
+        const r = await w.land({ at: sha, version: v, tags: ["graph-format@9.0.3"] });
+        assert.notEqual(r.code, 0, "the land fails");
+        assert.match(r.log, /does not merge cleanly into master/);
+        assert.equal(r.pushed, false);
+        assert.equal(w.originRef("master"), other, "master is untouched");
+        assert.equal(r.tagOnOrigin("graph-format@9.0.3"), null, "no tag was pushed");
     },
     // a real green full run's lanes (and, when fetched, its captures), judged again on this commit: the same verdict
     // with its captures, green-clean with synthesized unchanged ones; skipped when no donor was fetched

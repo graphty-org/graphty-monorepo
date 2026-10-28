@@ -239,7 +239,7 @@ function chartOnNode(
     }
     const ownSize = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
     const side = shorterSide(node);
-    const fitted = sizeSync || !(ownSize > 0);
+    const fitted = sizeSync || Number.isNaN(ownSize) || ownSize <= 0;
     const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : ownSize), side };
     for (const [property, v] of Object.entries(plotChart(chart.kind, options, values, colors, box))) {
         node.put(property, v);

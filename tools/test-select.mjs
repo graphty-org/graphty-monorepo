@@ -1451,7 +1451,8 @@ function runWhole(family, runs, out) {
 
 /**
  * A family that runs whole in a pull request, packed into bins of at most BIN_LIMIT_MS like a selection (#4160):
- * every test file of its shards, each bin one `vitest run` without coverage (the full run measures coverage). A
+ * every test file of its shards, each bin one `vitest run` without coverage (the full run measures coverage), and
+ * `whole` naming its package (tools/ci-test-matrix.mjs plan() keeps it only when nx calls that affected). A
  * family whose files are not known (no import graph) or whose command is not a plain vitest run stays whole.
  * @param root the checkout
  * @param family the family name
@@ -1477,6 +1478,8 @@ function packWhole(root, family, runs, fileMs, out) {
             family,
             shard: shard.shard,
             covers,
+            // a whole family, like a shard that runs whole, runs only when nx calls its package affected
+            whole: shard.package,
             ...bin,
             command: selectedCommand(root, shard, bin.files),
             why: Object.fromEntries(bin.files.map((f) => [f, why])),
@@ -1510,7 +1513,7 @@ export function planSummary(plan, affected) {
     if (plan.none.length > 0) {
         lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
     }
-    for (const bin of plan.bins) {
+    for (const bin of plan.bins.filter((b) => !b.whole || !affected || affected.includes(b.whole))) {
         lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
         for (const f of bin.files) {
             lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);

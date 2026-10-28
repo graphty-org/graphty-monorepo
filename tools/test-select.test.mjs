@@ -1834,6 +1834,11 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             include.every((e) => e.files),
             "every graphty entry is a bin, no whole slice beside them",
         );
+        assert.deepEqual(
+            matrixPlan(["layout"], undefined, out).filter((e) => e.package === "graphty"),
+            [],
+            "a packed whole family of a package nx does not call affected stays out, as its shards would",
+        );
     });
 
     it("counts every file of a family touched when a shard runs whole on a file-level answer it does not rely on", () => {

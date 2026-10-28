@@ -103,6 +103,14 @@ const TEXT_NOT_IMPORTS = {
                 "it generates and names them in its comments; nothing loads them",
         },
     ],
+    // The app reads graphty-element from source, so its build carries the same in-page code chunk.
+    "@graphty/graphty": [
+        {
+            files: /^dist\/assets\/program-[\w-]+\.js$/,
+            names: ["baz", "flow-enums-runtime", "react-hot-loader"],
+            reason: "graphty-element's in-page code chunk, built into the app: see graphty-element's entry above",
+        },
+    ],
 };
 
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));

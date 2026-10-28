@@ -9,6 +9,7 @@
 import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { toSafeError } from "../../../src/ai/safeError";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
@@ -207,7 +208,20 @@ describe("LlmRegressionTestHarness", () => {
             );
         });
 
+        it("a depleted prepaid balance is the owner's to fix, as the AiController keeps the error", () => {
+            // Google, 2026-10-27: HTTP 402. The controller's last error is toSafeError's plain Error, not
+            // an APICallError: only its name, message and statusCode are left.
+            const depleted = apiError(
+                402,
+                "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.",
+            );
+            assert.ok(accountRefusalOf(depleted));
+            assert.strictEqual(accountRefusalOf(toSafeError(depleted)), "HTTP 402");
+            assert.strictEqual(accountRefusalOf(toSafeError(apiError(401, ""))), "HTTP 401");
+        });
+
         it("a rate limit or an ordinary failure is not an account refusal", () => {
+            assert.strictEqual(accountRefusalOf(toSafeError(apiError(429, '{"type":"rate_limit_error"}'))), null);
             assert.strictEqual(accountRefusalOf(apiError(429, '{"type":"rate_limit_error"}')), null);
             assert.strictEqual(accountRefusalOf(apiError(500, "overloaded")), null);
             assert.strictEqual(accountRefusalOf(new Error("tool failed")), null);

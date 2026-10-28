@@ -445,7 +445,7 @@ export function RowStyle({
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const stored = useWorkspaceState((state) => state.styleSide);
-    const scope = useFocusLine<HTMLDivElement>(panel ?? below ?? row.join(" "));
+    const scope = useFocusLine<HTMLDivElement>(session, panel ?? below ?? row.join(" "));
     useLabelColumn(scope);
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];

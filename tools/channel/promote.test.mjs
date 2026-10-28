@@ -66,6 +66,11 @@ describe("promote.mjs decide: a promotion that may go", () => {
         assert.deepEqual(refusals, []);
     });
 
+    it("accepts a green-clean nightly that carries an owner-approved baselines tree", () => {
+        const approved = { ...nightly, screenshots: `approved:${"b".repeat(40)}` };
+        assert.deepEqual(decide(facts({ nightly: approved })).refusals, []);
+    });
+
     it("promotes the first time, with nothing served yet", () => {
         assert.deepEqual(decide(facts({ current: null, ancestry: null })).refusals, []);
     });
@@ -89,7 +94,7 @@ describe("promote.mjs decide: refusals", () => {
     it("refuses a nightly that was not clean or approved", () => {
         refusedFor(facts({ store: { ...facts().store, verdict: "green-images" } }), /not a clean or approved nightly/);
         refusedFor(facts({ store: { ...facts().store, verdict: "red" } }), /verdict red/);
-        // green-clean with a screenshots field that is not "unchanged" is not clean
+        // green-clean with a screenshots field that is neither "unchanged" nor approved:<tree> is not clean
         refusedFor(facts({ nightly: { ...nightly, screenshots: "approved:x" } }), /not a clean or approved nightly/);
         // approved without a signed baselines tree is not approved
         refusedFor(facts({ store: { ...facts().store, verdict: "approved" } }), /screenshots unchanged/);

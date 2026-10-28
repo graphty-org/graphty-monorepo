@@ -1,0 +1,54 @@
+name: Release rehearsal
+
+# A rehearsal of the nightly path (issue #4068): the real tools release.yml and release-rerun.yml run -- the pick,
+# the verdict, the same-commit re-run decision, the hold and the nightly promotion decision -- against a scratch
+# results store, a scratch gh and a scratch clone, with each lane's result taken from a scenario
+# (tools/channel/rehearse.mjs). Nothing real is filed, held, promoted or published, and nothing is paid for.
+# Scenarios: green-clean promote; red on attempt 1, then green on the re-run; red twice, then held.
+
+on:
+    push:
+        branches: [master]
+        paths: &paths
+            - .github/workflows/release*.yml
+            - .github/workflows/ci.yml
+            - .github/workflows/bisect.yml
+            - .github/workflows/deploy-pages.yml
+            - .github/workflows/master-guard.yml
+            - tools/channel/**
+            - tools/full-run.mjs
+            - tools/release-rerun.mjs
+            - tools/release-due.mjs
+            - tools/release-status.mjs
+            - tools/release-held.sh
+            - tools/results/**
+            - tools/results-service/**
+    pull_request:
+        branches: [master]
+        paths: *paths
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-rehearsal-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    rehearse:
+        name: Rehearse the nightly path
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            # the pick reads the first-parent history, and the third scenario's green parent
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 200
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Rehearse
+              run: node tools/channel/rehearse.mjs

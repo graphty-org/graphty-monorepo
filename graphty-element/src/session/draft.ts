@@ -20,7 +20,9 @@ import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
-import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
+import { historyMark } from "./loadLine";
+import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
@@ -31,6 +33,11 @@ import type {
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    Endpoint,
+    JoinChoices,
+    JoinReport,
+    JoinShape,
+    JoinSuggestion,
     LoadChoices,
     LoadDraft,
     LoadMapping,
@@ -60,6 +67,19 @@ interface DraftHost {
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
     released(draft: Draft): void;
+    /** For a draft prepared `onto: "graph"`: the graph as a join reads it. */
+    joinGraph?(): JoinGraph;
+    /**
+     * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
+     * onto the graph as one step.
+     */
+    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape) => Promise<void>;
+}
+
+/** A table to join, with the source it was read from. */
+export interface JoinedTable extends JoinTable {
+    /** The source, as `data.sources()` describes it. */
+    readonly source: ImportSource;
 }
 
 /** One table as the draft holds it. */
@@ -93,9 +113,12 @@ export interface ReadSource {
 export const LOAD_ROLES: Readonly<
     Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
 > = Object.freeze({
-    nodes: Object.freeze({ takes: Object.freeze(["key", "label", "time"] as const), requires: Object.freeze([]) }),
+    nodes: Object.freeze({
+        takes: Object.freeze(["key", "label", "time", "kind"] as const),
+        requires: Object.freeze([]),
+    }),
     edges: Object.freeze({
-        takes: Object.freeze(["source", "target", "weight", "time", "edgeId"] as const),
+        takes: Object.freeze(["source", "target", "weight", "time", "edgeId", "kind"] as const),
         requires: Object.freeze(["source", "target"] as const),
     }),
 });
@@ -106,8 +129,30 @@ const EDGE_ENDS: readonly EdgeEnd[] = ["source", "target"];
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
     nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
-    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes]),
+    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes, "sourceKind", "targetKind"]),
 };
+
+/** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
+const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "directed"] as const;
+
+/**
+ * The choices a load keeps, as `{ choices }`, or nothing when it was given none.
+ * @param choices - What the load was given.
+ * @returns `{ choices }` or `{}`.
+ */
+function keptChoices(choices: LoadChoices): { choices?: LoadChoices } {
+    const kept: Record<string, unknown> = {};
+    for (const name of KEPT_CHOICES) {
+        if (choices[name] !== undefined) {
+            kept[name] = choices[name];
+        }
+    }
+
+    return Object.keys(kept).length === 0 ? {} : { choices: Object.freeze(kept) };
+}
+
+/** The attribute a row's kind loads as. */
+const KIND = "kind";
 
 /** The endpoint column pairs a CSV edge table is probed for, as the CSV reader probes them. */
 const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
@@ -141,7 +186,7 @@ function badCommand(message: string, details: Record<string, unknown>): GraphtyE
  * @param name - The key.
  * @returns The expression.
  */
-function keyExpression(name: string): string {
+export function keyExpression(name: string): string {
     return /^[A-Za-z_]\w*$/.test(name) ? name : JSON.stringify(name);
 }
 
@@ -150,7 +195,7 @@ function keyExpression(name: string): string {
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
  */
-function fileName(value: unknown): string | undefined {
+export function fileName(value: unknown): string | undefined {
     if (typeof value === "string") {
         return value.split(/[?#]/)[0]?.split("/").pop();
     }
@@ -330,12 +375,160 @@ export async function draftStyles(read: ReadSource, signal?: AbortSignal): Promi
     });
 }
 
+/** How a draft guesses roles: from the header's names only, or from the values too. */
+type DraftGuess = "names" | "values";
+
+/**
+ * How much of the smaller of two text columns' values the other must also hold for the two to
+ * read as an edge's ends when no header names them (`bait` and `prey` name the same proteins).
+ */
+const SHARED_ENDS = 0.5;
+
+/** How nearly every value of a text column must be its own for it to read as a node table's key. */
+const NEARLY_UNIQUE = 0.95;
+
+/** The fewest distinct values a column names for its repeats to read as an event's end. */
+const REPEATING_MIN = 3;
+
+/** Column names whose numbers measure how alike or how strongly tied two ends are. */
+const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
+
+/** Column names a node's label is read from when no label path is configured. */
+export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];
+
+/** A value that starts with a calendar date, which reads as a time, never as an id. */
+const DATE_LIKE = /^\d{4}-\d{2}-\d{2}/;
+
+/**
+ * The distinct values of each text or category column of a table, for the guesses that read values.
+ * @param held - The table.
+ * @returns By column name, its distinct non-blank text values.
+ */
+function textValues(held: HeldTable): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    for (const column of held.table.columns) {
+        if (column.type === "string" || column.type === "category") {
+            out.set(column.name, new Set());
+        }
+    }
+
+    for (const row of held.rows) {
+        for (const [name, values] of out) {
+            const value = row[name];
+            if (typeof value === "string" && value !== "") {
+                values.add(value);
+            }
+        }
+    }
+
+    for (const [name, values] of out) {
+        if (values.size > 0 && [...values].every((value) => DATE_LIKE.test(value))) {
+            out.delete(name);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * How much of the smaller of two sets of values the other also holds.
+ * @param a - One column's values.
+ * @param b - The other's.
+ * @returns The share, from 0 to 1; 0 when either is empty or absent.
+ */
+function shareOf(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): number {
+    if (a === undefined || b === undefined || a.size === 0 || b.size === 0) {
+        return 0;
+    }
+
+    const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+    let common = 0;
+    for (const value of small) {
+        if (big.has(value)) {
+            common++;
+        }
+    }
+
+    return common / small.size;
+}
+
+/**
+ * The two text columns whose values most name the same things, read as an edge table's ends when
+ * no header names them: the earlier column is the source.
+ * @param values - Each text column's distinct values.
+ * @returns The pair, or undefined when no two columns share enough.
+ */
+function sharedEnds(values: ReadonlyMap<string, ReadonlySet<string>>): readonly [string, string] | undefined {
+    const names = [...values.keys()];
+    let best: readonly [string, string] | undefined;
+    let bestShare = 0;
+    for (let first = 0; first < names.length; first++) {
+        for (let second = first + 1; second < names.length; second++) {
+            const share = shareOf(values.get(names[first]), values.get(names[second]));
+            if (share >= SHARED_ENDS && share > bestShare) {
+                best = [names[first], names[second]];
+                bestShare = share;
+            }
+        }
+    }
+
+    return best;
+}
+
+/**
+ * The first two text columns whose values repeat, read as an event table's ends when no two
+ * columns name the same things (`user` and `host` of an access log): each names a few things many
+ * times over, more than a yes/no column does.
+ * @param held - The table.
+ * @param values - Each text column's distinct values.
+ * @returns The pair, the earlier column the source, or undefined.
+ */
+function repeatingEnds(
+    held: HeldTable,
+    values: ReadonlyMap<string, ReadonlySet<string>>,
+): readonly [string, string] | undefined {
+    const repeating = [...values]
+        .filter(([, distinct]) => distinct.size >= REPEATING_MIN && distinct.size <= held.rows.length / 2)
+        .map(([name]) => name);
+    return repeating.length >= 2 ? [repeating[0], repeating[1]] : undefined;
+}
+
+/**
+ * The numeric column an edge table's weight is most likely read from, when no header names one:
+ * a confidence, score or strength, else the one numeric column it has.
+ * @param held - The table.
+ * @param ends - The source and target columns, which are never the weight.
+ * @returns The column, or null.
+ */
+function guessedWeight(held: HeldTable, ends: readonly string[] | undefined): string | null {
+    const numeric = held.table.columns
+        .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
+        .map((column) => column.name);
+    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
+    return named ?? (numeric.length === 1 ? numeric[0] : null);
+}
+
+/**
+ * The first complete text column whose values are nearly all distinct, read as a node table's key
+ * when no header names one (`account`, `symbol`).
+ * @param held - The table.
+ * @param values - Each text column's distinct values.
+ * @returns The column, or undefined.
+ */
+function nearlyUniqueKey(held: HeldTable, values: ReadonlyMap<string, ReadonlySet<string>>): string | undefined {
+    return held.table.columns.find(
+        (column) =>
+            column.completeness === 1 && (values.get(column.name)?.size ?? 0) >= NEARLY_UNIQUE * held.rows.length,
+    )?.name;
+}
+
 /**
  * The element's own reading of one table.
  * @param held - The table.
  * @param rowsAre - What its rows are, when already decided.
  * @param source - The source's options, for the deprecated CSV column aliases.
  * @param config - The data configuration.
+ * @param guess - `"values"` also reads the values when no header names the roles.
  * @returns The table's roles.
  */
 function guessTable(
@@ -343,6 +536,7 @@ function guessTable(
     rowsAre: "nodes" | "edges" | undefined,
     source: Readonly<Record<string, unknown>>,
     config: SessionDataConfig,
+    guess: DraftGuess = "names",
 ): TableMappingRead {
     const { knownFields } = config;
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
@@ -355,13 +549,24 @@ function guessTable(
     // The deprecated CSV options name columns; they translate into the mapping.
     const aliasSource = typeof source.edgeSource === "string" ? source.edgeSource : undefined;
     const aliasTarget = typeof source.edgeTarget === "string" ? source.edgeTarget : undefined;
-    const pair: readonly [string, string] | undefined =
+    const named: readonly [string, string] | undefined =
         aliasSource !== undefined && aliasTarget !== undefined
             ? [aliasSource, aliasTarget]
             : [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
                   ([from, to]) => has(from) && has(to),
               );
-    const idColumn = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
+    const namedId = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
+    // No header says what the rows are: read the values. Two columns naming the same things are an
+    // edge's ends; else a single file's nearly unique text column is its nodes' key.
+    const values =
+        guess === "values" && named === undefined && namedId === undefined && held.table.id !== "nodes"
+            ? textValues(held)
+            : null;
+    const shared = named ?? (values === null ? undefined : sharedEnds(values));
+    const uniqueKey =
+        values !== null && shared === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined;
+    const pair = shared ?? (values === null || uniqueKey !== undefined ? undefined : repeatingEnds(held, values));
+    const idColumn = namedId ?? (pair === undefined ? uniqueKey : undefined);
     const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
     const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
     // One file of a pair says what it holds by its columns, whichever half it was handed over as;
@@ -375,12 +580,17 @@ function guessTable(
         return {
             rowsAre: "nodes",
             key,
-            label: present(knownFields.nodeLabelPath),
+            label:
+                present(knownFields.nodeLabelPath) ??
+                (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
             time: present(knownFields.nodeTimePath),
         };
     }
 
-    const weight = present(knownFields.edgeWeightPath) ?? present("value");
+    const weight =
+        present(knownFields.edgeWeightPath) ??
+        present("value") ??
+        (guess === "values" ? guessedWeight(held, pair) : null);
     return {
         rowsAre: "edges",
         ...(pair === undefined ? {} : { source: { column: pair[0] }, target: { column: pair[1] } }),
@@ -433,6 +643,8 @@ interface Plan {
     readonly mapping: LoadMappingRead;
     readonly held: HeldRows;
     readonly knownFields: NonNullable<NonNullable<ProjectConfigPatch["data"]>["knownFields"]>;
+    /** How many of `held.nodes` were made for an edge table's ends, not read from a node row. */
+    readonly endpointNodes: number;
 }
 
 /** A source read and held: the {@link LoadDraft} `session.data.prepare()` returns. */
@@ -445,14 +657,22 @@ export class Draft implements LoadDraft {
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
+    /** `suggestJoin()`'s answer, read once. */
+    private suggestion: JoinSuggestion | null = null;
 
     /**
      * Hold what was read.
      * @param read - The source's rows.
      * @param host - The session.
      * @param styles - Whether the file carries styles; see {@link draftStyles}.
+     * @param guess - How the roles are guessed; see `data.prepare`'s `guess` option.
      */
-    constructor(read: ReadSource, host: DraftHost, styles: LoadDraft["styles"] = null) {
+    constructor(
+        read: ReadSource,
+        host: DraftHost,
+        styles: LoadDraft["styles"] = null,
+        private readonly guess: DraftGuess = "names",
+    ) {
         this.read = read;
         this.host = host;
         this.styles = styles;
@@ -463,10 +683,12 @@ export class Draft implements LoadDraft {
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};
-        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config));
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess));
         if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
             // Both files of a pair read as the same kind: the order they were handed over in decides.
-            guesses = read.tables.map((held) => guessTable(held, held.table.id as "nodes" | "edges", options, config));
+            guesses = read.tables.map((held) =>
+                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess),
+            );
         }
 
         const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
@@ -522,7 +744,7 @@ export class Draft implements LoadDraft {
         const plan = this.plan(read, choices);
         const merging = choices.mode === "merge";
         const config = this.host.config();
-        return this.host.measure(
+        const report = await this.host.measure(
             {
                 op: "data.import",
                 source: read.source,
@@ -538,6 +760,16 @@ export class Draft implements LoadDraft {
                 knownFields: { ...config.knownFields, ...plan.knownFields },
             },
         );
+        // The node rows made for an edge table's ends are not rows the source held.
+        return plan.endpointNodes === 0
+            ? report
+            : {
+                  ...report,
+                  counts: {
+                      ...report.counts,
+                      nodeRecords: Math.max(0, report.counts.nodeRecords - plan.endpointNodes),
+                  },
+              };
     }
 
     /**
@@ -587,7 +819,76 @@ export class Draft implements LoadDraft {
      * @returns Settles once the rows are in the graph.
      */
     async load(choices: LoadChoices = {}): Promise<void> {
+        if (choices.join !== undefined) {
+            // Taken before the first await, as the importer is.
+            const join = this.joinHost("load").joiner?.();
+            const { table, shape } = this.joinTable("load", choices.join);
+            await join?.(table, choices.join, shape);
+            this.dispose();
+            return;
+        }
+
         await this.host.inLine((send) => this.loadVia(send, choices));
+    }
+
+    /**
+     * How the table most likely joins onto the graph.
+     * @returns The suggestion.
+     */
+    suggestJoin(): JoinSuggestion {
+        const host = this.joinHost("suggestJoin");
+        const read = this.live("suggestJoin");
+        if (this.suggestion === null) {
+            const held = joinedHeld(read);
+            const roles = this.mapping.tables[held.table.id];
+            const endpoints =
+                roles.source === undefined || roles.target === undefined
+                    ? undefined
+                    : { source: roles.source.column, target: roles.target.column };
+            this.suggestion = suggestJoin(tableOf(read, held), host.joinGraph?.() ?? NO_GRAPH, endpoints);
+        }
+
+        return this.suggestion;
+    }
+
+    /**
+     * What `load({ join: choices })` would do, counted.
+     * @param choices - The join.
+     * @returns The counts.
+     */
+    joinReport(choices: JoinChoices): JoinReport {
+        const host = this.joinHost("joinReport");
+        const { table, shape } = this.joinTable("joinReport", choices);
+        return joinReport(table, host.joinGraph?.() ?? NO_GRAPH, choices, shape);
+    }
+
+    /**
+     * The host's join half, or a refusal for a draft not prepared onto the graph.
+     * @param verb - The method asked.
+     * @returns The host.
+     */
+    private joinHost(verb: string): DraftHost {
+        this.live(verb);
+        if (this.host.joinGraph === undefined) {
+            throw badCommand(`draft.${verb}() joins onto the graph: prepare the source with { onto: "graph" }.`, {
+                reason: "not-onto-graph",
+                verb,
+            });
+        }
+
+        return this.host;
+    }
+
+    /**
+     * The table a join reads, and its shape when the choices give none.
+     * @param verb - The method asked.
+     * @param choices - The join.
+     * @returns The table and the shape.
+     */
+    private joinTable(verb: string, choices: JoinChoices): { table: JoinedTable; shape: JoinShape } {
+        const read = this.live(verb);
+        const shape = choices.shape ?? this.suggestJoin().shape;
+        return { table: tableOf(read, joinedHeld(read)), shape };
     }
 
     /**
@@ -606,12 +907,15 @@ export class Draft implements LoadDraft {
                 named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
             }
         }
-        const starts = choices.history === "start" ? { startsHistory: true } : {};
+        const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
+            ...keptChoices(choices),
+            // A graph file's tables are the format's own, so only a table's roles are worth keeping.
+            ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),
             ...starts,
         };
         const data = {
@@ -703,7 +1007,7 @@ export class Draft implements LoadDraft {
             const base =
                 choice.rowsAre === undefined || choice.rowsAre === guessed.rowsAre
                     ? guessed
-                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config());
+                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config(), this.guess);
             tables[id] = withChoice(held, base, choice);
         }
 
@@ -750,13 +1054,24 @@ export class Draft implements LoadDraft {
             Object.assign(named, { edgeWeightMeaning: null });
         }
 
-        // A graph file's label column, which the element reads by itself, labels the nodes as the
-        // draft's mapping says it will, unless a label path is configured already.
-        const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
-        const knownFields =
+        // A graph file's label column, which the element reads by itself, or the label column a
+        // table's columns name, labels the nodes as the draft's mapping says it will, unless a
+        // label path is configured already or a merge keeps how the graph names its nodes.
+        const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
+        const label = read.tables[0].table.fixed || choices.mode !== "merge" ? (nodeMapping?.label ?? null) : null;
+        const labelled =
             label === null || this.host.config().knownFields.nodeLabelPath !== null
                 ? named
                 : { ...named, nodeLabelPath: label };
+        // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
+        const meaning =
+            named.edgeWeightMeaning ??
+            (choices.mode === "merge" ? this.host.config().knownFields.edgeWeightMeaning : null);
+        const similar =
+            typeof named.edgeWeightPath === "string" &&
+            SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
+            meaning === null;
+        const knownFields = similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             const held: HeldRows = {
@@ -768,7 +1083,7 @@ export class Draft implements LoadDraft {
             };
             // The file's styles are read from the source that read these rows, when a load asks.
             HELD_READERS.set(held, read.reader);
-            return { mapping, knownFields, held };
+            return { mapping, knownFields, held, endpointNodes: 0 };
         }
 
         const of = (rowsAre: "nodes" | "edges"): HeldTable | undefined => {
@@ -788,24 +1103,41 @@ export class Draft implements LoadDraft {
         const nodeRoles = nodeTable === undefined ? undefined : mapping.tables[nodeTable.table.id];
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
-        const edges = edgeTable?.rows ?? [];
         const nodeRows = nodeTable?.rows ?? [];
-        return {
-            mapping,
-            knownFields,
-            held: {
-                nodes: key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
-                edges,
-                edgeLines: edgeTable?.lines ?? null,
-                declaredDirection: readGephiTypeColumn(edges),
-                errors: read.errors,
-                errorLimit: read.errorLimit,
-                ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
-                ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
-                ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
-                ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
+        const kinds = withKinds(
+            key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
+            edgeTable?.rows ?? [],
+            {
+                key: key ?? ROW_ID,
+                nodeKind: nodeRoles?.kind ?? null,
+                edges: edgeRoles,
+                synthesize: nodeTable === undefined,
+                scoped: choices.kindIds === "scoped",
             },
+        );
+        const { edges } = kinds;
+        // A merge keeps the ends the graph does not hold as unknown ends, for data.issues().
+        const nodes =
+            nodeTable === undefined && choices.mode !== "merge"
+                ? withEndpointNodes(kinds.nodes, edges, [edgeRoles?.source?.column, edgeRoles?.target?.column])
+                : kinds.nodes;
+        const held: HeldRows = {
+            nodes,
+            edges,
+            edgeLines: edgeTable?.lines ?? null,
+            declaredDirection: readGephiTypeColumn(edges),
+            errors: read.errors,
+            errorLimit: read.errorLimit,
+            ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
+            ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
+            ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
+            ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
         };
+        if (kinds.report !== undefined) {
+            HELD_KINDS.set(held, kinds.report);
+        }
+
+        return { mapping, knownFields, held, endpointNodes: nodes.length - kinds.nodes.length };
     }
 
     /**
@@ -883,6 +1215,35 @@ export class Draft implements LoadDraft {
     }
 }
 
+/** A graph with nothing in it, for a host that lends none. */
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map() };
+
+/**
+ * The table a join reads: the first table with rows, a table of the reader's own before a
+ * format's (whose nodes table comes first).
+ * @param read - The rows.
+ * @returns The table.
+ */
+function joinedHeld(read: ReadSource): HeldTable {
+    const tables = [...read.tables].sort((a, b) => Number(a.table.fixed) - Number(b.table.fixed));
+    return tables.find((held) => held.rows.length > 0) ?? tables[0];
+}
+
+/**
+ * A held table as a join reads it.
+ * @param read - The rows.
+ * @param held - The table.
+ * @returns The table.
+ */
+function tableOf(read: ReadSource, held: HeldTable): JoinedTable {
+    return {
+        name: read.source.name ?? held.table.name,
+        columns: held.order,
+        rows: held.rows,
+        source: read.source,
+    };
+}
+
 /**
  * The roles each table needs and its roles leave unset.
  * @param mapping - Every table's roles.
@@ -895,7 +1256,7 @@ function missingRoles(mapping: LoadMappingRead): Readonly<Record<string, readonl
                 id,
                 Object.freeze(
                     LOAD_ROLES[roles.rowsAre].requires.filter((role) => {
-                        const value = roles[role];
+                        const value: unknown = roles[role as keyof TableMappingRead];
                         return value === undefined || value === null;
                     }),
                 ),
@@ -944,6 +1305,7 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
     set("label", roles.label);
     set("time", roles.time);
     set("edgeId", roles.edgeId);
+    set("kind", roles.kind);
     return out;
 }
 
@@ -961,12 +1323,36 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
     for (const [role, value] of Object.entries(choice)) {
         if (role === "weightMeaning") {
             out[role] = checkedMeaning(held, rowsAre, value);
+        } else if (role === "timeUnit") {
+            out[role] = checkedUnit(held, value);
         } else if (value !== undefined && role !== "rowsAre") {
             out[role] = checkedRole(held, rowsAre, role, value);
         }
     }
 
     return Object.freeze(out) as unknown as TableMappingRead;
+}
+
+/** The units a time column's numbers can be read in at load. */
+const TIME_UNIT_CHOICES: ReadonlySet<unknown> = new Set(["ms", "s", "year", "ordinal", null, undefined]);
+
+/**
+ * A reader's time unit, checked.
+ * @param held - The table.
+ * @param value - The unit.
+ * @returns The unit.
+ * @throws `E_BAD_COMMAND` for a unit the element does not know.
+ */
+function checkedUnit(held: HeldTable, value: unknown): unknown {
+    if (!TIME_UNIT_CHOICES.has(value)) {
+        throw badCommand(`A time unit is "ms", "s", "year", "ordinal" or null.`, {
+            table: held.table.id,
+            role: "timeUnit",
+            units: ["ms", "s", "year", "ordinal"],
+        });
+    }
+
+    return value;
 }
 
 /** The meanings an edge weight can be given at load. */
@@ -1015,6 +1401,11 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
         return value;
     }
 
+    // A bare string is a kind name, not a column.
+    if ((role === "sourceKind" || role === "targetKind") && typeof value === "string") {
+        return value;
+    }
+
     if (typeof column !== "string") {
         throw badCommand(`The ${role} role takes a column name or null.`, { table: held.table.id, role });
     }
@@ -1024,7 +1415,8 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
         held.order.map((name) => ({ kind, name })),
         { kind, name: column },
     );
-    return role === "source" || role === "target" ? { column } : value;
+    // An end is always held as `{ column }`; a kind column given as `{ column }` stays one.
+    return role === "source" || role === "target" || typeof value === "object" ? { column } : value;
 }
 
 /**
@@ -1037,6 +1429,10 @@ function tableFields(nodes: boolean, choice: TableMapping): Record<string, strin
     const out: Record<string, string | null> = {};
     if (choice.time !== undefined) {
         out[nodes ? "nodeTimePath" : "edgeTimePath"] = choice.time;
+    }
+
+    if (choice.timeUnit !== undefined) {
+        out[nodes ? "nodeTimeUnit" : "edgeTimeUnit"] = choice.timeUnit;
     }
 
     if (nodes) {
@@ -1089,4 +1485,176 @@ function knownFieldsOf(
     }
 
     return out;
+}
+
+/**
+ * An edge table's nodes, when the load has no node table: a row of its own for every value an end
+ * names, so each node the edges make is drawn. A node the store holds with no row of its own waits
+ * for one, as a streamed edge waits for its endpoint, and an edge table alone never sends one.
+ * @param nodes - The node rows already made (the kinds' own, keyed by the row id).
+ * @param edges - The edge rows.
+ * @param ends - The source and target columns.
+ * @returns The node rows, the given ones first.
+ */
+function withEndpointNodes(
+    nodes: readonly Record<string, unknown>[],
+    edges: readonly Record<string, unknown>[],
+    ends: readonly (string | undefined)[],
+): readonly Record<string, unknown>[] {
+    const columns = ends.filter((column): column is string => column !== undefined);
+    const seen = new Set(nodes.map((row) => row[ROW_ID]));
+    const out = [...nodes];
+    for (const row of edges) {
+        for (const column of columns) {
+            const id = row[column];
+            if (isStorableId(id) && !seen.has(id)) {
+                seen.add(id);
+                out.push({ [ROW_ID]: id });
+            }
+        }
+    }
+
+    return out;
+}
+
+/** What {@link withKinds} reads a load's kinds by. */
+interface KindRoles {
+    /** The node table's id column. */
+    readonly key: string;
+    /** The node table's kind column, or null. */
+    readonly nodeKind: string | null;
+    /** The edge table's roles, when there is one. */
+    readonly edges: TableMappingRead | undefined;
+    /** Whether the edges' nodes come from the edges alone, so their kinds need node rows of their own. */
+    readonly synthesize: boolean;
+    /** `LoadChoices.kindIds` is `"scoped"`. */
+    readonly scoped: boolean;
+}
+
+/**
+ * A row's kind, by a kind name or a column.
+ * @param row - The row.
+ * @param spec - A kind name, `{ column }`, or a column name when `named` is false.
+ * @param named - Whether a bare string is a kind name (an endpoint kind) or a column (a kind role).
+ * @returns The kind, or undefined when the row has none.
+ */
+function kindOf(row: Readonly<Record<string, unknown>>, spec: unknown, named: boolean): string | undefined {
+    if (spec === null || spec === undefined) {
+        return undefined;
+    }
+
+    if (typeof spec === "string" && named) {
+        return spec;
+    }
+
+    const value = row[typeof spec === "string" ? spec : (spec as { column: string }).column];
+    // A kind is a name: an empty cell, or a value that is not text, a number or a truth value, names none.
+    const nameable = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+    return nameable && value !== "" ? String(value) : undefined;
+}
+
+/**
+ * The rows a load hands over with their kinds applied: each node with a kind carries it as its
+ * `kind` attribute, an edge kind column loads as the edge's `kind`, and under `"scoped"` an id
+ * value that appears under two kinds becomes `<kind>:<value>` wherever it appears with a kind.
+ * @param nodes - The node rows, each with an id at `roles.key`.
+ * @param edges - The edge rows.
+ * @param roles - Where the kinds are read.
+ * @returns The rows, and the report's `kinds` when the mapping names any node kind.
+ */
+function withKinds(
+    nodes: readonly Record<string, unknown>[],
+    edges: readonly Record<string, unknown>[],
+    roles: KindRoles,
+): {
+    nodes: readonly Record<string, unknown>[];
+    edges: readonly Record<string, unknown>[];
+    report?: LoadReport["kinds"];
+} {
+    const { key, nodeKind } = roles;
+    const source = roles.edges?.source?.column;
+    const target = roles.edges?.target?.column;
+    const ends = [
+        { column: source, kind: roles.edges?.sourceKind },
+        { column: target, kind: roles.edges?.targetKind },
+    ].filter(
+        (end): end is { column: string; kind: string | Endpoint } =>
+            end.column !== undefined && end.kind !== undefined && end.kind !== null,
+    );
+    const edgeKind = roles.edges?.kind ?? null;
+    if (nodeKind === null && ends.length === 0 && edgeKind === null) {
+        return { nodes, edges };
+    }
+
+    // Every id value's kinds, in the order first seen.
+    const kindsOf = new Map<unknown, string[]>();
+    const note = (id: unknown, kind: string | undefined): void => {
+        if (kind === undefined || !isStorableId(id)) {
+            return;
+        }
+
+        const seen = kindsOf.get(id) ?? [];
+        if (!seen.includes(kind)) {
+            seen.push(kind);
+        }
+
+        kindsOf.set(id, seen);
+    };
+    for (const row of nodes) {
+        note(row[key], kindOf(row, nodeKind, false));
+    }
+
+    for (const row of edges) {
+        for (const end of ends) {
+            note(row[end.column], kindOf(row, end.kind, true));
+        }
+    }
+
+    const idOf = (id: unknown, kind: string | undefined): unknown =>
+        roles.scoped && kind !== undefined && (kindsOf.get(id)?.length ?? 0) > 1 ? `${kind}:${String(id)}` : id;
+    // ponytail: a node row with no kind of its own takes the first kind an edge gave its id.
+    const outNodes = nodes.map((row) => {
+        const kind = kindOf(row, nodeKind, false) ?? kindsOf.get(row[key])?.[0];
+        return kind === undefined ? row : { ...row, [key]: idOf(row[key], kind), [KIND]: kind };
+    });
+    const made = new Set<unknown>();
+    const outEdges = edges.map((row) => {
+        const out: Record<string, unknown> = { ...row };
+        for (const end of ends) {
+            const kind = kindOf(row, end.kind, true);
+            const id = idOf(row[end.column], kind);
+            out[end.column] = id;
+            // ponytail: with a node table, an end no node row names is made by the edge, without a
+            // kind; give it a node row here too if that matters (it would end its "unmatched" count).
+            if (roles.synthesize && kind !== undefined && isStorableId(id) && !made.has(id)) {
+                made.add(id);
+                outNodes.push({ [key]: id, [KIND]: kind });
+            }
+        }
+
+        if (edgeKind !== null) {
+            out[KIND] = row[edgeKind];
+        }
+
+        return out;
+    });
+
+    if (nodeKind === null && ends.length === 0) {
+        return { nodes: outNodes, edges: outEdges };
+    }
+
+    const byKind: Record<string, number> = {};
+    let sharedIds = 0;
+    for (const kinds of kindsOf.values()) {
+        sharedIds += kinds.length > 1 ? 1 : 0;
+        for (const kind of kinds) {
+            byKind[kind] = (byKind[kind] ?? 0) + 1;
+        }
+    }
+
+    return {
+        nodes: outNodes,
+        edges: outEdges,
+        report: Object.freeze({ sharedIds, byKind: Object.freeze(byKind) }),
+    };
 }

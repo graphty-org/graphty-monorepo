@@ -27,6 +27,7 @@ import {
     replaceNodesCommand,
 } from "../session/commands/data";
 import type { FreezeFollower, LaneStore } from "../session/GraphSession";
+import { supersededError } from "../session/loadLine";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
@@ -330,20 +331,6 @@ export const dataManagerInternals = {} as {
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
 };
-
-/**
- * The refusal of a load a newer replacing load, or a clear, overtook.
- * @param type - The load's format, for the message.
- * @returns The error.
- */
-function supersededError(type: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_SUPERSEDED",
-        source: "data",
-        message: `The ${type} load was overtaken by a newer replacing load, so the graph was left to it.`,
-        details: { format: type },
-    });
-}
 
 /**
  * Manages all data operations for nodes and edges

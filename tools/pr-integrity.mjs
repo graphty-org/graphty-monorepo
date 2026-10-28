@@ -28,6 +28,8 @@
  *
  * Usage (in Actions, with GH_TOKEN, GITHUB_REPOSITORY and GITHUB_EVENT_PATH):
  *   node tools/pr-integrity.mjs [--base origin/master]
+ * or, before a pull request exists (tools/check-quick.sh), on HEAD with no GitHub call:
+ *   node tools/pr-integrity.mjs --local [--base origin/master]
  * exit 1 with one `::error` line per problem.
  */
 import { execFileSync } from "node:child_process";
@@ -40,6 +42,11 @@ import { parseCodeowners, unownedClosure } from "./check-owned-closure.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
 
 export const AGENT = "graphty-agent";
+/**
+ * The repository owner: his approval counts whatever CODEOWNERS names (its owners may be a team, which
+ * ownerLogins() leaves out; while code-owner review is off they are a team that does not exist yet).
+ */
+export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
 const APPROVALS = "visual-review-approvals";
@@ -197,12 +204,13 @@ function agentProblems(cwd, pr) {
             "Proof: the description has no non-empty `## Proof` section (the command and its output, the test that failed before the fix, or a capture)",
         );
     }
-    const id = patchId(cwd, pr.mergeBase, pr.head);
     // Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
+    // One review per pull request (owner, 2026-10-26): any fresh-review marker counts, whatever the branch changed
+    // after it, so a fix no longer needs a whole new review.
     const trusted = (r) => r.user?.login === AGENT || pr.owners.has(r.user?.login);
-    if (id && !pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes(`<!-- fresh-review ${id} -->`))) {
+    if (!pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes("<!-- fresh-review "))) {
         problems.push(
-            `Fresh review: no review is marked <!-- fresh-review ${id} --> (the patch id of this branch's own diff); run tools/pr-review.sh`,
+            "Fresh review: the pull request has no review marked <!-- fresh-review ... -->; run tools/pr-review.sh",
         );
     }
     return problems;
@@ -301,14 +309,26 @@ async function main(argv) {
     const i = argv.indexOf("--base");
     const base = i === -1 ? "origin/master" : argv[i + 1];
     const cwd = process.cwd();
-    const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")).pull_request;
-    const reviews = JSON.parse(
-        execFileSync(
-            "gh",
-            ["api", "--paginate", "--slurp", `repos/${process.env.GITHUB_REPOSITORY}/pulls/${event.number}/reviews`],
-            { encoding: "utf8", maxBuffer: 1 << 28 },
-        ),
-    ).flat();
+    // --local (tools/check-quick.sh): the branch's HEAD before it has a pull request. No title, body,
+    // author or reviews, so Proof and the fresh review are not checked and nothing is approved.
+    const local = argv.includes("--local");
+    const event = local
+        ? { head: { sha: git(cwd, ["rev-parse", "HEAD"]).trim() }, title: "", body: "", user: { login: "local" } }
+        : JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")).pull_request;
+    const reviews = local
+        ? []
+        : JSON.parse(
+              execFileSync(
+                  "gh",
+                  [
+                      "api",
+                      "--paginate",
+                      "--slurp",
+                      `repos/${process.env.GITHUB_REPOSITORY}/pulls/${event.number}/reviews`,
+                  ],
+                  { encoding: "utf8", maxBuffer: 1 << 28 },
+              ),
+          ).flat();
     const codeowners = existsSync(join(cwd, ".github/CODEOWNERS"))
         ? readFileSync(join(cwd, ".github/CODEOWNERS"), "utf8")
         : "";
@@ -338,7 +358,7 @@ async function main(argv) {
         author: event.user.login,
         byDependabot,
         reviews,
-        owners: ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners),
+        owners: new Set([OWNER, ...ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners)]),
         codeowners,
         baselineProblems: await masterBaselineCheck(cwd, base, head),
     });

@@ -30582,7 +30582,7 @@
             "edge.arrow": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
+            "frame.zoom": ["frame"],
             "background": []
         },
         "json-vis-unix": {

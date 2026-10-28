@@ -140,6 +140,8 @@ export interface ResolveContext {
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
     readonly values?: FilterValueSource;
+    /** What each load supplied. Absent refuses a rule's `source` leaf. */
+    readonly supplied?: FilterSources["supplied"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /** What a held item's re-run captured (`./captures`). Absent: nothing was captured. */
@@ -575,6 +577,7 @@ export function ruleHalves(
         ...(context.match === undefined ? {} : { match: context.match }),
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
+        ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
         ...(context.result === undefined ? {} : { result: context.result }),
         ...(context.captured === undefined ? {} : { captured: context.captured }),
         ...(context.components === undefined ? {} : { components: context.components }),

@@ -37,7 +37,7 @@ writeFileSync(
 chmodSync(join(bin, "claude"), 0o755);
 chmodSync(join(bin, "gh"), 0o755);
 
-const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}` });
+const env = isolatedGitEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}`, PR_REVIEW_LOCAL: "1" });
 const git = (cwd, ...args) => {
     const r = spawnSync("git", args, { cwd, env, encoding: "utf8" });
     assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
@@ -88,7 +88,9 @@ describe("pr-review.sh", () => {
         const sections = prompt.split(/^===== (.*) =====$/m);
         // [instructions, "ISSUE #1234", issue, "PROOF", proof, "DIFF (...)", diff]
         assert.equal(sections.length, 7, "exactly three input sections");
-        assert.match(sections[0], /code-review.*high/);
+        assert.match(sections[0], /code-review.*medium/);
+        assert.match(sections[0], /Report ONLY critical findings/);
+        assert.match(sections[0], /"No critical findings\."/);
         assert.equal(sections[1], "ISSUE #1234");
         assert.equal(sections[2].trim(), ISSUE);
         assert.equal(sections[3], "PROOF");
@@ -125,22 +127,94 @@ describe("pr-review.sh", () => {
         assert.equal(r.code, 3, r.out);
         assert.match(r.out, /2 blocking finding/);
         assert.match(readFileSync(reportPath(), "utf8"), /^Blocking findings: 2$/m);
-        r = run(undefined, "looks fine");
+        r = run(["--proof", proof, "--again"], "looks fine");
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /without a 'Blocking findings: N' line/);
     });
 
-    it("reuses a report for the same patch id with --reuse, without calling claude", () => {
+    it("reviews a branch once: a fix reuses the report without calling claude; --again reviews it again", () => {
         assert.equal(run(undefined, "x\n\nBlocking findings: 1").code, 3);
         rmSync(argsLog);
-        const r = run(["--proof", proof, "--reuse"]);
-        assert.equal(r.code, 3, r.out);
+        assert.equal(run(["--proof", proof, "--reuse"]).code, 3);
         assert.ok(!existsSync(argsLog), "claude was not called");
-        // a fix changes the patch id, so the next run reviews again
         writeFileSync(join(work, "a.txt"), "one\nTwo\nthree\n");
         git(work, "commit", "-q", "-am", "fix(tools): the finding");
-        assert.equal(run(["--proof", proof, "--reuse"]).code, 0);
-        assert.ok(existsSync(argsLog), "claude reviewed the new diff");
+        assert.equal(run().code, 3, "the first review still stands after a fix");
+        assert.ok(!existsSync(argsLog), "claude was not called for the fix");
+        assert.equal(run(["--proof", proof, "--again"]).code, 0);
+        assert.ok(existsSync(argsLog), "--again reviewed the branch once more");
+    });
+
+    it("runs master's copy of itself when this branch's copy is older", () => {
+        // master gets a different pr-review.sh; the branch's run must hand over to it
+        git(work, "checkout", "-q", "master");
+        mkdirSync(join(work, "tools"), { recursive: true });
+        writeFileSync(join(work, "tools", "pr-review.sh"), "echo MASTER-COPY $PR_REVIEW_FROM_MASTER\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore(tools): newer review");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        const r = spawnSync("bash", [script, "--proof", proof], {
+            cwd: work,
+            env: { ...env, PR_REVIEW_LOCAL: "" },
+            encoding: "utf8",
+        });
+        assert.match(r.stdout, /^MASTER-COPY 1$/m, r.stdout + r.stderr);
+        assert.ok(!existsSync(argsLog), "the branch's own copy did not run the review");
+    });
+
+    it("names data files and summarizes a large diff, keeping the prompt small", () => {
+        mkdirSync(join(work, "design/mockups"), { recursive: true });
+        mkdirSync(join(work, "graphty/public/samples"), { recursive: true });
+        const big = "x".repeat(100).concat("\n").repeat(120000); // 12 MB each, over claude -p's 10 MB stdin limit
+        writeFileSync(join(work, "design/mockups/page.html"), big);
+        writeFileSync(join(work, "graphty/public/samples/data.json"), big);
+        writeFileSync(join(work, "pnpm-lock.yaml"), "lock: 1\n");
+        writeFileSync(join(work, "src.ts"), "const line = 1;\n".repeat(30000)); // ~480 KB of code
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "feat(tools): a large change");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.ok(prompt.length < 100000, `prompt is ${prompt.length} bytes`);
+        assert.match(prompt, /too large to include/);
+        assert.match(prompt, /^ src\.ts +\| 30000 \+/m);
+        assert.match(prompt, /^ a\.txt +\| +2 /m);
+        for (const f of ["design/mockups/page.html", "graphty/public/samples/data.json", "pnpm-lock.yaml"]) {
+            assert.ok(prompt.split("\n").includes(f), `${f} named`);
+        }
+        assert.ok(!prompt.includes("x".repeat(100)), "no data file content inlined");
+    });
+
+    it("inlines a small diff but only names its data files", () => {
+        mkdirSync(join(work, "design"), { recursive: true });
+        writeFileSync(join(work, "design/note.html"), "<p>SECRET-MOCKUP</p>\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "docs: a mockup");
+        assert.equal(run().code, 0);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /^\+TWO$/m);
+        assert.match(prompt, /^design\/note\.html$/m);
+        assert.ok(!prompt.includes("SECRET-MOCKUP"));
+    });
+
+    it("reviews the whole repository's change when run from a subdirectory", () => {
+        mkdirSync(join(work, "pkg"));
+        mkdirSync(join(work, "design"));
+        writeFileSync(join(work, "pkg/b.txt"), "b\n");
+        writeFileSync(join(work, "design/m.html"), "<p>m</p>\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "feat(tools): two places");
+        const r = spawnSync("bash", [script, "--proof", proof], {
+            cwd: join(work, "pkg"),
+            env: { ...env, FAKE_OUT: "Blocking findings: 0" },
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /^\+TWO$/m, "a.txt at the root is in the diff");
+        assert.match(prompt, /^\+b$/m);
+        assert.match(prompt, /^design\/m\.html$/m);
     });
 
     it("refuses without a Proof file, calling nothing", () => {

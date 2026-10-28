@@ -2,6 +2,16 @@
     {
         "method": "POST",
         "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"MATCH (n) RETURN count(n) AS c\",\"parameters\":{},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": {
+            "content-type": "application/vnd.neo4j.query.v1.1"
+        },
+        "body": { "data": { "fields": ["c"], "values": [[{ "$type": "Integer", "_value": "171" }]] }, "bookmarks": [] }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
         "requestBody": "{\"statement\":\"MATCH (n) WITH n, elementId(n) AS key RETURN n, key, size([(n)--() | 1]) AS degree ORDER BY key LIMIT 1000\",\"parameters\":{},\"accessMode\":\"Read\"}",
         "status": 202,
         "headers": {

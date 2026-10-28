@@ -570,6 +570,21 @@ function unscopedLayout(type: string): GraphtyError {
     });
 }
 
+/** An engine with options that change only what it draws under the graph, which it takes as it stands. */
+interface DrawingOptionsTaker {
+    /** Takes the options and returns true when only such options changed; false asks for a new run. */
+    takeDrawingOptions: (options: Readonly<Record<string, unknown>>) => boolean;
+}
+
+/**
+ * Whether an engine takes drawing-only options as it stands (the location map's `map`).
+ * @param engine - The engine.
+ * @returns True when it does.
+ */
+function takesDrawingOptions(engine: LayoutEngine | undefined): engine is LayoutEngine & DrawingOptionsTaker {
+    return engine !== undefined && typeof (engine as Partial<DrawingOptionsTaker>).takeDrawingOptions === "function";
+}
+
 /**
  * Manages layout engines and their lifecycle
  * Coordinates layout updates and transitions
@@ -1741,6 +1756,21 @@ export class LayoutManager implements Manager {
                 this.#built = choice;
                 return;
             }
+        }
+
+        // New options that change only what the engine draws under the graph (the location map's
+        // `map`) are taken by the engine as it stands: no node moves.
+        const engine = this.layoutEngine;
+        if (
+            built !== null &&
+            takesDrawingOptions(engine) &&
+            built.engine === choice.engine &&
+            built.scope === choice.scope &&
+            this.engineDimension === dimension &&
+            engine.takeDrawingOptions(choice.options)
+        ) {
+            this.#built = choice;
+            return;
         }
 
         const previous = this.carriedScope;

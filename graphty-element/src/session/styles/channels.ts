@@ -281,6 +281,9 @@ export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
 /** The force law an edge's support point settles under (`edge.supportModel`). */
 export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
+
+/** A value of `edge.route`: the path a line takes between its nodes. */
+export type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 /** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
 export type NodeGradientKindValue = "linear" | "radial";
@@ -507,6 +510,8 @@ export interface ChannelValues {
     "edge.supportRepulsion": number;
     "edge.supportCentralGravity": number;
     "edge.supportUnit": number;
+    "edge.route": EdgeRouteValue;
+    "edge.arcHeight": number;
     "edge.nodeGap": number;
     "edge.sourceNodeGap": number;
     "edge.targetNodeGap": number;
@@ -903,6 +908,7 @@ const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
 const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
+const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -3812,6 +3818,37 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.supportUnit",
         renderable: true,
         caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.route": {
+        channel: "edge.route",
+        target: "edge",
+        plainName: "Edge Route",
+        shortName: "Route",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_ROUTE_VALUES,
+        stylePath: "line.route",
+        renderable: true,
+        caveat:
+            'The path an edge takes between its nodes: "straight"; "arc", raised toward the viewer in the ' +
+            'vertical plane through both ends; "great-circle", along the great circle about the scene\'s ' +
+            "origin, lifted at its middle. Left unset, the layout decides: the location map raises arcs " +
+            "over its flat map in 3D and draws great circles on its globe; every other layout draws straight.",
+    },
+    "edge.arcHeight": {
+        channel: "edge.arcHeight",
+        target: "edge",
+        plainName: "Edge Arc Height",
+        shortName: "Arc height",
+        group: "line",
+        default: 0.25,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.arcHeight",
+        renderable: true,
+        caveat:
+            "How high a raised route rises at its middle, as a share of the distance between its ends: " +
+            "0.25 for an arc unset, 0.1 for a great circle. A straight route ignores it.",
     },
     "edge.nodeGap": {
         channel: "edge.nodeGap",

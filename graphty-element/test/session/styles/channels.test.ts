@@ -218,6 +218,8 @@ const DECLARED = [
     "edge.supportRepulsion",
     "edge.supportCentralGravity",
     "edge.supportUnit",
+    "edge.route",
+    "edge.arcHeight",
     "edge.nodeGap",
     "edge.sourceNodeGap",
     "edge.targetNodeGap",
@@ -350,9 +352,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-nine node channels and one hundred and thirty-eight edge channels", () => {
+    it("splits into one hundred and fifty-nine node channels and one hundred and forty edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 159);
-        assert.strictEqual(channelsFor("edge").length, 138);
+        assert.strictEqual(channelsFor("edge").length, 140);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -664,6 +666,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.supportRepulsion",
         "edge.supportCentralGravity",
         "edge.supportUnit",
+        // Unset, the layout decides the route: straight but on a geographic map.
+        "edge.route",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.

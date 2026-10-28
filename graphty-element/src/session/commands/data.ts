@@ -13,6 +13,8 @@
  *   `data.source()` reads: a new name for it, or the source a project file recorded.
  * - `data.setFileStyles`: the per-element style values the layers made from files read at
  *   `graphty.style.<namespace>.<kind>.<key>`, kept beside the data and never in its records.
+ * - `data.columns`: the column settings -- hidden columns, value types, renames -- kept as the
+ *   `columns` graph value, and with a rename the column's declaration moved to its new name.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -27,25 +29,37 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
-import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
+import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
+import { isValueType, VALUE_TYPES } from "../columns";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
+import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
 import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
-import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
+import type {
+    HistoryCode,
+    JoinRecord,
+    LoadChoices,
+    LoadedSource,
+    LoadedSourceKind,
+    LoadMappingRead,
+    NodeRecordInput,
+    RowUpdate,
+    ValueType,
+} from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
@@ -177,6 +191,23 @@ export interface DataImportCommand {
     readonly styles?: "file" | "none";
     /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
     readonly styleOptions?: FileStyleOptions;
+    /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
+    readonly origin?: LoadedSourceKind;
+    /** For a joined table: the load it was joined onto. */
+    readonly joinedOnto?: SourceKey;
+    /** For a joined table: the join, kept with the load in `data.sources()`. */
+    readonly join?: JoinRecord;
+    /** The load's key, in place of the next one: an edited join keeps its key. */
+    readonly key?: SourceKey;
+    /** The choices the rows were read with, kept with the load in `data.sources()`. */
+    readonly choices?: LoadChoices;
+    /** The roles each table was read with, the element's own reading included, kept with the load. */
+    readonly mapping?: LoadMappingRead;
+    /**
+     * A token for what the rows were read from, kept with the load; only the session that read
+     * them can resolve it, so `data.reloadSource` can read them again.
+     */
+    readonly input?: string;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -283,6 +314,8 @@ interface DataSetSourceCommand {
     readonly source: ImportSource;
     /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
     readonly sources?: readonly LoadedSource[];
+    /** What each load supplied; left as it is when absent. */
+    readonly provenance?: Provenance;
 }
 
 /**
@@ -309,6 +342,39 @@ export interface DataSetFileStylesCommand {
     readonly loads: readonly FileStyleLoadValues[];
 }
 
+/**
+ * The column settings the `columns` graph value holds, each column by `<kind>:<name>`
+ * ({@link declarationKey}).
+ */
+export interface ColumnSettings {
+    /** The hidden columns. */
+    readonly hidden: readonly string[];
+    /** The type each converted column was given. */
+    readonly types: Readonly<Record<string, ValueType>>;
+    /** Each renamed column's new name, by its old key: what a finished run's weight column follows. */
+    readonly renamed: Readonly<Record<string, string>>;
+}
+
+/** The graph value holding the {@link ColumnSettings}. */
+export const COLUMNS_VALUE = "columns";
+
+/** The settings of a graph no column setting was made on. */
+export const NO_COLUMN_SETTINGS: ColumnSettings = Object.freeze({
+    hidden: Object.freeze([]),
+    types: Object.freeze({}),
+    renamed: Object.freeze({}),
+});
+
+/**
+ * `data.columns`: replace the column settings, and with `move`, move a renamed column's
+ * declaration to its new name.
+ */
+interface DataColumnsCommand {
+    readonly op: "data.columns";
+    readonly settings: ColumnSettings;
+    readonly move?: { readonly kind: "node" | "edge"; readonly from: string; readonly to: string };
+}
+
 /** Every data op. */
 export type DataCommand =
     | DataApplyCommand
@@ -318,7 +384,8 @@ export type DataCommand =
     | DataDeclareCommand
     | DataSetSourceCommand
     | DataSetFileStylesCommand
-    | DataLabelCommand;
+    | DataLabelCommand
+    | DataColumnsCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -485,7 +552,7 @@ export function replaceNodesCommand(
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const named = new Map(records.map((record) => [searchRecord(record, idPath), record]));
     const gone = [...held.keys()].filter((id) => !named.has(id));
     const changed: RowUpdate<NodeId>[] = [];
     for (const [id, prior] of held) {
@@ -960,7 +1027,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`, `graph/v:${PROVENANCE_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -986,6 +1053,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             {
                 [SOURCE_VALUE]: describeSource(source),
                 ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+                ...(command.provenance === undefined ? {} : { [PROVENANCE_VALUE]: command.provenance }),
             },
             ctx.draft,
         );
@@ -1021,7 +1089,6 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     },
 };
 
-/** The data ops' definitions. */
 const dataLabel: UndoableDefinition<DataLabelCommand> = {
     op: "data.label",
     undo: {
@@ -1066,6 +1133,92 @@ const dataLabel: UndoableDefinition<DataLabelCommand> = {
     },
 };
 
+/**
+ * Whether a value is column settings, as a project file may hold them.
+ * @param value - The value.
+ * @returns True when every part has its shape.
+ */
+function isColumnSettings(value: unknown): value is ColumnSettings {
+    const { hidden, types, renamed } = (typeof value === "object" && value !== null ? value : {}) as Record<
+        string,
+        unknown
+    >;
+    const isMap = (map: unknown, valid: (each: unknown) => boolean): boolean =>
+        typeof map === "object" && map !== null && !Array.isArray(map) && Object.values(map).every(valid);
+    return (
+        Array.isArray(hidden) &&
+        hidden.every((each) => typeof each === "string") &&
+        isMap(types, isValueType) &&
+        isMap(renamed, (each) => typeof each === "string")
+    );
+}
+
+const dataColumns: UndoableDefinition<DataColumnsCommand> = {
+    op: "data.columns",
+    undo: {
+        kind: "undoable",
+        label: () => "Change the column settings",
+        fact: () => ({ code: "data.columns", params: {} }),
+    },
+    // Hiding, a type and a rename's bookkeeping repaint nothing: the rows' own edits do.
+    moves: false,
+    keys: (command) => [
+        `graph/v:${COLUMNS_VALUE}`,
+        ...(command.move === undefined
+            ? []
+            : [
+                  `attributes/${declarationKey({ kind: command.move.kind, name: command.move.from })}`,
+                  `attributes/${declarationKey({ kind: command.move.kind, name: command.move.to })}`,
+              ]),
+    ],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        if (!isColumnSettings(command.settings)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "Column settings list the hidden columns, each converted column's type and each rename.",
+                source: "data",
+                details: { settings: command.settings, types: [...VALUE_TYPES] },
+            });
+        }
+
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot keep column settings.",
+                source: "data",
+            });
+        }
+
+        const { hidden, types, renamed } = command.settings;
+        const empty = hidden.length === 0 && Object.keys(types).length === 0 && Object.keys(renamed).length === 0;
+        service.values(
+            {
+                [COLUMNS_VALUE]: empty
+                    ? undefined
+                    : Object.freeze({
+                          hidden: Object.freeze([...hidden]),
+                          types: Object.freeze({ ...types }),
+                          renamed: Object.freeze({ ...renamed }),
+                      }),
+            },
+            ctx.draft,
+        );
+
+        const { move } = command;
+        if (move !== undefined) {
+            const from = declarationKey({ kind: move.kind, name: move.from });
+            const declared = ctx.state.attributes.get(from);
+            if (declared !== undefined) {
+                ctx.draft.attributes.delete(from);
+                ctx.draft.attributes.set(declarationKey({ kind: move.kind, name: move.to }), declared);
+            }
+        }
+    },
+};
+
+/** The data ops' definitions. */
 export const DATA_DEFINITIONS = [
     dataApply,
     dataImport,
@@ -1074,4 +1227,5 @@ export const DATA_DEFINITIONS = [
     dataSetSource,
     dataSetFileStyles,
     dataLabel,
+    dataColumns,
 ] as const;

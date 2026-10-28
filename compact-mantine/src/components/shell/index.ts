@@ -13,6 +13,8 @@ export type { SecondaryToolbarButtonProps, SecondaryToolbarProps } from "./Secon
 export { SecondaryToolbar } from "./SecondaryToolbar";
 export type { ShortcutEntry, ShortcutGroup, ShortcutSheetProps, ShortcutSheetTab } from "./ShortcutSheet";
 export { ShortcutSheet } from "./ShortcutSheet";
+export type { StatusBarProps } from "./StatusBar";
+export { StatusBar } from "./StatusBar";
 export type { ToolbarProps } from "./Toolbar";
 export { Toolbar } from "./Toolbar";
 export type { ToolButtonProps } from "./ToolButton";

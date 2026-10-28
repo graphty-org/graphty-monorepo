@@ -42,6 +42,33 @@ const GraphKnownFields = z.strictObject({
     nodeLabelPath: z.string().or(z.null()).default(null),
     nodeWeightPath: z.string().or(z.null()).default(null),
     nodeTimePath: z.string().or(z.null()).default(null),
+    // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
+    // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
+    nodeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    // Where each node's location is: one column of whole locations, or a latitude and a longitude
+    // column. The location map layout reads them when its own options name none; absent or null,
+    // it finds them by name or by their values.
+    nodeLocationPath: z.string().or(z.null()).optional(),
+    nodeLatitudePath: z.string().or(z.null()).optional(),
+    nodeLongitudePath: z.string().or(z.null()).optional(),
+    // How the location is read. "auto" (absent or null) reads coordinates first, then place names;
+    // "coords" only coordinates; "country", "region" or "city" read nodeLocationPath as place names
+    // of that kind, looked up in the location map's gazetteer; "none" means the reader removed the
+    // field, so nothing designated is read and nothing is found by name or value.
+    nodeLocationRole: z.enum(["auto", "coords", "country", "region", "city", "none"]).or(z.null()).optional(),
+    // A column that narrows each place name (a city's country or region), and a fixed ISO 3166-1
+    // alpha-2 country code that narrows every one. Absent, a city is narrowed by a country or
+    // region column found by name.
+    nodeLocationWithinPath: z.string().or(z.null()).optional(),
+    nodeLocationWithin: z.string().or(z.null()).optional(),
+    // One column per kind of location, as `data.setRole` designates them (with nodeLatitudePath
+    // and nodeLongitudePath): a column of whole coordinates, and columns of country, region and
+    // city names. The location map reads a full pair first, else the coordinates, else the finest
+    // place kind, narrowed by the next coarser one. Ignored while nodeLocationPath is set.
+    nodeCoordinatesPath: z.string().or(z.null()).optional(),
+    nodeCountryPath: z.string().or(z.null()).optional(),
+    nodeRegionPath: z.string().or(z.null()).optional(),
+    nodeCityPath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does
@@ -76,6 +103,7 @@ const GraphKnownFields = z.strictObject({
     // reader did not say. Kept here so the project file saves it and undo moves it.
     edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
     edgeTimePath: z.string().or(z.null()).default(null),
+    edgeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

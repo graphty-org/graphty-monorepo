@@ -367,7 +367,10 @@ const css = `
     border-start-end-radius: 5px;
     border-end-end-radius: 5px;
 }
+/* Static, not the paint field's relative (which only places its seam): a positioned opacity box
+   paints over the field's inset outline, so the focus and hover ring covered the hex half only. */
 .cm-joined-field .cm-paint-opacity {
+    position: static;
     border-radius: 0;
     border-start-end-radius: 5px;
     border-end-end-radius: 5px;

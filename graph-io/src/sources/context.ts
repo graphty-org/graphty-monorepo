@@ -835,6 +835,7 @@ class SourceFetcher {
             ...(finish?.server === undefined ? {} : { server: finish.server }),
             ...(finish?.budget === undefined ? {} : { budget: finish.budget }),
             ...(finish?.validators === undefined ? {} : { validators: finish.validators }),
+            ...(finish?.total === undefined ? {} : { total: finish.total }),
         });
     }
 }

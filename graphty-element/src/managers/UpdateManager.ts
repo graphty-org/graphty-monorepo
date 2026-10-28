@@ -6,9 +6,10 @@ import {
     type Mesh,
     type Nullable,
     type Observer,
+    Quaternion,
     type Scene,
     type TransformNode,
-    type Vector3,
+    Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
@@ -17,10 +18,12 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -28,6 +31,16 @@ import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
+
+/**
+ * How a flat map in 3D is first seen: turned from straight on toward the south by 45 degrees, so
+ * the camera looks north across the map and the edges' arcs rise above it.
+ */
+const FLAT_MAP_TILT = Quaternion.FromUnitVectorsToRef(
+    new Vector3(0, 0, -1),
+    new Vector3(0, -Math.SQRT1_2, -Math.SQRT1_2),
+    new Quaternion(),
+);
 
 /** The corners of a box in world space, and what it holds. */
 interface FramingBox {
@@ -190,6 +203,13 @@ export interface ViewMasks {
      * @returns True when hidden nodes are drawn as context.
      */
     readonly showContext?: () => boolean;
+    /**
+     * Whether `visibility` is drawing ghosts now (elements outside the time window kept on screen).
+     * Read on every pass: switching it swaps which mask `visibility` answers with, so the next pass
+     * walks everything rather than trusting a version from the other mask.
+     * @returns True while ghosts are drawn.
+     */
+    readonly ghost?: () => boolean;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -310,6 +330,7 @@ export class UpdateManager implements Manager {
     private appliedNodeVisibility = NO_MASK_VERSION;
     private appliedEdgeVisibility = NO_MASK_VERSION;
     private appliedShowContext = false;
+    private appliedGhost = false;
     private appliedAnything = false;
 
     /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
@@ -517,6 +538,7 @@ export class UpdateManager implements Manager {
         const nodeVisibility = masks.visibility?.nodes() ?? null;
         const edgeVisibility = masks.visibility?.edges() ?? null;
         const showContext = masks.showContext?.() ?? false;
+        const ghost = masks.ghost?.() ?? false;
 
         const nodeSelectionVersion = nodeSelection?.version ?? NO_MASK_VERSION;
         const edgeSelectionVersion = edgeSelection?.version ?? NO_MASK_VERSION;
@@ -529,6 +551,7 @@ export class UpdateManager implements Manager {
             nodeVisibilityVersion,
             edgeVisibilityVersion,
             showContext,
+            ghost,
         );
 
         if (!nodesMoved && !edgesMoved) {
@@ -545,8 +568,10 @@ export class UpdateManager implements Manager {
         const nodeSelectionOnly =
             this.appliedAnything &&
             nodeVisibilityVersion === this.appliedNodeVisibility &&
-            showContext === this.appliedShowContext;
-        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
+            showContext === this.appliedShowContext &&
+            ghost === this.appliedGhost;
+        const edgeSelectionOnly =
+            this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
         if (nodesMoved && nodeSelectionOnly) {
             this.applyNodeSelection(nodeSelection);
@@ -565,6 +590,7 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = nodeVisibilityVersion;
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
+        this.appliedGhost = ghost;
         this.appliedAnything = true;
     }
 
@@ -717,6 +743,7 @@ export class UpdateManager implements Manager {
      * @param nodeVisibility - The node visibility mask's version now.
      * @param edgeVisibility - The edge visibility mask's version now.
      * @param showContext - Whether hidden nodes are drawn faintly now.
+     * @param ghost - Whether ghosts are drawn now.
      * @returns Whether the nodes and whether the edges need the masks applied again.
      */
     private viewMasksMoved(
@@ -725,17 +752,20 @@ export class UpdateManager implements Manager {
         nodeVisibility: number,
         edgeVisibility: number,
         showContext: boolean,
+        ghost: boolean,
     ): { nodesMoved: boolean; edgesMoved: boolean } {
         return {
             nodesMoved:
                 !this.appliedAnything ||
                 nodeSelection !== this.appliedNodeSelection ||
                 nodeVisibility !== this.appliedNodeVisibility ||
-                showContext !== this.appliedShowContext,
+                showContext !== this.appliedShowContext ||
+                ghost !== this.appliedGhost,
             edgesMoved:
                 !this.appliedAnything ||
                 edgeSelection !== this.appliedEdgeSelection ||
-                edgeVisibility !== this.appliedEdgeVisibility,
+                edgeVisibility !== this.appliedEdgeVisibility ||
+                ghost !== this.appliedGhost,
         };
     }
 
@@ -757,6 +787,7 @@ export class UpdateManager implements Manager {
             masks.visibility?.nodes().version ?? NO_MASK_VERSION,
             masks.visibility?.edges().version ?? NO_MASK_VERSION,
             masks.showContext?.() ?? false,
+            masks.ghost?.() ?? false,
         );
 
         return nodesMoved || edgesMoved;
@@ -1117,6 +1148,65 @@ export class UpdateManager implements Manager {
     picturesLoading: (() => boolean) | null = null;
 
     /**
+     * Whether an operation is queued or running, so the graph is about to change (issue #3528). Null
+     * when nothing queues operations. Asked only by {@link UpdateManager.nothingIsOwed}: the frame
+     * on screen is final about the graph it shows, so {@link UpdateManager.frameIsStable}, the
+     * `graph-frame-stable` event and the on-demand loop's rest do not ask it.
+     */
+    operationsPending: (() => boolean) | null = null;
+
+    /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
+    private readonly owedWaiters = new Set<() => void>();
+
+    /**
+     * Whether nothing is still owed to the picture: no operation is queued or running, and the
+     * frame drawn is the finished one. The one question `waitForStableFrame()` asks; the pending-work
+     * record of issue #3546 replaces this body and `pictureIsFinished()`'s.
+     * @returns True when the picture on screen is final and nothing queued will change it.
+     */
+    nothingIsOwed(): boolean {
+        return this.operationsPending?.() !== true && this.frameIsStable;
+    }
+
+    /**
+     * Call back once {@link UpdateManager.nothingIsOwed} is true: at once when it already is, else
+     * on the first pass or drawn frame that finds it so.
+     *
+     * Level-triggered, unlike `graph-frame-stable`, which fires only when a drawn frame turns the
+     * picture final. Work that starts and ends between two frames without changing the picture --
+     * a derivation pass that paints nothing -- turns nothing final, so a waiter that attached while
+     * it ran heard no event and waited out its timeout (issue #3527). Asked again after every
+     * pass, which the render loop runs on every tick it does not hold, drawn or rested, a waiter
+     * wakes on the first one that finds nothing owed.
+     * @param callback - Called once, in a microtask of its own, so one that throws stops no pass and
+     *   no other waiter.
+     * @returns Stops waiting; a no-op once called back.
+     */
+    onceNothingIsOwed(callback: () => void): () => void {
+        if (this.nothingIsOwed()) {
+            queueMicrotask(callback);
+            return () => undefined;
+        }
+
+        this.owedWaiters.add(callback);
+        return () => {
+            this.owedWaiters.delete(callback);
+        };
+    }
+
+    /** Calls back every {@link UpdateManager.onceNothingIsOwed} waiter when nothing is owed now. */
+    private wakeOwedWaiters(): void {
+        if (this.owedWaiters.size === 0 || !this.nothingIsOwed()) {
+            return;
+        }
+
+        for (const callback of this.owedWaiters) {
+            queueMicrotask(callback);
+        }
+        this.owedWaiters.clear();
+    }
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -1189,6 +1279,10 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether the state this pass leaves behind is a picture that will not change again.
+     *
+     * What the picture still owes: {@link UpdateManager.frameIsStable}, the frame announcement and,
+     * through {@link UpdateManager.nothingIsOwed}, `waitForStableFrame()` all ask it here, so the
+     * pending-work record of issue #3546 replaces this body.
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
@@ -1210,8 +1304,13 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        // The depth-independent size switched on or off and not yet applied to the meshes.
-        if ((this.depthSizingPivot() !== null) !== this.depthScaled) {
+        // The depth-independent size switched on or off and not yet applied to the meshes, or the
+        // screen size on a map changed with the camera since the meshes were scaled.
+        if ((this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled) {
+            return false;
+        }
+
+        if (this.screenSizingScale() !== this.screenScaled) {
             return false;
         }
 
@@ -1331,6 +1430,7 @@ export class UpdateManager implements Manager {
 
         this.drawnFrameIsFinished = true;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
+        this.wakeOwedWaiters();
     }
 
     /**
@@ -1377,6 +1477,23 @@ export class UpdateManager implements Manager {
             // Something is moving again, so whatever was drawn before is no longer the last word.
             this.drawnFrameIsFinished = false;
         }
+
+        // A pass that finds the drawn frame still final wakes its waiters even when it draws
+        // nothing new: work that came and went since the last frame owes nothing (issue #3527).
+        this.wakeOwedWaiters();
+    }
+
+    /** The selection the reader moved the camera away from, which the camera then stops following. */
+    private heldSelection: string | null = null;
+
+    /**
+     * The reader moved the camera themselves (a pan, a zoom, a turn): stop following the selection
+     * there is now, so the camera stays where they put it, until the selection changes.
+     */
+    holdSelectionFollow(): void {
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
+        this.followingSelection = false;
     }
 
     /**
@@ -1401,6 +1518,15 @@ export class UpdateManager implements Manager {
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
             return;
         }
+
+        // The reader moved the camera since this selection was made: a pan or a zoom elsewhere is
+        // theirs to keep, until they select something else.
+        const key = selectionKey(nodes);
+        if (key === this.heldSelection) {
+            return;
+        }
+
+        this.heldSelection = null;
 
         if (this.willZoomToFit()) {
             // The glide starts on the pass after the framing ends, so the frame the framing ends
@@ -1892,6 +2018,12 @@ export class UpdateManager implements Manager {
         return true;
     }
 
+    /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
+    private screenScaled: number | null = null;
+
+    /** The map frame the camera last turned to face, so a new map is faced once. */
+    private facedFrame: LocationMapFrame | null = null;
+
     /** Whether a node mesh currently carries a depth-independent scale. */
     private depthScaled = false;
 
@@ -1911,11 +2043,39 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The scale that holds every node at one size on screen while the location map layout runs
+     * with `nodeScale: "screen"`: a node of size 1 is drawn as one scene unit is when the map's
+     * extent fills the view's height, whatever the zoom. Null when the layout does not ask for it.
+     * @returns The scale, or null.
+     */
+    private screenSizingScale(): number | null {
+        const engine = this.layoutManager.layoutEngine as
+            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string } } | undefined;
+        const frame = engine?.geoFrame;
+        const camera = this.graphContext.getScene().activeCamera;
+        if (frame === undefined || frame === null || engine?.config?.nodeScale !== "screen" || camera === null) {
+            return null;
+        }
+
+        const span = frame.surface === "flat" ? frame.size : 2 * frame.radius;
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            const height = (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0);
+            return height > 0 ? height / span : null;
+        }
+
+        const orbit = this.camera.getActiveController();
+        const target = orbit instanceof OrbitCameraController ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
+        const distance = Vector3.Distance(camera.globalPosition, target);
+        return distance > 0 ? (2 * distance * Math.tan(camera.fov / 2)) / span : null;
+    }
+
+    /**
      * Draw every node at the size it would have at the orbit's pivot depth when
      * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
      * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
      * divides by the depth, so the drawn size is world size over the pivot depth for every node.
-     * Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     * On a map with `nodeScale: "screen"` every node is scaled too, so it keeps its size on screen
+     * as the camera zooms. Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
      *
      * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
      * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
@@ -1924,7 +2084,9 @@ export class UpdateManager implements Manager {
     private sizeNodesForDepth(): boolean {
         const camera = this.graphContext.getScene().activeCamera;
         const pivot = this.depthSizingPivot();
-        const on = pivot !== null;
+        const screen = this.screenSizingScale();
+        this.screenScaled = screen;
+        const on = pivot !== null || screen !== null;
 
         if (!on && !this.depthScaled) {
             return false;
@@ -1946,15 +2108,19 @@ export class UpdateManager implements Manager {
         const view = camera?.getViewMatrix().m;
         const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
         this.depthScaled = true;
-        const reference = depthOf(pivot.getAbsolutePosition());
+        const reference = pivot === null ? 1 : depthOf(pivot.getAbsolutePosition());
         if (Number.isNaN(reference) || reference <= 0) {
             return false;
         }
 
         for (const node of this.layoutManager.nodes) {
             const { mesh } = node;
-            const depth = depthOf(mesh.getAbsolutePosition());
-            const scale = depth > 0 ? depth / reference : 1;
+            let scale = screen ?? 1;
+            if (pivot !== null) {
+                const depth = depthOf(mesh.getAbsolutePosition());
+                scale *= depth > 0 ? depth / reference : 1;
+            }
+
             if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
                 mesh.scaling.setAll(scale);
                 changed = true;
@@ -2241,7 +2407,28 @@ export class UpdateManager implements Manager {
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
-        const { min: boundingBoxMin, max: boundingBoxMax } = box;
+        let { min: boundingBoxMin, max: boundingBoxMax } = box;
+        // On a map the map is framed too, and a new map is faced: seen from behind it is a mirror.
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame ?? null;
+        if (frame !== null) {
+            // The whole map: a globe opens as the whole sphere, the flat map as its whole box.
+            for (const corner of mapCorners(frame)) {
+                boundingBoxMin = Vector3.Minimize(boundingBoxMin, corner);
+                boundingBoxMax = Vector3.Maximize(boundingBoxMax, corner);
+            }
+
+            const orbit = this.camera.getActiveController();
+            if (frame !== this.facedFrame && frame.dimensions === 3 && orbit instanceof OrbitCameraController) {
+                // A globe is faced straight on. A flat map in 3D is seen from the south at a slant,
+                // so its edges read as arcs above it: straight down, an arc looks like a line.
+                orbit.pivot.rotationQuaternion =
+                    frame.surface === "flat" ? FLAT_MAP_TILT.clone() : Quaternion.Identity();
+            }
+
+            this.facedFrame = frame;
+        }
+
         const size = boundingBoxMax.subtract(boundingBoxMin);
 
         if (size.length() <= this.config.minBoundingBoxSize) {
@@ -2299,4 +2486,13 @@ export class UpdateManager implements Manager {
     updateConfig(config: Partial<UpdateManagerConfig>): void {
         Object.assign(this.config, config);
     }
+}
+
+/**
+ * A selection as text, to tell one selection from another.
+ * @param nodes - The selected nodes.
+ * @returns Their ids, joined.
+ */
+function selectionKey(nodes: readonly Node[]): string {
+    return nodes.map((node) => String(node.id)).join("\u0000");
 }

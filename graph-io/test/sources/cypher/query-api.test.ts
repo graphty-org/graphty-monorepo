@@ -39,6 +39,60 @@ const QUERIES = recorded("movies-queries");
 const EXPAND_PAGED = recorded("movies-expand-paged");
 const MOVIES = { database: "movies", mode: "all", pageSize: 100 } as const;
 
+/** The count-store lookup a first page of Everything runs: the demo's 171 movies-graph nodes. */
+const COUNT: Recording = {
+    ...PAGED[0],
+    requestBody: JSON.stringify({ statement: "MATCH (n) RETURN count(n) AS c", parameters: {}, accessMode: "Read" }),
+    body: { data: { fields: ["c"], values: [[{ $type: "Integer", _value: "171" }]] }, bookmarks: [] },
+};
+const LOAD = [COUNT, ...PAGED];
+
+/** A recorded Query API answer's rows. */
+type Rows = { data: { fields: string[]; values: { _value: Record<string, string> }[][] } };
+
+/**
+ * The last key a recorded node page returned.
+ * @param page - the page
+ * @returns the key
+ */
+function lastKey(page: Recording): string {
+    return ((page.body as Rows).data.values.at(-1)?.[1] as unknown as { _value: string })._value;
+}
+
+/**
+ * The demo's answer to the relationships among the nodes a capped mode "all" loaded, built from
+ * the recorded relationship pages: both ends at or before `last`, one past `after`.
+ * @param last - the node page's last key
+ * @param after - the previous page's last key, or null for the first page
+ * @returns the recording
+ */
+function among(last: string, after: string | null): Recording {
+    const values = PAGED.slice(2)
+        .flatMap((r) => (r.body as Rows).data.values)
+        .filter(([, r]) => {
+            const ends = [r._value._start_node_element_id, r._value._end_node_element_id];
+            return ends.every((id) => id <= last) && ends.some((id) => after === null || id > after);
+        })
+        .map(([a, r, b]) => [a, r, b]);
+    const statement = [
+        "MATCH (a)-[r]->(b) WITH a, r, b, elementId(a) AS ka, elementId(b) AS kb",
+        `WHERE ka <= $last AND kb <= $last${after === null ? "" : " AND (ka > $after OR kb > $after)"}`,
+        "RETURN a, r, b",
+    ].join(" ");
+    return {
+        ...PAGED[2],
+        requestBody: JSON.stringify({
+            statement,
+            parameters: { last, ...(after === null ? {} : { after }) },
+            accessMode: "Read",
+        }),
+        body: { data: { fields: ["a", "r", "b"], values } },
+    };
+}
+
+/** Mode "all" capped at 100 nodes, page by page: each node page, then the edges among what is loaded. */
+const CAPPED = [COUNT, PAGED[0], among(lastKey(PAGED[0]), null), PAGED[1], among(lastKey(PAGED[1]), lastKey(PAGED[0]))];
+
 /** Load options against recordings, with the demo's published login. */
 function options(recordings: readonly Recording[]): Parameters<typeof loadFromSource>[2] {
     return { endpoint: DEMO, credential: credentials.basic("movies", "movies"), fetch: replayFetch(recordings) };
@@ -46,13 +100,14 @@ function options(recordings: readonly Recording[]): Parameters<typeof loadFromSo
 
 describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     it("loads the movies graph exactly: 171 nodes, 253 edges", async () => {
-        const fetch = replayFetch(PAGED);
-        const { snapshot, report, format } = await loadFromSource("neo4j", MOVIES, { ...options(PAGED), fetch });
+        const fetch = replayFetch(LOAD);
+        const { snapshot, report, format } = await loadFromSource("neo4j", MOVIES, { ...options(LOAD), fetch });
         expect(format).toBe("source:neo4j");
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([171, 253]);
         expect(snapshot.directed).toBe(true);
         expect(report.source?.next).toBeNull();
-        expect(report.source?.requests).toBe(5);
+        expect(report.source?.requests).toBe(6);
+        expect(report.source?.total).toEqual({ nodes: 171 });
         expect(report.source?.server).toEqual({ product: "Neo4j", profile: "neo4j", readOnly: "enforced" });
         expect(report.source?.validators?.contentHash).toMatch(/^[0-9a-f]{64}$/);
         expect(fetch.calls.every((c) => c.method === "POST" && c.credential)).toBe(true);
@@ -63,7 +118,7 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     });
 
     it("keeps labels, relationship types, properties and the degree hint", async () => {
-        const { snapshot } = await loadFromSource("neo4j", MOVIES, options(PAGED));
+        const { snapshot } = await loadFromSource("neo4j", MOVIES, options(LOAD));
         const keanu =
             Array.from({ length: snapshot.nodeCount }, (_, i) => i).find(
                 (i) => snapshot.nodes.value("name", i) === "Keanu Reeves",
@@ -139,6 +194,82 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(bodies[1].statement).toContain("WHERE key > $after");
     });
 
+    it("sends a node cap on a user query to the server, and a full result continues with more rows", async () => {
+        const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
+        const capped = (rows: number): string => `CALL {\n${query}\n}\nRETURN * LIMIT ${String(rows)}`;
+        const [whole] = QUERIES;
+        const body = whole.body as { data: { fields: string[]; values: unknown[][] } };
+        const answer = (rows: number): Recording => ({
+            ...whole,
+            requestBody: JSON.stringify({
+                statement: capped(rows),
+                parameters: { name: "Tom Hanks" },
+                accessMode: "Read",
+            }),
+            body: { ...body, data: { ...body.data, values: body.data.values.slice(0, rows) } },
+        });
+        const params = { database: "movies", query, parameters: { name: "Tom Hanks" } };
+        const fetch = replayFetch([answer(3), answer(6)]);
+        const first = await loadFromSource("neo4j", params, {
+            ...options([]),
+            fetch,
+            limits: { maxNodes: 3 },
+        });
+        expect(first.snapshot.nodeCount).toBe(4); // Tom Hanks and three movies
+        expect(first.report.source?.next).toMatchObject({ rows: 6 });
+        const next = await loadFromSource("neo4j", params, {
+            ...options([]),
+            fetch,
+            cursor: first.report.source?.next ?? undefined,
+        });
+        expect(next.snapshot.nodeCount).toBe(7);
+        expect(fetch.calls).toHaveLength(2);
+    });
+
+    it("stops Everything at its node cap with the edges among the loaded nodes, and pages on by key", async () => {
+        const fetch = replayFetch(CAPPED);
+        const capped = await loadFromSource("neo4j", MOVIES, { ...options([]), fetch, limits: { maxNodes: 100 } });
+        expect(capped.snapshot.nodeCount).toBe(100);
+        expect(capped.snapshot.edgeCount).toBeGreaterThan(0);
+        expect(capped.report.source?.next).toMatchObject({ phase: "nodes", after: lastKey(PAGED[0]) });
+
+        const rest = await loadFromSource("neo4j", MOVIES, {
+            ...options([]),
+            fetch,
+            limits: { maxNodes: 100 },
+            cursor: capped.report.source?.next ?? undefined,
+        });
+        expect(rest.snapshot.nodeCount).toBeGreaterThanOrEqual(71);
+        expect(rest.report.source?.next).toBeNull();
+        expect(capped.snapshot.edgeCount + rest.snapshot.edgeCount).toBe(253);
+    });
+
+    it("runs a user query uncapped when the server refuses the cap's wrapper", async () => {
+        const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
+        const refused = QUERIES.find((r) => (r.status ?? 200) >= 400);
+        if (refused === undefined) {
+            throw new Error("the recordings hold no refused query");
+        }
+        const fetch = replayFetch([
+            {
+                ...refused,
+                requestBody: JSON.stringify({
+                    statement: `CALL {\n${query}\n}\nRETURN * LIMIT 3`,
+                    parameters: { name: "Tom Hanks" },
+                    accessMode: "Read",
+                }),
+            },
+            QUERIES[0],
+        ]);
+        const { snapshot, report } = await loadFromSource(
+            "neo4j",
+            { database: "movies", query, parameters: { name: "Tom Hanks" } },
+            { ...options([]), fetch, limits: { maxNodes: 3 } },
+        );
+        expect(snapshot.nodeCount).toBe(13);
+        expect(report.source?.next).toBeNull();
+    });
+
     it("reports a query error with the line and column the server named", async () => {
         const err = await rejection(
             loadFromSource("neo4j", { database: "movies", query: "MATCH (n RETURN n" }, options(QUERIES)),
@@ -169,13 +300,13 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     });
 
     it("validate re-runs the load and compares the content hash", async () => {
-        const { report } = await loadFromSource("neo4j", MOVIES, options(PAGED));
+        const { report } = await loadFromSource("neo4j", MOVIES, options(LOAD));
         const seen = report.source?.validators ?? {};
-        expect((await validateSource("neo4j", MOVIES, seen, options(PAGED))).status).toBe("current");
-        expect((await validateSource("neo4j", MOVIES, { contentHash: "0".repeat(64) }, options(PAGED))).status).toBe(
+        expect((await validateSource("neo4j", MOVIES, seen, options(LOAD))).status).toBe("current");
+        expect((await validateSource("neo4j", MOVIES, { contentHash: "0".repeat(64) }, options(LOAD))).status).toBe(
             "changed",
         );
-        expect((await validateSource("neo4j", MOVIES, {}, options(PAGED))).status).toBe("unverifiable");
+        expect((await validateSource("neo4j", MOVIES, {}, options(LOAD))).status).toBe("unverifiable");
     });
 
     it("maps a 401 to E_SOURCE_AUTH with the origin", async () => {
@@ -223,8 +354,8 @@ runSourceConformance(neo4jSource, [
         name: "movies, paged",
         params: MOVIES,
         endpoint: DEMO,
-        recordings: PAGED,
-        cap: { maxNodes: 1 },
+        recordings: [...PAGED, ...CAPPED],
+        cap: { maxNodes: 100 },
         credential: (secret) => credentials.basic("movies", secret),
     },
     {

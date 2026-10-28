@@ -116,6 +116,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "graphviz-twopi",
     "grid",
     "kamada-kawai",
+    "location-map",
     "multipartite",
     "ngraph",
     "planar",

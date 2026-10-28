@@ -86,6 +86,8 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.supportRepulsion": SUPPORTED,
     "edge.supportCentralGravity": SUPPORTED,
     "edge.supportUnit": SUPPORTED,
+    // An arc height raises only a raised route; every other layout draws edges straight.
+    "edge.arcHeight": { "edge.route": "arc" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },

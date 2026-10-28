@@ -8,6 +8,8 @@ storybook-static/
 # graph-samples' hosted datasets: written by `npm run datasets:hosted`, ignored by
 # graph-samples/.gitignore, which prettier does not read (it reads only the root .gitignore)
 graph-samples/public-data/
+# pipeline-health's CDK synth output: written by `pnpm run synth`, ignored by tools/pipeline-health/.gitignore
+tools/pipeline-health/cdk.out/
 
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte

@@ -5,7 +5,7 @@
  * graduated id: what matters is the resolution rule, not today's empty list.
  */
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { featuresFromUrl, resolveFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { createGraphSession } from "../../src/session";
@@ -19,6 +19,12 @@ vi.mock("../../src/features/registry", () => ({
     ]),
     GRADUATED_FEATURES: Object.freeze(["data-management"]),
 }));
+
+// These tests are about the page default itself, so each starts from an empty one, also in the On
+// configuration, whose setup sets it to ["all"] before every test (test/setup-features-on.ts).
+beforeEach(() => {
+    setDefaultFeatures([]);
+});
 
 describe("resolveFeatures", () => {
     afterEach(() => {

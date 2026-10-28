@@ -55,6 +55,7 @@ import {
     type CompareCommit,
     type GhJob,
     type GhRun,
+    releaseMode,
     type GqlIssue,
     type GqlPr,
     type PrRun,
@@ -218,11 +219,25 @@ interface JobsPage {
     jobs: GhJob[];
 }
 
-async function allJobs(gh: GitHub, repo: string, runId: number): Promise<GhJob[]> {
+/**
+ * Every job of a run (`runs/<id>`) or of one attempt (`runs/<id>/attempts/<n>`). GitHub answers 502 to a page of 100
+ * jobs for some re-run attempts of the release train (about 100 jobs, run attempt 2) every time, so a server error
+ * reads the run again in pages of 50.
+ */
+async function allJobs(gh: GitHub, repo: string, run: number | string): Promise<GhJob[]> {
+    try {
+        return await jobPages(gh, repo, run, 100);
+    } catch (e) {
+        if (!(e instanceof HttpError) || e.status < 500) throw e;
+        return jobPages(gh, repo, run, 50);
+    }
+}
+
+async function jobPages(gh: GitHub, repo: string, run: number | string, size: number): Promise<GhJob[]> {
     const jobs: GhJob[] = [];
-    for (let page = 1; page <= 5; page++) {
+    for (let page = 1; page <= 500 / size; page++) {
         const r = await gh.rest<JobsPage>(
-            `repos/${repo}/actions/runs/${runId}/jobs?per_page=100&filter=latest&page=${page}`,
+            `repos/${repo}/actions/runs/${run}/jobs?per_page=${size}&filter=latest&page=${page}`,
         );
         jobs.push(...(r?.jobs ?? []));
         if (!r || jobs.length >= r.total_count || !r.jobs.length) break;
@@ -698,13 +713,28 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     const runs =
         (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=12`))?.workflow_runs ?? [];
     const seen = await c.json<Record<string, ReleaseSeen>>("release", {});
-    // An attempt seen before lanes were kept is read once more.
-    const todo = runs.filter((r) => r.status === "completed" && !seen[`${r.id}.${r.run_attempt}`]?.lanes);
-    await mapPool(todo, 4, async (r) => {
-        const jobs = await allJobs(gh, repo, r.id).catch((e: unknown) => {
-            c.skipped.push(`jobs of release run ${r.id}: ${message(e)}`); // not seen: read again next cycle
+    // Every attempt of a run: the list shows only the newest, so an attempt a re-run replaced before this cycle
+    // (release-rerun.yml re-runs a red full run at once) is read through runs/<id>/attempts/<n>. An attempt seen
+    // before lanes were kept is read once more.
+    const todo: { r: GhRun; path: string }[] = [];
+    for (const r of runs) {
+        if (r.status !== "completed") continue;
+        for (const [key, s] of Object.entries(seen))
+            if (key.startsWith(`${r.id}.`)) s.mode ??= releaseMode(r.display_title);
+        for (let n = 1; n <= r.run_attempt; n++)
+            if (!seen[`${r.id}.${n}`]?.lanes)
+                todo.push({ r, path: n === r.run_attempt ? `${r.id}` : `${r.id}/attempts/${n}` });
+    }
+    await mapPool(todo, 4, async ({ r: newest, path }) => {
+        const read = async (): Promise<[GhRun, GhJob[]] | undefined> => {
+            const r = path.includes("/") ? await gh.rest<GhRun>(`repos/${repo}/actions/runs/${path}`) : newest;
+            return r && [r, await allJobs(gh, repo, path)];
+        };
+        const got = await read().catch((e: unknown) => {
+            c.skipped.push(`jobs of release run ${path}: ${message(e)}`); // not seen: read again next cycle
         });
-        if (!jobs) return;
+        if (!got) return;
+        const [r, jobs] = got;
         const a = releaseAttempt(r, jobs);
         seen[`${r.id}.${r.run_attempt}`] = {
             sha: r.head_sha,
@@ -713,6 +743,7 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
             red: a.red,
             ciFailed: a.lanes.ci === "failed",
             run: r.id,
+            mode: a.mode,
             created: Date.parse(r.run_started_at ?? r.created_at),
             ok: r.conclusion === "success",
             lanes: a.lanes,

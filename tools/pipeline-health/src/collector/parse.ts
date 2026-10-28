@@ -13,7 +13,7 @@ import type {
     TestItem,
 } from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
-import type { LaneJob, OwnerWait, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
+import { type LaneJob, NOT_A_TRAIN, type OwnerWait, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -722,9 +722,6 @@ export function replacedRuns(runs: GhRun[]): Set<number> {
             .map((r) => r.id),
     );
 }
-
-/** Release modes that test nothing new by design (a promotion, a hold's end, a held candidate's re-test). */
-const NOT_A_TRAIN = new Set(["promote-nightly", "abandon", "candidate"]);
 
 /**
  * Whether the train skipped a new commit: the newest train attempt (not a promote-nightly, abandon or candidate run)

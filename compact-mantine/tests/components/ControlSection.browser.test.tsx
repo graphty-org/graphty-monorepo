@@ -72,7 +72,11 @@ describe("ControlSection title cut short", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("control-section-name"));
-        await expect(screen.findByRole("tooltip", {})).rejects.toThrow();
+        // A title drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        const whole = screen.getByTestId("control-section-name");
+        expect(whole.scrollWidth).toBeLessThanOrEqual(whole.clientWidth);
+        expect(screen.queryByRole("tooltip")).toBeNull();
     });
 
     it("wraps a wrapLabel title onto a second line, whole, with no tooltip", async () => {
@@ -91,7 +95,11 @@ describe("ControlSection title cut short", () => {
             PANEL_GRID.SECTION_HEADER,
         );
         await userEvent.hover(name);
-        await expect(screen.findByRole("tooltip", {})).rejects.toThrow();
+        // A title drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        const whole = screen.getByTestId("control-section-name");
+        expect(whole.scrollWidth).toBeLessThanOrEqual(whole.clientWidth);
+        expect(screen.queryByRole("tooltip")).toBeNull();
     });
 
     it("draws a short wrapLabel title at the one-line header height", async () => {

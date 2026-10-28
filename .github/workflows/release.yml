@@ -542,7 +542,7 @@ jobs:
     ci:
         name: CI
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its release-due job (master pushes only) dispatches release.yml, cancels a red run and notes it on the
@@ -569,7 +569,7 @@ jobs:
     t4:
         name: T4 GPU
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -584,7 +584,7 @@ jobs:
         name: Hosts
         needs: pick
         # a fix forward that reaches neither webgpu-graph-algorithms, graph-format nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -600,7 +600,7 @@ jobs:
         name: Work protection (macOS)
         needs: pick
         # a fix forward that reaches neither graphty-element nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -617,7 +617,7 @@ jobs:
     audit:
         name: Security audit
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         permissions:
@@ -653,7 +653,7 @@ jobs:
     llm:
         name: LLM regression
         needs: [pick, ci]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
@@ -734,7 +734,7 @@ jobs:
     version_dry_run:
         name: Version dry run
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         # A runaway guard, not a budget: on 2026-10-26 nx release version spent 13 of its 15 minutes before
         # printing its first project, and the lane was cancelled (#3630). Why it is that slow is #3631.
@@ -800,7 +800,7 @@ jobs:
     coverage:
         name: Coverage
         needs: [pick, ci]
-        if: ${{ needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.ci.result == 'success' }}
         permissions:
             contents: read
             actions: read
@@ -1450,7 +1450,7 @@ jobs:
     resume:
         name: Gate the approved candidate
         needs: pick
-        if: ${{ needs.pick.outputs.resume == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.resume == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         permissions:
@@ -1868,7 +1868,7 @@ jobs:
     approve:
         name: Owner approval (production)
         needs: [pick, version]
-        if: ${{ inputs.mode == 'legacy' && needs.version.result == 'success' }}
+        if: ${{ !cancelled() && inputs.mode == 'legacy' && needs.version.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: production

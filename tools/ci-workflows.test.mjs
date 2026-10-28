@@ -4293,12 +4293,15 @@ describe("release.yml", () => {
             /release: \$\{\{ steps.candidate.outputs.run \|\| steps.releasable.outputs.release \|\| 'false' \}\}/,
         );
         for (const j of [ci, t4, audit]) {
-            assert.match(j, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+            assert.match(
+                j,
+                /needs: pick\n\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' \}\}/,
+            );
         }
         // a fix forward's re-test leaves Hosts out when its fixes do not reach it (tools/channel/candidate-fix.mjs)
         assert.match(
             hosts,
-            /needs: pick\n(?:\s+#.*\n)*\s+if: \$\{\{ needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' \}\}/,
+            /needs: pick\n(?:\s+#.*\n)*\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' \}\}/,
         );
     });
 
@@ -4345,7 +4348,10 @@ describe("release.yml", () => {
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
-        assert.match(dryRun, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(
+            dryRun,
+            /needs: pick\n\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' \}\}/,
+        );
         assert.match(dryRun, /ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+fetch-depth: 0/);
         assert.match(dryRun, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(dryRun, /node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"/);
@@ -4367,7 +4373,7 @@ describe("release.yml", () => {
         // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)
         assert.match(
             approve,
-            /needs: \[pick, version\]\n\s+if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
+            /needs: \[pick, version\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
         );
         assert.match(land, /needs: \[pick, version, approve\]\n/);
         assert.match(
@@ -4377,7 +4383,10 @@ describe("release.yml", () => {
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
         assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         // coverage comes from the same CI call, and never holds the release
-        assert.match(coverage, /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.ci.result == 'success' \}\}/);
+        assert.match(
+            coverage,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.ci.result == 'success' \}\}/,
+        );
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
         assert.doesNotMatch(version + land + publish + held, /coverage/);
         const cov = workflow("coverage.yml");
@@ -4409,7 +4418,7 @@ describe("release.yml", () => {
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(
             llm,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
@@ -5060,7 +5069,10 @@ describe("release.yml", () => {
             land,
             /needs: \[pick, version, approve\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && \(needs.approve.result == 'success' \|\| inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate' \|\| inputs.mode == 'promote-nightly'\) \}\}/,
         );
-        assert.match(approve, /if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/);
+        assert.match(
+            approve,
+            /if: \$\{\{ !cancelled\(\) && inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
+        );
         // npm next moves only when something was versioned; the site and channel/nightly move either way
         assert.match(
             publish,
@@ -7354,12 +7366,15 @@ describe("release.yml's nightly promotion (#1020)", () => {
         for (const lane of ["ci", "t4", "hosts", "autosave_macos", "audit", "version_dry_run"]) {
             assert.match(
                 steps[lane].if,
-                /^\$\{\{ needs.pick.outputs.release == 'true'( && needs.pick.outputs.(hosts|macos) != 'false')? \}\}$/,
+                /^\$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true'( && needs.pick.outputs.(hosts|macos) != 'false')? \}\}$/,
                 lane,
             );
         }
         const gate = steps.resume;
-        assert.equal(gate.if, "${{ needs.pick.outputs.resume == 'true' }}");
+        assert.equal(
+            gate.if,
+            "${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.resume == 'true' }}",
+        );
         const download = gate.steps.find((st) => st.uses?.startsWith("actions/download-artifact"));
         assert.deepEqual(
             [download.with.pattern, download.with["run-id"]],
@@ -8128,8 +8143,14 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
             jobs.pick.outputs.source_run,
             "${{ steps.resume.outputs.source_run || steps.forward.outputs.source_run }}",
         );
-        assert.equal(jobs.ci.if, "${{ needs.pick.outputs.release == 'true' }}");
-        assert.equal(jobs.t4.if, "${{ needs.pick.outputs.release == 'true' }}");
+        assert.equal(
+            jobs.ci.if,
+            "${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}",
+        );
+        assert.equal(
+            jobs.t4.if,
+            "${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}",
+        );
     });
 
     it("hands the fix's pull request (fix_pr) to the candidate_fix job", () => {
@@ -8286,5 +8307,24 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+});
+
+describe("release.yml's job conditions under a skipped ancestor", () => {
+    it("gives every job below a job that can be skipped a status function, so a skipped candidate_fix skips nothing (#4130)", () => {
+        // GitHub's implicit success() looks at the whole needs chain: one skipped ancestor (candidate_fix outside full,
+        // restart and candidate) skips every job below it whose if has no !cancelled() or always()
+        const { jobs } = parseYaml(workflow("release.yml"));
+        const needs = (name) => [jobs[name].needs ?? []].flat();
+        const ancestors = (name, seen = new Set()) => {
+            for (const n of needs(name)) if (!seen.has(n)) ancestors(n, seen.add(n));
+            return seen;
+        };
+        const skippable = (name) => jobs[name].if !== undefined && !/always\(\)/.test(String(jobs[name].if));
+        const missing = Object.keys(jobs).filter(
+            (name) =>
+                [...ancestors(name)].some(skippable) && !/!cancelled\(\)|always\(\)/.test(String(jobs[name].if ?? "")),
+        );
+        assert.deepEqual(missing, []);
     });
 });

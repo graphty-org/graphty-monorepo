@@ -1090,6 +1090,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
+        // a shard that runs whole keeps its test files, so a pull request can pack them into bins (lightPlan())
+        const all = own ? { specs: [...own.specs].sort() } : {};
         const sel = measuredShard(p, own);
         if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
             return {
@@ -1098,18 +1100,19 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
                 mode: "all",
                 files: [],
                 reasons: [smoke.get(shard.shard)],
+                ...all,
                 measured: { mode: sel.mode, files: sel.files, untrusted: true },
             };
         }
         if (!p.fileLevel || sel.mode === "all") {
-            return { ...base, ...sel };
+            return { ...base, ...sel, ...(sel.mode === "all" ? all : {}) };
         }
         const why = notAllowed(shard.package, own, allowed, browserAllowed);
         if (!why) {
             return { ...base, ...sel };
         }
         const measured = { mode: sel.mode, files: sel.files, untrusted: true };
-        return { ...base, mode: "all", files: [], reasons: [why], measured };
+        return { ...base, mode: "all", files: [], reasons: [why], measured, ...all };
     });
 }
 
@@ -1311,6 +1314,7 @@ export function planRuns(root, shards, selection) {
             command,
             covers: [shard.shard],
             measured: s.measured,
+            ...(s.specs && { specs: s.specs }),
         });
     }
     return plan;
@@ -1366,7 +1370,8 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
 /**
  * The light check's test plan (design/ci/channels-pipeline/merging.md section 4.1): each shard family's
  * selected files packed into bins of at most BIN_LIMIT_MS, each bin one `vitest run` of its files. A family
- * with a shard that runs whole runs every shard of it as today.
+ * with a shard that runs whole has all its test files packed the same way (packWhole()), or, when they cannot be
+ * listed or run by file, runs every shard of it as today.
  * @param root the checkout
  * @param shards SHARDS entries
  * @param selection selectShards() for them
@@ -1393,6 +1398,10 @@ export function lightPlan(root, shards, selection, durations = {}) {
     out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
     const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
+        const fileMs = new Map(Object.entries(durations[family] ?? {}));
+        if (runs.some((r) => r.mode === "all") && packWhole(root, family, runs, fileMs, out)) {
+            continue;
+        }
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));
             const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
@@ -1403,7 +1412,6 @@ export function lightPlan(root, shards, selection, durations = {}) {
             };
             continue;
         }
-        const fileMs = new Map(Object.entries(durations[family] ?? {}));
         let n = 0;
         for (const run of runs) {
             if (run.mode === "none") {
@@ -1430,6 +1438,42 @@ export function lightPlan(root, shards, selection, durations = {}) {
         }
     }
     return out;
+}
+
+/**
+ * A family that runs whole in a pull request, packed into bins of at most BIN_LIMIT_MS like a selection (#4160):
+ * every test file of its shards, each bin one `vitest run` without coverage (the full run measures coverage). A
+ * family whose files are not known (no import graph) or whose command is not a plain vitest run stays whole.
+ * @param root the checkout
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param fileMs Map(file -> recorded ms) of the family
+ * @param out lightPlan()'s output, which gets the bins
+ * @returns whether the family was packed
+ */
+function packWhole(root, family, runs, fileMs, out) {
+    const shard = runs[0].shard;
+    const files = [...new Set(runs.flatMap((r) => r.specs ?? r.files.map((f) => f.file)))];
+    // slices of one shard differ only by --shard, which selectedCommand() drops
+    const one = new Set(runs.map((r) => selectedCommand(root, r.shard, null))).size === 1;
+    if (!one || runs.some((r) => r.mode === "all" && !r.specs) || !selectedCommand(root, shard, files)) {
+        return false;
+    }
+    const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+    const why = `its shard runs whole, packed into bins: ${reasons.join("; ") || "the selector gave no reason"}`;
+    const covers = runs.flatMap((r) => r.covers);
+    packBins(files, fileMs).forEach((bin, i) => {
+        out.bins.push({
+            name: `${family}-${i + 1}`,
+            family,
+            shard: shard.shard,
+            covers,
+            ...bin,
+            command: selectedCommand(root, shard, bin.files),
+            why: Object.fromEntries(bin.files.map((f) => [f, why])),
+        });
+    });
+    return true;
 }
 
 /**

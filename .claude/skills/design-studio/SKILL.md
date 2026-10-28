@@ -167,7 +167,7 @@ The pilot reports and triage are committed after every pass. The walks' screensh
 checkout's `tmp/design-studio/tier<N>/<round or pass>/`, which git ignores, and a report names them
 by that path as plain text. `real.mjs` refuses a walk folder inside the studio's files, and
 `.gitignore` keeps everything but `.md` out of `rounds/r*/`.
-Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): the pre-push gate
+Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): `.husky/pre-push` and CI
 refuses more than 20 new images or 20 MB outside the image folders (`tools/check-committed-images.mjs`);
 an `Images-Approved: <reason>` trailer passes a deliberate few, such as mockups.
 

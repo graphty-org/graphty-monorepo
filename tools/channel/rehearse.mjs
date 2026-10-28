@@ -581,9 +581,8 @@ async function endHold(w, why, env = {}) {
     return out;
 }
 
-/** The scenarios, in the design's order; each gets a fresh scratch world. */
 // a version commit on at: graph-format's version field and changelog, as nx release writes them
-function versionCommit(w, at, version) {
+const versionCommit = (w, at, version) => {
     const pkg = w
         .git(["show", `${at}:graph-format/package.json`])
         .replace(/"version": "[^"]*"/, `"version": "${version}"`);
@@ -593,9 +592,10 @@ function versionCommit(w, at, version) {
         { "graph-format/package.json": `${pkg}\n`, "graph-format/CHANGELOG.md": log },
         `chore(release): publish graph-format@${version}`,
     );
-}
+};
 const parentsOf = (w, c) => w.git(["rev-parse", `${c}^1`, `${c}^2`]).split("\n");
 
+/** The scenarios, in the design's order; each gets a fresh scratch world. */
 export const SCENARIOS = {
     // a green run with no changed picture: verdict green-clean, nothing filed, nothing held, nightly promotes
     "green-clean-promote": async (w, sha) => {

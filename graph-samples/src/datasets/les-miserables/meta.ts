@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the lesMiserables dataset is, where it came from and under which terms. */
 export const lesMiserablesMeta: DatasetMeta = {
@@ -21,4 +22,6 @@ export const lesMiserablesMeta: DatasetMeta = {
         "betweenness (Valjean, Myriel)",
         "force-directed layouts with edge weights",
     ],
+    hosting: "remote",
+    ...PACKED["les-miserables"],
 };

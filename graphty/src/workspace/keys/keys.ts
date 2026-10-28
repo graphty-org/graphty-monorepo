@@ -3,13 +3,17 @@
  * matched against a key press.
  *
  * Rules (tier1-design.md sections 2.3 and 2.12):
- * - graphty-element owns W A S D Q E, the arrows, = and - on a focused canvas, so no app key uses
- *   them unmodified, and no app key uses an arrow without Mod or Alt (Shift+Arrow walks nodes).
+ * - graphty-element owns its camera keys on a focused canvas (`CANVAS_KEY_DESCRIPTORS`: W A S D
+ *   Q E, the arrows, = + - _), so no app key uses them unmodified, and no app key uses an arrow without Mod or Alt (Shift+Arrow walks nodes).
  * - A character key with no Mod and no Alt is a single-key shortcut, which the reader can switch
  *   off (WCAG 2.1.4).
  * - While the reader types in a field, only Mod keys fire, and never the field's own editing keys
- *   (Mod+Z, Mod+A, copy, cut, paste).
+ *   (Mod+A, copy, cut, paste). Undo and Redo are the field's only while it holds an edit of its
+ *   own; a field with none (focus just put there, or its edit committed) hands them to the app,
+ *   as Figma does, so Undo right after a Clear undoes the Clear.
  */
+
+import { CANVAS_KEY_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 
 /** A key string split into its parts. */
 interface KeyCombo {
@@ -20,8 +24,8 @@ interface KeyCombo {
     readonly key: string;
 }
 
-/** Keys the element owns on a focused canvas when pressed with no modifier. */
-const ELEMENT_KEYS = new Set(["w", "a", "s", "d", "q", "e", "=", "-"]);
+/** Keys the element owns on a focused canvas when pressed with no modifier: its camera keys. */
+const ELEMENT_KEYS = new Set(CANVAS_KEY_DESCRIPTORS.flatMap((entry) => entry.keys).filter((key) => key.length === 1));
 const ARROWS = new Set(["arrowup", "arrowdown", "arrowleft", "arrowright"]);
 
 /**
@@ -49,14 +53,75 @@ export function isSingleKey(combo: string): boolean {
 /** A field's own editing keys, which stay the field's while the reader types. */
 const FIELD_KEYS = new Set(["z", "y", "a", "c", "v", "x"]);
 
+/** The editing keys a field gives up while it holds no edit of its own: Undo and Redo. */
+const HISTORY_KEYS = new Set(["z", "y"]);
+
 /**
  * Whether a key string may fire while the reader types in a field.
  * @param combo - the key string.
- * @returns true for "Mod+S"; false for "G", "Escape", "Mod+Z".
+ * @param pendingEdit - whether the field holds an edit of its own (`hasPendingEdit`).
+ * @returns true for "Mod+S", "F6", and for "Mod+Z" in a field with no edit; false for "G", "Escape",
+ *   "Mod+A", and "Mod+Z" in a field being edited.
  */
-export function firesWhileTyping(combo: string): boolean {
+export function firesWhileTyping(combo: string, pendingEdit = true): boolean {
     const { mod, key } = parseKey(combo);
-    return mod && !FIELD_KEYS.has(key);
+    // F6 moves between panels from anywhere, a field included, as in a desktop application.
+    if (key === "f6") {
+        return true;
+    }
+    return mod && (!FIELD_KEYS.has(key) || (!pendingEdit && HISTORY_KEYS.has(key)));
+}
+
+/** The fields the reader has typed into since focusing them or dropping the typing (Escape). */
+const edited = new WeakSet<EventTarget>();
+
+/**
+ * Starts telling which fields hold an edit of their own: typing marks a field; focusing it and
+ * Escape in it (the field drops its typing) unmark it. Enter does not: the typing is still the
+ * field's to undo after Enter ran it (a find, a value), so Control+Z there takes back the typing,
+ * never an app step the reader did not see.
+ * @returns the function that stops it.
+ */
+export function trackPendingEdits(): () => void {
+    const mark = (event: Event): void => {
+        if (event.target !== null) {
+            edited.add(event.target);
+        }
+    };
+    const unmark = (event: Event): void => {
+        if (event.target !== null) {
+            edited.delete(event.target);
+        }
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === "Escape") {
+            unmark(event);
+        }
+    };
+    const listeners = [
+        ["input", mark],
+        ["focusin", unmark],
+        ["keydown", onKeyDown],
+    ] as const;
+    for (const [type, listener] of listeners) {
+        document.addEventListener(type, listener as EventListener, true);
+    }
+    return () => {
+        for (const [type, listener] of listeners) {
+            document.removeEventListener(type, listener as EventListener, true);
+        }
+    };
+}
+
+/**
+ * Whether a field holds an edit of its own, which its own Undo should take back first.
+ * @param target - the key press's target.
+ * @returns true when the reader typed into it since focusing it or pressing Escape in it, and it
+ *   does not mark itself as holding its committed value (`data-committed`, as compact-mantine's
+ *   color box does after Enter rewrites its text, which leaves the box no undo of its own).
+ */
+export function hasPendingEdit(target: EventTarget | null): boolean {
+    return target !== null && edited.has(target) && !(target instanceof HTMLElement && "committed" in target.dataset);
 }
 
 /**
@@ -93,6 +158,19 @@ export function formatKey(combo: string): string {
         .join("+");
 }
 
+/**
+ * The key string in ARIA's spelling, for `aria-keyshortcuts`: "Mod" becomes "Meta" or "Control".
+ * @param combo - the key string.
+ * @returns such as "Shift+Control+Z".
+ */
+export function ariaKey(combo: string): string {
+    const mod = isMac() ? "Meta" : "Control";
+    return combo
+        .split("+")
+        .map((part) => (part === "Mod" ? mod : part))
+        .join("+");
+}
+
 /** The parts of a key press `matchesKey` reads. */
 type KeyPress = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
 
@@ -116,14 +194,36 @@ export function matchesKey(event: KeyPress, combo: string): boolean {
     return letterOrNamed ? event.shiftKey === want.shift : true;
 }
 
+/** Input types that take no typing: a key pressed on one is the app's, as on a button. */
+const UNTYPED_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset", "color", "file", "image"]);
+
 /**
  * Whether a key press lands in something the reader types into.
  * @param target - the event's target.
- * @returns true for an input, textarea, select or editable element.
+ * @returns true for a text input, textarea, select or editable element; false for a checkbox,
+ * a radio or a button-like input, so Ctrl+Z on a ticked checkbox still undoes.
  */
 export function isTypingTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) {
         return false;
     }
-    return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    if (target instanceof HTMLInputElement) {
+        return !UNTYPED_INPUTS.has(target.type);
+    }
+    return target.isContentEditable || ["TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
+/**
+ * Whether an Escape is still the panel's to act on: not used up by an inner control (a list
+ * field that closed its open list), and not pressed in a field whose list is still open. Escape
+ * closes the innermost thing first, so a panel's own Escape (step back, close) waits for these.
+ * @param event - the keydown that reached the panel.
+ * @returns true for an Escape no inner control took.
+ */
+export function isPanelEscape(event: Pick<KeyboardEvent, "key" | "defaultPrevented" | "target">): boolean {
+    if (event.key !== "Escape" || event.defaultPrevented) {
+        return false;
+    }
+    // A combobox field marks its open list with data-expanded (Mantine's Select, Autocomplete).
+    return !(event.target instanceof Element && "expanded" in (event.target as HTMLElement).dataset);
 }

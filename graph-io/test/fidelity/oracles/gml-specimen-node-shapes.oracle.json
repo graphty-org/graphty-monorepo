@@ -1,0 +1,19 @@
+{
+    "sample": "gml-specimen-node-shapes",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-node-shapes.gml",
+    "sha256": "5bb36a368d45eafa4164925fca35601a6950fd5641cdf633880e0abaed68d07c",
+    "program": "OGDF (Open Graph Drawing Framework)",
+    "version": "2025.10 (release tag foxglove-202510, built from source, libOGDF.a)",
+    "route": "ogdf-draw",
+    "command": "ogdf-gml draw <file> (GraphIO::readGML, then GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"Arial\" (OGDF's default), every other setting OGDF's default)",
+    "standIn": false,
+    "about": "A plain GML file (the GML draft's keys, no Creator) as OGDF reads and draws it, unchanged. OGDF reads graphics x, y, w, h, fill, outline, type (rectangle alone of the draft's types), Line, arrow and label; it ignores the draft's width, image, bitmap, smooth and the Tk keys, reads a color only as #RGB or #RRGGBB, and draws every label centered in one 10 px font. ISSUES.md (Specimen sheets: GML) lists it key by key.",
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "OGDF's default font family \"Arial\" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)",
+    "svgPostprocessing": "none: the SVG is OGDF's output byte for byte",
+    "date": "2026-10-20",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/ogdf.mjs gml-specimen-node-shapes && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-shapes.svg"
+}

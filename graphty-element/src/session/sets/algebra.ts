@@ -571,30 +571,19 @@ function edgeIdsOf(graph: GraphSnapshot): (row: number) => EdgeId {
 }
 
 /**
- * Order selected edges into the one walk they form. Parallel and reciprocal edges between one pair
- * form one step's group. The walk starts at the end from which every step can follow a declared
- * edge direction, when exactly one end allows that; otherwise at the end whose id sorts first.
+ * Group selected edges by the unordered pair of nodes they join: each pair is one logical step.
  * @param graph - The snapshot.
  * @param edgeIds - The selected session edge ids.
- * @param nodeIds - The selected node ids.
- * @returns The walk's nodes and each step's session edges.
- * @throws `E_BAD_COMMAND`, `details.reason: "ambiguous-path"` with `details.why`, when the edges
- * are not one open chain or selected nodes lie off it.
+ * @returns Each pair's edges and rows, and each node's neighbours across the pairs.
+ * @throws `E_BAD_COMMAND`, `details.reason: "ambiguous-path"`, on a self-loop.
  */
-function chainOf(
+function stepGroupsOf(
     graph: GraphSnapshot,
     edgeIds: readonly EdgeId[],
-    nodeIds: readonly NodeId[],
-): { nodes: NodeId[]; steps: EdgeId[][] } {
-    if (edgeIds.length === 0) {
-        if (nodeIds.length === 1) {
-            return { nodes: [nodeIds[0]], steps: [] };
-        }
-
-        throw ambiguousPath("no-edges");
-    }
-
-    // Each unordered pair of node indices is one logical step.
+): {
+    groups: Map<string, { a: number; b: number; ids: EdgeId[]; rows: number[] }>;
+    neighbours: Map<number, number[]>;
+} {
     const groups = new Map<string, { a: number; b: number; ids: EdgeId[]; rows: number[] }>();
     const neighbours = new Map<number, number[]>();
     for (const id of edgeIds) {
@@ -624,6 +613,35 @@ function chainOf(
         group.ids.push(id);
         group.rows.push(row);
     }
+
+    return { groups, neighbours };
+}
+
+/**
+ * Order selected edges into the one walk they form. Parallel and reciprocal edges between one pair
+ * form one step's group. The walk starts at the end from which every step can follow a declared
+ * edge direction, when exactly one end allows that; otherwise at the end whose id sorts first.
+ * @param graph - The snapshot.
+ * @param edgeIds - The selected session edge ids.
+ * @param nodeIds - The selected node ids.
+ * @returns The walk's nodes and each step's session edges.
+ * @throws `E_BAD_COMMAND`, `details.reason: "ambiguous-path"` with `details.why`, when the edges
+ * are not one open chain or selected nodes lie off it.
+ */
+function chainOf(
+    graph: GraphSnapshot,
+    edgeIds: readonly EdgeId[],
+    nodeIds: readonly NodeId[],
+): { nodes: NodeId[]; steps: EdgeId[][] } {
+    if (edgeIds.length === 0) {
+        if (nodeIds.length === 1) {
+            return { nodes: [nodeIds[0]], steps: [] };
+        }
+
+        throw ambiguousPath("no-edges");
+    }
+
+    const { groups, neighbours } = stepGroupsOf(graph, edgeIds);
 
     if ([...neighbours.values()].some((list) => list.length > 2)) {
         throw ambiguousPath("branch");

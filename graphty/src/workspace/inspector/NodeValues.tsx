@@ -1,13 +1,44 @@
-import { ControlSection, DataRow, DataRowHeader } from "@graphty/compact-mantine";
-import type { GraphSession, NodeId, SelectionAttributeStatistics } from "@graphty/graphty-element/session";
-import { Button, Text } from "@mantine/core";
+import {
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    PANEL_GRID,
+    SegmentedControl,
+    UiGlyph,
+} from "@graphty/compact-mantine";
+import type {
+    FilterStep,
+    GraphSession,
+    NodeId,
+    SelectionDirection,
+    SelectionStatistics,
+} from "@graphty/graphty-element/session";
+import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { newId, writeSteps } from "../data-place/filterSteps";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { focusInspectorTitle } from "../frame/focus";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { edgeEnds } from "../table/columns";
+import { timeValue } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
-import { groupKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode } from "./reads";
-import { count, formatNumber, groupName, valueText } from "./words";
+import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
+import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
+import {
+    attributeSummary,
+    count,
+    DEGREE_ROW_WORDS,
+    edgeName,
+    formatNumber,
+    groupName,
+    NEIGHBOR_FILTER_APPLIED_WORDS,
+    NEIGHBOR_FILTER_WORDS,
+    neighborhoodWords,
+    rangeWords,
+    valueText,
+} from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -17,6 +48,13 @@ const ATTRIBUTES_SHOWN = 6;
  * back on Degree instead of dropping it to the page.
  */
 let returnToDegree = false;
+
+/**
+ * Set by a Hops or Follow change to that control's label id. The change reselects, which closes
+ * the list and opens it again; the list that opens puts focus back on that control's choice
+ * instead of on Hops, as a list opened for a new center does.
+ */
+let refocusControl: string | null = null;
 
 /**
  * One element's attributes from the file, the first few shown and the rest behind one link.
@@ -30,7 +68,7 @@ function AttributeRows({ rows }: Readonly<{ rows: readonly (readonly [string, un
     return (
         <>
             {shown.map(([name, value]) => (
-                <DataRow key={name} stat name={name} value={valueText(value)} />
+                <DataRow key={name} stat name={name} value={isEmpty(value) ? NO_VALUE : valueText(value)} />
             ))}
             {!all && rows.length > ATTRIBUTES_SHOWN && (
                 <Button
@@ -53,7 +91,8 @@ function AttributeRows({ rows }: Readonly<{ rows: readonly (readonly [string, un
  * @param session - the session.
  * @param kind - nodes or edges.
  * @param record - the element's record.
- * @returns name and value pairs, empty values left out.
+ * @returns name and value pairs, an empty value among them: every column of the kind shows, as the
+ * table shows it.
  */
 function fileAttributes(
     session: GraphSession,
@@ -72,29 +111,52 @@ function fileAttributes(
                 // column's role (#893) and the inspector can leave out what the header shows.
                 (column.origin === "imported" || column.origin === "joined"),
         )
-        .flatMap((column): [string, unknown][] => {
-            const value = record[column.name];
-            return value === undefined || value === null || value === "" ? [] : [[column.plainName, value]];
-        });
+        .map((column): [string, unknown] => [
+            column.plainName,
+            // The time field reads as the timeline writes dates.
+            timeValue(session, kind, column.name, record[column.name]),
+        ]);
+}
+
+/** What a value row reads when the element carries nothing for that column. */
+const NO_VALUE = "No value";
+
+/**
+ * Whether an element carries nothing for a column.
+ * @param value - the value.
+ * @returns true for nothing at all, or empty text.
+ */
+function isEmpty(value: unknown): boolean {
+    return value === undefined || value === null || value === "";
 }
 
 /**
  * One node's Values tab (tier1-design.md section 2.7 and task T12): Summary (the file's
- * attributes, then the results with rank, never mixed; Degree is a link that opens the
- * neighbors), then Memberships.
+ * attributes; Degree is a link that opens the neighbors), then Results (each with its rank),
+ * then Memberships.
  * @param props - Component props
  * @param props.id - The node
  * @returns The tab
  */
 export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+    const { session, store, run: runCommand } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
+    const summary = useRef<HTMLDivElement>(null);
+    // After every render, not only a mount: the node's Values need not remount between the
+    // neighbor list and Back. Back (or Esc) returns focus to the Degree link that opened the list;
+    // its ring shows for a keyboard reader only, as every ring does. A find pick (also on the node
+    // already shown) puts it on the inspector's title, never on Degree: a ring on a value row there
+    // reads as a choice the reader did not make.
     useEffect(() => {
-        if (returnToDegree) {
+        const back = degree.current?.querySelector("button");
+        if (returnToDegree && back !== null && back !== undefined) {
             returnToDegree = false;
-            degree.current?.querySelector("button")?.focus();
+            takeValuesFocus();
+            back.focus();
+        } else if (summary.current !== null && takeValuesFocus()) {
+            focusInspectorTitle();
         }
-    }, []);
+    });
     if (session === null) {
         return null;
     }
@@ -118,36 +180,57 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
-                <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
-                {ranked.length > 0 && <DataRowHeader label="Results" />}
-                {ranked.map(({ run, value, rank }) => (
-                    <DataRow
-                        key={run.id}
-                        stat
-                        name={run.label}
-                        value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
-                    />
-                ))}
-                <div ref={degree} style={{ display: "contents" }}>
-                    <DataRow
-                        name="Degree"
-                        value={connections}
-                        onClick={() => {
-                            void openNeighborhood(session, store, id);
-                        }}
-                    />
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
+                <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
+                    ref={summary}
+                    role="group"
+                    aria-label="Summary values"
+                >
+                    <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
+                    {/* The row changes the selection, so it says so: in a tooltip for the pointer
+                        and as its description for a screen reader; the command says the change. */}
+                    <Tooltip label={DEGREE_ROW_WORDS} position="left">
+                        <div ref={degree}>
+                            <DataRow
+                                name="Degree"
+                                value={connections}
+                                description={DEGREE_ROW_WORDS}
+                                trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
+                                onClick={() => {
+                                    runCommand("selection.neighborhood");
+                                }}
+                            />
+                        </div>
+                    </Tooltip>
                 </div>
             </ControlSection>
+            {/* A heading of its own, as Memberships has: a caption among the rows read as one more row. */}
+            {ranked.length > 0 && (
+                <ControlSection label="Results" collapsible={false} headingLevel={3}>
+                    {ranked.map(({ run, value, rank }) => (
+                        <DataRow
+                            key={run.id}
+                            stat
+                            name={run.label}
+                            value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                        />
+                    ))}
+                </ControlSection>
+            )}
             {memberships.length > 0 && (
-                <ControlSection label="Memberships" defaultOpened>
+                <ControlSection label="Memberships" collapsible={false} headingLevel={3}>
                     {memberships.map(({ run, group, name }) => (
                         <DataRow
                             key={run.id}
                             name={run.label}
                             value={name}
                             onClick={() => {
-                                store.set({ inspected: { kind: "group-row", id: groupKey(run.id, group) } });
+                                store.set({ inspected: groupInspected(session, run.id, group) });
+                                // This row goes with the node's Values: focus follows the reader
+                                // into the group's layer, on its heading, which names it.
+                                requestAnimationFrame(() => {
+                                    focusInspectorTitle();
+                                });
                             }}
                         />
                     ))}
@@ -157,42 +240,83 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     );
 }
 
+/** The Follow control's choices, shown only on a directed graph. */
+const FOLLOW: readonly { value: SelectionDirection; label: string }[] = [
+    { value: "out", label: "Out" },
+    { value: "in", label: "In" },
+    { value: "all", label: "All" },
+];
+
+/** Neighbor names in reading order, numbers by value ("Node 2" before "Node 10"). */
+const BY_NAME = new Intl.Collator("en", { numeric: true });
+
 /**
- * Selects a node's neighborhood and lists it.
- * @param session - the session.
- * @param store - the workspace store.
- * @param id - the node at the center.
+ * Selects a center's neighborhood, opens it in the inspector and puts its size on the status
+ * line once: "Ava and 14 connections".
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @param center - the node at the center.
+ * @param hops - how many hops out.
+ * @param direction - which way edges are followed.
  */
-async function openNeighborhood(
+async function showNeighborhood(
     session: GraphSession,
-    store: ReturnType<typeof useWorkspace>["store"],
-    id: NodeId,
+    store: WorkspaceStore,
+    center: NodeId,
+    hops: 1 | 2 | 3,
+    direction: SelectionDirection,
 ): Promise<void> {
-    await session.selection.apply({ neighborsOf: [id] });
-    store.set({ inspected: { kind: "neighborhood", id: nodeKey(id) } });
+    await session.selection.apply({ neighborsOf: [center], depth: hops, direction });
+    const around = session.selection.nodes.filter((node) => node !== center).length;
+    // The selection change closes the open row, so it is opened again on the new reach.
+    store.set({
+        inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
+        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around, hops),
+    });
 }
 
 /**
- * A node's neighbors (tier1-design.md task T12): "1's 17 connections", each by name with its
- * tie value, strongest first, read whole from graphty-element's `data.neighbors()`. Each name
- * selects that node; Esc returns to the node at the center.
+ * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "Javert and 17
+ * connections", each by name, in name order at every hop count (a weighted one hop shows each
+ * tie value beside it), read whole from graphty-element's `data.neighbors()`. Each name selects
+ * that node; Back to the center, or Esc, returns to the node at the center.
  *
- * The heading names the center by its id until graphty-element publishes a node's name (#895).
+ * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
+ * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
+ * selected nodes other than the center, under the same heading form. Filter to neighbors adds
+ * one filter step keeping the same neighborhood, or turns that step back on; only the step's
+ * checkbox in Filters turns it off.
  * @param props - Component props
  * @param props.center - The node at the center
+ * @param props.hops - How many hops out the neighborhood reaches
+ * @param props.direction - Which way edges are followed
  * @returns The list
  */
-export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+export function NeighborList({
+    center,
+    hops = 1,
+    direction = "all",
+}: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
+    const { session, store } = useWorkspace();
+    // Filter to neighbors reads the steps, so it follows each change to them.
+    useVisibilityVersion(session);
     const heading = useRef<HTMLElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
-    // shortcut on the region, so it is listened for on the region's own element.
+    // shortcut on the region, so it is listened for on the region's own element. A Hops or
+    // Follow change keeps focus on the control that made it.
     useEffect(() => {
         const region = heading.current;
         if (region === null || session === null) {
             return undefined;
         }
-        region.focus();
+        // Focus goes to the checked Hops choice: a control, never a ring around the whole list,
+        // and never a neighbor row, which would read as a pick nobody made. After a Hops or
+        // Follow change it goes back to the choice in the control that made it.
+        const control = refocusControl === null ? "" : `[aria-labelledby="${CSS.escape(refocusControl)}"] `;
+        refocusControl = null;
+        if (!region.contains(document.activeElement)) {
+            region.querySelector<HTMLElement>(`${control}input:checked`)?.focus();
+        }
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -208,38 +332,164 @@ export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JS
     if (session === null) {
         return null;
     }
-    let page;
-    try {
-        page = session.data.neighbors(center, { limit: Infinity });
-    } catch {
-        // E_UNKNOWN_ELEMENT: the node left the graph.
-        return null;
+    const reach = hops === 2 || hops === 3 ? hops : 1;
+    const { directed } = session.status;
+    const follow = directed ? direction : "all";
+    const centerName = session.data.name(center) ?? String(center);
+
+    let words: string;
+    let rows: React.JSX.Element[];
+    let tie: string | undefined;
+    if (reach > 1) {
+        const around = session.selection.nodes
+            .filter((node) => node !== center)
+            .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
+            .sort((a, b) => BY_NAME.compare(a.name, b.name));
+        // The Hops control under the heading shows the reach, so the heading leaves it out; the
+        // status line after a change still says it.
+        words = neighborhoodWords(centerName, around.length);
+        rows = around.map(({ node, name }) => (
+            <DataRow
+                key={nodeKey(node)}
+                name={name}
+                onClick={() => {
+                    selectNode(session, node);
+                }}
+            />
+        ));
+    } else {
+        let page;
+        try {
+            // By name, as past one hop, where there are no tie values to rank by.
+            page = session.data.neighbors(center, { limit: Infinity, direction: follow, sort: { by: "name" } });
+        } catch {
+            // E_UNKNOWN_ELEMENT: the node left the graph.
+            return null;
+        }
+        tie = page.measuredBy?.attribute;
+        words = neighborhoodWords(centerName, page.total);
+        rows = page.records.map((neighbor) => (
+            <DataRow
+                key={nodeKey(neighbor.node.id)}
+                name={neighbor.name}
+                value={tie === undefined ? undefined : neighbor.weight}
+                onClick={() => {
+                    selectNode(session, neighbor.node.id);
+                }}
+            />
+        ));
     }
-    const tie = page.measuredBy?.attribute;
+    // The neighborhood step seeded on this center, at any reach: one center has one such step, so
+    // pressing never adds a second. The step at this reach wins.
+    const seeded = session.visibility.steps.filter(
+        (s) => s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
+    );
+    const filtered = seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ?? seeded.at(0);
+    // That step already on at the reach shown: a press would change nothing, so the command is drawn
+    // disabled and its tooltip says why (data-disabled, so the tooltip still shows on hover).
+    const applied = filtered?.on === true && filtered.rule.kind === "neighborhood" && filtered.rule.depth === reach;
+    const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
+    const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
     return (
-        <section ref={heading} tabIndex={-1} aria-label={`${String(center)}'s ${count(page.total, "connection")}`}>
-            <Text size="xs" fw={600} px="md" py={6}>
-                {`${String(center)}'s ${count(page.total, "connection")}`}
-            </Text>
-            {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
-            {page.records.map((neighbor) => (
-                <DataRow
-                    key={nodeKey(neighbor.node.id)}
-                    name={neighbor.name}
-                    value={tie === undefined ? undefined : neighbor.weight}
-                    onClick={() => {
-                        selectNode(session, neighbor.node.id);
-                    }}
-                />
-            ))}
+        <section ref={heading}>
+            {/* The way back to the node's own Values, for a pointer; Esc is the keyboard's. */}
+            <Button
+                variant="subtle"
+                size="compact-xs"
+                mx="md"
+                mt={4}
+                leftSection={<UiGlyph name="chevronLeft" size={PANEL_GRID.CHEVRON} />}
+                onClick={() => {
+                    returnToDegree = true;
+                    selectNode(session, center);
+                }}
+            >
+                {`Back to ${centerName}`}
+            </Button>
+            {/* The heading is a section title, as Summary is on the node, never smaller than its rows. */}
+            <ControlSection label={words} collapsible={false} wrapLabel>
+                <Stack gap={4} px="md" py={6}>
+                    <Group gap={8} wrap="nowrap">
+                        <Text size="sm" id={hopsLabel} w={44}>
+                            Hops
+                        </Text>
+                        <SegmentedControl
+                            aria-labelledby={hopsLabel}
+                            fullWidth
+                            style={{ flex: 1 }}
+                            value={String(reach)}
+                            data={["1", "2", "3"]}
+                            onChange={(picked) => {
+                                refocusControl = hopsLabel;
+                                void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
+                            }}
+                        />
+                    </Group>
+                    {directed && (
+                        <Group gap={8} wrap="nowrap">
+                            <Text size="sm" id={followLabel} w={44}>
+                                Follow
+                            </Text>
+                            <SegmentedControl
+                                aria-labelledby={followLabel}
+                                fullWidth
+                                style={{ flex: 1 }}
+                                value={follow}
+                                data={[...FOLLOW]}
+                                onChange={(picked) => {
+                                    const next = FOLLOW.find((choice) => choice.value === picked)?.value ?? "all";
+                                    refocusControl = followLabel;
+                                    void showNeighborhood(session, store, center, reach, next);
+                                }}
+                            />
+                        </Group>
+                    )}
+                    {follow === "all" && (
+                        // Beside the button (the theme flips it left at the window's edge): below, it would cover
+                        // the first neighbor's name, part of the answer.
+                        <Tooltip
+                            position="right"
+                            label={applied ? NEIGHBOR_FILTER_APPLIED_WORDS : NEIGHBOR_FILTER_WORDS}
+                        >
+                            <Button
+                                variant="default"
+                                size="compact-xs"
+                                style={{ alignSelf: "flex-start" }}
+                                aria-disabled={applied || undefined}
+                                data-disabled={applied || undefined}
+                                onClick={() => {
+                                    if (applied) {
+                                        return;
+                                    }
+                                    // A command, never a toggle: it adds this center's step at the
+                                    // reach shown, or turns that step on; only the step's own checkbox
+                                    // in Filters turns it off.
+                                    const { steps } = session.visibility;
+                                    const rule = { kind: "neighborhood", seeds: [center], depth: reach } as const;
+                                    const next: FilterStep[] =
+                                        filtered === undefined
+                                            ? [...steps, { id: newId(steps), on: true, rule }]
+                                            : steps.map((s) => (s.id === filtered.id ? { ...s, on: true, rule } : s));
+                                    void writeSteps(session, store, next);
+                                }}
+                            >
+                                Filter to neighbors
+                            </Button>
+                        </Tooltip>
+                    )}
+                </Stack>
+                {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
+                {rows}
+            </ControlSection>
         </section>
     );
 }
 
 /**
  * One edge's Values tab: its two ends, each a link that selects that node, and the file's
- * attributes. An edge is reached from the Edges table (tier1-design.md task T12).
+ * attributes, then Results: what each run measured on it. An edge is reached from the Edges table
+ * (tier1-design.md task T12) or by a click on it on the canvas.
  * @param props - Component props
  * @param props.id - The edge
  * @returns The tab
@@ -247,41 +497,133 @@ export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JS
 export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const edge = session?.data.edge(id);
+    // A find pick of this edge puts focus on the inspector's title, as the node view does.
+    useEffect(() => {
+        if (edge !== undefined && takeValuesFocus()) {
+            focusInspectorTitle();
+        }
+    });
     if (session === null || edge === undefined) {
         return null;
     }
+    // What each finished run measured on this edge (edge betweenness and the like).
+    const results = finishedRuns(session).flatMap((run) => {
+        const value = run.result.edge(id)?.[run.field];
+        return typeof value === "number" ? [{ run, value }] : [];
+    });
+    const [from, to] = edgeEnds(session);
     return (
-        <ControlSection label="Summary" defaultOpened>
-            <DataRow
-                name="From"
-                value={String(edge.source)}
-                onClick={() => {
-                    selectNode(session, edge.source);
-                }}
-            />
-            <DataRow
-                name="To"
-                value={String(edge.target)}
-                onClick={() => {
-                    selectNode(session, edge.target);
-                }}
-            />
-            <AttributeRows rows={fileAttributes(session, "edge", edge)} />
+        <>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
+                <DataRow
+                    name={from}
+                    value={String(edge.source)}
+                    onClick={() => {
+                        selectNode(session, edge.source);
+                    }}
+                />
+                <DataRow
+                    name={to}
+                    value={String(edge.target)}
+                    onClick={() => {
+                        selectNode(session, edge.target);
+                    }}
+                />
+                <AttributeRows rows={fileAttributes(session, "edge", edge)} />
+            </ControlSection>
+            {results.length > 0 && (
+                <ControlSection label="Results" collapsible={false} headingLevel={3}>
+                    {results.map(({ run, value }) => (
+                        <DataRow key={run.id} stat name={run.label} value={formatNumber(value)} />
+                    ))}
+                </ControlSection>
+            )}
+        </>
+    );
+}
+
+/** How many selected edges the list names before "N more edges". */
+const EDGES_LISTED = 20;
+
+/**
+ * The selected edges, each by its two ends' names and, when a rule selected them, the value of
+ * each column the rule tested: a list answers with names, not counts.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @returns The section, or nothing with no edge selected
+ */
+function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const ids = session.selection.edges;
+    if (ids.length === 0) {
+        return null;
+    }
+    const records = ids.slice(0, EDGES_LISTED).flatMap((id) => session.data.edge(id) ?? []);
+    const testedPaths = session.selection.originPaths;
+    const tested = session.data
+        .attributes()
+        .filter((column) => column.kind === "edge" && testedPaths.includes(column.path));
+    return (
+        <ControlSection label="Selected edges" collapsible={false} headingLevel={3}>
+            {tested.length > 0 && <DataRowHeader label="Edge" unit={tested.map((c) => c.plainName).join(" / ")} />}
+            {records.map((edge) => (
+                <DataRow
+                    key={edge.id}
+                    stat
+                    name={edgeName(session, edge)}
+                    value={tested
+                        .map((c) =>
+                            edge[c.name] === undefined || edge[c.name] === null ? "" : valueText(edge[c.name]),
+                        )
+                        .join(" / ")}
+                />
+            ))}
+            {ids.length > records.length && (
+                <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} py={2}>
+                    {count(ids.length - records.length, "more edge")}
+                </Text>
+            )}
         </ControlSection>
     );
 }
 
 /**
- * One attribute of a selection in a few words: its mean, or its commonest value and how many.
- * @param attribute - the selection's statistics for the attribute.
- * @returns the words, or undefined when there is nothing to say.
+ * The selection's attribute rows: every attribute the selected nodes carry, then every node column
+ * from the file none of them carries ("0 of 4 have a value"), so a missing column is said, not
+ * left out.
+ * @param session - the element's session.
+ * @param statistics - the selection's statistics.
+ * @returns the rows, as path, name and words.
  */
-function attributeSummary(attribute: SelectionAttributeStatistics): string | undefined {
-    if (attribute.mean !== undefined) {
-        return `mean ${formatNumber(attribute.mean)}`;
+function summaryRows(
+    session: GraphSession,
+    statistics: SelectionStatistics,
+): { path: string; name: string; value: string }[] {
+    if (statistics.nodes === 0) {
+        return [];
     }
-    const top = attribute.distribution?.[0];
-    return top === undefined ? undefined : `${top.value} (${formatNumber(top.count)})`;
+    const columns = session.data.attributes();
+    const carried = statistics.attributes.map((attribute) => ({
+        path: attribute.path,
+        name: attribute.plainName,
+        value: attributeSummary(
+            attribute,
+            columns.find((column) => column.kind === "node" && column.path === attribute.path),
+            statistics.nodes,
+        ),
+    }));
+    const empty = columns
+        .filter(
+            (column) =>
+                column.kind === "node" &&
+                (column.origin === "imported" || column.origin === "joined") &&
+                !statistics.attributes.some((attribute) => attribute.path === column.path),
+        )
+        .map((column) => ({
+            path: column.path,
+            name: column.plainName,
+            value: attributeSummary({ count: 0 }, column, statistics.nodes),
+        }));
+    return [...carried, ...empty];
 }
 
 /**
@@ -294,20 +636,27 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
 export function SeveralValues({ version }: Readonly<{ version: number }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const statistics = useAsyncValue(() => session?.selection.statistics() ?? null, version);
-    if (statistics === undefined) {
+    if (statistics === undefined || session === null) {
         return null;
     }
     return (
-        <ControlSection label="Summary" defaultOpened>
-            <DataRow stat name="Nodes" value={statistics.nodes} />
-            <DataRow stat name="Edges" value={statistics.edges} />
-            <DataRow stat name="Edges among them" value={statistics.inducedEdges} />
-            {statistics.attributes.map((attribute) => {
-                const value = attributeSummary(attribute);
-                return value === undefined ? null : (
-                    <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />
-                );
-            })}
-        </ControlSection>
+        <>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
+                {statistics.nodes > 0 && <DataRow stat name="Nodes" value={statistics.nodes} />}
+                {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
+                {/* Edges that join two selected nodes, selected or not: only meaningful for two or more
+                nodes, and named so it is not read as more selected edges. */}
+                {statistics.nodes >= 2 && (
+                    <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
+                )}
+                {statistics.degree !== undefined && (
+                    <DataRow stat name="Degree" value={rangeWords(statistics.degree.min, statistics.degree.max)} />
+                )}
+                {summaryRows(session, statistics).map(({ path, name, value }) => (
+                    <DataRow key={path} stat name={name} value={value} />
+                ))}
+            </ControlSection>
+            <SelectedEdges session={session} />
+        </>
     );
 }

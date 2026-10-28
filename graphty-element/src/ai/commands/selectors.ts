@@ -10,11 +10,20 @@
  * @module ai/commands/selectors
  */
 
+import type { RuleTree, Scope } from "../../catalog/types";
 import type { Graph } from "../../Graph";
 
 /** The sentence every selector parameter carries, so each tool describes the language the same way. */
 export const SELECTOR_SYNTAX =
     "A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.";
+
+/**
+ * The sentence every node tool's `connectedBy` parameter carries. A node's own fields cannot say
+ * anything about its edges, so without it "nodes with heavy connections" had no selector: a model
+ * spent every tool turn looking for one and never acted.
+ */
+export const CONNECTED_BY_SYNTAX =
+    "Optional. An expression matching edges, in the same language: only nodes at an end of a matching edge are selected, so data.weight > `0.7` picks the nodes with heavy connections. Combined with selector, a node must match both; with an empty selector, every such node.";
 
 /**
  * Common selector spellings that mean "every element".
@@ -47,17 +56,52 @@ export function normalizeSelector(selector: string): string {
  * The ids of the nodes a selector matches, read through the session's own `{ where }` scope.
  * @param graph - The graph.
  * @param selector - The selector, empty or a match-all word for every node.
+ * @param connectedBy - An edge expression: only nodes at an end of a matching edge.
  * @returns The matching node ids, as strings.
  * @throws The session's `GraphtyError` (`E_BAD_SELECTOR`) for an expression that does not parse.
  */
-export async function matchingNodeIds(graph: Graph, selector: string | undefined): Promise<string[]> {
-    if (selector === undefined || isMatchAllSelector(selector)) {
+export async function matchingNodeIds(
+    graph: Graph,
+    selector: string | undefined,
+    connectedBy?: string,
+): Promise<string[]> {
+    if (connectedBy === undefined && (selector === undefined || isMatchAllSelector(selector))) {
         return Array.from(graph.getDataManager().nodes.keys(), String);
     }
 
-    const scope = await graph.getSession().scope.resolve({ where: normalizeSelector(selector) });
+    const scope = await graph.getSession().scope.resolve(nodeScopeOf(selector, connectedBy));
 
     return Array.from(scope.nodes, String);
+}
+
+/**
+ * The scope of the nodes a selector and an optional edge expression pick.
+ * @param selector - The node selector, empty or a match-all word for every node.
+ * @param connectedBy - An edge expression: only nodes at an end of a matching edge.
+ * @returns A `{ where }` scope, or, with `connectedBy`, a rule set read `clipped`: its node half is
+ *     the endpoints of the matching edges (an edge rule read `listed`), and the selector when given.
+ */
+export function nodeScopeOf(selector: string | undefined, connectedBy?: string): Scope {
+    if (connectedBy === undefined) {
+        return { where: normalizeSelector(selector ?? "") };
+    }
+
+    const endpoints: RuleTree = {
+        kind: "member",
+        of: {
+            define: {
+                kind: "rule",
+                where: { kind: "edges", where: normalizeSelector(connectedBy) },
+                reading: "listed",
+            },
+        },
+    };
+    const where: RuleTree =
+        selector === undefined || isMatchAllSelector(selector)
+            ? endpoints
+            : { kind: "all", of: [{ kind: "expression", where: normalizeSelector(selector) }, endpoints] };
+
+    return { define: { kind: "rule", where, reading: "clipped" } };
 }
 
 /**

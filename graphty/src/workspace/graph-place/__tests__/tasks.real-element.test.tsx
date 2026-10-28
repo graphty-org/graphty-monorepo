@@ -1,8 +1,7 @@
 /**
  * The Graph place on the REAL graphty-element, from the empty app: task T12's find (typing a name
  * that differs from the id fills the list before Enter; a pick selects the node and opens it in
- * the inspector, by mouse and by keyboard alone), and the paint tree after runs (a run row lands
- * on top, its eye switches its layers off and on as one undo step, Delete removes it with Undo).
+ * the inspector, by mouse and by keyboard alone). The style tree is `StyleTree.real-element.test.tsx`.
  * Every assertion reads what the element reports or what the page shows, never canvas pixels.
  *
  * The graph goes in through the element's session: loading a file is the Start screen's and the
@@ -13,12 +12,13 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { addLabelLine, labelRow, writeLine } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -57,17 +57,6 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
     return { session, store };
 }
 
-/**
- * The paint tree's rows, top first, by name.
- * @returns the names.
- */
-function treeRows(): string[] {
-    const tree = screen.getByRole("tree", { name: "Paint tree" });
-    return within(tree)
-        .getAllByRole("treeitem")
-        .map((row) => row.getAttribute("aria-label") ?? "");
-}
-
 describe("the Graph place on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -93,7 +82,7 @@ describe("the Graph place on the real element", () => {
         assert.isNull(screen.queryByRole("listbox", { name: "Find results" }));
     });
 
-    it("finds and picks with the keyboard alone: / focuses, Down enters the list, Enter picks (T12)", async () => {
+    it("finds and picks with the keyboard alone: / focuses, the first match is marked, Enter picks it (T12)", async () => {
         const { session, store } = await openGraph();
 
         (document.activeElement as HTMLElement | null)?.blur();
@@ -104,7 +93,6 @@ describe("the Graph place on the real element", () => {
         });
         await userEvent.keyboard("Eve");
         await screen.findByRole("listbox", { name: "Find results" });
-        await userEvent.keyboard("{ArrowDown}");
         const active = box.getAttribute("aria-activedescendant");
         assert.isNotNull(active);
         assert.match(document.getElementById(active ?? "")?.textContent ?? "", /Eve/);
@@ -113,6 +101,182 @@ describe("the Graph place on the real element", () => {
             assert.isTrue(session.selection.has(7));
         });
         assert.isNull(store.get().inspected, "the inspector shows what is selected");
+    });
+
+    it("gives a way on from a typed condition: an example after No match, and the rule under the box runs on Enter", async () => {
+        const { session } = await openGraph();
+        await session.data.addEdges([
+            { source: 3, target: 7, minutes: 12 },
+            { source: 4, target: 8, minutes: 10 },
+            { source: 5, target: 9, minutes: 4 },
+        ]);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        const linksOfTenOrMore = async (): Promise<void> => {
+            await waitFor(() => {
+                assert.equal(session.selection.edges.length, 2);
+            });
+            assert.equal(session.selection.nodes.length, 0);
+        };
+
+        // Plain text that reads as no rule: No match, then an example rule over the open data.
+        await userEvent.type(box, "chapters 10");
+        assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
+        // The example is a node rule in the plain form the box reads: no backticks, no "=", and
+        // never over the ids (numbers here, as karate's are), which teach nothing about the data.
+        const example = await screen.findByText(/^\w+ == '[^']+'$/);
+        assert.match(
+            example.parentElement?.textContent ?? "",
+            /\. To select by a value, type a rule such as \w+ == '[^']+'$/,
+        );
+        assert.isNull(screen.queryByRole("option"));
+
+        // A rule with a bare number reads as typed: Enter runs it.
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= 10");
+        // The line drawn under the box. The status line says the same words once the line settles,
+        // so a query over the whole page finds two elements, or one, depending on when it looks.
+        assert.isNotNull(
+            await screen.findByText("Rule: press Enter to select matches", { selector: ".ws-find-empty" }),
+        );
+        assert.equal(session.selection.size, 0);
+        await userEvent.keyboard("{Enter}");
+        await linksOfTenOrMore();
+        assert.equal((box as HTMLInputElement).value, "=minutes >= 10");
+
+        // A condition typed without "=": the text as a rule is what Enter picks.
+        session.selection.clear();
+        await userEvent.clear(box);
+        await userEvent.type(box, "minutes >= 10");
+        // The line under the box, and the status line that speaks it.
+        assert.isNotEmpty(await screen.findAllByText("Select by a value:"));
+        const offered = await screen.findByRole("option", { name: /^minutes >= 10/ });
+        assert.equal(box.getAttribute("aria-activedescendant"), offered.id);
+        await userEvent.keyboard("{Enter}");
+        await linksOfTenOrMore();
+    });
+
+    it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
+        const { session } = await openGraph();
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
+        const example = await screen.findByText(/^\w+ == '[^']+'$/);
+
+        // Any session change asks the element again; the element's own late history step after a
+        // load is one, and took the line down between a test finding it and reading it.
+        await act(async () => {
+            await session.selection.apply({ nodes: [1] });
+        });
+
+        assert.isTrue(example.isConnected, "the example line stayed up");
+    });
+
+    it("a click on a drawn name selects that node and opens it in the inspector", async () => {
+        const { session } = await openGraph();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        // Names on, as the Style tab's Label line or a column's Add label line draws them, in a
+        // look and size that pick the node a name names (a reader's choice from the label settings).
+        await addLabelLine(session, labelRow(session, null), { kind: "node", name: "name" });
+        const row = labelRow(session, null);
+        const look = { look: "card", onTop: true, pickable: true } as const;
+        await writeLine(session, row.row, "node", "node.labelStyle", { value: look }, row.fresh, {
+            "node.labelSize": 72,
+        });
+        await element.waitForStableFrame();
+        // A point on Officer's name: off the sphere's drawn disc, in rings around it at every
+        // angle -- the name is placed clear of the node's edges, so it can sit diagonally from the
+        // sphere rather than straight above, beside or below it -- the first one that answers
+        // Officer. Off the disc, only the name can.
+        const nameAt = (): { x: number; y: number } | undefined => {
+            const at = element.nodeScreenPosition(2);
+            if (at?.visible !== true) {
+                return undefined;
+            }
+            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off += 3) {
+                const count = Math.ceil((2 * Math.PI * off) / 3);
+                for (let i = 0; i < count; i++) {
+                    const angle = (2 * Math.PI * i) / count;
+                    const point = { x: at.x + Math.cos(angle) * off, y: at.y + Math.sin(angle) * off };
+                    const hit = element.elementAt(point);
+                    if (hit?.kind === "node" && hit.id === 2) {
+                        return point;
+                    }
+                }
+            }
+            return undefined;
+        };
+        let point: { x: number; y: number } | undefined;
+        await waitFor(
+            () => {
+                point = nameAt();
+                assert.isDefined(point, "a point above Officer's sphere answers Officer");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        await userEvent.click(element, { position: point });
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], [2]);
+        });
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        const values = await inspector.findByRole("tab", { name: "Values" });
+        assert.equal(values.getAttribute("aria-selected"), "true");
+    });
+
+    it("glides the camera to center a pick, on screen or off", async () => {
+        const { session } = await openGraph();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        await waitFor(
+            () => {
+                assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await element.waitForStableFrame();
+        const centered = (id: number): void => {
+            const { target } = element.getCameraState();
+            const node = element.getNode(id)?.getPosition();
+            assert.isDefined(target);
+            assert.isDefined(node);
+            if (target === undefined || node === undefined) {
+                return;
+            }
+            assert.closeTo(target.x, node.x, 0.01, `the camera turns about node ${String(id)}`);
+            assert.closeTo(target.y, node.y, 0.01, `the camera turns about node ${String(id)}`);
+            assert.closeTo(target.z, node.z, 0.01, `the camera turns about node ${String(id)}`);
+        };
+        const pick = async (name: string, id: number): Promise<void> => {
+            const box = screen.getByRole("combobox", { name: "Find" });
+            await userEvent.type(box, name);
+            const list = await screen.findByRole("listbox", { name: "Find results" });
+            await userEvent.click(within(list).getAllByRole("option", { name: new RegExp(name) })[0]);
+            await waitFor(() => {
+                assert.isTrue(session.selection.has(id));
+            });
+            // A stable frame is one the camera has finished gliding to the pick in.
+            await element.waitForStableFrame();
+        };
+
+        // A pick already on screen is centered too (camera.pivotOnSelection, issue #2293).
+        await pick("Eve", 7);
+        centered(7);
+        assert.isTrue(element.nodeScreenPosition(7)?.visible);
+
+        // Turned away from the graph, a pick brings the node back into view, centered.
+        const away = element.getCameraState();
+        await element.setCameraState({ ...away, target: { x: 500, y: 500, z: 500 } });
+        await waitFor(() => {
+            assert.isFalse(element.nodeScreenPosition(4)?.visible);
+        });
+        await pick("Bea", 4);
+        centered(4);
+        assert.isTrue(element.nodeScreenPosition(4)?.visible);
     });
 
     it("says when nothing matches, and offers the value rows", async () => {
@@ -129,83 +293,60 @@ describe("the Graph place on the real element", () => {
         assert.isNotNull(within(values).getByRole("option", { name: "Select where club is Mr Hi (5)" }));
     });
 
-    it("lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo", async () => {
-        const { session, store } = await openGraph();
-        assert.deepEqual(treeRows(), ["Selection", "Everything"]);
-        assert.isNotNull(screen.getByText(/to add results here/));
+    it("offers 'or more' beside a typed number, and picking it selects every tie at or above it", async () => {
+        const { session } = await openGraph();
+        await session.data.clear();
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        // Read from the file itself, not through the element: ties of 10 or more shared chapters.
+        const wanted = [...lesMiserables.matchAll(/shared_chapters ([\d.]+)/g)].filter(
+            (m) => Number(m[1]) >= 10,
+        ).length;
 
-        await session.runs.start("pagerank");
-        const run = session.runs.list()[0];
-        await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
         });
-        assert.isNull(screen.queryByText(/to add results here/), "the footer has nothing to say once a run exists");
-        const layerIds = session.runs.bindings(run.id);
-        assert.isNotEmpty(layerIds, "the run painted");
+        const exact = within(values).getByRole("option", { name: /^Select where .+ is 10 \(\d+\)$/ });
+        assert.notInclude(exact.textContent, "Select where", "the words on the row drop the verb");
+        await userEvent.click(within(values).getByRole("option", { name: /^Select where .+ is 10 or more \(\d+\)$/ }));
 
-        // The eye: every layer of the run off, then one undo brings them all back.
-        await userEvent.click(screen.getByRole("button", { name: `Hide ${run.label}` }));
         await waitFor(() => {
-            assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === false));
+            assert.equal(session.selection.edges.length, wanted);
         });
-        await session.undo();
-        await waitFor(() => {
-            assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === true));
-        });
-
-        // Space on the focused row toggles the eye too.
-        const row = screen.getByRole("treeitem", { name: run.label });
-        await userEvent.click(row);
-        assert.deepEqual(store.get().inspected, { kind: "measure-row", id: run.id });
-        await userEvent.keyboard(" ");
-        await waitFor(() => {
-            assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === false));
-        });
-
-        // Delete, with an Undo notice.
-        await userEvent.keyboard("{Delete}");
-        await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", "Everything"]);
-        });
-        assert.equal(store.get().notice?.message, `Deleted ${run.label}.`);
-        store.get().notice?.action?.run();
-        await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
-        });
-        assert.isNull(store.get().notice, "the notice goes once its delete is undone");
-
-        // Once another change is made, the notice goes: its Undo would take back that change.
-        const row2 = screen.getByRole("treeitem", { name: run.label });
-        await userEvent.click(row2);
-        await userEvent.keyboard("{Delete}");
-        await waitFor(() => {
-            assert.isNotNull(store.get().notice);
-        });
-        await session.data.addNodes([{ id: 99, name: "Zed" }]);
-        await waitFor(() => {
-            assert.isNull(store.get().notice);
-        });
+        assert.isAbove(wanted, 0);
+        assert.equal(session.selection.nodes.length, 0);
     });
 
-    it("draws a group run with its groups as children, each with the size the element reports", async () => {
+    it("offers 'or more' for a typed number no link takes, and picking it selects every link at or above it", async () => {
         const { session } = await openGraph();
+        await session.data.clear();
+        // The studio's bus-stops.csv: no link takes exactly 10 minutes.
+        const links = [
+            "Depot,Market,4|Market,Library,6|Library,Harbor,5|Depot,School,9|School,Harbor,12|Market,Park,3",
+            "Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5",
+            "Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4",
+        ]
+            .join("|")
+            .split("|")
+            .map((line) => line.split(","));
+        await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
+        await session.data.addEdges(
+            links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),
+        );
+        const wanted = links.filter(([, , minutes]) => Number(minutes) >= 10).length;
 
-        await session.runs.start("louvain");
-        const run = session.runs.list()[0];
-        const groups = run.record.summary?.groups ?? [];
-        assert.isNotEmpty(groups);
-        const groupCount = run.result?.graph.groupCount;
-        assert.isNumber(groupCount);
-        await waitFor(() => {
-            assert.include(treeRows(), run.label);
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
         });
-        const tree = screen.getByRole("tree", { name: "Paint tree" });
-        const parent = within(tree).getByRole("treeitem", { name: run.label });
-        assert.equal(parent.getAttribute("aria-expanded"), "true", "few groups open by default");
-        assert.include(parent.textContent, String(groupCount), "the count is the one the run publishes");
-        for (const group of groups) {
-            const child = within(tree).getByRole("treeitem", { name: group.name ?? String(group.group) });
-            assert.include(child.textContent, String(group.size));
-        }
+        await userEvent.click(
+            within(values).getByRole("option", { name: `Select where minutes is 10 or more (${String(wanted)})` }),
+        );
+
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, wanted);
+        });
+        assert.equal(wanted, 3);
+        assert.equal(session.selection.nodes.length, 0);
     });
 });

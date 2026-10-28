@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.38",
+    "version": "0.3.48",
     "description": "Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -76,6 +76,36 @@
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./sources/ndex": {
+            "types": "./dist/sources-ndex.d.ts",
+            "import": "./dist/sources-ndex.js",
+            "default": "./dist/sources-ndex.js"
+        },
+        "./sources/cypher": {
+            "types": "./dist/sources-cypher.d.ts",
+            "import": "./dist/sources-cypher.js",
+            "default": "./dist/sources-cypher.js"
+        },
+        "./sources/rest": {
+            "types": "./dist/sources-rest.d.ts",
+            "import": "./dist/sources-rest.js",
+            "default": "./dist/sources-rest.js"
+        },
+        "./sources/sparql": {
+            "types": "./dist/sources-sparql.d.ts",
+            "import": "./dist/sources-sparql.js",
+            "default": "./dist/sources-sparql.js"
+        },
+        "./styles": {
+            "types": "./dist/styles.d.ts",
+            "import": "./dist/styles.js",
+            "default": "./dist/styles.js"
+        },
+        "./positions": {
+            "types": "./dist/positions.d.ts",
+            "import": "./dist/positions.js",
+            "default": "./dist/positions.js"
         }
     },
     "sideEffects": false,
@@ -98,19 +128,23 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint && tsc --noEmit -p tsconfig.json && tsc --noEmit -p fidelity-stories/tsconfig.json",
         "lint:fix": "eslint --fix",
-        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p fidelity-stories/tsconfig.json",
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
         "test": "vitest",
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
+        "test:storybook": "vitest run --config vitest.storybook.config.ts",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "benchmark": "tsx benchmarks/run.ts",
         "docs:reference": "tsx scripts/docs-reference.ts",
         "docs:api": "tsx scripts/docs-reference.ts --check && typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
-        "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run"
+        "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run",
+        "test:browser": "vitest run --config vitest.browser.config.ts",
+        "storybook": "storybook dev -c fidelity-stories/.storybook -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "build-storybook": "git lfs pull --include \"graph-io/test/fidelity/oracles/*.png\" && storybook build -c fidelity-stories/.storybook -o fidelity-stories/storybook-static"
     },
     "repository": {
         "type": "git",
@@ -142,19 +176,41 @@
         "@graphty/graph-format": "workspace:^"
     },
     "peerDependencies": {
-        "@graphty/graph-format": "^1.0.0"
+        "@graphty/graph-format": "^1.0.0",
+        "neo4j-driver": "^5.0.0"
+    },
+    "peerDependenciesMeta": {
+        "neo4j-driver": {
+            "optional": true
+        }
     },
     "devDependencies": {
+        "@resvg/resvg-js": "2.6.2",
+        "@sigma/export-image": "4.0.0",
+        "@storybook/addon-vitest": "^9.1.21",
+        "@storybook/web-components-vite": "^9.0.11",
+        "@vitest/browser-playwright": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
+        "cytoscape": "3.34.3",
+        "esbuild": "0.25.10",
         "eslint": "^9.29.0",
         "fast-check": "^4.2.0",
         "fast-xml-parser": "^5.11.1",
+        "graphology": "0.26.0",
+        "lit": "^3.3.1",
+        "neo4j-driver": "^5.28.3",
+        "playwright": "^1.53.0",
         "prettier": "^3.4.2",
+        "sigma": "4.0.1",
+        "storybook": "^9.1.21",
+        "svgcanvas": "2.6.0",
         "tsx": "^4.20.3",
         "typedoc": "^0.28.15",
         "typescript": "^5.9.3",
-        "vite": "^7.0.5",
+        "vis-data": "7.1.9",
+        "vis-network": "9.1.9",
+        "vite": "^7.3.7",
         "vitest": "catalog:"
     }
 }

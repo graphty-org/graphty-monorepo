@@ -4,6 +4,8 @@ import {
     computeDrop,
     flattenTree,
     iconOffset,
+    isValidMove,
+    keyboardMove,
     moveTreeItem,
     renameTreeItem,
     rowTints,
@@ -90,6 +92,13 @@ describe("rowTints", () => {
         expect(t.text).toBe("child");
         expect(t.vector).toBe("child-last");
         expect(t.frame).toBe("none");
+    });
+
+    it("with the child band off, draws a selected open parent as a plain pill and leaves its children plain", () => {
+        const tints = rowTints(rows, new Set(["frame"]), false);
+        const t = Object.fromEntries(rows.map((r, i) => [r.node.id, tints[i]]));
+        expect(t.frame).toBe("selected");
+        expect([t.rect, t.group, t.text, t.vector, t.other]).toEqual(["none", "none", "none", "none", "none"]);
     });
 
     it("draws a selected but closed parent as a plain pill", () => {
@@ -190,5 +199,24 @@ describe("moveTreeItem and renameTreeItem", () => {
         const renamed = renameTreeItem(ITEMS, "vector", "Arrow");
         expect(renamed[0].children?.[1].children?.[1].name).toBe("Arrow");
         expect(ITEMS[0].children?.[1].children?.[1].name).not.toBe("Arrow");
+    });
+});
+
+describe("isValidMove and keyboardMove", () => {
+    it("refuses a move into the item itself, its own subtree, a leaf, or where it already is", () => {
+        expect(isValidMove(ITEMS, { id: "group", parentId: "group", index: 0 })).toBe(false);
+        expect(isValidMove(ITEMS, { id: "frame", parentId: "group", index: 0 })).toBe(false);
+        expect(isValidMove(ITEMS, { id: "leaf", parentId: "rect", index: 0 })).toBe(false);
+        expect(isValidMove(ITEMS, { id: "rect", parentId: "frame", index: 0 })).toBe(false);
+        expect(isValidMove(ITEMS, { id: "leaf", parentId: "group", index: 2 })).toBe(true);
+        expect(isValidMove(ITEMS, { id: "leaf", parentId: "group", index: 3 })).toBe(false);
+    });
+
+    it("enters a neighboring folder, leaves its own, and finds no move at either end", () => {
+        expect(keyboardMove(ITEMS, "leaf", "up")).toEqual({ id: "leaf", parentId: "other", index: 0 });
+        expect(keyboardMove(ITEMS, "rect", "down")).toEqual({ id: "rect", parentId: "group", index: 0 });
+        expect(keyboardMove(ITEMS, "text", "out")).toEqual({ id: "text", parentId: "frame", index: 2 });
+        expect(keyboardMove(ITEMS, "frame", "out")).toBeNull();
+        expect(keyboardMove(ITEMS, "frame", "up")).toBeNull();
     });
 });

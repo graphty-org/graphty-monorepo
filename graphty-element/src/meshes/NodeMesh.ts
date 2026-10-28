@@ -4,17 +4,40 @@ import {
     DynamicTexture,
     type ICanvasGradient,
     type ICanvasRenderingContext,
+    type InstancedMesh,
+    Matrix,
     Mesh,
     MeshBuilder,
     Scene,
     StandardMaterial,
+    TransformNode,
+    VertexBuffer,
 } from "@babylonjs/core";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
+import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
+import {
+    bodilessSlab,
+    fitNodeMesh,
+    type NodeExtents,
+    outlineSlab,
+    projectedVertices,
+    ringSlab,
+} from "./NodeShapeGeometry";
+import {
+    borderRing,
+    convexHull,
+    flatShapeOutline,
+    isFlatShape,
+    offsetOutline,
+    type Point2,
+    type WaveShape,
+} from "./shapeOutlines";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -26,6 +49,90 @@ interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
     effect?: NodeStyleConfig["effect"];
+    border?: NodeStyleConfig["border"];
+    outerBorder?: NodeStyleConfig["outerBorder"];
+}
+
+/**
+ * How far across the view a fitted node of size 1 is drawn (`NodeMesh.isFitted`: any node under
+ * `sizeMode: "uniform"`, and under the default "scale" a flat shape, or one with a width, height,
+ * depth or `planar`): the default icosphere's diameter. Width, height, depth and a border's width are in the same units, so a node
+ * 4 wide is as wide as a node of size 4.
+ */
+export const NODE_EXTENT_PER_SIZE = 1.5;
+
+/** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
+const THIN_DEPTH_RATIO = 0.02;
+
+/**
+ * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
+ * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
+ * and far below anything a reader could see in an orthographic view.
+ */
+const Z_INDEX_STEP = 0.05;
+
+/**
+ * In a 2D view, move a node mesh's geometry back so its front face sits `-zIndex` steps behind
+ * the plane every edge and every node at `zIndex` 0 is drawn on (the 2D camera looks along +z).
+ * Its position stays the node's own, so edges, picking and the layout see no difference; only the
+ * depth test does. A 3D view, and a node at 0 or with no `zIndex`, are left exactly as they were.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param shape - The node's shape block.
+ * @param is2D - Whether the graph is drawn in 2D.
+ */
+function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    const zIndex = shape?.zIndex ?? 0;
+    if (!is2D) {
+        return;
+    }
+
+    if (zIndex >= 0) {
+        placeByDrawOrder(mesh, shape?.drawOrder);
+        return;
+    }
+
+    mesh.refreshBoundingInfo();
+    const front = mesh.getBoundingInfo().boundingBox.minimum.z;
+    mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
+    mesh.refreshBoundingInfo();
+}
+
+/**
+ * How far apart along the 2D camera's view the front faces of two neighbouring `drawOrder`
+ * levels are drawn: about ten times the depth buffer's resolution at the 2D camera's range, so
+ * the 101 levels together stay well under a unit deep.
+ */
+const DRAW_ORDER_STEP = Z_INDEX_STEP / 8;
+
+/**
+ * In a 2D view, flatten the camera-facing half of a node mesh onto one plane `drawOrder + 1`
+ * steps in front of the plane the edges are drawn on, leaving the other half where it is.
+ *
+ * WHY FLAT. A node drawn in 2D can still be a solid (the default sphere), and two solids that
+ * overlap cut through each other: each shows where its own surface is nearer, so neither is on
+ * top, and a large node pokes through a small one in front of it. A flat face per order level
+ * means that wherever two ordered nodes overlap, the higher order is nearer everywhere. The
+ * vertices keep their normals, so the shading seen head-on is unchanged, and the half behind the
+ * edges' plane keeps the outline an edge's end is found on. No `drawOrder` leaves the mesh exactly
+ * as it was.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param drawOrder - The node's draw order, 0 to 100.
+ */
+function placeByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
+    const positions = drawOrder === undefined ? null : mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (drawOrder === undefined || positions === null) {
+        return;
+    }
+
+    const front = -(drawOrder + 1) * DRAW_ORDER_STEP;
+    for (let z = 2; z < positions.length; z += 3) {
+        if (positions[z] < 0) {
+            positions[z] = front;
+        }
+    }
+
+    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+    mesh.refreshBoundingInfo();
 }
 
 type ShapeCreator = (size: number, scene?: Scene) => Mesh;
@@ -67,6 +174,7 @@ interface ColorObject {
     colorType: string;
     value?: string;
     colors?: string[];
+    stops?: number[];
     direction?: number;
     opacity?: number;
 }
@@ -81,6 +189,8 @@ interface ColorObject {
 interface GradientColor {
     radial: boolean;
     colors: string[];
+    /** Where each color sits, one per color; undefined, evenly spaced. */
+    stops: number[] | undefined;
     direction: number;
 }
 
@@ -209,6 +319,7 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+            placeByZIndex(mesh, createOptions.shape, options.is2D);
 
             // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
             // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
@@ -221,6 +332,9 @@ export class NodeMesh {
 
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
+            if (isNodeMaterial(material)) {
+                outlineNodeMesh(mesh, sceneLighting(scene));
+            }
 
             if (
                 createOptions.texture?.color &&
@@ -246,6 +360,17 @@ export class NodeMesh {
             throw new TypeError("shape with type required to create mesh");
         }
 
+        if (isFlatShape(createOptions.shape.type)) {
+            const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
+            const extents = this.extentsOf(createOptions.shape, size);
+
+            return this.createFlatShape(
+                createOptions.shape,
+                this.fillExtents(extents, this.borderFit(createOptions.shape, createOptions.border, extents).inset),
+                scene,
+            );
+        }
+
         const creator = this.shapeCreators.get(createOptions.shape.type);
         if (!creator) {
             throw new TypeError(`unknown shape: ${createOptions.shape.type}`);
@@ -255,7 +380,523 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        return creator(size, scene);
+        const sized = this.extentsOf(createOptions.shape, size);
+        const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
+        const extents = this.fillExtents(sized, inset);
+        const mesh = creator(size, scene);
+        if (!this.isFitted(createOptions.shape)) {
+            return mesh;
+        }
+
+        fitNodeMesh(mesh, extents);
+        if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
+            NodeMesh.scaleToExtent(mesh, extents.across);
+        }
+
+        return mesh;
+    }
+
+    /**
+     * How big a node is drawn along each axis, in world units.
+     * @param shape - The node's shape block.
+     * @param size - Its size, already floored.
+     * @returns The extents to fit its mesh to. A flat shape, or any shape with `planar` set, is
+     *   thin along z in every view: a plaque, so its border is a ring on its faces rather than a
+     *   wall around a slab.
+     */
+    static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number): NodeExtents {
+        const perSize = this.extentPerSize(shape);
+        const world = (value: number | undefined): number | undefined =>
+            value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * perSize;
+        const across = size * perSize;
+        const x = world(shape.width);
+        const y = world(shape.height);
+        const thin = shape.planar === true || isFlatShape(shape.type ?? "");
+        const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
+
+        return { across, x, y, z };
+    }
+
+    /**
+     * How a border's position fits it to the node's size: how far the fill is drawn in from the
+     * size on every side, and how wide the ring outside the fill is, both in world units. Outside
+     * (the default), the fill is the size and the ring is the border's width. Centered, the fill
+     * comes in by half the width, and the ring reaches half the width past the size (on a node narrower than the
+     * width, the fill is a point and the ring is narrower than the width). Inside, by the whole width, so the ring's
+     * outer edge is the size;
+     * a node no larger than twice its border is all ring, drawn half as wide as the node. A border
+     * of opacity 0 is not drawn; the fill reaches the middle of the ring it would be.
+     * @param shape - The node's shape block.
+     * @param border - The node's border block.
+     * @param extents - The node's extents at its size.
+     * @returns The inset and the ring's width.
+     * @internal
+     */
+    static borderFit(
+        shape: NodeStyleConfig["shape"],
+        border: NodeStyleConfig["border"],
+        extents: NodeExtents,
+    ): { inset: number; ring: number } {
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
+        const position = border?.position ?? "outside";
+        if (width <= 0 || position === "outside") {
+            return { inset: 0, ring: width };
+        }
+
+        const half = Math.min(extents.x ?? extents.across, extents.y ?? extents.across) / 2;
+        const ring = position === "inside" ? Math.min(width, half) : width;
+        // A stroke paints over the fill out to its middle. Under a border that is seen, graphty stops the fill at the
+        // ring; under one of opacity 0 nothing covers that inner half, so the fill reaches the ring's middle, as
+        // Cytoscape desktop draws a transparent border inside the node's size.
+        if ((border?.opacity ?? 1) <= 0) {
+            return { inset: position === "inside" ? ring / 2 : 0, ring };
+        }
+
+        const inset = Math.min(position === "inside" ? ring : width / 2, half);
+        // A centered stroke reaches half its width past the size, however small the node: on a node narrower than
+        // the stroke the fill shrinks to a point and the ring is what is left out to that edge (Pajek's x_fact 0
+        // vertex, a zero-size ellipse stroked 1 wide, is a dot 1 across)
+        return { inset, ring: position === "center" ? width / 2 + inset : ring };
+    }
+
+    /**
+     * A wave border's swing and period in world units (`border.waveAmplitude`, `border.wavePeriod`), or undefined
+     * when it has no swing of its own and is drawn within its ring.
+     * @param border - The node's border block.
+     * @param perSize - World units per unit of border width.
+     * @returns The wave, or undefined.
+     * @internal
+     */
+    static waveOf(border: NodeStyleConfig["border"], perSize: number): WaveShape | undefined {
+        const amplitude = border?.waveAmplitude;
+        if (amplitude === undefined) {
+            return undefined;
+        }
+
+        const period = border?.wavePeriod || 4 * amplitude;
+        return period > 0 ? { amplitude: amplitude * perSize, period: period * perSize } : undefined;
+    }
+
+    /**
+     * A node's extents with its fill drawn in by an inset on every side, never below the smallest
+     * size a node is drawn at.
+     * @param extents - The extents at the node's size.
+     * @param inset - How far in, on each side.
+     * @returns The fill's extents.
+     */
+    private static fillExtents(extents: NodeExtents, inset: number): NodeExtents {
+        if (inset <= 0) {
+            return extents;
+        }
+
+        const shrink = (value: number | undefined): number | undefined =>
+            value === undefined ? undefined : Math.max(value - 2 * inset, MIN_NODE_SIZE);
+
+        return {
+            ...extents,
+            across: Math.max(extents.across - 2 * inset, MIN_NODE_SIZE),
+            x: shrink(extents.x),
+            y: shrink(extents.y),
+        };
+    }
+
+    /**
+     * How many world units one unit of size, width, height, depth or border width is drawn at:
+     * the common node extent under "scale" and "uniform", one unit under "diameter".
+     * @param shape - The node's shape block, or none.
+     * @returns World units per unit of size.
+     * @internal
+     */
+    static extentPerSize(shape: NodeStyleConfig["shape"]): number {
+        return shape?.sizeMode === "diameter" ? 1 : NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Whether a solid node's mesh is fitted to its extents. Under the default `sizeMode: "scale"`,
+     * a node that names no width, height or depth and is not `planar` keeps its shape's own
+     * proportions at `size` (a sphere and a box of size 1 are 1 across, the default icosphere 1.5),
+     * as it always has; `sizeMode: "diameter"` and `"uniform"` draw every shape at one extent instead.
+     * @param shape - The node's shape block, or none.
+     * @returns True when the mesh is scaled to the node's extents.
+     * @internal
+     */
+    static isFitted(shape: NodeStyleConfig["shape"]): boolean {
+        if (shape === undefined) {
+            return false;
+        }
+
+        return (
+            shape.sizeMode === "diameter" ||
+            shape.sizeMode === "uniform" ||
+            shape.planar === true ||
+            isFlatShape(shape.type ?? "") ||
+            this.hasExplicitExtent(shape)
+        );
+    }
+
+    /**
+     * Whether the node names its own width, height or depth, which then decide its extents.
+     * @param shape - The node's shape block.
+     * @returns True when any of the three is set.
+     */
+    private static hasExplicitExtent(shape: NonNullable<NodeStyleConfig["shape"]>): boolean {
+        return shape.width !== undefined || shape.height !== undefined || shape.depth !== undefined;
+    }
+
+    /**
+     * Build a flat shape at its final width and height, so a rounded corner stays round however
+     * long and thin the node is.
+     * @param shape - The node's shape block; its type is a flat shape.
+     * @param extents - The node's extents.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createFlatShape(
+        shape: NonNullable<NodeStyleConfig["shape"]>,
+        extents: NodeExtents,
+        scene?: Scene,
+    ): Mesh {
+        const type = shape.type ?? "";
+
+        const build = type === "none" ? bodilessSlab : outlineSlab;
+
+        return build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+    }
+
+    /**
+     * Build a node's border and hand back an instance of it, or null when the node has none.
+     *
+     * The border is its own source mesh, cached beside the node's under the same style key, so
+     * every node of one style shares one border mesh and only a node that HAS a border pays for
+     * an instance. It is a ring OUTSIDE the node's outline, so it never covers the fill: the flat
+     * shape's own outline, or for a solid the outline it shows a camera looking along z, turned to
+     * face the camera in a 3D view.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param createOptions - The node's shape and border.
+     * @param fill - The node's own mesh, whose outline a solid's border follows.
+     * @param scene - The scene.
+     * @returns The border instance, or null.
+     */
+    static createBorder(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const { border, shape } = createOptions;
+        const opacity = border?.opacity ?? 1;
+
+        // A node with no body (shape "none") has no outline to ring either.
+        if (shape?.type === undefined || shape.type === "none") {
+            return null;
+        }
+
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const { inset, ring: width } = this.borderFit(shape, border, sized);
+        if (width <= 0 || opacity <= 0) {
+            return null;
+        }
+
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const extents = this.fillExtents(sized, inset);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
+            const mesh = ringSlab(
+                "node-border",
+                borderRing(outline, width, border?.style ?? "solid", wave),
+                depth,
+                scene,
+            );
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+
+        // A solid's outline is the one it shows from the front, so in a 3D view the ring turns
+        // with the camera to stay round the node; a flat shape's ring is part of its slab.
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    /**
+     * Build a node's outer border (`outerBorder`, Cytoscape.js's outline) and hand back an instance of
+     * it, or null when the node has none: a ring of its own width outside the border's outer edge, its
+     * offset beyond it, cached beside the border under the node's style key and built the same way.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param createOptions - The node's shape, border and outer border.
+     * @param fill - The node's own mesh, whose outline a solid's ring follows.
+     * @param scene - The scene.
+     * @returns The outer border instance, or null.
+     */
+    static createOuterBorder(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const { border, outerBorder, shape } = createOptions;
+        const perSize = this.extentPerSize(shape);
+        const width = (outerBorder?.width ?? 0) * perSize;
+        const opacity = outerBorder?.opacity ?? 1;
+        if (shape?.type === undefined || shape.type === "none" || width <= 0 || opacity <= 0) {
+            return null;
+        }
+
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const { inset, ring } = this.borderFit(shape, border, sized);
+        // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
+        const gap = ring + (outerBorder?.offset ?? 0) * perSize;
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const extents = this.fillExtents(sized, inset);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const base = gap > 0 ? offsetOutline(outline, gap) : outline;
+            const mesh = ringSlab(
+                "node-outer-border",
+                borderRing(base, width, outerBorder?.style ?? "solid"),
+                depth,
+                scene,
+            );
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    /**
+     * Build a node's underlay or overlay (Cytoscape.js `underlay-*`, `overlay-*`) and hand back an
+     * instance of it, or null when the node has none: a filled shape `padding` beyond the node's box
+     * on every side, drawn just behind the node's back (underlay) or just before its front (overlay),
+     * cached under the node's style key as its outer border is.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param shape - The node's shape block.
+     * @param halo - The underlay or overlay.
+     * @param kind - Which of the two.
+     * @param fill - The node's own mesh, whose outline and depth it follows.
+     * @param scene - The scene.
+     * @returns The instance, or null.
+     */
+    static createHalo(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        shape: NodeStyleConfig["shape"],
+        halo: NodeStyleConfig["underlay"],
+        kind: "underlay" | "overlay",
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const opacity = halo?.opacity ?? 0;
+        if (shape?.type === undefined || opacity <= 0) {
+            return null;
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const pad = (halo?.padding ?? 0) * perSize;
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const own = halo?.shape;
+            const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
+            let outline: Point2[];
+            if (own !== undefined && isFlatShape(own)) {
+                outline = flatShapeOutline(
+                    own,
+                    (sized.x ?? sized.across) + 2 * pad,
+                    (sized.y ?? sized.across) + 2 * pad,
+                    corner,
+                );
+            } else {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                outline = offsetOutline(nodeOutline, pad);
+            }
+            fill.computeWorldMatrix(true);
+            const box = fill.getBoundingInfo().boundingBox;
+            const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
+            // drawn as a ring from the middle out, so it fills the whole shape
+            const mesh = ringSlab(
+                `node-${kind}`,
+                [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
+                depth,
+                scene,
+            );
+            // just behind the node's back, or just before its front (2D looks along +z)
+            const gap = depth * 0.01;
+            const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
+            const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+            if (positions !== null) {
+                for (let z = 2; z < positions.length; z += 3) {
+                    positions[z] += at;
+                }
+                mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+                mesh.refreshBoundingInfo();
+            }
+            mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    /**
+     * The border of a group drawn over its members' box: a ring built at the box's own width and
+     * height, so its line is the style's width however far the box is stretched. Not cached, since
+     * every box has its own size; the caller gives it the cached border's material.
+     * @param createOptions - The group's flat shape and border.
+     * @param extents - The box's size, in the units the ring is drawn in.
+     * @param extents.x - Its width.
+     * @param extents.y - Its height.
+     * @param extents.z - Its depth.
+     * @param is2D - Whether the view is 2D.
+     * @param scene - The scene.
+     * @returns The ring, or null when the style draws no border.
+     */
+    static createGroupBorder(
+        createOptions: NodeMeshCreateOptions,
+        extents: { x: number; y: number; z: number },
+        is2D: boolean,
+        scene?: Scene,
+    ): Mesh | null {
+        const { border, shape } = createOptions;
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
+        if (width <= 0 || shape?.type === undefined || !isFlatShape(shape.type)) {
+            return null;
+        }
+
+        const outline = this.flatOutline(shape, { across: Math.max(extents.x, extents.y), ...extents });
+        const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), extents.z, scene);
+        placeByZIndex(mesh, shape, is2D);
+        mesh.isPickable = false;
+
+        return mesh;
+    }
+
+    /**
+     * The outline of a node's fill as it is drawn, with the fill's width and height: what is drawn
+     * over the node's face (`pie`, `stripes`, `image`) is cut to it and sized by it.
+     * @param createOptions - The node's shape and border.
+     * @param size - The node's size, when its shape gives none.
+     * @param fill - The node's own mesh, whose outline a solid's face is.
+     * @returns The outline, counter-clockwise, and the fill's width and height, in world units.
+     * @internal
+     */
+    static faceOf(
+        createOptions: NodeMeshCreateOptions,
+        size: number,
+        fill: AbstractMesh,
+    ): { outline: Point2[]; width: number; height: number } {
+        const shape = createOptions.shape ?? {};
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? size, MIN_NODE_SIZE));
+        const extents = this.fillExtents(sized, this.borderFit(shape, createOptions.border, sized).inset);
+        const width = extents.x ?? extents.across;
+        const height = extents.y ?? extents.across;
+        // a node with no body has its box for a face
+        const flat = shape.type !== undefined && isFlatShape(shape.type);
+        let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+        if (shape.type === "none") {
+            outline = flatShapeOutline("rectangle", width, height);
+        }
+
+        return { outline, width, height };
+    }
+
+    private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
+        const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
+
+        const outline = flatShapeOutline(
+            shape.type ?? "",
+            extents.x ?? extents.across,
+            extents.y ?? extents.across,
+            corner,
+            shape.points,
+            shape.stretchPoints !== false,
+            shape.exactCornerRadius === true,
+        );
+        if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
+            return outline;
+        }
+
+        // "diameter" promises the drawn shape is `size` at its widest, the same for every shape. A
+        // rounded polygon is drawn inside its sharp twin's box, as Cytoscape.js draws it, so it is
+        // grown back out to the extent here, the one place its fill and its border both read.
+        const xs = outline.map(([x]) => x);
+        const ys = outline.map(([, y]) => y);
+        const drawn = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+        const grow = drawn > 0 ? extents.across / drawn : 1;
+
+        return grow === 1 ? outline : outline.map(([x, y]): Point2 => [x * grow, y * grow]);
+    }
+
+    private static solidOutline(fill: AbstractMesh): Point2[] {
+        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+
+        return convexHull(projectedVertices(source));
+    }
+
+    /**
+     * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
+     * 2D and 3D alike, the way an edge's line does.
+     * @param color - The border colour.
+     * @param opacity - The border's opacity, 0..1.
+     * @param scene - The scene.
+     * @returns The frozen material.
+     */
+    private static createBorderMaterial(color: string, opacity: number, scene?: Scene): StandardMaterial {
+        const mat = new StandardMaterial("node-border", scene);
+        mat.disableLighting = true;
+        mat.emissiveColor = Color3.FromHexString(color);
+        mat.alpha = opacity;
+        mat.freeze();
+
+        return mat;
+    }
+
+    /**
+     * Rescales a fitted mesh so its largest width, height or depth is `extent`: what
+     * `sizeMode: "diameter"` means. `fitNodeMesh` sets the extent across the view; a shape that is
+     * deepest front to back (the dodecahedron, the icosahedron) is then scaled down so its depth
+     * is `extent` too. Every other shape is already `extent` at its widest and is left as it was.
+     * @param mesh - The mesh a shape creator returned
+     * @param extent - The largest width, height or depth it should be drawn at, in scene units
+     */
+    private static scaleToExtent(mesh: Mesh, extent: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const drawn = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+        if (drawn > 0) {
+            mesh.scaling.scaleInPlace(extent / drawn);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**
@@ -278,7 +919,7 @@ export class NodeMesh {
      * the emissive channel is visible there -- the same reason the solid path assigns
      * `emissiveColor` rather than `diffuseColor` when `is2D`).
      *
-     * THE TEXTURE IS ASSIGNED BEFORE `mat.freeze()`. A frozen material ignores later mutation, so
+     * THE TEXTURE IS ASSIGNED BEFORE THE FREEZE (`checkReadyOnlyOnce`). A frozen material ignores later mutation, so
      * assigning a texture after the freeze is a silent no-op. Do not move the freeze up.
      *
      * KNOWN VISUAL DIFFERENCE, deliberately not papered over: the solid 3D path adds
@@ -301,7 +942,27 @@ export class NodeMesh {
         scene?: Scene,
     ): StandardMaterial {
         const mat = new StandardMaterial("defaultMaterial", scene);
+        // A material no mesh draws yet: its setters and its freeze mark nothing dirty, so they do
+        // not walk every mesh in the scene looking for its users (issue #2894).
+        setUpQuietly(mat, () => {
+            NodeMesh.setUpMaterial(mat, createOptions, is2D, scene);
+        });
+        return mat;
+    }
 
+    /**
+     * Write a new node material's properties; see {@link NodeMesh.createMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param is2D - Whether the scene is rendering in 2D mode
+     * @param scene - Babylon.js scene, required to allocate a gradient texture
+     */
+    private static setUpMaterial(
+        mat: StandardMaterial,
+        createOptions: NodeMeshCreateOptions,
+        is2D: boolean,
+        scene?: Scene,
+    ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
         const gradient = color3 ? undefined : this.extractGradient(styleColor);
@@ -319,22 +980,29 @@ export class NodeMesh {
             }
         }
 
+        // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
+        const unlit = is2D || createOptions.effect?.unlit === true;
+
         if (gradientTexture) {
-            if (is2D) {
+            if (unlit) {
+                // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
+                // diffuse texture, so the ramp in both drew it squared: a #E8EEF7 to #B7C9E3 fill
+                // came out #CAD8EC to #8BA6CF, darker than either end.
                 mat.disableLighting = true;
                 mat.emissiveTexture = gradientTexture;
-                mat.diffuseTexture = gradientTexture;
             } else {
                 mat.diffuseTexture = gradientTexture;
+                lightNodeMaterial(mat, sceneLighting(scene));
             }
         } else if (color3) {
-            if (is2D) {
+            if (unlit) {
                 mat.disableLighting = true;
                 mat.emissiveColor = color3;
             } else {
                 mat.diffuseColor = color3;
-                // Add emissive for minimum brightness on shadowed surfaces
-                mat.emissiveColor = color3.scale(0.2);
+                // The emissive floor (minimum brightness on shadowed surfaces), the studio rim, or
+                // flat: whatever the scene's lighting asks of a node material.
+                lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
                 // colour share this material and carry their own colour in a per-instance buffer
@@ -351,8 +1019,9 @@ export class NodeMesh {
 
         mat.wireframe = createOptions.effect?.wireframe ?? false;
 
-        mat.freeze();
-        return mat;
+        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
+        // submeshes drawn with this material -- of which a new material has none.
+        mat.checkReadyOnlyOnce = true;
     }
 
     private static extractColor(color: unknown): Color3 | undefined {
@@ -401,9 +1070,12 @@ export class NodeMesh {
             return undefined;
         }
 
+        const stops = colorObj.stops?.length === colors.length ? colorObj.stops : undefined;
+
         return {
             radial: isRadial,
             colors,
+            stops,
             // The radial form has no direction in the schema. Pin it to 0 so two radial gradients
             // that are equal in every meaningful way share one cache entry.
             direction: isRadial ? 0 : (colorObj.direction ?? 0),
@@ -450,7 +1122,7 @@ export class NodeMesh {
             return undefined;
         }
 
-        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}`;
+        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}|${gradient.stops?.join(",") ?? ""}`;
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
@@ -517,9 +1189,9 @@ export class NodeMesh {
                 ? ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
-            const { colors } = gradient;
+            const { colors, stops } = gradient;
             for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
+                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
             }
 
             ctx.fillStyle = ramp;

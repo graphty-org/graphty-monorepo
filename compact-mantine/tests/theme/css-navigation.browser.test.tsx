@@ -5,7 +5,7 @@
  * After the refactor, all components default to compact styling via defaultProps.
  * Covers: Anchor, Burger, NavLink, Pagination, Stepper, Tabs
  */
-import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
+import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs, Text } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -41,6 +41,23 @@ describe("Anchor - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
         });
+    });
+
+    it("an xs link is the size of the xs caption around it, with the caption's weight", () => {
+        const { container } = renderWithTheme(
+            <Text size="xs">
+                1 unmatched row{" "}
+                <Anchor component="button" size="xs">
+                    Show all rows
+                </Anchor>
+            </Text>,
+        );
+        const caption = getComputedStyle(container.querySelector(".mantine-Text-root:not(.mantine-Anchor-root)")!);
+        const link = getComputedStyle(container.querySelector(".mantine-Anchor-root")!);
+        expect(link.fontSize).toBe("9px");
+        expect(link.fontSize).toBe(caption.fontSize);
+        expect(link.lineHeight).toBe(caption.lineHeight);
+        expect(link.fontWeight).toBe(caption.fontWeight);
     });
 });
 
@@ -283,6 +300,25 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
                 expect(style?.fontSize).toBe("11px");
+            });
+
+            it("a vertical tab starts its label at the tab's leading edge", () => {
+                const { getByRole } = renderWithTheme(
+                    <Tabs defaultValue="first" orientation="vertical" w={184}>
+                        <Tabs.List>
+                            <Tabs.Tab value="first">First</Tabs.Tab>
+                            <Tabs.Tab value="second">A longer second</Tabs.Tab>
+                        </Tabs.List>
+                    </Tabs>,
+                );
+                for (const name of ["First", "A longer second"]) {
+                    const tab = getByRole("tab", { name });
+                    const range = document.createRange();
+                    range.selectNodeContents(tab.querySelector(".mantine-Tabs-tabLabel") as Node);
+                    const text = range.getClientRects()[0];
+                    const left = tab.getBoundingClientRect().left + parseFloat(getComputedStyle(tab).paddingLeft);
+                    expect(Math.abs(text.left - left)).toBeLessThan(1);
+                }
             });
 
             it("paddingTop is 0px", () => {

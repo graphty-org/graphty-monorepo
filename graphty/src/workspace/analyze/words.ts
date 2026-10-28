@@ -9,6 +9,10 @@
  */
 
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
+import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
+
+import { findTreeRow } from "../graph-place/rows";
+import { count, formatNumber } from "../inspector/words";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -36,15 +40,13 @@ interface AlgorithmWords {
     readonly answers: string;
     /** Words a reader might type for it ("brokers" finds Betweenness). */
     readonly aliases: readonly string[];
-    /** The one "Start here" of its heading (at most one per heading). */
-    readonly startHere?: boolean;
 }
 
 /** The words for the element's own algorithms, by key. */
 const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     degree: {
         name: "Degree",
-        answers: "How many edges each node has.",
+        answers: "How many edges each node has: the most connected rank highest.",
         aliases: ["connections", "links", "hubs", "popular"],
     },
     betweenness: {
@@ -66,7 +68,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "PageRank",
         answers: "Which nodes are connected to other well-connected nodes.",
         aliases: ["influence", "important", "importance", "random walk", "central"],
-        startHere: true,
     },
     eigenvector: {
         name: "Eigenvector",
@@ -87,7 +88,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "Louvain",
         answers: "Which nodes form densely linked groups.",
         aliases: ["communities", "clusters", "groups", "modularity"],
-        startHere: true,
     },
     leiden: {
         name: "Leiden",
@@ -126,9 +126,18 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     },
     "shortest-path": {
         name: "Shortest path",
-        answers: "The fewest steps, or the lightest route, between two nodes.",
-        aliases: ["route", "dijkstra", "how are they connected"],
-        startHere: true,
+        answers: "The fewest steps, or the shortest path by weight, between two nodes.",
+        aliases: [
+            "route",
+            "dijkstra",
+            "how are they connected",
+            "chain",
+            "quickest",
+            "linked",
+            "between",
+            "in between",
+            "fewest",
+        ],
     },
     astar: {
         name: "Guided route",
@@ -202,6 +211,22 @@ export function wordsFor(descriptor: AlgorithmDescriptor): AlgorithmWords {
     return WORDS[descriptor.key] ?? { name: descriptor.technicalName, answers: "", aliases: [] };
 }
 
+/** What the key calls the elements a run's highlight marks, by the run's result shape. */
+const HIGHLIGHT_ENTRIES: Partial<Record<Run["shape"], string>> = {
+    path: "On the path",
+    "pair-list": "In a pair",
+};
+
+/**
+ * The key's entry for a run's highlight: "On the path" for a path, "In the result" for a set.
+ * Never the element's layer name ("Shortest route (edges)").
+ * @param shape - the run's result shape.
+ * @returns the words.
+ */
+export function highlightEntry(shape: Run["shape"]): string {
+    return HIGHLIGHT_ENTRIES[shape] ?? "In the result";
+}
+
 /** One heading with the entries under it. */
 interface HeadingEntries {
     readonly heading: Heading;
@@ -209,8 +234,8 @@ interface HeadingEntries {
 }
 
 /**
- * Whether an entry matches the filter text: a case-insensitive part of its name, its line, its
- * aliases, its key or its technical name.
+ * Whether an entry matches the filter text: a case-insensitive part of the words it is shown with
+ * (its name, its line, its heading), its aliases, its key or its technical name.
  * @param descriptor - the entry.
  * @param text - what the reader typed.
  * @returns true when it matches, or when the text is blank.
@@ -221,22 +246,54 @@ export function matches(descriptor: AlgorithmDescriptor, text: string): boolean 
         return true;
     }
     const words = wordsFor(descriptor);
-    return [words.name, words.answers, ...words.aliases, descriptor.key, descriptor.technicalName].some((word) =>
-        word.toLowerCase().includes(want),
+    const heading = HEADINGS.find((h) => h.shapes.includes(descriptor.shape))?.title ?? "";
+    return [words.name, words.answers, heading, ...words.aliases, descriptor.key, descriptor.technicalName].some(
+        (word) => word.toLowerCase().includes(want),
     );
 }
 
 /**
- * The list under its headings, filtered; a heading with no entries left is dropped.
+ * Whether an entry matches the filter text on its name or one of its aliases, the words a reader
+ * picks it by; a match only on its line, key or technical name does not count.
+ * @param descriptor - the entry.
+ * @param text - what the reader typed.
+ * @returns true for a name or alias match.
+ */
+function matchesByName(descriptor: AlgorithmDescriptor, text: string): boolean {
+    const want = text.trim().toLowerCase();
+    const words = wordsFor(descriptor);
+    return [words.name, ...words.aliases].some((word) => word.toLowerCase().includes(want));
+}
+
+/**
+ * The list under its headings, filtered; a heading with no entries left is dropped. While text is
+ * typed, entries whose name starts with it come first, then those that match on their name or an
+ * alias, and so do the headings that hold one; entries matching only on their line follow. A blank filter keeps the list's own order.
  * @param algorithms - the element's catalog.
  * @param text - the filter text.
- * @returns the headings in order, each with its entries in catalog order.
+ * @returns the headings, each with its entries.
  */
 export function groupAlgorithms(algorithms: readonly AlgorithmDescriptor[], text = ""): HeadingEntries[] {
-    return HEADINGS.map((heading) => ({
+    const groups = HEADINGS.map((heading) => ({
         heading,
         entries: algorithms.filter((a) => heading.shapes.includes(a.shape) && matches(a, text)),
     })).filter((group) => group.entries.length > 0);
+    if (text.trim() === "") {
+        return groups;
+    }
+    // Array.prototype.sort is stable, so ties keep the catalog's order. A name that starts with the
+    // typed text ranks before one that only contains it.
+    const startsWith = (a: AlgorithmDescriptor): boolean =>
+        wordsFor(a).name.toLowerCase().startsWith(text.trim().toLowerCase());
+    const byName = (a: AlgorithmDescriptor): number => {
+        if (startsWith(a)) {
+            return 0;
+        }
+        return matchesByName(a, text) ? 1 : 2;
+    };
+    return groups
+        .map(({ heading, entries }) => ({ heading, entries: [...entries].sort((a, b) => byName(a) - byName(b)) }))
+        .sort((a, b) => byName(a.entries[0]) - byName(b.entries[0]));
 }
 
 /**
@@ -261,15 +318,33 @@ export function costLine(seconds: number): string {
     return `About ${String(Math.round(seconds / 3600))} hours`;
 }
 
-/** What the app calls one option of the short form, and each of its choices. */
+/** The estimate, in seconds, at or over which the app calls a method "slow". */
+const SLOW_SECONDS = 10;
+
+/**
+ * Whether the element's estimate is slow enough for the app to say so.
+ * @param seconds - the estimate; Infinity when it cannot be bounded.
+ * @returns true at or over SLOW_SECONDS, and when the time cannot be bounded.
+ */
+export function isSlow(seconds: number): boolean {
+    return seconds >= SLOW_SECONDS;
+}
+
+/** What the app calls one option, and each of its choices. */
 interface OptionWords {
     readonly label: string;
     readonly choices?: Readonly<Record<string, string>>;
+    /** What an option whose default is no value means while it is left empty. */
+    readonly empty?: string;
 }
 
+/** A sampled run's sample size: empty means the exact run, from every node. */
+const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
+
 /**
- * The words for the options the short form draws, by `<algorithm key>.<option name>` (a test
- * holds that every one the element ships has words here).
+ * The app's words for the key options (the ones drawn outside the Advanced fold), by
+ * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
+ * words here).
  */
 const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "pagerank.dampingFactor": { label: "Damping factor" },
@@ -292,35 +367,351 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
         choices: { "adamic-adar": "Adamic-Adar", "common-neighbors": "Common neighbors" },
     },
     "link-prediction.topK": { label: "Pairs" },
+    // The Path popover's own words for its ends, so Made with names them the same way.
+    "shortest-path.source": { label: "From" },
+    "shortest-path.target": { label: "To" },
+    "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
+    "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // The location map's options; an empty location column is found from the data.
+    "location-map.location": { label: "Location", empty: "Automatic" },
+    "location-map.latitude": { label: "Latitude", empty: "Automatic" },
+    "location-map.longitude": { label: "Longitude", empty: "Automatic" },
+    "location-map.surface": { label: "Surface", choices: { flat: "Flat map", globe: "Globe" } },
+    "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
+    "location-map.format": {
+        label: "Format",
+        choices: {
+            auto: "Automatic",
+            decimal: "Latitude, longitude",
+            "lon-lat": "Longitude, latitude",
+            geojson: "GeoJSON",
+            wkt: "WKT",
+            iso6709: "ISO 6709",
+            dms: "Degrees, minutes, seconds",
+            geohash: "Geohash",
+            "plus-code": "Plus code",
+            mgrs: "MGRS",
+            utm: "UTM",
+        },
+    },
+    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
+    "location-map.projection": {
+        label: "Projection",
+        choices: { auto: "Automatic", "web-mercator": "Web Mercator", equirectangular: "Equirectangular" },
+    },
+    "location-map.size": { label: "Size" },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
+    "closeness.k": SAMPLE_SIZE,
+    "betweenness.k": SAMPLE_SIZE,
+    "edge-betweenness.k": SAMPLE_SIZE,
 };
 
 /**
- * The words for one option. An option the app has no words for (a third party's algorithm) reads
- * under its name and its choices under their values: the element's facts, not its words.
+ * The words for options that mean the same thing in every algorithm, by option name; an entry
+ * in OPTION_WORDS wins over these.
+ */
+const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
+    maxIterations: "Max iterations",
+    tolerance: "Tolerance",
+    k: "Sample size",
+    randomSeed: "Random seed",
+    seed: "Random seed",
+    weight: "Weight",
+    normalized: "Normalized",
+    source: "Source",
+    target: "Target",
+    targetNode: "Target",
+    sink: "Sink",
+    startNode: "Start",
+    // Layout options.
+    start: "Start",
+    root: "Center",
+    groupBy: "Group by",
+    scale: "Scale",
+    columns: "Columns",
+    align: "Direction",
+    aspectRatio: "Aspect ratio",
+    springLength: "Spring length",
+    gravity: "Gravity",
+};
+
+/**
+ * Whether an option is the path's Follow (which way a route may cross an edge), which the Path
+ * form and Made with draw as their own row, and only on a directed graph.
  * @param algorithm - the algorithm's key.
+ * @param option - the option's name.
+ * @returns true for the path's direction option.
+ */
+export function isPathFollow(algorithm: string, option: string): boolean {
+    return algorithm === "shortest-path" && option === "direction";
+}
+
+/**
+ * The words for one option. An option the app has no words for (a third party's algorithm, an
+ * advanced option) reads under the element's plain name for it, and its choices under the
+ * element's labels: never the raw option key.
+ * @param algorithm - the algorithm's key, or the layout's catalog id.
  * @param option - the element's option descriptor.
- * @returns the label, and the word for a choice by its value.
+ * @returns the label, the word for a choice by its value, and what the option left empty means.
  */
 export function optionWords(
     algorithm: string,
     option: OptionDescriptor,
-): { label: string; choice: (value: string) => string } {
+): { label: string; choice: (value: string) => string; empty?: string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
-        label: words?.label ?? option.name,
-        choice: (value) => words?.choices?.[value] ?? value,
+        label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
+        empty: words?.empty,
+        choice: (value) =>
+            words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };
 }
 
-/** The option types the short form draws a control for; the rest keep their defaults. */
-const DRAWN = new Set<OptionDescriptor["type"]>(["number", "integer", "enum", "boolean"]);
+/** A weight meaning as the element names it, or null when nobody chose one. */
+export type Meaning = WeightMeaning["meaning"] | null;
+
+/** What each meaning reads as on screen (tier2-design.md section 5); the element's "strength" is "closer". */
+export const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+    strength: "closer",
+    distance: "farther",
+    capacity: "capacity",
+};
 
 /**
- * Whether the short form draws a control for this option: a value the reader sets, not one
- * read from the selection (node ids) or one marked advanced or internal by the element.
- * @param option - the element's option descriptor.
- * @returns true when it gets a control.
+ * What each meaning tells a reader, as a whole sentence (glossary section 11), and what a weight
+ * with none is read as. "Paths ignore it" alone was not understood in the tier 2 sessions.
  */
-export function isEssential(option: OptionDescriptor): boolean {
-    return option.advanced !== true && option.internal !== true && DRAWN.has(option.type);
+const MEANING_GLOSS: Readonly<Record<WeightMeaning["meaning"] | "unset", string>> = {
+    strength: "A higher weight means a closer tie, such as more emails between two people.",
+    distance:
+        "A higher weight means farther apart, such as a longer distance or travel time; a path takes the smallest total.",
+    capacity: "A higher weight means more can flow along the edge.",
+    unset: "Choose what a higher weight means. Until you do, a path counts every edge as one step, and PageRank and communities read a higher weight as closer.",
+};
+
+/**
+ * A meaning's word.
+ * @param meaning - the meaning.
+ * @returns "closer", "farther", "capacity", or null when none was chosen.
+ */
+function meaningWord(meaning: Meaning): string | null {
+    return meaning === null ? null : MEANING_WORDS[meaning];
+}
+
+/**
+ * A meaning's gloss.
+ * @param meaning - the meaning.
+ * @returns "A higher weight means more can flow along the edge.", ...
+ */
+export function meaningGloss(meaning: Meaning): string {
+    return MEANING_GLOSS[meaning ?? "unset"];
+}
+
+/**
+ * A weight column and its meaning.
+ * @param attribute - the column.
+ * @param meaning - its meaning.
+ * @param extra - more words inside the brackets, such as "loaded".
+ * @returns "emails (closer)", "emails (closer, loaded)", "emails" for no meaning and no extra.
+ */
+export function weightName(attribute: string, meaning: Meaning, extra?: string): string {
+    const inside = [meaningWord(meaning), extra].filter((word): word is string => word !== null && word !== undefined);
+    return inside.length === 0 ? attribute : `${attribute} (${inside.join(", ")})`;
+}
+
+/** Why a weight of another meaning was left unread, by the meaning the analysis reads. */
+const NEEDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+    distance: "a path needs a distance",
+    strength: "this analysis reads closer",
+    capacity: "a flow needs a capacity",
+};
+
+/**
+ * Whether a coded fact's value is a meaning the app has words for.
+ * @param value - the value.
+ * @returns true for "strength", "distance" or "capacity".
+ */
+function isMeaning(value: unknown): value is WeightMeaning["meaning"] {
+    return typeof value === "string" && Object.hasOwn(MEANING_WORDS, value);
+}
+
+/** What a run read as its weight: a short value for a row, and the explanation for a line under it. */
+interface WeightRead {
+    /** "km (farther)", "weight (read as closer)" or "None". */
+    readonly value: string;
+    /** Why, or how, when the value alone does not say it; null when it does. */
+    readonly note: string | null;
+}
+
+/**
+ * What a run read as its weight, from its caveats (tier2-design.md section 5, "Made with").
+ * @param caveats - the run's caveats.
+ * @returns the value ("emails (closer)", "w (read as closer)", "None") and its note ("Its meaning
+ *     was not set, so this run assumed a higher weight means closer.", "Each edge counts as 1.",
+ *     "Each edge counts as 1. A path needs a distance, and \"emails\" means closer.", "Each edge
+ *     counts as 1; \"w\" has no meaning set."), or no note.
+ */
+export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): WeightRead {
+    const skipped = caveats.weightSkipped;
+    if (skipped !== undefined) {
+        const { attribute, meaning, reads } = skipped.params;
+        const column = String(attribute);
+        // Said in the form of the unweighted note: what the run did, then why the weight was left --
+        // what the analysis needs, then what the column is (or that nobody set it). Each sentence
+        // starts with a capital, and the column is quoted, so a lowercase name never starts one.
+        // A column nobody gave a meaning is reason enough on its own: what the analysis needs is
+        // said only when the column means something else.
+        if (!isMeaning(meaning)) {
+            return { value: "None", note: `Each edge counts as 1; "${column}" has no meaning set.` };
+        }
+        const needs = isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind";
+        const why = `${needs.charAt(0).toUpperCase()}${needs.slice(1)}`;
+        return {
+            value: "None",
+            note: `Each edge counts as 1. ${why}, and "${column}" means ${MEANING_WORDS[meaning]}.`,
+        };
+    }
+    const read = caveats.weight;
+    if (read === null || read === undefined) {
+        return { value: "None", note: "Each edge counts as 1." };
+    }
+    // A meaning nobody set, which the run assumed: the value says how it was read, the note
+    // that it was assumed, so the two never read as "not set" and "closer" at once.
+    return read.assumed === true
+        ? {
+              value: `${read.attribute} (read as ${MEANING_WORDS[read.meaning]})`,
+              note: `Its meaning was not set, so this run assumed a higher weight means ${MEANING_WORDS[read.meaning]}.`,
+          }
+        : { value: weightName(read.attribute, read.meaning), note: null };
+}
+
+/**
+ * A hop count, worded.
+ * @param hops - the number of hops.
+ * @returns "1 hop", "3 hops".
+ */
+function hopWords(hops: number): string {
+    return `${String(hops)} ${hops === 1 ? "hop" : "hops"}`;
+}
+
+/**
+ * How long a found path is, worded: its total named by the weight column when it read a distance
+ * weight ("minutes 14"), else its hop count ("4 hops"). Undefined before its result.
+ * @param run - the path run.
+ * @returns the words, or undefined.
+ */
+export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+    const { hops, cost } = run.result?.graph ?? {};
+    const { weight } = run.caveats;
+    if (weight?.meaning === "distance" && typeof cost === "number") {
+        return `${weight.attribute} ${formatNumber(cost)}`;
+    }
+    return typeof hops === "number" ? hopWords(hops) : undefined;
+}
+
+/**
+ * A path run's ends and its answer, worded: its From and To by name, and its length
+ * (`pathLengthWords`), or that no path joins them (the element publishes a path of length 0).
+ * Null for any other run, or before its result.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @returns the words, or null.
+ */
+export function pathWords(session: GraphSession, run: Run): { from: string; to: string; length: string | null } | null {
+    const graph = run.result?.graph;
+    if (run.shape !== "path" || graph === undefined) {
+        return null;
+    }
+    const name = (id: unknown): string =>
+        typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
+    return {
+        from: name(run.params.source),
+        to: name(run.params.target),
+        length: graph.length === 0 ? null : (pathLengthWords(run) ?? hopWords(0)),
+    };
+}
+
+/**
+ * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops" (or
+ * "..., minutes 14" by a distance weight), or
+ * "No path from Ava to Lee.".
+ * @param session - the element's session.
+ * @param run - the run.
+ * @returns the line, or null for any other run.
+ */
+export function pathAnnouncement(session: GraphSession, run: Run): string | null {
+    const words = pathWords(session, run);
+    if (words === null) {
+        return null;
+    }
+    return words.length === null
+        ? `No path from ${words.from} to ${words.to}.`
+        : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
+}
+
+/**
+ * The status line for a finished grouping run, from its result and the layers it made: "Louvain
+ * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"
+ * when no folder holds its layers).
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run whose result has no groups.
+ */
+export function groupsAnnouncement(session: GraphSession, run: Run, name: string): string | null {
+    const groups = run.result?.summary().groups;
+    if (groups === undefined) {
+        return null;
+    }
+    const layer = session.runs.layers(run.id)?.present[0];
+    const folder = layer === undefined ? undefined : findTreeRow(session.styles.tree(), layer)?.folders.at(-1);
+    const found = `${name} finished: ${count(groups.length, "group")}`;
+    return folder === undefined ? found : `${found}, each a layer in the ${folder.name} folder of Style layers`;
+}
+
+/**
+ * Why a run cannot start, in the reader's words, from the element's coded refusal.
+ * @param estimate - the element's estimate for the run, `available` false.
+ * @returns the sentence.
+ */
+export function runRefusalWords(estimate: CostEstimate): string {
+    const params = estimate.refusal?.params ?? {};
+    switch (estimate.refusal?.code) {
+        case "algorithm.needs-directed":
+            return "Needs a graph whose edges point one way";
+        case "algorithm.needs-undirected":
+            return "Needs a graph whose edges point both ways";
+        case "algorithm.needs-weighted":
+            return "Needs edge weights";
+        case "algorithm.needs-connected":
+            return typeof params.pieces === "number"
+                ? `Needs a connected graph; this one is in ${params.pieces.toLocaleString("en-US")} pieces`
+                : "Needs a connected graph";
+        case "algorithm.needs-accelerator":
+            return "Needs a graphics card this browser does not offer";
+        case "estimate.scope-unresolved":
+            return "The nodes to run on could not be found";
+        default:
+            return "Cannot run on this graph";
+    }
+}
+
+/**
+ * An option's words for a run that has finished: a choice of method left unset reads as the
+ * method the run used (`caveats.method`), chosen automatically.
+ * @param run - the run.
+ * @param option - the element's option descriptor.
+ * @returns the option's words, with what empty means for this run.
+ */
+export function ranOptionWords(
+    run: Readonly<{ algorithm: string; status: Run["status"]; caveats: Pick<Caveats, "method"> }>,
+    option: OptionDescriptor,
+): ReturnType<typeof optionWords> {
+    const words = optionWords(run.algorithm, option);
+    const used = run.status === "succeeded" ? run.caveats.method : undefined;
+
+    return used !== undefined && option.type === "enum" && option.values?.some((choice) => choice.value === used)
+        ? { ...words, empty: `${words.choice(used)}, chosen automatically` }
+        : words;
 }

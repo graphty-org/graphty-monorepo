@@ -27,13 +27,21 @@ import { ensureCompactStyles } from "../../src/theme/global-styles";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
-        figmaAvailable: () => Promise<boolean>;
+        figmaRecording: () => Promise<boolean>;
+        figmaRecordReads: (reads: string[]) => Promise<void>;
         readFigmaCapture: (path: string) => Promise<unknown>;
         mouseAway: () => Promise<void>;
         mouseDown: () => Promise<void>;
         mouseUp: () => Promise<void>;
+        touchDrag: (selector: string, dx: number) => Promise<void>;
+        touchTap: (selector: string) => Promise<void>;
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
+        axNodes: (
+            name: string,
+        ) => Promise<{ role: string; name: string; value: string | undefined; valueText?: string }[]>;
         accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
+        dropFiles: (selector: string, files: { name: string; type: string; text: string }[]) => Promise<void>;
+        chooseFiles: (selector: string, files: { name: string; type: string; text: string }[]) => Promise<void>;
     }
 }
 

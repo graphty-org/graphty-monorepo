@@ -2,10 +2,11 @@
 import "@babylonjs/core/Culling/ray";
 
 import {
+    type AbstractMesh,
+    type ActionEvent,
     ActionManager,
     ExecuteCodeAction,
     Matrix,
-    type Observer,
     PointerEventTypes,
     type PointerInfoPre,
     Ray,
@@ -18,9 +19,144 @@ import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
+import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import { sourceLoadsOf } from "./session/sources/ids";
+
+/**
+ * The mesh a click at a canvas point lands on, as the reader sees the picture.
+ *
+ * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
+ * on top (`ON_TOP_RENDERING_GROUP`, `onTop`) covers every node, even one nearer the camera, so the nearest
+ * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
+ * on top that is hit wins; otherwise the nearest hit does.
+ * @param scene - The scene to pick in.
+ * @param x - X in CSS pixels from the canvas's left edge.
+ * @param y - Y in CSS pixels from the canvas's top edge.
+ * @returns The mesh, or null when the point lands on nothing.
+ */
+export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+    const ray = scene.createPickingRay(x, y, null, null);
+    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
+    const onTop = scene.pick(
+        x,
+        y,
+        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
+    );
+    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+}
+
+/**
+ * A pick predicate that admits a mesh only when `admit` does AND the world-space ray can reach
+ * its world bounding sphere.
+ *
+ * Babylon's pick builds a ray in each admitted mesh's own space -- a world x view x projection
+ * multiply, an invert and two unprojects -- before it tests the mesh, and every node is a mesh of
+ * its own, so a pick with no such filter cost one unproject per node (issue #3244). Testing the one
+ * world ray against the sphere Babylon keeps in world space costs a few multiplies, and Babylon's
+ * own test is against that same sphere in the mesh's space, so a mesh this rejects is one Babylon
+ * would have rejected: the line test below drops Babylon's "behind the ray's origin" check and pads
+ * the radius, so it only ever admits more. What is picked is unchanged.
+ *
+ * ponytail: Babylon's pick still walks every mesh in `scene.meshes` and calls this for each, about
+ * 15-20 ms a pick at 100,000 nodes; a GPU id buffer or a spatial index over node positions is the
+ * upgrade if that matters.
+ * @param scene - The scene being picked.
+ * @param ray - The pick's ray in world space.
+ * @param admit - Which meshes may be picked at all.
+ * @returns The predicate.
+ */
+export function alongRay(
+    scene: Scene,
+    ray: Ray,
+    admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
+): (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean {
+    // With several active cameras Babylon recomputes a camera-dependent mesh's world matrix for the
+    // pointer's camera, so the sphere read here could be the other camera's: filter nothing then.
+    const cameraDependent =
+        (scene.activeCameras?.length ?? 0) > 1 && scene.cameraToUseForPointers !== scene.activeCamera;
+    const { origin, direction } = ray;
+    const usable = !cameraDependent && direction.lengthSquared() > 0;
+    return (mesh, thinInstanceIndex = -1) => {
+        if (thinInstanceIndex >= 0) {
+            return admit(mesh, thinInstanceIndex);
+        }
+
+        if (!admit(mesh, thinInstanceIndex)) {
+            return false;
+        }
+
+        if (!usable || mesh.hasThinInstances) {
+            return true;
+        }
+
+        mesh.computeWorldMatrix();
+        const { centerWorld, radiusWorld } = mesh.getBoundingInfo().boundingSphere;
+        const dx = centerWorld.x - origin.x;
+        const dy = centerWorld.y - origin.y;
+        const dz = centerWorld.z - origin.z;
+        const along = dx * direction.x + dy * direction.y + dz * direction.z;
+        // Babylon widens the test by a line mesh's own threshold; no other mesh has one.
+        const threshold =
+            "intersectionThreshold" in mesh && typeof mesh.intersectionThreshold === "number"
+                ? mesh.intersectionThreshold
+                : 0;
+        const radius = radiusWorld * (1 + 1e-5) + threshold;
+        return dx * dx + dy * dy + dz * dz - along * along <= radius * radius;
+    };
+}
+
+/** Babylon's own pointer picks, each made with the predicate the scene holds under this name. */
+const POINTER_PICK_PREDICATES = ["pointerMovePredicate", "pointerDownPredicate", "pointerUpPredicate"] as const;
+
+/** A pick predicate as Babylon calls it: the mesh, and a thin instance's index or -1. */
+type PickPredicate = (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean;
+
+/**
+ * Put {@link alongRay} in front of the predicates Babylon picks with on a pointer move, press and
+ * release.
+ *
+ * Babylon picks the scene itself on every pointer move -- for the cursor and the action manager's
+ * triggers, which every node mesh carries -- with `scene.pointerMovePredicate`, so a move cost one
+ * unproject per node there too, besides the element's own picks. Babylon sets its default
+ * predicates on the first event, and a consumer may set its own at any time, so each property is
+ * replaced on this scene by one that wraps whatever is stored in it. A pick tests
+ * `scene.meshes[0]` first, so the wrapper builds the pick's world ray there, from the pointer and
+ * camera Babylon's own pointer picks use.
+ * @param scene - The scene.
+ */
+function filterPointerPicks(scene: Scene): void {
+    for (const key of POINTER_PICK_PREDICATES) {
+        const wrap = (base: PickPredicate | null | undefined): PickPredicate | null | undefined => {
+            if (!base) {
+                return base;
+            }
+
+            const ray = Ray.Zero();
+            let test = base;
+            return (mesh, thinInstanceIndex = -1) => {
+                if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
+                    const pointer = scene.unTranslatedPointer;
+                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
+                    test = alongRay(scene, ray, base);
+                }
+
+                return test(mesh, thinInstanceIndex);
+            };
+        };
+        let held = wrap(scene[key]);
+        Object.defineProperty(scene, key, {
+            configurable: true,
+            enumerable: true,
+            get: () => held,
+            set: (base: PickPredicate | null | undefined) => {
+                held = wrap(base);
+            },
+        });
+    }
+}
 
 /**
  * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
@@ -33,7 +169,7 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The node's id, or `undefined`.
  */
 export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
-    const metadata = scene.pick(x, y).pickedMesh?.metadata as { nodeId?: NodeIdType } | null | undefined;
+    const metadata = pickAsDrawn(scene, x, y)?.metadata as { nodeId?: NodeIdType } | null | undefined;
     return metadata?.nodeId;
 }
 
@@ -92,6 +228,227 @@ interface ClickState {
     pointerEvent: PointerEvent | null;
 }
 
+/**
+ * The nodes of one scene that a pointer event can concern, behind the one observer they share.
+ *
+ * An event reaches only the nodes it can change, never every node: the one under the pointer
+ * (found by ONE pick per event), the ones with a press or a drag in progress, and the ones the
+ * pointer was over until now. Asking every node "is the pointer over you?" made each node pick
+ * the scene, and each pick tests every mesh, so one mouse move over n nodes cost about n x n mesh
+ * tests (issue #2941). A node joins and leaves these in constant time instead of adding and
+ * removing observers of its own, whose `remove` searches every observer the scene holds (issue
+ * #2894).
+ */
+export interface NodePointerRoster {
+    /** Each node's handler, by node id. */
+    readonly byId: Map<NodeIdType, NodeDragHandler>;
+    /** Handlers with a press or a drag in progress: they hear every move and every release. */
+    readonly engaged: Set<NodeDragHandler>;
+    /** Handlers whose node the pointer is over: they hear the move that leaves it. */
+    readonly hovered: Set<NodeDragHandler>;
+}
+
+/** The roster of each scene; see {@link nodePointerRosterOf}. */
+const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
+
+/**
+ * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
+ * @param scene - The scene.
+ * @returns True in XR.
+ */
+function inXR(scene: Scene): boolean {
+    const xrHelper = scene.metadata?.xrHelper;
+    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
+}
+
+/**
+ * Deliver one pointer event to the nodes it concerns.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ * @param pointerInfo - The event.
+ */
+function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInfo: PointerInfoPre): void {
+    // Skip desktop pointer handling in XR mode - XRInputHandler handles it. This prevents
+    // conflicts where XR generates pointer events that the desktop handler would misinterpret
+    // with wrong world position calculations.
+    if (inXR(scene)) {
+        return;
+    }
+
+    switch (pointerInfo.type) {
+        case PointerEventTypes.POINTERDOWN: {
+            // nodeId from mesh metadata works with both regular and instanced meshes
+            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            if (pickedId !== undefined) {
+                roster.byId.get(pickedId)?.onPointerDown(pointerInfo);
+            }
+
+            break;
+        }
+        case PointerEventTypes.POINTERMOVE: {
+            for (const handler of roster.engaged) {
+                handler.onPointerMove();
+            }
+
+            // Picked AFTER the drags above have moved their nodes, so the hover reads where things
+            // are now.
+            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            for (const handler of roster.hovered) {
+                handler.onHover(pickedId);
+            }
+
+            const target = pickedId === undefined ? undefined : roster.byId.get(pickedId);
+            if (target && !roster.hovered.has(target)) {
+                target.onHover(pickedId);
+            }
+
+            break;
+        }
+        case PointerEventTypes.POINTERUP:
+            for (const handler of roster.engaged) {
+                handler.onPointerUp(pointerInfo);
+            }
+
+            break;
+        default:
+            // Ignore other pointer events
+            break;
+    }
+}
+
+/**
+ * The roster of a scene's nodes, created with its one `onPrePointerObservable` observer on first
+ * use. The graph creates it when it sets up its scene, so the shared observer sits where the
+ * first node's own observers used to.
+ * @param scene - The scene.
+ * @returns The scene's roster.
+ */
+export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
+    let roster = nodePointerRosters.get(scene);
+    if (!roster) {
+        const created: NodePointerRoster = { byId: new Map(), engaged: new Set(), hovered: new Set() };
+        scene.onPrePointerObservable.add((pointerInfo) => {
+            deliverPointerEvent(scene, created, pointerInfo);
+        });
+        filterPointerPicks(scene);
+        nodePointerRosters.set(scene, created);
+        roster = created;
+    }
+
+    return roster;
+}
+
+/** The one action manager the nodes of each scene share; see {@link nodeActionManagerOf}. */
+const nodeActionManagers = new WeakMap<Scene, ActionManager>();
+
+/**
+ * The action manager every node mesh of a scene carries, with the double-click that expands a node.
+ *
+ * ONE PER SCENE, NOT ONE PER NODE. Babylon keeps every action manager in `scene.actionManagers`, and
+ * disposing a mesh disposes its own manager, which takes it out of that list by `indexOf` and
+ * walks `scene.meshes` twice for other owners: repainting or disposing one node cost the size of the
+ * graph (issue #2894). The shared manager is never disposed with a mesh (`disposeWhenUnowned` is
+ * off, which also skips the owner search); it goes with the scene. Which node was double-clicked
+ * is read from the picked mesh, whose metadata names it.
+ *
+ * REGISTERED UNCONDITIONALLY, and the pair of fetchers is looked up when the reader double-clicks
+ * rather than when the node is built. A consumer switches expansion on by setting
+ * `element.layoutBehavior`, which can happen at any moment -- before the data arrives, after it, or
+ * from a settings panel while the graph is on screen. Deciding at construction meant every node
+ * already drawn kept the answer it was born with, so a consumer who loaded a graph and THEN turned
+ * expansion on had a graph of nodes that ignored a double-click for ever.
+ * @param scene - The scene.
+ * @returns The scene's node action manager, created on first use.
+ */
+export function nodeActionManagerOf(scene: Scene): ActionManager {
+    let manager = nodeActionManagers.get(scene);
+    if (!manager) {
+        manager = new ActionManager(scene);
+        manager.disposeWhenUnowned = false;
+        manager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnDoublePickTrigger }, (event?: ActionEvent) => {
+                const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
+                const node = metadata?.graphNode;
+                if (node && !node.isDisposed()) {
+                    expandNode(node);
+                }
+            }),
+        );
+        manager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnPickTrigger }, (event?: ActionEvent) => {
+                const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
+                const node = metadata?.graphNode;
+                const graph = node?.parentGraph as (Graph & { fetchNodes?: unknown; fetchEdges?: unknown }) | undefined;
+                if (node && !node.isDisposed() && (!graph?.fetchNodes || !graph.fetchEdges)) {
+                    expandFromSource(node, "click");
+                }
+            }),
+        );
+        nodeActionManagers.set(scene, manager);
+    }
+
+    return manager;
+}
+
+/**
+ * Expand a double-clicked node: fetch its neighbourhood through the layout behaviour's fetchers
+ * and add it as one step.
+ * @param node - The node.
+ */
+function expandNode(node: GraphNode): void {
+    const context: GraphContext = node.parentGraph;
+    // Only Graph has fetchNodes/fetchEdges, not GraphContext
+    const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
+
+    // No fetchers: the node's own network source expands it, when the consumer
+    // switched that on (`behavior.expand.trigger`). Neither is the default, and
+    // neither is an error: a graph that holds everything it is ever going to
+    // hold has nothing to expand.
+    const command = expansionOf(graph, node);
+    if (command === undefined) {
+        expandFromSource(node, "double-click");
+        return;
+    }
+
+    // make sure the graph is running, unless the consumer paused it
+    context.getLayoutManager().running = true;
+
+    // Add what was fetched as one step; the command adds the edges under
+    // `repeated: "first"`, because a neighbourhood legitimately names edges the
+    // graph already holds.
+    void dispatcherOf(graph.getSession())
+        .dispatch(command)
+        .catch((error: unknown) => {
+            console.error("[graphty] Expanding a node failed:", error);
+        });
+}
+
+/**
+ * Expand a node from the network source that loaded it, when `behavior.expand.trigger` names
+ * the gesture that just happened. A failure is published as `source:expand-failed`, so nothing
+ * more is done with it here.
+ * @param node - the node
+ * @param gesture - what the reader did
+ */
+function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
+    const context: GraphContext = node.parentGraph;
+    const session = context.getSession?.();
+    if (session === undefined) {
+        return;
+    }
+
+    // The load that brought the node may carry its own expand behavior, which wins over the config.
+    const keys = sourceLoadsOf(session.data.node(node.id)).map((key) => key.split("/")[0]);
+    // ponytail: loads() walks every node; only a node a source brought pays for it, once per click.
+    const own = keys.length === 0 ? undefined : session.data.loads().find((load) => keys.includes(load.key))?.expand;
+    const { trigger, ...options } = { ...context.getStyles().config.behavior.expand, ...own };
+    if (trigger !== gesture) {
+        return;
+    }
+
+    session.data.expand([node.id], options).catch(() => undefined);
+}
+
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
 const CLICK_MAX_MOVEMENT_PX = 5; // Maximum pixels of movement for a click
@@ -105,8 +462,7 @@ export class NodeDragHandler {
     private clickState: ClickState | null = null;
     private gesture: DragGesture | null = null;
     private readonly scene: Scene;
-    private pointerObserver: Observer<PointerInfoPre> | null = null;
-    private hoverObserver: Observer<PointerInfoPre> | null = null;
+    private readonly roster: NodePointerRoster;
     private isHovered = false;
     private readonly zAxisAmplification: number;
     private readonly enableZAmplificationInDesktop: boolean;
@@ -133,9 +489,17 @@ export class NodeDragHandler {
         this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
         this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
-        // Setup pointer event listeners
-        this.setupPointerEvents();
-        this.setupHoverEvents();
+        // A restyle rebuilds the node's mesh and this handler with it, often while the pointer is
+        // over the node (a hover layer restyles the node it hovers). Starting from the session's
+        // answer, not from false, is what lets the next move off the node end the hover.
+        this.isHovered = context.getSelectionManager?.()?.isHovered(node.id) ?? false;
+
+        // Join the scene's pointer roster; see nodePointerRosterOf.
+        this.roster = nodePointerRosterOf(this.scene);
+        this.roster.byId.set(node.id, this);
+        if (this.isHovered) {
+            this.roster.hovered.add(this);
+        }
     }
 
     // Public API for both desktop and XR
@@ -157,6 +521,7 @@ export class NodeDragHandler {
 
         this.dragState.dragging = true;
         this.dragState.moved = false;
+        this.roster.engaged.add(this);
         this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.node.dragging = true;
@@ -241,6 +606,9 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -308,6 +676,14 @@ export class NodeDragHandler {
         this.dragState.dragStartMeshPosition = null;
         this.dragState.dragStartWorldPosition = null;
         this.dragState.dragPlaneNormal = null;
+        this.settle();
+    }
+
+    /** Leave the engaged handlers once no press or drag is left in progress. */
+    private settle(): void {
+        if (!this.dragState.dragging && this.clickState === null) {
+            this.roster.engaged.delete(this);
+        }
     }
 
     /**
@@ -326,6 +702,9 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -459,146 +838,155 @@ export class NodeDragHandler {
     }
 
     // Internal methods
-    private setupPointerEvents(): void {
-        // Listen to pointer events for node dragging and clicking
-        this.pointerObserver = this.scene.onPrePointerObservable.add((pointerInfo) => {
-            // Skip desktop pointer handling in XR mode - XRInputHandler handles it
-            // This prevents conflicts where XR generates pointer events that the
-            // desktop handler would misinterpret with wrong world position calculations
-            if (this.isXRMode()) {
-                return;
+    /**
+     * A press on this node: start a drag. The scene's roster calls it for the node it picked.
+     * @param pointerInfo - The event.
+     */
+    public onPointerDown(pointerInfo: PointerInfoPre): void {
+        // Initialize click tracking
+        this.clickState = {
+            pointerDownTime: pointerEventTime(pointerInfo.event),
+            pointerDownPosition: {
+                x: this.scene.pointerX,
+                y: this.scene.pointerY,
+            },
+            hasMoved: false,
+            pointerEvent: pointerInfo.event as PointerEvent,
+        };
+
+        this.onDragStart(this.pointerWorldPosition());
+    }
+
+    /** A move: carry this node along while it is being dragged. Called for engaged handlers. */
+    public onPointerMove(): void {
+        if (!this.dragState.dragging) {
+            return;
+        }
+
+        // Track movement for click detection
+        if (this.clickState && !this.clickState.hasMoved) {
+            const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
+            const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > CLICK_MAX_MOVEMENT_PX) {
+                this.clickState.hasMoved = true;
             }
+        }
 
-            switch (pointerInfo.type) {
-                case PointerEventTypes.POINTERDOWN: {
-                    // Check if we clicked on this node
-                    // nodeId from mesh metadata works with both regular and instanced meshes
-                    const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
-
-                    if (pickedNodeId === this.node.id) {
-                        // Initialize click tracking
-                        this.clickState = {
-                            pointerDownTime: pointerEventTime(pointerInfo.event),
-                            pointerDownPosition: {
-                                x: this.scene.pointerX,
-                                y: this.scene.pointerY,
-                            },
-                            hasMoved: false,
-                            pointerEvent: pointerInfo.event as PointerEvent,
-                        };
-
-                        // Get world position from pointer
-                        const ray = this.scene.createPickingRay(
-                            this.scene.pointerX,
-                            this.scene.pointerY,
-                            Matrix.Identity(),
-                            this.scene.activeCamera,
-                        );
-                        const worldPosition = this.getWorldPositionFromRay(ray);
-                        this.onDragStart(worldPosition);
-                    }
-
-                    break;
-                }
-
-                case PointerEventTypes.POINTERMOVE:
-                    if (this.dragState.dragging) {
-                        // Track movement for click detection
-                        if (this.clickState && !this.clickState.hasMoved) {
-                            const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
-                            const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
-                            const distance = Math.sqrt(dx * dx + dy * dy);
-                            if (distance > CLICK_MAX_MOVEMENT_PX) {
-                                this.clickState.hasMoved = true;
-                            }
-                        }
-
-                        const ray = this.scene.createPickingRay(
-                            this.scene.pointerX,
-                            this.scene.pointerY,
-                            Matrix.Identity(),
-                            this.scene.activeCamera,
-                        );
-                        const worldPosition = this.getWorldPositionFromRay(ray);
-                        this.onDragUpdate(worldPosition);
-                    }
-
-                    break;
-
-                case PointerEventTypes.POINTERUP:
-                    if (this.dragState.dragging) {
-                        // Check if this was a click (short duration, minimal movement)
-                        const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
-
-                        this.onDragEnd();
-
-                        // If it was a click, select this node
-                        if (wasClick) {
-                            this.handleClick();
-                        }
-                    }
-
-                    // Reset click state
-                    this.clickState = null;
-                    break;
-                default:
-                    // Ignore other pointer events
-                    break;
-            }
-        });
+        this.onDragUpdate(this.pointerWorldPosition());
     }
 
     /**
-     * Setup hover detection for emitting node-hover events.
+     * A release: end this node's drag, and select it when the drag was a click. Called for engaged
+     * handlers.
+     * @param pointerInfo - The event.
      */
-    private setupHoverEvents(): void {
-        this.hoverObserver = this.scene.onPrePointerObservable.add((pointerInfo) => {
-            // Skip in XR mode
-            if (this.isXRMode()) {
-                return;
+    public onPointerUp(pointerInfo: PointerInfoPre): void {
+        if (this.dragState.dragging) {
+            // Check if this was a click (short duration, minimal movement)
+            const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
+
+            this.onDragEnd();
+
+            // If it was a click, select this node
+            if (wasClick) {
+                this.handleClick();
             }
+        }
 
-            // Only process move events for hover detection
-            if (pointerInfo.type !== PointerEventTypes.POINTERMOVE) {
-                return;
-            }
-
-            // Skip if we're currently dragging
-            if (this.dragState.dragging) {
-                return;
-            }
-
-            // Check if we're hovering over this node
-            const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
-            const isOverThisNode = pickedNodeId === this.node.id;
-
-            // Emit node-hover when entering the node (not when already hovering)
-            if (isOverThisNode && !this.isHovered) {
-                this.isHovered = true;
-
-                // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
-                // an answer to pointing at something, so no style pass knows when to draw one:
-                // the paint records what this node's tooltip should say and the pointer arriving
-                // is what puts it on screen. The channel has been published as `renderable` and
-                // documented as "the words to show on hover" since before there were channels,
-                // and until this line nothing drew one in any version of the package.
-                this.node.showTooltip();
-
-                const context = this.getContext();
-                const eventManager = context.getEventManager?.();
-                if (eventManager) {
-                    eventManager.emitNodeEvent("node-hover", {
-                        node: this.node,
-                        data: this.node.data,
-                    });
-                }
-            } else if (!isOverThisNode && this.isHovered) {
-                // Reset hover state when leaving
-                this.isHovered = false;
-                this.node.hideTooltip();
-            }
-        });
+        // Reset click state
+        this.clickState = null;
+        this.settle();
     }
+
+    /**
+     * Where the pointer is in the world, on this node's drag plane.
+     * @returns The point.
+     */
+    private pointerWorldPosition(): Vector3 {
+        const ray = this.scene.createPickingRay(
+            this.scene.pointerX,
+            this.scene.pointerY,
+            Matrix.Identity(),
+            this.scene.activeCamera,
+        );
+        return this.getWorldPositionFromRay(ray);
+    }
+
+    /**
+     * A move: emit node-hover when the pointer arrives on this node, and hide its tooltip when it
+     * leaves. The scene's roster calls it for the node under the pointer and the hovered ones.
+     * @param pickedNodeId - The node under the pointer, if any.
+     */
+    public onHover(pickedNodeId: NodeIdType | undefined): void {
+        // Skip if we're currently dragging
+        if (this.dragState.dragging) {
+            return;
+        }
+
+        const isOverThisNode = pickedNodeId === this.node.id;
+
+        // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
+        // Asked on every move over the node, not only on arrival, because the pointer can
+        // leave the canvas and come back onto the same node without this node seeing it go.
+        if (isOverThisNode) {
+            this.getContext().getSelectionManager?.()?.hover(this.node.id);
+        }
+
+        // Emit node-hover when entering the node (not when already hovering)
+        if (isOverThisNode && !this.isHovered) {
+            this.isHovered = true;
+            this.roster.hovered.add(this);
+
+            // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
+            // an answer to pointing at something, so no style pass knows when to draw one:
+            // the paint records what this node's tooltip should say and the pointer arriving
+            // is what puts it on screen. The channel has been published as `renderable` and
+            // documented as "the words to show on hover" since before there were channels,
+            // and until this line nothing drew one in any version of the package.
+            this.node.showTooltip();
+
+            const context = this.getContext();
+            const eventManager = context.getEventManager?.();
+            if (eventManager) {
+                eventManager.emitNodeEvent("node-hover", {
+                    node: this.node,
+                    data: this.node.data,
+                });
+            }
+
+            // The scene hears the pointer only while it is over the canvas, so leaving the
+            // canvas -- for a panel, a menu, another window -- is heard here or never.
+            this.pointerArea()?.addEventListener("pointerleave", this.endHover);
+        } else if (!isOverThisNode && this.isHovered) {
+            this.endHover();
+        }
+    }
+
+    /**
+     * The element the scene takes pointer events from.
+     * @returns The canvas, or null when the engine has none (a headless engine).
+     */
+    private pointerArea(): HTMLElement | null {
+        const engine = this.scene.getEngine();
+        return engine.getInputElement() ?? engine.getRenderingCanvas();
+    }
+
+    /**
+     * The pointer left this node, or the canvas: the tooltip goes and the node is no longer
+     * hovered, so the next arrival on it starts a hover again.
+     */
+    private readonly endHover = (): void => {
+        this.pointerArea()?.removeEventListener("pointerleave", this.endHover);
+        this.roster.hovered.delete(this);
+        if (!this.isHovered) {
+            return;
+        }
+
+        this.isHovered = false;
+        this.node.hideTooltip();
+        this.getContext().getSelectionManager?.()?.leave(this.node.id);
+    };
 
     /**
      * Whether the pointer placed the node, which is what `pinOnDrag` pins for.
@@ -627,14 +1015,23 @@ export class NodeDragHandler {
     }
 
     /**
-     * Handle a click on this node - select it and emit node-click event.
+     * Handle a click on this node - select it (shift-click adds it to the selection, or takes it
+     * out) and emit node-click event.
      */
     private handleClick(): void {
-        // Get the selection manager from the graph context
         const context = this.getContext();
+        // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
+        // replaces it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
-        if (selectionManager) {
-            selectionManager.select(this.node);
+        // A right-click is a request for a menu about the selection, so on a node already in it
+        // the selection stays whole; on any other node it selects that node, as a click does.
+        const secondary = this.clickState?.pointerEvent?.button === 2;
+        if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
+            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                selectionManager.toggle(this.node);
+            } else {
+                selectionManager.select(this.node);
+            }
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user
@@ -716,31 +1113,21 @@ export class NodeDragHandler {
     }
 
     /**
-     * The scene pointer observers this handler holds. A bulk teardown drops many handlers' observers
-     * from the scene in one pass before disposing them, because removing one at a time searches the
-     * scene's whole observer list for each (issue #543).
-     * @returns The observers, none once disposed.
-     */
-    get sceneObservers(): Observer<PointerInfoPre>[] {
-        return [this.pointerObserver, this.hoverObserver].filter((observer) => observer !== null);
-    }
-
-    /**
      * Cleans up event observers and releases resources.
      */
     public dispose(): void {
         // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
         this.gesture?.finish();
         this.gesture = null;
-        if (this.pointerObserver) {
-            this.scene.onPrePointerObservable.remove(this.pointerObserver);
-            this.pointerObserver = null;
+        // Leaving the roster, not searching the scene's observers: see nodePointerRosterOf.
+        if (this.roster.byId.get(this.node.id) === this) {
+            this.roster.byId.delete(this.node.id);
         }
 
-        if (this.hoverObserver) {
-            this.scene.onPrePointerObservable.remove(this.hoverObserver);
-            this.hoverObserver = null;
-        }
+        this.roster.engaged.delete(this);
+
+        // A node removed under the pointer is no longer hovered.
+        this.endHover();
     }
 }
 
@@ -761,72 +1148,22 @@ export class NodeBehavior {
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
-        // Create unified drag handler (replaces SixDofDragBehavior)
-        const dragHandler = new NodeDragHandler(node);
-        node.dragHandler = dragHandler;
+        // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
+        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
+        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // telling the selection, so a Hovered layer kept painting a node the pointer had left.
+        node.dragHandler ??= new NodeDragHandler(node);
 
         this.addClickBehavior(node);
     }
 
     /**
-     * Add click behavior for node expansion
-     *
-     * REGISTERED UNCONDITIONALLY, and the pair of fetchers is looked up when the reader
-     * double-clicks rather than when the node is built. A consumer switches expansion on by
-     * setting `element.layoutBehavior`, which can happen at any moment -- before the data
-     * arrives, after it, or from a settings panel while the graph is on screen. Deciding at
-     * construction meant every node already drawn kept the answer it was born with, so a
-     * consumer who loaded a graph and THEN turned expansion on had a graph of nodes that ignored
-     * a double-click for ever.
+     * Add click behavior for node expansion: the scene's shared action manager, see
+     * {@link nodeActionManagerOf}.
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
-        // click behavior setup
-        const context = this.getContext(node);
-        const scene = context.getScene();
-        node.mesh.actionManager = node.mesh.actionManager ?? new ActionManager(scene);
-
-        // Available triggers:
-        // ActionManager.OnDoublePickTrigger
-        // ActionManager.OnRightPickTrigger
-        // ActionManager.OnCenterPickTrigger
-        // ActionManager.OnLongPressTrigger
-
-        // Only Graph has fetchNodes/fetchEdges, not GraphContext
-        // For now, check if parentGraph is the full Graph instance
-        const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
-
-        node.mesh.actionManager.registerAction(
-            new ExecuteCodeAction(
-                {
-                    trigger: ActionManager.OnDoublePickTrigger,
-                    // trigger: ActionManager.OnLongPressTrigger,
-                },
-                () => {
-                    // No fetchers means no on-demand expansion, which is the default and is not
-                    // an error: a graph that holds everything it is ever going to hold has
-                    // nothing to expand.
-                    const command = expansionOf(graph, node);
-                    if (command === undefined) {
-                        return;
-                    }
-
-                    // make sure the graph is running, unless the consumer paused it
-                    context.getLayoutManager().running = true;
-
-                    // Add what was fetched as one step; the command adds the edges under
-                    // `repeated: "first"`, because a neighbourhood legitimately names edges the
-                    // graph already holds.
-                    void dispatcherOf(graph.getSession())
-                        .dispatch(command)
-                        .catch((error: unknown) => {
-                            console.error("[graphty] Expanding a node failed:", error);
-                        });
-
-                    // TODO: fetch and add secondary edges
-                },
-            ),
-        );
+        node.mesh.actionManager = nodeActionManagerOf(this.getContext(node).getScene());
     }
 
     /**

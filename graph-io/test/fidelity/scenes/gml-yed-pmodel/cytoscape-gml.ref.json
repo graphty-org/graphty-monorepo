@@ -1,0 +1,2334 @@
+{
+ "provenance": {
+  "side": "reference",
+  "route": "cytoscape-gml",
+  "tool": "Cytoscape desktop over CyREST, Temurin JDK 17",
+  "version": "3.10.5",
+  "command": "network load file <file>; GET /v1/networks/{n}/views/{v}/nodes|edges|network; annotation list",
+  "sourceSha256": "2b7aa185ec935959559cd013c991c945155e2f30bfc784146b6d3cf676bbc262",
+  "generatedAt": "2026-10-14T18:24:32.809Z"
+ },
+ "canCarry": {
+  "position": "yes",
+  "size": "yes",
+  "shape": "altered",
+  "fill": "yes",
+  "fillOpacity": "yes",
+  "borderColor": "yes",
+  "borderWidth": "altered",
+  "borderStyle": "yes",
+  "labelText": "yes",
+  "labelColor": "yes",
+  "fontSize": "altered",
+  "labelPosition": "yes",
+  "visible": "yes",
+  "zOrder": "yes",
+  "edgeColor": "yes",
+  "edgeOpacity": "yes",
+  "edgeWidth": "altered",
+  "lineStyle": "yes",
+  "arrows": "yes",
+  "edgePath": "no",
+  "selfLoops": "yes",
+  "edgeLabel": "yes",
+  "groups": "yes",
+  "annotations": "yes",
+  "background": "yes"
+ },
+ "nodes": [
+  {
+   "id": "ci",
+   "x": 330,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ci",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "patm",
+   "x": 240,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "patm",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "vcmax25",
+   "x": -360,
+   "y": 330,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "vcmax25",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ca",
+   "x": 360,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ca",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "iwue",
+   "x": 450,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "iwue",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "co2",
+   "x": 330,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "co2",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "rd",
+   "x": -450,
+   "y": 330,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "rd",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CalcOptimalChi",
+   "x": 210,
+   "y": 90,
+   "w": 90,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CalcOptimalChi",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ftemp25_Vcmax",
+   "x": -360,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ftemp25_Vcmax",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "vpd",
+   "x": 420,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "vpd",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "jmax",
+   "x": -30,
+   "y": 330,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "jmax",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "chi",
+   "x": 210,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "chi",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "Vcmax25_unitiabs",
+   "x": -360,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Vcmax25_unitiabs",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "elev",
+   "x": 510,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "elev",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "soilmstress",
+   "x": -180,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "soilmstress",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ftemp_rd",
+   "x": -450,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ftemp_rd",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "soilm",
+   "x": -210,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "soilm",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CalcLUEVcmax",
+   "x": -150,
+   "y": 90,
+   "w": 90,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CalcLUEVcmax",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "rd_unitiabs",
+   "x": -450,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "rd_unitiabs",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "meanalpha",
+   "x": -120,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "meanalpha",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "kphio",
+   "x": -300,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "kphio",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ppfd",
+   "x": 330,
+   "y": 390,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ppfd",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ftemp_kphio",
+   "x": -90,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ftemp_kphio",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "LUE",
+   "x": -150,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "LUE",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "fapar",
+   "x": 210,
+   "y": 390,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "fapar",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "c4",
+   "x": 15,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "c4",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "Vcmax_unitiabs",
+   "x": -255,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Vcmax_unitiabs",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "Iabs",
+   "x": 90,
+   "y": 390,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Iabs",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "gammastar",
+   "x": 90,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "gammastar",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "mj",
+   "x": 90,
+   "y": 210,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "mj",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "tc",
+   "x": 150,
+   "y": -150,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#d2deee",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "tc",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "gpp",
+   "x": -150,
+   "y": 330,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "gpp",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ns_star",
+   "x": 270,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ns_star",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "mjoc",
+   "x": 90,
+   "y": 90,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "mjoc",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "vcmax",
+   "x": -256.25,
+   "y": 330,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "vcmax",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "kmm",
+   "x": 180,
+   "y": -30,
+   "w": 50,
+   "h": 30,
+   "shape": "roundrect",
+   "fill": "#ffae96",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "kmm",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  }
+ ],
+ "edges": [
+  {
+   "id": "gammastar->CalcOptimalChi",
+   "source": "gammastar",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     105,
+     -15
+    ],
+    [
+     190,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "CalcOptimalChi->mjoc",
+   "source": "CalcOptimalChi",
+   "target": "mjoc",
+   "points": [
+    [
+     165,
+     90
+    ],
+    [
+     115,
+     90
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "rd_unitiabs->rd",
+   "source": "rd_unitiabs",
+   "target": "rd",
+   "points": [
+    [
+     -450,
+     225
+    ],
+    [
+     -450,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "kmm->CalcOptimalChi",
+   "source": "kmm",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     183.75,
+     -15
+    ],
+    [
+     205,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "mjoc->CalcLUEVcmax",
+   "source": "mjoc",
+   "target": "CalcLUEVcmax",
+   "points": [
+    [
+     65,
+     90
+    ],
+    [
+     -105,
+     90
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Iabs->rd",
+   "source": "Iabs",
+   "target": "rd",
+   "points": [
+    [
+     65,
+     387.222
+    ],
+    [
+     -425,
+     332.778
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ca->CalcOptimalChi",
+   "source": "ca",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     341.25,
+     -15
+    ],
+    [
+     235,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "mj->CalcLUEVcmax",
+   "source": "mj",
+   "target": "CalcLUEVcmax",
+   "points": [
+    [
+     65,
+     197.5
+    ],
+    [
+     -110,
+     110
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Iabs->gpp",
+   "source": "Iabs",
+   "target": "gpp",
+   "points": [
+    [
+     65,
+     383.75
+    ],
+    [
+     -125,
+     336.25
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "vpd->CalcOptimalChi",
+   "source": "vpd",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     406.875,
+     -135
+    ],
+    [
+     227.5,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "chi->ci",
+   "source": "chi",
+   "target": "ci",
+   "points": [
+    [
+     235,
+     210
+    ],
+    [
+     305,
+     210
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Iabs->vcmax",
+   "source": "Iabs",
+   "target": "vcmax",
+   "points": [
+    [
+     65,
+     385.668
+    ],
+    [
+     -231.25,
+     334.332
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "elev->patm",
+   "source": "elev",
+   "target": "patm",
+   "points": [
+    [
+     485,
+     -150
+    ],
+    [
+     265,
+     -150
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ca->ci",
+   "source": "ca",
+   "target": "ci",
+   "points": [
+    [
+     358.125,
+     -15
+    ],
+    [
+     331.875,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Iabs->vcmax25",
+   "source": "Iabs",
+   "target": "vcmax25",
+   "points": [
+    [
+     65,
+     386.667
+    ],
+    [
+     -335,
+     333.333
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "c4->ftemp_kphio",
+   "source": "c4",
+   "target": "ftemp_kphio",
+   "points": [
+    [
+     1.875,
+     -135
+    ],
+    [
+     -76.875,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "CalcOptimalChi->chi",
+   "source": "CalcOptimalChi",
+   "target": "chi",
+   "points": [
+    [
+     210,
+     110
+    ],
+    [
+     210,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ca->iwue",
+   "source": "ca",
+   "target": "iwue",
+   "points": [
+    [
+     365.625,
+     -15
+    ],
+    [
+     444.375,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Vcmax_unitiabs->vcmax",
+   "source": "Vcmax_unitiabs",
+   "target": "vcmax",
+   "points": [
+    [
+     -255.156,
+     225
+    ],
+    [
+     -256.094,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->ftemp_kphio",
+   "source": "tc",
+   "target": "ftemp_kphio",
+   "points": [
+    [
+     125,
+     -137.5
+    ],
+    [
+     -65,
+     -42.5
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "soilm->soilmstress",
+   "source": "soilm",
+   "target": "soilmstress",
+   "points": [
+    [
+     -206.25,
+     -135
+    ],
+    [
+     -183.75,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ci->iwue",
+   "source": "ci",
+   "target": "iwue",
+   "points": [
+    [
+     355,
+     210
+    ],
+    [
+     425,
+     210
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Vcmax25_unitiabs->vcmax25",
+   "source": "Vcmax25_unitiabs",
+   "target": "vcmax25",
+   "points": [
+    [
+     -360,
+     225
+    ],
+    [
+     -360,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->gammastar",
+   "source": "tc",
+   "target": "gammastar",
+   "points": [
+    [
+     142.5,
+     -135
+    ],
+    [
+     97.5,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "meanalpha->soilmstress",
+   "source": "meanalpha",
+   "target": "soilmstress",
+   "points": [
+    [
+     -127.5,
+     -135
+    ],
+    [
+     -172.5,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->ftemp25_Vcmax",
+   "source": "tc",
+   "target": "ftemp25_Vcmax",
+   "points": [
+    [
+     125,
+     -144.118
+    ],
+    [
+     -335,
+     -35.882
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "LUE->gpp",
+   "source": "LUE",
+   "target": "gpp",
+   "points": [
+    [
+     -150,
+     225
+    ],
+    [
+     -150,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "patm->gammastar",
+   "source": "patm",
+   "target": "gammastar",
+   "points": [
+    [
+     221.25,
+     -135
+    ],
+    [
+     108.75,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "soilmstress->CalcLUEVcmax",
+   "source": "soilmstress",
+   "target": "CalcLUEVcmax",
+   "points": [
+    [
+     -176.25,
+     -15
+    ],
+    [
+     -155,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Vcmax_unitiabs->Vcmax25_unitiabs",
+   "source": "Vcmax_unitiabs",
+   "target": "Vcmax25_unitiabs",
+   "points": [
+    [
+     -280,
+     210
+    ],
+    [
+     -335,
+     210
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "vcmax->jmax",
+   "source": "vcmax",
+   "target": "jmax",
+   "points": [
+    [
+     -231.25,
+     330
+    ],
+    [
+     -55,
+     330
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->ns_star",
+   "source": "tc",
+   "target": "ns_star",
+   "points": [
+    [
+     165,
+     -135
+    ],
+    [
+     255,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ftemp_kphio->CalcLUEVcmax",
+   "source": "ftemp_kphio",
+   "target": "CalcLUEVcmax",
+   "points": [
+    [
+     -97.5,
+     -15
+    ],
+    [
+     -140,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ftemp25_Vcmax->Vcmax25_unitiabs",
+   "source": "ftemp25_Vcmax",
+   "target": "Vcmax25_unitiabs",
+   "points": [
+    [
+     -360,
+     -15
+    ],
+    [
+     -360,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ci->jmax",
+   "source": "ci",
+   "target": "jmax",
+   "points": [
+    [
+     305,
+     218.333
+    ],
+    [
+     -5,
+     321.667
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "patm->ns_star",
+   "source": "patm",
+   "target": "ns_star",
+   "points": [
+    [
+     243.75,
+     -135
+    ],
+    [
+     266.25,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "c4->CalcOptimalChi",
+   "source": "c4",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     27.188,
+     -135
+    ],
+    [
+     193.75,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->ftemp_rd",
+   "source": "tc",
+   "target": "ftemp_rd",
+   "points": [
+    [
+     125,
+     -145
+    ],
+    [
+     -425,
+     -35
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "gammastar->jmax",
+   "source": "gammastar",
+   "target": "jmax",
+   "points": [
+    [
+     85,
+     -15
+    ],
+    [
+     -25,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "tc->kmm",
+   "source": "tc",
+   "target": "kmm",
+   "points": [
+    [
+     153.75,
+     -135
+    ],
+    [
+     176.25,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "kphio->CalcLUEVcmax",
+   "source": "kphio",
+   "target": "CalcLUEVcmax",
+   "points": [
+    [
+     -290.625,
+     -135
+    ],
+    [
+     -162.5,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ftemp_rd->rd_unitiabs",
+   "source": "ftemp_rd",
+   "target": "rd_unitiabs",
+   "points": [
+    [
+     -450,
+     -15
+    ],
+    [
+     -450,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "kphio->jmax",
+   "source": "kphio",
+   "target": "jmax",
+   "points": [
+    [
+     -291.562,
+     -135
+    ],
+    [
+     -38.437,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "patm->kmm",
+   "source": "patm",
+   "target": "kmm",
+   "points": [
+    [
+     232.5,
+     -135
+    ],
+    [
+     187.5,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "soilm->soilm",
+   "source": "soilm",
+   "target": "soilm",
+   "points": [
+    [
+     -210,
+     -150
+    ],
+    [
+     -210,
+     -150
+    ]
+   ],
+   "curved": false,
+   "color": "#336699",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ftemp25_Vcmax->rd_unitiabs",
+   "source": "ftemp25_Vcmax",
+   "target": "rd_unitiabs",
+   "points": [
+    [
+     -365.625,
+     -15
+    ],
+    [
+     -444.375,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Iabs->jmax",
+   "source": "Iabs",
+   "target": "jmax",
+   "points": [
+    [
+     65,
+     377.5
+    ],
+    [
+     -5,
+     342.5
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "co2->ca",
+   "source": "co2",
+   "target": "ca",
+   "points": [
+    [
+     333.75,
+     -135
+    ],
+    [
+     356.25,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "CalcLUEVcmax->LUE",
+   "source": "CalcLUEVcmax",
+   "target": "LUE",
+   "points": [
+    [
+     -150,
+     110
+    ],
+    [
+     -150,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "Vcmax_unitiabs->rd_unitiabs",
+   "source": "Vcmax_unitiabs",
+   "target": "rd_unitiabs",
+   "points": [
+    [
+     -280,
+     210
+    ],
+    [
+     -425,
+     210
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "kmm->jmax",
+   "source": "kmm",
+   "target": "jmax",
+   "points": [
+    [
+     171.25,
+     -15
+    ],
+    [
+     -21.25,
+     315
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "patm->ca",
+   "source": "patm",
+   "target": "ca",
+   "points": [
+    [
+     255,
+     -135
+    ],
+    [
+     345,
+     -45
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "CalcLUEVcmax->Vcmax_unitiabs",
+   "source": "CalcLUEVcmax",
+   "target": "Vcmax_unitiabs",
+   "points": [
+    [
+     -167.5,
+     110
+    ],
+    [
+     -241.875,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "fapar->Iabs",
+   "source": "fapar",
+   "target": "Iabs",
+   "points": [
+    [
+     185,
+     390
+    ],
+    [
+     115,
+     390
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ns_star->CalcOptimalChi",
+   "source": "ns_star",
+   "target": "CalcOptimalChi",
+   "points": [
+    [
+     262.5,
+     -15
+    ],
+    [
+     220,
+     70
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "CalcOptimalChi->mj",
+   "source": "CalcOptimalChi",
+   "target": "mj",
+   "points": [
+    [
+     190,
+     110
+    ],
+    [
+     105,
+     195
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  },
+  {
+   "id": "ppfd->Iabs",
+   "source": "ppfd",
+   "target": "Iabs",
+   "points": [
+    [
+     305,
+     390
+    ],
+    [
+     115,
+     390
+    ]
+   ],
+   "curved": false,
+   "color": "#000000",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "filled-triangle"
+   },
+   "label": null
+  }
+ ],
+ "groups": [],
+ "background": "#ffffff",
+ "gaps": []
+}

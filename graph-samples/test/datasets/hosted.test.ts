@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
@@ -101,5 +102,28 @@ describe("hosted file contents", () => {
         expect(subjects.size).toBe(40);
         expect(subjects).toContain("cs.LG");
         expect(year?.value(0)).toBe(2013);
+    });
+});
+
+// graph-format's bundle stamps the commit it was built from into every file's manifest (`producer`),
+// so a dataset file packed with it changes with every commit and no longer matches its recorded
+// sha256. Both scripts that write the published files must use graph-format's tsc output instead.
+describe.each(["scripts/build-hosted.mjs", "scripts/pack-datasets.mjs"])("%s", (script) => {
+    const source = readFileSync(path.join(packageRoot, script), "utf8");
+    const formatImports = [...source.matchAll(/graph-format\/dist\/[\w./-]+/g)].map((m) => m[0]);
+
+    it("writes snapshots with graph-format's tsc output, which stamps no commit", async () => {
+        expect(formatImports).toEqual(["graph-format/dist/src/index.js"]);
+        const tscOutput = path.resolve(packageRoot, "../graph-format/dist/src/index.js");
+        const { fromEdgeArrays } = (await import(
+            pathToFileURL(tscOutput).href
+        )) as typeof import("@graphty/graph-format");
+        const bytes = fromEdgeArrays({
+            directed: false,
+            nodeCount: 2,
+            src: Uint32Array.of(0),
+            dst: Uint32Array.of(1),
+        }).toBytes();
+        expect(Buffer.from(bytes).toString("latin1")).toContain("@graphty/graph-format@dev");
     });
 });

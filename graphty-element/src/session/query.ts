@@ -17,14 +17,28 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query } from "../catalog/types";
-import { GraphtyError } from "../errors";
+import type { EdgeId, NodeId, Path, Query, ScopeInput } from "../catalog/types";
 import { RevisionCache } from "./revision";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
 import { searchOf, type SelectionTarget } from "./selection/targets";
-import { columnsFor, compileExpressionPredicate, type SelectorSource, type SelectorTarget } from "./styles/predicate";
-import { matchText, normalizeText } from "./text";
-import type { FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
+import {
+    columnsFor,
+    compileExpressionPredicate,
+    rulePath,
+    type SelectorSource,
+    type SelectorTarget,
+} from "./styles/predicate";
+import { matchText, normalizeText, textMatcher } from "./text";
+import type {
+    FindAtLeastRow,
+    FindContainsRow,
+    FindEnd,
+    FindHit,
+    FindKind,
+    FindNamedRow,
+    FindResult,
+    FindValueRow,
+} from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -57,6 +71,17 @@ interface QueryEngineParts {
      * @returns The paths, such as `data.kind`.
      */
     readonly edgeSearchPaths?: () => readonly Path[];
+    /**
+     * The catalog names of a searched value, which a find matches as well as its values: typing
+     * "degree" finds the Connections a Degree run published.
+     * @param path - The path, such as `results.degree.value`.
+     * @param kind - Which kind of element carries it.
+     * @returns The names, or undefined when the value has none beyond its path.
+     */
+    readonly wordsOf?: (
+        path: Path,
+        kind: FindKind,
+    ) => { readonly plainName: string; readonly technicalName: string } | undefined;
     /**
      * The path that names a node, such as `data.name`, or null when only the id names one.
      * @returns The path.
@@ -186,22 +211,18 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         let readsId = true;
 
         const attribute = mode === "attribute" ? attributeOf(text, searched) : null;
+        const lower = (value: string): string => value.toLowerCase();
 
         if (attribute !== null) {
-            const wanted = attribute.value.toLowerCase();
-            accepts = (candidate) => candidate.toLowerCase() === wanted;
+            accepts = textMatcher(attribute.value, "exact", lower);
             readsId = attribute.path === "id";
             paths = readsId ? [] : [attribute.path];
-        } else if (mode === "exact") {
-            accepts = (candidate) => candidate === text;
-        } else if (mode === "regex") {
-            const pattern = compilePattern(text);
-            accepts = (candidate) => pattern.test(candidate);
+        } else if (mode === "exact" || mode === "regex") {
+            accepts = textMatcher(text, mode, null);
         } else {
-            // Substring, and an attribute search whose prefix names no attribute: that text is
-            // just text, so a pasted URL still finds the node that carries it.
-            const wanted = text.toLowerCase();
-            accepts = (candidate) => candidate.toLowerCase().includes(wanted);
+            // Substring, starts and ends with, and an attribute search whose prefix names no
+            // attribute: that text is just text, so a pasted URL still finds the node that carries it.
+            accepts = textMatcher(text, mode === "attribute" ? "substring" : mode, lower);
         }
 
         const ids =
@@ -286,6 +307,8 @@ interface IndexedColumn {
     readonly path: Path;
     /** Whether this column names the element (its id or its label): it ranks above the rest. */
     readonly names: boolean;
+    /** The value's catalog names, matched against the text; absent for the id. */
+    readonly words?: { readonly plainName: string; readonly technicalName: string };
     /** Its distinct values. */
     readonly values: IndexedValue[];
 }
@@ -306,6 +329,8 @@ interface FindIndex {
     readonly names: readonly string[];
     /** Each edge's ends, as node indices. */
     readonly ends: readonly (readonly [number, number])[];
+    /** Each joiner's edge-name column, built on first use. */
+    readonly edgeNames: Map<string, IndexedColumn>;
 }
 
 /** What {@link QueryEngine.search} reads beside the text, already checked. */
@@ -318,10 +343,19 @@ export interface SearchRequest {
     readonly kinds: ReadonlySet<FindKind>;
     /** The elements in scope, or null for the whole graph. */
     readonly scope: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> } | null;
+    /** `FindOptions.edgeNameJoiner`: absent, an edge is not found by its name. */
+    readonly edgeNameJoiner?: string;
+    /** The scope as the caller named it, carried on a row's `atLeast` target. */
+    readonly scopeInput?: ScopeInput;
+    /** `FindOptions.booleanWords`: absent, a boolean is found by "true" and "false" only. */
+    readonly booleanWords?: { readonly true: string; readonly false: string };
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
-export type SearchAnswer = Pick<FindResult, "records" | "total" | "values" | "notSearchable">;
+export type SearchAnswer = Pick<
+    FindResult,
+    "records" | "total" | "totals" | "values" | "atLeast" | "contains" | "named" | "notSearchable"
+>;
 
 /** Where a match fell, in rank order within a tier. */
 const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
@@ -343,7 +377,13 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
     const labelPath = parts.labelPath?.() ?? null;
     const idPath = parts.idPath?.() ?? null;
 
-    const column = (path: Path, names: boolean, count: number, read: (index: number) => unknown): IndexedColumn => {
+    const column = (
+        path: Path,
+        names: boolean,
+        count: number,
+        read: (index: number) => unknown,
+        kind: FindKind = "node",
+    ): IndexedColumn => {
         const byValue = new Map<string | number | boolean, IndexedValue>();
         for (let index = 0; index < count; index++) {
             const value = read(index);
@@ -362,7 +402,8 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
             entry.members.push(index);
         }
 
-        return { path, names, values: [...byValue.values()] };
+        const words = path === "id" ? undefined : parts.wordsOf?.(path, kind);
+        return { path, names, values: [...byValue.values()], ...(words === undefined ? {} : { words }) };
     };
 
     const nodeIds = Array.from({ length: graph.nodeCount }, (_, index) => elements.nodeIdOf(index));
@@ -382,11 +423,38 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
     const edgeIds = Array.from({ length: graph.edgeCount }, (_, index) => elements.edgeIdOf(index));
     // An edge's id is a counter the element assigned, which no reader typed: it is not searched.
     const edgeColumns = (parts.edgeSearchPaths?.() ?? []).map((path) =>
-        column(path, false, graph.edgeCount, (index) => elements.edgeValue(index, path)),
+        column(path, false, graph.edgeCount, (index) => elements.edgeValue(index, path), "edge"),
     );
     const ends = edgeIds.map((_, index) => [graph.edgeSource(index), graph.edgeTarget(index)] as const);
 
-    return { node: { columns: nodeColumns, ids: nodeIds }, edge: { columns: edgeColumns, ids: edgeIds }, names, ends };
+    return {
+        node: { columns: nodeColumns, ids: nodeIds },
+        edge: { columns: edgeColumns, ids: edgeIds },
+        names,
+        ends,
+        edgeNames: new Map(),
+    };
+}
+
+/**
+ * The edge-name column for one joiner: each edge's source name, the joiner, its target name.
+ * It names the edge, so it ranks with node names; its path is `"ends"`.
+ * @param index - The index for this revision.
+ * @param joiner - The text between the two names.
+ * @returns The column, cached on the index.
+ */
+function edgeNameColumn(index: FindIndex, joiner: string): IndexedColumn {
+    let column = index.edgeNames.get(joiner);
+    if (column === undefined) {
+        const values = index.ends.map(([source, target], at): IndexedValue => {
+            const value = `${index.names[source]}${joiner}${index.names[target]}`;
+            return { value, norm: normalizeText(value), wholeOnly: false, members: [at] };
+        });
+        column = { path: "ends", names: true, values };
+        index.edgeNames.set(joiner, column);
+    }
+
+    return column;
 }
 
 /** One matched value row before it is cut to {@link VALUE_ROWS}. */
@@ -407,10 +475,14 @@ interface BestMatch {
 interface ParsedFind {
     /** The normalized text to match. */
     readonly wanted: string;
+    /** The text to match as typed, after its prefix: what a `contains` row's rule tests. */
+    readonly typed: string;
     /** Whether only a whole value counts. */
     readonly exact: boolean;
     /** The one column per kind an `<attribute>:` prefix names; absent kinds read every column. */
     readonly only: ReadonlyMap<FindKind, Path | null>;
+    /** The words a boolean is found by beside "true" and "false", normalized; absent for none. */
+    readonly booleanWords?: { readonly true: string; readonly false: string };
 }
 
 /**
@@ -445,7 +517,7 @@ function parseFind(index: FindIndex, typed: string): ParsedFind | "regex" | "exp
         }
     }
 
-    return { wanted: normalizeText(query), exact: parsed.mode === "exact", only };
+    return { wanted: normalizeText(query), typed: query.trim(), exact: parsed.mode === "exact", only };
 }
 
 /**
@@ -464,7 +536,11 @@ function matchKind(
     request: SearchRequest,
     rows: MatchedRow[],
 ): BestMatch {
-    const { columns, ids } = index[kind];
+    const { ids } = index[kind];
+    const columns =
+        kind === "edge" && request.edgeNameJoiner !== undefined
+            ? [edgeNameColumn(index, request.edgeNameJoiner), ...index.edge.columns]
+            : index[kind].columns;
     const best: BestMatch = { rank: new Uint8Array(ids.length).fill(NO_RANK), from: [] };
     if (!request.kinds.has(kind)) {
         return best;
@@ -508,7 +584,12 @@ function scopeOf(request: SearchRequest, kind: FindKind): ReadonlySet<NodeId | E
  * @returns The rank, or null for no match.
  */
 function rankOf(find: ParsedFind, column: IndexedColumn, entry: IndexedValue): number | null {
-    const where = matchText(find.wanted, entry.norm);
+    const words = typeof entry.value === "boolean" ? find.booleanWords : undefined;
+    let where = matchText(find.wanted, entry.norm);
+    if (where === null && words !== undefined) {
+        where = matchText(find.wanted, entry.value ? words.true : words.false);
+    }
+
     if (where === null) {
         return null;
     }
@@ -562,11 +643,16 @@ function claim(best: BestMatch, members: number[], rank: number, column: Indexed
  * @returns The hits, the value rows and the total.
  */
 function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
-    const nothing = { records: [], total: 0, values: [] };
-    const find = parseFind(index, text.trim());
-    if (typeof find === "string") {
-        return { ...nothing, notSearchable: find };
+    const nothing = { records: [], total: 0, totals: { node: 0, edge: 0 }, values: [] };
+    const parsed = parseFind(index, text.trim());
+    if (typeof parsed === "string") {
+        return { ...nothing, notSearchable: parsed };
     }
+    const words = request.booleanWords;
+    const find: ParsedFind =
+        words === undefined
+            ? parsed
+            : { ...parsed, booleanWords: { true: normalizeText(words.true), false: normalizeText(words.false) } };
 
     if (find.wanted === "") {
         return nothing;
@@ -582,6 +668,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
     const nodeCount = index.node.ids.length;
     const span = nodeCount + index.edge.ids.length;
     const keys: number[] = [];
+    const totals = { node: 0, edge: 0 };
     for (const [kind, offset] of [
         ["node", 0],
         ["edge", nodeCount],
@@ -589,12 +676,16 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         best[kind].rank.forEach((rank, at) => {
             if (rank !== NO_RANK) {
                 keys.push(rank * span + offset + at);
+                totals[kind]++;
             }
         });
     }
 
     const sorted = Float64Array.from(keys).sort();
     rows.sort((a, b) => b.members.length - a.members.length);
+    // Two rows holding the same elements are one offer: the first, the commonest, is kept.
+    const offered = new Set<string>();
+    const values = rows.filter((row) => firstOffer(offered, row.kind, row.members)).slice(0, VALUE_ROWS);
 
     const records = Array.from(sorted.subarray(request.offset, request.offset + request.limit), (key): FindHit => {
         const order = key % span;
@@ -602,7 +693,221 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         return hitOf(parts, index, best[kind], kind, kind === "node" ? order : order - nodeCount);
     });
 
-    return { records, total: sorted.length, values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)) };
+    const atLeast = atLeastRows(index, text.trim(), request);
+    const contains = find.exact ? [] : containsRows(index, find, request, offered);
+    const named = namedRows(index, find, request);
+    return {
+        records,
+        total: sorted.length,
+        totals,
+        values: values.map((row) => valueRowOf(index, row, request)),
+        ...(atLeast.length > 0 ? { atLeast } : {}),
+        ...(contains.length > 0 ? { contains } : {}),
+        ...(named.length > 0 ? { named } : {}),
+    };
+}
+
+/**
+ * Whether a set of elements is offered for the first time, recording it.
+ * @param offered - The sets offered so far, as keys.
+ * @param kind - The elements' kind.
+ * @param members - Their dense indices, ascending.
+ * @returns True the first time a kind's set is seen.
+ */
+function firstOffer(offered: Set<string>, kind: FindKind, members: readonly number[]): boolean {
+    // ponytail: a key as long as the set; hash it if a find over a 50,000-node value shows up in a profile.
+    const key = `${kind}:${members.join(",")}`;
+    if (offered.has(key)) {
+        return false;
+    }
+
+    offered.add(key);
+    return true;
+}
+
+/**
+ * The values whose catalog name the text matched ("degree" finds Connections), in column order,
+ * each number carrying the elements at or above the value its top quarter reaches.
+ * @param index - The index for this revision.
+ * @param find - What was typed, read.
+ * @param request - The kinds and the scope.
+ * @returns At most {@link VALUE_ROWS} rows.
+ */
+function namedRows(index: FindIndex, find: ParsedFind, request: SearchRequest): FindNamedRow[] {
+    const rows: FindNamedRow[] = [];
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        for (const column of index[kind].columns) {
+            const { words } = column;
+            if (
+                rows.length === VALUE_ROWS ||
+                words === undefined ||
+                (find.only.has(kind) && column.path !== find.only.get(kind)) ||
+                (matchText(find.wanted, normalizeText(words.plainName)) === null &&
+                    matchText(find.wanted, normalizeText(words.technicalName)) === null)
+            ) {
+                continue;
+            }
+
+            const cut = topQuarterOf(column.values);
+            rows.push({
+                kind,
+                path: column.path,
+                plainName: words.plainName,
+                technicalName: words.technicalName,
+                ...(cut === undefined
+                    ? {}
+                    : { atLeast: { value: cut, ...atLeastOf(index, column.path, cut, request) } }),
+            });
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * The value the top quarter of a number column's elements reach: the largest value at or above
+ * which a quarter of the elements or more carry.
+ * @param values - The column's distinct values.
+ * @returns The value, or undefined when the column holds anything but numbers.
+ */
+function topQuarterOf(values: readonly IndexedValue[]): number | undefined {
+    if (values.length === 0 || values.some((entry) => typeof entry.value !== "number")) {
+        return undefined;
+    }
+
+    const descending = [...values].sort((a, b) => (b.value as number) - (a.value as number));
+    const total = values.reduce((sum, entry) => sum + entry.members.length, 0);
+    let seen = 0;
+    for (const entry of descending) {
+        seen += entry.members.length;
+        if (seen * 4 >= total) {
+            return entry.value as number;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The "contains" rows: one per searched column where the text matched, with every element in
+ * scope whose value there contains it, most elements first. A column holding numbers or yes-or-no
+ * values is left out: find matches those only whole, and a "contains" rule would not.
+ * @param index - The index for this revision.
+ * @param find - What was typed, read.
+ * @param request - The kinds and the scope.
+ * @param offered - The sets the value rows already offer; a row holding one of them is left out.
+ * @returns At most {@link VALUE_ROWS} rows, no two holding the same elements.
+ */
+function containsRows(
+    index: FindIndex,
+    find: ParsedFind,
+    request: SearchRequest,
+    offered: Set<string>,
+): FindContainsRow[] {
+    const rows: (FindContainsRow & { readonly members: number[] })[] = [];
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        const { ids } = index[kind];
+        const inScope = scopeOf(request, kind);
+        const only = find.only.get(kind);
+        for (const column of index[kind].columns) {
+            if ((find.only.has(kind) && column.path !== only) || column.values.some((entry) => entry.wholeOnly)) {
+                continue;
+            }
+
+            const members = column.values.flatMap((entry) =>
+                matchText(find.wanted, entry.norm) === null ? [] : inScopeOnly(entry.members, ids, inScope),
+            );
+            if (members.length === 0) {
+                continue;
+            }
+
+            members.sort((a, b) => a - b);
+            const named = members.map((at) => ids[at]);
+            rows.push({
+                members,
+                kind,
+                path: column.path,
+                text: find.typed,
+                count: members.length,
+                target: kind === "node" ? { nodes: named } : { edges: named.map(String) },
+                rule: { kind: "text", reads: column.path, mode: "substring", text: find.typed },
+            });
+        }
+    }
+
+    // Most elements first; between equals the node id last, so a column with a name is the one kept.
+    rows.sort((a, b) => b.count - a.count || Number(a.path === "id") - Number(b.path === "id"));
+    return rows
+        .filter((row) => firstOffer(offered, row.kind, row.members))
+        .slice(0, VALUE_ROWS)
+        .map(({ members: _members, ...row }) => row);
+}
+
+/**
+ * The "or more" rows for a typed number: one per number column whose lowest and highest values
+ * enclose it when it is not itself a value there, in column order, nodes first.
+ * @param index - The index for this revision.
+ * @param typed - What was typed, trimmed.
+ * @param request - The kinds and the scope.
+ * @returns At most {@link VALUE_ROWS} rows; none when the text is not a whole number.
+ */
+function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): FindAtLeastRow[] {
+    // Digits, signs and points only, then a finite number: "1e3", "0x10" and "1.2.3" are not.
+    const value = Number(typed);
+    if (!/^[-+.\d]+$/.test(typed) || !Number.isFinite(value)) {
+        return [];
+    }
+
+    const rows: FindAtLeastRow[] = [];
+    const seen = new Set<Path>();
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        for (const column of index[kind].columns) {
+            if (rows.length === VALUE_ROWS || column.path === "id" || seen.has(column.path)) {
+                continue;
+            }
+
+            if (!encloses(column.values, value)) {
+                continue;
+            }
+
+            seen.add(column.path);
+            rows.push({ kind, path: column.path, value, ...atLeastOf(index, column.path, value, request) });
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * Whether a column holds only numbers, none of them `value`, with some below it and some above.
+ * @param values - The column's distinct values.
+ * @param value - The typed number.
+ * @returns True when the column's range encloses `value` without holding it.
+ */
+function encloses(values: readonly { value: unknown }[], value: number): boolean {
+    let below = false;
+    let above = false;
+    for (const { value: held } of values) {
+        if (typeof held !== "number" || held === value) {
+            return false;
+        }
+        below ||= held < value;
+        above ||= held > value;
+    }
+
+    return below && above;
 }
 
 /**
@@ -640,9 +945,10 @@ function hitOf(parts: QueryEngineParts, index: FindIndex, best: BestMatch, kind:
  * One value row, its target naming exactly the members in scope.
  * @param index - The index for this revision.
  * @param row - The matched row.
+ * @param request - The scope.
  * @returns The value row.
  */
-function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
+function valueRowOf(index: FindIndex, row: MatchedRow, request: SearchRequest): FindValueRow {
     const { kind, column, entry, members } = row;
     // ponytail: a value many elements carry makes a long id list; a where-target limited to
     // one kind replaces it when the target grammar can say "nodes only".
@@ -657,7 +963,49 @@ function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
         entry.target = target;
     }
 
-    return { kind, path: column.path, value: entry.value, count: members.length, target };
+    const rule = {
+        kind: "text" as const,
+        reads: column.path,
+        mode: "exact" as const,
+        text: String(entry.value),
+        caseSensitive: true,
+    };
+    const exact = { kind, path: column.path, value: entry.value, count: members.length, target, rule };
+    return typeof entry.value === "number" && Number.isFinite(entry.value)
+        ? { ...exact, atLeast: atLeastOf(index, column.path, entry.value, request) }
+        : exact;
+}
+
+/**
+ * The "or more" answer for a number: the rule `<column> >= value` and how many it selects. The
+ * rule reads both kinds, so both kinds' columns of that path are counted, in scope.
+ * @param index - The index for this revision.
+ * @param path - The column key.
+ * @param value - The number.
+ * @param request - The scope.
+ * @returns The count and the rule's target.
+ */
+function atLeastOf(
+    index: FindIndex,
+    path: Path,
+    value: number,
+    request: SearchRequest,
+): NonNullable<FindValueRow["atLeast"]> {
+    let count = 0;
+    for (const kind of ["node", "edge"] as const) {
+        const inScope = scopeOf(request, kind);
+        for (const entry of index[kind].columns.find((c) => c.path === path)?.values ?? []) {
+            if (typeof entry.value === "number" && entry.value >= value) {
+                count += inScopeOnly(entry.members, index[kind].ids, inScope).length;
+            }
+        }
+    }
+
+    const text = `=${rulePath(path)} >= \`${JSON.stringify(value)}\``;
+    return {
+        count,
+        target: request.scopeInput === undefined ? { text } : { text, scope: request.scopeInput },
+    };
 }
 
 /**
@@ -683,24 +1031,4 @@ function attributeOf(text: string, searched: readonly Path[]): { path: Path; val
     const path = key.startsWith("data.") ? key : `data.${key}`;
 
     return searched.includes(path) ? { path, value } : null;
-}
-
-/**
- * Compile a typed regular expression, refusing one that does not parse.
- * @param text - The pattern.
- * @returns The expression.
- * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the parse error.
- */
-function compilePattern(text: string): RegExp {
-    try {
-        return new RegExp(text);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_BAD_COMMAND",
-            message: `"${text}" is not a regular expression: ${error instanceof Error ? error.message : String(error)}`,
-            source: "run",
-            details: { text, mode: "regex" },
-            cause: error,
-        });
-    }
 }

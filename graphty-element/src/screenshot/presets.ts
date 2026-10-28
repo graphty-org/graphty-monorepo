@@ -1,34 +1,14 @@
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ScreenshotOptions } from "./types.js";
 
-const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = {
-    print: {
-        format: "png",
-        multiplier: 4,
-        enhanceQuality: true,
-        destination: { download: true },
-    },
-
-    "web-share": {
-        format: "png",
-        multiplier: 2,
-        destination: { clipboard: true },
-    },
-
-    thumbnail: {
-        format: "jpeg",
-        width: 400,
-        height: 300,
-        quality: 0.85,
-    },
-
-    documentation: {
-        format: "png",
-        multiplier: 2,
-        transparentBackground: true,
-        destination: { download: true },
-    },
-};
+// The settings live in the catalogue, which publishes them as plain data.
+const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = Object.fromEntries(
+    SCREENSHOT_PRESET_DESCRIPTORS.map(({ id, destination, ...options }) => [
+        id,
+        { ...options, ...(destination === undefined ? {} : { destination: { ...destination } }) },
+    ]),
+);
 
 /**
  * Resolves a screenshot preset and merges it with user-provided overrides.

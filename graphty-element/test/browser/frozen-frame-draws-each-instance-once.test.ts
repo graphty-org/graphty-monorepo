@@ -46,6 +46,9 @@ describe("a frozen frame", () => {
         container.style.height = "240px";
         document.body.appendChild(container);
         graph = new Graph(container);
+        // Drawn every frame, not on demand: the defect is in the frozen frames a still graph keeps
+        // drawing, so the test records several frames in a row after the camera is touched.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         await graph.init();
 
         await graph.addNodes(NODES);

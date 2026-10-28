@@ -1,0 +1,196 @@
+{
+    "sample": "graphology-specimen-node-sizes-opacity-p3",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-node-sizes-opacity-p3.json",
+    "fileSha256": "69c6b1471ae0686915a4b8216132f654a3350960a4caf5657ff74c7488b383cc",
+    "svgSha256": "d590a345b502bb07348ec9be2a7e14083d0ba2eafcb135bde79cd75d472827e6",
+    "date": "2026-10-19",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 18,
+        "edges": 0,
+        "labelsShown": 7
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 238.55171648592793,
+                "r": 9.655172609050382,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "index-3",
+                "x": 383.7241370102455,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "vx-1",
+                "x": 600,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "vy-1",
+                "x": 816.2758629897545,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "fx-100",
+                "x": 1032.551725979509,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "fy-100",
+                "x": 167.44827402049097,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "physics-false",
+                "x": 383.7241370102455,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 95.61379095603681,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-index-3",
+                "x": 296.0551711197557,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "index=3",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-vx-1",
+                "x": 580.1103447429065,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "vx=1",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-vy-1",
+                "x": 796.386207732661,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "vy=1",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-fx-100",
+                "x": 977.1310360883843,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "fx=100",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-fy-100",
+                "x": 83.06206676466718,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "fy=100",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-physics-false",
+                "x": 276.3586193117602,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "physics=false",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

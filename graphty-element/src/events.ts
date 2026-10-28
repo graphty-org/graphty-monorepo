@@ -11,6 +11,7 @@ import type { NodeIdType } from "./config";
 import type { ExportLoss } from "./data/export";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
+import type { GraphtyWarningCode } from "./errors/codes";
 import type { Graph } from "./Graph";
 import type { StatsManager } from "./managers/StatsManager";
 import type { Node } from "./Node";
@@ -89,6 +90,8 @@ export type GraphEvent =
     | SelectionChangedEvent
     | GraphStartedEvent
     | LayoutChangedEvent
+    | LayoutWarningEvent
+    | BasemapStatusEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -305,7 +308,7 @@ export interface StyleChangedEvent {
     painted: StyleChange["painted"];
     /** The paths the changed layers read that nothing in the session answers yet. */
     unresolvedPaths: string[];
-    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`). */
+    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`), or draw no text for a size under 1 (`W_TEXT_TOO_SMALL`). */
     warnings: StyleChange["warnings"];
 }
 
@@ -447,6 +450,45 @@ export interface LayoutChangedEvent {
     layoutType: string;
     /** The options the layout was built with: the caller's, filled in with the layout's defaults. */
     options: Record<string, unknown>;
+}
+
+/**
+ * Emitted when a layout could not do everything it was asked.
+ * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
+ * not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options
+ * (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
+ */
+export interface LayoutWarningEvent {
+    type: "layout-warning";
+    /** The layout that reported it, as `setLayout` was given it. */
+    layoutType: string;
+    /** What happened, such as `W_NO_POSITION` or `W_UNKNOWN_OPTION`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+ * back to the bundled world image because its tiles failed (`error` then carries
+ * `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the
+ * browser reveals one and null otherwise; an image load never does). The fields are those of
+ * `basemapStatus`. A code and facts, never a sentence.
+ * @since 3.31.0
+ */
+export interface BasemapStatusEvent {
+    type: "basemap-status";
+    /** The source drawn: its id, `tiles`, `image`, or `none`. */
+    source: string;
+    /** `off`, `loading`, `ready` or `fallback`. */
+    state: "off" | "loading" | "ready" | "fallback";
+    /** The credits of the sources drawn. */
+    attribution: readonly string[];
+    /** Why the map fell back, when it did. */
+    error?: {
+        readonly code: "E_BASEMAP_UNREACHABLE";
+        readonly params: { readonly source: string; readonly status: number | null };
+    };
 }
 
 /** Emitted when a queued operation is aborted before it finished. */
@@ -655,6 +697,13 @@ export interface NodeEventDetail {
     button?: number;
     /** The modifier keys held during a click, for a consumer distinguishing shift-click. */
     modifiers?: { shift: boolean; ctrl: boolean; alt: boolean; meta: boolean };
+    /**
+     * The words the node's tooltip draws, on `graphty-node-hover` only, and only when a style
+     * layer gave the node a tooltip (`node.tooltip`). A consumer that draws its own tooltip in
+     * HTML reads the resolved words here rather than resolving the style stack itself.
+     * @since 3.22.0
+     */
+    tooltip?: string;
 }
 
 /** The DOM event name one internal node event is mirrored under. */
@@ -684,8 +733,10 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
                     meta: event.event.metaKey,
                 },
             };
-        case "node-hover":
-            return { nodeId: event.node.id, data: event.data };
+        case "node-hover": {
+            const tooltip = event.node.tooltipText;
+            return { nodeId: event.node.id, data: event.data, ...(tooltip === undefined ? {} : { tooltip }) };
+        }
         case "node-drag-start":
         case "node-drag-end":
             return { nodeId: event.node.id, position: event.position, pinned: event.pinned };

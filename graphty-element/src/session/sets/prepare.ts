@@ -905,6 +905,229 @@ function canonicalDelta(delta: MembersCommand["add"]): { nodes: readonly NodeId[
     return { nodes: parsed.nodes, edges: parsed.edges ?? [] };
 }
 
+/** A running member sum, as a memoised summary holds it. */
+type MemberSum = MemberSummary["sum"];
+
+/**
+ * The fixed definition a member edit applies to, and its compact edge columns.
+ * @param prior - The record being edited.
+ * @returns Its fixed definition and edge columns.
+ * @throws `E_BAD_COMMAND` for a set that is not fixed.
+ */
+function fixedColumnsOf(prior: ElementSet): {
+    previous: Extract<SetDefinition, { kind: "fixed" }>;
+    columns: EdgeColumns;
+} {
+    const previous = prior.definition;
+    const columns = columnsOf.get(previous);
+    if (previous.kind !== "fixed" || columns === undefined) {
+        throw refuse(
+            "E_BAD_COMMAND",
+            `Set "${prior.name}" is a ${previous.kind} set; only a fixed set has members to add or remove.`,
+            prior.id,
+            {
+                kind: previous.kind,
+            },
+        );
+    }
+
+    return { previous, columns };
+}
+
+/**
+ * Remove the named nodes that are held.
+ * @param nodes - The sorted held nodes.
+ * @param ids - The nodes to remove.
+ * @param sum - The node sum before.
+ * @param track - Whether to move the sum.
+ * @returns The nodes (the same array when none was held) and the sum after.
+ */
+function removeNodes(
+    nodes: readonly NodeId[],
+    ids: readonly NodeId[],
+    sum: MemberSum,
+    track: boolean,
+): { nodes: readonly NodeId[]; sum: MemberSum } {
+    const dropped = ids.filter((id) => hasId(nodes, id));
+    if (dropped.length === 0) {
+        return { nodes, sum };
+    }
+
+    const gone = new Set(dropped);
+    let next = sum;
+    if (track) {
+        for (const id of dropped) {
+            next = subtractFromSum(next, hashNodeId(id));
+        }
+    }
+
+    return { nodes: nodes.filter((id) => !gone.has(id)), sum: next };
+}
+
+/**
+ * The interned slots of the nodes being removed.
+ * @param columns - The edge columns.
+ * @param ids - The nodes to remove.
+ * @returns The slots of those the columns intern.
+ */
+function removedSlots(columns: EdgeColumns, ids: readonly NodeId[]): Set<number> {
+    const slots = new Set<number>();
+    for (const id of ids) {
+        const slot = columns.interner.lookup(id);
+        if (slot !== undefined) {
+            slots.add(slot);
+        }
+    }
+
+    return slots;
+}
+
+/**
+ * The edge rows a removal drops: the named edges, and every edge touching a removed node.
+ * @param columns - The edge columns.
+ * @param remove - The canonical removal.
+ * @param remove.nodes - The nodes to remove.
+ * @param remove.edges - The edges to remove.
+ * @returns The rows, ascending and distinct.
+ */
+function droppedEdgeRows(
+    columns: EdgeColumns,
+    remove: { nodes: readonly NodeId[]; edges: readonly EdgeMember[] },
+): number[] {
+    const slots = removedSlots(columns, remove.nodes);
+    const droppedRows: number[] = [];
+    for (const member of remove.edges) {
+        const row = columns.lowerBound(member);
+        if (row < columns.length && columns.compare(row, member) === 0) {
+            droppedRows.push(row);
+        }
+    }
+
+    if (slots.size > 0) {
+        for (let row = 0; row < columns.length; row++) {
+            if (slots.has(columns.source[row]) || slots.has(columns.target[row])) {
+                droppedRows.push(row);
+            }
+        }
+    }
+
+    return [...new Set(droppedRows)].sort((a, b) => a - b);
+}
+
+/**
+ * Copy the columns without the dropped rows.
+ * @param columns - The edge columns.
+ * @param dropped - The rows to drop, ascending and distinct.
+ * @param sum - The edge sum before.
+ * @param track - Whether to move the sum.
+ * @returns The columns (the same object when nothing dropped) and the sum after.
+ */
+function dropEdgeRows(
+    columns: EdgeColumns,
+    dropped: readonly number[],
+    sum: MemberSum,
+    track: boolean,
+): { edges: EdgeColumns; sum: MemberSum } {
+    if (dropped.length === 0) {
+        return { edges: columns, sum };
+    }
+
+    const edges = EdgeColumns.empty(columns.interner, columns.length - dropped.length);
+    let next = sum;
+    let at = 0;
+    let start = 0;
+    for (const row of dropped) {
+        edges.copy(columns, start, row, at);
+        at += row - start;
+        start = row + 1;
+        if (track) {
+            next = subtractFromSum(next, hashEdgeMember(columns.member(row), true));
+        }
+    }
+
+    edges.copy(columns, start, columns.length, at);
+    return { edges, sum: next };
+}
+
+/**
+ * Merge the named nodes not already held into the sorted nodes.
+ * @param nodes - The sorted held nodes.
+ * @param ids - The canonical nodes to add.
+ * @param sum - The node sum before.
+ * @param track - Whether to move the sum.
+ * @returns The nodes (the same array when every one was held) and the sum after.
+ */
+function addNodes(
+    nodes: readonly NodeId[],
+    ids: readonly NodeId[],
+    sum: MemberSum,
+    track: boolean,
+): { nodes: readonly NodeId[]; sum: MemberSum } {
+    const newNodes = ids.filter((id) => !hasId(nodes, id));
+    if (newNodes.length === 0) {
+        return { nodes, sum };
+    }
+
+    const merged: NodeId[] = [];
+    let next = sum;
+    let from = 0;
+    for (const id of newNodes) {
+        const at = lowerBoundId(nodes, id);
+        for (; from < at; from++) {
+            merged.push(nodes[from]);
+        }
+
+        merged.push(id);
+        if (track) {
+            next = addToSum(next, hashNodeId(id));
+        }
+    }
+
+    for (; from < nodes.length; from++) {
+        merged.push(nodes[from]);
+    }
+
+    return { nodes: merged, sum: next };
+}
+
+/**
+ * Merge the named edges not already held into the columns.
+ * @param edges - The edge columns.
+ * @param members - The canonical edges to add.
+ * @param sum - The edge sum before.
+ * @param track - Whether to move the sum.
+ * @returns The columns (the same object when every one was held) and the sum after.
+ */
+function addEdges(
+    edges: EdgeColumns,
+    members: readonly EdgeMember[],
+    sum: MemberSum,
+    track: boolean,
+): { edges: EdgeColumns; sum: MemberSum } {
+    const newEdges = members.filter((member) => !edges.has(member));
+    if (newEdges.length === 0) {
+        return { edges, sum };
+    }
+
+    const merged = EdgeColumns.empty(edges.interner, edges.length + newEdges.length);
+    let next = sum;
+    let from = 0;
+    let at = 0;
+    for (const member of newEdges) {
+        const row = edges.lowerBound(member);
+        merged.copy(edges, from, row, at);
+        at += row - from;
+        from = row;
+        merged.write(at++, member);
+        if (track) {
+            next = addToSum(next, hashEdgeMember(member, true));
+        }
+    }
+
+    merged.copy(edges, from, edges.length, at);
+    return { edges: merged, sum: next };
+}
+
 /**
  * `set.members`: remove, then add. Fixed sets only. Removing a node also removes every edge
  * member incident to it. The revision's member sums move by exactly the members that changed.
@@ -922,18 +1145,7 @@ export function prepareMembers(
 ): ElementSet | null {
     const prior = requireRecord(records, command.id);
     refuseOpaque(prior);
-    const previous = prior.definition;
-    const columns = columnsOf.get(previous);
-    if (previous.kind !== "fixed" || columns === undefined) {
-        throw refuse(
-            "E_BAD_COMMAND",
-            `Set "${prior.name}" is a ${previous.kind} set; only a fixed set has members to add or remove.`,
-            prior.id,
-            {
-                kind: previous.kind,
-            },
-        );
-    }
+    const { previous, columns } = fixedColumnsOf(prior);
 
     const add = canonicalDelta(command.add);
     const remove = canonicalDelta(command.remove);
@@ -947,119 +1159,26 @@ export function prepareMembers(
     }
 
     const known = summariesOf.get(previous);
-    let nodeSum = known?.nodes.sum ?? EMPTY_SUM;
-    let edgeSum = known?.edges.sum ?? EMPTY_SUM;
+    const track = known !== undefined;
 
     // Remove: the named nodes, every edge member touching one of them, and the named edges.
-    let { nodes } = previous;
-    const droppedNodes = remove.nodes.filter((id) => hasId(nodes, id));
-    if (droppedNodes.length > 0) {
-        const gone = new Set(droppedNodes);
-        nodes = nodes.filter((id) => !gone.has(id));
-        if (known !== undefined) {
-            for (const id of droppedNodes) {
-                nodeSum = subtractFromSum(nodeSum, hashNodeId(id));
-            }
-        }
-    }
-
-    const slots = new Set<number>();
-    for (const id of remove.nodes) {
-        const slot = columns.interner.lookup(id);
-        if (slot !== undefined) {
-            slots.add(slot);
-        }
-    }
-
-    const droppedRows: number[] = [];
-    for (const member of remove.edges) {
-        const row = columns.lowerBound(member);
-        if (row < columns.length && columns.compare(row, member) === 0) {
-            droppedRows.push(row);
-        }
-    }
-
-    if (slots.size > 0) {
-        for (let row = 0; row < columns.length; row++) {
-            if (slots.has(columns.source[row]) || slots.has(columns.target[row])) {
-                droppedRows.push(row);
-            }
-        }
-    }
-
-    let edges = columns;
-    const dropped = [...new Set(droppedRows)].sort((a, b) => a - b);
-    if (dropped.length > 0) {
-        edges = EdgeColumns.empty(columns.interner, columns.length - dropped.length);
-        let at = 0;
-        let start = 0;
-        for (const row of dropped) {
-            edges.copy(columns, start, row, at);
-            at += row - start;
-            start = row + 1;
-            if (known !== undefined) {
-                edgeSum = subtractFromSum(edgeSum, hashEdgeMember(columns.member(row), true));
-            }
-        }
-
-        edges.copy(columns, start, columns.length, at);
-    }
+    const kept = removeNodes(previous.nodes, remove.nodes, known?.nodes.sum ?? EMPTY_SUM, track);
+    const keptEdges = dropEdgeRows(columns, droppedEdgeRows(columns, remove), known?.edges.sum ?? EMPTY_SUM, track);
 
     // Add: the named nodes and edges not already held.
-    const newNodes = add.nodes.filter((id) => !hasId(nodes, id));
-    if (newNodes.length > 0) {
-        const merged: NodeId[] = [];
-        let from = 0;
-        for (const id of newNodes) {
-            const at = lowerBoundId(nodes, id);
-            for (; from < at; from++) {
-                merged.push(nodes[from]);
-            }
-
-            merged.push(id);
-            if (known !== undefined) {
-                nodeSum = addToSum(nodeSum, hashNodeId(id));
-            }
-        }
-
-        for (; from < nodes.length; from++) {
-            merged.push(nodes[from]);
-        }
-
-        nodes = merged;
-    }
-
-    const newEdges = add.edges.filter((member) => !edges.has(member));
-    if (newEdges.length > 0) {
-        const merged = EdgeColumns.empty(edges.interner, edges.length + newEdges.length);
-        let from = 0;
-        let at = 0;
-        for (const member of newEdges) {
-            const row = edges.lowerBound(member);
-            merged.copy(edges, from, row, at);
-            at += row - from;
-            from = row;
-            merged.write(at++, member);
-            if (known !== undefined) {
-                edgeSum = addToSum(edgeSum, hashEdgeMember(member, true));
-            }
-        }
-
-        merged.copy(edges, from, edges.length, at);
-        edges = merged;
-    }
+    const { nodes, sum: nodeSum } = addNodes(kept.nodes, add.nodes, kept.sum, track);
+    const { edges, sum: edgeSum } = addEdges(keptEdges.edges, add.edges, keptEdges.sum, track);
 
     if (nodes === previous.nodes && edges === columns) {
         return null;
     }
 
-    const summary =
-        known === undefined
-            ? undefined
-            : {
-                  nodes: { count: nodes.length, sum: nodeSum },
-                  edges: edges.length === 0 ? NO_MEMBERS : { count: edges.length, sum: edgeSum },
-              };
+    const summary = track
+        ? {
+              nodes: { count: nodes.length, sum: nodeSum },
+              edges: edges.length === 0 ? NO_MEMBERS : { count: edges.length, sum: edgeSum },
+          }
+        : undefined;
     const definition = fixedDefinition(
         previous.reading,
         nodes === previous.nodes ? nodes : Object.freeze(nodes),
@@ -1069,7 +1188,6 @@ export function prepareMembers(
 
     return makeRecord({ ...prior, definition });
 }
-
 /**
  * `set.remove`: checks the set exists.
  * @param records - The records.
@@ -1140,6 +1258,24 @@ export function edgeMemberKey(member: EdgeMember): string {
 }
 
 /**
+ * The keys of every edge member a fixed set or a path names, a path's groups flattened.
+ * @param edges - The definition's edges.
+ * @returns The keys.
+ */
+function edgeMemberKeysOf(edges: Extract<SetDefinition, { kind: "fixed" | "path" }>["edges"]): Set<string> {
+    const built = new Set<string>();
+    for (const step of edges ?? []) {
+        for (const each of Array.isArray(step) ? (step as readonly EdgeMember[]) : [step as EdgeMember | null]) {
+            if (each !== null) {
+                built.add(edgeMemberKey(each));
+            }
+        }
+    }
+
+    return built;
+}
+
+/**
  * Whether a definition holds an edge member: a binary search over a fixed set's edge columns, a
  * lookup in the keys of anything else's edges (a path's steps, a restored fixed set), built on
  * first use so a write that asks about every member of a path does not scan the path per member.
@@ -1159,16 +1295,7 @@ export function holdsEdgeMember(definition: SetDefinition, member: EdgeMember): 
 
     let keys = memberKeysOf.get(definition);
     if (keys === undefined) {
-        const built = new Set<string>();
-        for (const step of definition.edges ?? []) {
-            for (const each of Array.isArray(step) ? (step as readonly EdgeMember[]) : [step as EdgeMember | null]) {
-                if (each !== null) {
-                    built.add(edgeMemberKey(each));
-                }
-            }
-        }
-
-        keys = built;
+        keys = edgeMemberKeysOf(definition.edges);
         memberKeysOf.set(definition, keys);
     }
 

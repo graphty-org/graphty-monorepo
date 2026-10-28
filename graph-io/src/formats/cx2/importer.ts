@@ -16,7 +16,10 @@
  * `x` / `y` become the position column with y flipped to y-up, `z` the `z` column; per-element
  * bypasses become one column per visual property (origin namespace "cx2.bypass"); style rules
  * (`visualProperties`, `visualEditorProperties`) and every opaque aspect are kept verbatim in
- * `meta.extra.cx2.opaque` and are not applied (W_STYLES_NOT_IMPORTED, issue #706).
+ * `meta.extra.cx2.opaque`. Asked for styles (`importGraph(..., { styles: true })`), the importer reads
+ * the style rules and the bypasses (styles.ts), kept for it through the report; otherwise
+ * W_STYLES_NOT_IMPORTED. The `graphty.styles` aspect of a file graphty wrote becomes the graph
+ * attribute of that name, as in every other format.
  */
 
 import {
@@ -103,7 +106,10 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import { blockOfAspect, type Cx2StyleSource } from "../cx/styles.js";
+import { readCx2Styles } from "./styles.js";
 
 /**
  * The format name.
@@ -689,6 +695,25 @@ async function readDocument(
 }
 
 /**
+ * Fail the import: the first member of the array is not a descriptor.
+ * @param value - the member
+ * @param line - its line
+ * @param report - the report
+ * @returns never: the import fails
+ */
+function failNoDescriptor(value: unknown, line: number, report: ImportReportBuilder): never {
+    const keys = isRecord(value) ? Object.keys(value) : [];
+    const keyList = keys.length > 0 ? ` (keys: ${keys.join(", ")})` : "";
+    return report.fail(
+        CX2_ISSUE.NO_DESCRIPTOR,
+        `the first member of the array is not a descriptor with CXVersion${keyList}`,
+        {
+            line,
+        },
+    );
+}
+
+/**
  * Check the descriptor, the first member of the array.
  * @param value - the member
  * @param line - its line
@@ -697,12 +722,7 @@ async function readDocument(
  */
 function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: ImportReportBuilder): void {
     if (!isRecord(value) || !("CXVersion" in value)) {
-        const keys = isRecord(value) ? Object.keys(value) : [];
-        report.fail(
-            CX2_ISSUE.NO_DESCRIPTOR,
-            `the first member of the array is not a descriptor with CXVersion${keys.length > 0 ? ` (keys: ${keys.join(", ")})` : ""}`,
-            { line },
-        );
+        failNoDescriptor(value, line, report);
     }
     const raw = value.CXVersion;
     const text = typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
@@ -779,10 +799,11 @@ function memberAspect(
         collect(keys[0], value[keys[0]]);
         return;
     }
+    const what = keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
     report.error(
         "parse-error",
         BAD_ASPECT_BLOCK_CODE,
-        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect block; skipped`,
+        `a member of the document is ${what}, not a one-key aspect block; skipped`,
         { line, element: keys[0] ?? null },
     );
 }
@@ -1325,10 +1346,11 @@ class Cx2Reader {
             }
             const other = table.byName.get(alias) ?? table.byAlias.get(alias);
             if (other !== undefined) {
+                const clash = other.name === alias ? "an attribute's name" : `the alias of "${other.name}"`;
                 this.report.error(
                     "validation-error",
                     CX2_ISSUE.ALIAS_CONFLICT,
-                    `the alias "${alias}" of the ${domain} attribute "${decl.name}" is also ${other.name === alias ? "an attribute's name" : `the alias of "${other.name}"`}; the alias is ignored`,
+                    `the alias "${alias}" of the ${domain} attribute "${decl.name}" is also ${clash}; the alias is ignored`,
                     { element: decl.name },
                 );
                 decl.alias = null;
@@ -2259,6 +2281,14 @@ class Cx2Reader {
                 }
             }
         }
+        this.checkStatus();
+        structure.checkCounts();
+    }
+
+    /** The status block: present, and exactly one well-formed element. */
+    private checkStatus(): void {
+        const { report } = this;
+        const { structure } = this.doc;
         if (!structure.hasStatus) {
             report.error("validation-error", CX2_ISSUE.NO_STATUS, "the document ends without a status block", {
                 element: "status",
@@ -2266,14 +2296,14 @@ class Cx2Reader {
         } else if (!structure.statusWellFormed() || structure.counts.get("status") !== 1) {
             // the specification: exactly one status aspect holding exactly one element
             const count = structure.counts.get("status") ?? 0;
+            const found = count === 1 ? shown(structure.status) : `${count} elements`;
             report.error(
                 "validation-error",
                 CX2_ISSUE.NO_STATUS,
-                `the status is malformed (${count === 1 ? shown(structure.status) : `${count} elements`}): a document ends with one status block holding one object with a boolean success`,
+                `the status is malformed (${found}): a document ends with one status block holding one object with a boolean success`,
                 { element: "status" },
             );
         }
-        structure.checkCounts();
     }
 
     /** Record the metadata: source format and version, name, description, id type, the kept aspects. */
@@ -2378,6 +2408,7 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx2"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCx2Styles,
 
     /**
      * Confidence that the head is CX2: 0.97 when the first member of a top-level array is an
@@ -2410,7 +2441,19 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
         reportSinkOptions(sink, options, report, true);
         reportUnusedOptions(options, report, USED_OPTIONS);
         const doc = await readDocument(input, report, resolved);
+        // the graphty.styles block of a file graphty wrote: a graph attribute, as in every other format
+        const block = blockOfAspect(doc.opaque.get(STYLE_BLOCK_NAME));
+        doc.opaque.delete(STYLE_BLOCK_NAME);
         new Cx2Reader(sink, report, resolved, zAs, doc).build();
+        if (block !== null) {
+            sink.setGraphValue(STYLE_BLOCK_NAME, block, { dtype: "string", origin: { format: CX2_FORMAT, id: null } });
+        }
+        const kept: Cx2StyleSource = {
+            visualProperties: doc.opaque.get("visualProperties"),
+            visualEditorProperties: doc.opaque.get("visualEditorProperties"),
+            weightFrom: resolved.weightFrom,
+        };
+        report.keepForStyles(kept);
         throwIfAborted(resolved.signal);
         return report.finish();
     },

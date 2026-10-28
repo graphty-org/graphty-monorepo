@@ -68,6 +68,18 @@ describe("Automatic Layout Updates", () => {
                 rendering: {
                     onDemand: false,
                 },
+                camera: {
+                    pivotOnSelection: false,
+                    autoRotate: 0,
+                    fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+                    fitBounds: "box",
+                },
+                expand: {
+                    trigger: "none",
+                    depth: 1,
+                    direction: "both",
+                    layout: "continue",
+                },
             },
             data: {
                 knownFields: {
@@ -81,6 +93,7 @@ describe("Automatic Layout Updates", () => {
                     repeatedEdges: "keep",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    edgeWeightMeaning: null,
                     positionScale: 1,
                     idCoercion: "canonical",
                 },

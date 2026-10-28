@@ -1,5 +1,7 @@
 # Local screenshot previews, Finish on local captures, and the pending-approvals inbox
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 Date: 2026-10-04. Status: adopted design. Built: pinned fonts (section 3), the preview script
 (section 5, started by the agent after each push rather than by the server), review and
 Finish on local captures (section 6, without the "CI differs from your local approval" mark: such

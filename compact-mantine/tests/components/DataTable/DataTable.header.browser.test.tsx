@@ -10,6 +10,7 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
+import { TOOLTIP_WAIT } from "../../waits";
 
 interface Node {
     id: string;
@@ -99,18 +100,29 @@ describe("DataTable header features", () => {
         expect(button).toHaveAccessibleName("Degree");
     });
 
+    it("reads a labeled glyph as an image before the name", () => {
+        const labeled = columns(vi.fn()).map((column) =>
+            column.id === "degree" ? { ...column, iconLabel: "number, joined" } : column,
+        );
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable columns={labeled} data={NODES} getRowId={(node) => node.id} label="Nodes" />
+            </MantineProvider>,
+        );
+        const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");
+        expect(within(button).getByRole("img", { name: "number, joined" })).toBeInTheDocument();
+        expect(button).toHaveAccessibleName("number, joined Degree");
+    });
+
     it("shows the header tooltip on keyboard focus and describes the header with it", async () => {
         renderTable();
         const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(button).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
+        }, TOOLTIP_WAIT);
         expect(button).toHaveAccessibleDescription("20 values, 0 to 19");
     });
 
@@ -149,12 +161,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}{ArrowRight}");
         expect(header).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
+        }, TOOLTIP_WAIT);
     });
 
     it("opens the header menu from its caret, and from the keyboard on the header", async () => {
@@ -185,8 +194,72 @@ describe("DataTable header features", () => {
         });
     });
 
+    it("opens the header menu on a right-click and never sorts on one", async () => {
+        renderTable();
+        const header = screen.getAllByTestId("data-table-header")[1];
+        const button = within(header).getByTestId("data-table-sort-button");
+        await userEvent.click(button, { button: "right" });
+        expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument();
+        expect(header).toHaveAttribute("aria-sort", "none");
+        expect(within(header).queryByTestId("data-table-sort-glyph")).toBeNull();
+    });
+
+    it("draws the header's end controls outside the sort button, so clicking one never sorts", async () => {
+        const onWarn = vi.fn();
+        const onSort = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable
+                    columns={[
+                        {
+                            id: "degree",
+                            header: "Degree",
+                            value: (node: Node) => node.degree,
+                            headerEnd: (
+                                <button type="button" tabIndex={-1} onClick={onWarn}>
+                                    warn
+                                </button>
+                            ),
+                            menu: <Menu.Item>Hide column</Menu.Item>,
+                        },
+                    ]}
+                    data={NODES}
+                    getRowId={(node) => node.id}
+                    label="Nodes"
+                    onSortingChange={onSort}
+                />
+            </MantineProvider>,
+        );
+        const end = screen.getByTestId("data-table-header-end");
+        expect(within(screen.getByTestId("data-table-sort-button")).queryByText("warn")).toBeNull();
+        expect(end).toHaveAttribute("data-with-menu");
+        await userEvent.click(within(end).getByRole("button", { name: "warn" }));
+        expect(onWarn).toHaveBeenCalledTimes(1);
+        expect(onSort).not.toHaveBeenCalled();
+        // The sort button keeps clear of both the end controls and the caret.
+        expect(screen.getByTestId("data-table-sort-button")).toHaveAttribute("data-with-end");
+    });
+
     it("leaves the caret out of the tab order", () => {
         renderTable();
         expect(screen.getByRole("button", { name: "Options for Degree" })).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("draws a cell its column marks with the warning tone in the warning color", () => {
+        const toned = columns(vi.fn()).map((column) =>
+            column.id === "degree"
+                ? { ...column, cellTone: (node: Node) => (node.degree === 3 ? ("warning" as const) : undefined) }
+                : column,
+        );
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable columns={toned} data={NODES} getRowId={(node) => node.id} label="Nodes" />
+            </MantineProvider>,
+        );
+        const warned = screen.getByText("3", { selector: ".cm-dt-text" }).closest("td");
+        const plain = screen.getByText("4", { selector: ".cm-dt-text" }).closest("td");
+        expect(warned).toHaveAttribute("data-tone", "warning");
+        expect(plain).not.toHaveAttribute("data-tone");
+        expect(getComputedStyle(warned!).color).not.toBe(getComputedStyle(plain!).color);
     });
 });

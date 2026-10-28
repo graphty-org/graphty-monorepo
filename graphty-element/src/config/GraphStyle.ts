@@ -51,6 +51,28 @@ const GraphSelectionStyle = z.strictObject({
     scale: z.number().positive().default(1.45),
     /** How solid the halo is, in `[0, 1]`. Low enough to read as a highlight rather than a node. */
     opacity: z.number().min(0).max(1).default(0.4),
+    /**
+     * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
+     * normalised to hex on parse.
+     *
+     * An edge has its own three settings because the node halo's do not carry over: a pale,
+     * see-through ring reads around a ball, but the same band beside a one-pixel line vanished
+     * on a dense drawing, and gold sat inside the default measurement palette's oranges. The
+     * default, Paul Tol's vibrant blue, stands 4.4:1 off the default background and is apart from
+     * the default edge grey, every colour of the default measurement palette and the element's
+     * own highlight for every kind of colour vision (`test/catalog/default-palette-quality.test.ts`).
+     */
+    edgeColor: ColorStyle.default("#0077BB"),
+    /**
+     * How wide a selected edge's band is, as a multiple of twice the line's own width: the
+     * default 2.5 draws a band five lines wide, so two line widths of it show on each side.
+     */
+    edgeScale: z.number().positive().default(2.5),
+    /**
+     * How solid a selected edge's band is, in `[0, 1]`. The band is drawn BEHIND the line, so the
+     * line keeps its own paint down the middle whatever this is; solid by default.
+     */
+    edgeOpacity: z.number().min(0).max(1).default(1),
 });
 
 /** What a selected node looks like, as it parses. See {@link GraphSelectionStyleOpts}. */
@@ -77,6 +99,13 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
  */
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
+/**
+ * The colour the element clears its canvas to when no background is set: whitesmoke. What a
+ * background field shows when the project names none, and what clearing it returns to.
+ * @since 3.26.0
+ */
+export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
 export const GraphStyle = z.strictObject({
     /**
      * ACCEPTED AND IGNORED. It used to decide whether the element unshifted a default layer onto
@@ -87,6 +116,11 @@ export const GraphStyle = z.strictObject({
     addDefaultStyle: z.boolean().default(true),
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     selection: GraphSelectionStyle.optional(),
+    /**
+     * Whether the starting rows draw the selection look: the project setting `startingRows`,
+     * copied here for the renderer. True, the selection settings above draw nothing themselves.
+     */
+    startingRows: z.boolean().optional(),
     /**
      * How far the camera starts from the graph, in scene units. Set, it places the camera and
      * turns off the element's automatic zoom-to-fit; unset, the graph is framed to fit.

@@ -34,6 +34,7 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "arrangement",
     "config",
     "attributes",
+    "valueLabels",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -63,7 +64,7 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes";
+type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -82,6 +83,7 @@ function copyAll(state: ProjectState): Copies {
         views: new Map(state.views),
         notes: new Map(state.notes),
         attributes: new Map(state.attributes),
+        valueLabels: new Map(state.valueLabels),
     };
 }
 
@@ -178,11 +180,11 @@ export class DerivationLane {
      * Two sets of copies of the keyed slices, taken in turn: the one `shown` reads, and a spare a
      * pass brings up to live state for its target. Copying only the keys written since the spare
      * was last current is what makes a pass cost what it changed, not what the session holds.
+     * The spare is brought up to date at the end of the pass that made it stale, so that pass
+     * pays for its own keys and the next write's pass pays only for what that write changed.
      */
     private shownCopies: Copies;
     private spare: Copies;
-    /** The keys the spare is behind `shown` on: those the pass that made `shown` derived. */
-    private spareBehind: ReadonlyMap<DerivedSlice, ReadonlySet<string>> = new Map();
     /** The pass that will take the changes made since the running one started. */
     private next: Pass | null = null;
     private current: Pass | null = null;
@@ -227,7 +229,7 @@ export class DerivationLane {
 
     /**
      * The state the picture shows: the target of the last finished pass. Its keyed maps are the
-     * lane's own, reused by the pass after next, so hold the state no longer than a pass.
+     * lane's own, reused when the next pass ends, so hold the state no longer than a pass.
      * @returns A frozen copy.
      */
     get rendered(): ProjectState {
@@ -292,7 +294,6 @@ export class DerivationLane {
         this.dirty.clear();
         this.shownCopies = copyAll(this.state);
         this.spare = copyAll(this.state);
-        this.spareBehind = new Map();
         this.shown = frozenOver(this.state, this.shownCopies);
     }
 
@@ -332,6 +333,15 @@ export class DerivationLane {
      */
     settled(): Promise<void> {
         return (this.next ?? this.current)?.promise ?? Promise.resolve();
+    }
+
+    /**
+     * Whether a pass is running or waiting to run: {@link DerivationLane.settled} asked without
+     * waiting, for a renderer that has to decide inside a frame.
+     * @returns True until the picture has caught up with every change made so far.
+     */
+    get deriving(): boolean {
+        return this.current !== null || this.next !== null;
     }
 
     /**
@@ -415,21 +425,22 @@ export class DerivationLane {
     }
 
     /**
-     * The copies a pass derives to: the spare, which last matched the state `shown` replaced,
-     * caught up on what that pass derived and on what this one derives.
+     * The copies a pass derives to: the spare, which differs from live state only on the keys
+     * written since the last pass began, caught up on them.
      * @param dirty - The keys this pass derives.
      * @returns The copies, now matching live state.
      */
     private targetCopies(dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>): Copies {
         const copies = this.spare;
-        catchUp(copies, this.state, this.spareBehind);
         catchUp(copies, this.state, dirty);
         return copies;
     }
 
     /**
      * Take a finished pass's target as what the picture shows; the copies it replaces become the
-     * spare. A baseline adopted while the pass ran already shows live state and owns both copies.
+     * spare, caught up at once on the keys this pass derived, so the pass that wrote them pays
+     * for them. A baseline adopted while the pass ran already shows live state and owns both
+     * copies.
      * @param target - The pass's target.
      * @param copies - Its copies.
      * @param before - The copies `shown` read when the pass began.
@@ -445,10 +456,12 @@ export class DerivationLane {
             return;
         }
 
-        this.spare = before;
-        this.spareBehind = dirty;
         this.shownCopies = copies;
         this.shown = target;
+        // `before` is read by nothing now; it lags live state on exactly these keys, plus any
+        // written since this pass began, which the next pass derives and catches up again.
+        catchUp(before, this.state, dirty);
+        this.spare = before;
     }
 
     /**

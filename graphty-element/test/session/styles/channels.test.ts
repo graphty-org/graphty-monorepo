@@ -16,6 +16,8 @@ import {
     type ChannelValues,
     COLOR_CHANNELS,
     type ColorChannel,
+    DEFAULT_GLOW_COLOR,
+    DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
     type NodeShapeValue,
@@ -23,43 +25,291 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The thirty-five channels the element publishes, in the order the table declares them. */
+/** The channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
+    "node.sizeMode",
     "node.shape",
     "node.label",
     "node.labelStyle",
+    "node.labelColor",
+    "node.labelSize",
+    "node.labelLetterSize",
+    "node.labelFont",
+    "node.labelWeight",
+    "node.labelItalic",
+    "node.labelWrapWidth",
+    "node.labelWrapTrailingSpace",
+    "node.labelWrapEllipsis",
+    "node.labelWrapAnywhere",
+    "node.labelWrapSpaceCount",
+    "node.labelRunAlign",
+    "node.labelMinScreenSize",
+    "node.labelOnTop",
+    "node.labelRotation",
+    "node.labelBackground",
+    "node.labelOutline",
+    "node.labelOutlineWidth",
+    "node.labelBorder",
+    "node.labelBorderWidth",
+    "node.labelOpacity",
+    "node.labelBackgroundOpacity",
+    "node.labelOutlineOpacity",
+    "node.labelBorderOpacity",
+    "node.labelPadding",
+    "node.labelCornerRadius",
+    "node.labelLineHeight",
+    "node.labelOffsetX",
+    "node.labelOffsetY",
+    "node.labelShiftX",
+    "node.labelShiftY",
+    "node.labelDeclutter",
+    "node.labelMinNodeScreenSize",
+    "node.labelTextAlign",
+    "node.labelLocation",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
     "node.glow",
     "node.glowStrength",
+    "node.halo",
+    "node.haloColor",
+    "node.haloScale",
+    "node.haloOpacity",
     "node.wireframe",
     "node.flat",
+    "node.unlit",
     "node.marker",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.planar",
+    "node.zIndex",
+    "node.drawOrder",
+    "node.borderColor",
+    "node.borderWidth",
+    "node.borderScreenWidth",
+    "node.borderOpacity",
+    "node.borderStyle",
+    "node.borderPosition",
+    "node.borderWaveAmplitude",
+    "node.borderWavePeriod",
+    "node.outerBorderColor",
+    "node.outerBorderWidth",
+    "node.outerBorderOpacity",
+    "node.outerBorderStyle",
+    "node.outerBorderOffset",
+    "node.underlayColor",
+    "node.underlayOpacity",
+    "node.underlayPadding",
+    "node.underlayShape",
+    "node.underlayCornerRadius",
+    "node.overlayColor",
+    "node.overlayOpacity",
+    "node.overlayPadding",
+    "node.overlayShape",
+    "node.overlayCornerRadius",
+    "node.image",
+    "node.imageFallback",
+    "node.imageFit",
+    "node.imageWidth",
+    "node.imageHeight",
+    "node.imagePixelSize",
+    "node.imagePositionX",
+    "node.imagePositionY",
+    "node.imageOffsetX",
+    "node.imageOffsetY",
+    "node.imageRepeat",
+    "node.imageClip",
+    "node.imageSmoothing",
+    "node.imageAutoSize",
+    "node.imageOpacity",
+    "node.glyph",
+    "node.glyphFont",
+    "node.glyphSize",
+    "node.glyphWeight",
+    "node.glyphColor",
+    "node.pieColors",
+    "node.pieSizes",
+    "node.pieOpacities",
+    "node.pieRadius",
+    "node.pieHole",
+    "node.pieRotation",
+    "node.pieFitBox",
+    "node.pieOffsetX",
+    "node.pieOffsetY",
+    "node.stripeColors",
+    "node.stripeSizes",
+    "node.stripeOpacities",
+    "node.stripeDirection",
+    "node.stripeSize",
+    "node.chartKind",
+    "node.chartValues",
+    "node.chartColors",
+    "node.chartMin",
+    "node.chartMax",
+    "node.chartHorizontal",
+    "node.chartSize",
+    "node.chartMargin",
+    "node.chartGap",
+    "node.chartLineWidth",
+    "node.chartBorderColor",
+    "node.chartBorderWidth",
+    "node.cornerRadius",
+    "node.exactCornerRadius",
+    "node.shapePoints",
+    "node.shapeStretchPoints",
+    "node.shapeParts",
+    "node.shapeLines",
+    "node.shapeTexts",
+    "node.shapeLineWidth",
+    "node.labelFit",
+    "node.labelPaddingX",
+    "node.labelPaddingY",
+    "node.labelFitSquare",
+    "node.gradientColor",
+    "node.gradientDirection",
+    "node.gradientColors",
+    "node.gradientStops",
+    "node.gradientKind",
     "edge.color",
     "edge.width",
+    "edge.minScreenWidth",
     "edge.opacity",
+    "edge.bandColor",
+    "edge.bandWidth",
+    "edge.bandOpacity",
+    "edge.outlineColor",
+    "edge.outlineWidth",
+    "edge.outlineOpacity",
+    "edge.outlineStyle",
+    "edge.underlayColor",
+    "edge.underlayOpacity",
+    "edge.underlayPadding",
+    "edge.overlayColor",
+    "edge.overlayOpacity",
+    "edge.overlayPadding",
+    "edge.gradientColors",
+    "edge.gradientStops",
+    "edge.gradientKind",
     "edge.style",
     "edge.patternCount",
+    "edge.waveAmplitude",
+    "edge.wavePeriod",
     "edge.curvature",
+    "edge.bends",
+    "edge.fanSpacing",
+    "edge.fanned",
+    "edge.bendCurve",
+    "edge.arcRadius",
+    "edge.route",
+    "edge.arcHeight",
+    "edge.nodeGap",
+    "edge.sourcePort",
+    "edge.targetPort",
     "edge.arrowHead",
     "edge.arrowHeadSize",
+    "edge.arrowHeadWidth",
+    "edge.arrowHeadSide",
+    "edge.arrowHeadPosition",
+    "edge.arrowHeadGap",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
+    "edge.arrowHeadImage",
     "edge.arrowHeadText",
     "edge.arrowHeadTextStyle",
+    "edge.arrowHeadTextSize",
+    "edge.arrowHeadTextLetterSize",
+    "edge.arrowHeadTextFont",
+    "edge.arrowHeadTextColor",
+    "edge.arrowHeadTextWeight",
+    "edge.arrowHeadTextOpacity",
+    "edge.arrowHeadTextDistance",
+    "edge.arrowHeadTextRotation",
+    "edge.arrowHeadTextOffsetX",
+    "edge.arrowHeadTextOffsetY",
     "edge.arrowTail",
     "edge.arrowTailSize",
+    "edge.arrowTailWidth",
+    "edge.arrowTailSide",
+    "edge.arrowTailPosition",
+    "edge.arrowTailGap",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
+    "edge.arrowTailImage",
     "edge.arrowTailText",
     "edge.arrowTailTextStyle",
+    "edge.arrowTailTextSize",
+    "edge.arrowTailTextLetterSize",
+    "edge.arrowTailTextFont",
+    "edge.arrowTailTextColor",
+    "edge.arrowTailTextWeight",
+    "edge.arrowTailTextOpacity",
+    "edge.arrowTailTextDistance",
+    "edge.arrowTailTextRotation",
+    "edge.arrowTailTextOffsetX",
+    "edge.arrowTailTextOffsetY",
+    "edge.arrowMiddleHead",
+    "edge.arrowMiddleHeadSize",
+    "edge.arrowMiddleHeadWidth",
+    "edge.arrowMiddleHeadSide",
+    "edge.arrowMiddleHeadPosition",
+    "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadOpacity",
+    "edge.arrowMiddleHeadImage",
+    "edge.arrowMiddleTail",
+    "edge.arrowMiddleTailSize",
+    "edge.arrowMiddleTailWidth",
+    "edge.arrowMiddleTailSide",
+    "edge.arrowMiddleTailPosition",
+    "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailOpacity",
+    "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelTextAlign",
+    "edge.labelLocation",
+    "node.visible",
+    "node.tooltipSize",
+    "node.tooltipColor",
+    "node.tooltipBackground",
+    "edge.visible",
+    "edge.labelSize",
+    "edge.labelColor",
+    "edge.labelBackground",
+    "edge.arrowHeadTextBackground",
+    "edge.arrowTailTextBackground",
+    "edge.labelLetterSize",
+    "edge.labelFont",
+    "edge.labelWeight",
+    "edge.labelItalic",
+    "edge.labelWrapWidth",
+    "edge.labelWrapTrailingSpace",
+    "edge.labelWrapEllipsis",
+    "edge.labelWrapAnywhere",
+    "edge.labelWrapSpaceCount",
+    "edge.labelRunAlign",
+    "edge.labelMinScreenSize",
+    "edge.labelOnTop",
+    "edge.labelRotation",
+    "edge.labelOutline",
+    "edge.labelOutlineWidth",
+    "edge.labelBorder",
+    "edge.labelBorderWidth",
+    "edge.labelOpacity",
+    "edge.labelBackgroundOpacity",
+    "edge.labelOutlineOpacity",
+    "edge.labelBorderOpacity",
+    "edge.labelPadding",
+    "edge.labelCornerRadius",
+    "edge.labelLineHeight",
+    "edge.labelOffsetX",
+    "edge.labelOffsetY",
+    "edge.labelShiftX",
+    "edge.labelShiftY",
 ];
 
 describe("the channel set", () => {
@@ -86,9 +336,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into fourteen node channels and twenty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 14);
-        assert.strictEqual(channelsFor("edge").length, 21);
+    it("splits into one hundred and fifty-one node channels and one hundred and thirty-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 151);
+        assert.strictEqual(channelsFor("edge").length, 132);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -185,8 +435,14 @@ describe("what the element can really draw", () => {
         for (const channel of [
             "edge.arrowHeadText",
             "edge.arrowHeadTextStyle",
+            "edge.arrowHeadTextSize",
+            "edge.arrowHeadTextLetterSize",
+            "edge.arrowHeadTextDistance",
             "edge.arrowTailText",
             "edge.arrowTailTextStyle",
+            "edge.arrowTailTextSize",
+            "edge.arrowTailTextLetterSize",
+            "edge.arrowTailTextDistance",
         ] as const) {
             assert.isDefined(CHANNEL_DESCRIPTORS[channel].caveat, channel);
         }
@@ -201,16 +457,32 @@ describe("what the element can really draw", () => {
         assert.deepEqual(CHANNEL_DESCRIPTORS["node.shape"].values, [...NodeShapes.options]);
     });
 
-    it("offers the nine line patterns the edge renderer has meshes for", () => {
+    it("offers the fifteen line patterns the edge renderer has meshes for", () => {
         const patterns = CHANNEL_DESCRIPTORS["edge.style"].values ?? [];
 
         assert.deepEqual(
             [...patterns],
-            ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"],
+            [
+                "solid",
+                "dot",
+                "star",
+                "box",
+                "dash",
+                "diamond",
+                "dash-dot",
+                "sinewave",
+                "zigzag",
+                "double",
+                "forward-slash",
+                "backward-slash",
+                "vertical-slash",
+                "separate-arrow",
+                "contiguous-arrow",
+            ],
         );
     });
 
-    it("publishes the same nine patterns from the catalogue that the control offers", () => {
+    it("publishes the same fifteen patterns from the catalogue that the control offers", () => {
         // EdgeLinePattern used to be a second list, written out by hand in src/catalog/types.ts:
         // nine names of which seven -- "dashed", "dotted", "dash-dot-dot", "long-dash",
         // "short-dash", "double", "wave" -- had never had a mesh, while seven the renderer does
@@ -227,11 +499,17 @@ describe("what the element can really draw", () => {
             "dash-dot",
             "sinewave",
             "zigzag",
+            "double",
+            "forward-slash",
+            "backward-slash",
+            "vertical-slash",
+            "separate-arrow",
+            "contiguous-arrow",
         ];
 
         assert.deepEqual([...patterns], fromTheCatalogue);
 
-        for (const invented of ["dashed", "dotted", "dash-dot-dot", "long-dash", "short-dash", "double", "wave"]) {
+        for (const invented of ["dashed", "dotted", "dash-dot-dot", "long-dash", "short-dash", "wave"]) {
             assert.notInclude(patterns, invented);
         }
     });
@@ -263,6 +541,16 @@ describe("what the element can really draw", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].min, 0);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.size"].max);
     });
+
+    it("draws a glow with no strength at 1, and offers 0, which draws no glow", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].default, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0);
+    });
+
+    it("states the colour a switched-on outline or glow is drawn in when none is named", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glow"].default, DEFAULT_GLOW_COLOR);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].default, DEFAULT_OUTLINE_COLOR);
+    });
 });
 
 describe("what a style editor needs to draw a row", () => {
@@ -271,21 +559,185 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "node.shapeParts",
+        "node.shapeLines",
+        "node.shapeTexts",
+        "node.shapeLineWidth",
+        "node.gradientColors",
+        "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",
         "node.tooltipStyle",
-        "node.outline",
-        "node.glow",
-        "node.glowStrength",
+        // Unset, a node is highlighted when it is selected and not otherwise.
+        "node.halo",
         "node.marker",
+        // Unset, a node's width, height and depth follow its size and its shape's proportions.
+        "node.width",
+        "node.height",
+        "node.depth",
+        // Unset, a border is as wide as `node.borderWidth` says, in the scene's units.
+        "node.borderScreenWidth",
+        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        "node.drawOrder",
+        // Unset, a round-rectangle's corners are a quarter of its shorter side.
+        "node.cornerRadius",
+        // Unset, a polygon is drawn as its box.
+        "node.shapePoints",
+        // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
+        // bands, and an image's width, height and pixel size, follow from the rest.
+        "node.image",
+        "node.imageFallback",
+        "node.imageWidth",
+        "node.imageHeight",
+        "node.imagePixelSize",
+        // Unset, a node draws no glyph; its font and size follow from the rest.
+        "node.glyph",
+        "node.glyphFont",
+        "node.glyphSize",
+        "node.pieColors",
+        "node.pieSizes",
+        "node.pieOpacities",
+        "node.chartValues",
+        "node.chartColors",
+        "node.chartMin",
+        "node.chartMax",
+        "node.chartLineWidth",
+        "node.chartBorderColor",
+        "node.stripeColors",
+        "node.stripeSizes",
+        "node.stripeOpacities",
+        // Unset, a node is the size it states rather than its label's.
+        "node.labelFit",
+        // Unset, a node is filled flat with its colour.
+        "node.gradientColor",
         "edge.patternCount",
+        // Unset, a wave is drawn within its line's width or its border's ring.
+        "edge.waveAmplitude",
+        "edge.wavePeriod",
+        "node.borderWaveAmplitude",
+        "node.borderWavePeriod",
+        // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
+        "node.underlayShape",
+        "node.underlayCornerRadius",
+        "node.overlayShape",
+        "node.overlayCornerRadius",
+        // Unset, an image cap has no picture and draws nothing.
+        "edge.arrowHeadImage",
+        "edge.arrowTailImage",
+        "edge.arrowMiddleHeadImage",
+        "edge.arrowMiddleTailImage",
+        // Unset, a cap is drawn whole.
+        "edge.arrowHeadSide",
+        "edge.arrowTailSide",
+        "edge.arrowMiddleHeadSide",
+        "edge.arrowMiddleTailSide",
+        // Unset, an edge runs straight from node to node.
+        "edge.bends",
+        // Unset, a bundle's curved edges are two node radii apart.
+        "edge.fanSpacing",
+        // Unset, a bundle's curved edges fan apart.
+        "edge.fanned",
+        // Unset, a curved edge keeps the element's own bow.
+        "edge.arcRadius",
+        // Unset, the layout decides the route: straight but on a geographic map.
+        "edge.route",
+        "edge.sourcePort",
+        "edge.targetPort",
+        // Unset, a line is painted in its color.
+        "edge.gradientColors",
+        "edge.gradientStops",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
+        "edge.arrowHeadTextLetterSize",
+        "edge.arrowHeadTextFont",
+        "edge.arrowHeadTextWeight",
+        "edge.arrowHeadTextOpacity",
+        "edge.arrowHeadTextDistance",
+        "edge.arrowHeadTextRotation",
+        "edge.arrowHeadTextOffsetX",
+        "edge.arrowHeadTextOffsetY",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
+        "edge.arrowTailTextLetterSize",
+        "edge.arrowTailTextFont",
+        "edge.arrowTailTextWeight",
+        "edge.arrowTailTextOpacity",
+        "edge.arrowTailTextDistance",
+        "edge.arrowTailTextRotation",
+        "edge.arrowTailTextOffsetX",
+        "edge.arrowTailTextOffsetY",
         "edge.label",
         "edge.labelStyle",
+        // A label, a caption or an edge label is drawn with no panel behind it until a style
+        // asks for one; a node tooltip has a white panel by default.
+        "node.labelBackground",
+        "edge.labelBackground",
+        "edge.arrowHeadTextBackground",
+        "edge.arrowTailTextBackground",
+        // A label's size and color state what an unset label is drawn with (48 per world unit,
+        // black), so a style editor's line starts there; font, weight and italic do not.
+        "node.labelFont",
+        "node.labelWeight",
+        "node.labelItalic",
+        "edge.labelFont",
+        "edge.labelWeight",
+        "edge.labelItalic",
+        "node.labelLetterSize",
+        "node.labelWrapWidth",
+        "node.labelWrapTrailingSpace",
+        "node.labelWrapEllipsis",
+        "node.labelWrapAnywhere",
+        "node.labelWrapSpaceCount",
+        "node.labelRunAlign",
+        "node.labelMinScreenSize",
+        "node.labelOnTop",
+        "node.labelDeclutter",
+        "node.labelTextAlign",
+        "node.labelLocation",
+        "node.labelRotation",
+        "node.labelOutline",
+        "node.labelOutlineWidth",
+        "node.labelBorder",
+        "node.labelBorderWidth",
+        "node.labelOpacity",
+        "node.labelBackgroundOpacity",
+        "node.labelOutlineOpacity",
+        "node.labelBorderOpacity",
+        "node.labelPadding",
+        "node.labelCornerRadius",
+        "node.labelLineHeight",
+        "node.labelOffsetX",
+        "node.labelOffsetY",
+        "node.labelShiftX",
+        "node.labelShiftY",
+        "edge.labelLetterSize",
+        "edge.labelTextAlign",
+        "edge.labelLocation",
+        "edge.labelWrapWidth",
+        "edge.labelWrapTrailingSpace",
+        "edge.labelWrapEllipsis",
+        "edge.labelWrapAnywhere",
+        "edge.labelWrapSpaceCount",
+        "edge.labelRunAlign",
+        "edge.labelMinScreenSize",
+        "edge.labelOnTop",
+        "edge.labelRotation",
+        "edge.labelOutline",
+        "edge.labelOutlineWidth",
+        "edge.labelBorder",
+        "edge.labelBorderWidth",
+        "edge.labelOpacity",
+        "edge.labelBackgroundOpacity",
+        "edge.labelOutlineOpacity",
+        "edge.labelBorderOpacity",
+        "edge.labelPadding",
+        "edge.labelCornerRadius",
+        "edge.labelLineHeight",
+        "edge.labelOffsetX",
+        "edge.labelOffsetY",
+        "edge.labelShiftX",
+        "edge.labelShiftY",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -340,7 +792,10 @@ describe("what a style editor needs to draw a row", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.shape"].default, defaultNodeStyle.shape?.type);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].default, defaultEdgeStyle.line?.width);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.style"].default, defaultEdgeStyle.line?.type);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, defaultEdgeStyle.arrowHead?.type);
+        // The one exception: a head is drawn only on a directed graph, so the default style
+        // carries none and the descriptor names the head a directed graph draws.
+        assert.isUndefined(defaultEdgeStyle.arrowHead);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, "normal");
         // "darkgrey", written as the hex a swatch can open on.
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.color"].default, "#A9A9A9");
     });
@@ -368,14 +823,42 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the six that carry a colour, and the type says the same six", () => {
+    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
+            "node.labelColor",
+            "node.labelBackground",
+            "node.labelOutline",
+            "node.labelBorder",
             "node.outline",
             "node.glow",
+            "node.haloColor",
+            "node.borderColor",
+            "node.outerBorderColor",
+            "node.underlayColor",
+            "node.overlayColor",
+            "node.glyphColor",
+            "node.chartBorderColor",
+            "node.gradientColor",
             "edge.color",
+            "edge.bandColor",
+            "edge.outlineColor",
+            "edge.underlayColor",
+            "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailTextColor",
+            "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleTailColor",
+            "node.tooltipColor",
+            "node.tooltipBackground",
+            "edge.labelColor",
+            "edge.labelBackground",
+            "edge.arrowHeadTextBackground",
+            "edge.arrowTailTextBackground",
+            "edge.labelOutline",
+            "edge.labelBorder",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);
@@ -514,5 +997,44 @@ describe("the arrow-end channels", () => {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
         }
+    });
+});
+
+describe("how far one step moves a number channel", () => {
+    it("is given on every number channel and on no other", () => {
+        for (const channel of CHANNELS) {
+            const descriptor = CHANNEL_DESCRIPTORS[channel];
+            assert.strictEqual(descriptor.step !== undefined, descriptor.accepts === "number", channel);
+        }
+    });
+
+    it("moves an opacity by a hundredth, a count and a label size by one, a length by a tenth", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.opacity"].step, 0.01);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.patternCount"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].step, 0.1);
+    });
+});
+
+describe("which drawn part a channel adjusts", () => {
+    it("names a part that is itself a channel with no part above it", () => {
+        for (const channel of CHANNELS) {
+            const { modifies } = CHANNEL_DESCRIPTORS[channel];
+            if (modifies !== undefined) {
+                assert.isTrue(isChannel(modifies), `${channel} modifies a channel`);
+                assert.isUndefined(CHANNEL_DESCRIPTORS[modifies].modifies, `${modifies} is a part of its own`);
+                assert.strictEqual(CHANNEL_DESCRIPTORS[modifies].target, CHANNEL_DESCRIPTORS[channel].target);
+            }
+        }
+    });
+
+    it("folds a band, a halo, an arrowhead and a label's look into their parts", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.bandWidth"].modifies, "edge.bandColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.haloOpacity"].modifies, "node.haloColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailSize"].modifies, "edge.arrowTail");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextColor"].modifies, "edge.arrowHeadText");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
     });
 });

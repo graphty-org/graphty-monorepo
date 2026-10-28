@@ -9,7 +9,7 @@ import {
     StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -24,6 +24,10 @@ describe("EdgeMesh", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Line Creation", () => {
@@ -165,6 +169,73 @@ describe("EdgeMesh", () => {
             assert.exists(arrow2);
             // Two slots of one batch, which is what sharing means now that a cap is not a mesh.
             assert.strictEqual(arrow1.batchMesh, arrow2.batchMesh);
+        });
+
+        test("draws a cap at a width multiple from geometry of its own, as wide as asked across its line", () => {
+            const across = (breadth?: number): { span: number; mesh: unknown } => {
+                const cap = EdgeMesh.createArrowHead(
+                    meshCache,
+                    "wide-arrow",
+                    { type: "normal", width: 0.5, color: "#FF0000", breadth },
+                    scene,
+                );
+                assert.exists(cap);
+                const positions = cap.batchMesh?.getVerticesData("position") ?? [];
+                const z = Array.from(positions).filter((_v, i) => i % 3 === 2);
+                return { span: Math.max(...z) - Math.min(...z), mesh: cap.batchMesh };
+            };
+            const plain = across();
+            const half = across(0.5);
+            assert.closeTo(plain.span, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT, 1e-6);
+            assert.closeTo(half.span, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-6);
+            assert.notStrictEqual(plain.mesh, half.mesh);
+            assert.strictEqual(across(1).mesh, plain.mesh);
+        });
+
+        test("draws only one side of a cap cut along its line, left at -z, from geometry of its own", () => {
+            const zs = (side?: "left" | "right"): { z: number[]; mesh: unknown } => {
+                const cap = EdgeMesh.createArrowHead(
+                    meshCache,
+                    "sided-arrow",
+                    { type: "crow", width: 0.5, color: "#FF0000", side },
+                    scene,
+                );
+                assert.exists(cap);
+                const positions = cap.batchMesh?.getVerticesData("position") ?? [];
+                return { z: Array.from(positions).filter((_v, i) => i % 3 === 2), mesh: cap.batchMesh };
+            };
+            const whole = zs();
+            const left = zs("left");
+            const right = zs("right");
+            assert.isBelow(Math.min(...whole.z), -0.1);
+            assert.isAbove(Math.max(...whole.z), 0.1);
+            // Graphviz's lcrow keeps the half to the left of the line, which every cap draws at -z
+            assert.closeTo(Math.min(...left.z), Math.min(...whole.z), 1e-6);
+            assert.isAtMost(Math.max(...left.z), 1e-9);
+            assert.closeTo(Math.max(...right.z), Math.max(...whole.z), 1e-6);
+            assert.isAtLeast(Math.min(...right.z), -1e-9);
+            assert.notStrictEqual(left.mesh, whole.mesh);
+            assert.notStrictEqual(left.mesh, right.mesh);
+        });
+
+        test("runs a crossed delta's line through its bar to the back of its delta", () => {
+            const geometry = EdgeMesh.getArrowGeometry("cross-delta");
+            const end = EdgeMesh.calculateLineEndpoint(new Vector3(0, 0, 0), new Vector3(1, 0, 0), 3, geometry);
+            // the delta is two thirds of the cap's length: the line stops 2 short of the tip, not 3
+            assert.closeTo(end.x, -2, 1e-9);
+            const cap = EdgeMesh.createArrowHead(
+                meshCache,
+                "cross-delta",
+                { type: "cross-delta", width: 0.5, color: "#FF0000" },
+                scene,
+            );
+            assert.exists(cap);
+            const positions = Array.from(cap.batchMesh?.getVerticesData("position") ?? []);
+            const xs = positions.filter((_v, i) => i % 3 === 0);
+            const zs = positions.filter((_v, i) => i % 3 === 2);
+            // CROSS_DELTA: 3 long, a bar 1.5 across at its back
+            assert.closeTo(Math.min(...xs), -1, 1e-6);
+            assert.closeTo(Math.max(...zs) - Math.min(...zs), 0.5, 1e-6);
         });
 
         test("creates different arrow for different styleId", () => {

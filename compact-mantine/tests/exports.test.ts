@@ -34,7 +34,6 @@ import type {
     ContextMenuProps,
     ControlGroupProps,
     ControlSectionProps,
-    ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
     DataRowSortDirection,
@@ -50,10 +49,15 @@ import type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
     FieldRowProps,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
     FlatTreeRow,
     GestureChangeHandler,
     GestureEndHandler,
@@ -79,6 +83,7 @@ import type {
     PanelFieldKind,
     PanelFieldProps,
     PanelLabelsProviderProps,
+    PickFilesOptions,
     PopoutAlignment,
     PopoutAnchorProps,
     PopoutAnchorTarget,
@@ -99,8 +104,14 @@ import type {
     QuickAction,
     QuickActionsProps,
     RailButtonProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
     ResizeHandleBounds,
     ResizeHandleEdge,
     ResizeHandleProps,
@@ -114,9 +125,7 @@ import type {
     ShortcutSheetTab,
     SparklineRowProps,
     SplitButtonProps,
-    StyleNumberInputProps,
-    StyleSelectOption,
-    StyleSelectProps,
+    StatusBarProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -139,6 +148,7 @@ import type {
     TreeRowTint,
     UiGlyphName,
     UiGlyphProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "../src/index";
 import * as mainExports from "../src/index";
@@ -179,7 +189,6 @@ type PublicTypeSurface = {
     compoundSegment: CompoundSegment;
     controlGroup: ControlGroupProps;
     controlSection: ControlSectionProps;
-    controlSubGroup: ControlSubGroupProps;
     dataRow: DataRowProps;
     dataRowHeader: DataRowHeaderProps;
     dataRowSortDirection: DataRowSortDirection;
@@ -194,11 +203,16 @@ type PublicTypeSurface = {
     dataTableSort: DataTableSort;
     dataTableValue: DataTableValue;
     direction: Direction;
+    entityChip: EntityChipProps;
+    entityKind: EntityKind;
     disclosure: DisclosureProps;
     fieldGlyph: FieldGlyphProps;
     fieldGlyphName: FieldGlyphName;
     fieldLetter: FieldLetter;
     fieldRow: FieldRowProps;
+    fileDropState: FileDropState;
+    fileSource: FileSourceProps;
+    fileSourceVariant: FileSourceVariant;
     gestureChangeHandler: GestureChangeHandler;
     gestureEndHandler: GestureEndHandler;
     gestureHandlers: GestureHandlers;
@@ -216,6 +230,7 @@ type PublicTypeSurface = {
     panelField: PanelFieldProps;
     panelFieldKind: PanelFieldKind;
     panelLabelsProvider: PanelLabelsProviderProps;
+    pickFilesOptions: PickFilesOptions;
     popout: PopoutProps;
     popoutAlignment: PopoutAlignment;
     popoutAnchor: PopoutAnchorProps;
@@ -236,8 +251,14 @@ type PublicTypeSurface = {
     quickAction: QuickAction;
     quickActions: QuickActionsProps;
     railButton: RailButtonProps;
+    rampEditor: RampEditorProps;
+    rampEditorBin: RampEditorBin;
+    rampEditorHandle: RampEditorHandle;
+    rampEditorLabels: RampEditorLabels;
+    rampEditorPalette: RampEditorPalette;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
+    resetButton: ResetButtonProps;
     secondaryToolbar: SecondaryToolbarProps;
     secondaryToolbarButton: SecondaryToolbarButtonProps;
     shortcutEntry: ShortcutEntry;
@@ -245,9 +266,7 @@ type PublicTypeSurface = {
     shortcutSheet: ShortcutSheetProps;
     shortcutSheetTab: ShortcutSheetTab;
     sparklineRow: SparklineRowProps;
-    styleNumberInput: StyleNumberInputProps;
-    styleSelect: StyleSelectProps;
-    styleSelectOption: StyleSelectOption;
+    statusBar: StatusBarProps;
     toggleRow: ToggleRowProps;
     toggleRowGroup: ToggleRowGroupProps;
     toggleWithContent: ToggleWithContentProps;
@@ -258,6 +277,7 @@ type PublicTypeSurface = {
     trailingSlot: TrailingSlotProps;
     uiGlyph: UiGlyphProps;
     uiGlyphName: UiGlyphName;
+    useFileDropOptions: UseFileDropOptions;
     comboInputItem: ComboInputItem;
     comboInputOption: ComboInputOption;
     comboInput: ComboInputProps;
@@ -316,6 +336,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "compactColors",
     "compactDarkColors",
     "compactGlobalCss",
+    "compactGraphtyColors",
     "compactTheme",
     "compactThemeOverride",
     "createCompactTheme",
@@ -325,26 +346,32 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "CompactColorInput",
     "ControlGroup",
     "ControlSection",
-    "ControlSubGroup",
     "DataTable",
+    "EntityChip",
     "GradientEditor",
     "InfoCircle",
     "Popout",
     "PopoutButton",
     "PopoutManager",
     "PopoutRegion",
-    "StyleNumberInput",
-    "StyleSelect",
+    "RampEditor",
     "ScrollArea",
     "SegmentedControl",
+    "RangeSlider",
+    "Slider",
     "ToggleWithContent",
 
     // Buttons, chrome, color, inputs, overlays, selection, tree
     "ComboInput",
+    "FileSource",
+    "pickFiles",
     "SearchInput",
+    "useFileDrop",
     "VariablePill",
     "ContextMenu",
     "MenuCheckItem",
+    "MenuItemDescription",
+    "MenuShortcut",
     "ModalFooter",
     "Toast",
     "ToastProvider",
@@ -372,6 +399,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "RailButton",
     "SecondaryToolbar",
     "ShortcutSheet",
+    "StatusBar",
     "Toolbar",
     "ToolButton",
     "ToolGroup",
@@ -382,6 +410,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "CompoundRow",
     "DataRow",
     "DataRowHeader",
+    "EllipsizedName",
     "FieldRow",
     "HistogramRow",
     "MetricRow",
@@ -389,6 +418,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ProseBlock",
     "RampRow",
     "RankChip",
+    "ResetButton",
     "SparklineRow",
     "ToggleRow",
     "ToggleRowGroup",
@@ -437,6 +467,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "focusWithRing",
+    "colorWord",
     "isLightColor",
     "isRtl",
     "isValidHex",
@@ -495,10 +527,6 @@ describe("Package exports", () => {
                 expect(mainExports.ControlSection).toBeDefined();
             });
 
-            it("exports ControlSubGroup", () => {
-                expect(mainExports.ControlSubGroup).toBeDefined();
-            });
-
             it("exports GradientEditor", () => {
                 expect(mainExports.GradientEditor).toBeDefined();
             });
@@ -523,20 +551,12 @@ describe("Package exports", () => {
                 expect(mainExports.Popout.Anchor).toBeDefined();
             });
 
-            it("exports StyleNumberInput", () => {
-                expect(mainExports.StyleNumberInput).toBeDefined();
-            });
-
             it("exports ScrollArea", () => {
                 expect(mainExports.ScrollArea).toBeDefined();
             });
 
             it("exports SegmentedControl", () => {
                 expect(mainExports.SegmentedControl).toBeDefined();
-            });
-
-            it("exports StyleSelect", () => {
-                expect(mainExports.StyleSelect).toBeDefined();
             });
 
             it("exports ToggleWithContent", () => {
@@ -587,6 +607,7 @@ describe("Package exports", () => {
                 expect(mainExports.PanelField).toBeDefined();
                 expect(mainExports.TrailingSlot).toBeDefined();
                 expect(mainExports.AdvancedButton).toBeDefined();
+                expect(mainExports.ResetButton).toBeDefined();
             });
 
             it("exports RT-1 FieldRow", () => {
@@ -659,7 +680,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(44);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(45);
             });
 
             it("exports the guards that read the registers", () => {
@@ -760,7 +781,6 @@ describe("Package exports", () => {
                     compoundSegment: true,
                     controlGroup: true,
                     controlSection: true,
-                    controlSubGroup: true,
                     dataRow: true,
                     dataRowHeader: true,
                     dataRowSortDirection: true,
@@ -775,6 +795,8 @@ describe("Package exports", () => {
                     dataTableSort: true,
                     dataTableValue: true,
                     direction: true,
+                    entityChip: true,
+                    entityKind: true,
                     disclosure: true,
                     fieldGlyph: true,
                     fieldGlyphName: true,
@@ -812,12 +834,15 @@ describe("Package exports", () => {
                     popoutRegion: true,
                     popoutTrigger: true,
                     proseBlock: true,
+                    rampEditor: true,
+                    rampEditorBin: true,
+                    rampEditorHandle: true,
+                    rampEditorLabels: true,
+                    rampEditorPalette: true,
                     rampRow: true,
                     rankChip: true,
+                    resetButton: true,
                     sparklineRow: true,
-                    styleNumberInput: true,
-                    styleSelect: true,
-                    styleSelectOption: true,
                     toggleRow: true,
                     toggleRowGroup: true,
                     toggleWithContent: true,
@@ -848,6 +873,12 @@ describe("Package exports", () => {
                     comboInputSeparator: true,
                     searchInput: true,
                     variablePill: true,
+                    fileDropState: true,
+                    fileSource: true,
+                    fileSourceVariant: true,
+                    pickFilesOptions: true,
+                    useFileDropOptions: true,
+                    statusBar: true,
                     contextMenu: true,
                     menuCheckItem: true,
                     modalFooter: true,
@@ -883,7 +914,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(132);
+                expect(names).toHaveLength(142);
             });
         });
 
@@ -1077,7 +1108,12 @@ describe("Package exports", () => {
             expect(mainExports.createCompactTheme).toBe(themeExports.createCompactTheme);
             expect(mainExports.createCompactTheme({ highContrast: true }).other?.compact).toEqual({
                 highContrast: true,
+                accent: "figma",
             });
+            expect(mainExports.compactGlobalCss({ accent: "graphty" })).toContain(
+                "--cm-bg-brand: light-dark(#97c800, #c4f23a);",
+            );
+            expect(mainExports.compactGraphtyColors[6]).toBe("#97c800");
             expect(mainExports.compactGlobalCss()).toContain("--cm-bg:");
             expect(mainExports.compactGlobalCss()).toContain(".cm-toolbar");
             expect(typeof mainExports.ensureCompactStyles).toBe("function");

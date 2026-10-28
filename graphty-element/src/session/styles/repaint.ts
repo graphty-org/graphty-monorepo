@@ -55,11 +55,22 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
+import { withLabelLook } from "../../catalog/label-looks";
+import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
-import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
-import { prepareBinding, type PreparedBinding } from "./encoding";
+import {
+    asColorValue,
+    type ChannelDescriptor,
+    channelDescriptor,
+    type ChannelValues,
+    EFFECT_OFF,
+    type LabelFieldName,
+    labelFieldOf,
+    labelPatchOf,
+    mergeLabelStyle,
+} from "./channels";
+import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
     CompiledLayer,
@@ -147,6 +158,20 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /**
+     * Whether an element no enabled layer paints anything on is drawn hidden (`visible: false`),
+     * read at the start of every pass. The project setting `editableBase` turns it on, so hiding
+     * the row that holds the base look hides what no other layer paints. Absent is off.
+     * @returns True to hide what nothing paints.
+     */
+    readonly hideUnpainted?: () => boolean;
+    /**
+     * The clock a pass's slices are timed on. Absent is `performance.now()`; a test that drives
+     * the session's clock itself hands it in, so how often a pass yields depends on that clock and
+     * not on how busy the machine is.
+     * @returns Milliseconds.
+     */
+    readonly now?: () => number;
 }
 
 /**
@@ -278,6 +303,13 @@ export interface ElementPaint {
 export interface RepaintEngine extends ElementPaint {
     /** What `createStylesApi` takes as its `repaint`. */
     readonly repaint: LayerRepaint;
+    /**
+     * Resolve once every pass asked for so far has finished, painted or failed. What
+     * `styles.settled()` waits on for the passes nobody awaits: a selection or pointer change
+     * asks for one and returns, and the pass yields to the event loop when a slice runs out.
+     * @returns A promise that never rejects.
+     */
+    idle(): Promise<void>;
     /**
      * What one layer was last painted FROM.
      *
@@ -473,6 +505,29 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
 }
 
 /**
+ * Turn one label field's painted values into one-field label styles, one object per distinct
+ * value, so a column of fifty thousand sizes holds a bounded set of shared styles rather than an
+ * object per element.
+ * @param field - The label style field.
+ * @returns The conversion.
+ */
+function labelPatcher(field: LabelFieldName): (painted: unknown) => unknown {
+    const made = new Map<unknown, LabelStyle>();
+
+    return (painted) => {
+        const key = typeof painted === "object" && painted !== null && "hex" in painted ? painted.hex : painted;
+        let patch = made.get(key);
+
+        if (patch === undefined) {
+            patch = labelPatchOf(field, painted);
+            made.set(key, patch);
+        }
+
+        return patch;
+    };
+}
+
+/**
  * Build an empty column.
  * @param channel - The channel it holds.
  * @param capacity - How many rows it must hold.
@@ -614,24 +669,15 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         return;
     }
 
-    const held = column.values[index];
+    // A label style is a bag of fields, and each field takes the value of the highest layer that
+    // wrote it; `mergeLabelStyle` is the one rule, shared with `explain()`. A label field channel
+    // (`node.labelSize`) arrives here as a one-field label style in this same column. A named look
+    // is painted as if the layer wrote its fields, beneath the layer's own.
+    const painted =
+        column.kind === "merge" && typeof value === "object" && value !== null ? withLabelLook(value) : value;
 
-    // A label style is a bag of fields, and a layer that names one field has said nothing about
-    // the others: `{color}` stacked over `{sizePx: 24}` is a red label at 24 px, not a red label
-    // at the default size. So each field takes the value of the highest layer that wrote it. A
-    // new object, because the value a layer painted is shared by every element it painted. A
-    // field set to undefined says nothing either -- a settings form that clears a field produces
-    // one -- so it never overwrites what a lower layer wrote.
-    if (column.kind === "merge" && typeof held === "object" && held !== null) {
-        const merged: Record<string, unknown> = { ...held };
-
-        for (const [field, fieldValue] of Object.entries(value as object)) {
-            if (fieldValue !== undefined) {
-                merged[field] = fieldValue;
-            }
-        }
-
-        column.values[index] = merged;
+    if (column.kind === "merge") {
+        column.values[index] = mergeLabelStyle(column.values[index], painted as object);
 
         return;
     }
@@ -640,7 +686,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         column.plainText[index] = plainText ? 1 : 0;
     }
 
-    column.values[index] = value;
+    column.values[index] = painted;
 }
 
 /**
@@ -724,7 +770,8 @@ function pushMeshValue(meshes: StyleInterner<ResolvedStyle>, column: ChannelColu
 
     const color = asColorValue(value);
 
-    if (color === null) {
+    // An effect written off draws what an unpainted one draws, so it keys the same mesh.
+    if (color === null || color.hex === EFFECT_OFF) {
         meshes.pushAbsent();
 
         return;
@@ -780,12 +827,90 @@ interface TargetStore {
 interface PreparedChannel {
     /** The column it writes into. */
     readonly column: ChannelColumn;
+    /**
+     * What a painted value becomes in that column, or null when it is written as painted. A
+     * label field's value becomes a one-field label style.
+     */
+    readonly toColumn: ((painted: unknown) => unknown) | null;
     /** The path it reads, or null when it writes a literal and reads nothing. */
     readonly path: Path | null;
     /** The binding, prepared against the whole column exactly once. */
     readonly binding: PreparedBinding;
     /** Whether it reads a note, whose text is drawn as plain text. */
     readonly plainText: boolean;
+    /**
+     * How a number it writes meets what lies beneath, or null to write over it. Set only on a
+     * number channel whose binding asked for multiply or add.
+     */
+    readonly combine: Combine | null;
+    /** Whether it is a template, whose binding reads the element through a function. */
+    readonly template: boolean;
+}
+
+/** A number channel's combine mode, with what to combine with where nothing beneath painted. */
+interface Combine {
+    /** Multiply or add. */
+    readonly mode: "multiply" | "add";
+    /** The channel's own default, or the mode's identity when it states none. */
+    readonly fallback: number;
+    /** The smallest value the channel draws. */
+    readonly min: number;
+    /** The largest value the channel draws. */
+    readonly max: number;
+}
+
+/**
+ * Combine a number a layer painted with the number beneath it.
+ * @param combine - The mode and the channel's bounds.
+ * @param beneath - What the column holds, NaN where nothing painted.
+ * @param painted - What the layer painted.
+ * @returns The value to write, clamped to what the channel draws.
+ */
+function combined(combine: Combine, beneath: number, painted: number): number {
+    const base = Number.isNaN(beneath) ? combine.fallback : beneath;
+    const value = combine.mode === "multiply" ? base * painted : base + painted;
+
+    return Math.min(combine.max, Math.max(combine.min, value));
+}
+
+/**
+ * The combine a binding asks for, ready for the pass.
+ * @param descriptor - The channel.
+ * @param binding - The binding.
+ * @returns The combine, or null for a plain write.
+ */
+function combineOf(descriptor: ChannelDescriptor, binding: Binding): Combine | null {
+    const mode = "combine" in binding ? binding.combine : undefined;
+
+    if (descriptor.accepts !== "number" || (mode !== "multiply" && mode !== "add")) {
+        return null;
+    }
+
+    const identity = mode === "multiply" ? 1 : 0;
+
+    return {
+        mode,
+        fallback: typeof descriptor.default === "number" ? descriptor.default : identity,
+        min: descriptor.min ?? Number.NEGATIVE_INFINITY,
+        max: descriptor.max ?? Number.POSITIVE_INFINITY,
+    };
+}
+
+/**
+ * Write what one channel painted on one element into its column, combined with what is beneath
+ * when the channel combines numbers.
+ * @param channel - The channel.
+ * @param index - The element.
+ * @param painted - What the channel painted (never undefined).
+ */
+function writeChannel(channel: PreparedChannel, index: number, painted: unknown): void {
+    const { column, combine } = channel;
+    if (combine !== null && column.kind === "number" && typeof painted === "number") {
+        column.values[index] = combined(combine, column.values[index], painted);
+        return;
+    }
+
+    writeColumn(column, index, channel.toColumn === null ? painted : channel.toColumn(painted), channel.plainText);
 }
 
 /** One layer, ready to paint. */
@@ -909,6 +1034,7 @@ function reasonOf(edits: readonly LayerEdit[]): RepaintReason {
  */
 export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const scales = sources.scales ?? createScaleRegistry();
+    const now = sources.now ?? ((): number => performance.now());
 
     /**
      * Prepared layers, keyed by the compiled layer they were built from.
@@ -1182,15 +1308,22 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
             const { channel } = descriptor;
             const column = path === null ? undefined : readWholeColumn(store, path);
+            const labelField = labelFieldOf(channel);
 
             channels.push({
-                column: columnFor(store, channel),
+                // A label field writes into its label style's column, so the two merge field by
+                // field in layer order however the stack mixes them.
+                column: columnFor(store, labelField?.into ?? channel),
+                toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
                 path,
                 plainText: path !== null && isNotePath(path),
+                combine: combineOf(descriptor, binding),
+                template: "template" in binding,
                 binding: prepareBinding({
                     channel,
                     binding,
                     scales,
+                    columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
                 }),
             });
@@ -1206,6 +1339,17 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             for (const [name, binding] of Object.entries(layer.encode ?? {})) {
                 if (binding !== undefined) {
                     add(name, "by" in binding ? binding.by : null, binding);
+                }
+            }
+
+            // A colour that cycles a second cue past its palette draws that cue too, whether or
+            // not the layer stores it: a layer the cue's own binding was never written into
+            // (its colour binding edited to "shape") must not repeat colours with nothing else
+            // to tell the groups apart. A stored binding of the cue's channel wins.
+            for (const [name, binding] of Object.entries(layer.encode ?? {})) {
+                const half = binding === undefined ? null : overflowHalf(name as Channel, binding);
+                if (half !== null && layer.encode?.[half[0]] === undefined) {
+                    add(half[0], half[1].by, half[1]);
                 }
             }
         } catch (thrown) {
@@ -1398,7 +1542,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @throws The signal's reason when the pass has been cancelled.
      */
     const breathe = async (context: RepaintContext, deadline: number): Promise<number> => {
-        if (performance.now() < deadline) {
+        if (now() < deadline) {
             return deadline;
         }
 
@@ -1407,10 +1551,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         });
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error;
+            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
-        return performance.now() + SLICE_MS;
+        return now() + SLICE_MS;
     };
 
     /**
@@ -1420,6 +1564,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param layer - Its prepared form.
      * @param context - The signal to stop on and the progress channel.
      * @param deadline - When this slice runs out.
+     * @param reached - Marks each element the layer paints something on, when the pass hides
+     *     what nothing paints; null otherwise.
      * @returns The next slice's deadline.
      */
     const paintLayer = async (
@@ -1428,6 +1574,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         layer: PreparedLayer,
         context: RepaintContext,
         deadline: number,
+        reached: Uint8Array | null,
     ): Promise<number> => {
         const { test } = entry.selector;
         const narrowed = iterationFor(entry);
@@ -1441,6 +1588,43 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const { elements } = store;
         const covered = appliedRecord(entry, store);
         let slice = deadline;
+        // A template reads several paths, so it is handed a reader for the element being painted.
+        // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
+        let current = 0;
+        const readCurrent = (path: Path): unknown => elements.value(current, path);
+
+        /**
+         * Paint one element: every channel of the layer. Built once per layer, not per element.
+         * @param index - The element.
+         */
+        const paintOne = (index: number): void => {
+            current = index;
+
+            // Indexed rather than `for ... of`, which would allocate an iterator per element
+            // for a list whose length was settled when the layer was prepared.
+            for (let which = 0; which < channels.length; which++) {
+                const channel = channels[which];
+                let read: unknown = channel.template ? readCurrent : undefined;
+                if (channel.path !== null) {
+                    read = elements.value(index, channel.path);
+                }
+
+                const painted = channel.binding.paint(read);
+
+                // Undefined means this layer has nothing to say about this element, so what
+                // the layers below it painted stands. That is what stops an algorithm
+                // painting the elements it never measured.
+                if (painted === undefined) {
+                    continue;
+                }
+
+                if (reached !== null) {
+                    reached[index] = 1;
+                }
+
+                writeChannel(channel, index, painted);
+            }
+        };
 
         /**
          * Paint one run of elements.
@@ -1453,29 +1637,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
                 // A measured column may name an element this edit is not repainting, and an
                 // element outside the dirty set must never be visited: it keeps what it has.
-                if (walk !== null && (index >= store.count || store.stamps[index] !== store.generation)) {
-                    continue;
-                }
-
-                if (test !== null && !test(index)) {
-                    continue;
-                }
-
-                covered[index] = 1;
-
-                // Indexed rather than `for ... of`, which would allocate an iterator per element
-                // for a list whose length was settled when the layer was prepared.
-                for (let which = 0; which < channels.length; which++) {
-                    const channel = channels[which];
-                    const read = channel.path === null ? undefined : elements.value(index, channel.path);
-                    const painted = channel.binding.paint(read);
-
-                    // Undefined means this layer has nothing to say about this element, so what
-                    // the layers below it painted stands. That is what stops an algorithm
-                    // painting the elements it never measured.
-                    if (painted !== undefined) {
-                        writeColumn(channel.column, index, painted, channel.plainText);
-                    }
+                const outside = walk !== null && (index >= store.count || store.stamps[index] !== store.generation);
+                if (!outside && (test === null || test(index))) {
+                    covered[index] = 1;
+                    paintOne(index);
                 }
             }
         };
@@ -1594,6 +1759,51 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Prepare one layer, recording (and warning once about) a layer that paints nothing.
+     * @param entry - The layer.
+     * @returns The prepared layer, or null when it has nothing to paint.
+     */
+    const paintableLayer = (entry: CompiledLayer): PreparedLayer | null => {
+        const layer = prepareLayer(entry);
+
+        if (layer.problem !== null) {
+            problems.push(layer.problem);
+            const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
+            if (!reported.has(key)) {
+                reported.add(key);
+                console.warn(
+                    `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
+                );
+            }
+
+            return null;
+        }
+
+        return layer.channels.length === 0 ? null : layer;
+    };
+
+    /**
+     * Hide every dirty element no layer reached, when hiding what nothing paints is on.
+     * @param store - The store.
+     * @param reached - Which elements a layer painted, or null when hiding is off.
+     */
+    const hideUnreached = (store: TargetStore, reached: Uint8Array | null): void => {
+        if (reached === null) {
+            return;
+        }
+
+        const channel: Channel = `${store.target}.visible`;
+        const column = columnFor(store, channel);
+        store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
+        for (let at = 0; at < store.dirtyCount; at++) {
+            const index = store.dirty[at];
+            if (reached[index] === 0) {
+                writeColumn(column, index, false, false);
+            }
+        }
+    };
+
+    /**
      * Repaint one kind of element.
      * @param store - The store.
      * @param stack - The stack as it will stand, bottom first.
@@ -1614,7 +1824,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             return { painted: 0, deadline };
         }
 
-        const from = skipBelow !== null && everyDirtyPainted(store) ? skipBelow : 0;
+        // Hiding what nothing paints needs every layer over each dirty element, so it never skips.
+        const hide = sources.hideUnpainted?.() === true;
+        const reached = hide ? new Uint8Array(store.capacity) : null;
+        const from = !hide && skipBelow !== null && everyDirtyPainted(store) ? skipBelow : 0;
 
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
@@ -1632,28 +1845,16 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 continue;
             }
 
-            const layer = prepareLayer(entry);
-
-            if (layer.problem !== null) {
-                problems.push(layer.problem);
-                const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
-                if (!reported.has(key)) {
-                    reported.add(key);
-                    console.warn(
-                        `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
-                    );
-                }
-
-                continue;
-            }
-
-            if (layer.channels.length === 0) {
+            const layer = paintableLayer(entry);
+            if (layer === null) {
                 continue;
             }
 
             store.meshWritten = store.meshWritten || layer.touchesMesh;
-            slice = await paintLayer(store, entry, layer, context, slice);
+            slice = await paintLayer(store, entry, layer, context, slice, reached);
         }
+
+        hideUnreached(store, reached);
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a colour encoding moves no element to another mesh.
@@ -1686,7 +1887,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         problems = [];
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error;
+            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
         const { node: nodes, edge: edges } = stores;
@@ -1700,7 +1901,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const total = nodes.dirtyCount + edges.dirtyCount;
         context.report({ phase: "painting", completed: 0, total });
 
-        const deadline = performance.now() + SLICE_MS;
+        const deadline = now() + SLICE_MS;
         const node = await paintTarget(nodes, stack, context, deadline, skipBelow);
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);
@@ -1912,6 +2113,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        idle(): Promise<void> {
+            return inFlight;
         },
 
         painting(): boolean {

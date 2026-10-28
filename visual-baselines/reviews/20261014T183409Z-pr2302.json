@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "pr": 2302,
+  "subject": {
+    "builtMerge": "c206ba0b38e998634f44f1b45ff6c4daa00b0213",
+    "head": "b8198ddf98943e674aed3dae52633adfc73f57d7",
+    "runId": 38537715464,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "c206ba0b38e998634f44f1b45ff6c4daa00b0213"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--overview.png",
+      "from": "4fb8341ac8043385b820006a2431d3c5721d141dd0b3eef19f2064191f0aaf56",
+      "to": "0c5e2a1f7a67ab11ce83e51a02af90fa8f2c28fccf2e83712d1dc4cefc6ec5ed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--planar.png",
+      "from": "d32a7d01dd4b469ff7f8bab834f9c64764b38acd973e10bac4b995cb45687116",
+      "to": "cafff4aaa16a6b406a63c7fd32bed0bd37fceebcb2e44805ac7b895b54fedfa7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--planar.png",
+      "from": "be283b8ac1c1dd14ef0ca6600f4691f8ab8500d8b5e66add53d3070d1d92c6d9",
+      "to": "264c37658ca2d8c7cac09ccc8376a57230cd345420db7821408b7f15401e4976",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/layout/layout2d--planar.png",
+      "from": "b699cbdf60ac135dd1f69ae74e58c828e4893776e637bb86df7b072c184629a0",
+      "to": "465e7fe40e89dc4d55a05234f38966bfb79b77145537dd881bc1971ee0adacef",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-14T18:34:09.298Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoia3JrOHdYaVJCNHk3NjhLZlkwT18ySm9wN19HWmRwOFBDOEtkSWdkUjhrdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIEgze9W1AOEVS8VoxYOoAVjb3o26TAC1sB0qmpHJpz1DAiA6lz-JzMRBEIhOE6FJKkb_UX360mimRDVN11BBTH2lfw"
+  }
+}

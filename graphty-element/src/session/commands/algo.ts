@@ -1,5 +1,5 @@
 /**
- * @file The run ops: `algo.run`, `algo.legacy` and `algo.remove`.
+ * @file The run ops: `algo.run`, `algo.legacy`, `algo.remove` and `algo.move`.
  *
  * `algo.run` takes a slot on the queue under `algorithm-run`, computes, and then, in one
  * synchronous commit tail, writes the finished run into the `runs` slice together with the style
@@ -10,6 +10,9 @@
  *
  * `algo.remove` takes a run out of the `runs` slice and removes the layers bound to it, in one
  * draft, so one undo brings both back.
+ *
+ * `algo.move` moves the layers bound to a run, as one block in their own order, to sit below
+ * another layer, in one draft.
  *
  * `algo.legacy` runs a plugin algorithm that declares no catalogue descriptor, and so has no run:
  * it writes onto node and edge records and `graphResults` as it goes, and may call the graph's
@@ -23,7 +26,7 @@
  * 4.8 and 6.3.
  */
 
-import type { RunId } from "../../catalog/types";
+import type { LayerId, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand } from "../planning";
 import type {
@@ -34,6 +37,7 @@ import type {
     UndoableDefinition,
 } from "../project/Dispatcher";
 import { deepFreeze, type Draft } from "../project/draft";
+import type { ProjectState } from "../project/state";
 import type { RowUpdate } from "../types";
 
 /** `algo.remove`: take a finished run, and every layer bound to it, out of the project. */
@@ -41,6 +45,15 @@ export interface AlgoRemoveCommand {
     readonly op: "algo.remove";
     /** The run. */
     readonly runId: RunId;
+}
+
+/** `algo.move`: move every layer bound to a run, as one block, to sit below another layer. */
+export interface AlgoMoveCommand {
+    readonly op: "algo.move";
+    /** The run. */
+    readonly runId: RunId;
+    /** The layer the block sits immediately below, or null for the top of the stack. */
+    readonly before: LayerId | null;
 }
 
 /**
@@ -86,6 +99,12 @@ export interface RunService {
      * @returns What went with it.
      */
     remove(command: AlgoRemoveCommand, draft: Draft): unknown;
+    /**
+     * Move the layers bound to a run through `draft`, or refuse as `styles.move` would.
+     * @param command - The move.
+     * @param draft - The command's draft.
+     */
+    move(command: AlgoMoveCommand, draft: Draft): void;
 }
 
 /**
@@ -121,7 +140,8 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     draws: true,
     // Written only in the commit tail, which is synchronous, so a run holds nothing while it
     // computes and never blocks a style edit.
-    keys: () => ["runs", "styles"],
+    // `valueLabels`: a re-run carries the names given to its groups to the groups they became.
+    keys: () => ["runs", "styles", "valueLabels"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => required(ctx.services.runs).run(command, ctx),
 };
@@ -156,8 +176,10 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     op: "algo.remove",
     undo: {
         kind: "undoable",
-        label: (command, state) =>
-            `Removed ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+        label: (command, state) => {
+            const name = state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`;
+            return `Removed ${name}`;
+        },
         fact: (command, state) => ({
             code: "algo.remove",
             params: { run: command.runId, algorithm: state.runs.get(command.runId)?.command.algorithm ?? null },
@@ -170,8 +192,37 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
 };
 
+/**
+ * A run as a history label names it: its algorithm, or "run <id>" once the run is gone.
+ * @param state - The session state.
+ * @param runId - The run.
+ * @returns The words.
+ */
+function runLabel(state: ProjectState, runId: RunId): string {
+    return state.runs.get(runId)?.command.algorithm ?? `run ${runId}`;
+}
+
+const algoMove: UndoableDefinition<AlgoMoveCommand> = {
+    op: "algo.move",
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Moved ${runLabel(state, command.runId)}`,
+        fact: (command, state) => ({
+            code: "algo.move",
+            params: { run: command.runId, algorithm: state.runs.get(command.runId)?.command.algorithm ?? null },
+        }),
+    },
+    moves: false,
+    draws: true,
+    keys: () => ["styles"],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        required(ctx.services.runs).move(command, ctx.draft);
+    },
+};
+
 /** The run ops' definitions. */
-export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove] as const;
+export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove, algoMove] as const;
 
 // ---------------------------------------------------------------------------------------------
 // Copy-on-write records
@@ -199,10 +250,11 @@ interface Entry {
  * @returns The error, naming the command to use instead.
  */
 function lateWrite(entry: Entry, key: PropertyKey): GraphtyError {
+    const update = entry.target === "node" ? "updateNodes" : "updateEdges";
     const use =
         entry.target === "graph"
             ? "write graphResults while the algorithm runs"
-            : `use session.data.${entry.target === "node" ? "updateNodes" : "updateEdges"}([{ id, values }])`;
+            : `use session.data.${update}([{ id, values }])`;
     const what = entry.target === "graph" ? "the graph's values" : `${entry.target} ${JSON.stringify(entry.id)}`;
     return new GraphtyError({
         code: "E_READONLY",

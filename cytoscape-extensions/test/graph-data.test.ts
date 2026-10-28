@@ -1,13 +1,12 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
-import { DATASETS } from "@graphty/graph-samples";
-import { wikipathwaysSenescenceAutophagy } from "@graphty/graph-samples/datasets/wikipathways-senescence-autophagy";
+import { DATASETS, fetchDataset } from "@graphty/graph-samples";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { snapshotToElements } from "../src/elements";
 import graphtyCytoscape, { IdTakenError } from "../src/index";
-import { BUNDLED_DATASET_NAMES, GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
+import { GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -102,21 +101,27 @@ describe("graphtyDataset", () => {
         expect(cy.nodes().map((n) => n.data("label") as string)).toContain("Texas");
     });
 
-    it("loads every dataset graph-samples bundles from its own module", () => {
-        expect([...BUNDLED_DATASET_NAMES].sort()).toEqual(
-            DATASETS.filter((d) => d.hosting !== "remote")
-                .map((d) => d.name)
-                .sort(),
-        );
+    it("downloads every dataset, the formerly bundled ones included", async () => {
+        expect(DATASETS.every((d) => d.hosting === "remote")).toBe(true);
+        const urls: string[] = [];
+        const cy = core();
+        await cy.graphtyDataset("dolphins", {
+            fetch: (input, init) => {
+                urls.push((input as URL).href);
+                return fetch(input, init);
+            },
+        });
+        expect(urls).toEqual(["https://graphty.app/data/graph-samples/v1/dolphins.gsnp.gz"]);
+        expect(cy.nodes()).toHaveLength(62);
     });
 
     it("places a drawn dataset's nodes where Cytoscape drew them (saved y grows upward)", async () => {
-        const saved = wikipathwaysSenescenceAutophagy();
-        const xs = saved.nodeColumns?.x as unknown as ArrayLike<number>;
-        const ys = saved.nodeColumns?.y as unknown as ArrayLike<number>;
+        const saved = await fetchDataset("wikipathways-senescence-autophagy");
+        const xs = saved.nodes.require("x");
+        const ys = saved.nodes.require("y");
         const cy = core();
         await cy.graphtyDataset("wikipathways-senescence-autophagy");
-        expect(cy.nodes()[0].position()).toEqual({ x: xs[0], y: -ys[0] });
+        expect(cy.nodes()[0].position()).toEqual({ x: xs.value(0), y: -(ys.value(0) as number) });
         expect(cy.nodes()[0].data("y")).toBeUndefined();
     });
 });

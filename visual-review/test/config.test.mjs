@@ -1,21 +1,20 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { CONFIG_FILE, loadConfig, loadConfigAt, normalizeConfig } from "../trusted/lib/config.mjs";
-import { CONFIG, git, isolateGit } from "./helpers.mjs";
+import { CONFIG, git, isolateGit, tempDir } from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
 const CI = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-// The `visual` job's matrix: "- project: <name>" followed by "artifact: <name>".
-function visualMatrix() {
-    const job = CI.slice(CI.indexOf("\n    visual:\n"));
+// The `story-tests` job's matrix: the projects whose story tests take the captures ("- project: <name>").
+function storyTestProjects() {
+    const job = CI.slice(CI.indexOf("\n    story-tests:\n"));
     const include = job.slice(job.indexOf("include:"), job.indexOf("steps:"));
-    return Object.fromEntries([...include.matchAll(/- project: (\S+)\s+artifact: (\S+)/g)].map((m) => [m[1], m[2]]));
+    return [...new Set([...include.matchAll(/- project: (\S+)/g)].map((m) => m[1]))];
 }
 
 // The `build` job alone, so a matching download step in a later job cannot stand in for its upload.
@@ -25,16 +24,14 @@ function buildJob() {
 }
 
 describe("the monorepo's visual-review.config.json", () => {
-    it("lists exactly the projects the CI visual job captures", () => {
-        expect(Object.keys(visualMatrix()).sort()).toEqual(Object.keys(CONFIG.projects).sort());
+    it("lists exactly the projects the CI story tests capture", () => {
+        expect(storyTestProjects().sort()).toEqual(Object.keys(CONFIG.projects).sort());
     });
 
-    it("points each project at the Storybook the build job uploads, where the visual job puts it", () => {
-        for (const [name, artifact] of Object.entries(visualMatrix())) {
-            const dir = CONFIG.projects[name].storybook;
-            expect(dir).toBe(`${name}/storybook-static`);
+    it("points each project at a Storybook the build job uploads", () => {
+        for (const dir of Object.values(CONFIG.projects).map((p) => p.storybook)) {
             expect(buildJob()).toMatch(
-                new RegExp(`uses: actions/upload-artifact@v4\\s+with:\\s+name: ${artifact}\\s+path: ${dir}/`),
+                new RegExp(`uses: actions/upload-artifact@v7\\s+with:\\s+name: \\S+\\s+path: ${dir}/`),
             );
         }
     });
@@ -52,10 +49,15 @@ describe("normalizeConfig", () => {
             defaultBranch: "main",
             workflow: "visual-review.yml",
             baselines: "visual-baselines",
+            approvals: "visual-review-approvals",
             workDir: ".visual-review",
             commitPrefix: "test",
             issueLabels: ["bug"],
             fontconfig: null,
+            updateCheck: null,
+            candidates: null,
+            usage: false,
+            ignoreBranches: [],
             projects: {
                 web: {
                     storybook: "storybook-static",
@@ -84,6 +86,8 @@ describe("normalizeConfig", () => {
         [[], /JSON object/],
         [{ fontconfig: "../fonts.conf", projects: { a: { storybook: "s" } } }, /fontconfig must be/],
         [{ fontconfig: 1, projects: { a: { storybook: "s" } } }, /fontconfig must be/],
+        [{ updateCheck: " ", projects: { a: { storybook: "s" } } }, /updateCheck must be/],
+        [{ candidates: " ", projects: { a: { storybook: "s" } } }, /candidates must be a shell command/],
         [{}, /projects must name/],
         [{ projects: {} }, /projects must name/],
         [{ projects: { "a b": { storybook: "s" } } }, /project id/],
@@ -91,11 +95,17 @@ describe("normalizeConfig", () => {
         [{ projects: { a: { storybook: "../elsewhere" } } }, /storybook must be/],
         [{ projects: { a: { storybook: "/abs" } } }, /storybook must be/],
         [{ baselines: "../up", projects: { a: { storybook: "s" } } }, /baselines must be a path/],
+        [
+            { approvals: "visual-baselines/approvals", projects: { a: { storybook: "s" } } },
+            /approvals must be a directory outside/,
+        ],
         [{ projects: { a: { storybook: "s", workers: 0 } } }, /workers/],
         [{ projects: { a: { storybook: "s", gate: false } } }, /gate is not a setting/],
         [{ projects: { a: { storybook: "s", waitFor: { selector: "x" } } } }, /waitFor needs/],
         [{ defaultBranch: "", projects: { a: { storybook: "s" } } }, /defaultBranch must be/],
         [{ issueLabels: "bug", projects: { a: { storybook: "s" } } }, /issueLabels/],
+        [{ ignoreBranches: "dependabot/", projects: { a: { storybook: "s" } } }, /ignoreBranches/],
+        [{ ignoreBranches: [""], projects: { a: { storybook: "s" } } }, /ignoreBranches/],
     ])("refuses %j", (raw, message) => {
         expect(() => normalizeConfig(raw)).toThrow(message);
     });
@@ -103,7 +113,7 @@ describe("normalizeConfig", () => {
 
 describe("loadConfig and loadConfigAt", () => {
     const repo = () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-config-"));
+        const dir = tempDir("vr-config-");
         git(dir, "init", "-q", "-b", "main");
         git(dir, "config", "user.name", "T");
         git(dir, "config", "user.email", "t@example.com");

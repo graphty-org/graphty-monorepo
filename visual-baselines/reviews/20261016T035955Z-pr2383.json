@@ -1,0 +1,158 @@
+{
+  "version": 2,
+  "pr": 2383,
+  "subject": {
+    "builtMerge": "35b3ec414698f1d7e54dacb7ba1bcd62a86e085b",
+    "head": "5e5d6a6ba13d21d4a79037c40218059816d690c8",
+    "runId": 38399848804,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "35b3ec414698f1d7e54dacb7ba1bcd62a86e085b"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--export.png",
+      "from": "491980d7cc22b67ab37e1744077842a38cbce23c7c014b4ae77f8c91ca8bc255",
+      "to": "223f45d9855199a25522a8428e2b1ecce48b91c5a6f1197b7d927e038576e25f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--overview.png",
+      "from": "7e9f44277955594d46c8a181a62ca7cc21c4c1ed430540bd2541ff5c45c31b98",
+      "to": "d63398d8b1653fd9486cfdad602dfe276530fd7c179529c4320ffb79d8234491",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--dot.png",
+      "from": null,
+      "to": "e1ef220e766139d59ff5f5903acc194acd45f555b10453170c39176ef6748a97",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--gexf.png",
+      "from": null,
+      "to": "dd57f69a4456f42c8ba3cb7614fd7650f93fa5245da9cae36bf71016b06bae9f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.dark.png",
+      "from": "ed4c958accf3ac987fb17d37ed11c42dbb92d7266ead6267e7e5e29b12063448",
+      "to": "daba0e0baa90e703b45ab6da8ad6e20be1d4f0b67dd987810fdc0c3b35a3ea7d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.light.png",
+      "from": "9fd7b837b8a82306e0eb6fddf873e69fa07e978725a24751bf40b3ce79dedc2f",
+      "to": "5decf06852739e919533442dee412826108812474aa6a152a280255f6ded8b9a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.dark.png",
+      "from": "3105a9607f9bbc9631171bad43671875e851753d981bdf1d2592b7b10da39c68",
+      "to": "b0937f5b731aafa65737db466295af2311b3cc559eeca0164efdc5c672827487",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.light.png",
+      "from": "27af5de5eb7c8222930effe7beee8666d8af033a4cad22059cb8fc0bcd99bb9f",
+      "to": "8cfd10879f71c76946659ba327dc4dec2c953149b37930734e3c786315f1a3b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "a0f4495f78010674699663bdb08f81e6dee0c110ec794513ba84cbebca565af3",
+      "to": "521eedd46ed25815a4f0ffc94d8eab423bf7258b546d15fa71d9c7a4e3779286",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "3dedd641beb4a4a89c4712475a7b2ce9f4ebcf933a5f6aa0cdecbacfc3b564b3",
+      "to": "bf391cf6eab6d674e9ee184d5d83b1cbf6aab894176c42435c8523d0e953c1b2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.dark.png",
+      "from": "0d93e68461cecc3c44b35a766030360fc202f714098cae606f28d67cc918a126",
+      "to": "f76607a3e468cf9a8dc499ee05f21bc2b08ad5addd3a7f352c0f9a65fe3fa66a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.light.png",
+      "from": "df1d48182ebd5d04fb45047e5f61b4823cc95eb4578c2e23a00fc4d6e57a01c9",
+      "to": "1f0f7a8014e951cb235f07184a1fd3d02ec5ab9d9c411bebae235c993175efae",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-styles-in-and-out--styles-in-and-out.png",
+      "capture": "5ef8aee09a3e5de232fa8d0d24679e14314679a0ce797a19aa51ce51e7123640",
+      "reason": "image is just one big node"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data--dot.png",
+      "capture": "4da61df6b16403543a76fc09ef9e6b9fdf210af768b7336a0130d080b30240a9",
+      "reason": "layout doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--cx-2.png",
+      "capture": "8063698253cf6cb32d06acc2ddb5dc948b0be6d8cd2955302121df325f57e869",
+      "reason": "layout doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--cx.png",
+      "capture": "251c6cc6b64a051363013b44b41b9f7077192a0e3a6e52e63e2c1c355e110b42",
+      "reason": "layout doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--cytoscape-js.png",
+      "capture": "f8fc7af6b749e55d69744fbf37f2a6877ff6affa407f22970956f4099bb35687",
+      "reason": "layout doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--cytoscape-json.png",
+      "capture": "18f7af2d6a601458a8efab7a63980ef35d212cfa86f9699569bd210272b1ab33",
+      "reason": "according to the source file, the two blue lines should be connected. this is a bug in reading the graph topology."
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--cytoscape-session.png",
+      "capture": "c811f3ffee794f169cb35e996ec6c65d6a42e6872349574437d0b7275704d120",
+      "reason": "image doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--gml-yed.png",
+      "capture": "dee373af890bde7537cc960703af9cb95ed125ef1c02155027c3b61d01299dca",
+      "reason": "image doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--graphml-yed.png",
+      "capture": "58ad631353a96afaa0518b6a661a4a0442fec4e720787e998136c0e66f684737",
+      "reason": "image doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--pajek.png",
+      "capture": "ddecfb5195e321182da10fb9a923c31d41bdfca0f9076d535312571b783e1853",
+      "reason": "image doesn't match source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-styles--xgmml.png",
+      "capture": "3d90f2d15059f721f9e5469a0049a557dec0894d429c94ca9b28a5abbbff5be2",
+      "reason": "image doesn't match source file"
+    }
+  ],
+  "reviewedAt": "2026-10-16T03:59:55.076Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRm1jZVhnWDVUQl96eTJpaGh3aGt3Z2tDeklMUU1NdGQ0UUd1dERXUDhsUSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIH849JnzkZLHWNcHEQvfmEhlLq-Ck2QDILwRAumA8zYsAiAd7n4c-lD2moLJvwYAE3dwD7zt6IZCMjiZZiXl6oNmEw"
+  }
+}

@@ -166,7 +166,11 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             // Highlighting is styling (clearing earlier styles first included), after any looking the
             // model needs to choose a threshold.
             const actions = actionsOf(result);
-            assert.ok(actions.length > 0, "Expected the model to highlight something");
+            const calls = result.toolCalls.map((call) => `${call.name} ${JSON.stringify(call.arguments)}`).join("; ");
+            assert.ok(
+                actions.length > 0,
+                `Expected the model to highlight something; it called ${calls || "nothing"} and said ${JSON.stringify(result.llmText)}`,
+            );
             const validTools = ["style.*", "run_algorithm.run", "select.set", "select.add"];
             for (const action of actions) {
                 assert.ok(allowedAction(action, validTools), `Expected a highlighting tool but got '${action}'`);

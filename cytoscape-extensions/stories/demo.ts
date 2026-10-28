@@ -36,6 +36,15 @@ cytoscape.use(graphtyCytoscape);
  */
 export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
 
+/**
+ * Where the stories load the sample datasets from: the copy of graph-samples' build that .storybook/main.ts serves
+ * next to the Storybook (staticDirs), the same files graphty.app publishes, so a story needs no internet.
+ * @returns the options for cy.graphtyDataset
+ */
+export function datasetOptions(): { baseUrl: string } {
+    return { baseUrl: new URL("graph-samples-data/v1/", document.baseURI).href };
+}
+
 /** Node counts; "large" and "huge" are where the GPU is meant to pay off. */
 export const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };
 type Size = keyof typeof SIZES;
@@ -194,6 +203,29 @@ const STYLE: StylesheetJson = [
     },
     { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
     { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
+    // an edge numbered by the step a run added it (a spanning tree's order)
+    {
+        selector: "edge.step[label]",
+        style: {
+            label: "data(label)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+            "text-background-padding": "1px",
+        },
+    },
+    // a short label on an edge, such as its weight in a hand-built example ("tag", as for nodes)
+    {
+        selector: "edge[tag]",
+        style: {
+            label: "data(tag)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+        },
+    },
 ];
 
 /**
@@ -427,7 +459,7 @@ export function retireAll(): void {
  */
 export function markDone(root: HTMLElement, done: () => Promise<void>): void {
     root.dataset.demo = "";
-    Object.assign(root, { whenDone: () => done().then(freeze) });
+    Object.assign(root, { whenDone: () => done().then(() => freeze(root)) });
 }
 
 /**
@@ -439,14 +471,25 @@ export function markDone(root: HTMLElement, done: () => Promise<void>): void {
  * through its image decode cache, and with several browsers capturing at once it now and then drew a row of these
  * pictures blurred (issue #2051). A canvas holds the pixels themselves, so it is composited as they are.
  * willReadFrequently keeps the canvas in memory rather than on the GPU, so its pixels are the picture's exactly.
+ *
+ * Each core is then destroyed, so only its picture is left. A live core under its picture still redrew every element
+ * on the window resizes a full-page screenshot makes: 37,000 edges of openflights and the other tiles held the main
+ * thread for seconds, and with four capture browsers on a CI runner the screenshot waited out its 30 s (issue #2311).
+ *
+ * Only the cores inside `root` are touched, and nothing once `root` has left the page. A story's runs can finish after
+ * the next story has rendered (its wait timed out): a freeze over every live core then pictured a detached, zero-size
+ * container (cy.png() returns "data:,", and decode() rejects with EncodingError) or destroyed the next story's cores
+ * mid-run, so that story's wait never ended. Both failed a story that was not at fault (issues #4071, #4072).
+ * @param root - the story root whose cores to picture
  * @returns when the pictures are in place
  */
-async function freeze(): Promise<void> {
-    if (!CAPTURE) {
+async function freeze(root: HTMLElement): Promise<void> {
+    if (!CAPTURE || !root.isConnected) {
         return;
     }
-    await Promise.all(
-        live.map(async (cy) => {
+    const mine = live.filter((cy) => root.contains(cy.container()));
+    const pictures = await Promise.all(
+        mine.map(async (cy) => {
             const img = new Image();
             img.src = cy.png({ full: false, scale: window.devicePixelRatio, bg: "#ffffff" });
             await img.decode();
@@ -455,9 +498,17 @@ async function freeze(): Promise<void> {
             pic.height = img.naturalHeight;
             pic.getContext("2d", { willReadFrequently: true })?.drawImage(img, 0, 0);
             pic.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:10;";
-            cy.container()?.append(pic);
+            return { box: cy.container(), pic };
         }),
     );
+    // destroying a core empties its container, so the pictures go in after
+    for (const cy of mine) {
+        cy.destroy();
+    }
+    live = live.filter((cy) => !mine.includes(cy));
+    for (const { box, pic } of pictures) {
+        box?.append(pic);
+    }
 }
 
 /**

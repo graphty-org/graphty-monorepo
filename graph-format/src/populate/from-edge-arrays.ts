@@ -200,6 +200,23 @@ function addIds(builder: GraphBuilder, ids: readonly NodeId[] | Float64Array): v
 }
 
 /**
+ * Check that `dst`, `weights` and `edgeIds` each have one entry per `src` entry (E_COLUMN_LENGTH).
+ * @param input - the arrays
+ */
+function checkEdgeArrayLengths(input: EdgeArraysInput): void {
+    const { src, dst, weights, edgeIds } = input;
+    if (dst.length !== src.length) {
+        throw lengthError("dst", src.length, dst.length);
+    }
+    if (weights !== undefined && weights.length !== src.length) {
+        throw lengthError("weights", src.length, weights.length);
+    }
+    if (edgeIds !== undefined && edgeIds.length !== src.length) {
+        throw lengthError("edgeIds", src.length, edgeIds.length);
+    }
+}
+
+/**
  * Build a snapshot from COO typed arrays with dense node indices (design section 8.1): the builder's
  * index-space fast path (`addAnonymousNodes` + `addEdges`, no id Map unless `ids` is given) followed
  * by the freeze pipeline, so the result is exactly what a builder fed the same nodes, edges, columns
@@ -223,15 +240,7 @@ export function fromEdgeArrays(
     options: BuilderOptionsPatch & FreezeOptions = {},
 ): GraphSnapshot {
     const { src, dst, weights } = input;
-    if (dst.length !== src.length) {
-        throw lengthError("dst", src.length, dst.length);
-    }
-    if (weights !== undefined && weights.length !== src.length) {
-        throw lengthError("weights", src.length, weights.length);
-    }
-    if (input.edgeIds !== undefined && input.edgeIds.length !== src.length) {
-        throw lengthError("edgeIds", src.length, input.edgeIds.length);
-    }
+    checkEdgeArrayLengths(input);
     const nodeCount = resolveNodeCount(input);
     const edgeCount = src.length;
     const split = splitOptions(input.directed, options);

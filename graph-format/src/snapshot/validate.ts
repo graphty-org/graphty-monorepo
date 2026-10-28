@@ -607,6 +607,27 @@ function checkSegment(arena: ArenaLayout, name: CoreArrayName, array: ArrayBuffe
 }
 
 /**
+ * I10 (buffer part): a core array is 4-byte aligned over a plain ArrayBuffer.
+ * @param name - the core array name
+ * @param array - the array
+ */
+function checkCoreArrayBuffer(name: CoreArrayName, array: ArrayBufferView): void {
+    if (!isFourByteAligned(array)) {
+        throw invariantViolation("I10", `core array ${name} is not 4-byte aligned`, {
+            array: name,
+            byteOffset: array.byteOffset,
+            byteLength: array.byteLength,
+        });
+    }
+    if (!isOverPlainBuffer(array)) {
+        throw invariantViolation("I10", `core array ${name} is not a view over a plain ArrayBuffer`, {
+            array: name,
+            reason: "buffer",
+        });
+    }
+}
+
+/**
  * I10: every core array is 4-byte aligned over a plain ArrayBuffer and, when an arena exists, every
  * array with a non-null segment is the 256-aligned view the segment describes and hotByteLength is the
  * end of the weights (or colIdx, or rowPtr) segment.
@@ -622,21 +643,8 @@ export function checkI10(s: GraphSnapshot): void {
         ["edgeToArc", identity ? null : s.edgeToArc],
     ];
     for (const [name, array] of arrays) {
-        if (array === null) {
-            continue;
-        }
-        if (!isFourByteAligned(array)) {
-            throw invariantViolation("I10", `core array ${name} is not 4-byte aligned`, {
-                array: name,
-                byteOffset: array.byteOffset,
-                byteLength: array.byteLength,
-            });
-        }
-        if (!isOverPlainBuffer(array)) {
-            throw invariantViolation("I10", `core array ${name} is not a view over a plain ArrayBuffer`, {
-                array: name,
-                reason: "buffer",
-            });
+        if (array !== null) {
+            checkCoreArrayBuffer(name, array);
         }
     }
     const { arena } = s;

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { escalate, expire, heartbeat, isWatchdogComment, resolve, resolveDerived } from "../lib/board.mjs";
+import {
+    droppableEscalations,
+    escalate,
+    expire,
+    heartbeat,
+    isWatchdogComment,
+    resolve,
+    resolveDerived,
+} from "../lib/board.mjs";
+import { endItem, raiseItem } from "../lib/notify.mjs";
 
 const T0 = new Date("2026-10-02T12:00:00Z");
 const at = (minutes) => new Date(T0.getTime() + minutes * 60 * 1000);
@@ -101,5 +110,43 @@ describe("isWatchdogComment", () => {
         expect(isWatchdogComment("ship it")).toBe(false);
         expect(isWatchdogComment("<!-- githerd:owner-item x -->")).toBe(false);
         expect(isWatchdogComment(null)).toBe(false);
+    });
+});
+
+describe("droppableEscalations: a resolved escalation leaves the state once nothing reads it", () => {
+    const args = { key: "release-failed:issue-12", kind: "release-failed", summary: "release held" };
+
+    it("waits for its owner item to be ended as cleared and its job to finish, and a re-raise is the same", () => {
+        const state = /** @type {any} */ (fresh());
+        escalate(state, args, { daemon: true }, T0);
+        raiseItem(state, { id: `escalation:${args.key}`, kind: args.kind, question: args.summary }, T0);
+        state.jobs = { j: { id: "incident-x", kind: "incident", target: args.key, state: "working" } };
+        expect(droppableEscalations(state)).toEqual([]);
+        resolve(state, { key: args.key }, at(1));
+        // The owner item is still open: the daemon's escalationItems has not ended it yet.
+        expect(droppableEscalations(state)).toEqual([]);
+        endItem(state, `escalation:${args.key}`, "cleared", at(2));
+        // The release fix job's report still reads the escalation's run.
+        expect(droppableEscalations(state)).toEqual([]);
+        state.jobs.j.state = "done";
+        expect(droppableEscalations(state)).toEqual([args.key]);
+        const kept = structuredClone(state);
+        const ledger = [{ kind: "escalation-dropped", escalation: args.key, record: state.escalations[args.key] }];
+        delete state.escalations[args.key];
+        expect(ledger[0].record.resolvedAt).toBe(at(1).toISOString());
+        expect(escalate(state, args, A, at(3))).toEqual(escalate(kept, args, A, at(3)));
+    });
+
+    it("drops one with no owner item, or one the owner answered once its condition cleared", () => {
+        const state = /** @type {any} */ (fresh());
+        escalate(state, { ...args, key: "a" }, A, T0);
+        escalate(state, { ...args, key: "b" }, { daemon: true }, T0);
+        raiseItem(state, { id: "escalation:b", kind: args.kind, question: "q" }, T0);
+        endItem(state, "escalation:b", "answer", at(1));
+        resolve(state, { key: "a" }, at(1));
+        resolve(state, { key: "b" }, at(1));
+        expect(droppableEscalations(state)).toEqual(["a"]);
+        endItem(state, "escalation:b", "cleared", at(2));
+        expect(droppableEscalations(state)).toEqual(["a", "b"]);
     });
 });

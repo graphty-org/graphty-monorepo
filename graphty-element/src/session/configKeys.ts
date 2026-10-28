@@ -1,7 +1,7 @@
 /**
  * @file The keys of the project settings `config.set` writes, one per leaf, named by its dotted
  * path, each with its group and its schema: every leaf of the zod `DataConfig` schema under
- * `data.`, whether the on-load algorithms run, the background, the selection style, three
+ * `data.`, whether the on-load algorithms run, the background, the selection style, the pinned style, the starting rows, the run placement, three
  * layout-behaviour keys, the author stamped on notes, and the project's name. Kept apart from the
  * command so a reader of the settings (the assistant's `project` tool) loads the schemas alone.
  */
@@ -14,7 +14,16 @@ import { GraphStyle } from "../config/GraphStyle";
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
 export type ConfigGroup =
-    "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author" | "name";
+    | "data"
+    | "runAlgorithmsOnLoad"
+    | "background"
+    | "selectionStyle"
+    | "pinnedStyle"
+    | "startingRows"
+    | "runPlacement"
+    | "layoutBehavior"
+    | "author"
+    | "name";
 
 /** One key of the `config` slice. */
 interface ConfigKey {
@@ -63,6 +72,12 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
     ["background", { group: "background", schema: GraphStyle.shape.background }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
+    // Unset by default: set, the starting rows gain the Pinned row, drawing this halo.
+    ["pinnedStyle", { group: "pinnedStyle", schema: unwrap(GraphStyle.shape.selection) }],
+    ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
+    // The base look's home goes with the starting rows: one round-trip fixture covers both.
+    ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
+    ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },

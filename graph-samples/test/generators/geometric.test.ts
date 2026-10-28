@@ -46,7 +46,7 @@ function expectChunkInvariant(whole: SampleGraph, rows: (start: number, end: num
 function coords(g: SampleGraph): Float64Array[] {
     const cols = g.nodeColumns ?? {};
     const out = [cols.x, cols.y];
-    if (cols.z !== undefined) {
+    if ("z" in cols) {
         out.push(cols.z);
     }
     return out as Float64Array[];
@@ -369,6 +369,103 @@ describe("knnGraph", () => {
         const u = knnGraph({ n: 100_000, k: 5, directed: false, clusters: 20, spread: 0.02, seed: 3 });
         expect(u.src.length).toBeGreaterThan(250_000);
         expect(u.src.length).toBeLessThan(500_000);
+    });
+});
+
+describe("golden output over every option combination", () => {
+    /**
+     * Fold the full hashes of several graphs into one hash.
+     * @param graphs - the graphs
+     * @returns the hash as 8 hex digits
+     */
+    function foldHashes(graphs: SampleGraph[]): string {
+        let h = 0x811c9dc5;
+        for (const g of graphs) {
+            for (const ch of fullGraphHash(g)) {
+                h ^= ch.charCodeAt(0);
+                h = Math.imul(h, 0x01000193);
+            }
+        }
+        return (h >>> 0).toString(16).padStart(8, "0");
+    }
+
+    // GOLDEN VALUES: a change means seeded graphs changed, a breaking change -- never a test to update
+    it("pins randomGeometricGraph for every dimension and periodic, over radii, sizes and seeds", () => {
+        const table: Record<string, string> = {};
+        for (const dimension of [2, 3] as const) {
+            for (const periodic of [false, true]) {
+                const graphs: SampleGraph[] = [];
+                for (const n of [0, 1, 2, 50, 400]) {
+                    for (const radius of [0, 0.03, 0.12, 0.3, 0.6, 1.5]) {
+                        for (const seed of [1, 9]) {
+                            graphs.push(randomGeometricGraph({ n, radius, dimension, periodic, seed }));
+                        }
+                    }
+                }
+                table[`${dimension}d periodic ${periodic}`] = foldHashes(graphs);
+            }
+        }
+        expect(table).toMatchInlineSnapshot(`
+          {
+            "2d periodic false": "48e3e04e",
+            "2d periodic true": "3baf6184",
+            "3d periodic false": "f51fbe7c",
+            "3d periodic true": "ccc670ee",
+          }
+        `);
+    });
+
+    it("pins knnGraph for every dimension, direction and point model, over k, sizes and seeds", () => {
+        const table: Record<string, string> = {};
+        const models: Record<string, { clusters?: number; spread?: number }> = {
+            uniform: {},
+            mixture: { clusters: 3 },
+            "tight mixture": { clusters: 5, spread: 0.002 },
+            "coincident points": { clusters: 4, spread: 0 },
+            "wide mixture": { clusters: 2, spread: 1.5 },
+        };
+        for (const dimension of [2, 3] as const) {
+            for (const directed of [true, false]) {
+                for (const [model, points] of Object.entries(models)) {
+                    const graphs: SampleGraph[] = [];
+                    for (const n of [0, 1, 2, 30, 300]) {
+                        for (const k of [0, 1, 4, 13, n - 1]) {
+                            if (k < 0 || k > Math.max(0, n - 1)) {
+                                continue;
+                            }
+                            for (const seed of [1, 9]) {
+                                graphs.push(knnGraph({ n, k, dimension, directed, seed, ...points }));
+                            }
+                        }
+                    }
+                    table[`${dimension}d directed ${directed} ${model}`] = foldHashes(graphs);
+                }
+            }
+        }
+        expect(table).toMatchInlineSnapshot(`
+          {
+            "2d directed false coincident points": "e9e757ff",
+            "2d directed false mixture": "e0730457",
+            "2d directed false tight mixture": "3a37438a",
+            "2d directed false uniform": "3207d05e",
+            "2d directed false wide mixture": "5bc39c1e",
+            "2d directed true coincident points": "e1c2f90c",
+            "2d directed true mixture": "cb238fa8",
+            "2d directed true tight mixture": "b0f832db",
+            "2d directed true uniform": "e9b15359",
+            "2d directed true wide mixture": "fc39aa0c",
+            "3d directed false coincident points": "f05ca3e4",
+            "3d directed false mixture": "0a790838",
+            "3d directed false tight mixture": "c16496c7",
+            "3d directed false uniform": "91568a1f",
+            "3d directed false wide mixture": "117dd820",
+            "3d directed true coincident points": "d0df640c",
+            "3d directed true mixture": "cd8fea4a",
+            "3d directed true tight mixture": "b9848a71",
+            "3d directed true uniform": "91c8ea76",
+            "3d directed true wide mixture": "d150411b",
+          }
+        `);
     });
 });
 

@@ -25,6 +25,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -459,7 +460,7 @@ export const Prim: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * 3 + 10) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * 3 + 10) * args.animationSpeed),
         );
 
         // The finished picture must hold a spanning tree of minimum weight: n - 1 tree edges drawn

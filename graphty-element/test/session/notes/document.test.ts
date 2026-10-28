@@ -438,6 +438,7 @@ describe("notes.mergeDocument", () => {
         assert.strictEqual(code({ kind: "graphty-style", version: 1, layers: [] }), "E_BAD_DOCUMENT");
         assert.strictEqual(code({ kind: "graphty-notes", version: 1 }), "E_BAD_DOCUMENT");
         assert.strictEqual(code({ kind: "graphty-notes", version: "1", notes: [] }), "E_BAD_DOCUMENT");
+        assert.strictEqual(code({ kind: "graphty-notes", version: 0, notes: [] }), "E_BAD_DOCUMENT");
         assert.strictEqual(code(member([], { name: 3 })), "E_BAD_DOCUMENT");
         assert.strictEqual(code(member([], { extensions: { Bad: 1 } })), "E_BAD_DOCUMENT");
         const version = refusalOf(() => session.notes.mergeDocument({ kind: "graphty-notes", version: 2, notes: [] }));

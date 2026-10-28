@@ -15,6 +15,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, SeededRandom } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import { createSimpleAnimationControls, createStatusPanel, renderGraph, updateStatus } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -444,12 +445,9 @@ export const Isomorphism: Story = {
         const checkButton = canvas.getByRole("button", { name: /check isomorphism/i });
         await userEvent.click(checkButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText.toLowerCase()).toMatch(/isomorphic/);
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText.toLowerCase()).toMatch(/isomorphic/);
+        }, storyWaitOptions(5000));
     },
 };

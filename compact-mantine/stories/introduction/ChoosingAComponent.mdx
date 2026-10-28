@@ -1,4 +1,4 @@
-import { Meta } from "@storybook/blocks";
+import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Introduction/Choosing a component" />
 
@@ -13,29 +13,28 @@ the sidebar is. Each group's Overview page says more.
 The containers a property panel is built from, and the row layout every other component agrees
 with. [Overview](?path=/docs/components-panels-and-rows-overview--docs)
 
-| If you have                                                                            | Use               | Not                                                                   |
-| -------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------- |
-| A run of controls that needs a name and folds away                                     | `ControlSection`  | --                                                                    |
-| A group that must never fold, or sits in a padded container such as a pop-out          | `ControlGroup`    | `ControlSection`, whose header folds                                  |
-| A few rarely-opened settings under a section you already have                          | `ControlSubGroup` | a second `ControlSection`, which is louder                            |
-| One or two fields sharing a line                                                       | `FieldRow`        | a hand-built flex row, which will not line up with the rows around it |
-| A row you are laying out by hand that must end level with the others                   | `TrailingSlot`    | --                                                                    |
-| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow`     | two separate fields                                                   |
-| A resizable panel edge                                                                 | `ResizeHandle`    | --                                                                    |
+| If you have                                                                            | Use              | Not                                                                   |
+| -------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------- |
+| A run of controls that needs a name and folds away                                     | `ControlSection` | --                                                                    |
+| A group that must never fold, or sits in a padded container such as a pop-out          | `ControlGroup`   | `ControlSection`, whose header folds                                  |
+| A few rarely-opened settings under a section you already have                          | `AdvancedButton` | a second `ControlSection`, which is louder                            |
+| One or two fields sharing a line                                                       | `FieldRow`       | a hand-built flex row, which will not line up with the rows around it |
+| A row you are laying out by hand that must end level with the others                   | `TrailingSlot`   | --                                                                    |
+| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow`    | two separate fields                                                   |
+| A resizable panel edge                                                                 | `ResizeHandle`   | --                                                                    |
 
 ## Inputs
 
 Values the reader types or picks. [Overview](?path=/docs/components-inputs-overview--docs)
 
-| If you have                                                                        | Use                                                                    | Not                                                                               |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| A number or a string in a panel row                                                | `PanelField` (`kind="number"` or `"text"`)                             | Mantine `TextInput` / `NumberInput`, which are form fields with a label above     |
-| One of a fixed list                                                                | Mantine `Select` (themed) or `PanelField kind="select"` in a panel row | --                                                                                |
-| A choice with a default the reader can override, where `undefined` means "inherit" | `StyleSelect` (on the Select page)                                     | a `Select` with a hand-made reset button                                          |
-| A number with a default the reader can override                                    | `StyleNumberInput`                                                     | `PanelField kind="number"`, which has no "not set" state                          |
-| A value typed freely, with a list of presets                                       | `ComboInput`                                                           | `Select` (fixed choices only) or Mantine `Autocomplete` (suggestions, no chevron) |
-| A filter or find box                                                               | `SearchInput`                                                          | Mantine `TextInput`: search adds the glyph, the clear button and Escape-to-clear  |
-| A value bound to a named variable                                                  | `VariablePill`                                                         | --                                                                                |
+| If you have                                                 | Use                                                                                | Not                                                                               |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| A number or a string in a panel row                         | `PanelField` (`kind="number"` or `"text"`)                                         | Mantine `TextInput` / `NumberInput`, which are form fields with a label above     |
+| One of a fixed list                                         | Mantine `Select` (themed) or `PanelField kind="select"` in a panel row             | --                                                                                |
+| A choice or a number with a default the reader can override | `PanelField` showing the default, and a `ResetButton` in the row's `trailing` slot | a hand-made reset button                                                          |
+| A value typed freely, with a list of presets                | `ComboInput`                                                                       | `Select` (fixed choices only) or Mantine `Autocomplete` (suggestions, no chevron) |
+| A filter or find box                                        | `SearchInput`                                                                      | Mantine `TextInput`: search adds the glyph, the clear button and Escape-to-clear  |
+| A value bound to a named variable                           | `VariablePill`                                                                     | --                                                                                |
 
 ## Selection
 

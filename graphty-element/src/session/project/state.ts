@@ -12,7 +12,16 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { EdgeId, LayoutId, MeasurementDeclaration, NodeId, RunId, Scope, SetId } from "../../catalog/types";
+import type {
+    EdgeId,
+    FilterStep,
+    LayoutId,
+    MeasurementDeclaration,
+    NodeId,
+    RunId,
+    Scope,
+    SetId,
+} from "../../catalog/types";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -20,7 +29,7 @@ import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
-import type { RuleTree, TimeWindow } from "../visibility/filter";
+import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -121,6 +130,10 @@ export interface VisibilityState {
     readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     readonly showContext: boolean;
+    /** The filter steps; the ones that are on combine with the filter by AND. */
+    readonly steps: readonly FilterStep[];
+    /** How `session.time` moves windows, or null for every default. */
+    readonly playback?: TimePlayback | null;
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */
@@ -160,6 +173,8 @@ export interface ProjectState {
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
     readonly attributes: ReadonlyMap<string, MeasurementDeclaration>;
+    /** The names given to values, by `valueLabelKey(path, value)`. */
+    readonly valueLabels: ReadonlyMap<string, string>;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -194,10 +209,13 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         arrangement: init.arrangement ?? null,
         runs: new Map(init.runs),
         styles: init.styles ?? Object.freeze([]),
-        visibility: init.visibility ?? Object.freeze({ filter: null, window: null, showContext: false }),
+        visibility:
+            init.visibility ??
+            Object.freeze({ filter: null, window: null, showContext: false, steps: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
+        valueLabels: new Map(init.valueLabels),
     };
 }

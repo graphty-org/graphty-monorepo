@@ -5,12 +5,11 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { gateProblems, reviewGaps, unrecordedChanges } from "../trusted/gate.mjs";
+import { gateProblems, treeApprovalProblems } from "../trusted/gate.mjs";
 import { updateFromMaster } from "../trusted/lib/accept.mjs";
 import { classify } from "../trusted/lib/compare.mjs";
 import {
@@ -23,6 +22,7 @@ import {
     isolateGit,
     makeRepo,
     pushCommit,
+    tempDir,
 } from "./helpers.mjs";
 import { makeKey } from "./passkey-vectors.mjs";
 
@@ -66,20 +66,20 @@ describe("update from master", () => {
         expect(git(r.repo, "worktree", "list").split("\n")).toHaveLength(1);
     });
 
-    it("needs no review record: the gate finds the baseline unchanged and the capture shows it as changed", async () => {
+    it("takes master's baseline, and the merged tree needs the owner's approval again: the capture shows it as changed", async () => {
         const r = conflicted();
-        // Before the update, the branch's baseline is not what master's record approved.
-        expect(unrecordedChanges(r.master, r.feature, r.remote)).toEqual([
-            `${PATH}: changed with no review record taking it from its base branch contents to these`,
-        ]);
         await update(r);
         const head = git(r.remote, "rev-parse", "feature");
-        expect(unrecordedChanges(r.master, head, r.remote)).toEqual([]);
-        // With approvals enforced too: the update itself needs none (the old unsigned record is
-        // the pull request's own, refused as before, and covers nothing the gate needs).
-        const gaps = reviewGaps(r.master, head, r.remote, "visual-baselines", { keys: [makeKey().entry], pr: 123 });
-        expect(gaps.missing).toEqual([]);
-        expect(gaps.refused).toEqual(["visual-baselines/reviews/20260927T150405Z-pr123.json"]);
+        expect(git(r.remote, "show", `${head}:${PATH}`)).toBe(git(r.remote, "show", `${r.master}:${PATH}`));
+        const check = treeApprovalProblems({
+            base: r.master,
+            head,
+            cwd: r.remote,
+            baselines: "visual-baselines",
+            approvals: "visual-review-approvals",
+            keys: [makeKey().entry],
+        });
+        expect(check[0]).toMatch(/approves it/);
         // CI captures the story again against master's baseline: the pull request's image differs,
         // so it is `changed`, and the gate blocks until the owner reviews it.
         const item = classify({
@@ -125,6 +125,56 @@ describe("update from master", () => {
         expect(git(r.remote, "log", "-1", "--format=%B", "feature")).toContain("No conflicts.");
     });
 
+    describe("with an updateCheck", () => {
+        const withCheck = (r, updateCheck, steps = []) =>
+            updateFromMaster({
+                repo: r.repo,
+                pr: 123,
+                branch: "feature",
+                config: { ...CONFIG, updateCheck },
+                progress: (s) => steps.push(s),
+            });
+
+        it("pushes nothing and leaves the branch where it was when a clean code merge fails the check", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "src/layout.ts");
+            const check =
+                'echo "error TS1117: An object literal cannot have multiple properties with the same name"; exit 3';
+            await expect(withCheck(r, check)).rejects.toThrow(
+                /^the merge of master into feature fails the update check: `.*` exited with 3, so nothing was pushed and feature is as it was; merge master into it by hand and fix it\. The check's output ended:\nerror TS1117/,
+            );
+            expect(git(r.remote, "rev-parse", "feature")).toBe(r.head);
+            expect(git(r.repo, "rev-parse", "--abbrev-ref", "HEAD")).toBe("master");
+            expect(git(r.repo, "status", "--porcelain")).toBe("");
+            expect(git(r.repo, "worktree", "list").split("\n")).toHaveLength(1);
+        });
+
+        it("runs the check in the merged checkout and pushes when it passes", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "src/layout.ts");
+            const seen = join(tempDir("vr-check-"), "seen");
+            const steps = [];
+            const out = await withCheck(
+                r,
+                `test -f src/layout.ts && echo "$VISUAL_REVIEW_UPDATE_BASE" > ${seen}`,
+                steps,
+            );
+            expect(steps).toEqual(["fetching", "merging", "committing", "checking", "pushing"]);
+            expect(readFileSync(seen, "utf8").trim()).toBe(r.head);
+            expect(git(r.remote, "rev-parse", "feature")).toBe(out.commit);
+            expect(git(r.remote, "rev-parse", "feature^1")).toBe(r.head);
+        });
+
+        it("skips the check when the merge changed only baselines", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "visual-baselines/compact-mantine/other.png");
+            const steps = [];
+            const out = await withCheck(r, "exit 1", steps);
+            expect(steps).toEqual(["fetching", "merging", "committing", "pushing"]);
+            expect(git(r.remote, "rev-parse", "feature")).toBe(out.commit);
+        });
+    });
+
     it("refuses a branch that already has master", async () => {
         const r = makeRepo();
         await expect(update(r)).rejects.toThrow("feature already has everything on master: nothing to update");
@@ -140,7 +190,7 @@ describe("visual-review update <pr>", () => {
      * @returns {import("node:child_process").SpawnSyncReturns<string>} the finished process
      */
     function cli(r, args) {
-        const bin = mkdtempSync(join(tmpdir(), "vr-gh-"));
+        const bin = tempDir("vr-gh-");
         const gh = join(bin, "gh");
         writeFileSync(gh, `#!/bin/sh\necho '{"state":"open","head":{"ref":"feature"}}'\n`);
         chmodSync(gh, 0o755);
@@ -160,6 +210,13 @@ describe("visual-review update <pr>", () => {
         expect(run.stdout).toContain(`visual-review update: pushed ${head} to feature`);
         expect(run.stdout).toContain(`  took master's side: ${PATH}`);
         expect(git(r.remote, "rev-parse", "feature^1")).toBe(r.feature);
+    });
+
+    it("lists each baseline CI compares again, one per indented line", () => {
+        const r = conflicted();
+        const run = cli(r, ["123"]);
+        expect(run.status).toBe(0);
+        expect(run.stdout).toContain(`CI captures again and compares these with their new baselines:\n  ${PATH}\n`);
     });
 
     it("exits 1 with the files on a code conflict, and 2 without a pull request number", () => {

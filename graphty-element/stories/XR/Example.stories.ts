@@ -79,8 +79,7 @@ export const Default: Story = {
         layout: "ngraph",
         layoutConfig: {
             seed: 42,
-            dimensions: 3,
-            iterations: 150,
+            dim: 3,
         },
         setup: storySetup({
             viewMode: "3d",

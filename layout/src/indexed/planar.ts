@@ -586,63 +586,120 @@ function triangulate(embedding: Embedding): number[] {
 }
 
 /**
- * A canonical ordering of a triangulated embedding, each node with the contour nodes it covers. A port of NetworkX's
- * `get_canonical_ordering`.
- * @param embedding - the embedding
- * @param outer - the outer face, in order
- * @returns each node with the contour nodes it covers, in order
+ * The state of a canonical ordering as it peels nodes off a triangulated embedding: the current outer contour (each
+ * contour node's clockwise and counter-clockwise neighbours on it), the nodes already ordered, the chord count of
+ * every contour node and the contour nodes ready to be removed. A port of NetworkX's `get_canonical_ordering`.
  */
-function canonicalOrdering(embedding: Embedding, outer: readonly number[]): [number, number[]][] {
-    const { n } = embedding;
-    const v1 = outer[0];
-    const v2 = outer[1];
-    const chords = new Int32Array(n);
-    const marked = new Uint8Array(n);
-    const ready = new Set(outer);
-    const ccwNbr = new Map<number, number>();
-    const cwNbr = new Map<number, number>();
-    let prev = v2;
-    for (let i = 2; i < outer.length; i++) {
-        ccwNbr.set(prev, outer[i]);
-        prev = outer[i];
+class CanonicalOrdering {
+    private readonly chords: Int32Array;
+    private readonly marked: Uint8Array;
+    private readonly ready: Set<number>;
+    private readonly ccwNbr = new Map<number, number>();
+    private readonly cwNbr = new Map<number, number>();
+    private readonly v1: number;
+    private readonly v2: number;
+
+    /**
+     * Starts from the outer face as the contour, with the chords of its nodes counted.
+     * @param embedding - the embedding
+     * @param outer - the outer face, in order
+     */
+    constructor(
+        private readonly embedding: Embedding,
+        outer: readonly number[],
+    ) {
+        const { n } = embedding;
+        this.v1 = outer[0];
+        this.v2 = outer[1];
+        this.chords = new Int32Array(n);
+        this.marked = new Uint8Array(n);
+        this.ready = new Set(outer);
+        let prev = this.v2;
+        for (let i = 2; i < outer.length; i++) {
+            this.ccwNbr.set(prev, outer[i]);
+            prev = outer[i];
+        }
+        this.ccwNbr.set(prev, this.v1);
+        prev = this.v1;
+        for (let i = outer.length - 1; i > 0; i--) {
+            this.cwNbr.set(prev, outer[i]);
+            prev = outer[i];
+        }
+        for (const v of outer) {
+            this.countChords(v, null);
+        }
     }
-    ccwNbr.set(prev, v1);
-    prev = v1;
-    for (let i = outer.length - 1; i > 0; i--) {
-        cwNbr.set(prev, outer[i]);
-        prev = outer[i];
+
+    /**
+     * Each node with the contour nodes it covers, in order.
+     * @returns the ordering
+     */
+    run(): [number, number[]][] {
+        const { n } = this.embedding;
+        const order: [number, number[]][] = new Array<[number, number[]]>(n);
+        order[0] = [this.v1, []];
+        order[1] = [this.v2, []];
+        this.ready.delete(this.v1);
+        this.ready.delete(this.v2);
+        for (let k = n - 1; k > 1; k--) {
+            const v = this.ready.values().next().value as number;
+            this.ready.delete(v);
+            this.marked[v] = 1;
+            const [wp, wq] = this.contourEnds(v);
+            const contour = this.replaceContour(v, wp, wq);
+            if (contour.length === 2) {
+                this.releaseChord(wp);
+                this.releaseChord(wq);
+            } else {
+                this.addInner(new Set(contour.slice(1, -1)));
+            }
+            order[k] = [v, contour];
+        }
+        return order;
     }
-    const isOuterNbr = (x: number, y: number): boolean => ccwNbr.get(x) === y || cwNbr.get(x) === y;
-    const isOnOuter = (x: number): boolean => marked[x] === 0 && (ccwNbr.has(x) || x === v1);
-    for (const v of outer) {
-        for (const nbr of embedding.neighboursCw(v)) {
-            if (isOnOuter(nbr) && !isOuterNbr(v, nbr)) {
-                chords[v]++;
-                ready.delete(v);
+
+    private isOuterNbr(x: number, y: number): boolean {
+        return this.ccwNbr.get(x) === y || this.cwNbr.get(x) === y;
+    }
+
+    private isOnOuter(x: number): boolean {
+        return this.marked[x] === 0 && (this.ccwNbr.has(x) || x === this.v1);
+    }
+
+    /**
+     * Counts the chords at contour node w: edges to contour nodes that are not its contour neighbours.
+     * @param w - the contour node
+     * @param inner - the nodes just added to the contour, whose chords are counted at both ends except between two
+     *   of them; null counts only w's end
+     */
+    private countChords(w: number, inner: ReadonlySet<number> | null): void {
+        for (const nbr of this.embedding.neighboursCw(w)) {
+            if (this.isOnOuter(nbr) && !this.isOuterNbr(w, nbr)) {
+                this.chords[w]++;
+                this.ready.delete(w);
+                if (inner !== null && !inner.has(nbr)) {
+                    this.chords[nbr]++;
+                    this.ready.delete(nbr);
+                }
             }
         }
     }
-    const order: [number, number[]][] = new Array<[number, number[]]>(n);
-    order[0] = [v1, []];
-    order[1] = [v2, []];
-    ready.delete(v1);
-    ready.delete(v2);
-    for (let k = n - 1; k > 1; k--) {
-        const v = ready.values().next().value as number;
-        ready.delete(v);
-        marked[v] = 1;
+
+    /**
+     * The contour neighbours of v about to be removed: wp before it and wq after it.
+     * @param v - the node being removed
+     * @returns wp and wq
+     */
+    private contourEnds(v: number): [number, number] {
         let wp = -1;
         let wq = -1;
-        for (const nbr of embedding.neighboursCw(v)) {
-            if (marked[nbr] === 1) {
-                continue;
-            }
-            if (isOnOuter(nbr)) {
-                if (nbr === v1) {
-                    wp = v1;
-                } else if (nbr === v2) {
-                    wq = v2;
-                } else if (cwNbr.get(nbr) === v) {
+        for (const nbr of this.embedding.neighboursCw(v)) {
+            if (this.isOnOuter(nbr)) {
+                if (nbr === this.v1) {
+                    wp = this.v1;
+                } else if (nbr === this.v2) {
+                    wq = this.v2;
+                } else if (this.cwNbr.get(nbr) === v) {
                     wp = nbr;
                 } else {
                     wq = nbr;
@@ -652,39 +709,59 @@ function canonicalOrdering(embedding: Embedding, outer: readonly number[]): [num
                 break;
             }
         }
+        return [wp, wq];
+    }
+
+    /**
+     * Replaces v on the contour by its neighbours from wp to wq, counter-clockwise around v.
+     * @param v - the node being removed
+     * @param wp - the contour node before v
+     * @param wq - the contour node after v
+     * @returns the contour nodes v covers, wp to wq
+     */
+    private replaceContour(v: number, wp: number, wq: number): number[] {
         const contour = [wp];
         for (let nbr = wp; nbr !== wq;) {
-            const next = embedding.ccw[v].get(nbr) ?? wq;
+            const next = this.embedding.ccw[v].get(nbr) ?? wq;
             contour.push(next);
-            cwNbr.set(nbr, next);
-            ccwNbr.set(next, nbr);
+            this.cwNbr.set(nbr, next);
+            this.ccwNbr.set(next, nbr);
             nbr = next;
         }
-        if (contour.length === 2) {
-            for (const w of [wp, wq]) {
-                if (--chords[w] === 0) {
-                    ready.add(w);
-                }
-            }
-        } else {
-            const inner = new Set(contour.slice(1, -1));
-            for (const w of inner) {
-                ready.add(w);
-                for (const nbr of embedding.neighboursCw(w)) {
-                    if (isOnOuter(nbr) && !isOuterNbr(w, nbr)) {
-                        chords[w]++;
-                        ready.delete(w);
-                        if (!inner.has(nbr)) {
-                            chords[nbr]++;
-                            ready.delete(nbr);
-                        }
-                    }
-                }
-            }
-        }
-        order[k] = [v, contour];
+        return contour;
     }
-    return order;
+
+    /**
+     * Drops one chord of w, which is ready once it has none.
+     * @param w - a contour node
+     */
+    private releaseChord(w: number): void {
+        if (--this.chords[w] === 0) {
+            this.ready.add(w);
+        }
+    }
+
+    /**
+     * Readies the nodes just added to the contour and counts their chords.
+     * @param inner - the nodes just added
+     */
+    private addInner(inner: ReadonlySet<number>): void {
+        for (const w of inner) {
+            this.ready.add(w);
+            this.countChords(w, inner);
+        }
+    }
+}
+
+/**
+ * A canonical ordering of a triangulated embedding, each node with the contour nodes it covers. A port of NetworkX's
+ * `get_canonical_ordering`.
+ * @param embedding - the embedding
+ * @param outer - the outer face, in order
+ * @returns each node with the contour nodes it covers, in order
+ */
+function canonicalOrdering(embedding: Embedding, outer: readonly number[]): [number, number[]][] {
+    return new CanonicalOrdering(embedding, outer).run();
 }
 
 /**
@@ -781,12 +858,15 @@ function neighbourLists(g: GraphSnapshot): number[][] {
  * @param scale - the distance of the farthest node from the centre
  * @param center - at least 2 components
  * @returns `2 * n` values
- * @throws "G is not planar." when the graph is not planar
+ * @throws "G is not planar." (code `E_NOT_PLANAR`) when the graph is not planar
  */
 function planarRows(g: GraphSnapshot, scale: number, center: readonly number[]): F64 {
     const embedding = new LeftRight(neighbourLists(g)).run();
     if (embedding === null) {
-        throw new Error("G is not planar.");
+        throw Object.assign(new Error("G is not planar."), {
+            code: "E_NOT_PLANAR",
+            params: { nodeCount: g.nodeCount, edgeCount: g.edgeCount },
+        });
     }
     return rescaleInPlace(embeddingToRows(embedding), 2, scale, center);
 }
@@ -799,7 +879,8 @@ function planarRows(g: GraphSnapshot, scale: number, center: readonly number[]):
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `scale` is the distance of the farthest node from the centre
  * @returns the layout
- * @throws "G is not planar." when the graph is not planar
+ * @throws an Error "G is not planar." when the graph is not planar, with `code` `E_NOT_PLANAR` and `params`
+ * `{ nodeCount, edgeCount }` (of the undirected graph it tested)
  */
 export function planar(s: GraphSnapshot, options: CommonLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

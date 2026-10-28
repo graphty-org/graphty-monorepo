@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { SourceMapTestContent } from "../stories/Sentry.stories";
-import { fireEvent, render, screen } from "../test/test-utils";
+import { render, screen } from "../test/test-utils";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ErrorFallback } from "./ErrorFallback";
 
@@ -39,10 +40,10 @@ describe("ErrorFallback", () => {
         expect(screen.getByText(/An unexpected error occurred/)).toBeInTheDocument();
     });
 
-    it("calls resetError when Try again button is clicked", () => {
+    it("calls resetError when Try again button is clicked", async () => {
         const resetError = vi.fn();
         render(<ErrorFallback error={new Error("Demo error")} resetError={resetError} />);
-        fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
+        await userEvent.click(screen.getByRole("button", { name: /Try again/i }));
         expect(resetError).toHaveBeenCalled();
     });
 });

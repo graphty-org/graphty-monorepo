@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
     AdvancedButton,
@@ -15,6 +15,7 @@ import {
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { storyWaitOptions, waitForSettledLayout } from "../../helpers/settled";
 
 /**
  * A 24px gear button that opens the rarely-changed settings of a row or a section, and shows
@@ -194,8 +195,10 @@ export const OpensAPopout: Story = {
     play: async ({ canvasElement }) => {
         const button = within(canvasElement).getByRole("button", { name: /Range and scale/ });
         await userEvent.click(button);
-        await waitFor(() => expect(button).toHaveAttribute("aria-expanded", "true"));
+        await waitFor(() => expect(button).toHaveAttribute("aria-expanded", "true"), storyWaitOptions(1000));
         await expect(within(document.body).getByRole("dialog")).toBeInTheDocument();
+        // The panel is placed by measuring the button, which moves once the web font loads.
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
     },
 };
 

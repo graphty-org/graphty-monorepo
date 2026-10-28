@@ -12,17 +12,24 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
 import { unknownFormat } from "../../catalog/detect";
-import type { EdgeId } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
-import { decideRepeat } from "../../data/edgeIdentity";
-import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
+import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
+import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
+import { GROUPS_VALUE, readGroups } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
-import { type ImportReport, type ImportTally, loadErrorOf, newImportTally, sealImportReport } from "../../data/report";
+import {
+    type ImportReport,
+    type ImportTally,
+    loadErrorOf,
+    type LoadReport,
+    newImportTally,
+    sealImportReport,
+} from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
@@ -32,13 +39,86 @@ import {
     type DataImportCommand,
     type DataMutation,
     describeSource,
+    FILE_GRAPH_VALUE,
     type HeldRows,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "../commands/data";
+import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
+import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
+import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
+import type { EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
+
+/** How many left-out edge rows a load keeps with its source, so a reader can still see them. */
+const LEFT_OUT_KEPT = 100;
+
+/**
+ * The column an endpoint expression reads: the name itself, or a quoted name unquoted (as a draft
+ * writes a column name that is not a plain identifier).
+ * @param expression - The JMESPath expression.
+ * @returns The column's name, or null for any other expression.
+ */
+function columnOf(expression: string): string | null {
+    if (/^[A-Za-z_]\w*$/.test(expression)) {
+        return expression;
+    }
+
+    if (/^"(?:[^"\\]|\\.)*"$/.test(expression)) {
+        return JSON.parse(expression) as string;
+    }
+
+    return null;
+}
+
+/**
+ * A left-out edge row as its source keeps it: the two ends, its line when a draft gave one, and the
+ * row's other values (the columns the ends were read from left out, when they are plain column names).
+ * @param edge - the row.
+ * @param source - its source end.
+ * @param target - its target end.
+ * @param endpoints - where the ends were read from.
+ * @param line - the row's line, or undefined.
+ * @param missingEnds - the ends that name no node.
+ * @returns the frozen entry.
+ */
+function leftOutEdge(
+    edge: Readonly<Record<string | number, unknown>>,
+    source: NodeIdType,
+    target: NodeIdType,
+    endpoints: ResolvedEndpoints,
+    line: number | undefined,
+    missingEnds: readonly EdgeEnd[],
+): LeftOutEdge {
+    const ends = new Set([columnOf(endpoints.source), columnOf(endpoints.target)]);
+    const values = Object.fromEntries(Object.entries(edge).filter(([key]) => !ends.has(key)));
+    return Object.freeze({
+        source,
+        target,
+        ...(line === undefined ? {} : { line }),
+        values: frozenRecord(values),
+        missingEnds: Object.freeze([...missingEnds]),
+    });
+}
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
+
+/**
+ * The kinds a draft gave the rows it hands over, by those rows: the report's `kinds`. Kept beside
+ * the rows rather than in them, as `HELD_READERS` keeps their reader.
+ */
+export const HELD_KINDS = new WeakMap<HeldRows, NonNullable<LoadReport["kinds"]>>();
+
+/**
+ * A load's input token as its `data.sources()` entry keeps it, out of sight of the entry's type.
+ * @param command - The import.
+ * @param command.input - The token, when the rows were read from something the session holds.
+ * @returns `{ input }`, or nothing.
+ */
+function inputOf(command: { readonly input?: string }): { readonly input?: string } {
+    return command.input === undefined ? {} : { input: command.input };
+}
 
 /**
  * Whether a value may be used as a graph-format node id.
@@ -95,6 +175,16 @@ export function resolveEdgeWeight(
     }
 
     return { weight: 1, source: "default" };
+}
+
+/**
+ * The number in a load key (`s3` is 3), so the next key is past every key a list holds.
+ * @param key - The key, or undefined for an entry saved before loads had keys.
+ * @returns The number, or 0.
+ */
+function serialOf(key: string | undefined): number {
+    const match = /^s(\d+)$/.exec(key ?? "");
+    return match === null ? 0 : Number(match[1]);
 }
 
 /** What a caller may say about one `addEdges` call that the configuration does not already say. */
@@ -303,6 +393,22 @@ function isStorableRecordId(value: unknown): value is string | number {
     return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
 }
 
+/** What one `addEdges` batch is resolved to before its records are added. */
+interface EdgeBatch {
+    /** The endpoint expressions the batch answers. */
+    readonly endpoints: ResolvedEndpoints;
+    /** The repeat policy for this call. */
+    readonly policy: DuplicatePolicy;
+    /** Where a record's own id is read, or null when none is. */
+    readonly recordIdPath: string | null;
+    /** Where a record's weight is read, or null when none is. */
+    readonly weightPath: string | null;
+    /** Whether the legacy `value` key is read when the weight path answers nothing. */
+    readonly legacyFallback: boolean;
+    /** The counters of the load or call. */
+    readonly tally: ImportTally;
+}
+
 /**
  * Turns node and edge records, and whole data sources, into the graph a host holds.
  *
@@ -310,6 +416,20 @@ function isStorableRecordId(value: unknown): value is string | number {
  * last import report, and -- while a load is in progress -- the load's tally and the endpoint
  * spelling its first edge chunk settled on.
  * @template K - the host's own description of an existing edge
+ */
+
+/**
+ * The tables an import names: the draft's, or else the one named source it read, as a draft of it
+ * names its one table, so a file loads the same whichever door it came in by.
+ * @param command - The import.
+ * @returns The table names.
+ */
+function tablesOf(command: DataImportCommand): readonly string[] {
+    return Object.freeze([...(command.tables ?? (command.source.name === undefined ? [] : [command.source.name]))]);
+}
+
+/**
+ *
  */
 export class Ingest<K extends KnownEdge> {
     private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "data"]);
@@ -331,18 +451,40 @@ export class Ingest<K extends KnownEdge> {
 
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
+    /** The tally of the load that finished last, which `importSource` reads its issue facts from. */
+    private sealedTally: ImportTally | null = null;
+
+    /** Endpoints an edge of the load in progress created with no node record to draw them from. */
+    private readonly loadMadeEndpoints = new Set<NodeIdType>();
 
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
 
+    /** The edge rows the load in progress left out, up to {@link LEFT_OUT_KEPT}. */
+    private leftOutEdges: LeftOutEdge[] = [];
+
+    /** The columns the load in progress read the left-out rows' ends from, when plain names. */
+    private leftOutEnds: { source: string; target: string } | null = null;
+
+    /** Each edge record's line in the draft the load in progress reads, or null when it reads no draft. */
+    private loadEdgeLines: readonly number[] | null = null;
+
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
+    /** For a merge: whether a node already in the graph takes the incoming attributes. */
+    private updateExisting = false;
 
     /** The graph held nodes when the load in progress began, so its edges can name them. */
     private loadBeganWithNodes = false;
 
     /** While a draft's load is measured: the graph it counts as already there. */
     private measure: NonNullable<DataImportCommand["measure"]> | null = null;
+
+    /** The ids the load in progress named, for its entry in `provenance`; null outside a load. */
+    private supplied: { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } | null = null;
+
+    /** The highest load key number handed out, so a key is never handed out twice. */
+    private sourceSerial = 0;
 
     /**
      * Start with no records seen and no report.
@@ -450,40 +592,156 @@ export class Ingest<K extends KnownEdge> {
      * @param signal - Fires when the import is cancelled; it stops before the next chunk.
      * @returns Settles once the last chunk is written.
      */
-    async importSource(command: DataImportCommand, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
+    async importSource(
+        command: DataImportCommand,
+        writer: GraphWriter,
+        signal?: AbortSignal,
+    ): Promise<ImportOutcome | null> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
+        const listed = (writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+        const earlier = command.mode === "merge" ? listed : [];
+        const earlierProvenance =
+            command.mode === "merge" ? (writer.graphValue(PROVENANCE_VALUE) as Provenance | undefined) : undefined;
+        // Read before a replacing load empties the list, so a key is never reused.
+        this.sourceSerial = Math.max(this.sourceSerial, ...listed.map((each) => serialOf(each.key)));
         if (loads && command.mode !== "merge") {
             this.apply({ kind: "clear" }, writer);
         }
 
-        writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
-        if (!loads) {
-            return;
+        const described = describeSource(command.source);
+        // A merge under a key the graph already lists (a load's next page, a refresh) adds to that
+        // load; it and a joined table leave the graph's own source as it is.
+        const same = command.key === undefined ? -1 : earlier.findIndex((each) => each.key === command.key);
+        const keepsSource =
+            command.mode === "merge" &&
+            (same >= 0 || command.origin === "join") &&
+            writer.graphValue(SOURCE_VALUE) !== undefined;
+        if (!keepsSource) {
+            writer.setGraphValues({ [SOURCE_VALUE]: described });
         }
 
+        if (!loads) {
+            return null;
+        }
+
+        const before = this.heldCounts();
+
         this.leaveOutUnmatched = command.unmatched === "leave-out";
+        this.leftOutEdges = [];
+        this.leftOutEnds = null;
+        this.loadEdgeLines = command.held === undefined ? null : (command.held.edgeLines ?? []);
         this.duplicateIds = command.duplicateIds ?? "first";
+        this.updateExisting = command.mode === "merge" && command.existing === "update";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
         // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
+        const supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
+        this.supplied = supplied;
+        this.sealedTally = null;
         try {
-            await this.addDataFromSource(
+            const outcome = await this.addDataFromSource(
                 type,
-                config,
+                // The reader leaves style values out of its records when the load draws the file's styles.
+                command.styles === undefined ? config : { ...config, styles: command.styles },
                 writer,
                 signal,
                 command.mode !== "merge",
                 command.held,
                 command.source.name,
             );
+            const { report } = outcome;
+            const after = this.heldCounts();
+            const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
+            const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
+            const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
+            const loaded: LoadedSource = Object.freeze({
+                ...described,
+                key,
+                kind,
+                ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
+                ...(command.join === undefined ? {} : { join: command.join }),
+                ...(command.choices === undefined ? {} : { choices: command.choices }),
+                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+                ...inputOf(command),
+                tables: tablesOf(command),
+                ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
+                added,
+                // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
+                counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
+                ...(this.leaveOutUnmatched && report.unmatched.rows > 0
+                    ? {
+                          leftOut: Object.freeze({
+                              ...report.unmatched,
+                              ...(this.leftOutEnds === null ? {} : { endColumns: Object.freeze(this.leftOutEnds) }),
+                              edges: Object.freeze(this.leftOutEdges),
+                          }),
+                      }
+                    : {}),
+            });
+            // What the load saw that the graph does not keep, for `data.issues()`.
+            const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
+            const prior = same < 0 ? undefined : earlier[same];
+            const had = prior === undefined ? undefined : earlierProvenance?.[key];
+            const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
+            const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+            const entry: LoadedSource =
+                prior === undefined
+                    ? loaded
+                    : Object.freeze({
+                          ...prior,
+                          added: Object.freeze({
+                              nodes: prior.added.nodes + added.nodes,
+                              edges: prior.added.edges + added.edges,
+                          }),
+                          counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                      });
+            writer.setGraphValues({
+                [SOURCES_VALUE]: Object.freeze(
+                    prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
+                ),
+                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
+                ...(facts === null
+                    ? {}
+                    : {
+                          [ISSUES_VALUE]: withLoadFacts(
+                              writer.graphValue(ISSUES_VALUE) as IssueState | undefined,
+                              key,
+                              facts,
+                          ),
+                      }),
+            });
+            return outcome;
         } finally {
+            this.supplied = null;
+            this.sealedTally = null;
             this.leaveOutUnmatched = false;
+            this.leftOutEdges = [];
+            this.leftOutEnds = null;
+            this.loadEdgeLines = null;
             this.duplicateIds = "first";
+            this.updateExisting = false;
             this.measure = null;
         }
+    }
+
+    /**
+     * Record an edge, and the two nodes it names, as supplied by the load in progress.
+     * @param edge - The edge's id.
+     * @param source - Its source node id.
+     * @param target - Its target node id.
+     */
+    private noteSupplied(edge: EdgeId, source: NodeIdType, target: NodeIdType): void {
+        const { supplied } = this;
+        if (supplied === null) {
+            return;
+        }
+
+        supplied.edges.add(edge);
+        supplied.nodes.add(source);
+        supplied.nodes.add(target);
     }
 
     /**
@@ -540,7 +798,7 @@ export class Ingest<K extends KnownEdge> {
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
         const { builder } = this.host.store();
-        const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
+        const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
@@ -550,7 +808,15 @@ export class Ingest<K extends KnownEdge> {
                 continue;
             }
 
+            if (isStorableId(nodeId)) {
+                this.supplied?.nodes.add(nodeId);
+            }
+
             if (this.hasNode(nodeId)) {
+                if (this.updateExisting && this.host.hasNode(nodeId)) {
+                    writer.setAttributes("node", nodeId, frozenRecord(node));
+                }
+
                 continue;
             }
 
@@ -588,6 +854,7 @@ export class Ingest<K extends KnownEdge> {
         if (!isStorableId(id)) {
             tally.rejected++;
             tally.errors.push({ code: "refused-row", params: { rowsAre: "nodes" } });
+            tally.refusedRows.push({ rowsAre: "nodes", record: frozenRecord(record) });
             return true;
         }
 
@@ -598,6 +865,9 @@ export class Ingest<K extends KnownEdge> {
 
         tally.duplicateRows++;
         tally.duplicateIds.add(id);
+        if (this.duplicateIds === "first") {
+            tally.droppedRows.push({ id, record: frozenRecord(record) });
+        }
         if (this.duplicateIds === "refuse" && this.measure === null) {
             throw new GraphtyError({
                 code: "E_DUPLICATE_ID",
@@ -668,62 +938,11 @@ export class Ingest<K extends KnownEdge> {
             DEFAULT_LIMITS.renderCeiling,
         );
 
+        const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
         for (const edge of edges) {
-            tally.edgeRecords++;
-            const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
-            const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
-            if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
-                continue;
-            }
-
-            const weight = resolveEdgeWeight(edge, weightPath, legacyFallback);
-            if (weight.source === "legacy") {
+            if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;
             }
-
-            if (weight.source !== "default") {
-                tally.weightsResolvedFrom = weight.source;
-                tally.weightsAttribute = weight.source === "legacy" ? "value" : weightPath;
-            }
-
-            const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-            const known = this.knownEdgeFor(srcNodeId, dstNodeId, recordId);
-            const record = frozenRecord(edge);
-            if (known !== null) {
-                tally.repeatedSeen++;
-                if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
-                    continue;
-                }
-            }
-
-            // The STORE takes the edge now, whether or not the endpoints have render objects:
-            // the builder creates a missing endpoint itself, so the snapshot is complete while
-            // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = writer.addEdge(
-                srcNodeId,
-                dstNodeId,
-                weight.weight,
-                record,
-                isStorableRecordId(recordId) ? recordId : undefined,
-            );
-            if (edgeIndex === INVALID_INDEX) {
-                // graph-format will not hold an edge between these ids -- most often because the
-                // record does not answer the endpoint expressions at all, so both came back null.
-                // It gets no row, no counter and no render object, which is what makes "every Edge
-                // has a store row" an invariant everything downstream can rely on.
-                tally.rejected++;
-                tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
-                continue;
-            }
-
-            if (isStorableRecordId(recordId)) {
-                this.edgesByRecordId.set(recordId, edgeIndex);
-                tally.edgesById++;
-            } else {
-                tally.edgesByPosition++;
-            }
-
-            this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
         }
 
         if (legacyWeights > 0) {
@@ -752,6 +971,135 @@ export class Ingest<K extends KnownEdge> {
 
         if (edges.length > 0) {
             this.host.edgesArrived(edges.length);
+        }
+    }
+
+    /**
+     * Add one edge record of an `addEdges` batch: leave it out, merge it as a repeat, or store it.
+     * @param edge - The edge record.
+     * @param batch - What the whole batch was resolved to.
+     * @param writer - The graph primitives to write through.
+     * @returns True when its weight was read from the legacy `value` key.
+     */
+    private addEdgeRecord(edge: Record<string | number, unknown>, batch: EdgeBatch, writer: GraphWriter): boolean {
+        const { endpoints, tally, weightPath } = batch;
+        tally.edgeRecords++;
+        const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
+        const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
+        if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+            this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
+            tally.edgeIds.push(null);
+            return false;
+        }
+
+        const weight = resolveEdgeWeight(edge, weightPath, batch.legacyFallback);
+        const legacy = weight.source === "legacy";
+        if (weight.source !== "default") {
+            tally.weightsResolvedFrom = weight.source;
+            tally.weightsAttribute = legacy ? "value" : weightPath;
+        }
+
+        const recordId = batch.recordIdPath === null ? undefined : readEndpoint(edge, batch.recordIdPath);
+        const record = frozenRecord(edge);
+        const repeat = { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId };
+        if (this.repeatConsumed(repeat, recordId, batch, writer)) {
+            return legacy;
+        }
+
+        // The STORE takes the edge now, whether or not the endpoints have render objects:
+        // the builder creates a missing endpoint itself, so the snapshot is complete while
+        // the scene is still catching up. A load remembers which, to draw them at its end.
+        if (this.loadTally !== null) {
+            this.rememberMadeEndpoints(srcNodeId, dstNodeId);
+        }
+
+        const { index: edgeIndex, edgeId } = writer.addEdge(
+            srcNodeId,
+            dstNodeId,
+            weight.weight,
+            record,
+            isStorableRecordId(recordId) ? recordId : undefined,
+        );
+        if (edgeIndex === INVALID_INDEX) {
+            // graph-format will not hold an edge between these ids -- most often because the
+            // record does not answer the endpoint expressions at all, so both came back null.
+            // It gets no row, no counter and no render object, which is what makes "every Edge
+            // has a store row" an invariant everything downstream can rely on.
+            tally.rejected++;
+            tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
+            tally.refusedRows.push({ rowsAre: "edges", record });
+            tally.edgeIds.push(null);
+            return legacy;
+        }
+
+        if (isStorableRecordId(recordId)) {
+            this.edgesByRecordId.set(recordId, edgeIndex);
+            tally.edgesById++;
+        } else {
+            tally.edgesByPosition++;
+        }
+
+        tally.edgeIds.push(edgeIdOf(edgeId));
+        this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
+        this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
+        return legacy;
+    }
+
+    /**
+     * Hand an edge record naming a pair the graph already holds to the repeat policy.
+     * @param repeat - The record, its weight and its endpoints.
+     * @param repeat.record - The frozen edge record.
+     * @param repeat.weight - Its weight.
+     * @param repeat.sourceId - Its source id.
+     * @param repeat.targetId - Its target id.
+     * @param recordId - The record's own id, when the batch reads one.
+     * @param batch - What the whole batch was resolved to.
+     * @param writer - The graph primitives to write through.
+     * @returns True when the policy consumed the record, so it is not stored as a new edge.
+     */
+    private repeatConsumed(
+        repeat: {
+            readonly record: Record<string | number, unknown>;
+            readonly weight: number;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
+        recordId: unknown,
+        batch: EdgeBatch,
+        writer: GraphWriter,
+    ): boolean {
+        const { policy, tally } = batch;
+        const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
+        if (known !== null) {
+            tally.repeatedSeen++;
+            if (this.mergeRepeat(known, repeat, policy, tally, writer)) {
+                // The edge it repeats is one this load supplied too.
+                this.noteSupplied(edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)), repeat.sourceId, repeat.targetId);
+                tally.edgeIds.push(null);
+                return true;
+            }
+
+            return false;
+        }
+
+        if (!this.measuredRepeat(repeat.sourceId, repeat.targetId, recordId)) {
+            return false;
+        }
+
+        tally.repeatedSeen++;
+        return this.countRepeat(policy, tally);
+    }
+
+    /**
+     * Remember the endpoints of a load's edge that the store will create because no node record
+     * named them, so the load draws them at its end.
+     * @param ids - The edge's endpoint ids.
+     */
+    private rememberMadeEndpoints(...ids: NodeIdType[]): void {
+        for (const id of ids) {
+            if (isStorableId(id) && !this.host.store().builder.hasNode(id)) {
+                this.loadMadeEndpoints.add(id);
+            }
         }
     }
 
@@ -823,7 +1171,7 @@ export class Ingest<K extends KnownEdge> {
      */
     refuseNodeReplacement(nodes: readonly Record<string | number, unknown>[], idPath?: string): void {
         const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
-        const ids = new Set(nodes.map((node) => jmespath.search(node, query) as unknown));
+        const ids = new Set(nodes.map((node) => searchRecord(node, query)));
         this.refuseAboveCeiling("nodes", 0, ids.size, DEFAULT_LIMITS.renderCeiling);
     }
 
@@ -851,6 +1199,40 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Keep one left-out edge row with its source (the first {@link LEFT_OUT_KEPT}), with its line
+     * when the load reads a draft, and note the columns its ends were read from.
+     * @param edge - the row.
+     * @param source - its source end.
+     * @param target - its target end.
+     * @param endpoints - where the ends were read from.
+     * @param ordinal - the row's position among the load's edge records, from 1.
+     */
+    private keepLeftOut(
+        edge: Readonly<Record<string | number, unknown>>,
+        source: NodeIdType,
+        target: NodeIdType,
+        endpoints: ResolvedEndpoints,
+        ordinal: number,
+    ): void {
+        if (this.leftOutEdges.length >= LEFT_OUT_KEPT) {
+            return;
+        }
+
+        const line = this.loadEdgeLines === null ? undefined : (this.loadEdgeLines[ordinal - 1] ?? ordinal);
+        // The ends `isUnmatched` just counted as missing, by the same test.
+        const missingValues = this.loadTally?.unmatchedValues;
+        const missingEnds = (["source", "target"] as const).filter((end) => {
+            const id = end === "source" ? source : target;
+            return isStorableId(id) && (missingValues?.has(id) === true || !this.hasNode(id));
+        });
+        this.leftOutEdges.push(leftOutEdge(edge, source, target, endpoints, line, missingEnds));
+        const [sourceColumn, targetColumn] = [columnOf(endpoints.source), columnOf(endpoints.target)];
+        if (this.leftOutEnds === null && sourceColumn !== null && targetColumn !== null) {
+            this.leftOutEnds = { source: sourceColumn, target: targetColumn };
+        }
+    }
+
+    /**
      * The endpoint expressions this batch is read with, resolved once per load rather than once
      * per batch when a load is in progress.
      * @param edges - the batch's records
@@ -862,7 +1244,17 @@ export class Ingest<K extends KnownEdge> {
         options: AddEdgesOptions | undefined,
     ): ResolvedEndpoints {
         if (options?.source !== undefined && options.target !== undefined) {
-            return { source: options.source, target: options.target, resolvedFrom: "declared" };
+            const declared: ResolvedEndpoints = {
+                source: options.source,
+                target: options.target,
+                resolvedFrom: "declared",
+            };
+            if (this.loadTally !== null && edges.length > 0) {
+                // The load's answer too, so its report (and the columns' roles) name the columns
+                // the reader chose rather than the configured defaults it never read.
+                this.loadEndpoints = declared;
+            }
+            return declared;
         }
 
         if (this.loadEndpoints !== null) {
@@ -905,13 +1297,54 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Whether a measured merge's record repeats an edge of the graph it is measured against, which
+     * the scratch session does not hold. Matched by pair, as `knownEdgeFor` matches a record with
+     * no file id.
+     * ponytail: a record with a file id is never matched here, since the graph's file ids are not
+     * handed over; hand them over when a consumer reports repeats by id.
+     * @param sourceId - the source endpoint id
+     * @param targetId - the target endpoint id
+     * @param recordId - the record's file id, if any
+     * @returns true when it repeats one
+     */
+    private measuredRepeat(sourceId: NodeIdType, targetId: NodeIdType, recordId: unknown): boolean {
+        const pairs = this.measure?.pairs;
+        return pairs !== undefined && !isStorableRecordId(recordId) && pairs.has(pairKey(sourceId, targetId));
+    }
+
+    /**
+     * Count what the repeat policy would do with a measured repeat, writing nothing: there is no
+     * edge here to fold it into, and the weight it would take is not part of a report.
+     * @param policy - the repeat policy
+     * @param tally - the load's counters
+     * @returns true when the repeat would not become an edge of its own
+     */
+    private countRepeat(policy: DuplicatePolicy, tally: ImportTally): boolean {
+        const { kind } = decideRepeat(policy, 0, 0);
+        if (kind === "add") {
+            tally.repeatedKept++;
+            return false;
+        }
+
+        if (kind === "drop") {
+            tally.repeatedDropped++;
+        } else if (kind === "merge") {
+            tally.repeatedMerged++;
+        }
+
+        // "refuse": a real load refuses with E_DUPLICATE_EDGE; a report counts it in `seen`.
+        return true;
+    }
+
+    /**
      * Apply the repeat policy to one record that names an edge the graph already holds.
      * @param known - the edge already present
-     * @param record - the repeating record
-     * @param weight - the repeating record's resolved weight
+     * @param repeat - the repeating record
+     * @param repeat.record - the record itself
+     * @param repeat.weight - its resolved weight
+     * @param repeat.sourceId - the source endpoint id, for the error message
+     * @param repeat.targetId - the target endpoint id, for the error message
      * @param policy - what to do about it
-     * @param sourceId - the source endpoint id, for the error message
-     * @param targetId - the target endpoint id, for the error message
      * @param tally - the load's counters
      * @param writer - the graph primitives to write through
      * @returns true when the repeat has been dealt with and must not become an edge of its own
@@ -919,14 +1352,17 @@ export class Ingest<K extends KnownEdge> {
      */
     private mergeRepeat(
         known: K,
-        record: Record<string | number, unknown>,
-        weight: number,
+        repeat: {
+            readonly record: Record<string | number, unknown>;
+            readonly weight: number;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
         policy: DuplicatePolicy,
-        sourceId: NodeIdType,
-        targetId: NodeIdType,
         tally: ImportTally,
         writer: GraphWriter,
     ): boolean {
+        const { record, weight, sourceId, targetId } = repeat;
         const decision = decideRepeat(policy, writer.store.builder.edgeWeight(known.edgeIndex), weight);
         if (decision.kind === "add") {
             tally.repeatedKept++;
@@ -1075,6 +1511,122 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * The id a node is held under, in either spelling of an integer id. A node an edge created has a row but no
+     * record: it is held all the same.
+     * @param id - The id
+     * @returns The id the graph holds it under, or undefined
+     */
+    private heldNode(id: NodeIdType): NodeIdType | undefined {
+        const { builder } = this.host.store();
+        const held = (one: NodeIdType): boolean =>
+            this.host.hasNode(one) || (isStorableId(one) && builder.hasNode(one));
+        if (held(id)) {
+            return id;
+        }
+
+        const other = otherIdSpelling(id);
+        return other !== undefined && held(other) ? other : undefined;
+    }
+
+    /**
+     * Reads every chunk of a source into the graph, publishing the progress after each.
+     * @param reader - The source
+     * @param load - The format, the cancel signal, the graph primitives and how records name their ids and endpoints
+     * @param load.type - The format
+     * @param load.signal - Fires when the load is cancelled
+     * @param load.writer - The graph primitives to write through
+     * @param load.nodeIdPath - Where a node record holds its id, or undefined for the default
+     * @param load.endpointOverrides - Where an edge record names its endpoints and weight
+     * @param load.onChunk - Told the progress after each chunk
+     * @param start - The progress before the first chunk
+     */
+    private async readChunks(
+        reader: ChunkReader,
+        load: {
+            readonly type: string;
+            readonly signal: AbortSignal | undefined;
+            readonly writer: GraphWriter;
+            readonly nodeIdPath: string | undefined;
+            readonly endpointOverrides: AddEdgesOptions;
+            readonly onChunk: (progress: LoadProgress) => void;
+        },
+        start: LoadProgress,
+    ): Promise<void> {
+        const { type, signal, writer } = load;
+        let progress = start;
+        // Whether the file's own direction has been dealt with, so the work and the log
+        // line happen once per import rather than once per chunk.
+        let directionSettled = false;
+
+        for await (const chunk of untilAborted(reader.getData(), signal)) {
+            // Nothing is written once the load has been cancelled: its writes are being
+            // taken back, and a chunk written after that would outlive them.
+            signal?.throwIfAborted();
+            // BEFORE this chunk's edges, every time: the builder accepts a direction only
+            // while it holds none. Read per chunk rather than once before the loop because
+            // a source parses nothing until its first chunk is pulled, so before the loop
+            // every source declares null.
+            if (!directionSettled) {
+                directionSettled = this.applyDeclaredDirection(type, reader.declaredDirection, writer);
+            }
+
+            this.addNodes(chunk.nodes, load.nodeIdPath, writer);
+            // The endpoint names a caller passed to the SOURCE are honoured here rather
+            // than inside each of the seven importers: whatever shape a source produces,
+            // the consumer who named the columns named them for the records that come out.
+            this.addEdges(chunk.edges, load.endpointOverrides, writer);
+
+            progress = {
+                ...progress,
+                nodeRecords: progress.nodeRecords + chunk.nodes.length,
+                edgeRecords: progress.edgeRecords + chunk.edges.length,
+                chunks: progress.chunks + 1,
+            };
+            load.onChunk(progress);
+            this.host.loadProgress(progress);
+            this.host.progress?.(loadProgressChange(progress, "progress"));
+        }
+    }
+
+    /**
+     * Report a load that failed while reading and throw what the caller is told.
+     * @param type - Data source type identifier
+     * @param error - What the read threw
+     * @param signal - The load's cancel signal
+     * @param progress - How far the load got
+     * @throws The error itself when the load was cancelled or the error is coded; otherwise an
+     *     Error naming the source and how many chunks it read
+     */
+    private failLoad(type: string, error: unknown, signal: AbortSignal | undefined, progress: LoadProgress): never {
+        // A cancelled load did not fail: whoever cancelled it says why.
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
+        const failure = error instanceof Error ? error : new Error(String(error));
+        this.logger.error("Data source loading failed", failure, {
+            type,
+            chunksProcessed: progress.chunks,
+            nodeRecordsLoaded: progress.nodeRecords,
+            edgeRecordsLoaded: progress.edgeRecords,
+        });
+
+        this.host.loadFailed(type, failure, progress);
+
+        // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
+        // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
+        // the one route where a reader's parse failure arrived as an unclassifiable
+        // string while the same failure on the event channel arrived as E_PARSE_FAILED.
+        if (isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw new Error(
+            `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
+        );
+    }
+
+    /**
      * Loads data from a registered data source
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
@@ -1085,6 +1637,7 @@ export class Ingest<K extends KnownEdge> {
      *     is a failure
      * @param held - Rows a draft already read, loaded instead of reading the source
      * @param name - What the import called the data, for its progress
+     * @returns What the load left for the step that applies the file's styles, with its report
      */
     async addDataFromSource(
         type: string,
@@ -1094,7 +1647,7 @@ export class Ingest<K extends KnownEdge> {
         replacing = false,
         held?: HeldRows,
         name?: string,
-    ): Promise<void> {
+    ): Promise<ImportOutcome> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -1125,16 +1678,7 @@ export class Ingest<K extends KnownEdge> {
         this.loadTally = tally;
         this.loadEndpoints = null;
 
-        // The CSV source reads its own `edgeSource` / `edgeTarget` columns and hands every edge over
-        // as `source` / `target`, so reading those names again here would find nothing.
-        const named = (type === "csv" ? {} : opts) as { edgeSource?: unknown; edgeTarget?: unknown };
-        const source = held?.source ?? named.edgeSource;
-        const target = held?.target ?? named.edgeTarget;
-        const endpointOverrides: AddEdgesOptions = {
-            ...(typeof source === "string" ? { source } : {}),
-            ...(typeof target === "string" ? { target } : {}),
-            ...(held?.weight === undefined ? {} : { weight: held.weight }),
-        };
+        const endpointOverrides = endpointOverridesOf(type, opts, held);
         const nodeIdPath = held?.idPath;
 
         // Bracketed as ONE load however many chunks it takes, so its edge ordinals are counted
@@ -1142,44 +1686,26 @@ export class Ingest<K extends KnownEdge> {
         const { store } = writer;
         store.openLoad();
         try {
-            const reader: ChunkReader | null = held === undefined ? DataSource.get(type, opts) : heldReader(held);
+            const source = held === undefined ? DataSource.get(type, opts) : null;
+            const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);
             }
 
             try {
-                // Whether the file's own direction has been dealt with, so the work and the log
-                // line happen once per import rather than once per chunk.
-                let directionSettled = false;
+                // the progress is kept current chunk by chunk, so a load that fails partway says how far it got
+                const onChunk = (read: LoadProgress): void => {
+                    progress = read;
+                };
+                await this.readChunks(
+                    reader,
+                    { type, signal, writer, nodeIdPath, endpointOverrides, onChunk },
+                    progress,
+                );
 
-                for await (const chunk of untilAborted(reader.getData(), signal)) {
-                    // Nothing is written once the load has been cancelled: its writes are being
-                    // taken back, and a chunk written after that would outlive them.
-                    signal?.throwIfAborted();
-                    // BEFORE this chunk's edges, every time: the builder accepts a direction only
-                    // while it holds none. Read per chunk rather than once before the loop because
-                    // a source parses nothing until its first chunk is pulled, so before the loop
-                    // every source declares null.
-                    if (!directionSettled) {
-                        directionSettled = this.applyDeclaredDirection(type, reader.declaredDirection, writer);
-                    }
+                keepFileGraph(reader, type, writer);
 
-                    this.addNodes(chunk.nodes, nodeIdPath, writer);
-                    // The endpoint names a caller passed to the SOURCE are honoured here rather
-                    // than inside each of the seven importers: whatever shape a source produces,
-                    // the consumer who named the columns named them for the records that come out.
-                    this.addEdges(chunk.edges, endpointOverrides, writer);
-
-                    progress = {
-                        ...progress,
-                        nodeRecords: progress.nodeRecords + chunk.nodes.length,
-                        edgeRecords: progress.edgeRecords + chunk.edges.length,
-                        chunks: progress.chunks + 1,
-                    };
-                    this.host.loadProgress(progress);
-                    this.host.progress?.(loadProgressChange(progress, "progress"));
-                }
-
+                this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
                 // The source's own problems come first: it read the file before any record was
                 // stored. They reach the report whatever the host does with the event below.
@@ -1188,46 +1714,7 @@ export class Ingest<K extends KnownEdge> {
                 if (errors.getErrorCount() > 0) {
                     this.host.loadErrors(type, errors);
                 }
-
-                // A source that produced no record did not load a graph: it failed, and its draft
-                // rolls back rather than recording an empty graph as a load. A file of edges alone
-                // is not empty: its endpoints become nodes.
-                const rowErrors = errors.getErrorCount();
-                // A file the parser could not read is not an empty file: the two have different fixes.
-                const unreadable =
-                    progress.nodeRecords + progress.edgeRecords === 0
-                        ? unreadableSource(type, errors.getErrors())
-                        : null;
-                if (unreadable !== null) {
-                    throw unreadable;
-                }
-
-                if (progress.nodeRecords === 0 && progress.edgeRecords === 0) {
-                    throw new GraphtyError({
-                        code: "E_EMPTY_LOAD",
-                        source: "data",
-                        message:
-                            rowErrors > 0
-                                ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
-                                  `${errors.getSummary().message}), so there was nothing to load.`
-                                : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
-                                  "Check the file, or the format it was read as.",
-                        details: { format: type, rowErrors },
-                    });
-                }
-
-                // The source stops quietly at its error limit, so what was read is only part of the
-                // file; a replacing load that swapped a good graph for it did not finish cleanly.
-                if (replacing && errors.hasReachedLimit()) {
-                    throw new GraphtyError({
-                        code: "E_PARSE_FAILED",
-                        source: "data",
-                        message:
-                            `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
-                            "so only part of it was read and the current graph was kept.",
-                        details: { format: type, rowErrors },
-                    });
-                }
+                refuseEmptyOrPartial(type, errors, progress, replacing);
 
                 const duration = Date.now() - startTime;
                 const errorCount = errors.getErrorCount();
@@ -1236,7 +1723,14 @@ export class Ingest<K extends KnownEdge> {
                 // what `edgesLoaded` has always claimed to be and never was: it counted records
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
-                const report = this.sealLoad(type, tally, writer);
+                const report = this.sealLoad(
+                    type,
+                    tally,
+                    writer,
+                    held === undefined ? undefined : HELD_KINDS.get(held), // NOSONAR(S4158): data.ts and draft.ts fill HELD_KINDS; the rule reads one file
+                );
+                this.sealedTally = tally;
+                await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
 
                 this.logger.info("Data source loading complete", {
                     nodeRecords: progress.nodeRecords,
@@ -1251,57 +1745,64 @@ export class Ingest<K extends KnownEdge> {
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
                 end({ outcome: "succeeded" });
+                return {
+                    reader: held === undefined ? source : (HELD_READERS.get(held) ?? null),
+                    edgeIds: Object.freeze([...tally.edgeIds]),
+                    report,
+                    heldNode: (id) => this.heldNode(id),
+                };
             } catch (error) {
                 end(failedEnd(error, signal));
-                // A cancelled load did not fail: whoever cancelled it says why.
-                if (signal?.aborted === true) {
-                    throw error;
-                }
-
-                const failure = error instanceof Error ? error : new Error(String(error));
-                this.logger.error("Data source loading failed", failure, {
-                    type,
-                    chunksProcessed: progress.chunks,
-                    nodeRecordsLoaded: progress.nodeRecords,
-                    edgeRecordsLoaded: progress.edgeRecords,
-                });
-
-                this.host.loadFailed(type, failure, progress);
-
-                // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
-                // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
-                // the one route where a reader's parse failure arrived as an unclassifiable
-                // string while the same failure on the event channel arrived as E_PARSE_FAILED.
-                if (isGraphtyError(error)) {
-                    throw error;
-                }
-
-                throw new Error(
-                    `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
-                );
+                return this.failLoad(type, error, signal, progress);
             }
         } catch (error) {
             end(failedEnd(error, signal));
-            // Same rule one level out: a coded failure is the answer, not something to re-word.
-            if (isGraphtyError(error) || signal?.aborted === true) {
-                throw error;
-            }
-
-            // Re-throw if already a processed error
-            if (error instanceof Error && error.message.includes("Failed to load data")) {
-                throw error;
-            }
-
-            // Otherwise wrap and throw
-            throw new Error(
-                `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
-            );
+            throw initFailure(error, type, signal);
         } finally {
             store.closeLoad();
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally.
             this.loadTally = null;
             this.loadEndpoints = null;
+            this.loadMadeEndpoints.clear();
+        }
+    }
+
+    /**
+     * Draw the nodes the load's edges created and no node record of the load named, as a node
+     * holding only its id, which is what a file of edges alone means by them. Without this the
+     * store holds them and nothing draws them, nor the edges waiting on them.
+     * @param writer - the graph primitives to write through
+     */
+    private drawMadeEndpoints(writer: GraphWriter): void {
+        let drawn = 0;
+        for (const id of this.loadMadeEndpoints) {
+            if (!this.host.hasNode(id)) {
+                const record = frozenRecord({ id });
+                const { index } = writer.addNode(id, record, null);
+                this.host.nodeStored(id, record, index);
+                drawn++;
+            }
+        }
+
+        if (drawn > 0) {
+            this.host.nodesArrived(drawn);
+        }
+    }
+
+    /**
+     * Record the groups the file read with no stored position, which the layout places by their
+     * members (see `LayoutManager.placeGroups`).
+     *
+     * ponytail: a merge's groups replace the graph's earlier ones; keep both when merging two
+     * nested files matters.
+     * @param reader - The reader the load read, or null.
+     * @param writer - The graph primitives to write through.
+     */
+    private async recordGroups(reader: object | null, writer: GraphWriter): Promise<void> {
+        const groups = reader === null ? [] : await readGroups(reader, (id) => this.heldNode(id));
+        if (groups.length > 0) {
+            writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
         }
     }
 
@@ -1310,9 +1811,10 @@ export class Ingest<K extends KnownEdge> {
      * @param format - the data source that read the file
      * @param tally - what the load counted
      * @param writer - the graph primitives to write through
+     * @param kinds - the kinds the draft gave the rows, when it gave any
      * @returns the report
      */
-    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): ImportReport {
+    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter, kinds?: LoadReport["kinds"]): LoadReport {
         const { knownFields } = this.host.dataConfig();
         const endpoints = this.loadEndpoints ?? {
             // A file with no edge records at all: nothing was probed, so nothing was decided, and
@@ -1322,13 +1824,14 @@ export class Ingest<K extends KnownEdge> {
             resolvedFrom: "source/target" as const,
         };
 
-        const report = sealImportReport(tally, {
+        const sealed = sealImportReport(tally, {
             format,
             endpoints,
             policy: knownFields.repeatedEdges,
             idPath: knownFields.edgeIdPath,
             ...this.heldCounts(),
         });
+        const report = kinds === undefined ? sealed : Object.freeze({ ...sealed, kinds });
         writer.setGraphValues({ importReport: report });
         return report;
     }
@@ -1407,6 +1910,102 @@ export class Ingest<K extends KnownEdge> {
 const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 
 /**
+ * What a load that failed before or around its read throws: a coded or cancelled failure
+ * unchanged, a read failure already worded, anything else wrapped.
+ * @param error - what was thrown
+ * @param type - the source type
+ * @param signal - fires when the load is cancelled
+ * @returns the error to throw
+ */
+function initFailure(error: unknown, type: string, signal: AbortSignal | undefined): unknown {
+    // Same rule one level out: a coded failure is the answer, not something to re-word.
+    if (isGraphtyError(error) || signal?.aborted === true) {
+        return error;
+    }
+
+    // Re-throw if already a processed error
+    if (error instanceof Error && error.message.includes("Failed to load data")) {
+        return error;
+    }
+
+    // Otherwise wrap and throw
+    return new Error(
+        `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
+    );
+}
+
+/**
+ * Where an edge record names its endpoints and weight: a draft's own names, else the names the caller passed the
+ * source. The CSV source reads its own `edgeSource` / `edgeTarget` columns and hands every edge over as `source` /
+ * `target`, so reading those names again would find nothing.
+ * @param type - The format
+ * @param opts - The source's options
+ * @param held - Rows a draft already read, or undefined
+ * @returns The overrides
+ */
+function endpointOverridesOf(type: string, opts: object, held: HeldRows | undefined): AddEdgesOptions {
+    const named = (type === "csv" ? {} : opts) as { edgeSource?: unknown; edgeTarget?: unknown };
+    const source = held?.source ?? named.edgeSource;
+    const target = held?.target ?? named.edgeTarget;
+    return {
+        ...(typeof source === "string" ? { source } : {}),
+        ...(typeof target === "string" ? { target } : {}),
+        ...(held?.weight === undefined ? {} : { weight: held.weight }),
+        ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
+    };
+}
+
+/**
+ * Refuses a load that loaded nothing, or only part of a file it replaces the graph with. A source that produced no
+ * record did not load a graph: it failed, and its draft rolls back rather than recording an empty graph as a load
+ * (a file of edges alone is not empty: its endpoints become nodes); a file the parser could not read is not an empty
+ * file, since the two have different fixes. The source stops quietly at its error limit, so what was read is only
+ * part of the file; a replacing load that swapped a good graph for it did not finish cleanly.
+ * @param type - The format
+ * @param errors - The source's errors
+ * @param progress - What was read
+ * @param replacing - Whether the load replaces the graph
+ */
+function refuseEmptyOrPartial(
+    type: string,
+    errors: ReturnType<ChunkReader["getErrorAggregator"]>,
+    progress: LoadProgress,
+    replacing: boolean,
+): void {
+    const rowErrors = errors.getErrorCount();
+    const empty = progress.nodeRecords + progress.edgeRecords === 0;
+    const unreadable = empty ? unreadableSource(type, errors.getErrors()) : null;
+    if (unreadable !== null) {
+        throw unreadable;
+    }
+
+    if (empty) {
+        throw new GraphtyError({
+            code: "E_EMPTY_LOAD",
+            source: "data",
+            message:
+                rowErrors > 0
+                    ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
+                      `${errors.getSummary().message}), so there was nothing to load.`
+                    : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
+                      "Check the file, or the format it was read as.",
+            details: { format: type, rowErrors },
+        });
+    }
+
+    if (replacing && errors.hasReachedLimit()) {
+        throw new GraphtyError({
+            code: "E_PARSE_FAILED",
+            source: "data",
+            message:
+                `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
+                "so only part of it was read and the current graph was kept.",
+            details: { format: type, rowErrors },
+        });
+    }
+}
+
+/**
  * Held rows read like a data source: one chunk, then the errors and direction their read found.
  * @param held - The rows.
  * @returns The reader.
@@ -1414,6 +2013,9 @@ const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 function heldReader(held: HeldRows): ChunkReader {
     return {
         declaredDirection: held.declaredDirection,
+        // What the file said about the whole graph, from the source that read the rows, so a
+        // draft's load keeps it as `data.import` of the same file does.
+        declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {
@@ -1426,9 +2028,25 @@ function heldReader(held: HeldRows): ChunkReader {
     };
 }
 
+/**
+ * Keep what the file said about the whole graph with the graph, where a layout chosen for the
+ * file reads it.
+ * @param reader - The source, once its last chunk is read.
+ * @param format - The format it read.
+ * @param writer - The command's writer.
+ */
+function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
+    const attributes = reader.declaredGraphValues;
+    if (attributes !== null && attributes !== undefined) {
+        writer.setGraphValues({ [FILE_GRAPH_VALUE]: Object.freeze({ format, attributes }) });
+    }
+}
+
 /** What a load reads its chunks from: a data source, or a draft's held rows. */
 interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
+    /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
+    readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

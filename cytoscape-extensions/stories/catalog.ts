@@ -1,6 +1,6 @@
 /**
  * What the demo offers: every layout, every algorithm (grouped as the stories group them), a preset for every
- * generator, the bundled datasets and the formats, and the gallery pages built from them. Data only, so test/demo-catalog.test.ts can check that nothing the extension registers is missing.
+ * generator, the small datasets and the formats, and the gallery pages built from them. Data only, so test/demo-catalog.test.ts can check that nothing the extension registers is missing.
  */
 
 import { DATASETS } from "@graphty/graph-samples";
@@ -88,6 +88,12 @@ export const ALGORITHM_GROUPS = {
             "connectedComponents",
         ],
     },
+    // each search on its own example (stories/examples.ts): the search beside the other kind, on the same graph
+    Traversal: {
+        network: "barabasi-albert",
+        directed: false,
+        algorithms: ["breadthFirstSearch", "directionOptimizedBfs", "depthFirstSearch"],
+    },
     PathsAndTrees: {
         network: "barabasi-albert",
         directed: false,
@@ -97,9 +103,6 @@ export const ALGORITHM_GROUPS = {
             "bidirectionalDijkstra",
             "aStar",
             "allPairsShortestPath",
-            "breadthFirstSearch",
-            "directionOptimizedBfs",
-            "depthFirstSearch",
             "kruskalMST",
             "primMST",
         ],
@@ -280,8 +283,11 @@ const IMPORT_FORMATS = Object.keys({
     cys: 0,
 } satisfies Record<Exclude<ImportFormat, "auto">, 0>) as Exclude<ImportFormat, "auto">[];
 
-/** The bundled datasets, smallest first; the hosted ones are downloads and stay out of the snapshots. */
-const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
+/**
+ * The small datasets (under 5,000 nodes), smallest first: the ones the package used to bundle. The large ones are
+ * big downloads and stay out of the snapshots.
+ */
+const SMALL_DATASETS = DATASETS.filter((d) => d.nodes < 5000)
     .sort((a, b) => a.nodes - b.nodes)
     .map((d) => d.name);
 
@@ -306,7 +312,7 @@ export const GALLERY_PAGES = {
     Layouts: [...SIMULATION_LAYOUTS, ...STATIC_LAYOUTS],
     ...algorithmPages(),
     Generators: Object.keys(GENERATOR_PRESETS) as GeneratorName[],
-    Datasets: BUNDLED_DATASETS,
+    Datasets: SMALL_DATASETS,
     // a file read in each format, one read with no format named ("auto"), and karate written in every format
     Formats: [...IMPORT_FORMATS, "auto", "export"],
 } satisfies Record<string, readonly string[]>;

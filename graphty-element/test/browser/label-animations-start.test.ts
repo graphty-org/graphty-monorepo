@@ -5,7 +5,7 @@
  * delay on a fast one, and still armed after a dispose. Now a layout that runs starts them when
  * it settles, and one that is already at rest starts them on the first frame that has nodes. A
  * label built later -- by a style layer or any other write -- is started the same way.
- * Every wait here is on a frame or on the stable-frame promise, never on a clock.
+ * Every wait here is on a drawn frame or on the stable-frame promise, never on a clock.
  */
 
 import "../../src/graphty-element";
@@ -15,6 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { Graph } from "../../src/Graph";
 import { DataManager } from "../../src/managers/DataManager";
 import { RichTextAnimator } from "../../src/meshes/RichTextAnimator";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 const NODES = [
     { id: "a", position: { x: -2, y: 0, z: 0 } },
@@ -95,8 +96,8 @@ describe("label animations start when the labels exist", () => {
             await nextFrame();
         }
 
-        await nextFrame();
-        await nextFrame();
+        // Two more updates at rest, either of which would have started them again.
+        await drawnFrames(g.getScene(), 2);
         assert.isFalse(g.isRunning(), "the layout stayed paused");
         assert.deepEqual(starts, [true], "one start, with every label in place");
     });
@@ -132,8 +133,8 @@ describe("label animations start when the labels exist", () => {
             await nextFrame();
         }
 
-        await nextFrame();
-        await nextFrame();
+        // Two more updates at rest, either of which would have restarted another label.
+        await drawnFrames(g.getScene(), 2);
         assert.isFalse(g.isRunning(), "the layout stayed paused");
         assert.lengthOf(animated, 1, "one animation started: node a's new label, and no other label restarted");
     });
@@ -144,7 +145,8 @@ describe("label animations start when the labels exist", () => {
         g.dispose();
         graph = undefined;
 
-        await nextFrame();
+        // Only an update of the render loop starts them, and a disposed graph's loop has stopped:
+        // the frame already asked for when it was disposed is the last that could.
         await nextFrame();
         assert.deepEqual(starts, []);
     });

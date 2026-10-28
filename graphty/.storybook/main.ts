@@ -3,6 +3,13 @@ import type { StorybookConfig } from "@storybook/react-vite";
 const config: StorybookConfig = {
     stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
     addons: ["@storybook/addon-docs"],
+    staticDirs: [
+        // the brand logo and favicon (manager.ts)
+        { from: "./brand", to: "/" },
+        // the sample datasets and their pictures, from graph-samples' build (the files graphty.app
+        // publishes), so the start page's library reads them with no internet (open.ts)
+        { from: "../../graph-samples/dist/data/v1", to: "/data/graph-samples/v1" },
+    ],
     framework: {
         name: "@storybook/react-vite",
         options: {},
@@ -20,16 +27,21 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
+        const { mergeConfig, loadEnv } = await import("vite");
+        // The sample datasets and their pictures are served beside the Storybook (staticDirs, and
+        // vite.sample-data.ts under vitest), not read from graphty.app, in every build of the
+        // stories: the vitest story tests run in production mode too, where DEV is false (open.ts).
+        const localData = { define: { "import.meta.env.VITE_LOCAL_SAMPLE_DATA": JSON.stringify("true") } };
+
         // Under vitest (the `storybook` test project) vitest serves the stories itself, on its own
         // host and port: the dev server's host and certificate below would point the test browser
         // at a name it cannot reach.
         if (process.env.VITEST !== undefined) {
-            return config;
+            return mergeConfig(config, localData);
         }
 
-        const fs = await import("fs");
-        const path = await import("path");
-        const { mergeConfig, loadEnv } = await import("vite");
+        const fs = await import("node:fs");
+        const path = await import("node:path");
 
         // Load env file from monorepo root (one level up from this package)
         const monorepoRoot = path.resolve(__dirname, "../..");
@@ -60,11 +72,7 @@ const config: StorybookConfig = {
             // Your production configuration goes here.
         }
 
-        const merged = mergeConfig(config, {
-            // Your environment configuration here
-            server,
-        });
-        return merged;
+        return mergeConfig(config, { ...localData, server });
     },
 };
 export default config;

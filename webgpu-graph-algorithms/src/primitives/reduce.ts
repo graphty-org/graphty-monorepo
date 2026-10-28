@@ -167,28 +167,27 @@ class ReducePlannerImpl implements ReducePlanner {
         const plan1 = plan1d(count, wg, scope.caps);
         const groups1 = groupsOf(plan1);
         let partials = this.partialsBinding(Math.max(groups1, 1), "reduce/partials-1");
-        this.dispatchLevel(pass, this.level, src, count, partials, 0, plan1, 1);
+        this.dispatchLevel(pass, this.level, src, partials, plan1, { count, outOffset: 0, level: 1 });
         dispatches += 1;
         let partialCount = groups1;
         if (groups1 > MAX_WORKGROUPS_PER_DIM) {
             const plan2 = plan1d(groups1, wg, scope.caps);
             const groups2 = groupsOf(plan2);
             const partials2 = this.partialsBinding(groups2, "reduce/partials-2");
-            this.dispatchLevel(pass, this.level, partials, groups1, partials2, 0, plan2, 2);
+            this.dispatchLevel(pass, this.level, partials, partials2, plan2, {
+                count: groups1,
+                outOffset: 0,
+                level: 2,
+            });
             dispatches += 1;
             partials = partials2;
             partialCount = groups2;
         }
-        this.dispatchLevel(
-            pass,
-            this.final,
-            partials,
-            partialCount,
-            out,
+        this.dispatchLevel(pass, this.final, partials, out, plan1d(1, wg, scope.caps), {
+            count: partialCount,
             outOffset,
-            plan1d(1, wg, scope.caps),
-            dispatches + 1,
-        );
+            level: dispatches + 1,
+        });
         dispatches += 1;
         this.dispatches = dispatches;
     }
@@ -210,22 +209,22 @@ class ReducePlannerImpl implements ReducePlanner {
      * @param pass - the compute pass
      * @param kernel - the level or FINAL kernel
      * @param src - the elements of this level
-     * @param count - how many
      * @param out - where the partials (or the result) go
-     * @param outOffset - the element index (0 for partials)
      * @param plan - the dispatch plan
-     * @param level - the level number written into the params (informational)
+     * @param values - the params record
+     * @param values.count - how many elements
+     * @param values.outOffset - the element index (0 for partials)
+     * @param values.level - the level number (informational)
      */
     private dispatchLevel(
         pass: GPUComputePassEncoder,
         kernel: Kernel,
         src: Binding,
-        count: number,
         out: Binding,
-        outOffset: number,
         plan: DispatchPlan,
-        level: number,
+        values: { readonly count: number; readonly outOffset: number; readonly level: number },
     ): void {
+        const { count, outOffset, level } = values;
         const params = this.scope.params(REDUCE_PARAMS, { count, outOffset, level });
         const bound = kernel.bind({ src, out, P: params.binding });
         kernel.dispatch(pass, bound, plan, [params.offset]);

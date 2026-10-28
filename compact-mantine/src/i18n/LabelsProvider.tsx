@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useMemo } from "react";
 
+import { setListNoMatchLabel } from "../components/inputs/listbox";
 import { type CompactMantineLabels, defaultLabels } from "./labels";
 
 // The language tag used when nothing else says which one to use. Kept as bare
@@ -94,6 +95,16 @@ export function LabelsProvider({ labels, locale, children }: LabelsProviderProps
 
     const value = useMemo<CompactMantineLabels>(() => ({ ...inherited, ...labels }), [inherited, labels]);
     const resolvedLocale = locale ?? inheritedLocale;
+    // The open list's keyboard runs on the document, outside React, so it cannot read this
+    // context; hand it the no-match line's words.
+    // ponytail: one set of words per page (the last provider that gives them); per-list words if
+    // a page ever mixes languages.
+    const noMatch = labels?.listNoMatch;
+    useEffect(() => {
+        if (noMatch !== undefined) {
+            setListNoMatchLabel(noMatch);
+        }
+    }, [noMatch]);
 
     return (
         <LocaleContext.Provider value={resolvedLocale}>

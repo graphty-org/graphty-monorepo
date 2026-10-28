@@ -5,9 +5,11 @@ This file provides guidance to Claude Code when working with the @graphty/graph-
 ## Project Overview
 
 @graphty/graph-samples produces graphs to demonstrate and test the rest of the monorepo: seeded
-random-graph generators, the deterministic classic families, and small real datasets with ground
-truth. Every graph is a `SampleGraph` (typed arrays, structurally a graph-format `EdgeArraysInput`),
-so `fromEdgeArrays()` loads it in one call.
+random-graph generators, the deterministic classic families, and real datasets with ground truth.
+Every generated graph is a `SampleGraph` (typed arrays, structurally a graph-format
+`EdgeArraysInput`), so `fromEdgeArrays()` loads it in one call. No dataset's data is in the package
+(owner decision, 2026-10-14): every dataset is published on graphty.app and `fetchDataset(name)`
+(or a small dataset's subpath loader, the same call) downloads it as a `GraphSnapshot`.
 
 The design, the determinism contract and the roadmap are in
 `design/graph-samples/graph-samples-design.md` in the monorepo.
@@ -22,28 +24,31 @@ graph-samples/
 +-- scripts/entries.js       # bundle entries: root, generators, one per src/datasets/<name>/index.ts
 +-- scripts/build-bundle.js  # multi-entry vite build -> dist/graph-samples.js, dist/generators.js, dist/datasets/<name>.js
 +-- scripts/bundle-types.js  # the matching dist/*.d.ts shims
-+-- scripts/convert-datasets.mjs  # sources (URL + SHA-256) -> src/datasets/<name>/data.ts
-+-- scripts/build-hosted.mjs     # sources (URL + SHA-256) -> public-data/v1/<name>.gsnp.gz, index.json, src/datasets/hosted.ts
++-- scripts/convert-datasets.mjs  # small sources (URL + SHA-256) -> data/<name>.ts
++-- scripts/pack-datasets.mjs     # data/<name>.ts -> dist/data/v1/<name>.gsnp.gz, index.json (last step of build:all); --write: src/datasets/packed.ts
++-- scripts/build-hosted.mjs     # large sources (URL + SHA-256) -> public-data/v1/<name>.gsnp.gz, src/datasets/hosted.ts; copies dist/data/v1/ in; index.json of all
 +-- public-data/             # build output of build-hosted.mjs (gitignored), published by deploy-pages.yml
++-- data/                    # the small datasets' data (generated) and build.ts (DatasetData, buildDataset); never published
 +-- src/
 |   +-- index.ts             # root: SampleGraph, DatasetMeta, DATASETS, fetchDataset, toElementData
 |   +-- types.ts             # SampleGraph
 |   +-- element.ts           # toElementData (graphty-element nodeData / edgeData records)
 |   +-- random/              # threefry.ts (block function), log.ts / exp.ts / trig.ts (fdlibm ports), stream.ts (RandomStream, DEFAULT_SEED)
 |   +-- generators/          # index.ts (the subpath barrel), util.ts (checks, EdgeBuffer, bernoulliSegment), one file per family
-|   +-- datasets/            # build.ts (types + buildDataset), catalog.ts, remote.ts, hosted.ts (generated), <name>/{index,meta,data}.ts
-+-- test/                    # mirrors src/; helpers/graph.ts has naive reference checks
+|   +-- datasets/            # build.ts (DatasetMeta), catalog.ts, remote.ts (fetchDataset), hosted.ts and packed.ts (generated), <name>/{index,meta}.ts
++-- test/                    # mirrors src/; helpers/graph.ts has naive reference checks, helpers/datasets.ts the small datasets from data/
 ```
 
 ## Commands
 
 ```bash
-npm run build:all        # tsc, then the vite bundle and the d.ts shims
+npm run build:all        # tsc, the vite bundle and the d.ts shims, then dist/data/v1/ (pack-datasets.mjs)
 npm run test:run         # all tests once (Node, a few seconds)
 npm run coverage         # thresholds 80/80/75/80
 npm run lint             # eslint + tsc --noEmit
-npm run datasets:convert # re-create src/datasets/*/data.ts from the recorded sources (needs unzip)
-npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (needs unzip and graph-format/dist)
+npm run datasets:convert # re-create data/*.ts from the recorded sources (needs unzip)
+npm run datasets:pack    # dist/data/v1/ and src/datasets/packed.ts (sizes, checksums) from data/; after a data change
+npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (needs unzip, graph-format/dist and a built graph-samples)
 ```
 
 ## The determinism contract (do not break it)
@@ -78,22 +83,31 @@ npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (nee
    `fullGraphHash` when weights or columns are part of the output.
 4. Export it from `src/generators/index.ts` and list it in README.md.
 
-## Adding a bundled dataset (under about 5,000 nodes)
+## Adding a small dataset (under about 5,000 nodes)
+
+No dataset's data may ship in the package's JavaScript or tarball: the data lives in `data/` and
+reaches readers only as a file on graphty.app.
 
 1. Add its source (URL, SHA-256, file) and a converter to `scripts/convert-datasets.mjs`; run
-   `npm run datasets:convert`. `data.ts` is generated: never edit it by hand.
-2. Write `src/datasets/<name>/meta.ts` (the `DatasetMeta`) and `index.ts` (re-export the meta, and a
-   loader calling `buildDataset(DATA)`), add the meta to `src/datasets/catalog.ts`, and add the
-   dataset to `NOTICE` and README.md. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE
-   and the catalogue; add a content test for what the dataset is known for.
-3. The `./datasets/*` export pattern and `scripts/entries.js` pick the new directory up by themselves.
+   `npm run datasets:convert`. `data/<name>.ts` is generated: never edit it by hand.
+2. Write `src/datasets/<name>/meta.ts` (the `DatasetMeta`, ending in `hosting: "remote"` and
+   `...PACKED["<name>"]`) and `index.ts` (re-export the meta, and a loader returning
+   `fetchDataset("<name>", options)`), add the name to `names.ts` and the meta to `catalog.ts`, add
+   its fixture to `test/helpers/datasets.ts`, and the dataset to `NOTICE` and README.md.
+3. `npm run build:all`, then `npm run datasets:pack` (rewrites `src/datasets/packed.ts`), then
+   build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalogue,
+   `test/datasets/packed.test.ts` the packed file against the catalogue and `data/`; add a content
+   test for what the dataset is known for.
+4. The `./datasets/*` export pattern and `scripts/entries.js` pick the new directory up by themselves.
 
-Removing a dataset: delete its directory and its lines in `catalog.ts`, `NOTICE` and README.md.
+Removing a dataset: delete its directory and `data/<name>.ts`, its lines in `names.ts`,
+`catalog.ts`, `NOTICE`, README.md and `test/helpers/datasets.ts`, and rerun `npm run datasets:pack`.
 
-## Adding a hosted dataset (over about 5,000 nodes)
+## Adding a large dataset (over about 5,000 nodes)
 
-Hosted datasets are published at `https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz`
-(graph-format wire bytes, gzipped) and loaded with `fetchDataset(name)`.
+Large datasets are built at deploy time from their upstream sources, published at
+`https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz` (graph-format wire bytes, gzipped) and
+loaded with `fetchDataset(name)`.
 
 1. Add its sources (URL, SHA-256, file) to `SOURCES` in `scripts/build-hosted.mjs`, and an entry to
    its `DATASETS`: the meta prose (title, description, citation, source, license, attributes,

@@ -1,13 +1,13 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
-import { waitForSettledLayout } from "../../stories/helpers/settled";
+import { untilPasses, waitForSettledLayout } from "../../stories/helpers/settled";
+import { drag } from "../harness/mouse";
 
 /**
  * Helper to render Popout components with required providers
@@ -17,24 +17,6 @@ function renderPopout(ui: React.ReactElement) {
         <MantineProvider theme={compactTheme}>
             <PopoutManager>{ui}</PopoutManager>
         </MantineProvider>,
-    );
-}
-
-/**
- * Dispatch one step of a drag. A real browser has PointerEvent, so these are
- * the same events a hand would produce; only the capture is missing, which the
- * hook treats as optional.
- */
-function firePointer(element: Element, type: string, clientX: number, clientY: number): void {
-    element.dispatchEvent(
-        new PointerEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            clientX,
-            clientY,
-            pointerId: 1,
-            pointerType: "mouse",
-        }),
     );
 }
 
@@ -91,7 +73,8 @@ describe("Popout geometry (browser)", () => {
         );
         await user.click(screen.getByRole("button", { name: "Open narrow" }));
         const panel = await screen.findByRole("dialog");
-        await waitFor(() => {
+        // The panel is placed on a later frame: wait on the placement, not a deadline (#2719).
+        await untilPasses(() => {
             expect(panel.getBoundingClientRect().left).toBe(0);
         });
         await page.viewport(1280, 800);
@@ -268,21 +251,15 @@ describe("Popout geometry (browser)", () => {
         const dragHandle = parentPanel.querySelector("[data-drag-trigger]");
         expect(dragHandle).not.toBeNull();
 
-        const handleRect = (dragHandle as HTMLElement).getBoundingClientRect();
-        const startX = Math.round(handleRect.left + 40);
-        const startY = Math.round(handleRect.top + 8);
-
-        firePointer(dragHandle as HTMLElement, "pointerdown", startX, startY);
-        firePointer(dragHandle as HTMLElement, "pointermove", startX - 120, startY + 60);
-        firePointer(dragHandle as HTMLElement, "pointerup", startX - 120, startY + 60);
-        (dragHandle as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        // The browser's click follows the release.
+        await drag(dragHandle as HTMLElement, { x: 40, y: 8 }, { x: -120, y: 60 });
 
         // Dragging must not close what the panel opened: the pointer release
         // produces a click, and the panel's click handler closes its children.
         expect(screen.getByTestId("child-content")).toBeInTheDocument();
 
-        // And the child follows the parent it is anchored to.
-        await waitFor(() => {
+        // And the child follows the parent it is anchored to, on a later frame (#2719).
+        await untilPasses(() => {
             const childAfter = (childPanel as HTMLElement).getBoundingClientRect();
             expect(Math.round(childAfter.left)).toBe(Math.round(childBefore.left) - 120);
             expect(Math.round(childAfter.top)).toBe(Math.round(childBefore.top) + 60);
@@ -346,13 +323,7 @@ describe("Popout geometry (browser)", () => {
         const opened = panel.getBoundingClientRect();
 
         const dragHandle = panel.querySelector("[data-drag-trigger]");
-        const handleRect = (dragHandle as HTMLElement).getBoundingClientRect();
-        const startX = Math.round(handleRect.left + 40);
-        const startY = Math.round(handleRect.top + 8);
-
-        firePointer(dragHandle as HTMLElement, "pointerdown", startX, startY);
-        firePointer(dragHandle as HTMLElement, "pointermove", startX - 90, startY + 30);
-        firePointer(dragHandle as HTMLElement, "pointerup", startX - 90, startY + 30);
+        await drag(dragHandle as HTMLElement, { x: 40, y: 8 }, { x: -90, y: 30 });
         await waitForSettledLayout(document.body, "[role='dialog']");
 
         const dragged = panel.getBoundingClientRect();
@@ -405,12 +376,7 @@ describe("Popout geometry (browser)", () => {
 
         // The child is dragged first, so it is a panel the person has placed themselves...
         const childHandle = childPanel.querySelector("[data-drag-trigger]") as HTMLElement;
-        const childHandleRect = childHandle.getBoundingClientRect();
-        const cx = Math.round(childHandleRect.left + 40);
-        const cy = Math.round(childHandleRect.top + 8);
-        firePointer(childHandle, "pointerdown", cx, cy);
-        firePointer(childHandle, "pointermove", cx - 50, cy + 20);
-        firePointer(childHandle, "pointerup", cx - 50, cy + 20);
+        await drag(childHandle, { x: 40, y: 8 }, { x: -50, y: 20 });
         await waitForSettledLayout(document.body, "[role='dialog']");
 
         const childDragged = childPanel.getBoundingClientRect();
@@ -418,12 +384,7 @@ describe("Popout geometry (browser)", () => {
 
         // ...and it still follows the parent when that is dragged.
         const parentHandle = parentPanel.querySelector("[data-drag-trigger]") as HTMLElement;
-        const parentHandleRect = parentHandle.getBoundingClientRect();
-        const px = Math.round(parentHandleRect.left + 40);
-        const py = Math.round(parentHandleRect.top + 8);
-        firePointer(parentHandle, "pointerdown", px, py);
-        firePointer(parentHandle, "pointermove", px - 120, py + 60);
-        firePointer(parentHandle, "pointerup", px - 120, py + 60);
+        await drag(parentHandle, { x: 40, y: 8 }, { x: -120, y: 60 });
         await waitForSettledLayout(document.body, "[role='dialog']");
 
         const childAfter = childPanel.getBoundingClientRect();
@@ -566,15 +527,41 @@ describe("Popout focus (browser)", () => {
         const panel = screen.getByRole("dialog");
         expect(panel).toHaveAttribute("aria-modal", "false");
 
-        // Non-modal means we can interact with content outside the panel
-        // Tab multiple times to eventually reach external elements
-        // First tab through all panel elements
-        for (let i = 0; i < 10; i++) {
-            await user.tab();
-        }
+        // Non-modal: Tab past the panel's last control leaves it. The panel closes and focus moves
+        // on from what opened it, as if the panel sat beside its trigger.
+        screen.getByRole("button", { name: "Panel Button" }).focus();
+        await user.tab();
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "External Button After" })).toHaveFocus();
+    });
 
-        // The panel should still be open (we didn't trap focus, just tabbed through)
-        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    it("Shift+Tab before the panel's first control closes it and goes back to the trigger", async () => {
+        const user = userEvent.setup();
+        renderPopout(
+            <div>
+                <button>External Button Before</button>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} label="Focus Test">
+                        <Popout.Content>
+                            <button>Panel Button</button>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+                <button>External Button After</button>
+            </div>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        screen.getByRole("button", { name: "Panel Button" }).focus();
+        await user.tab({ shift: true });
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
     });
 });
 

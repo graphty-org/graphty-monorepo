@@ -1,3 +1,95 @@
+## 0.2.35 (2026-10-21)
+
+### 🚀 Features
+
+- **visual-review:** approve baselines by a signed tree, not per pull request ([a19570386](https://github.com/graphty-org/graphty-monorepo/commit/a19570386))
+
+### 🩹 Fixes
+
+- **visual-review:** show the branch's baseline for an item changed only against master ([3ca52fcd5](https://github.com/graphty-org/graphty-monorepo/commit/3ca52fcd5))
+- **visual-review:** keep an image unchanged within tolerance when master holds its baseline ([80e413c2c](https://github.com/graphty-org/graphty-monorepo/commit/80e413c2c))
+- **visual-review:** check the prepared approval exists before comparing it ([80da7b8b2](https://github.com/graphty-org/graphty-monorepo/commit/80da7b8b2))
+- **visual-review:** type the finish approval lookup so a missing entry is handled ([c6dcb5fec](https://github.com/graphty-org/graphty-monorepo/commit/c6dcb5fec))
+- **visual-review:** make undecided images obvious and keep them after a partial Finish ([#3235](https://github.com/graphty-org/graphty-monorepo/issues/3235))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.34 (2026-10-20)
+
+### 🚀 Features
+
+- **visual-review:** approve screenshots by a signed baselines tree ([d0bdc047c](https://github.com/graphty-org/graphty-monorepo/commit/d0bdc047c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.33 (2026-10-18)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.32 (2026-10-17)
+
+### 🚀 Features
+
+- **visual-review:** record review page usage events locally, opt-in ([7218df139](https://github.com/graphty-org/graphty-monorepo/commit/7218df139))
+
+### 🩹 Fixes
+
+- **visual-review:** report a repeated Finish as already finished ([#3040](https://github.com/graphty-org/graphty-monorepo/issues/3040))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.31 (2026-10-15)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.30 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** never offer a draft pull request for review ([#2727](https://github.com/graphty-org/graphty-monorepo/issues/2727))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.29 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** list pull requests and their CI runs in one GraphQL query ([#2682](https://github.com/graphty-org/graphty-monorepo/issues/2682))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.28 (2026-10-14)
+
+### 🩹 Fixes
+
+- **workspace:** keep core files off in the update check and heap the root builds ([#2562](https://github.com/graphty-org/graphty-monorepo/issues/2562))
+- **workspace:** build with CI's 8 GB heap in the visual-review update check ([#2475](https://github.com/graphty-org/graphty-monorepo/issues/2475))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.27 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** check an update's merge before pushing it ([#2296](https://github.com/graphty-org/graphty-monorepo/issues/2296))
+- **visual-review:** an accept counts as published only while the branch's baseline holds it ([bab1e4cfc](https://github.com/graphty-org/graphty-monorepo/commit/bab1e4cfc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.26 (2026-10-13)
 
 ### 🩹 Fixes

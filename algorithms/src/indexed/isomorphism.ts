@@ -86,22 +86,45 @@ function matchOrder(views: readonly AdjacencyView[], n: number): { order: U32; p
         let head = tail;
         order[tail++] = r;
         while (head < tail) {
-            const u = order[head++];
-            for (let k = 0; k < views.length; k++) {
-                const { rowPtr, colIdx } = views[k];
-                for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                    const v = colIdx[a];
-                    if (seen[v] === 0) {
-                        seen[v] = 1;
-                        parent[v] = u;
-                        parentView[v] = k;
-                        order[tail++] = v;
-                    }
-                }
-            }
+            tail = enqueueNeighbours(views, order[head++], { order, parent, parentView }, seen, tail);
         }
     }
     return { order, parent, parentView };
+}
+
+/**
+ * Append every unseen out- and in-neighbour of `u` to the BFS order, recording `u` as its parent.
+ * @param views - The forward adjacency, and on a directed snapshot the reverse one
+ * @param u - The node being expanded
+ * @param bfs - The order, parents and parent views being filled
+ * @param bfs.order - The BFS order
+ * @param bfs.parent - Each node's BFS parent
+ * @param bfs.parentView - Which view the parent reached each node through
+ * @param seen - 1 for every node already in the order
+ * @param tail - The order's length before the expansion
+ * @returns The order's length after it
+ */
+function enqueueNeighbours(
+    views: readonly AdjacencyView[],
+    u: number,
+    bfs: { order: U32; parent: U32; parentView: Uint8Array },
+    seen: Uint8Array,
+    tail: number,
+): number {
+    const { order, parent, parentView } = bfs;
+    for (let k = 0; k < views.length; k++) {
+        const { rowPtr, colIdx } = views[k];
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            const v = colIdx[a];
+            if (seen[v] === 0) {
+                seen[v] = 1;
+                parent[v] = u;
+                parentView[v] = k;
+                order[tail++] = v;
+            }
+        }
+    }
+    return tail;
 }
 
 /**

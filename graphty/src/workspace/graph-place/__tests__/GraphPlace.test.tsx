@@ -1,15 +1,15 @@
 /**
  * The Graph place over a headless graphty-element session (the element's own session, with no
  * canvas): the title line, the footer line, the find list's keyboard rules and the "/" command.
- * Runs need the element's executor, so the paint tree after a run is
- * `tasks.real-element.test.tsx`.
+ * The style tree driven by real input is `StyleTree.real-element.test.tsx`.
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createRegistry, defineRegistration, type WorkspaceRegistration } from "../../commands/registry";
+import { storyWaitOptions } from "../../../stories/wait";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
@@ -45,6 +45,9 @@ async function sessionWithGraph(withGraph = true): Promise<GraphSession> {
     return session;
 }
 
+/** The height of the panel the place fills. */
+const PANEL_PX = 600;
+
 /**
  * Renders the Graph place in a workspace context.
  * @param session - the session, or null before the element comes up.
@@ -57,12 +60,46 @@ function renderPlace(
 ): WorkspaceStore {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     const value = makeWorkspaceValue(store, createRegistry(registrations), session, null);
+    // The place fills a panel of a fixed height, as it does in the workspace, so the find list has
+    // a room to fit.
     render(
         <WorkspaceContext.Provider value={value}>
-            <GraphPlace />
+            <div style={{ height: PANEL_PX }}>
+                <GraphPlace />
+            </div>
         </WorkspaceContext.Provider>,
     );
     return store;
+}
+
+/**
+ * Asserts that the scroller's visible bottom is the bottom of an option row: no row is cut and
+ * no heading sits alone at the edge.
+ * @param viewport - the scroller.
+ * @param list - the listbox inside it.
+ */
+function assertEndsOnRow(viewport: HTMLElement, list: HTMLElement): void {
+    const bottom = viewport.getBoundingClientRect().top + viewport.clientHeight;
+    const rowBottoms = within(list)
+        .getAllByRole("option")
+        .map((row) => row.getBoundingClientRect().bottom);
+    assert.isTrue(
+        rowBottoms.some((b) => Math.abs(b - bottom) < 1),
+        `the list ends at ${String(bottom)}, not on a row (${rowBottoms.join(", ")})`,
+    );
+}
+
+/**
+ * Where an element's first line of text starts on screen.
+ * @param element - the element.
+ * @returns the left edge of its text, in pixels.
+ */
+function textLeft(element: Element | null): number {
+    const range = document.createRange();
+    if (element !== null) {
+        range.selectNodeContents(element);
+    }
+    return range.getClientRects()[0]?.left ?? Number.NaN;
 }
 
 describe("the Graph place", () => {
@@ -72,12 +109,53 @@ describe("the Graph place", () => {
         assert.match(place.textContent ?? "", /^GraphLes Miserables/);
     });
 
-    it("draws Selection and Everything only, with nothing run", async () => {
+    it("opens the graph in the inspector from its title, by pointer and by Enter, keeping the selection", async () => {
+        const user = userEvent.setup();
+        const session = await sessionWithGraph();
+        await session.selection.apply({ nodes: ["a"] });
+        const store = renderPlace(session);
+        store.set({ inspected: { kind: "measure-row", id: "pagerank" } });
+        const title = screen.getByRole("button", { name: "Graph Les Miserables" });
+        await user.click(title);
+        assert.deepEqual(store.get().inspected, { kind: "graph" });
+        store.set({ inspected: null });
+        title.focus();
+        await user.keyboard("{Enter}");
+        assert.deepEqual(store.get().inspected, { kind: "graph" });
+        assert.deepEqual(session.selection.nodes, ["a"]);
+    });
+
+    it("shows the graph's name as a tooltip only while the name is cut short", async () => {
         renderPlace(await sessionWithGraph());
-        const rows = within(screen.getByRole("tree", { name: "Paint tree" })).getAllByRole("treeitem");
+        const name = screen.getByText("Les Miserables");
+        await userEvent.hover(name);
+        // Past the theme's 1000 ms open delay: a whole name has no tooltip.
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+        assert.isNull(screen.queryByRole("tooltip"));
+        await userEvent.unhover(name);
+
+        const place = screen.getByRole("region", { name: "Graph place" });
+        place.style.width = "90px";
+        await userEvent.hover(name);
+        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(3000));
+        assert.equal(tip.textContent, "Les Miserables");
+    });
+
+    it("lists the element's style tree top first, each row named with its kind and what it paints", async () => {
+        const session = await sessionWithGraph();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.addFolder("Annotations");
+        renderPlace(session);
+        const rows = within(screen.getByRole("tree", { name: "Style layers" })).getAllByRole("treeitem");
         assert.deepEqual(
             rows.map((r) => r.getAttribute("aria-label")),
-            ["Selection", "Everything"],
+            [
+                "Hovered, node layer, 0 nodes",
+                "Selected, node and edge layer, 0 nodes, 0 edges",
+                "Annotations, folder, 0 layers",
+                "Everything, node and edge layer, 3 nodes, 2 edges",
+            ],
         );
     });
 
@@ -86,28 +164,10 @@ describe("the Graph place", () => {
         assert.isNotNull(screen.getByText("Add data to start"));
     });
 
-    it("reads 'Analyze (Shift+A) to add results here' with a graph and nothing run, Analyze a link to the popover", async () => {
-        const open = vi.fn();
-        const analyze = defineRegistration({
-            owner: "analyze",
-            commands: [{ id: "analyze.open", label: "Analyze", group: "Analyze", keys: ["Shift+A"], run: open }],
-        });
-        renderPlace(await sessionWithGraph(), [...REGISTRATIONS.filter((r) => r.owner !== "analyze"), analyze]);
-
-        const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
-        await userEvent.click(within(footer).getByRole("button", { name: "Analyze" }));
-        assert.equal(open.mock.calls.length, 1);
-    });
-
-    it("keeps the words but draws no link while Analyze is not built", async () => {
-        renderPlace(
-            await sessionWithGraph(),
-            REGISTRATIONS.filter((r) => r.owner !== "analyze"),
-        );
-        const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
-        assert.isNull(within(footer).queryByRole("button"));
+    it("draws no footer hint with a graph: the layer list is never empty and its + offers Analyze", async () => {
+        renderPlace(await sessionWithGraph());
+        assert.isNull(screen.queryByText(/to add results here/));
+        assert.isNull(screen.queryByText("Add data to start"));
     });
 
     it("lists matches while typing and selects nothing until a pick", async () => {
@@ -116,10 +176,45 @@ describe("the Graph place", () => {
 
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "jav");
         const list = await screen.findByRole("listbox", { name: "Find results" });
-        const elements = within(list).getByRole("group", { name: "Elements" });
+        const elements = within(list).getByRole("group", { name: "Nodes" });
         assert.isNotNull(within(elements).getByRole("option", { name: /name: Javert/ }));
         assert.equal(session.selection.size, 0);
     });
+
+    for (const [directed, name] of [
+        [true, "Station -> Stadium"],
+        [false, "Station -- Stadium"],
+    ] as const) {
+        it(`names an edge hit "${name}" on ${directed ? "a directed" : "an undirected"} graph, as the inspector does`, async () => {
+            const session = createGraphSession();
+            sessions.push(session);
+            await session.config.set({ data: { directed } });
+            await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }]);
+            await session.data.addEdges([{ source: "Station", target: "Stadium", line: "tram" }]);
+            renderPlace(session);
+
+            await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "tram");
+            const list = await screen.findByRole("listbox", { name: "Find results" });
+            assert.isNotNull(within(list).getByRole("option", { name: new RegExp(`^${name}`) }));
+        });
+
+        it(`finds an edge by its name "${name}" or by either end's name`, async () => {
+            const session = createGraphSession();
+            sessions.push(session);
+            await session.config.set({ data: { directed } });
+            await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }]);
+            await session.data.addEdges([{ source: "Station", target: "Stadium" }]);
+            renderPlace(session);
+            const box = screen.getByRole("combobox", { name: "Find" });
+
+            for (const typed of [name, "Stadium"]) {
+                await userEvent.clear(box);
+                await userEvent.type(box, typed);
+                const list = await screen.findByRole("listbox", { name: "Find results" });
+                assert.isNotNull(within(list).getByRole("option", { name }), typed);
+            }
+        });
+    }
 
     it("moves through the list with Down and Up, never past its ends, and Enter picks the active row", async () => {
         const session = await sessionWithGraph();
@@ -129,7 +224,7 @@ describe("the Graph place", () => {
         await userEvent.type(box, "law");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const options = within(list).getAllByRole("option");
-        assert.isNull(box.getAttribute("aria-activedescendant"), "no row is active until Down");
+        assert.equal(box.getAttribute("aria-activedescendant"), options[0].id, "the first row is active until Down");
 
         for (let i = 0; i < options.length + 2; i++) {
             await userEvent.keyboard("{ArrowDown}");
@@ -146,6 +241,38 @@ describe("the Graph place", () => {
         });
         assert.isNull(store.get().inspected, "the inspector shows what is selected");
         assert.equal((box as HTMLInputElement).value, "", "a pick clears the box");
+    });
+
+    it("marks the option Enter picks from the moment the list shows, and Enter picks it", async () => {
+        const session = await sessionWithGraph();
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "Cos");
+        const first = within(await screen.findByRole("listbox", { name: "Find results" })).getAllByRole("option")[0];
+        assert.match(first.textContent ?? "", /Cosette/);
+        assert.equal(first.getAttribute("aria-selected"), "true");
+        assert.equal(box.getAttribute("aria-activedescendant"), first.id);
+        assert.equal(session.selection.size, 0, "the mark selects nothing");
+
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isTrue(session.selection.has("c"));
+        });
+    });
+
+    it("marks no option while Enter would run the typed rule", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=min");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        assert.isNull(box.getAttribute("aria-activedescendant"));
+        assert.isNull(within(list).queryByRole("option", { selected: true }));
+        await userEvent.keyboard("{ArrowDown}");
+        assert.equal(box.getAttribute("aria-activedescendant"), within(list).getAllByRole("option")[0].id);
     });
 
     it("picks a value row, selecting every element carrying the value", async () => {
@@ -169,7 +296,7 @@ describe("the Graph place", () => {
         assert.isNotNull(await screen.findByRole("option", { name: "Select where side is law (3)" }));
     });
 
-    it("clears with Esc, then leaves the box with a second Esc", async () => {
+    it("clears with Esc, and keeps focus in the box on a second Esc", async () => {
         renderPlace(await sessionWithGraph());
         const box = screen.getByRole("combobox", { name: "Find" });
 
@@ -181,13 +308,73 @@ describe("the Graph place", () => {
         assert.equal(document.activeElement, box);
 
         await userEvent.keyboard("{Escape}");
-        assert.notEqual(document.activeElement, box);
+        assert.equal(document.activeElement, box);
+        // Still the box: typing goes on finding.
+        await userEvent.keyboard("jav");
+        assert.equal((box as HTMLInputElement).value, "jav");
     });
 
-    it("says No match for what was typed", async () => {
-        renderPlace(await sessionWithGraph());
+    it("says No match for what was typed, from the status line, not a region that arrives with it", async () => {
+        const store = renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "zzz");
+        const line = await screen.findByText('No match for "zzz"');
+        // The line under the box arrives with its words, so it is not a live region; the
+        // workspace's status line, on the page from the start, speaks them.
+        assert.isNull(line.closest("[role=status], [role=alert], [aria-live]"));
+        await waitFor(() => {
+            assert.match(store.get().announcement, /^No match for "zzz"/);
+        });
+    });
+
+    it("answers a condition typed without = with the rule as the option Enter picks, and a name with an example", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "minutes >= 10");
+        // The reader's own rule, as typed, is the option Enter picks, saying what it selects.
+        const hint = await screen.findByText("Select by a value:");
+        const option = await screen.findByRole("option", { name: /^minutes >= 10/ });
+        await waitFor(() => {
+            assert.include(option.textContent, "Select the 1 edge");
+        });
+        assert.equal(option.getAttribute("aria-selected"), "true");
+        assert.equal(box.getAttribute("aria-activedescendant"), option.id);
+        assert.include(box.getAttribute("aria-describedby") ?? "", hint.id);
+        assert.notEqual(hint.id, "");
+        assert.isNull(screen.queryByText('No match for "minutes >= 10"'));
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 1);
+        });
+        // The box keeps the reader's words as typed.
+        assert.equal((box as HTMLInputElement).value, "minutes >= 10");
+        // One edge is said by its ends' names, never as "1 edge".
+        assert.isNotNull(await screen.findByText(/^\S+ (->|--) \S+ selected$/));
+
+        const count = vi.spyOn(session.selection, "count");
+        await userEvent.clear(box);
+        await userEvent.type(box, "zzz");
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
+        // The element reads "zzz" as a column that holds nothing, so once it has answered no hint follows.
+        await waitFor(() => {
+            assert.isTrue(count.mock.calls.some(([spec]) => JSON.stringify(spec) === '{"text":"=zzz"}'));
+        });
+        await act(async () => {
+            await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
+        });
+        // Text that reads as no rule gets an example of one after No match, and no option: a node
+        // rule over a column of the data (the only number column here is the edges', so a text
+        // one), in the plain form.
+        const example = await screen.findByText(/^name == '\w+'$/);
+        assert.match(
+            example.parentElement?.textContent ?? "",
+            // The edge the rule selected stays selected, and the line says so.
+            /^No match for "zzz"\. Still selected: 1 edge\. To select by a value, type a rule such as name == '\w+'$/,
+        );
+        assert.isTrue(example.classList.contains("ws-mono"));
+        assert.isNull(screen.queryByRole("option"));
     });
 
     it("runs a pattern only on Enter", async () => {
@@ -200,6 +387,327 @@ describe("the Graph place", () => {
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isTrue(session.selection.has("c"));
+        });
+    });
+
+    it("checks a rule while typing: a bare number is refused before Enter, a lone = is not approved", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=");
+        const example = await screen.findByText(/^name == '\w+'$/);
+        const hint = example.parentElement as HTMLElement;
+        assert.match(hint.textContent, /^Type a rule, such as name == '\w+'$/);
+        // The example rule never breaks; the sentence wraps before it.
+        assert.equal(getComputedStyle(example).whiteSpace, "nowrap");
+        // Set like every rule the box quotes.
+        assert.isTrue(example.classList.contains("ws-mono"));
+        const ruleFont = getComputedStyle(example).fontFamily;
+        // The theme's field hint (11px, secondary ink), not a 9px caption.
+        assert.isTrue(hint.classList.contains("cm-field-description"));
+        assert.equal(getComputedStyle(hint).fontSize, "11px");
+        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
+
+        await userEvent.type(box, "minutes >= 10");
+        // A bare number reads as typed: the rule is approved, nothing selected before Enter.
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        assert.isNull(screen.queryByRole("alert"));
+        assert.equal(session.selection.size, 0);
+
+        // A column the graph does not have: the refusal offers the one it names, set like a rule.
+        await userEvent.clear(box);
+        await userEvent.type(box, "=degree >= 3");
+        const suggestion = await screen.findByRole("option", { name: /^Degree >= 3/ });
+        assert.equal(suggestion.getAttribute("aria-selected"), "true");
+        const suggestionName = suggestion.querySelector(".cm-result-name") as HTMLElement;
+        assert.equal(getComputedStyle(suggestionName).fontFamily, ruleFont);
+        assert.equal(session.selection.size, 0);
+
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= `10`");
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        assert.isNull(screen.queryByRole("alert"));
+    });
+
+    it("offers the columns that hold the word typed after =, and picking one puts it in the box", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=min");
+        const columns = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Columns",
+        });
+        const option = within(columns).getByRole("option", { name: /^minutes/ });
+        // A column wears the attribute glyph, not the filter funnel.
+        assert.isNotNull(option.querySelector(".lucide-columns-3"));
+        assert.isNull(option.querySelector(".lucide-list-filter"));
+        assert.isNull(within(columns).queryByRole("option", { name: /^side/ }));
+        await userEvent.click(option);
+        assert.equal((box as HTMLInputElement).value, "=minutes");
+        assert.equal(document.activeElement, box);
+        assert.equal(session.selection.size, 0);
+    });
+
+    it("words a rule refused on Enter from its reason, without an uncaught error", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", weight: 5 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        // Where the gray hint's words start, to hold the refusal to.
+        await userEvent.type(box, "=");
+        const hintLeft = textLeft(await screen.findByText(/^Type a rule/));
+        await userEvent.clear(box);
+
+        await userEvent.type(box, "=heft > 3{Enter}");
+        // The line under the box, not the status region that speaks it.
+        const line = (await screen.findAllByText('No column named "heft"')).find(
+            (found) => found.getAttribute("role") !== "status",
+        ) as HTMLElement;
+        // It starts where the hint does.
+        assert.closeTo(textLeft(line), hintLeft, 1);
+        assert.equal(box.getAttribute("aria-invalid"), "true");
+        assert.notEqual(line.id, "");
+        assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
+        assert.equal(session.selection.size, 0);
+
+        await userEvent.clear(box);
+        await userEvent.type(box, "=weight > 3{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 1);
+        });
+        // The rule stays in the box, not selected, so a second Enter is not invited; the line under
+        // the box says what it selected.
+        const input = box as HTMLInputElement;
+        assert.equal(input.value, "=weight > 3");
+        assert.equal(input.selectionStart, input.selectionEnd);
+        // One edge is said by its ends' names, never as "1 edge".
+        assert.isNotNull(await screen.findByText(/^\S+ (->|--) \S+ selected$/));
+        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
+        assert.isNull(screen.queryByRole("alert"));
+        assert.notEqual(box.getAttribute("aria-invalid"), "true");
+    });
+
+    it("lists nodes and edges under their own headings, and ends the list on a whole row", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // Enough hits to scroll: every node and edge carries "x".
+        await session.data.addNodes(Array.from({ length: 8 }, (_, i) => ({ id: `x${String(i)}` })));
+        await session.data.addEdges(
+            Array.from({ length: 7 }, (_, i) => ({ source: `x${String(i)}`, target: `x${String(i + 1)}`, kind: "x" })),
+        );
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const nodes = within(list).getByRole("group", { name: "Nodes" });
+        const edges = within(list).getByRole("group", { name: "Edges" });
+        assert.isTrue(
+            within(nodes)
+                .getAllByRole("option")
+                .every((row) => !row.textContent.includes(" -- ")),
+        );
+        assert.isTrue(
+            within(edges)
+                .getAllByRole("option")
+                .every((row) => row.textContent.includes(" -- ")),
+        );
+        assert.isNull(within(list).queryByRole("group", { name: "Elements" }));
+
+        // The list scrolls, shows its scrollbar, and its visible bottom is the bottom of an option row.
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAbove(viewport.scrollHeight, viewport.clientHeight);
+        assertEndsOnRow(viewport, list);
+        // The scrollbar is measured once the scroll area has observed its size.
+        await waitFor(() => {
+            const thumb = list.closest(".ws-find-list")?.querySelector("[data-orientation='vertical'] > *");
+            assert.isAbove(thumb?.getBoundingClientRect().height ?? 0, 0, "a scrollbar thumb is drawn");
+        });
+    });
+
+    it("scrolls the row the arrows reach into view, down to the last and back to the first", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        await session.data.addNodes(Array.from({ length: 8 }, (_, i) => ({ id: `x${String(i)}` })));
+        await session.data.addEdges(
+            Array.from({ length: 7 }, (_, i) => ({ source: `x${String(i)}`, target: `x${String(i + 1)}`, kind: "x" })),
+        );
+        renderPlace(session);
+
+        const box = screen.getByRole("combobox", { name: "Find" });
+        await userEvent.type(box, "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAbove(viewport.scrollHeight, viewport.clientHeight);
+        const rows = within(list).getAllByRole("option");
+        const shown = (row: HTMLElement): boolean => {
+            const r = row.getBoundingClientRect();
+            const v = viewport.getBoundingClientRect();
+            return r.top >= v.top - 0.5 && r.bottom <= v.top + viewport.clientHeight + 0.5;
+        };
+
+        await userEvent.keyboard("{ArrowDown}".repeat(rows.length));
+        const last = rows[rows.length - 1];
+        assert.equal(box.getAttribute("aria-activedescendant"), last.id);
+        await waitFor(() => {
+            assert.isTrue(shown(last), "the last row is in view");
+        });
+        await userEvent.keyboard("{ArrowUp}".repeat(rows.length));
+        assert.equal(box.getAttribute("aria-activedescendant"), rows[0].id);
+        await waitFor(() => {
+            assert.isTrue(shown(rows[0]), "the first row is in view");
+        });
+        assert.equal(viewport.scrollTop, 0, "the Nodes heading above the first row is in view too");
+        assert.equal(document.activeElement, box, "focus stays in the text box: no second Tab stop");
+    });
+
+    it("ends a long name in ... on its second line and never scrolls the list sideways", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        // Wider than any window the test runs in.
+        const long = `Jean Valjean ${"also known as Monsieur Madeleine, ".repeat(20)}`.trim();
+        await session.data.addNodes([{ id: long }]);
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "valjean");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAtMost(viewport.scrollWidth, viewport.clientWidth, "the list scrolls sideways");
+        const name = within(within(list).getByRole("group", { name: "Nodes" }))
+            .getByRole("option")
+            .querySelector<HTMLElement>(".cm-result-name");
+        assert.isNotNull(name);
+        assert.equal(getComputedStyle(name).textOverflow, "ellipsis");
+        // It wraps to a second line first, then ends there.
+        assert.isAbove(name.scrollHeight, name.clientHeight, "the name is cut short, so it ends in ...");
+        assert.isAtMost(name.getBoundingClientRect().right, viewport.getBoundingClientRect().right);
+    });
+
+    it("counts every match of a kind on its heading, past the rows listed", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // A hub with 25 ties: more than the list holds.
+        await session.data.addNodes([
+            { id: "hub", name: "Hub" },
+            ...Array.from({ length: 25 }, (_, i) => ({ id: `t${String(i)}`, name: `Tie${String(i)}` })),
+        ]);
+        await session.data.addEdges(Array.from({ length: 25 }, (_, i) => ({ source: "hub", target: `t${String(i)}` })));
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Hub");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const edges = within(list).getByRole("group", { name: "Edges" });
+        assert.isBelow(within(edges).getAllByRole("option").length, 25);
+        assert.equal(edges.querySelector(".ws-find-heading")?.textContent, "Edges 25");
+        const nodes = within(list).getByRole("group", { name: "Nodes" });
+        assert.equal(nodes.querySelector(".ws-find-heading")?.textContent, "Nodes 1");
+    });
+
+    it("scrolls only to where an option row ends the list, never leaving a heading alone at its edge", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // Node rows, then edge rows, then value rows: two headings fall inside the scroll.
+        await session.data.addNodes(Array.from({ length: 9 }, (_, i) => ({ id: `n${String(i)}`, kind: "x" })));
+        await session.data.addEdges(
+            Array.from({ length: 8 }, (_, i) => ({ source: `n${String(i)}`, target: `n${String(i + 1)}`, kind: "x" })),
+        );
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        const room = viewport.scrollHeight - viewport.clientHeight;
+        assert.isAbove(room, 0);
+        for (let to = 0; to <= room; to += 7) {
+            viewport.scrollTop = to;
+            await waitFor(() => {
+                assertEndsOnRow(viewport, list);
+            });
+        }
+    });
+
+    it("draws the list's scrollbar only while its rows overflow", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // "M" lists 20 rows; "Medici" then lists the node and its 6 edges, which fit.
+        await session.data.addNodes([
+            { id: "Medici" },
+            ...Array.from({ length: 24 }, (_, i) => ({ id: `Ma${String(i)}` })),
+        ]);
+        await session.data.addEdges(
+            Array.from({ length: 6 }, (_, i) => ({ source: "Medici", target: `Ma${String(i)}` })),
+        );
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        // Mantine keeps the scrollbar mounted and hides it with display: none while nothing overflows.
+        const scrollbar = (): Element | null => {
+            const bar = document.querySelector(
+                ".ws-find-list .mantine-ScrollArea-scrollbar[data-orientation=vertical]",
+            );
+            return bar !== null && getComputedStyle(bar).display !== "none" ? bar : null;
+        };
+
+        await userEvent.type(box, "M");
+        await waitFor(() => {
+            assert.isNotNull(scrollbar());
+        });
+        await userEvent.type(box, "edici");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await waitFor(() => {
+            assert.lengthOf(within(list).getAllByRole("option"), 7);
+        });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAtMost(viewport.scrollHeight, viewport.clientHeight);
+        await waitFor(() => {
+            assert.isNull(scrollbar());
+        });
+    });
+
+    it("words any other refused rule with where it went wrong", async () => {
+        renderPlace(await sessionWithGraph());
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
+        // With a rule that works, since the reader's own cannot be read at all.
+        assert.isNotEmpty(
+            await screen.findAllByText(/^Not a rule Find can read \(at character \d+\)\. A rule reads like/),
+        );
+    });
+
+    it("says a refused rule once, politely, and not again on each keystroke", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        const words = "Did you mean Degree >= 10?";
+        const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
+
+        await userEvent.type(box, "=degree >= 10");
+        await waitFor(() => {
+            assert.include(spoken(), words);
+        });
+        assert.isNull(screen.queryByRole("alert"));
+        const region = screen.getAllByRole("status").find((status) => status.textContent === words);
+        // A keystroke clears the line under the box until the rule is checked again; the region
+        // keeps its words, so nothing new is said.
+        await userEvent.type(box, " ");
+        assert.equal(region?.textContent, words);
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= 10");
+        await waitFor(() => {
+            assert.notInclude(spoken(), words);
         });
     });
 

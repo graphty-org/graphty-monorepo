@@ -1,0 +1,58 @@
+name: graph-samples sources (refresh)
+
+# The only job that contacts the original hosts of graph-samples' hosted datasets. It fetches every
+# source whose terms allow redistribution (graph-samples/scripts/hosted-sources.mjs, `redistribute`),
+# verifies each against the SHA-256 recorded there, and uploads it to the release
+# graph-samples-sources-v1, which a rebuild of a hosted dataset reads instead of the original
+# hosts. A deploy reads neither: it reuses the files graphty.app already publishes (#3302).
+# Dispatched by hand, after a source's recorded URL or checksum changes. A source that cannot be
+# fetched (its host is down) is skipped and fails the run; the others are still uploaded.
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+concurrency:
+    group: graph-samples-sources
+    cancel-in-progress: false
+
+jobs:
+    refresh:
+        name: Refresh the dataset sources release
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Fetch the sources from their original hosts
+              id: fetch
+              continue-on-error: true
+              run: node graph-samples/scripts/refresh-sources.mjs "$RUNNER_TEMP/sources"
+
+            - name: Upload them to the release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DIR: ${{ runner.temp }}/sources
+              run: |
+                  release=graph-samples-sources-v1
+                  if ! gh release view "$release" > /dev/null 2>&1; then
+                      gh release create "$release" --latest=false --target "$GITHUB_SHA" --title "$release" \
+                          --notes "Copies of graph-samples' dataset sources, for rebuilding the hosted datasets without their original hosts. Each file's SHA-256 is recorded in graph-samples/scripts/hosted-sources.mjs; see graph-samples/NOTICE for their terms."
+                  fi
+                  files=$(cut -d' ' -f3 "$DIR/SHA256SUMS")
+                  if [ -n "$files" ]; then
+                      (cd "$DIR" && gh release upload "$release" --clobber $files)
+                  fi
+
+            - name: Fail when a source could not be fetched
+              if: steps.fetch.outcome == 'failure'
+              run: |
+                  echo "::error::a source could not be fetched from its original host; see the fetch step"
+                  exit 1

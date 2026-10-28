@@ -31,5 +31,5 @@ test("a label's texture is drawn on a CPU-rasterised canvas", () => {
     assert.isTrue(context?.getContextAttributes().willReadFrequently, "the label's canvas is GPU-rasterised");
 
     label.dispose();
-    scene.dispose();
+    scene.getEngine().dispose();
 });

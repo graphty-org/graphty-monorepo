@@ -157,6 +157,27 @@ describe("static layouts", () => {
         expectPlaced(cy);
     });
 
+    it("graphty-spectral brings a grid's columns and rows back", async () => {
+        // the 3 x 4 grid's two smallest nonzero Laplacian eigenvectors run along its 4 columns and its 3 rows, so
+        // each column shares one x and each row one y, and no two columns or rows share it
+        const cy = makeCy();
+        await run(cy, { name: "graphty-spectral" });
+        const coords = (axis: "x" | "y", group: (i: number) => number): string[][] => {
+            const by = new Map<number, Set<string>>();
+            cy.nodes().forEach((n) => {
+                const g = group(Number(n.id().slice(1)));
+                by.set(g, (by.get(g) ?? new Set()).add(n.position()[axis].toFixed(3)));
+            });
+            return [...by.values()].map((s) => [...s]);
+        };
+        const columns = coords("x", (i) => i % 4);
+        const rows = coords("y", (i) => Math.floor(i / 4));
+        expect(columns.every((c) => c.length === 1)).toBe(true);
+        expect(rows.every((r) => r.length === 1)).toBe(true);
+        expect(new Set(columns.flat()).size).toBe(4);
+        expect(new Set(rows.flat()).size).toBe(3);
+    });
+
     it("throw on a selection that matches no node", () => {
         const cy = makeCy();
         expect(() =>

@@ -1,7 +1,7 @@
 import { Box, Code, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -9,6 +9,7 @@ import { ColorPickerPanel, type ColorStop, createColorStop, GradientEditor, Labe
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * An editor for a multi-stop linear gradient: stop handles over a gradient bar, one color
@@ -217,7 +218,10 @@ export const TypingAStopColor: Story = {
         await userEvent.type(hex, "22C55E{Enter}");
         await expect(hex).toHaveValue("22C55E");
         // The picker follows a render later: its own effect takes the new stop color.
-        await waitFor(() => expect(canvas.getByRole("textbox", { name: "Color value" })).toHaveValue("22C55E"));
+        await waitFor(
+            () => expect(canvas.getByRole("textbox", { name: "Color value" })).toHaveValue("22C55E"),
+            storyWaitOptions(1000),
+        );
     },
 };
 

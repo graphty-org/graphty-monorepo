@@ -65,6 +65,15 @@ const css = `
     white-space: nowrap;
     transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
+/* A wrapping label (wrapLabel): one line is the same 32px as above; a longer one takes more lines. */
+.cm-section[data-wrap-label] .cm-section-header { height: auto; min-height: 40px; }
+.cm-section[data-wrap-label] .cm-section-lead { height: auto; min-height: 32px; }
+.cm-section[data-wrap-label] .cm-section-title {
+    line-height: 16px;
+    padding-block: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 .cm-section-technical { font-weight: 450; color: var(--cm-text-secondary); }
 /* A collapsed section's summary: after the name, in the secondary ink, and the first to give
    way to an ellipsis when the header is narrow. */
@@ -84,7 +93,7 @@ const css = `
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--cm-bg-brand);
+    background: var(--cm-graphic-brand);
 }
 .cm-section-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .cm-section .cm-section-add { transition: color var(--cm-duration-sm) var(--cm-ease-out); }
@@ -110,33 +119,6 @@ const css = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-/* Sub-group (spec 9.4): a 32 row, chevron in the gutter, secondary label that turns primary
-   on hover over 100ms. */
-.cm-subgroup-control {
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-    width: calc(100% + 16px);
-    height: 32px;
-    margin-inline-start: -16px;
-    padding: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--cm-text-secondary);
-    ${cmFont("body")}
-    transition: color var(--cm-duration-sm) var(--cm-ease-out);
-}
-.cm-subgroup-control:hover { color: var(--cm-text); }
-.cm-subgroup-chevron {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 16px;
-    width: 16px;
-    height: 16px;
-    color: inherit;
 }
 
 /* Property rows (spec 9.6). */
@@ -189,6 +171,28 @@ const css = `
 .cm-compound-unit { color: var(--cm-text-secondary); }
 
 /* Chart, ramp and prose rows (spec 9.8). */
+/* A bar painted in a mapping's color can be as dark as the dark panel (a palette's black end): the
+   AA option rings each painted bar in the dark scheme, 3:1 against the panel. */
+.cm-histogram-bar[data-painted] {
+    box-shadow: inset 0 0 0 1px var(--cm-chart-bar-ring);
+}
+/* A histogram with a range: the bars inside it in a darker brand step than the plain accent, and
+   the bars outside it in a pale gray, so the two differ by lightness at 3:1 or more in both schemes. */
+:root {
+    --cm-histogram-in: light-dark(var(--cm-bg-brand-pressed), var(--cm-text-brand));
+    --cm-histogram-dim: var(--cm-bg-tertiary);
+}
+.cm-histogram-ghost {
+    background: var(--cm-bg-secondary);
+    box-shadow: inset 0 0 0 1px var(--cm-border);
+}
+.cm-histogram-brush-body { cursor: grab; border-radius: 2px; outline: 1px solid transparent; }
+.cm-histogram-brush-body:active { cursor: grabbing; }
+.cm-histogram-brush-body:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+/* The track between the thumbs belongs to the body: a press there drags the whole range, not the
+   nearer thumb. Only the thumbs themselves take the pointer. */
+.cm-histogram-brush-thumbs { pointer-events: none; }
+.cm-histogram-brush-thumbs .cm-slider-thumb { pointer-events: auto; }
 .cm-chart-text {
     ${cmFont("body")}
     color: var(--cm-text-secondary);
@@ -249,15 +253,29 @@ const css = `
     width: 120px;
     transform: translateX(-50%);
 }
+/* A finger needs a wider strip than the 8px a mouse gets: 24px under a coarse pointer, still
+   drawing nothing, and the focus pill keeps its 4px. */
+@media (pointer: coarse) {
+    .cm-resize-handle[data-edge="end"],
+    .cm-resize-handle[data-edge="start"] { width: 24px; }
+    .cm-resize-handle[data-edge="end"] { inset-inline-end: -12px; }
+    .cm-resize-handle[data-edge="start"] { inset-inline-start: -12px; }
+    .cm-resize-handle[data-edge="top"],
+    .cm-resize-handle[data-edge="bottom"] { height: 24px; }
+    .cm-resize-handle[data-edge="top"] { top: -12px; }
+    .cm-resize-handle[data-edge="bottom"] { bottom: -12px; }
+    .cm-resize-handle[data-edge="end"]:focus-visible::before,
+    .cm-resize-handle[data-edge="start"]:focus-visible::before { left: 10px; right: 10px; }
+    .cm-resize-handle[data-edge="top"]:focus-visible::before,
+    .cm-resize-handle[data-edge="bottom"]:focus-visible::before { top: 10px; bottom: 10px; }
+}
 
 /* States-story hooks (spec 16): a story cannot hold a real :hover or :focus-visible, so a
    wrapper with data-cm-force draws the state on its subtree. Nothing in a component sets it. */
 [data-cm-force="hover"] .cm-section[data-empty] .cm-section-header { color: var(--cm-text); }
 [data-cm-force="hover"] .cm-section[data-empty] .cm-section-add { color: var(--cm-icon); }
-[data-cm-force="hover"] .cm-subgroup-control { color: var(--cm-text); }
 [data-cm-force="hover"] .cm-compound.cm-field { outline-color: var(--cm-border); }
 [data-cm-force="focus"] .cm-section-lead[data-collapsible],
-[data-cm-force="focus"] .cm-subgroup-control,
 [data-cm-force="focus"] .cm-compound.cm-field {
     outline: 1px solid var(--cm-border-selected);
     outline-offset: -1px;

@@ -1,5 +1,5 @@
-import { InstancedMesh, Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { InstancedMesh, Mesh, NullEngine, Scene, StandardMaterial, VertexBuffer } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import type { z } from "zod";
 
 import { NodeShapes, NodeStyle } from "../src/config/NodeStyle";
@@ -15,6 +15,10 @@ describe("NodeMesh", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Shape Creation", () => {
@@ -263,6 +267,67 @@ describe("NodeMesh", () => {
 
             const material = mesh.material as StandardMaterial;
             assert.isTrue(material.isFrozen);
+        });
+    });
+
+    describe("draw order in 2D", () => {
+        /**
+         * The z of a node mesh's front (camera side) and back faces, from its source geometry.
+         * @param drawOrder - The node's draw order, or undefined for none.
+         * @param size - The node's size.
+         * @param is2D - Whether the graph is drawn in 2D.
+         * @returns The two depths.
+         */
+        const faces = (drawOrder: number | undefined, size: number, is2D = true): { front: number; back: number } => {
+            const shape = { type: "ellipse" as const, size, ...(drawOrder === undefined ? {} : { drawOrder }) };
+            const mesh = NodeMesh.create(
+                meshCache,
+                { styleId: `order-${String(drawOrder)}-${String(size)}-${String(is2D)}`, is2D, size },
+                { shape },
+                scene,
+            ) as InstancedMesh;
+            const { boundingBox } = mesh.sourceMesh.getBoundingInfo();
+            return { front: boundingBox.minimum.z, back: boundingBox.maximum.z };
+        };
+
+        test("draws a higher draw order in front of a lower one, whatever their sizes", () => {
+            const low = faces(10, 8);
+            const high = faces(11, 1);
+            assert.isBelow(high.front, low.front);
+            // Without one, the larger node is the one nearer the camera.
+            assert.isBelow(faces(undefined, 8).front, faces(undefined, 1).front);
+        });
+
+        test("flattens a solid's camera-facing half onto its order's plane, so two never cut through each other", () => {
+            const depthsInFront = (drawOrder: number | undefined): Set<number> => {
+                const mesh = NodeMesh.create(
+                    meshCache,
+                    { styleId: `sphere-${String(drawOrder)}`, is2D: true, size: 4 },
+                    { shape: { type: "sphere", size: 4, ...(drawOrder === undefined ? {} : { drawOrder }) } },
+                    scene,
+                ) as InstancedMesh;
+                const positions = mesh.sourceMesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+                return new Set(positions.filter((value, i) => i % 3 === 2 && value < 0));
+            };
+
+            assert.strictEqual(depthsInFront(40).size, 1);
+            assert.isAbove(depthsInFront(undefined).size, 1);
+        });
+
+        test("keeps every ordered node in front of the edges' plane, and cut by it", () => {
+            for (const order of [0, 50, 100]) {
+                const { front, back } = faces(order, 2);
+                assert.isBelow(front, 0, String(order));
+                assert.isAbove(back, 0, String(order));
+            }
+        });
+
+        test("leaves a node without one, and every node in 3D, as it was", () => {
+            const plain = faces(undefined, 2);
+            assert.closeTo(plain.front, -plain.back, 1e-9);
+            const threeD = faces(100, 2, false);
+            const threeDPlain = faces(undefined, 2, false);
+            assert.closeTo(threeD.front, threeDPlain.front, 1e-9);
         });
     });
 

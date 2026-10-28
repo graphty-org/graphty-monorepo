@@ -26,7 +26,7 @@ import obo from "../../graph-io/test/corpus/obo/taxrank.obo?raw";
 import pajek from "../../graph-io/test/corpus/pajek/karate.net?raw";
 import type { ImportedGraph, ImportFormat, LossNote } from "../src/index.js";
 import { FORMATS } from "./catalog.js";
-import { PALETTE } from "./demo.js";
+import { datasetOptions, PALETTE } from "./demo.js";
 import type { Tile } from "./gallery.js";
 import { colorBy, counts, placeForAlgorithm } from "./run.js";
 
@@ -403,7 +403,7 @@ function importTile(format: ImportFormat, s: Sample): Tile {
             return {
                 ran: "",
                 detail: null,
-                note: cy.width() < 400 ? read : `${read}\n${s.about}`,
+                note: read,
                 summary,
                 file: fileSource(s),
             };
@@ -427,6 +427,8 @@ const LOST: Partial<Record<string, string | null>> = {
     W_PAJEK_LABEL_GAINED: null,
     // the edge ids are already listed as renumbered
     W_DTYPE_UNSUPPORTED: null,
+    // the core's stylesheet is the gallery's own look, not the karate club's: the dataset has no styles to lose
+    W_STYLES_NOT_EXPORTED: null,
 };
 
 /**
@@ -451,7 +453,7 @@ function exportTile(): Tile {
         title: "cy.graphtyExport(format, { onLoss })",
         panel: true,
         load: async (cy) => {
-            await cy.graphtyDataset("karate");
+            await cy.graphtyDataset("karate", datasetOptions());
         },
         run: async (cy) => {
             await placeForAlgorithm(cy, SEED);
@@ -470,14 +472,23 @@ function exportTile(): Tile {
             return {
                 ran: "",
                 detail: null,
-                note:
-                    cy.width() < 400
-                        ? "Zachary's karate club written in every format; beside it, what each one leaves out."
-                        : `Zachary's karate club (${counts(cy)}, a club per node, positions from ForceAtlas2) written in every format.\nBeside it: each file's size in characters, and what onLoss reports the format cannot hold.`,
+                note: "Zachary's karate club written in every format; beside it, what each one leaves out.",
                 file: ["format    chars  left out", ...rows].join("\n"),
             };
         },
     };
+}
+
+/**
+ * What a Formats gallery entry's file is and how to read its picture, for the story's description.
+ * @param key - a format, "auto", or "export"
+ * @returns the words
+ */
+export function formatAbout(key: string): string {
+    if (key === "export") {
+        return "Zachary's karate club (34 nodes, 78 edges, a club per node, positions from ForceAtlas2) written with cy.graphtyExport in every format. Beside it: each file's size in characters, and what onLoss reports the format cannot hold.";
+    }
+    return key === "auto" ? AUTO.about : SAMPLES[key as keyof typeof SAMPLES].about;
 }
 
 /**

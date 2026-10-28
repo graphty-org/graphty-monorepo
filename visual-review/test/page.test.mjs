@@ -6,7 +6,7 @@
  * last block serves the fixture as a local preview.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 
@@ -15,12 +15,15 @@ import { PNG } from "pngjs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { parsePasskeys, verifyApproval } from "../trusted/lib/approval.mjs";
+import { sha256 } from "../trusted/lib/compare.mjs";
 import { withRetries } from "../trusted/lib/github.mjs";
 import { createApp } from "../trusted/lib/serve.mjs";
 import {
     CONFIG,
     capturedItems,
+    copyFixture,
     FIXTURE,
+    FIXTURE_CONFIG,
     fakeGh,
     git,
     interceptedPage,
@@ -45,6 +48,9 @@ let dialogs;
 // Every URL the page requested (the page's own `performance` is Playwright's clock's).
 let requested;
 let confirmFinish = false;
+// How the question before a Finish that leaves images undecided is answered: "yes" (Finish anyway),
+// "no" or "other" (Go to the first undecided).
+let undecidedAnswer = "yes";
 // The fixture's grid tiles, made once (keepTiles) and put in every server's tmp directory.
 let tiles = null;
 // The app open() started. Its tiles made in advance run on after the server closes: afterEach waits
@@ -120,9 +126,13 @@ async function open(
     requested = [];
     page.on("request", (q) => requested.push(q.url()));
     // The page asks in its own dialog (ask in review.js). Accept all, Undo and Exclude are
-    // confirmed; Finish is refused unless a test sets confirmFinish.
+    // confirmed; Finish is refused unless a test sets confirmFinish; Finish with images undecided
+    // is answered with undecidedAnswer.
     await page.exposeFunction("asked", (message) => {
         dialogs.push(message);
+        if (/^\d+ images? still undecided/.test(message)) {
+            return undecidedAnswer;
+        }
         return !message.startsWith("Finish") || confirmFinish;
     });
     await page.addInitScript(() => {
@@ -131,9 +141,10 @@ async function open(
         new MutationObserver(() => {
             for (const d of document.querySelectorAll("dialog.ask[open]:not([data-seen])")) {
                 d.dataset.seen = "";
-                globalThis
-                    .asked(d.querySelector(".ask-text").innerText)
-                    .then((yes) => d.querySelectorAll(".actions button")[yes ? 1 : 0].click());
+                globalThis.asked(d.querySelector(".ask-text").innerText).then((yes) => {
+                    const which = { yes: "#ask-yes", other: "#ask-other", no: ".actions button" };
+                    d.querySelector(which[yes] ?? (yes ? "#ask-yes" : ".actions button")).click();
+                });
             }
         }).observe(document, { childList: true, subtree: true, attributes: true });
     });
@@ -153,8 +164,17 @@ async function open(
 
 afterEach(async () => {
     confirmFinish = false;
+    undecidedAnswer = "yes";
+    // A test's page.route handler may be between route.fetch() and res.json() for a request the page
+    // still has in flight (its list refresh): closing the page disposes that response, and the
+    // handler's res.json() then rejects outside any test. Remove every handler with ignoreErrors,
+    // which swallows what a running one throws afterward; "wait" would hang on a handler a failed
+    // test left parked on a promise only its body resolves. unrouteAll throws on a closed page.
+    if (page && !page.isClosed()) await page.unrouteAll({ behavior: "ignoreErrors" });
     await page?.close();
-    server?.close();
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
     await openApp?.idle();
     openApp = null;
 });
@@ -205,6 +225,15 @@ const box = (part = null) =>
         }
         return name ? globalThis.document.getElementById(`wait-${name}`).textContent : "open";
     }, part);
+// Waits until the open wait box's line `part` matches `pattern`, as long as Playwright's own waits
+// do: expect.poll gives up after a second, which the page's first asks can outlast on a busy machine.
+const boxSays = (part, pattern) =>
+    page.waitForFunction(
+        ([name, source]) =>
+            globalThis.document.getElementById("wait")?.open === true &&
+            new RegExp(source).test(globalThis.document.getElementById(`wait-${name}`).textContent),
+        [part, pattern.source],
+    );
 // The targets screen shows the whole list: no refresh running, every capture downloaded.
 const listSettled = () => page.locator("#listline[data-settled]").waitFor();
 // The page's GUARD_MS: a decision this soon after an item's images appeared is ignored.
@@ -1166,6 +1195,34 @@ describe("review page: a pull request", () => {
         await expect.poll(stageClass).toContain("flash");
     });
 
+    it("shows a compared view's failed image as an error in both panes, under the view's labels", async () => {
+        await page.route("**/api/img/123/compact-mantine/baseline/button--primary.dark.png", (route) =>
+            route.fulfill({ status: 500, body: "broken" }),
+        );
+        await openStory(2);
+        await page.keyboard.press("h");
+        await expect.poll(stageClass).toContain("highlight");
+        const figures = page.locator("#stage figure");
+        await expect.poll(() => figures.locator(".failed.error").count()).toBe(2);
+        expect(await figures.locator(".label").allTextContents()).toEqual([
+            "Baseline, changed pixels in red",
+            "New, changed pixels in red",
+        ]);
+    });
+
+    it("labels a Flash opened from a link as stopped until F is pressed", async () => {
+        await openStory(2);
+        const link = new URL(page.url());
+        const p = new URLSearchParams(link.hash.slice(1));
+        p.set("view", "flash");
+        link.hash = String(p);
+        await page.goto("about:blank");
+        await page.goto(link.href);
+        await expect
+            .poll(() => page.locator("#stage .label").allTextContents())
+            .toEqual(["Baseline", "Flash: baseline (stopped: press F)"]);
+    });
+
     it("lays the changed pixels over both images in red with H, and blinks them with L", async () => {
         await openStory(2);
         await page.keyboard.press("h");
@@ -1448,21 +1505,67 @@ describe("review page: a pull request", () => {
         const finish = page.getByRole("button", { name: /^Finish/ });
         expect(await finish.textContent()).toBe("Finish #123 (4)");
         await finish.click();
-        await expect.poll(() => dialogs.length).toBe(2);
-        const sheet = dialogs[1].split("\n").filter(Boolean);
+        await expect.poll(() => dialogs.length).toBe(3);
+        expect(dialogs[1]).toBe(
+            "3 images still undecided\n\n3 images are still undecided; they will block the merge. 4 of 7 are decided.",
+        );
+        const sheet = dialogs[2].split("\n").filter(Boolean);
         expect(sheet.slice(0, 6)).toEqual([
             "Finish #123, every project:",
             "Commit 4 accepts to feature.",
-            "Then set the commit status 'Visual review' to pending (3 undecided; not loaded: layout, algorithms, graphty, cytoscape-extensions).",
+            "Then set the commit status 'Visual review' to pending (3 undecided; not loaded: layout, algorithms, graphty, cytoscape-extensions, graph-io-fidelity).",
             "Accepted without opening: 4.",
-            "Still undecided, left for a later round: compact-mantine 2, graphty-element 1.",
-            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions.",
+            "Still undecided, and blocking the merge: compact-mantine 2, graphty-element 1.",
+            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions, graph-io-fidelity.",
         ]);
-        expect(dialogs[1]).toMatch(/Finish commits are (signed with|NOT signed)/);
-        expect(dialogs[1]).toContain(`start the server from your own shell:\n${START}`);
+        expect(dialogs[2]).toMatch(/Finish commits are (signed with|NOT signed)/);
+        expect(dialogs[2]).toContain(`start the server from your own shell:\n${START}`);
         await expect.poll(status).toBe("Finish cancelled: nothing was changed.");
         await page.locator("#home").click();
         await expect.poll(() => page.locator(".signer pre").textContent()).toBe(START);
+    });
+
+    it("counts decided and undecided images beside Finish, and a decision moves the count (issue 3235)", async () => {
+        const tally = () => page.locator("#finish-slot .finish-tally").textContent();
+        expect(await tally()).toBe("0 of 7 decided -- 7 left");
+        expect(await page.locator("#finish-slot .finish-tally").getAttribute("class")).toContain("left");
+        await page.locator('.component[data-component="badge"] h3 button').click();
+        await expect.poll(tally).toBe("1 of 7 decided -- 6 left");
+    });
+
+    it("counts the rejects an earlier Finish posted beside Finish, as waiting for a fix", async () => {
+        const tally = () => page.locator("#finish-slot .finish-tally").textContent();
+        const mark = (t) => {
+            if (t?.projects) {
+                t.projects[0].rejected = 2;
+            }
+        };
+        await page.route(/\/api\/(prs|pr\/|target\/)/, async (route) => {
+            const res = await route.fetch();
+            const body = await res.json();
+            (body.targets ?? []).forEach(mark);
+            mark(body.target);
+            mark(body);
+            await route.fulfill({ response: res, json: body });
+        });
+        await page.reload();
+        await page.locator(".component").first().waitFor();
+        await expect.poll(tally).toBe("0 of 7 decided -- 7 left, 2 rejected, waiting for a fix");
+    });
+
+    it("before a Finish that leaves images undecided, says so and goes to the first of them (issue 3235)", async () => {
+        await page.keyboard.press("Shift+A");
+        await expect.poll(progress).toBe("4 of 6 decided");
+        undecidedAnswer = "other";
+        await page.getByRole("button", { name: /^Finish/ }).click();
+        await expect.poll(() => dialogs.length).toBe(2);
+        expect(dialogs[1]).toBe(
+            "3 images still undecided\n\n3 images are still undecided; they will block the merge. 4 of 7 are decided.",
+        );
+        // No Finish sheet: the first undecided image is open instead.
+        await expect.poll(position).toMatch(/^1 of 2 -- 2 left$/);
+        expect(dialogs).toHaveLength(2);
+        expect(await page.locator("dialog.ask").count()).toBe(0);
     });
 
     it("shows at once that Finish is checking, and says when it is cancelled", async () => {
@@ -1481,8 +1584,9 @@ describe("review page: a pull request", () => {
         expect(await finish.locator(".spinner").count()).toBe(1);
         answer();
         await expect.poll(status).toBe("Finish cancelled: nothing was changed.");
-        expect(dialogs).toHaveLength(2);
-        expect(dialogs[1]).toMatch(/^Finish #123, every project:/);
+        expect(dialogs).toHaveLength(3);
+        expect(dialogs[1]).toMatch(/^3 images still undecided/);
+        expect(dialogs[2]).toMatch(/^Finish #123, every project:/);
         expect(await finish.getAttribute("aria-disabled")).toBe("false");
     });
 
@@ -1563,7 +1667,25 @@ describe("review page: a pull request", () => {
         expect(await option("accept")).toBe("Accepted (0)");
     });
 
-    it("keeps a reject an earlier Finish posted, and says so on its tile", async () => {
+    it("stops undoing every decision when Stop is pressed, and says how many it undid", async () => {
+        await page.keyboard.press("Shift+A");
+        await expect.poll(progress).toBe("4 of 6 decided");
+        // The first undo is held until Stop has been pressed.
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        await page.route("**/api/decide**", async (route) => {
+            await held;
+            await route.continue();
+        });
+        await page.locator("details.menu > summary").click();
+        await page.getByRole("button", { name: "Undo all decisions..." }).click();
+        await page.getByRole("button", { name: "Stop", exact: true }).click();
+        release();
+        await expect.poll(status).toBe("Stopped: undid 1 of 4 decisions of compact-mantine.");
+        expect(await progress()).toBe("3 of 6 decided");
+    });
+
+    it("lets the owner change a reject an earlier Finish posted, and says so on its tile", async () => {
         await page.route("**/api/pr/**", async (route) => {
             const res = await route.fetch();
             const body = await res.json();
@@ -1575,13 +1697,18 @@ describe("review page: a pull request", () => {
         await page.locator(".component").first().waitFor();
         await show("reject");
         const line = page.locator('.decision[data-file="slider--sizes.png"]');
-        await expect.poll(() => line.textContent()).toBe("Rejected: thumb movedPosted by an earlier Finish: it stays.");
-        expect(await line.locator("button").count()).toBe(0);
-        // Nothing else is decided, so no bulk Undo applies to the posted reject.
-        expect(await page.locator(".undo-all").getAttribute("aria-disabled")).toBe("true");
+        await expect
+            .poll(() => line.textContent())
+            .toBe(
+                "Rejected: thumb movedRejected by an earlier Finish, waiting for a fix. Accept or Exclude replaces it.Undo",
+            );
         await openStory(3);
-        await page.keyboard.press("u");
-        await expect.poll(status).toBe("Posted by an earlier Finish: it stays.");
+        // Accept, Exclude and Undo change it; Reject again does not.
+        const unavailable = (id) => page.locator(`#${id}`).getAttribute("aria-disabled");
+        expect(await unavailable("accept")).toBe("false");
+        expect(await unavailable("exclude")).toBe("false");
+        expect(await unavailable("undo")).toBe("false");
+        expect(await unavailable("reject")).toBe("true");
     });
 
     it("shows a re-review flag on an item whose earlier accept master replaced", async () => {
@@ -1716,9 +1843,35 @@ describe("review page: the decision bar", () => {
         await ready();
         await stopClock();
         await page.locator("#accept").click();
-        await page.locator("#accept").click();
+        // The second tap lands once the next item is on screen: a tap still in flight while the
+        // first decision saves is the next test's.
         await expect.poll(position).toMatch(/^3 of /);
-        await expect.poll(status).toMatch(/^(Ignored|Loading images|Still saving)/);
+        await page.locator("#accept").click();
+        await expect
+            .poll(status)
+            .toMatch(
+                /^(Ignored: this image appeared less than a quarter second ago\.|Loading images: Accept waits for them\.)$/,
+            );
+        expect(await page.locator("#accept").getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("refuses the second tap of a double tap that comes while the first decision is saving", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        await page.locator("#review-undecided").click();
+        await page.keyboard.press("k");
+        await ready();
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        await page.route("**/api/decide**", async (route) => {
+            await held;
+            await route.continue();
+        });
+        await page.locator("#accept").click();
+        await page.locator("#accept").click();
+        await expect.poll(status).toBe("Still saving the last decision.");
+        release();
+        // The first decision's message replaces it, and the second tap decided nothing.
+        await expect.poll(status).toBe("Accepted #2. Now #3, 3 of 6: slider--sizes, changed.");
         expect(await page.locator("#accept").getAttribute("aria-pressed")).toBe("false");
     });
 });
@@ -1732,7 +1885,7 @@ describe("review page: waits that say what they wait for", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (args[1]?.includes("/pulls?")) {
+                        if (args[1] === "graphql") {
                             await held;
                         }
                         return gh(args, input);
@@ -1774,7 +1927,7 @@ describe("review page: waits that say what they wait for", () => {
         const downloading = page.getByRole("button", { name: "Downloading..." });
         // The two projects the run uploaded captures for, while they download; the three it did
         // not are listed as such at once.
-        await expect.poll(() => downloading.count(), { timeout: 10000 }).toBe(2);
+        await expect.poll(() => downloading.count()).toBe(2);
         const card = await page.locator('.card[data-target="123"]').textContent();
         // How many artifacts and bytes have landed, and for how long it has been downloading.
         expect(card).toMatch(/Downloading: 0 of 2 artifacts, 0\.0 MB of 2\.0 MB, \d+ s/);
@@ -1783,7 +1936,7 @@ describe("review page: waits that say what they wait for", () => {
         await expect.poll(status).toMatch(/^Downloading captures in the background: #123/);
         expect(await box()).toBeNull();
         release();
-        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor();
         expect(await downloading.count()).toBe(0);
     });
 
@@ -1847,7 +2000,7 @@ describe("review page: the wait box", () => {
         const { options, release } = heldDownload();
         const viewport = { width: 820, height: 1180 };
         await open(options, { review: false, touch: true, viewport });
-        await geRow().getByRole("button", { name: "Downloading..." }).waitFor({ timeout: 10000 });
+        await geRow().getByRole("button", { name: "Downloading..." }).waitFor();
         await geRow().getByRole("button", { name: "Downloading..." }).click();
         await expect.poll(() => box("title")).toBe("Downloading graphty-element captures for #123");
         expect(await box("text")).toBe(
@@ -1877,42 +2030,73 @@ describe("review page: the wait box", () => {
         await geRow().getByRole("button", { name: "Downloading..." }).click();
         await expect.poll(() => box("title")).toBe("Downloading graphty-element captures for #123");
         release();
-        await page.locator(".component").first().waitFor({ timeout: 10000 });
+        await page.locator(".component").first().waitFor();
         expect(await box()).toBeNull();
         expect(await page.locator("#pick-project").inputValue()).toBe("graphty-element");
     });
 
+    it("counts only artifacts while the download's size is unknown, and nothing before the download starts", async () => {
+        const { options, release } = heldDownload();
+        await open(options, { review: false });
+        // What the server says about the download, rewritten: no size yet, then no download at all.
+        let rewrite = (download) => ({ ...download, bytes: null });
+        await page.route("**/api/pr/123/graphty-element", async (route) => {
+            const res = await route.fetch();
+            const body = await res.json();
+            if (body.downloading) {
+                body.target.download = rewrite(body.target.download);
+            }
+            await route.fulfill({ response: res, json: body });
+        });
+        await geRow().getByRole("button", { name: "Downloading..." }).waitFor({ timeout: 10000 });
+        await geRow().getByRole("button", { name: "Downloading..." }).click();
+        await boxSays("detail", /^1 of 2 artifacts$/);
+        expect(await box("detail")).toBe("1 of 2 artifacts");
+        rewrite = () => null;
+        await boxSays("detail", /^$/);
+        expect(await box("detail")).toBe("");
+        release();
+        await page.locator(".component").first().waitFor({ timeout: 10000 });
+    });
+
     it("says in the box which GitHub call waits to retry, then turns a failure into an error with Retry", async () => {
-        let fails = 1;
-        let down = false;
+        // The list's GitHub call: "offline" fails on the network, so the server waits to retry it;
+        // "refusing" fails for real; "up" answers. Offline, every try fails at once, and a try runs
+        // in the same turn as the wait before it ends, so the server says it is waiting to retry
+        // whenever the page asks, for as long as the test keeps GitHub offline (the waits add up to
+        // more than the suite's test limit). The test reads the box, then changes GitHub's answer:
+        // it never races the page's first asks against a retry's timer (#2422).
+        let github = "offline";
         await open(
             (r) => {
                 const gh = onePr()(r);
                 return {
-                    gh: withRetries(
-                        async (args, input) => {
-                            if ((args[1] ?? "").includes("/pulls?")) {
-                                if (down) {
-                                    throw new Error("HTTP 401: Bad credentials");
-                                }
-                                if (fails-- > 0) {
-                                    throw new Error("Could not resolve host: api.github.com");
-                                }
+                    gh: withRetries(async (args, input) => {
+                        if (args[1] === "graphql") {
+                            if (github === "refusing") {
+                                throw new Error("HTTP 401: Bad credentials");
                             }
-                            return gh(args, input);
-                        },
-                        [1500],
-                    ),
+                            if (github === "offline") {
+                                throw new Error("Could not resolve host: api.github.com");
+                            }
+                        }
+                        return gh(args, input);
+                    }, Array(200).fill(500)),
                 };
             },
             { review: false },
         );
-        await expect
-            .poll(() => box("net"))
-            .toMatch(
-                /^GitHub did not answer \(Could not resolve host: api\.github\.com\)\. Trying again in \d s, try 2 of 2\.$/,
-            );
-        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
+        await boxSays(
+            "net",
+            /^GitHub did not answer \(Could not resolve host: api\.github\.com\)\. Trying again in \d s, try \d+ of 201\.$/,
+        );
+        github = "refusing";
+        await boxSays("error", /^Could not read the pull requests from GitHub: HTTP 401: Bad credentials$/);
+        expect(await box("net")).toBe("");
+        expect(await page.locator("#wait-retry").isVisible()).toBe(true);
+        github = "up";
+        await page.locator("#wait-retry").click();
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor();
         expect(await box()).toBeNull();
     });
 
@@ -1923,7 +2107,7 @@ describe("review page: the wait box", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (down && (args[1] ?? "").includes("/pulls?")) {
+                        if (down && args[1] === "graphql") {
                             throw new Error("HTTP 401: Bad credentials");
                         }
                         return gh(args, input);
@@ -1941,7 +2125,7 @@ describe("review page: the wait box", () => {
         expect(await page.locator("#wait-cancel").textContent()).toBe("Close");
         down = false;
         await page.locator("#wait-retry").click();
-        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor();
         expect(await box()).toBeNull();
     });
 
@@ -1953,7 +2137,7 @@ describe("review page: the wait box", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (hold && (args[1] ?? "").includes("/pulls?")) {
+                        if (hold && args[1] === "graphql") {
                             await new Promise((resolve) => (release = resolve));
                         }
                         return gh(args, input);
@@ -2446,14 +2630,15 @@ describe("review page: Finish", () => {
         });
         confirmFinish = true;
         await page.getByRole("button", { name: /^Finish/ }).click();
-        await expect.poll(() => dialogs.length).toBe(2);
+        await expect.poll(() => dialogs.length).toBe(3);
+        expect(dialogs.shift()).toMatch(/^5 images still undecided/);
         expect(dialogs[0].split("\n").filter(Boolean).slice(0, 7)).toEqual([
             "Finish #123, every project:",
             "Commit 1 accept to feature.",
             "Post 1 reject as a comment on #123.",
             "Then set the commit status 'Visual review' to failure (1 rejected).",
-            "Still undecided, left for a later round: compact-mantine 4, graphty-element 1.",
-            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions.",
+            "Still undecided, and blocking the merge: compact-mantine 4, graphty-element 1.",
+            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions, graph-io-fidelity.",
             "Notes to publish:",
         ]);
         expect(dialogs[0]).toContain("Rejected compact-mantine/slider--sizes.png: too tall");
@@ -2483,9 +2668,7 @@ describe("review page: Finish", () => {
         await page.keyboard.press("Shift+A");
         await expect.poll(progress).toBe("4 of 6 decided");
         await page.getByRole("button", { name: /^Finish/ }).click();
-        // The commit, the LFS upload and the push come first: seconds on a busy runner.
-        const slow = { timeout: 30000 };
-        await expect.poll(status, slow).toBe("Finishing #123: posting the status...");
+        await expect.poll(status).toBe("Finishing #123: posting the status...");
         // The wait box follows it step by step, over the page.
         await expect.poll(() => box("title")).toBe("Finishing #123");
         await expect
@@ -2500,6 +2683,16 @@ describe("review page: Finish", () => {
             "Pushing: done",
         ]);
 
+        // The reloaded page learns of the Finish only after it drew the list, Finish button and
+        // all: the order a slow machine gave by chance, which left that button offered.
+        let reloaded = false;
+        await page.route("**/api/finish-status", async (route) => {
+            if (reloaded) {
+                await page.locator('.card[data-target="123"]').waitFor();
+            }
+            await route.continue();
+        });
+        reloaded = true;
         await page.reload();
         await expect.poll(status).toBe("Finishing #123: posting the status...");
         await expect
@@ -2513,9 +2706,9 @@ describe("review page: Finish", () => {
 
         release();
         await expect
-            .poll(() => page.locator(".finish-outcome").textContent(), slow)
+            .poll(() => page.locator(".finish-outcome").textContent())
             .toMatch(
-                /^Finished #123\.Committed \w{10} to feature\.Commit status: pending -- 4 accepted, 0 rejected, 0 excluded, 3 undecided, not loaded: layout, algorithms, graphty, cytoscape-extensions\./,
+                /^Finished #123\.Committed \w{10} to feature\.Commit status: pending -- 4 accepted, 0 rejected, 0 excluded, 3 undecided, not loaded: layout, algorithms, graphty, cytoscape-extensions, graph-io-fidelity\./,
             );
         expect(await page.locator(".finish-running").count()).toBe(0);
         expect(await box()).toBeNull();
@@ -2563,11 +2756,10 @@ describe("review page: Finish", () => {
         await page.keyboard.press("Shift+A");
         await expect.poll(progress).toBe("4 of 6 decided");
         await page.getByRole("button", { name: /^Finish/ }).click();
-        const slow = { timeout: 30000 };
-        await expect.poll(() => box("net"), slow).toBe("Retrying after a network error, attempt 2 of 4");
+        await expect.poll(() => box("net")).toBe("Retrying after a network error, attempt 2 of 4");
         expect(await page.locator("#wait #finish-panel li.now").textContent()).toBe("Posting the status: in progress");
         release();
-        await expect.poll(() => page.locator(".finish-outcome").textContent(), slow).toMatch(/^Finished #123\./);
+        await expect.poll(() => page.locator(".finish-outcome").textContent()).toMatch(/^Finished #123\./);
         expect(await page.locator(".finish-outcome").textContent()).not.toContain("status not posted");
     });
 });
@@ -2613,15 +2805,50 @@ describe("review page: update from master", () => {
     });
 });
 
+describe("review page: against the default branch", () => {
+    it("shows an image the branch already changed as a change against master's baseline", async () => {
+        const badge = readFileSync(join(FIXTURE, "compact-mantine/badge--default.light.png"));
+        const BASELINE = "visual-baselines/compact-mantine/input--default.png";
+        await open((r) => {
+            // An earlier Finish already put the capture into the branch's baseline: against the
+            // branch the capture is unchanged, against master it is not.
+            git(r.repo, "checkout", "-q", "feature");
+            writeFileSync(join(r.repo, BASELINE), badge);
+            git(r.repo, "commit", "-q", "-am", "an earlier accept");
+            git(r.repo, "push", "-q", "origin", "feature");
+            const head = git(r.repo, "rev-parse", "HEAD");
+            git(r.repo, "checkout", "-q", "master");
+            const fixture = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8"));
+            const items = fixture.items.map((i) =>
+                i.file === "input--default.png" ? { ...i, baseline: sha256(badge), capture: sha256(badge) } : i,
+            );
+            const results = {
+                "visual-compact-mantine-1": { commit: head, headSha: head, items },
+                "visual-graphty-element-1": { commit: head, headSha: head },
+            };
+            return { config: FIXTURE_CONFIG, gh: onePr({ results })({ ...r, head }) };
+        });
+        await page.locator(".component").first().waitFor();
+        await expect.poll(progress).toBe("0 of 7 decided");
+        await page.locator("#find").fill("input--default");
+        await page.locator("#find").press("Enter");
+        await expect.poll(() => page.locator("h2").textContent()).toContain("input--default");
+        await ready();
+    });
+});
+
 describe("review page: the passkey", () => {
     // Chromium's virtual authenticator (CDP) stands in for Face ID: a real browser makes the
     // registration and the approval, and the server's own checks verify them.
-    it("registers a passkey, then Finish asks for it; a refused approval changes nothing", async () => {
+    it("registers a passkey, then Finish asks for it in one prompt; a refused approval changes nothing", async () => {
         const opened = [];
         const r = await open(
             (repo) => {
                 const gh = onePr()(repo);
                 return {
+                    // The two projects captured: a project with no capture leaves its baselines
+                    // unseen, and a Finish then signs nothing.
+                    config: FIXTURE_CONFIG,
                     gh: async (args, input) => {
                         if (args[1] === "repos/{owner}/{repo}/pulls") {
                             opened.push(JSON.parse(input));
@@ -2660,7 +2887,7 @@ describe("review page: the passkey", () => {
         });
 
         await page.getByRole("button", { name: "Register passkey" }).click();
-        await expect.poll(status, { timeout: 30000 }).toMatch(/^Passkey registered \((Linux|Mac|Windows) passkey, /);
+        await expect.poll(status).toMatch(/^Passkey registered \((Linux|Mac|Windows) passkey, /);
         const { credentials } = await cdp.send("WebAuthn.getCredentials", { authenticatorId });
         expect(credentials).toHaveLength(1);
         const id = Buffer.from(credentials[0].credentialId, "base64").toString("base64url");
@@ -2678,28 +2905,176 @@ describe("review page: the passkey", () => {
         await page.locator(".component").first().waitFor();
         await page.keyboard.press("Shift+A");
         await expect.poll(progress).toBe("4 of 6 decided");
-        confirmFinish = true;
         const finish = page.getByRole("button", { name: /^Finish #123/ });
+
+        // Images left undecided: the sheet says the decisions are signed but the baselines are not.
+        let asked = dialogs.length;
+        await finish.click();
+        await expect.poll(status).toBe("Finish cancelled: nothing was changed.");
+        expect(dialogs.slice(asked).join("\n")).toContain(
+            "Your passkey signs your decisions (Face ID or a security key). The baselines are not signed, because images are still undecided: the merge stays blocked until a Finish with every image decided and none rejected signs the baselines.",
+        );
+        expect(await page.evaluate(() => globalThis.whileAsking.length)).toBe(1);
+
+        // The rest decided (as in another tab): this Finish signs.
+        for (const [project, file, decision, reason] of [
+            ["compact-mantine", "tooltip--hover.png", "exclude", "noisy"],
+            ["compact-mantine", "menu--open.png", "exclude", "noisy"],
+            ["graphty-element", "graph--basic.png", "accept", null],
+        ]) {
+            const res = await fetch(`${origin}/api/decide`, {
+                method: "POST",
+                headers: { "x-review-token": TOKEN, origin, "content-type": "application/json" },
+                body: JSON.stringify({ id: "123", project, file, decision, reason }),
+            });
+            expect(res.status).toBe(200);
+        }
+        confirmFinish = true;
 
         // Face ID refused: nothing is pushed, and the sheet stays to try again.
         await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: false });
-        const asked = dialogs.length;
+        asked = dialogs.length;
         await finish.click();
-        await expect.poll(() => dialogs.length, { timeout: 30000 }).toBeGreaterThan(asked + 1);
-        expect(dialogs[asked]).toContain("Your passkey confirms this Finish (Face ID or a security key).");
-        expect(dialogs.at(-1)).toContain("Passkey cancelled: nothing was changed.");
+        await expect.poll(() => dialogs.at(-1)).toContain("Passkey cancelled: nothing was changed.");
+        expect(dialogs.slice(asked).join("\n")).toContain(
+            "Your passkey signs your decisions and the baselines this Finish leaves on the branch, in one prompt (Face ID or a security key).",
+        );
         expect(git(r.remote, "rev-parse", "feature")).toBe(r.head);
 
-        // The retry, with Face ID passing, signs and finishes.
+        // The retry, with Face ID passing, signs and finishes with ONE passkey prompt: the accept
+        // commit, then the signed statement about its tree, which holds the review record.
+        const before = await page.evaluate(() => globalThis.whileAsking.length);
         await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: true });
-        await expect
-            .poll(() => page.locator(".finish-outcome h2").textContent(), { timeout: 30000 })
-            .toBe("Finished #123.");
-        const files = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
+        await expect.poll(() => page.locator(".finish-outcome h2").textContent()).toBe("Finished #123.");
+        const [file] = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
+        const statement = JSON.parse(git(r.remote, "show", `feature:${file}`));
+        expect(file).toBe(`visual-review-approvals/${statement.tree}.json`);
+        expect(statement).toMatchObject({
+            version: 1,
+            pr: 123,
+            commit: git(r.remote, "rev-parse", "feature^"),
+            tree: git(r.remote, "rev-parse", "feature:visual-baselines"),
+        });
+        expect(verifyApproval(statement, [entry], { origin })).toBeNull();
+        const files = git(r.remote, "show", "--name-only", "--format=", "feature^").split("\n");
         const record = JSON.parse(git(r.remote, "show", `feature:${files.find((f) => f.includes("reviews/"))}`));
         expect(record).toMatchObject({ version: 2, pr: 123 });
-        expect(verifyApproval(record, [entry], { origin })).toBeNull();
+        expect(record.approval).toBeUndefined();
+        expect(dialogs.some((d) => d.startsWith("Sign the baselines of #123"))).toBe(false);
+        // One Finish, one passkey assertion: never a second prompt for the same Finish.
+        expect((await page.evaluate(() => globalThis.whileAsking.length)) - before).toBe(1);
         expect(new Set(await page.evaluate(() => globalThis.whileAsking))).toEqual(new Set([true]));
+    });
+
+    it("signs the decisions of a Finish with a reject in one prompt, and leaves the baselines unsigned", async () => {
+        const r = await open((repo) => ({ config: FIXTURE_CONFIG, gh: onePr()(repo) }), {
+            review: false,
+            host: "localhost",
+        });
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("WebAuthn.enable");
+        await cdp.send("WebAuthn.addVirtualAuthenticator", {
+            options: {
+                protocol: "ctap2",
+                transport: "internal",
+                hasResidentKey: true,
+                hasUserVerification: true,
+                isUserVerified: true,
+                automaticPresenceSimulation: true,
+            },
+        });
+        await page.evaluate(() => {
+            const { navigator } = globalThis;
+            globalThis.gets = 0;
+            const real = navigator.credentials.get.bind(navigator.credentials);
+            navigator.credentials.get = (o) => {
+                globalThis.gets++;
+                return real(o);
+            };
+        });
+        await page.getByRole("button", { name: "Register passkey" }).click();
+        await expect.poll(status).toMatch(/^Passkey registered/);
+        for (const [project, file, decision, reason] of [
+            ["compact-mantine", "badge--default.light.png", "accept", null],
+            ["compact-mantine", "slider--sizes.png", "reject", "tall"],
+        ]) {
+            const res = await fetch(`${origin}/api/decide`, {
+                method: "POST",
+                headers: { "x-review-token": TOKEN, origin, "content-type": "application/json" },
+                body: JSON.stringify({ id: "123", project, file, decision, reason }),
+            });
+            expect(res.status).toBe(200);
+        }
+        confirmFinish = true;
+        const asked = dialogs.length;
+        await page.getByRole("button", { name: /^Finish #123/ }).click();
+        await expect.poll(() => page.locator(".finish-outcome h2").textContent()).toMatch(/^Finished #123/);
+        expect(dialogs.slice(asked).join("\n")).toContain(
+            "Your passkey signs your decisions (Face ID or a security key). The baselines are not signed, because something is rejected: the merge stays blocked until a Finish with every image decided and none rejected signs the baselines.",
+        );
+        expect(await page.evaluate(() => globalThis.gets)).toBe(1);
+        const files = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
+        expect(files.some((f) => f.startsWith("visual-review-approvals/"))).toBe(false);
+        const record = JSON.parse(git(r.remote, "show", `feature:${files.find((f) => f.includes("reviews/"))}`));
+        expect(record).toMatchObject({ version: 2, pr: 123 });
+        expect(record.rejects).toHaveLength(1);
+        expect(record.approval).toBeDefined();
+    });
+
+    it("signs an earlier Finish's unsigned record when Finish is pressed with nothing new to decide", async () => {
+        const r = await open((repo) => ({ config: FIXTURE_CONFIG, gh: onePr()(repo) }), {
+            review: false,
+            host: "localhost",
+        });
+        // Before any passkey: a Finish with a reject pushes its record unsigned.
+        for (const [project, file, decision, reason] of [
+            ["compact-mantine", "badge--default.light.png", "accept", null],
+            ["compact-mantine", "slider--sizes.png", "reject", "tall"],
+        ]) {
+            const res = await fetch(`${origin}/api/decide`, {
+                method: "POST",
+                headers: { "x-review-token": TOKEN, origin, "content-type": "application/json" },
+                body: JSON.stringify({ id: "123", project, file, decision, reason }),
+            });
+            expect(res.status).toBe(200);
+        }
+        confirmFinish = true;
+        await page.getByRole("button", { name: /^Finish #123/ }).click();
+        await expect.poll(() => page.locator(".finish-outcome h2").textContent()).toMatch(/^Finished #123/);
+        const first = git(r.remote, "rev-parse", "feature");
+        const path = git(r.remote, "show", "--name-only", "--format=", "feature")
+            .split("\n")
+            .find((f) => f.includes("reviews/"));
+        expect(JSON.parse(git(r.remote, "show", `feature:${path}`)).approval).toBeUndefined();
+
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("WebAuthn.enable");
+        await cdp.send("WebAuthn.addVirtualAuthenticator", {
+            options: {
+                protocol: "ctap2",
+                transport: "internal",
+                hasResidentKey: true,
+                hasUserVerification: true,
+                isUserVerified: true,
+                automaticPresenceSimulation: true,
+            },
+        });
+        await page.getByRole("button", { name: "Register passkey" }).click();
+        await expect.poll(status).toMatch(/^Passkey registered/);
+        // Nothing new to decide, and Finish is still offered: it signs the earlier record.
+        const finish = page.getByRole("button", { name: "Finish #123 (0)" });
+        await expect.poll(() => finish.getAttribute("aria-disabled")).toBe("false");
+        const asked = dialogs.length;
+        await finish.click();
+        await expect
+            .poll(() => page.locator(".finish-outcome").textContent())
+            .toContain("Signed the decisions of the earlier Finish");
+        expect(dialogs.slice(asked).join("\n")).toContain(
+            "Nothing new to decide: your passkey signs the decisions of the earlier Finish, which were pushed unsigned, so they count as approved before.",
+        );
+        expect(git(r.remote, "rev-parse", "feature^")).toBe(first);
+        expect(git(r.remote, "show", "--name-only", "--format=", "feature")).toBe(path);
+        expect(JSON.parse(git(r.remote, "show", `feature:${path}`))).toMatchObject({ version: 2, pr: 123 });
     });
 
     it("says plainly that accepts are not yet protected while no passkey is registered", async () => {
@@ -2715,15 +3090,13 @@ describe("review page: the passkey", () => {
         await expect.poll(progress).toBe("4 of 6 decided");
         confirmFinish = true;
         await page.getByRole("button", { name: /^Finish #123/ }).click();
-        await expect
-            .poll(() => page.locator(".finish-outcome h2").textContent(), { timeout: 30000 })
-            .toBe("Finished #123.");
+        await expect.poll(() => page.locator(".finish-outcome h2").textContent()).toBe("Finished #123.");
         expect(dialogs.at(-1)).toContain(
             "Not yet protected: no passkey is registered, so this Finish is not approved by you and the CI gate does not check who accepted.",
         );
         const files = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
         const record = JSON.parse(git(r.remote, "show", `feature:${files.find((f) => f.includes("reviews/"))}`));
-        expect(record).toMatchObject({ version: 1, unproven: true });
+        expect(record).toMatchObject({ version: 3, pr: 123 });
     });
 
     it("finishes rejects alone without asking for a passkey to be registered first", async () => {
@@ -2747,9 +3120,7 @@ describe("review page: the passkey", () => {
         expect(await header.textContent()).not.toContain("Passkey");
         confirmFinish = true;
         await page.getByRole("button", { name: /^Finish #123/ }).click();
-        await expect
-            .poll(() => page.locator(".finish-outcome h2").textContent(), { timeout: 30000 })
-            .toBe("Finished #123.");
+        await expect.poll(() => page.locator(".finish-outcome h2").textContent()).toBe("Finished #123.");
         expect(dialogs.at(-1)).not.toContain("passkey");
     });
 });
@@ -2778,6 +3149,17 @@ describe("review page: narrow windows, touch and wording", () => {
             },
             [selector, text],
         );
+
+    it("marks the tools and messages rows as named regions and the message line as a native output", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        await page.locator(".component").first().waitFor();
+        expect(await page.getByRole("region", { name: "Tools" }).evaluate((e) => e.tagName)).toBe("SECTION");
+        const messages = page.getByRole("region", { name: "Messages" });
+        expect(await messages.evaluate((e) => e.tagName)).toBe("SECTION");
+        expect(
+            await messages.getByRole("status", { includeHidden: true }).evaluate((e) => e.id + " " + e.tagName),
+        ).toBe("status OUTPUT");
+    });
 
     it("keeps the decision bar and the header on screen at every width", async () => {
         await open((r) => ({ gh: onePr()(r) }));
@@ -2976,6 +3358,29 @@ describe("review page: narrow windows, touch and wording", () => {
     });
 });
 
+describe("review page: flaky captures", () => {
+    beforeEach(async () => {
+        const fixture = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8"));
+        const items = fixture.items.map((i) => (i.file === "input--default.png" ? { ...i, flaky: true } : i));
+        await open((r) => {
+            const at = { commit: r.head, headSha: r.head };
+            return {
+                gh: onePr({
+                    results: { "visual-compact-mantine-1": { ...at, items }, "visual-graphty-element-1": at },
+                })(r),
+            };
+        });
+        await page.locator(".component").first().waitFor();
+    });
+
+    it("lists an item unchanged only on its second capture as flaky", async () => {
+        expect(await page.locator(".group.flaky > summary").textContent()).toBe(
+            "Flaky (1): unchanged only on the second capture, so the story has a timing race",
+        );
+        expect(await page.locator(".group.flaky li").allTextContents()).toEqual(["input--default"]);
+    });
+});
+
 describe("review page: renamed stories", () => {
     const REASON =
         "renames.json renames old-menu--gone to menu--gone, but the Storybook has no story menu--gone: fix renames.json";
@@ -3023,6 +3428,78 @@ describe("review page: renamed stories", () => {
             TOKEN,
         );
         expect(decisions["slider--sizes.png"]).toMatchObject({ decision: "accept" });
+    });
+});
+
+describe("review page: a pending push", () => {
+    it("decides on the gate's capture of a commit not yet pushed, and turns Finish on once it is the head", async () => {
+        let previews;
+        let head;
+        let candidate;
+        await open(
+            (r) => {
+                previews = join(r.dir, "previews");
+                head = r.head;
+                candidate = git(r.repo, "commit-tree", `${r.head}^{tree}`, "-p", r.head, "-m", "land: x");
+                // As tools/visual-preview.sh --head stages it for #123 while the gate checks `candidate`.
+                const dir = join(previews, `.pending-${candidate}`);
+                copyFixture("compact-mantine", join(dir, "compact-mantine"), {
+                    headSha: candidate,
+                    pr: 123,
+                    runId: null,
+                    runAttempt: null,
+                    items: capturedItems(),
+                    local: {
+                        describe: "x",
+                        diff: "0".repeat(64),
+                        preview: { merge: "3".repeat(40), host: "h", tool: "t" },
+                    },
+                });
+                writeFileSync(
+                    join(dir, "status.json"),
+                    JSON.stringify({ state: "done", pr: 123, head: candidate, updatedAt: "2026-10-24T10:00:00Z" }),
+                );
+                return {
+                    previews,
+                    gh: (args, input) => fakeGh({ prs: [{ number: 123, head, branch: "feature" }] })(args, input),
+                };
+            },
+            { review: false },
+        );
+        const card = page.locator('.card[data-target="123"]');
+        const finish = card.getByRole("button", { name: /^Finish/ });
+        await expect.poll(() => card.textContent()).toContain("pending push");
+        expect(await card.textContent()).toContain("Pending push");
+        expect(await finish.getAttribute("aria-disabled")).toBe("true");
+        const decided = await page.evaluate(
+            async (token) =>
+                (
+                    await fetch("/api/decide", {
+                        method: "POST",
+                        headers: { "x-review-token": token, "content-type": "application/json" },
+                        body: JSON.stringify({
+                            id: "123",
+                            project: "compact-mantine",
+                            file: "badge--default.light.png",
+                            decision: "accept",
+                        }),
+                    })
+                ).status,
+            TOKEN,
+        );
+        expect(decided).toBe(200);
+
+        // Pushed: land.mjs made the capture #123's preview and GitHub lists the commit as the head.
+        renameSync(join(previews, `.pending-${candidate}`), join(previews, "123"));
+        head = candidate;
+        await expect
+            .poll(async () => {
+                await page.clock.fastForward(5000);
+                return finish.getAttribute("aria-disabled");
+            })
+            .toBe("false");
+        expect(await card.textContent()).not.toContain("pending push");
+        expect(await finish.textContent()).toMatch(/\(1\)$/);
     });
 });
 

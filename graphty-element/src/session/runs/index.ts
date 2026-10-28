@@ -48,6 +48,8 @@ export type {
     RunChange,
     RunDirection,
     RunDistinction,
+    RunGroup,
+    RunLayers,
     RunOptions,
     RunPainting,
     RunPhase,
@@ -58,10 +60,13 @@ export type {
     RunSpec,
     RunStatus,
     RunStyle,
+    RunWindow,
     StaleNote,
+    StaleReason,
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./types";
 export {
     isRunId,

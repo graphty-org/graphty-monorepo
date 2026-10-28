@@ -6,7 +6,8 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor, CHANNELS } from "../../src
 
 /**
  * A style object holding `value` at the channel's style path. A colour's opacity sits beside the
- * colour it qualifies, so that one path is given a colour to sit beside.
+ * colour it qualifies, and a gradient's direction beside its stops, so those paths are given a
+ * colour to sit beside.
  * @param descriptor - The channel.
  * @param value - The number to put there.
  * @returns The style object.
@@ -14,8 +15,11 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor, CHANNELS } from "../../src
 function styleWith(descriptor: ChannelDescriptor, value: number): Record<string, unknown> {
     const segments = descriptor.stylePath.split(".");
     const leaf = segments.pop() ?? "";
-    const parent: Record<string, unknown> =
-        descriptor.stylePath === "texture.color.opacity" ? { colorType: "solid", value: "#000000" } : {};
+    const beside: Record<string, Record<string, unknown>> = {
+        "texture.color.opacity": { colorType: "solid", value: "#000000" },
+        "texture.color.direction": { colorType: "gradient", colors: ["#000000", "#ffffff"] },
+    };
+    const parent: Record<string, unknown> = { ...beside[descriptor.stylePath] };
     parent[leaf] = value;
 
     return segments.reduceRight<Record<string, unknown>>((inner, key) => ({ [key]: inner }), parent);

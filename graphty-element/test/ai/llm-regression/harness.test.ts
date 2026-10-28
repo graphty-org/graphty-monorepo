@@ -206,6 +206,16 @@ describe("LlmRegressionTestHarness", () => {
             assert.ok(accountRefusalOf(providerError(429, "You exceeded your current quota (insufficient_quota)")));
         });
 
+        it("a depleted prepaid balance is the owner's to fix", () => {
+            // Google, 2026-10-27: HTTP 402.
+            const depleted = providerError(
+                402,
+                "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.",
+            );
+            assert.strictEqual(accountRefusalOf(depleted), "HTTP 402");
+            assert.strictEqual(accountRefusalOf(providerError(402, "")), "HTTP 402");
+        });
+
         it("a rate limit or an ordinary failure is not an account refusal", () => {
             assert.strictEqual(accountRefusalOf(providerError(429, "rate_limit_error")), null);
             assert.strictEqual(accountRefusalOf(providerError(500, "overloaded")), null);

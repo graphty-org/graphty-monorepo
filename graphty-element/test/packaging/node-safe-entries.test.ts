@@ -42,8 +42,11 @@ const NODE_SAFE_ENTRIES = [
     "src/session/project/ingest.ts",
 ];
 
-/** What must never appear in a Node-safe entry point's import graph. */
-const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/];
+/**
+ * What must never appear in a Node-safe entry point's import graph. `@hpcc-js/wasm-graphviz` is
+ * imported only by the Graphviz Worker, which no entry point imports.
+ */
+const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/, /^@hpcc-js($|\/)/];
 
 /** The emitted JavaScript of one source file, keyed by absolute path. */
 const transpiled = new Map<string, string>();
@@ -184,14 +187,19 @@ function graphOf(entry: string): Reached[] {
 }
 
 describe("the Node-safe entry points", () => {
-    it.each(NODE_SAFE_ENTRIES)("%s reaches no renderer, no component framework and no LLM runtime", (entry) => {
-        const offenders = graphOf(entry).filter((found) => FORBIDDEN.some((pattern) => pattern.test(found.specifier)));
+    it.each(NODE_SAFE_ENTRIES)(
+        "%s reaches no renderer, no component framework, no LLM runtime and no Graphviz",
+        (entry) => {
+            const offenders = graphOf(entry).filter((found) =>
+                FORBIDDEN.some((pattern) => pattern.test(found.specifier)),
+            );
 
-        assert.deepEqual(
-            offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
-            [],
-        );
-    });
+            assert.deepEqual(
+                offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+                [],
+            );
+        },
+    );
 
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.
@@ -205,6 +213,28 @@ describe("the Node-safe entry points", () => {
         const loaded = [session, schema, catalog, commands, extend, format, logging];
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
+    });
+
+    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
+        const origin: session.FileStyleOrigin = {
+            format: "gexf",
+            importId: "i1",
+            ruleId: "node.by.Modularity Class",
+            role: "mapping",
+            origin: "declared",
+        };
+
+        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
+        assert.isNull(session.fileStyleOf({}));
+    });
+
+    it("lists every style code in plain Node, from ./session alone", () => {
+        const code: session.FileStyleNoteCode = session.FILE_STYLE_ISSUE.LAYER_REFUSED;
+
+        assert.include(session.FILE_STYLE_CODES, code);
+        assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
+        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "ellipse");
+        assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });
 

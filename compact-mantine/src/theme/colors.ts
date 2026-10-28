@@ -5,6 +5,7 @@ import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
  * surface in the dark scheme matches the panels around it.
  *
  * - 0: text (#fff)
+ * - 2: Mantine's dimmed text (#8c8c8c); the AA option points dimmed text at its secondary ink
  * - 5: hover (#444)
  * - 6: default field (#383838)
  * - 7: body / panel (#2c2c2c)
@@ -42,11 +43,31 @@ export const compactBrandColors: MantineColorsTuple = [
 ];
 
 /**
- * Color configuration for the compact theme: every Mantine color, the neutral `dark` ramp and
- * the `brand` accent.
+ * The graphty brand lime, the `primaryColor` of `createCompactTheme({ accent: "graphty" })`, for
+ * the Mantine components that read the primary palette directly: 0 the lime-50 tint, 6 the mark
+ * green #97c800 (the light fill), 7 the olive #588300 (light text), 8 the bright lime #c4f23a
+ * (the dark fill). The `--cm-*` accent tokens take their values from CM_GRAPHTY_ACCENT.
+ */
+export const compactGraphtyColors: MantineColorsTuple = [
+    "#f1fbd3",
+    "#e2f7a8",
+    "#d3f47c",
+    "#c9ef5a",
+    "#c4f23a",
+    "#aedf10",
+    "#97c800",
+    "#588300",
+    "#c4f23a",
+    "#aedf10",
+];
+
+/**
+ * Color configuration for the compact theme: every Mantine color, the neutral `dark` ramp, the
+ * the `brand` accent and the `graphty` accent.
  */
 export const compactColors = {
     ...DEFAULT_THEME.colors,
     dark: compactDarkColors,
     brand: compactBrandColors,
+    graphty: compactGraphtyColors,
 };

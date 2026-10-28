@@ -9,7 +9,8 @@
  * regenerated (CLAUDE.md, "Public API review").
  *
  * The check also fails when the committed report ADDS a property typed plain `string` to a result
- * type, compared with the report on the merge base with origin/master (or $API_REPORT_BASE). The
+ * type, compared with the report on the merge base with the branch the pull request merges into
+ * ($API_REPORT_BASE, else origin/$GITHUB_BASE_REF in CI, else tools/push-base.mjs). The
  * element is neutral about presentation (CLAUDE.md): a reason, status, kind or note it returns is
  * a string-literal union of codes or a `CodedFact` `{ code, params }`, never free text. Fields that
  * already exist never fail; see plainStringAdditions.
@@ -37,6 +38,7 @@ import { fileURLToPath } from "node:url";
 import { frameworkFamily } from "./ai-framework-packages.mjs";
 
 export { FRAMEWORK_PACKAGES } from "./ai-framework-packages.mjs";
+import { pushBaseRef } from "./push-base.mjs";
 
 /**
  * The entry points of a package.json "exports" map that have types.
@@ -139,8 +141,16 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "nodeId",
     "edgeId",
     "runId",
+    // the credential slot a source load filled, as the project file names it (PendingSourceLoad)
+    "credentialSlot",
     "field",
     "column",
+    // the column a load read (the weight's attribute, the columns an edge's ends came from)
+    "attribute",
+    "source",
+    "target",
+    // a registered file format's id ("gexf", "graphml")
+    "format",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",
@@ -148,6 +158,7 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // machine values: versions, hashes, timestamps, paths, media types, colors
     "revision",
     "digest",
+    "dataDigest",
     "fingerprint",
     "version",
     "at",
@@ -157,6 +168,24 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "path",
     "mediaType",
     "color",
+    // network sources: a source's id, the service's address and origin, when a load finished,
+    // and the reader's own user name on that service
+    "source",
+    "endpoint",
+    "origin",
+    "loadedAt",
+    "username",
+    // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
+    // text a reader typed into a find (FindContainsRow.text)
+    "folder",
+    "text",
+    // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
+    "locale",
+    // the names of the consumer's columns the location map reads (LocationColumns)
+    "location",
+    "latitude",
+    "longitude",
+    "within",
 ]);
 
 const DECLARATION =
@@ -245,6 +274,13 @@ export function sessionReachable(declarations) {
 }
 
 /**
+ * Types whose every plain string property is a column name of the consumer's table, whatever the
+ * property is called: a table's column roles (TableMapping, where `kind` names the column holding
+ * each row's kind) and a join key's incoming column (JoinKey.file).
+ */
+const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
+
+/**
  * Whether a result type may hold a plain string under this property name.
  * @param type - the declaring type's name
  * @param property - the property's name
@@ -252,6 +288,7 @@ export function sessionReachable(declarations) {
  */
 function allowedPlainString(type, property) {
     if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
+    if (COLUMN_NAME_TYPES.has(type)) return true;
     // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
     return property === "description" && type.endsWith("Descriptor");
 }
@@ -473,14 +510,19 @@ export function openOptionFieldAdditions(baseTexts, headTexts) {
  * Checks a package's committed reports: against the merge base's for added plain string fields and
  * open-ended AI configuration members, and on their own for framework imports.
  * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
  * @returns the failure messages
  */
-function checkAgainstBase(packageDir) {
+export function checkPlainStrings(packageDir, env = process.env) {
     const apiDir = join(resolve(packageDir), "api");
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: apiDir, encoding: "utf8" }).trim();
     // from the top: ls-tree run in a subfolder lists only that subfolder's part of the tree
-    const git = (...args) => execFileSync("git", args, { cwd: top, encoding: "utf8", maxBuffer: 1 << 28 });
-    const base = git("merge-base", "HEAD", process.env.API_REPORT_BASE ?? "origin/master").trim();
+    const git = (...args) => execFileSync("git", args, { cwd: top, env, encoding: "utf8", maxBuffer: 1 << 28 });
+    // The branch the pull request merges into, so a branch stacked on another pull request's branch
+    // is not blamed for its parent's additions (#2588): CI's pull request base, else tools/push-base.mjs.
+    const ref =
+        env.API_REPORT_BASE ?? (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : pushBaseRef({ cwd: top, env }));
+    const base = git("merge-base", "HEAD", ref).trim();
     const prefix = relative(top, apiDir);
     const files = readdirSync(apiDir).filter((f) => f.endsWith(".api.md"));
     const baseFiles = git("ls-tree", "--name-only", `${base}:${prefix}`)
@@ -507,7 +549,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("public API changed: run npm run api:report in the package and commit the new report");
         process.exit(1);
     }
-    const strings = flag ? checkAgainstBase(packageDir) : [];
+    const strings = flag ? checkPlainStrings(packageDir) : [];
     if (strings.length > 0) {
         for (const s of strings) console.error(`${packageDir}: ${s}`);
         process.exit(1);

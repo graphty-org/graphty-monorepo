@@ -88,20 +88,21 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 Styling is the session's, not the graph's. Every verb is on `graph.getSession().styles`, and
 every one of them addresses a layer by the id the element minted for it:
 
-| Method                      | Returns                   | Description                             |
-| --------------------------- | ------------------------- | --------------------------------------- |
-| `list()`                    | `readonly Layer[]`        | Every layer, bottom first               |
-| `get(id)`                   | `Layer \| undefined`      | One layer                               |
-| `validate(spec)`            | `ValidationResult`        | Check a spec, committing nothing        |
-| `add(spec, at?)`            | `Run<Layer>`              | Add a layer and repaint                 |
-| `update(id, patch)`         | `Run<Layer>`              | Change one and repaint                  |
-| `remove(id)`                | `Run<void>`               | Take one out and repaint                |
-| `move(id, before)`          | `Run<void>`               | Restack it; `null` means the top        |
-| `removeBySource(predicate)` | `Run<readonly LayerId[]>` | Sweep every layer from one source       |
-| `encode(spec)`              | `Run<Layer>`              | Paint a channel from a finished run     |
-| `highlight(spec)`           | `Run<readonly Layer[]>`   | Paint the elements a run chose          |
-| `legend()`                  | `readonly LegendBlock[]`  | What a reader needs to read the picture |
-| `explain(target)`           | `StyleExplanation`        | Which layer decided each channel        |
+| Method                      | Returns                   | Description                              |
+| --------------------------- | ------------------------- | ---------------------------------------- |
+| `list()`                    | `readonly Layer[]`        | Every layer, bottom first                |
+| `get(id)`                   | `Layer \| undefined`      | One layer                                |
+| `validate(spec)`            | `ValidationResult`        | Check a spec, committing nothing         |
+| `add(spec, at?)`            | `Run<Layer>`              | Add a layer and repaint                  |
+| `update(id, patch)`         | `Run<Layer>`              | Change one and repaint                   |
+| `remove(id)`                | `Run<void>`               | Take one out and repaint                 |
+| `move(id, before)`          | `Run<void>`               | Restack it; `null` means the top         |
+| `removeBySource(predicate)` | `Run<readonly LayerId[]>` | Sweep every layer from one source        |
+| `encode(spec)`              | `Run<Layer>`              | Paint a channel from a finished run      |
+| `mark(spec)`                | `Run<readonly Layer[]>`   | Paint the elements a run chose           |
+| `highlight(spec)`           | `Run<readonly Layer[]>`   | The same, as the one exclusive highlight |
+| `legend()`                  | `readonly LegendBlock[]`  | What a reader needs to read the picture  |
+| `explain(target)`           | `StyleExplanation`        | Which layer decided each channel         |
 
 A write verb returns a `Run` rather than resolving to a value, so a layer edit on a large graph
 can report progress and be cancelled. The stack moves only once the repaint has succeeded.

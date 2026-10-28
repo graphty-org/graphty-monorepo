@@ -57,6 +57,17 @@ import {
     type IssueCategory,
     type LossNote,
 } from "../../src/index.js";
+import type { ImporterPositions, PositionReadContext } from "../../src/positions/index.js";
+import { type SourceIssueCode } from "../../src/sources/codes.js";
+import { type SourceReportInfo } from "../../src/sources/types.js";
+import type {
+    EdgeStyleProperty,
+    GraphStyleProperty,
+    ImporterStyles,
+    NodeStyleProperty,
+    StyleReadContext,
+    StyleWriteCapabilities,
+} from "../../src/styles/types.js";
 
 // ============================================================ 12.4, transcribed
 
@@ -76,7 +87,8 @@ interface DesignCommonImportOptions {
     hyperedges?: "error" | "skip" | "star" | "clique" | undefined;
     errorLimit?: number | undefined;
     signal?: AbortSignal | undefined;
-    onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    // the third argument added by the network sources design (section 1): what is counted
+    onProgress?: ((bytesDone: number, bytesTotal?: number, unit?: "items" | "bytes") => void) | undefined;
     encoding?: string | undefined;
 }
 interface DesignGraphChoiceOptions {
@@ -103,6 +115,10 @@ interface DesignGraphImporter<Opts = unknown> {
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
     listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly DesignGraphListing[]>;
+    // added by the style design (graph-io style-import-design.md 2.2)
+    styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
+    // added after the design: the file-positions hook (design/positions/file-positions.md)
+    positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;
@@ -121,6 +137,8 @@ interface DesignExportCapabilities {
     readonly graphAttributes: boolean;
     readonly positions: boolean;
     readonly viz: boolean;
+    // added by the style design (10.6)
+    readonly styles?: StyleWriteCapabilities | undefined;
 }
 interface DesignLossNote {
     readonly code: string;
@@ -128,6 +146,13 @@ interface DesignLossNote {
     readonly column: string | null;
     readonly count: number | null;
     readonly columns?: readonly string[];
+    // added by the style design (10.5)
+    readonly style?:
+        | {
+              readonly target: "node" | "edge" | "graph";
+              readonly property: NodeStyleProperty | EdgeStyleProperty | GraphStyleProperty;
+          }
+        | undefined;
 }
 interface DesignCommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;
@@ -143,13 +168,17 @@ interface DesignGraphExporter<Opts = unknown> {
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
+    // added by the style design (10.2)
+    readonly styles?: { readonly capabilities: StyleWriteCapabilities } | undefined;
 }
 type DesignIssueCategory =
     "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";
-    readonly code: string;
+    // typed and given params by the network sources design (section 1)
+    readonly code: SourceIssueCode | (string & {});
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
     readonly message: string;
     readonly line: number | null;
     readonly element: string | null;
@@ -169,6 +198,8 @@ interface DesignImportReport {
     readonly truncated: boolean;
     readonly lossy: readonly LossNote[];
     readonly durationMs: number;
+    // added by the network sources design (section 8)
+    readonly source?: SourceReportInfo | undefined;
 }
 
 describe("design 12.4: the io contract types are exported with the listed shapes", () => {
@@ -294,8 +325,13 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
-        for (const [key, entry] of Object.entries(pkg.exports)) {
+        // the format subpaths, plus the format-independent styles module and ./positions (stored coordinates);
+        // the network source subpaths (./sources/<name>) are checked by build-output.test.ts
+        const formatExports = Object.entries(pkg.exports).filter(([key]) => !key.startsWith("./sources/"));
+        expect(formatExports.map(([key]) => key).sort()).toEqual(
+            [".", ...FORMATS.map((f) => `./${f}`), "./styles", "./positions"].sort(),
+        );
+        for (const [key, entry] of formatExports) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");
             expect(entry.types).toBe(`./dist/${name}.d.ts`);

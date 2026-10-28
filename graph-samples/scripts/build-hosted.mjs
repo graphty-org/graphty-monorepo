@@ -1,32 +1,48 @@
 #!/usr/bin/env node
 /**
- * Build the hosted datasets: the graphs too large to bundle (over about 5,000 nodes), published
- * at https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz and loaded with fetchDataset().
+ * Build the files graphty.app serves at https://graphty.app/data/graph-samples/v1/: every dataset,
+ * loaded with fetchDataset(). The large ones (over about 5,000 nodes) are built here from their
+ * upstream sources; the small ones are copied from graph-samples' own build (dist/data/v1/, written
+ * by scripts/pack-datasets.mjs from the repository's data/), so build graph-samples first.
  *
- *     node scripts/build-hosted.mjs [--cache <dir>]
+ *     node scripts/build-hosted.mjs [--cache <dir>] [--reuse-published] [--from-original-hosts]
+ *
+ * With --reuse-published (the canary deploy), a large dataset whose file canary.graphty.app already
+ * (or else graphty.app) publishes with the SHA-256 recorded in src/datasets/hosted.ts is taken from there and its sources are never
+ * fetched, so a deploy does not depend on the third-party hosts; only a dataset whose recorded
+ * checksum changed (or is not published yet) is built from its sources. Sources come from this
+ * repository's GitHub release graph-samples-sources-v1 (scripts/hosted-sources.mjs), never from
+ * their original hosts unless --from-original-hosts is given; the release is filled by the
+ * graph-samples-sources.yml workflow, dispatched by hand. A source whose terms do not clearly allow
+ * redistribution is not in the release: rebuild its dataset by hand with --from-original-hosts.
  *
  * For every dataset below it fetches the sources once into the cache directory (default:
  * <repo>/tmp/graph-samples-sources), refuses a source whose SHA-256 is not the one recorded here,
  * builds a graph-format snapshot with its node columns, and writes
  *
- *   public-data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped
- *   public-data/v1/index.json       every hosted dataset's metadata, URL, size and checksum
+ *   public-data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped (and a copy of
+ *                                   each small dataset's file from dist/data/v1/)
+ *   public-data/v1/<name>.webp      every picture in thumbnails/ (tools/render-sample-thumbnails.mjs): the
+ *                                   datasets', named by their `thumbnail`, and the generators'
+ *   public-data/v1/index.json       every dataset's metadata, URL, size and checksum, small ones first
  *   src/datasets/hosted.ts          the same metadata for the DATASETS catalogue (committed)
  *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES (committed)
  *
  * public-data/ is build output and is not committed; .github/workflows/deploy-pages.yml runs this
- * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH and a
- * built graph-format (graph-format/dist). Running it twice writes identical files.
+ * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH, a
+ * built graph-format (graph-format/dist) and a built graph-samples (graph-samples/dist/data/v1/).
+ * Running it twice writes identical files.
  */
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { datasetOf, edgeArraysOf, importSource } from "./graph-io-source.mjs";
+import { fetchSource, publishedCopy, SOURCES } from "./hosted-sources.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheFlag = process.argv.indexOf("--cache");
@@ -36,51 +52,17 @@ const cacheDir =
         : path.resolve(packageRoot, "../tmp/graph-samples-sources");
 const outDir = path.join(packageRoot, "public-data/v1");
 const BASE_URL = "https://graphty.app/data/graph-samples/v1/";
+// Every green master build deploys to canary, and graphty.app moves only by promotion, so canary has the newest files
+const REUSE_URL = "https://canary.graphty.app/data/graph-samples/v1/";
+const reusePublished = process.argv.includes("--reuse-published");
+const fromOriginalHosts = process.argv.includes("--from-original-hosts");
 
-// graph-format from its build output, so the script runs without a workspace install
-const { fromEdgeArrays } = await import(
-    pathToFileURL(path.resolve(packageRoot, "../graph-format/dist/graph-format.js")).href
+// graph-format from its tsc output, so the script runs without a workspace install. Not its bundle: the
+// bundle stamps the commit it was built from into every file's manifest (`producer`), which would change
+// each file's checksum with every commit; the tsc output writes "@graphty/graph-format@dev"
+const { fromBytes, fromEdgeArrays } = await import(
+    pathToFileURL(path.resolve(packageRoot, "../graph-format/dist/src/index.js")).href
 );
-
-/** Every source file, its URL and its checksum. */
-const SOURCES = {
-    roadNyArcs: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz",
-        sha256: "7b2446c7ffe6179efbc42af6812448e8cb782f12968ca2bb1d50d979343056d4",
-        file: "USA-road-d.NY.gr.gz",
-    },
-    roadNyCoordinates: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz",
-        sha256: "02547a628742164e02bd73f59e33a65d23dfac8fc54c09275c8b9169c38eafdf",
-        file: "USA-road-d.NY.co.gz",
-    },
-    arxiv: {
-        url: "http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip",
-        sha256: "49f85c801589ecdcc52cfaca99693aaea7b8af16a9ac3f41dd85a5f3193fe276",
-        file: "ogbn-arxiv.zip",
-    },
-    dblp: {
-        url: "https://snap.stanford.edu/data/bigdata/communities/com-dblp.ungraph.txt.gz",
-        sha256: "9eb0bd30312ddd04e2624f7c36c0983a2e99b116f0385be5a7fce6d6170f4cb3",
-        file: "com-dblp.ungraph.txt.gz",
-    },
-    goBasic: {
-        url: "https://release.geneontology.org/2026-08-05/ontology/go-basic.obo",
-        sha256: "b08d45b268b8c24ccb2513dbbbc7d4df9f6521c099b413f79eb31e06e0fa3bcc",
-        file: "go-basic-2026-08-05.obo",
-    },
-    doid: {
-        url: "https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/v2026-09-30/src/ontology/doid.obo",
-        sha256: "51e717b6b9f5d391f2793f9e16faf9c8629a661ab8f21c3a024458129f182ad2",
-        file: "doid-v2026-09-30.obo",
-    },
-    bioplex: {
-        // NDEx writes the CX2 on request; the checksum stops the build if it ever writes other bytes
-        url: "https://www.ndexbio.org/v3/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf",
-        sha256: "242009380d6053b44fe3c7b1f0ff6d668d99425108f9b8fe744f3496759a7778",
-        file: "ndex-e96d063d-237a-11ea-bb65-0ac135e8bacf.cx2",
-    },
-};
 
 /**
  * A dataset read by one of graph-io's importers (scripts/graph-io-source.mjs), as fromEdgeArrays input.
@@ -95,25 +77,9 @@ async function readWithGraphIo(file, format, spec) {
 
 // ------------------------------------------------------------------ fetching
 
-async function source(key) {
-    const { url, sha256, file } = SOURCES[key];
-    const target = path.join(cacheDir, file);
-    if (!existsSync(target)) {
-        mkdirSync(cacheDir, { recursive: true });
-        console.log(`fetching ${url}`);
-        const response = await fetch(url, { headers: { "User-Agent": "graphty-graph-samples-build-hosted" } });
-        if (!response.ok) {
-            throw new Error(`${url}: HTTP ${response.status}`);
-        }
-        writeFileSync(target, Buffer.from(await response.arrayBuffer()));
-    }
-    const actual = createHash("sha256").update(readFileSync(target)).digest("hex");
-    if (actual !== sha256) {
-        throw new Error(
-            `${file}: sha256 ${actual}, expected ${sha256} -- the source changed; review it before updating`,
-        );
-    }
-    return target;
+/** A source file in the cache, fetched first if missing (scripts/hosted-sources.mjs), checksum verified. */
+function source(key) {
+    return fetchSource(SOURCES[key], cacheDir, { fromOriginalHost: fromOriginalHosts });
 }
 
 /** The lines of a text file, gunzipped when it ends in .gz. */
@@ -400,16 +366,57 @@ function asciiJson(value, indent) {
     );
 }
 
+/**
+ * Copy the small datasets' files from graph-samples' build into the output.
+ * @returns {object[]} their index.json entries
+ */
+function copySmallDatasets() {
+    const packed = path.join(packageRoot, "dist/data/v1");
+    if (!existsSync(path.join(packed, "index.json"))) {
+        throw new Error(`${packed}/index.json is missing: build graph-samples first (npm run build:all)`);
+    }
+    const index = JSON.parse(readFileSync(path.join(packed, "index.json"), "utf8"));
+    for (const { name, thumbnail } of index) {
+        copyFileSync(path.join(packed, `${name}.gsnp.gz`), path.join(outDir, `${name}.gsnp.gz`));
+        if (thumbnail !== undefined) {
+            copyFileSync(path.join(packed, thumbnail), path.join(outDir, thumbnail));
+        }
+    }
+    console.log(`copied ${index.length} small datasets from dist/data/v1/`);
+    return index;
+}
+
 async function main() {
     mkdirSync(outDir, { recursive: true });
+    const small = copySmallDatasets();
+    const pictures = path.join(packageRoot, "thumbnails");
+    for (const file of readdirSync(pictures)) {
+        copyFileSync(path.join(pictures, file), path.join(outDir, file));
+    }
+    // the checksums this commit records (graph-samples' tsc output of src/datasets/hosted.ts)
+    const recorded = reusePublished
+        ? (await import(pathToFileURL(path.join(packageRoot, "dist/src/datasets/hosted.js")).href)).HOSTED_DATASETS
+        : [];
     const metas = [];
     for (const dataset of DATASETS) {
-        const files = {};
-        for (const key of dataset.sources) {
-            files[key] = await source(key);
+        const recordedSha = recorded.find((meta) => meta.name === dataset.meta.name)?.sha256;
+        // canary first, then graphty.app (before canary serves the data, or while it cannot be read); both are
+        // checked against the recorded SHA-256
+        let gz =
+            (await publishedCopy(`${REUSE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha)) ??
+            (await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha));
+        let snapshot;
+        if (gz === null) {
+            const files = {};
+            for (const key of dataset.sources) {
+                files[key] = await source(key);
+            }
+            snapshot = fromEdgeArrays(await dataset.build(files));
+            gz = gzipSync(snapshot.toBytes(), { level: 9 });
+        } else {
+            console.log(`${dataset.meta.name}: reusing the published file (sha256 ${recordedSha})`);
+            snapshot = fromBytes(gunzipSync(gz));
         }
-        const snapshot = fromEdgeArrays(await dataset.build(files));
-        const gz = gzipSync(snapshot.toBytes(), { level: 9 });
         writeFileSync(path.join(outDir, `${dataset.meta.name}.gsnp.gz`), gz);
         const {
             name,
@@ -439,15 +446,13 @@ async function main() {
             hosting: "remote",
             bytes: gz.length,
             sha256: createHash("sha256").update(gz).digest("hex"),
+            ...(existsSync(path.join(pictures, `${name}.webp`)) ? { thumbnail: `${name}.webp` } : {}),
         });
         console.log(`${name}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, ${gz.length} bytes`);
     }
     writeFileSync(
         path.join(outDir, "index.json"),
-        `${asciiJson(
-            metas.map((meta) => ({ ...meta, url: `${BASE_URL}${meta.name}.gsnp.gz` })),
-            2,
-        )}\n`,
+        asciiJson([...small, ...metas.map((meta) => ({ ...meta, url: BASE_URL + meta.name + ".gsnp.gz" }))], 2) + "\n",
     );
     const hosted = path.join(packageRoot, "src/datasets/hosted.ts");
     writeFileSync(
@@ -458,7 +463,7 @@ async function main() {
             'import { type DatasetMeta } from "./build.js";',
             "",
             "/**",
-            " * The metadata of every hosted dataset: too large to bundle, loaded with `fetchDataset(name)` from",
+            " * The metadata of every large dataset (over about 5,000 nodes), loaded with `fetchDataset(name)` from",
             " * https://graphty.app/data/graph-samples/v1/. `sha256` and `bytes` describe the published .gsnp.gz file.",
             " */",
             `export const HOSTED_DATASETS: readonly DatasetMeta[] = ${asciiJson(metas, 4)};`,

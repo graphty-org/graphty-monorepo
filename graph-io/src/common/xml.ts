@@ -91,6 +91,29 @@ export class XmlSyntaxError extends Error {
 }
 
 /**
+ * The most elements open at once that the XML tokenizer reads; a deeper document stops with an `XmlNestingError`.
+ * @category Plugin helpers
+ */
+export const MAX_XML_DEPTH = 100_000;
+
+/**
+ * Elements are nested deeper than `MAX_XML_DEPTH`: an importer reports it as E_XML_NESTING rather than as a syntax
+ * error.
+ * @category Plugin helpers
+ */
+export class XmlNestingError extends XmlSyntaxError {
+    /**
+     * Create the error.
+     * @param name - the element that opened one level too many
+     * @param line - the 1-based line
+     */
+    constructor(name: string, line: number) {
+        super(`<${name}> is nested more than ${String(MAX_XML_DEPTH)} elements deep`, line);
+        this.name = "XmlNestingError";
+    }
+}
+
+/**
  * The input holds no markup at all (empty, whitespace only, a byte order mark only): an importer
  * reports it as E_EMPTY_INPUT rather than as a syntax error.
  * @category Plugin helpers
@@ -350,15 +373,29 @@ export function isXmlName(text: string): boolean {
     if (text.length === 0) {
         return false;
     }
-    let first = true;
-    for (const ch of text) {
-        const cp = ch.codePointAt(0);
-        if (cp === undefined || (first ? !isNameStart(cp) : !isNameChar(cp))) {
+    // by index, with the ASCII tables for the common case as readName() does: a string iterator and the code point
+    // classes per character cost a second in a 5,000-node GraphML file, which checks every end tag
+    for (let i = 0; i < text.length;) {
+        const cp = text.codePointAt(i) ?? 0;
+        if (!isNameCodePoint(cp, i === 0)) {
             return false;
         }
-        first = false;
+        i += cp > 0xffff ? 2 : 1;
     }
     return true;
+}
+
+/**
+ * Whether a code point may stand in an XML Name, at its start or after it.
+ * @param cp - the code point
+ * @param first - whether it starts the name
+ * @returns true for a NameStartChar (first) or a NameChar
+ */
+function isNameCodePoint(cp: number, first: boolean): boolean {
+    if (cp < 0x80) {
+        return (first ? ASCII_NAME_START[cp] : ASCII_NAME_CHAR[cp]) === 1;
+    }
+    return first ? isNameStart(cp) : isNameChar(cp);
 }
 
 /**
@@ -416,7 +453,8 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
             const digits = name.slice(hex ? 2 : 1);
             // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
             const ok = hex ? /^0*[\da-fA-F]{1,6}$/.test(digits) : /^0*\d{1,7}$/.test(digits);
-            const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
+            const radix = hex ? 16 : 10;
+            const cp = ok ? Number.parseInt(digits, radix) : -1;
             const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
             if (low !== null) {
                 repairs?.surrogatePair?.(lineAt(raw, amp, line));
@@ -1515,6 +1553,9 @@ export class XmlTokenizer {
                     this.bindings.push({ prefix: key.slice(6), uri, depth: this.stack.length });
                 }
             }
+        }
+        if (this.stack.length >= MAX_XML_DEPTH) {
+            throw new XmlNestingError(name, this.line);
         }
         this.stack.push(name);
         this.handler.start(name, attrs, this.line, this.namespaceOf(name));

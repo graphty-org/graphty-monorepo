@@ -24,14 +24,23 @@ import { format as prettierFormat, resolveConfig } from "prettier";
 import ts from "typescript";
 
 import { type ExportCapabilities, type GraphExporter, type GraphImporter, registry } from "../src/index.js";
+import type { StyleWriteCapabilities, ToolDefaults } from "../src/styles/index.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
-/** The source barrel of every package entry (`graph-io` and one per format subpath), from package.json's exports. */
+/** Package entries that are not a format: their source barrel. */
+const NON_FORMAT_ENTRIES: Readonly<Record<string, string>> = {
+    ".": "src/index.ts",
+    "./styles": "src/styles/index.ts",
+    "./positions": "src/positions/index.ts",
+};
+
+/** The source barrel of every package entry (`graph-io`, one per format subpath, `styles`, `positions`), from package.json's exports. */
 const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
-    Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) =>
-        k === "." ? ["graph-io", "src/index.ts"] : [k.slice(2), `src/formats/${k.slice(2)}/index.ts`],
-    ),
+    Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) => [
+        k === "." ? "graph-io" : k.slice(2),
+        NON_FORMAT_ENTRIES[k] ?? `src/${k.startsWith("./sources/") ? "" : "formats/"}${k.slice(2)}/index.ts`,
+    ]),
 );
 const docsDir = `${pkg}docs/`;
 
@@ -538,7 +547,19 @@ interface Context {
     readonly usedOptions: ReadonlyMap<string, ReadonlySet<string>>;
     /** The header name lists of the CSV importer. */
     readonly csvHeaders: CsvHeaders;
+    /** Every style code (the styles entry's `STYLE_ISSUE` table), with its meaning. */
+    readonly styleCodes: readonly CodeRow[];
+    /** The neutral style properties per target and the kind of value each holds. */
+    readonly styleProperties: Readonly<Record<StylePart, ReadonlyMap<string, string>>>;
+    /** The values of each enumeration kind of style value. */
+    readonly styleEnums: ReadonlyMap<string, readonly string[]>;
+    /** The defaults of every program graph-io recognizes as a file's writer. */
+    readonly toolDefaults: ReadonlyMap<string, ToolDefaults>;
 }
+
+/** The parts of a graph a style is about. */
+type StylePart = "node" | "edge" | "graph";
+const STYLE_PARTS: readonly StylePart[] = ["node", "edge", "graph"];
 
 /** The header name lists of the CSV importer, as src/formats/csv/header.ts exports them. */
 interface CsvHeaders {
@@ -611,9 +632,29 @@ async function buildContext(): Promise<Context> {
     const json = (await import(`../${entryOf("json")}`)) as Record<string, unknown>;
     const dialects = (json.JSON_DIALECTS ?? []) as readonly string[];
     const dialectCaps = json.dialectCapabilities as ((d: string) => ExportCapabilities) | undefined;
+    // the JSON writer's style capabilities cover every dialect; each dialect holds natively only its own share
+    const jsonStyles = (await import("../src/formats/json/styles.js")) as {
+        NATIVE: Readonly<Record<string, Readonly<Record<"node" | "edge", readonly string[]>>>>;
+    };
+    const dialectStyles = (d: string): StyleWriteCapabilities =>
+        ({
+            node: jsonStyles.NATIVE[d]?.node ?? [],
+            edge: jsonStyles.NATIVE[d]?.edge ?? [],
+            // OBO Graphs has no place for the graphty.styles block; every other dialect keeps it
+            block: d === "obographs" ? "none" : "native",
+        }) as StyleWriteCapabilities;
     const formats = withRelayedDocs(await collectFormats(src), src, index, runtime);
     const csvHeaders = (await import("../src/formats/csv/header.js")) as CsvHeaders;
+    const styles = (await import("../src/styles/index.js")) as Record<string, unknown>;
+    const styleTypes = src.exportsOf(ENTRIES.styles);
     return {
+        styleCodes: src.codes(
+            styleTypes.get("STYLE_ISSUE") as ts.Symbol,
+            styles.STYLE_ISSUE as Readonly<Record<string, unknown>>,
+        ),
+        styleProperties: styles.STYLE_PROPERTIES as Context["styleProperties"],
+        styleEnums: styles.STYLE_ENUMS as ReadonlyMap<string, readonly string[]>,
+        toolDefaults: styles.TOOL_DEFAULTS as ReadonlyMap<string, ToolDefaults>,
         csvHeaders,
         src,
         index,
@@ -630,25 +671,65 @@ async function buildContext(): Promise<Context> {
         usedOptions: usedOptionsOf(formats.map((f) => f.name)),
         capabilityDocs: src.capabilityDocs(index),
         jsonDialects:
-            dialectCaps === undefined ? [] : dialects.map((dialect) => ({ dialect, caps: dialectCaps(dialect) })),
+            dialectCaps === undefined
+                ? []
+                : dialects.map((dialect) => ({
+                      dialect,
+                      caps: { ...dialectCaps(dialect), styles: dialectStyles(dialect) },
+                  })),
     };
 }
 
 // ============================================================ blocks
 
 /**
+ * What a writer can hold, its style capabilities included (the exporter's `styles.capabilities`, which
+ * `listFormats()` reports beside the table).
+ * @param exporter - the exporter
+ * @returns the capabilities
+ */
+function exportCapabilities(exporter: GraphExporter): ExportCapabilities {
+    return exporter.styles === undefined
+        ? exporter.capabilities
+        : { ...exporter.capabilities, styles: exporter.styles.capabilities };
+}
+
+/**
+ * Whether a writer keeps the rules of a graph's styles, so graph-io reads back the same rules: its `graphty.styles`
+ * block goes into the file itself, or into a graph attribute the format holds.
+ * @param caps - the writer's capabilities
+ * @returns true when the rules are kept
+ */
+function keepsRules(caps: ExportCapabilities): boolean {
+    const block = caps.styles?.block;
+    return block === "native" || (block === "attributes" && caps.graphAttributes);
+}
+
+/**
  * A capability value as a cell.
  * @param v - the value
+ * @param caps - the writer's capabilities, which the styles cell reads
  * @returns the cell text
  */
-function capabilityCell(v: unknown): string {
+function capabilityCell(v: unknown, caps?: ExportCapabilities): string {
     if (typeof v === "boolean") {
         return v ? "yes" : "no";
     }
     if (Array.isArray(v)) {
         return v.length === 0 ? "none" : v.join(", ");
     }
-    return String(v);
+    if (v === undefined || v === null) {
+        // an optional capability the format does not have (a writer of no styles)
+        return "none";
+    }
+    if (typeof v === "object" && "block" in v) {
+        // the styles a writer holds: how many properties it writes into the format's own slots, and the rules
+        const s = v as StyleWriteCapabilities;
+        const n = s.node.length + s.edge.length + (s.graph?.length ?? 0);
+        const rules = caps !== undefined && keepsRules(caps) ? "rules kept" : "rules not kept";
+        return n === 0 ? rules : `${String(n)} properties, ${rules}`;
+    }
+    return typeof v === "object" ? JSON.stringify(v) : String(v as string | number | bigint | symbol);
 }
 
 /**
@@ -667,15 +748,15 @@ function fidelityTable(ctx: Context): string[] {
             for (const { dialect, caps } of ctx.jsonDialects) {
                 rows.push([
                     `[json](./json.md) (${dialect})`,
-                    ...fields.map((k) => capabilityCell(caps[k as keyof ExportCapabilities])),
+                    ...fields.map((k) => capabilityCell(caps[k as keyof ExportCapabilities], caps)),
                 ]);
             }
             continue;
         }
-        const caps = f.exporter.capabilities;
+        const caps = exportCapabilities(f.exporter);
         rows.push([
             `[${f.name}](./${f.name}.md)`,
-            ...fields.map((k) => capabilityCell(caps[k as keyof ExportCapabilities])),
+            ...fields.map((k) => capabilityCell(caps[k as keyof ExportCapabilities], caps)),
         ]);
     }
     return table(["Format", ...fields.map((k) => code(k))], rows);
@@ -704,10 +785,10 @@ function varyingCapabilities(ctx: Context): string[] {
         }
         return f.name === "json" && ctx.jsonDialects.length > 0
             ? ctx.jsonDialects.map((d) => d.caps)
-            : [f.exporter.capabilities];
+            : [exportCapabilities(f.exporter)];
     });
     return [...ctx.capabilityDocs.keys()].filter(
-        (k) => new Set(all.map((caps) => capabilityCell(caps[k as keyof ExportCapabilities]))).size > 1,
+        (k) => new Set(all.map((caps) => capabilityCell(caps[k as keyof ExportCapabilities], caps))).size > 1,
     );
 }
 
@@ -784,18 +865,18 @@ function capabilitiesBlock(ctx: Context, f: FormatFacts): string[] {
                 ["Capability", ...ctx.jsonDialects.map((d) => code(d.dialect))],
                 fields.map((k) => [
                     `[${code(k)}](./index.md#${k.toLowerCase()})`,
-                    ...ctx.jsonDialects.map((d) => capabilityCell(d.caps[k as keyof ExportCapabilities])),
+                    ...ctx.jsonDialects.map((d) => capabilityCell(d.caps[k as keyof ExportCapabilities], d.caps)),
                 ]),
             ),
         );
     } else {
-        const caps = f.exporter.capabilities;
+        const caps = exportCapabilities(f.exporter);
         out.push(
             ...table(
                 ["Capability", "Value"],
                 fields.map((k) => [
                     `[${code(k)}](./index.md#${k.toLowerCase()})`,
-                    capabilityCell(caps[k as keyof ExportCapabilities]),
+                    capabilityCell(caps[k as keyof ExportCapabilities], caps),
                 ]),
             ),
         );
@@ -1131,8 +1212,174 @@ function sinkBlock(ctx: Context): string[] {
 }
 
 /** One code across every format. */
+/**
+ * Property names as a list of inline code, or "none".
+ * @param xs - the names
+ * @returns the cell text
+ */
+function codeList(xs: readonly string[]): string {
+    return xs.length === 0 ? "none" : xs.map((x) => code(x)).join(", ");
+}
+
+/**
+ * A format's styles block: whether an import reads its styles, and what a save writes into the format's own style
+ * slots, keeps for graphty and loses.
+ * @param ctx - the context
+ * @param f - the format
+ * @returns the markdown lines
+ */
+function stylesBlock(ctx: Context, f: FormatFacts): string[] {
+    const reads = f.importer?.styles === undefined ? "no: the format has no styles" : "yes, with `styles: true`";
+    const kept: Readonly<Record<string, string>> = {
+        native: "yes, in the file's own `graphty.styles` block",
+        attributes: "yes, as the `graphty.styles` graph attribute",
+    };
+    const notWritten = (part: StylePart, caps: StyleWriteCapabilities | undefined): string[] => {
+        const held = new Set<string>(caps?.[part] ?? []);
+        return [...ctx.styleProperties[part].keys()].filter((k) => !held.has(k));
+    };
+    const rows = (caps: StyleWriteCapabilities | undefined, all: ExportCapabilities | undefined): string[][] =>
+        caps === undefined
+            ? [["Writes styles", "no: every style is lost (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`)"]]
+            : [
+                  ["Node properties written", codeList(caps.node)],
+                  ["Edge properties written", codeList(caps.edge)],
+                  ["Graph properties written", codeList(caps.graph ?? [])],
+                  [
+                      "Rules kept for graphty",
+                      all !== undefined && keepsRules(all) ? kept[caps.block] : "no (`W_STYLE_RULES_NOT_KEPT`)",
+                  ],
+                  [
+                      "Not written (`W_STYLE_NOT_WRITTEN`)",
+                      STYLE_PARTS.map((part) => [part, notWritten(part, caps)] as const)
+                          .filter(([, xs]) => xs.length > 0)
+                          .map(([part, xs]) => `${part}: ${codeList(xs)}`)
+                          .join("; ") || "none",
+                  ],
+              ];
+    if (f.exporter === undefined) {
+        return table(
+            ["", ""],
+            [
+                ["Reads styles", reads],
+                ["Writes styles", "no (this format has no exporter)"],
+            ],
+        );
+    }
+    if (f.name === "json" && ctx.jsonDialects.length > 0) {
+        const perDialect = ctx.jsonDialects.map((d) => rows(d.caps.styles, d.caps));
+        return [
+            ...table(["", ""], [["Reads styles", reads]]),
+            "",
+            ...table(
+                ["", ...ctx.jsonDialects.map((d) => code(d.dialect))],
+                perDialect[0].map((r, i) => [r[0], ...perDialect.map((p) => p[i][1])]),
+            ),
+        ];
+    }
+    const all = exportCapabilities(f.exporter);
+    return table(["", ""], [["Reads styles", reads], ...rows(all.styles, all)]);
+}
+
+/** How the style vocabulary's value kinds read in the docs. */
+const KIND_TEXT: Readonly<Record<string, string>> = {
+    color: "a color, `#rrggbb`",
+    opacity: "a number from 0 (transparent) to 1",
+    number: "a number",
+    signed: "a number, negative too",
+    text: "text",
+    boolean: "true or false",
+};
+
+/**
+ * The neutral style properties, with the parts of a graph that have each and the values it takes (guide/styles.md).
+ * @param ctx - the context
+ * @returns the markdown lines
+ */
+function stylePropertiesBlock(ctx: Context): string[] {
+    const names = [...new Set(STYLE_PARTS.flatMap((part) => [...ctx.styleProperties[part].keys()]))];
+    return table(
+        ["Property", "Nodes", "Edges", "Graph", "Value"],
+        names.map((name) => {
+            const kind = STYLE_PARTS.map((part) => ctx.styleProperties[part].get(name)).find((k) => k !== undefined);
+            const values = ctx.styleEnums.get(kind ?? "");
+            return [
+                code(name),
+                ...STYLE_PARTS.map((part) => (ctx.styleProperties[part].has(name) ? "yes" : "")),
+                values === undefined ? (KIND_TEXT[kind ?? ""] ?? String(kind)) : codeList(values),
+            ];
+        }),
+    );
+}
+
+/**
+ * One default value as a table cell.
+ * @param v - the value
+ * @returns the cell text
+ */
+function defaultValue(v: unknown): string {
+    return code(String(v));
+}
+
+/**
+ * The defaults of the writing programs graph-io knows (guide/styles.md): one table per program.
+ * @param ctx - the context
+ * @returns the markdown lines
+ */
+function toolDefaultsBlock(ctx: Context): string[] {
+    const derived = (d: ToolDefaults["derived"][number]): string => {
+        switch (d.kind) {
+            case "labelFromColumn":
+                return `nodes are labeled with their ${code(d.column)} attribute`;
+            case "labelFromId":
+                return "nodes are labeled with their id";
+            case "colorFromSourceNode":
+                return "an edge with no color of its own takes its source node's fill";
+            case "colorFromEndNodes":
+                return "an edge with no color of its own takes the mix of its two nodes' fills and alphas";
+            case "widthFromWeight":
+                return "an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible)";
+            case "targetArrowOnDirected":
+                return `directed edges get a ${code(d.arrow)} arrow at their target`;
+            default:
+                return "";
+        }
+    };
+    const out: string[] = [];
+    for (const [tool, d] of ctx.toolDefaults) {
+        if (tool === "graphty") {
+            continue;
+        }
+        out.push(
+            `### ${code(tool)}`,
+            "",
+            ...table(
+                ["", ""],
+                [
+                    ["Read from", d.version],
+                    ["Lengths", d.units === "px" ? "pixels" : "the program's relative size factor"],
+                    ...STYLE_PARTS.map((part) => {
+                        const values = Object.entries(d[part] as Record<string, { value: unknown } | undefined>);
+                        return [
+                            { node: "Nodes", edge: "Edges", graph: "Graph" }[part],
+                            values.length === 0
+                                ? "none"
+                                : values.map(([k, v]) => `${code(k)} ${defaultValue(v?.value)}`).join(", "),
+                        ];
+                    }),
+                    ["Rules", d.derived.length === 0 ? "none" : d.derived.map(derived).join("; ")],
+                ],
+            ),
+            "",
+        );
+    }
+    return out.slice(0, -1);
+}
+
 interface CodeUse {
     doc: string;
+    /** Whether it is a style code (the styles entry's `STYLE_ISSUE` table). */
+    style: boolean;
     readonly importers: string[];
     readonly exporters: string[];
     /** Whether any exporter's capability check can return it (the root `LOSS` table). */
@@ -1149,7 +1396,7 @@ function codesBlock(ctx: Context): string[] {
     const use = (c: string): CodeUse => {
         let u = uses.get(c);
         if (u === undefined) {
-            u = { doc: "", importers: [], exporters: [], anyExporter: false };
+            u = { doc: "", importers: [], exporters: [], anyExporter: false, style: false };
             uses.set(c, u);
         }
         return u;
@@ -1167,6 +1414,11 @@ function codesBlock(ctx: Context): string[] {
     for (const r of ctx.sharedLosses) {
         const u = use(r.code);
         u.anyExporter = true;
+        u.doc ||= r.doc;
+    }
+    for (const r of ctx.styleCodes) {
+        const u = use(r.code);
+        u.style = true;
         u.doc ||= r.doc;
     }
     for (const f of ctx.formats) {
@@ -1191,6 +1443,7 @@ function codesBlock(ctx: Context): string[] {
             .sort(([a], [b]) => byCodeUnit(a, b))
             .map(([c, u]) => {
                 const where = [
+                    u.style ? "See [Styles](./styles.md)." : "",
                     u.importers.length > 0 ? `Import: ${list(u.importers)}.` : "",
                     u.anyExporter ? "Save: any format." : "",
                     !u.anyExporter && u.exporters.length > 0 ? `Save: ${list(u.exporters)}.` : "",
@@ -1233,9 +1486,10 @@ function plan(formats: readonly string[]): PagePlan {
         ["guide/formats/index.md", ["matrix"]],
     ]);
     for (const f of formats) {
-        pages.set(`guide/formats/${f}.md`, [`glance:${f}`, `capabilities:${f}`, `reference:${f}`]);
+        pages.set(`guide/formats/${f}.md`, [`glance:${f}`, `capabilities:${f}`, `styles:${f}`, `reference:${f}`]);
     }
-    pages.set("guide/formats/csv.md", ["glance:csv", "capabilities:csv", "headers:csv", "reference:csv"]);
+    pages.set("guide/formats/csv.md", ["glance:csv", "capabilities:csv", "headers:csv", "styles:csv", "reference:csv"]);
+    pages.set("guide/styles.md", ["style-properties", "style-tool-defaults"]);
     pages.set("guide/extending/new-format.md", ["sink"]);
     return pages;
 }
@@ -1257,6 +1511,11 @@ function skeleton(name: string): string {
         "## What a saved file keeps and loses",
         "",
         `<!-- generated:begin capabilities:${name} -->`,
+        END,
+        "",
+        "## Styles",
+        "",
+        `<!-- generated:begin styles:${name} -->`,
         END,
         "",
         `<!-- generated:begin reference:${name} -->`,
@@ -1354,6 +1613,15 @@ function render(ctx: Context, block: string): string {
             break;
         case "sink":
             return sinkBlock(ctx).join("\n");
+        case "styles":
+            if (f !== undefined) {
+                return stylesBlock(ctx, f).join("\n");
+            }
+            break;
+        case "style-properties":
+            return stylePropertiesBlock(ctx).join("\n");
+        case "style-tool-defaults":
+            return toolDefaultsBlock(ctx).join("\n");
         case "headers":
             if (name === "csv") {
                 return csvHeadersBlock(ctx).join("\n");

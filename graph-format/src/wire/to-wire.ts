@@ -108,6 +108,28 @@ const NUM_TAG = "$num";
 const ESC_TAG = "$esc";
 
 /**
+ * Encode a number for the manifest: `Infinity`, `-Infinity`, `NaN` and `-0` become
+ * `{ "$num": "..." }`, any other number is returned as is.
+ * @param value - the number
+ * @returns the number or its tag
+ */
+function encodeJsonNumber(value: number): unknown {
+    if (Number.isNaN(value)) {
+        return { [NUM_TAG]: "NaN" };
+    }
+    if (value === Infinity) {
+        return { [NUM_TAG]: "Infinity" };
+    }
+    if (value === -Infinity) {
+        return { [NUM_TAG]: "-Infinity" };
+    }
+    if (Object.is(value, -0)) {
+        return { [NUM_TAG]: "-0" };
+    }
+    return value;
+}
+
+/**
  * Encode a JSON value for the manifest (design section 5.9): `Infinity`, `-Infinity`, `NaN` and `-0`
  * become `{ "$num": "..." }`, arrays and plain objects are copied recursively, everything else is
  * returned as is. A user object whose ONLY key is `$num` or `$esc` would collide with the tags, so
@@ -118,19 +140,7 @@ const ESC_TAG = "$esc";
  */
 export function encodeJsonValue(value: unknown): unknown {
     if (typeof value === "number") {
-        if (Number.isNaN(value)) {
-            return { [NUM_TAG]: "NaN" };
-        }
-        if (value === Infinity) {
-            return { [NUM_TAG]: "Infinity" };
-        }
-        if (value === -Infinity) {
-            return { [NUM_TAG]: "-Infinity" };
-        }
-        if (Object.is(value, -0)) {
-            return { [NUM_TAG]: "-0" };
-        }
-        return value;
+        return encodeJsonNumber(value);
     }
     if (Array.isArray(value)) {
         return value.map((item: unknown) => encodeJsonValue(item));

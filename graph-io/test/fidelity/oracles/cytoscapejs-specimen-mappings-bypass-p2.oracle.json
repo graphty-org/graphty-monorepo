@@ -1,0 +1,32 @@
+{
+    "sample": "cytoscapejs-specimen-mappings-bypass-p2",
+    "program": "Cytoscape.js",
+    "version": "cytoscape 3.34.3, svgcanvas 2.6.0 (cytoscape-svg 0.4.0's procedure)",
+    "command": "cytoscape({ container: <div 1200x900>, elements: file.elements, style: file.style, layout: { name: \"preset\" } }); after a forced render: renderer.drawElements(svgContext, z-sorted elements) at the view's pan and zoom, as cytoscape-svg's cy.svg({ full: false }) does",
+    "how": "Cytoscape.js's own canvas renderer (renderer.drawElements over the z-sorted elements, at the view's pan and zoom) replayed onto an svgcanvas context, as the cytoscape-svg extension's cy.svg({ full: false }) does; the Path2D objects Cytoscape.js fills by reference are recorded and replayed as SVG paths. cytoscape-svg itself is not used: its bundled canvas2svg drops shapes (a node's path commands after the previous label's fillText land on the <text>), and it turns path caching off, where Cytoscape.js draws a rounded polygon without beginPath() and joins it to the shape before; both left node shapes missing or smeared in its SVG. The SVG is the viewport a user of this file sees, not the whole graph. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "svgKind": "vector",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/cytoscapejs/specimen-mappings-bypass-p2.json",
+    "fileSha256": "8920dba3c11c03247e1cfd90304642f1ed1f01206d0c7b884fe15c046b3caf08",
+    "svgSha256": "9cf5d53e88e3ff09c0428602f8f595bc82266447dc2ebdccaaceb80156c4cce9",
+    "date": "2026-10-19",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 87,
+        "edges": 9,
+        "zoom": 0.9666283084004603,
+        "pan": {
+            "x": 20.02301495972381,
+            "y": 15.017261219792829
+        }
+    },
+    "pageErrors": []
+}

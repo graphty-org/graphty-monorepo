@@ -258,6 +258,41 @@ export interface DualServerResult {
 }
 
 /**
+ * The mode the server reports, from its configuration.
+ * @param logReceiveOnly - Whether the HTTP server only receives logs
+ * @param mcpEnabled - Whether the MCP interface is enabled
+ * @returns The server mode
+ */
+function serverMode(logReceiveOnly: boolean, mcpEnabled: boolean): ServerMode {
+    if (logReceiveOnly && mcpEnabled) {
+        return "mcp-only";
+    }
+    return mcpEnabled ? "dual" : "http-only";
+}
+
+/**
+ * The host to put in endpoint URLs. When bound to all interfaces (0.0.0.0), detect
+ * the machine's IP address, since 0.0.0.0 is not a routable address for clients.
+ * @param httpHost - The host the HTTP server is bound to
+ * @param quiet - Whether to suppress the warning when no LAN IP is found
+ * @returns The endpoint host
+ */
+function endpointHostFor(httpHost: string, quiet: boolean): string {
+    if (httpHost !== "0.0.0.0") {
+        return httpHost;
+    }
+    const internalIp = internalIpV4Sync();
+    if (internalIp) {
+        return internalIp;
+    }
+    // Fallback for local-only use - don't use hostname as it may not resolve
+    if (!quiet) {
+        console.warn(`${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`);
+    }
+    return "127.0.0.1";
+}
+
+/**
  * Create and start a dual server with HTTP and/or MCP interfaces.
  *
  * By default, both HTTP and MCP are enabled. Use httpEnabled/mcpEnabled
@@ -333,32 +368,8 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         // Determine protocol based on whether valid cert files were provided
         const useHttps = certPath && keyPath && certFilesExist(certPath, keyPath);
         const protocol = useHttps ? "https" : "http";
-        // Determine mode based on configuration
-        let mode: ServerMode;
-        if (logReceiveOnly && mcpEnabled) {
-            mode = "mcp-only";
-        } else if (!mcpEnabled) {
-            mode = "http-only";
-        } else {
-            mode = "dual";
-        }
-        // When bound to all interfaces (0.0.0.0), detect the machine's IP address
-        // for the endpoint URL since 0.0.0.0 is not a routable address for clients
-        let endpointHost = httpHost;
-        if (httpHost === "0.0.0.0") {
-            const internalIp = internalIpV4Sync();
-            if (internalIp) {
-                endpointHost = internalIp;
-            } else {
-                // Fallback for local-only use - don't use hostname as it may not resolve
-                endpointHost = "127.0.0.1";
-                if (!quiet) {
-                    console.warn(
-                        `${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`,
-                    );
-                }
-            }
-        }
+        const mode = serverMode(logReceiveOnly, mcpEnabled);
+        const endpointHost = endpointHostFor(httpHost, quiet);
         const scriptUrl = `${protocol}://${endpointHost}:${actualHttpPort}/remote-logger.js`;
         const proxyBaseUrl = `/proxy/`;
 

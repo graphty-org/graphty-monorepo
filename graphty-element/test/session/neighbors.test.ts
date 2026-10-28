@@ -277,6 +277,27 @@ describe("a node's neighbors with their weights", () => {
         session.dispose();
     });
 
+    it("sorts by each neighbor's own degree, best connected first", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "hub" }, { id: "a" }, { id: "b" }, { id: "c" }, { id: "x" }, { id: "y" }]);
+        await session.data.addEdges([
+            { source: "hub", target: "a" },
+            { source: "hub", target: "b" },
+            { source: "hub", target: "c" },
+            { source: "b", target: "x" },
+            { source: "b", target: "y" },
+            { source: "c", target: "x" },
+        ]);
+
+        const page = session.data.neighbors("hub", { weight: null, sort: { by: "degree", descending: true } });
+
+        assert.deepStrictEqual(
+            page.records.map((row) => row.node.id),
+            ["b", "c", "a"],
+        );
+        session.dispose();
+    });
+
     it("pages one stable order", async () => {
         const session = createGraphSession();
         await session.data.addNodes(Array.from({ length: 30 }, (_unused, index) => ({ id: `n${String(index)}` })));

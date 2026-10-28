@@ -93,6 +93,9 @@ function isD3Node(n: unknown): n is D3Node {
     return false;
 }
 
+/** d3's own many-body strength, which every node that is not a following group keeps. */
+const DEFAULT_CHARGE = -30;
+
 const D3LayoutConfig = z.strictObject({
     dim: z.number().int().min(2).max(3).default(3),
     alphaMin: z.number().positive().default(0.1),
@@ -157,15 +160,17 @@ export class D3GraphEngine extends LayoutEngine {
     d3AlphaTarget: number;
     d3AlphaDecay: number;
     d3VelocityDecay: number;
+    /** 2 or 3: how many dimensions the simulation moves nodes in. A 2D one keeps every z at 0. */
+    readonly dim: 2 | 3;
     nodeMapping = new Map<Node, D3Node>();
+    /** The many-body force, kept so a group following its members can be given no charge. */
+    private readonly chargeForce = forceManyBody();
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
-    /** 2 or 3: in 2D d3 moves nodes in X and Y only, and every node stays at Z = 0. */
-    private readonly dim: number;
 
     /**
      * Check if there are pending nodes or edges to be processed
@@ -187,7 +192,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.d3AlphaTarget = opts.alphaTarget;
         this.d3AlphaDecay = opts.alphaDecay;
         this.d3VelocityDecay = opts.velocityDecay;
-        this.dim = opts.dim;
+        this.dim = opts.dim === 2 ? 2 : 3;
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         this.linkForce = forceLink()
@@ -197,7 +202,7 @@ export class D3GraphEngine extends LayoutEngine {
             .numDimensions(this.dim)
             .alpha(1)
             .force("link", this.linkForce)
-            .force("charge", forceManyBody())
+            .force("charge", this.chargeForce)
             .force("center", forceCenter())
             .force("dagRadial", null)
             .stop();
@@ -311,7 +316,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        // d3 gives a node no Z in 2D, so it starts on the plane.
+        // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
         this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
     }
 
@@ -381,7 +386,7 @@ export class D3GraphEngine extends LayoutEngine {
         const d3node = this._getMappedNode(n);
         d3node.x = newPos.x;
         d3node.y = newPos.y;
-        d3node.z = newPos.z ?? 0;
+        d3node.z = this.dim === 2 ? 0 : (newPos.z ?? 0);
         // A drag is a placement like any other, so it lands in the shared array immediately rather
         // than waiting for a tick that a settled simulation may never run. It is a PLACEMENT and
         // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
@@ -453,7 +458,9 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.fx = undefined;
         d3node.fy = undefined;
         d3node.fz = undefined;
-        this.reheat = true; // TODO: is this necessary?
+        // Reheat so the released node moves: a settled simulation would otherwise leave it where
+        // the pin held it.
+        this.reheat = true;
     }
 
     /**
@@ -466,6 +473,16 @@ export class D3GraphEngine extends LayoutEngine {
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
         this.refresh();
+        // A group following its members pushes nothing; d3 reads a strength once per node at
+        // initialisation, so the accessor is set again whenever the followers change.
+        const followers = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isFollower(node.index)) {
+                followers.add(node.id);
+            }
+        }
+
+        this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

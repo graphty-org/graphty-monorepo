@@ -2,7 +2,8 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
-import { UpdateManager } from "../../src/managers/UpdateManager";
+import { nodeFramingBox, UpdateManager } from "../../src/managers/UpdateManager";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("UpdateManager", () => {
@@ -183,6 +184,150 @@ describe("UpdateManager", () => {
             updateManager.update();
 
             assert.strictEqual(framings, 1, "the request is answered on the first pass after the paint arrives");
+        });
+
+        // A repaint that has ARRIVED is applied in batches within a frame budget, so on a slow
+        // frame some nodes keep their old size for a frame or more. A framing answered in between
+        // measured those nodes at the old size, and nothing re-framed when theirs landed: the
+        // Pajek 1crn fidelity story was framed one CSS pixel apart from one load to the next,
+        // depending on how many nodes the first frame painted (issue #3479).
+        it("waits for arrived paint that is still being applied before answering a framing request", async () => {
+            graph.getLayoutManager().running = false;
+            // Past the first paint batch (128 nodes), so the right-most node is painted on a later frame.
+            await graph.addNodes(
+                Array.from({ length: 200 }, (_, i) => ({ id: `far${String(i)}`, position: { x: 10 + i, y: 0, z: 0 } })),
+            );
+            updateManager.stepFrames(5);
+
+            await graph.getSession().styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            await graph.getSession().styles.settled();
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPendingNodes, "the repaint has arrived and is not drawn yet");
+
+            let lastMaxX = Number.NaN;
+            graph.eventManager.addListener("zoom-to-fit-complete", (event) => {
+                lastMaxX = (event as unknown as { boundingBoxMax: { x: number } }).boundingBoxMax.x;
+            });
+
+            // Every look at the clock finds the frame's budget spent, so each frame paints one batch.
+            let clock = 0;
+            const now = vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
+            try {
+                updateManager.enableZoomToFit();
+                for (let i = 0; i < 10 && (painter.hasPending || !updateManager.zoomToFitCompleted); i++) {
+                    updateManager.update(16);
+                }
+            } finally {
+                now.mockRestore();
+            }
+            updateManager.stepFrames(3);
+
+            assert.isFalse(painter.hasPending, "every batch was drawn");
+            const drawn = nodeFramingBox(graph.getNodes());
+            assert.isDefined(drawn);
+            assert.closeTo(lastMaxX, drawn.max.x, 1e-6, "the camera framed the nodes at the sizes they are drawn at");
+        });
+
+        /**
+         * Put the graph where a second load leaves it: framed once already, its own framing request
+         * answered while the layout still moves, and the layout about to arrive.
+         * @returns Turns the layout's arrival on, and counts the framings from here on.
+         */
+        function laterLoadAboutToSettle(): { arrive: () => void; framings: () => number } {
+            const layoutManager = graph.getLayoutManager();
+            layoutManager.running = false;
+            updateManager.stepFrames(5);
+            assert.isTrue(updateManager.zoomToFitCompleted, "the first load framed the graph");
+
+            const engine = layoutManager.layoutEngine;
+            assert.isDefined(engine);
+            const settled = vi.spyOn(engine, "isSettled", "get").mockReturnValue(false);
+            layoutManager.running = true;
+            updateManager.enableZoomToFit();
+            updateManager.update();
+            assert.isTrue(updateManager.isZoomToFitEnabled(), "the moving layout is still being followed");
+
+            let count = 0;
+            graph.eventManager.addListener("zoom-to-fit-complete", () => {
+                count++;
+            });
+
+            return {
+                arrive: () => settled.mockReturnValue(true),
+                framings: () => count,
+            };
+        }
+
+        // After the first load, nothing forces a framing at settlement any more (the element asks
+        // for one only until the first settlement is captured), so the framing a later load or
+        // layout ends with is the one taken on the pass the layout arrives on. Taken while the
+        // load's size layer was still painting, it framed every node at its unstyled size, then
+        // stopped following the graph, and the sizes landed unframed (issue #3378).
+        it("waits for a style pass on its way before the framing a settling layout ends with", () => {
+            const { arrive, framings } = laterLoadAboutToSettle();
+            const painting = vi.spyOn(graph.getStylePainter(), "isPainting", "get").mockReturnValue(true);
+
+            arrive();
+            updateManager.stepFrames(3);
+
+            assert.strictEqual(framings(), 0, "the settled graph was framed while a style pass was still painting");
+
+            painting.mockReturnValue(false);
+            updateManager.update();
+
+            assert.strictEqual(framings(), 1, "the settled graph is framed on the first pass after the paint arrives");
+            assert.isFalse(updateManager.isZoomToFitEnabled());
+        });
+
+        // A pass of the derivation lane runs the graph and layout hooks before the styles hook
+        // asks for the repaint, and awaits each one. In between, the style stack has been written
+        // and nothing says a pass is painting, so the frame is neither framed nor finished yet.
+        it("waits for the derivation lane to reach the style pass before framing or finishing", async () => {
+            const { arrive, framings } = laterLoadAboutToSettle();
+            const session = graph.getSession();
+            const { lane } = dispatcherOf(session);
+
+            let entered: () => void = () => undefined;
+            const inHook = new Promise<void>((resolve) => {
+                entered = resolve;
+            });
+            let release: () => void = () => undefined;
+            const held = new Promise<void>((resolve) => {
+                release = resolve;
+            });
+            const unregister = lane.register("config", async () => {
+                entered();
+                await held;
+            });
+
+            try {
+                const written = session.config.set({ name: "Second load" });
+                await inHook;
+
+                arrive();
+                updateManager.stepFrames(3);
+
+                assert.strictEqual(framings(), 0, "the settled graph was framed before the lane reached its repaint");
+                assert.isFalse(
+                    updateManager.frameIsStable,
+                    "a frame was called final while the lane was still deriving",
+                );
+
+                release();
+                await written;
+                await lane.settled();
+                updateManager.update();
+
+                assert.strictEqual(framings(), 1, "the settled graph is framed once the lane has caught up");
+            } finally {
+                release();
+                unregister();
+            }
         });
     });
 

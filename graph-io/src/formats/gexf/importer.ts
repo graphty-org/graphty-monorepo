@@ -67,6 +67,7 @@ import {
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_PARENT_CODE,
     UNKNOWN_XML_ATTRIBUTE_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 import { type DeclaredTypeSpec, overflowsToInfinity, parseDecimalText } from "../../common/declared-types.js";
@@ -91,8 +92,10 @@ import {
     xmlDeclaredEncoding,
     XmlEmptyInputError,
     type XmlHandler,
+    XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
+import { MAX_STYLE_BLOCK_LENGTH } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_DECLS,
@@ -109,6 +112,7 @@ import {
     TIME_FORMATS,
     TIME_REPRESENTATIONS,
 } from "./schema.js";
+import { canonVizColor, gexfStyles, GRAPHTY_XML_NAMESPACE } from "./styles.js";
 
 /**
  * The format-specific options of the GEXF importer.
@@ -118,10 +122,19 @@ export interface GexfImportOptions extends CommonImportOptions {
     /**
      * Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape,
      * thickness) into node and edge attributes; false skips them, with one W_GEXF_VIZ_SKIPPED
-     * warning.
+     * warning. The color, size, shape and thickness columns are deprecated and leave the import
+     * result in the next major version: read a file's styles with `styles: true` instead. The
+     * position column stays.
      * @defaultValue true
      */
     viz?: boolean | undefined;
+    /**
+     * The Gephi Preview settings the file is drawn with, by Gephi's own property names and values as Gephi's
+     * Preview spells them (`{ "edge.curved": "false", "node.label.avoidOverlap": "false" }`): Gephi keeps them in its
+     * project, not in the GEXF, so a file's styles are Gephi's defaults unless they are given here. Read only when
+     * the file's styles are read; a property not given keeps Gephi's default.
+     */
+    gephiPreview?: Readonly<Record<string, string | number | boolean>> | undefined;
 }
 
 /**
@@ -185,6 +198,11 @@ export const WEIGHT_IGNORED_CODE = "W_GEXF_WEIGHT_IGNORED";
  */
 export const VIZ_SKIPPED_CODE = "W_GEXF_VIZ_SKIPPED";
 /**
+ * GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on top-level nodes; the node stays top-level.
+ * @category Built-in formats
+ */
+export const UNKNOWN_PID_CODE = "W_GEXF_UNKNOWN_PID";
+/**
  * A 1.2 dynamic viz element (its bounds are dropped, the value kept).
  * @category Issue and loss codes
  */
@@ -234,6 +252,10 @@ const VERSIONS: ReadonlySet<string> = new Set(["1.0", "1.1", "1.2", "1.3"]);
  * @returns the version, or null
  */
 function namespaceVersion(ns: string | null): string | null {
+    if (ns !== null && /gephi\.org\/gexf\/?$/.test(ns)) {
+        // GEXF 1.0, as Gephi 0.6 wrote it
+        return "1.0";
+    }
     const match = ns === null ? null : /gexf\.net\/(1\.[0-3])/.exec(ns);
     return match === null ? null : match[1];
 }
@@ -313,8 +335,16 @@ const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutu
  * @returns the text trimmed and in lower case
  */
 function edgeTypeKeyword(text: string): string {
-    return text.trim().toLowerCase();
+    const keyword = text.trim().toLowerCase();
+    return EDGE_TYPE_ALIASES.get(keyword) ?? keyword;
 }
+
+/** GEXF 1.0's spellings of the edge types. */
+const EDGE_TYPE_ALIASES: ReadonlyMap<string, string> = new Map([
+    ["dir", "directed"],
+    ["undir", "undirected"],
+    ["double", "mutual"],
+]);
 const ABORT_CHECK_INTERVAL = 64;
 
 /** The XML attributes the importer reads on `<node>`; any other one is reported once. */
@@ -390,6 +420,16 @@ interface TrackedAttribute {
     readonly valueDecl: Pick<ColumnDecl, "dtype" | "itemDtype" | "options" | "origin">;
     /** The temporal table, created on the first timed value. */
     table: ExtensionHandle;
+}
+
+/** A `<parents>` list waiting for every node to be declared. */
+interface ParentsRef {
+    /** The child's node index. */
+    readonly child: number;
+    /** The parents' ids. */
+    readonly ids: readonly NodeId[];
+    /** Where the list was read. */
+    readonly where: IssueLocation;
 }
 
 /** A pending containment reference resolved after every node is declared. */
@@ -537,6 +577,8 @@ const enum Ctx {
     Edges,
     Edge,
     Skip,
+    /** graphty's `graphty.styles` block inside `<meta>`. */
+    StyleBlock,
 }
 
 /** An open `<node>`: its index (INVALID_INDEX when the node was skipped) and location. */
@@ -603,6 +645,18 @@ class GexfReader implements XmlHandler {
 
     private metaField: "creator" | "description" | "keywords" | null = null;
 
+    /** The text of graphty's `graphty.styles` block, read up to one character past the longest block read. */
+    private styleBlock = "";
+
+    /** The `graphty.styles` block kept for the styles, or null. */
+    keptBlock: string | null = null;
+
+    /** GEXF 1.0 only: nodes added for edges read before `<nodes>`, until their `<node>` declares them. */
+    private readonly implicitNodes = new Map<number, NodeId>();
+
+    /** GEXF 1.0 only: `<edges>` came before `<nodes>`, so an edge's ends are added until `<node>` declares them. */
+    private edgesFirst = false;
+
     private readonly nodeAttrs = new Map<string, TrackedAttribute>();
 
     private readonly edgeAttrs = new Map<string, TrackedAttribute>();
@@ -638,8 +692,7 @@ class GexfReader implements XmlHandler {
 
     private parentRefs: ParentRef[] = [];
 
-    private parentsRefs: { readonly child: number; readonly ids: readonly NodeId[]; readonly where: IssueLocation }[] =
-        [];
+    private parentsRefs: ParentsRef[] = [];
 
     private readonly unknownAttributes = new Set<string>();
 
@@ -748,6 +801,7 @@ class GexfReader implements XmlHandler {
             parent !== Ctx.Skip &&
             parent !== Ctx.MetaText &&
             parent !== Ctx.AttributeText &&
+            parent !== Ctx.StyleBlock &&
             !name.startsWith("viz:")
         ) {
             // an undeclared prefix or a name that is not namespace-well-formed (<:node>, <a:b:node>)
@@ -767,7 +821,7 @@ class GexfReader implements XmlHandler {
                 this.startInGexf(name, local, attrs, line);
                 return;
             case Ctx.Meta:
-                this.startInMeta(name, local, line);
+                this.startInMeta(name, local, line, ns);
                 return;
             case Ctx.Graph:
                 this.startInGraph(name, local, attrs, line);
@@ -801,6 +855,7 @@ class GexfReader implements XmlHandler {
                 return;
             case Ctx.MetaText:
             case Ctx.AttributeText:
+            case Ctx.StyleBlock:
             case Ctx.Skip:
                 this.ctx.push(Ctx.Skip);
                 return;
@@ -823,8 +878,22 @@ class GexfReader implements XmlHandler {
             case Ctx.MetaText:
                 this.finishMetaText();
                 return;
+            case Ctx.StyleBlock:
+                this.report.keepForStyles(this.styleBlock);
+                this.keptBlock = this.styleBlock;
+                this.styleBlock = "";
+                return;
             case Ctx.Graph:
                 this.resolveParents();
+                if (!this.nodesSeen && this.implicitNodes.size > 0) {
+                    this.report.error(
+                        "validation-error",
+                        MISSING_NODES_CODE,
+                        "the graph declares <edges> but no <nodes>",
+                    );
+                } else if (!this.options.addMissingNodes) {
+                    this.dropUndeclaredNodes();
+                }
                 return;
             case Ctx.Attributes:
                 this.attributeGroup = null;
@@ -877,6 +946,12 @@ class GexfReader implements XmlHandler {
                 return;
             case Ctx.AttributeText:
                 this.attributeTextValue += text;
+                return;
+            case Ctx.StyleBlock:
+                // past the longest block read, one more character is enough to say it is too large
+                if (this.styleBlock.length <= MAX_STYLE_BLOCK_LENGTH) {
+                    this.styleBlock += text.slice(0, MAX_STYLE_BLOCK_LENGTH + 1 - this.styleBlock.length);
+                }
                 return;
             case Ctx.Skip:
                 return;
@@ -990,8 +1065,14 @@ class GexfReader implements XmlHandler {
      * @param name - the element name
      * @param local - its local name
      * @param line - the line
+     * @param ns - its namespace
      */
-    private startInMeta(name: string, local: string, line: number): void {
+    private startInMeta(name: string, local: string, line: number, ns: string | null): void {
+        if (ns === GRAPHTY_XML_NAMESPACE && local === "styles") {
+            this.styleBlock = "";
+            this.ctx.push(Ctx.StyleBlock);
+            return;
+        }
         if (local === "creator" || local === "description" || local === "keywords") {
             this.metaField = local;
             this.metaText = "";
@@ -1134,7 +1215,10 @@ class GexfReader implements XmlHandler {
                 this.beginSection(attrs, "node", line);
                 return;
             case "edges":
-                if (!this.nodesSeen) {
+                if (!this.nodesSeen && this.meta.sourceVersion === "1.0") {
+                    // GEXF 1.0 files (Gephi 0.6) may list their edges before their nodes
+                    this.edgesFirst = true;
+                } else if (!this.nodesSeen) {
                     this.report.error(
                         "validation-error",
                         MISSING_NODES_CODE,
@@ -1328,6 +1412,77 @@ class GexfReader implements XmlHandler {
     }
 
     /**
+     * Whether an attribute was already declared (warning that the first declaration is kept), and
+     * a warning when values that use it came before its declaration.
+     * @param domain - node or edge
+     * @param id - the attribute id
+     * @param where - the report location
+     * @returns true when the declaration is a duplicate and must be skipped
+     */
+    private isDuplicateAttribute(domain: "node" | "edge", id: string, where: IssueLocation): boolean {
+        const { report } = this;
+        const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
+        if (tracked.has(id) || (domain === "edge" && this.weightAttr !== null && this.weightAttr.id === id)) {
+            report.warning(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `${domain} attribute "${id}" is declared twice; the first declaration is kept`,
+                where,
+            );
+            return true;
+        }
+        if (this.unknownAttributes.has(`${domain}:${id}`)) {
+            report.warning(
+                "missing-value",
+                UNKNOWN_ATTRIBUTE_CODE,
+                `${domain} attribute "${id}" is declared after values that use it; those values were dropped (declare <attributes> before <nodes>)`,
+                where,
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Whether an edge attribute becomes THE weight: the first attribute of the weight's title does
+     * (declared here), a later one only warns and stays a plain column.
+     * @param attribute - the attribute's domain, id, display name, title and type
+     * @param attribute.domain - node or edge
+     * @param attribute.id - the attribute id
+     * @param attribute.name - the column name
+     * @param attribute.title - the declared title, or null
+     * @param attribute.type - the declared type, or null
+     * @param where - the report location
+     * @returns true when the attribute was declared as the weight
+     */
+    private claimsWeight(
+        attribute: { domain: "node" | "edge"; id: string; name: string; title: string | null; type: string | null },
+        where: IssueLocation,
+    ): boolean {
+        const { report, sink, options } = this;
+        const { domain, id, name, title, type } = attribute;
+        if (domain !== "edge" || !isWeightField(name, options.weightFrom)) {
+            return false;
+        }
+        if (this.weightAttr !== null) {
+            // the first attribute of that title stays THE weight; this one becomes a plain column
+            report.warning(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `edge attribute "${id}" is also titled ${name}; attribute "${this.weightAttr.id}" is the weight, "${id}" is kept as a column`,
+                where,
+            );
+            return false;
+        }
+        const declared = declareAttribute({ format: GEXF_FORMAT, id, title, type, long: options.long });
+        for (const issue of declared.issues) {
+            report.warning(issue.category, issue.code, issue.message, where);
+        }
+        this.weightAttr = { id, spec: declared.spec, table: INVALID_INDEX as ExtensionHandle };
+        sink.setMeta({ weightOrigin: { format: GEXF_FORMAT, id, title, type, namespace: null } });
+        return true;
+    }
+
+    /**
      * Declare one `<attribute id title type>` with its `<default>` and `<options>` (design
      * sections 5.1, 5.5, 5.6). The edge attribute titled `weightFrom` is the weight and gets no
      * column; its declaration is recorded in meta.weightOrigin.
@@ -1343,22 +1498,8 @@ class GexfReader implements XmlHandler {
             return;
         }
         const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
-        if (tracked.has(id) || (domain === "edge" && this.weightAttr !== null && this.weightAttr.id === id)) {
-            report.warning(
-                "validation-error",
-                DUPLICATE_ATTRIBUTE_CODE,
-                `${domain} attribute "${id}" is declared twice; the first declaration is kept`,
-                where,
-            );
+        if (this.isDuplicateAttribute(domain, id, where)) {
             return;
-        }
-        if (this.unknownAttributes.has(`${domain}:${id}`)) {
-            report.warning(
-                "missing-value",
-                UNKNOWN_ATTRIBUTE_CODE,
-                `${domain} attribute "${id}" is declared after values that use it; those values were dropped (declare <attributes> before <nodes>)`,
-                where,
-            );
         }
         const title = attrs.get("title") ?? null;
         const type = attrs.get("type") ?? null;
@@ -1371,21 +1512,7 @@ class GexfReader implements XmlHandler {
             );
         }
         const name = title !== null && title.length > 0 ? title : id;
-        if (domain === "edge" && this.weightAttr !== null && isWeightField(name, options.weightFrom)) {
-            // the first attribute of that title stays THE weight; this one becomes a plain column
-            report.warning(
-                "validation-error",
-                DUPLICATE_ATTRIBUTE_CODE,
-                `edge attribute "${id}" is also titled ${name}; attribute "${this.weightAttr.id}" is the weight, "${id}" is kept as a column`,
-                where,
-            );
-        } else if (domain === "edge" && isWeightField(name, options.weightFrom)) {
-            const declared = declareAttribute({ format: GEXF_FORMAT, id, title, type, long: options.long });
-            for (const issue of declared.issues) {
-                report.warning(issue.category, issue.code, issue.message, where);
-            }
-            this.weightAttr = { id, spec: declared.spec, table: INVALID_INDEX as ExtensionHandle };
-            sink.setMeta({ weightOrigin: { format: GEXF_FORMAT, id, title, type, namespace: null } });
+        if (this.claimsWeight({ domain, id, name, title, type }, where)) {
             return;
         }
         const declaredNames = domain === "node" ? this.declaredNodeNames : this.declaredEdgeNames;
@@ -1491,7 +1618,9 @@ class GexfReader implements XmlHandler {
         try {
             const id = this.coerceId(idText, where);
             const existing = sink.indexOf(id);
-            if (existing !== INVALID_INDEX) {
+            if (existing !== INVALID_INDEX && this.implicitNodes.delete(existing)) {
+                index = existing;
+            } else if (existing !== INVALID_INDEX) {
                 report.warning(
                     "validation-error",
                     DUPLICATE_NODE_CODE,
@@ -1685,20 +1814,8 @@ class GexfReader implements XmlHandler {
             return false;
         };
         for (const ref of refs) {
-            let parent = ref.parentIndex;
-            if (ref.parentId !== null) {
-                parent = sink.indexOf(ref.parentId);
-                if (parent === INVALID_INDEX) {
-                    report.error(
-                        "missing-value",
-                        UNKNOWN_PARENT_CODE,
-                        `pid "${String(ref.parentId)}" names a node the document does not declare`,
-                        ref.where,
-                    );
-                    continue;
-                }
-            }
-            if (parentOf.get(ref.child) === parent) {
+            const parent = this.parentIndexOf(ref);
+            if (parent === null || parentOf.get(ref.child) === parent) {
                 continue;
             }
             if (isAncestorOrSelf(ref.child, parent)) {
@@ -1717,26 +1834,74 @@ class GexfReader implements XmlHandler {
                 report.recordError(err, ref.where);
             }
         }
+        this.resolveParentsLists(lists);
+    }
+
+    /**
+     * Resolve the `<parents>` lists read so far into the parents column.
+     * @param lists - the queued `<parents>` lists
+     */
+    private resolveParentsLists(lists: readonly (typeof this.parentsRefs)[number][]): void {
         for (const ref of lists) {
-            const indices: number[] = [];
-            for (const id of ref.ids) {
-                const parent = sink.indexOf(id);
-                if (parent === INVALID_INDEX) {
-                    report.error(
-                        "missing-value",
-                        UNKNOWN_PARENT_CODE,
-                        `<parent for="${String(id)}"> names a node the document does not declare`,
-                        ref.where,
-                    );
-                    continue;
-                }
-                indices.push(parent);
+            this.resolveParentsList(ref);
+        }
+    }
+
+    /**
+     * The parent a `pid` or a nesting names.
+     * @param ref - the reference
+     * @returns its index, or null when the id names no node (reported)
+     */
+    private parentIndexOf(ref: ParentRef): number | null {
+        if (ref.parentId === null) {
+            return ref.parentIndex;
+        }
+        const parent = this.sink.indexOf(ref.parentId);
+        if (parent !== INVALID_INDEX) {
+            return parent;
+        }
+        if (this.meta.sourceVersion === "1.0") {
+            this.report.warnOnce(
+                "missing-value",
+                UNKNOWN_PID_CODE,
+                `pid "${String(ref.parentId)}" names no node; GEXF 1.0 files write it on top-level nodes, which stay top-level`,
+                ref.where,
+            );
+        } else {
+            this.report.error(
+                "missing-value",
+                UNKNOWN_PARENT_CODE,
+                `pid "${String(ref.parentId)}" names a node the document does not declare`,
+                ref.where,
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Resolve one `<parents>` list; an id that names no node is reported and left out.
+     * @param ref - the list
+     */
+    private resolveParentsList(ref: ParentsRef): void {
+        const { sink, report } = this;
+        const indices: number[] = [];
+        for (const id of ref.ids) {
+            const parent = sink.indexOf(id);
+            if (parent === INVALID_INDEX) {
+                report.error(
+                    "missing-value",
+                    UNKNOWN_PARENT_CODE,
+                    `<parent for="${String(id)}"> names a node the document does not declare`,
+                    ref.where,
+                );
+                continue;
             }
-            try {
-                this.parentsColumn.set(sink, report, ref.child, indices, ref.where);
-            } catch (err) {
-                report.recordError(err, ref.where);
-            }
+            indices.push(parent);
+        }
+        try {
+            this.parentsColumn.set(sink, report, ref.child, indices, ref.where);
+        } catch (err) {
+            report.recordError(err, ref.where);
         }
     }
 
@@ -1763,7 +1928,7 @@ class GexfReader implements XmlHandler {
      * @param line - the line
      */
     private beginEdge(attrs: ReadonlyMap<string, string>, line: number): void {
-        const { report, sink, options } = this;
+        const { report, sink } = this;
         this.checkAbort();
         this.ctx.push(Ctx.Edge);
         this.edge = null;
@@ -1786,21 +1951,10 @@ class GexfReader implements XmlHandler {
             report.counts.skippedEdges++;
             return;
         }
-        let kind: EdgeKind = this.defaultKind;
-        const typeText = attrs.get("type");
-        if (typeText !== undefined) {
-            const type = edgeTypeKeyword(typeText);
-            if (!EDGE_TYPES.has(type)) {
-                report.error(
-                    "validation-error",
-                    EDGE_TYPE_CODE,
-                    `edge type "${typeText}" is not directed, undirected or mutual`,
-                    where,
-                );
-                report.counts.skippedEdges++;
-                return;
-            }
-            kind = type as EdgeKind;
+        const kind = this.edgeKindOf(attrs, where);
+        if (kind === null) {
+            report.counts.skippedEdges++;
+            return;
         }
         if (idText !== undefined && this.edgeIds.has(idText)) {
             report.error(
@@ -1814,20 +1968,7 @@ class GexfReader implements XmlHandler {
         }
         let index: number;
         try {
-            const source = this.coerceId(sourceText, where);
-            const target = this.coerceId(targetText, where);
-            if (!options.addMissingNodes) {
-                if (sink.indexOf(source) === INVALID_INDEX) {
-                    throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${sourceText}"`, {
-                        id: source,
-                    });
-                }
-                if (sink.indexOf(target) === INVALID_INDEX) {
-                    throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${targetText}"`, {
-                        id: target,
-                    });
-                }
-            }
+            const [source, target] = this.endpoints(sourceText, targetText, where);
             const weight = this.xmlWeight(attrs, where);
             const before = sink.edgeCount;
             index = this.resolver.addEdge(source, target, kind, weight, where);
@@ -1846,6 +1987,71 @@ class GexfReader implements XmlHandler {
         frame.mirror = this.resolver.lastMirror;
         frame.xmlWeight = attrs.get("weight") ?? null;
         this.edge = frame;
+        this.writeEdgeAttributes(attrs, index, where);
+    }
+
+    /**
+     * The kind of an `<edge>`: its `type`, else the graph's default.
+     * @param attrs - its attributes
+     * @param where - where it was read
+     * @returns the kind, or null for a type GEXF does not have (reported)
+     */
+    private edgeKindOf(attrs: ReadonlyMap<string, string>, where: IssueLocation): EdgeKind | null {
+        const typeText = attrs.get("type");
+        if (typeText === undefined) {
+            return this.defaultKind;
+        }
+        const type = edgeTypeKeyword(typeText);
+        if (!EDGE_TYPES.has(type)) {
+            this.report.error(
+                "validation-error",
+                EDGE_TYPE_CODE,
+                `edge type "${typeText}" is not directed, undirected or mutual`,
+                where,
+            );
+            return null;
+        }
+        return type as EdgeKind;
+    }
+
+    /**
+     * An edge's endpoints: in GEXF 1.0 with its edges first, a node no `<node>` declared yet is added for now; without
+     * addMissingNodes, a node the document does not declare throws E_UNKNOWN_NODE.
+     * @param sourceText - the source's id text
+     * @param targetText - the target's id text
+     * @param where - where it was read
+     * @returns the ids
+     */
+    private endpoints(sourceText: string, targetText: string, where: IssueLocation): [NodeId, NodeId] {
+        const { sink } = this;
+        const ends: [NodeId, NodeId] = [this.coerceId(sourceText, where), this.coerceId(targetText, where)];
+        if (this.edgesFirst && !this.nodesSeen) {
+            for (const end of ends) {
+                if (sink.indexOf(end) === INVALID_INDEX) {
+                    this.implicitNodes.set(sink.addNode(end), end);
+                    this.report.counts.nodes++;
+                }
+            }
+        }
+        const texts = [sourceText, targetText];
+        const unknown = this.options.addMissingNodes ? -1 : ends.findIndex((id) => sink.indexOf(id) === INVALID_INDEX);
+        if (unknown !== -1) {
+            throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${texts[unknown]}"`, {
+                id: ends[unknown],
+            });
+        }
+        return ends;
+    }
+
+    /**
+     * Write an added edge's id, label, kind and lifetime.
+     * @param attrs - its attributes
+     * @param index - its index
+     * @param where - where it was read
+     */
+    private writeEdgeAttributes(attrs: ReadonlyMap<string, string>, index: number, where: IssueLocation): void {
+        const { report, sink } = this;
+        const idText = attrs.get("id");
         try {
             if (idText !== undefined) {
                 this.edgeIdColumn.set(sink, report, index, idText, where);
@@ -1862,6 +2068,26 @@ class GexfReader implements XmlHandler {
         } catch (err) {
             report.recordError(err, where);
         }
+    }
+
+    /**
+     * GEXF 1.0 with its edges first, addMissingNodes false: a node an edge named that no `<node>` declared is an
+     * unknown node, as it is when the nodes come first. It is reported, and it and its edges are removed when the
+     * sink can remove nodes.
+     */
+    private dropUndeclaredNodes(): void {
+        const { sink, report } = this;
+        const removable = sink as GraphSink & { removeNodeByIndex?: (index: number) => ArrayLike<number> };
+        for (const [index, id] of this.implicitNodes) {
+            report.error("validation-error", "E_UNKNOWN_NODE", `edge references undeclared node "${String(id)}"`);
+            if (typeof removable.removeNodeByIndex === "function") {
+                const edges = removable.removeNodeByIndex(index);
+                report.counts.nodes--;
+                report.counts.edges -= edges.length;
+                report.counts.skippedEdges += edges.length;
+            }
+        }
+        this.implicitNodes.clear();
     }
 
     /**
@@ -1987,7 +2213,8 @@ class GexfReader implements XmlHandler {
         if (index === INVALID_INDEX) {
             return;
         }
-        const forId = attrs.get("for");
+        // GEXF 1.0 names the attribute with `id`
+        const forId = attrs.get("for") ?? attrs.get("id");
         const { valueWhere } = this;
         valueWhere.line = line;
         valueWhere.element = element;
@@ -2519,6 +2746,51 @@ class GexfReader implements XmlHandler {
     // ---------------------------------------------------------------- viz
 
     /**
+     * Write a `<viz:position>` into the node position column, declared on first use with the
+     * dimensions the element writes.
+     * @param attrs - its attributes
+     * @param index - the node's index
+     * @param where - the element's location
+     */
+    private writeVizPosition(attrs: ReadonlyMap<string, string>, index: number, where: IssueLocation): void {
+        const x = vizNumber(attrs, "x");
+        const y = vizNumber(attrs, "y");
+        const z = attrs.has("z") ? vizNumber(attrs, "z") : 0;
+        this.positionColumn ??= new LazyColumn("node", {
+            ...NODE_DECLS.position,
+            extra: { ...NODE_DECLS.position.extra, sourceDims: attrs.has("z") ? 3 : 2 },
+        });
+        this.positionColumn.set(this.sink, this.report, index, [x, y, z], where);
+    }
+
+    /**
+     * Write a `<viz:shape>` into the shape column, and a node's image `uri` beside it.
+     * @param name - the element name as written
+     * @param attrs - its attributes
+     * @param domain - node or edge
+     * @param index - the element's index
+     * @param where - the element's location
+     */
+    private writeVizShape(
+        name: string,
+        attrs: ReadonlyMap<string, string>,
+        domain: "node" | "edge",
+        index: number,
+        where: IssueLocation,
+    ): void {
+        const value = attrs.get("value");
+        if (value === undefined) {
+            throw new GraphFormatError("E_COLUMN_TYPE", "<viz:shape> without a value", { element: name });
+        }
+        const columns = domain === "node" ? this.nodeColumns : this.edgeColumns;
+        columns.shape.set(this.sink, this.report, index, value, where);
+        const uri = attrs.get("uri");
+        if (domain === "node" && uri !== undefined) {
+            this.shapeUriColumn.set(this.sink, this.report, index, uri, where);
+        }
+    }
+
+    /**
      * Write one viz element into its role column; a value that does not parse is a recorded
      * warning and the element is skipped.
      * @param name - the element name as written
@@ -2553,37 +2825,20 @@ class GexfReader implements XmlHandler {
         try {
             switch (local) {
                 case "color":
-                    columns.color.set(sink, report, index, parseColor(attrs), where);
+                    columns.color.set(sink, report, index, this.vizColor(attrs, name, where), where);
                     break;
-                case "position": {
-                    const x = vizNumber(attrs, "x");
-                    const y = vizNumber(attrs, "y");
-                    const z = attrs.has("z") ? vizNumber(attrs, "z") : 0;
-                    this.positionColumn ??= new LazyColumn("node", {
-                        ...NODE_DECLS.position,
-                        extra: { ...NODE_DECLS.position.extra, sourceDims: attrs.has("z") ? 3 : 2 },
-                    });
-                    this.positionColumn.set(sink, report, index, [x, y, z], where);
+                case "position":
+                    this.writeVizPosition(attrs, index, where);
                     break;
-                }
                 case "size":
                     this.sizeColumn.set(sink, report, index, vizNumber(attrs, "value"), where);
                     break;
                 case "thickness":
                     this.thicknessColumn.set(sink, report, index, vizNumber(attrs, "value"), where);
                     break;
-                case "shape": {
-                    const value = attrs.get("value");
-                    if (value === undefined) {
-                        throw new GraphFormatError("E_COLUMN_TYPE", "<viz:shape> without a value", { element: name });
-                    }
-                    columns.shape.set(sink, report, index, value, where);
-                    const uri = attrs.get("uri");
-                    if (domain === "node" && uri !== undefined) {
-                        this.shapeUriColumn.set(sink, report, index, uri, where);
-                    }
+                case "shape":
+                    this.writeVizShape(name, attrs, domain, index, where);
                     break;
-                }
                 default:
                     break;
             }
@@ -2593,6 +2848,49 @@ class GexfReader implements XmlHandler {
             }
             report.warning("validation-error", VIZ_VALUE_CODE, `<${name}> skipped: ${err.message}`, where);
         }
+    }
+
+    /**
+     * `<viz:color r g b a hex>` as rgba in 0..1 (design section 5.5: role color, f32 x4). `hex` is read as
+     * Gephi reads it (Java's `Color.decode`: `canonVizColor`), and wins over `r` / `g` / `b` when both are written, as Gephi
+     * reads it (`gexf-specimen-node-fills-borders`, `color-hex-and-rgb`); a channel outside 0..255 or an alpha
+     * outside 0..1 is clamped and reported, as Gephi clamps it.
+     * @param attrs - the element's attributes
+     * @param name - the element name as written
+     * @param where - the element's location
+     * @returns [r, g, b, a]
+     */
+    private vizColor(attrs: ReadonlyMap<string, string>, name: string, where: IssueLocation): number[] {
+        const hex = attrs.get("hex");
+        let rgba: number[];
+        if (hex !== undefined) {
+            const c = canonVizColor(hex);
+            if (c === null) {
+                throw new GraphFormatError(
+                    "E_COLUMN_TYPE",
+                    `viz hex="${hex}" is not a color Gephi reads (a #-prefixed hexadecimal, 0x, octal or decimal integer)`,
+                    { attribute: "hex" },
+                );
+            }
+            rgba = [...c];
+            if (attrs.has("a")) {
+                rgba[3] = vizNumber(attrs, "a");
+            }
+        } else {
+            rgba = [vizNumber(attrs, "r"), vizNumber(attrs, "g"), vizNumber(attrs, "b")];
+            rgba.push(attrs.has("a") ? vizNumber(attrs, "a") : 1);
+        }
+        const max = [255, 255, 255, 1];
+        if (rgba.some((v, i) => v < 0 || v > max[i])) {
+            this.report.warning(
+                "validation-error",
+                VIZ_VALUE_CODE,
+                `<${name}> has a channel outside 0..255 or an alpha outside 0..1; clamped`,
+                where,
+            );
+            rgba = rgba.map((v, i) => Math.max(0, Math.min(max[i], v)));
+        }
+        return [rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, rgba[3]];
     }
 
     // ---------------------------------------------------------------- helpers
@@ -2778,35 +3076,6 @@ function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
     return value;
 }
 
-/**
- * Parse `<viz:color r g b a hex>` into rgba in 0..1 (design section 5.5: role color, f32 x4).
- * @param attrs - the element's attributes
- * @returns [r, g, b, a]
- */
-function parseColor(attrs: ReadonlyMap<string, string>): number[] {
-    let r: number;
-    let g: number;
-    let b: number;
-    const hex = attrs.get("hex");
-    if (hex !== undefined && !attrs.has("r")) {
-        const digits = hex.startsWith("#") ? hex.slice(1) : hex;
-        if (!/^[0-9a-fA-F]{6}$/.test(digits)) {
-            throw new GraphFormatError("E_COLUMN_TYPE", `viz hex="${hex}" is not a #RRGGBB color`, {
-                attribute: "hex",
-            });
-        }
-        r = Number.parseInt(digits.slice(0, 2), 16);
-        g = Number.parseInt(digits.slice(2, 4), 16);
-        b = Number.parseInt(digits.slice(4, 6), 16);
-    } else {
-        r = vizNumber(attrs, "r");
-        g = vizNumber(attrs, "g");
-        b = vizNumber(attrs, "b");
-    }
-    const a = attrs.has("a") ? vizNumber(attrs, "a") : 1;
-    return [r / 255, g / 255, b / 255, a];
-}
-
 /** A head that starts with markup, after an optional byte-order mark and whitespace. */
 const XML_START = /^\uFEFF?\s*</;
 
@@ -2848,15 +3117,45 @@ function resolveGexfOptions(options: (GexfImportOptions & CommonImportOptions) |
 }
 
 /**
+ * The `gephiPreview` option, each value as text.
+ * @param options - the import options
+ * @returns the settings, or null when none are given
+ */
+function resolveGephiPreview(options: GexfImportOptions | undefined): Readonly<Record<string, string>> | null {
+    const preview = options?.gephiPreview;
+    if (preview === undefined) {
+        return null;
+    }
+    const bad = (found: unknown): never => {
+        throw new GraphFormatError("E_UNSUPPORTED", "option gephiPreview: not an object of Preview property values", {
+            option: "gephiPreview",
+            found,
+        });
+    };
+    if (typeof preview !== "object" || preview === null || Array.isArray(preview)) {
+        return bad(preview);
+    }
+    const out: Record<string, string> = {};
+    for (const [name, value] of Object.entries(preview)) {
+        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+            return bad(value);
+        }
+        out[name] = String(value);
+    }
+    return out;
+}
+
+/**
  * The GEXF importer.
  * @category Built-in formats
  */
 export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
     format: GEXF_FORMAT,
-    options: Object.freeze(["viz"]),
+    options: Object.freeze(["viz", "gephiPreview"]),
     extensions: Object.freeze([".gexf"]),
     mimeTypes: Object.freeze(["application/gexf+xml", "application/xml", "text/xml"]),
     sniff: sniffGexf,
+    styles: gexfStyles,
     /**
      * Read a GEXF document into the sink in one streaming pass.
      * @param input - the document as text, bytes, a stream or chunks
@@ -2891,11 +3190,17 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
                 report.fail(EMPTY_INPUT_CODE, "the input is empty (no markup at all)", { line: err.line });
             }
             if (err instanceof XmlSyntaxError) {
-                report.fail(XML_SYNTAX_CODE, err.message, { line: err.line });
+                report.fail(err instanceof XmlNestingError ? XML_NESTING_CODE : XML_SYNTAX_CODE, err.message, {
+                    line: err.line,
+                });
             }
             throw err;
         }
         reader.finish();
+        const preview = resolveGephiPreview(options);
+        if (preview !== null) {
+            report.keepForStyles({ block: reader.keptBlock, gephiPreview: preview });
+        }
         // an abort raised during the last few elements (after the last periodic check) still rejects
         throwIfAborted(resolved.signal);
         return report.finish();

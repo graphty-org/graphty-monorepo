@@ -38,7 +38,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture } from "./helpers";
+import { isUnderRunner, isVisualCapture } from "./helpers";
 
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
@@ -60,9 +60,6 @@ const CURVE_MIN_SAGITTA = 0.05;
 
 /** How far apart two colour channels may be and still count as the same colour. */
 const COLOUR_TOLERANCE = 24;
-
-/** How many frames to draw before reading the frame buffer, so the shaders have compiled. */
-const WARMUP_FRAMES = 40;
 
 /** What one node is actually drawn as. */
 interface DrawnNode {
@@ -269,7 +266,7 @@ function listed(offenders: readonly string[]): string {
 /**
  * Wait for something to become true, and fail with a sentence when it never does.
  * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` under a runner, which brings its own.
  * @param complaint - What to say when it never happened.
  */
 async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
@@ -282,10 +279,15 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 /**
  * Give a promise a deadline, so a queue that never drains fails with a sentence.
  * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` waits on the promise alone.
  * @param complaint - What to say when it never finished.
  */
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
+    if (!Number.isFinite(deadline)) {
+        await work;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
         timer = setTimeout(
@@ -520,7 +522,9 @@ function sagittaOf(points: readonly Vector3[]): number {
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
     const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
-    const deadline = Date.now() + SETTLE_BUDGET_MS;
+    // Under a runner (the Storybook test project, a visual capture) its own timeout is the only
+    // backstop: a wall-clock deadline here fails a stalled machine whose work still finishes.
+    const deadline = isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS;
 
     // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
@@ -550,7 +554,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // the render loop hands the new paint over on its next tick. So ask the element when the frame
     // on screen is the finished one, rather than guessing how long that takes. It throws, naming
     // what was still moving, if the picture has not come to rest by the deadline.
-    await graph.waitForStableFrame({ timeoutMs: Math.max(1, deadline - Date.now()) });
+    await graph.waitForStableFrame(Number.isFinite(deadline) ? { timeoutMs: Math.max(1, deadline - Date.now()) } : {});
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -999,12 +1003,19 @@ export async function assertShapeVariety(scene: Drawn, atLeast: number): Promise
     const geometries = new Set(scene.nodes.map((node) => node.geometryDigest));
     const meshes = new Set(scene.nodes.map((node) => node.geometryKey));
     const shapes = new Set(scene.nodes.map((node) => node.shape));
+    const byGeometry = new Map<string, DrawnNode[]>();
+    for (const node of scene.nodes) {
+        byGeometry.set(node.geometryDigest, [...(byGeometry.get(node.geometryDigest) ?? []), node]);
+    }
+    const shared = [...byGeometry.values()]
+        .filter((group) => group.length > 1)
+        .map((group) => group.map((node) => node.id).join(" = "));
 
     await holds(
         geometries.size >= atLeast,
         `${scene.story}: the story promises ${String(atLeast)} different node shapes and the scene draws ` +
             `${String(geometries.size)} distinct geometries -- spread over ${String(meshes.size)} source meshes ` +
-            `and ${String(shapes.size)} shape names -- ${listed([...shapes])}`,
+            `and ${String(shapes.size)} shape names; these nodes draw the same geometry: ${listed(shared)}`,
     );
 }
 
@@ -1257,7 +1268,11 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
 
     pictures.set(family, drawnHere);
 
-    const twin = [...drawnHere.entries()].find(([, existing]) => existing === digest)?.[0];
+    // A story drawn a second time (visual review renders a story again to confirm a changed
+    // picture, and once per mode) is not its own sibling: compare only with the other stories.
+    const twin = [...drawnHere.entries()].find(
+        ([story, existing]) => story !== scene.story && existing === digest,
+    )?.[0];
 
     await holds(
         twin === undefined,
@@ -1346,7 +1361,9 @@ export async function assertDistinctArrangement(scene: Drawn, family: string, mi
 
     arrangements.set(family, arrangedHere);
 
+    // A story arranged again (a confirming render, another mode) is not its own sibling.
     const offenders = [...arrangedHere.entries()]
+        .filter(([story]) => story !== scene.story)
         .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
         .filter(([, distance]) => distance < minimum);
 
@@ -1573,37 +1590,57 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
  * @returns How many pixels are within tolerance of it.
  */
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
+    const [found] = await pixelsOfColours(scene, [hex], tolerance);
+
+    return found;
+}
+
+/**
+ * How many pixels of each of several colours are on the canvas, from one render and one read.
+ * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per colour.
+ * @param scene - What the story drew.
+ * @param hexes - The colours to count, each as `#rrggbb`.
+ * @param tolerance - How far one channel may be from a colour and still count as it; see `pixelsOfColour`.
+ * @returns The count for each colour, in the order given.
+ */
+export async function pixelsOfColours(
+    scene: Drawn,
+    hexes: readonly string[],
+    tolerance: number = COLOUR_TOLERANCE,
+): Promise<number[]> {
     const { engine } = scene.graph;
 
-    for (let frame = 0; frame < WARMUP_FRAMES; frame++) {
-        scene.graph.scene.render();
-        await new Promise<void>((done) => {
-            setTimeout(done, 10);
-        });
-    }
+    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
+    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
+    // full-canvas renders per call, which a play function reading four colours paid 160 times over,
+    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    await scene.graph.scene.whenReadyAsync();
+    scene.graph.scene.render();
 
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
     const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
-    const want = [
-        Number.parseInt(hex.slice(1, 3), 16),
-        Number.parseInt(hex.slice(3, 5), 16),
-        Number.parseInt(hex.slice(5, 7), 16),
-    ];
 
-    let found = 0;
+    return hexes.map((hex) => {
+        const want = [
+            Number.parseInt(hex.slice(1, 3), 16),
+            Number.parseInt(hex.slice(3, 5), 16),
+            Number.parseInt(hex.slice(5, 7), 16),
+        ];
+        let found = 0;
 
-    for (let offset = 0; offset < pixels.length; offset += 4) {
-        if (
-            Math.abs(pixels[offset] - want[0]) <= tolerance &&
-            Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
-            Math.abs(pixels[offset + 2] - want[2]) <= tolerance
-        ) {
-            found++;
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+            if (
+                Math.abs(pixels[offset] - want[0]) <= tolerance &&
+                Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
+                Math.abs(pixels[offset + 2] - want[2]) <= tolerance
+            ) {
+                found++;
+            }
         }
-    }
 
-    return found;
+        return found;
+    });
 }
 
 /**
@@ -1745,6 +1782,53 @@ export async function assertLabelColour(scene: Drawn, hex: string, what: string)
         without.length === 0,
         `${scene.story}: ${String(without.length)} of ${String(labelled.length)} labels are drawn with no ` +
             `${what} anywhere near ${hex} -- ${listed(without)}`,
+    );
+}
+
+/**
+ * WCAG relative luminance of an sRGB colour given as 0..255 channels.
+ * @param rgb - Red, green and blue, 0 to 255.
+ * @returns The luminance, 0 (black) to 1 (white).
+ */
+function luminance(rgb: readonly number[]): number {
+    const [r, g, b] = rgb.map((value) => {
+        const c = value / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Every label on screen draws something that stands out against the canvas behind it.
+ *
+ * READ OFF THE LABEL'S OWN CANVAS AND THE SCENE'S CLEAR COLOUR. A label whose only colour is the
+ * canvas's own -- white letters with no outline or panel on a light canvas -- has ink, so
+ * `assertLabelsDrawn` passes it, and nobody can read it. Some drawn colour (the letters, their
+ * outline or the panel behind them) must reach `minimumContrast` against the background.
+ * @param scene - What the story drew.
+ * @param minimumContrast - The WCAG contrast ratio one drawn colour must reach; 3 is WCAG's floor
+ * for large text and graphics.
+ */
+export async function assertLabelsReadable(scene: Drawn, minimumContrast = 3): Promise<void> {
+    const clear = scene.graph.scene.clearColor;
+    const background = luminance([clear.r, clear.g, clear.b].map((value) => Math.round(value * 255)));
+    const contrast = (hex: string): number => {
+        const lum = luminance([1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)));
+        return (Math.max(lum, background) + 0.05) / (Math.min(lum, background) + 0.05);
+    };
+
+    const labelled = scene.nodes.filter((node) => node.hasLabelMesh);
+
+    await holds(labelled.length > 0, `${scene.story}: no node is drawing a label, so there is nothing to read`);
+
+    const unreadable = labelled
+        .filter((node) => !node.labelColours.some((hex) => contrast(hex) >= minimumContrast))
+        .map((node) => `${node.id} drew [${node.labelColours.join(", ")}]`);
+
+    await holds(
+        unreadable.length === 0,
+        `${scene.story}: ${String(unreadable.length)} of ${String(labelled.length)} labels draw nothing that ` +
+            `reaches ${String(minimumContrast)}:1 against the canvas they sit on -- ${listed(unreadable)}`,
     );
 }
 
@@ -1912,7 +1996,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
-    await scene.graph.waitForStableFrame({ timeoutMs: SETTLE_BUDGET_MS });
+    await scene.graph.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: SETTLE_BUDGET_MS });
 
     const selected = [...scene.session.selection.nodes].map(String);
 

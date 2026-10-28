@@ -1592,8 +1592,7 @@
             "target": 2914
           }
         ]
-      },
-      "knownFailure": "pid naming a missing node is an error, not a warning (sources.md 1.4 Hierarchy)"
+      }
     },
     {
       "file": "gephi-datasets/photoviz-dynamic.gexf",
@@ -2314,15 +2313,14 @@
             "target": 2
           }
         ]
-      },
-      "knownFailure": "GEXF 1.0 attvalue id= not accepted as for= (sources.md 1.4 Root and versions)"
+      }
     },
     {
       "file": "authored/rgba-hex-1.3.gexf",
       "origin": "authored for this suite",
       "license": "MIT",
       "version": "2026-09-23",
-      "exercises": "1.3 viz colour: 8-digit #RRGGBBAA hex, and hex next to r/g/b",
+      "exercises": "1.3 viz colour: 8-digit #RRGGBBAA hex (too big for Java's Integer.decode, so Gephi 0.11.3 reads no color: skipped with a warning), and hex next to r/g/b (hex wins, as Gephi draws it)",
       "oracle": "gexf-structure",
       "expected": {
         "outcome": "pass",
@@ -2334,20 +2332,22 @@
           "b"
         ],
         "edgeChecks": [],
+        "warnings": [
+          "W_GEXF_VIZ_VALUE"
+        ],
         "nodeAttrs": [
           {
-            "id": "a",
+            "id": "b",
             "role": "color",
             "value": [
+              0,
+              0,
               1,
-              0,
-              0,
-              0.5019607843137255
+              1
             ]
           }
         ]
-      },
-      "knownFailure": "8-digit #RRGGBBAA viz colour rejected (sources.md 1.4 viz)"
+      }
     },
     {
       "file": "authored/slices-1.1.gexf",

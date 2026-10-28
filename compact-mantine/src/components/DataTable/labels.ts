@@ -25,6 +25,7 @@ export type DataTableLabels = Pick<
     | "clearSearch"
     | "columnMenu"
     | "dataTable"
+    | "emptyCell"
     | "no"
     | "noMatchingRows"
     | "noRows"
@@ -32,6 +33,7 @@ export type DataTableLabels = Pick<
     | "rowsShown"
     | "search"
     | "searchPlaceholder"
+    | "sortedBy"
     | "yes"
 >;
 

@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the contiguousUsa dataset is, where it came from and under which terms. */
 export const contiguousUsaMeta: DatasetMeta = {
@@ -28,4 +29,6 @@ export const contiguousUsaMeta: DatasetMeta = {
         "BFS layers and eccentricity from one state",
         "geographic layout from latitude and longitude",
     ],
+    hosting: "remote",
+    ...PACKED["contiguous-usa"],
 };

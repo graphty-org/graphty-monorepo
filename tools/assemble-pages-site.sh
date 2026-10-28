@@ -17,9 +17,12 @@
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
 #   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
+#   graph-io/fidelity-stories/storybook-static -> /storybook/graph-io-fidelity/  (style fidelity side by side)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
+#   graph-samples/public-data/gazetteer/v1 -> /data/gazetteer/v1/   (only if built; the location map's place
+#                                       names, written by graphty-element/scripts/build-gazetteer.mjs)
 #
 # GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
 # index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
@@ -59,10 +62,14 @@ copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
 copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
+copy graph-io/fidelity-stories/storybook-static storybook/graph-io-fidelity
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then
     copy graph-samples/public-data/v1 data/graph-samples/v1
+fi
+if [ -d graph-samples/public-data/gazetteer/v1 ]; then
+    copy graph-samples/public-data/gazetteer/v1 data/gazetteer/v1
 fi
 
 # graphty-element's Storybook was published at /storybook/element/ before /storybook/graphty-element/
@@ -95,10 +102,15 @@ cat > "$OUT/storybook/index.html" << 'EOF'
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Graphty Storybooks</title>
+  <title>graphty Storybooks</title>
+  <link rel="icon" href="/docs/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/docs/favicon.svg" type="image/svg+xml">
   <style>
     body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
-    h1 { color: #333; }
+    body { background: #ffffff; }
+    h1 { color: #333; margin: 0; }
+    h1 img { display: block; }
+    .subtitle { color: #333; font-size: 1.5rem; margin: 1rem 0 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 1rem 0; }
     a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
@@ -107,7 +119,8 @@ cat > "$OUT/storybook/index.html" << 'EOF'
   </style>
 </head>
 <body>
-  <h1>Graphty Storybooks</h1>
+  <h1><img src="/docs/brand/graphty-lockup-color-on-light.svg" alt="graphty" height="48"></h1>
+  <p class="subtitle">Storybooks</p>
   <ul>
     <li>
       <a href="/storybook/graphty-element/">graphty-element</a>

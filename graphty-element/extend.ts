@@ -47,6 +47,9 @@
 
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
+// The experiments every element and session on the page switches on unless it names its own.
+export { setDefaultFeatures } from "./src/features/resolve";
+
 // ---------------------------------------------------------------------------------------------
 // Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
@@ -110,7 +113,7 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
-export type { FormatDescriptor, FormatId } from "./src/catalog/types";
+export type { FormatDescriptor, FormatExportVariant, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
 export type {
@@ -155,7 +158,14 @@ export { ImportError } from "@graphty/graph-io";
  */
 export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportScope,
+    ExportStyleLossCode,
+} from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------
@@ -179,6 +189,7 @@ export type {
     DrawingMode,
     GraphBounds,
     Vec3,
+    ViewInsets,
 } from "./src/camera/types";
 export {
     clearRegisteredCamerasForTesting,
@@ -223,7 +234,7 @@ export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
-export type { Edge } from "./src/Edge";
+export type { Edge, EdgeCapEnd } from "./src/Edge";
 export type {
     EdgePosition,
     LayoutEngineStatics,
@@ -239,6 +250,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
@@ -303,7 +315,7 @@ export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
 export type { CaveatCode, PartialCode } from "./src/session/runs/caveatFacts";
-export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning, WeightSkip } from "./src/session/runs/types";
 
 /*
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
@@ -429,8 +441,13 @@ export { assistantReach } from "./src/ai/tools/reach";
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
 export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
+export * from "./src/session/sources/public";
 
 // ---------------------------------------------------------------------------------------------
 // Acceleration: internal, and not one of the six. A factory, registered by name, called with the
@@ -452,3 +469,17 @@ export {
     DEFAULT_ACCELERATOR_PRECISION,
     registerAccelerator,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Autosave storage: the contract a custom autosave backend implements, and an in-memory one.
+// ---------------------------------------------------------------------------------------------
+
+export { memoryAutosaveStore } from "./src/autosave/memoryStore";
+export type {
+    AutosaveCommitOptions,
+    AutosaveEntryMeta,
+    AutosaveParts,
+    AutosaveStore,
+    AutosaveWrite,
+} from "./src/autosave/types";
+export { AutosaveConflict, isAutosaveConflict } from "./src/autosave/types";

@@ -1,0 +1,31 @@
+{
+    "sample": "xgmml-specimen-images-charts",
+    "file": "graph-io/test/fidelity/specimens/xgmml/specimen-images-charts.xgmml.gz",
+    "sha256": "21cc9a7f1b5c1726e436ab50c4861bd4d9005a2579d7dd351ffb37d19ccbd148",
+    "program": "Cytoscape desktop",
+    "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
+    "route": "cytoscape-desktop",
+    "command": "session new; network load file file=<file>; view set current (the largest view); hide the WEST, SOUTH and EAST panels; resize the main window until the view is 1200 x 900; view fit content; GET /v1/networks/{net}/views/{view}.svg",
+    "loaded": "the file decompressed under its own name without .gz",
+    "standIn": false,
+    "network": {
+        "title": "specimen-images-charts",
+        "nodes": 58,
+        "views": 1,
+        "chosen": "the view with the most nodes",
+        "style": "default"
+    },
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900,
+        "zoom": 1.0085763293310464,
+        "center": [600, 450],
+        "background": "#FFFFFF"
+    },
+    "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
+    "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
+    "exportsAgreed": 3,
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
+    "date": "2026-10-18",
+    "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs xgmml-specimen-images-charts && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/xgmml-specimen-images-charts.svg"
+}

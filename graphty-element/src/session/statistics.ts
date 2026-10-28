@@ -243,7 +243,10 @@ export function sampledTransitivity(snapshot: GraphSnapshot): number {
     }
 
     let state = 12345;
-    const draw = (): number => (state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32;
+    const draw = (): number => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 2 ** 32;
+    };
     let closed = 0;
     for (let sample = 0; sample < WEDGE_SAMPLES; sample++) {
         const target = draw() * wedges;
@@ -370,6 +373,12 @@ export function computeStatistics(
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
         degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),
+        ...(snapshot.directed
+            ? {
+                  inDegreeHistogram: buildHistogram(arrayColumn(snapshot.inDegree()), { integerValued: true }),
+                  outDegreeHistogram: buildHistogram(arrayColumn(snapshot.outDegree()), { integerValued: true }),
+              }
+            : {}),
         transitivity: sampledTransitivity(snapshot),
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);

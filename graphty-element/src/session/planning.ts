@@ -16,32 +16,63 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope, SetId } from "../catalog/types";
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { planar } from "@graphty/layout";
+
+import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
+import type {
+    AlgorithmDescriptor,
+    AlgorithmKey,
+    CostClass,
+    FieldDescriptor,
+    FilterStep,
+    RunId,
+    Scope,
+    SetId,
+} from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
-import type { AlgoLegacyCommand, AlgoRemoveCommand } from "./commands/algo";
+import { GraphtyError } from "../errors/GraphtyError";
+import { bestRole, cachedGazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import {
+    chosenLocation,
+    type ColumnValues,
+    isLocationRefusal,
+    listLocation,
+    type LocationDesignation,
+    resolveLocation,
+} from "../layout/locationMap/source";
+import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
-import type { LayoutCommand } from "./commands/layout";
+import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
 import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
+import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
+    ASSUMED_ITERATION_BOUND,
     type CostEstimate,
     type CostGateLimits,
     type CostInput,
     type CostMeasurement,
+    DEFAULT_COST_RATES,
     estimateCost,
+    type EstimateRefusal,
     gateRun,
     type MachineCalibration,
+    refused,
     type ScopeCandidate,
 } from "./cost";
+import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
-import type { GraphStatistics } from "./types";
+import type { GraphStatistics, LocationColumns } from "./types";
+import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
 // The command
@@ -77,6 +108,12 @@ export interface AlgorithmRunCommand {
      * one undo takes the run and those layers away together.
      */
     readonly applySuggestedStyles?: boolean;
+    /**
+     * Put back the layers the run added on its first completion that the stack no longer holds,
+     * in the same step as the run. See `StartOptions.restoreLayer`.
+     * @since 3.26.0
+     */
+    readonly restoreLayer?: boolean;
 }
 
 /**
@@ -88,7 +125,10 @@ export type SessionCommand =
     | AlgorithmRunCommand
     | AlgoLegacyCommand
     | AlgoRemoveCommand
+    | AlgoMoveCommand
     | DataCommand
+    | DataIssuesCommand
+    | SourceExpandOpCommand
     | StyleCommand
     | VisibilityCommand
     | SetCommand
@@ -180,6 +220,18 @@ export type PlanEffect =
           readonly bytes: number;
       }
     | {
+          /**
+           * What a filter-steps change would leave visible: `start` before the first step (the
+           * filter and the time window alone), then one entry per step that is on, in order, with
+           * the nodes and edges left after it.
+           */
+          readonly kind: "steps";
+          /** What is left before any step. */
+          readonly start: { readonly nodes: number; readonly edges: number };
+          /** What is left after each step that is on. */
+          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+      }
+    | {
           /** Nothing to preview. */
           readonly kind: "none";
       };
@@ -249,6 +301,25 @@ export interface PlanningContext {
      * @returns Each set's id and name.
      */
     readonly keptSets?: () => readonly { readonly id: SetId; readonly name: string }[];
+    /**
+     * The session's input tick: it moves whenever anything a layout's availability reads changes,
+     * so a layout estimate is kept until it does.
+     */
+    readonly inputTick?: () => number;
+    /** The graph as it stands, for the checks a layout's availability needs. */
+    readonly snapshot?: () => GraphSnapshot;
+    /** The values a layout's `groupBy` names, by row of the snapshot, or null when no node carries it. */
+    readonly nodeValues?: (path: string) => readonly unknown[] | null;
+    /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
+    readonly runOf?: (path: string) => string | undefined;
+    /** Every node attribute's name, for a layout that looks for its input among them. */
+    readonly nodeAttributes?: () => readonly string[];
+    /** The location designated in `data.knownFields`, which the location map reads unless told otherwise. */
+    readonly locationDesignation?: () => LocationDesignation;
+    /** What a filter-steps list would leave visible, step by step. */
+    readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
+    /** The weight the graph was loaded with, for the weight a run would read. */
+    readonly loadedWeight?: () => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -293,13 +364,13 @@ const DERIVATION_PER_KEPT_EDGE_SECONDS = 1.7e-7;
  * @param context - What planning reads.
  * @param command - The command.
  * @param descriptor - The algorithm's catalogue entry, when it has one.
- * @returns The inputs, or the reason the scope could not be resolved.
+ * @returns The inputs, or why the scope could not be resolved.
  */
 function costInput(
     context: PlanningContext,
     command: AlgorithmRunCommand,
     descriptor: AlgorithmDescriptor | undefined,
-): { input: CostInput } | { unresolvableScope: string } {
+): { input: CostInput } | { unresolvableScope: EstimateRefusal } {
     const statistics = context.statistics();
     const spec = command.scope ?? context.defaultScope;
     let scope: ResolvedScope;
@@ -307,7 +378,15 @@ function costInput(
     try {
         scope = context.resolveScope(spec);
     } catch (error) {
-        return { unresolvableScope: error instanceof Error ? error.message : String(error) };
+        return {
+            unresolvableScope: refused(
+                error instanceof Error ? error.message : String(error),
+                "estimate.scope-unresolved",
+                {
+                    error: error instanceof GraphtyError ? error.code : null,
+                },
+            ),
+        };
     }
 
     const calibration = context.calibration?.();
@@ -344,10 +423,14 @@ function costInput(
  * Why a command other than an algorithm run has no estimate: only runs are costed.
  * @param command - The command.
  * @param command.op - Its op.
- * @returns The reason.
+ * @returns The refusal.
  */
-function notEstimated(command: { readonly op: string }): string {
-    return `"${command.op}" is not costed: only an algorithm run has an estimate.`;
+function notEstimated(command: { readonly op: string }): EstimateRefusal {
+    return refused(
+        `"${command.op}" is not costed: only an algorithm run and a layout choice have an estimate.`,
+        "estimate.not-costed",
+        { op: command.op },
+    );
 }
 
 /**
@@ -388,10 +471,15 @@ export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
  * Unavailable rather than computed over the whole graph: a number produced for a scope the run
  * would refuse is a confident answer to a question nobody asked, and it would gate a button on it.
  * @param descriptor - The algorithm's catalogue entry, when it has one.
- * @param reason - Why the scope could not be resolved.
+ * @param refusal - Why the scope could not be resolved.
+ * @param refusal.reason - The sentence, for the deprecated `reason`.
+ * @param refusal.refusal - The coded fact.
  * @returns The estimate.
  */
-function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, reason: string): CostEstimate {
+function unavailableEstimate(
+    descriptor: AlgorithmDescriptor | undefined,
+    { reason, refusal }: EstimateRefusal,
+): CostEstimate {
     return Object.freeze({
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
@@ -400,6 +488,7 @@ function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, reason
         cancellable: false,
         available: false,
         reason,
+        refusal,
         basis: reason,
     });
 }
@@ -411,6 +500,10 @@ function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, reason
  * @returns The estimate.
  */
 export function estimateCommand(context: PlanningContext, command: SessionCommand): CostEstimate {
+    if (command.op === "layout.set") {
+        return estimateLayout(context, command);
+    }
+
     if (command.op !== "algo.run") {
         return unavailableEstimate(undefined, notEstimated(command));
     }
@@ -440,6 +533,14 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  * @returns The plan.
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
+    if (command.op === "layout.set") {
+        return planLayout(context, command);
+    }
+
+    if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
+        return planVisibilitySteps(context, command, command.steps, context.previewSteps);
+    }
+
     if (command.op !== "algo.run") {
         return Object.freeze({
             ok: true,
@@ -449,16 +550,138 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         });
     }
 
+    return planAlgorithmRun(context, command);
+}
+
+/**
+ * The plan of a layout change: its estimate, blocked when the layout cannot run.
+ * @param context - What planning reads.
+ * @param command - The layout command.
+ * @returns The plan.
+ */
+function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
+    const cost = estimateLayout(context, command);
+    return Object.freeze({
+        ok: cost.available,
+        ...(cost.available
+            ? {}
+            : {
+                  blocked: Object.freeze({
+                      code: "E_OPTION_RANGE",
+                      // An unavailable layout's basis is its refusal sentence.
+                      reason: cost.basis,
+                  }),
+              }),
+        cost,
+        effect: Object.freeze({ kind: "none" as const }),
+        caveats: context.defaultCaveats,
+    });
+}
+
+/**
+ * The plan of a filter-steps command: the counts each step would leave, or why it cannot run.
+ * @param context - What planning reads.
+ * @param command - The command.
+ * @param steps - The command's steps.
+ * @param previewSteps - Counts what the steps would leave.
+ * @returns The plan.
+ */
+function planVisibilitySteps(
+    context: PlanningContext,
+    command: SessionCommand,
+    steps: readonly FilterStep[],
+    previewSteps: (steps: readonly FilterStep[]) => StepCounts,
+): Plan {
+    const cost = unavailableEstimate(undefined, notEstimated(command));
+    try {
+        const counts = previewSteps(steps);
+        return Object.freeze({
+            ok: true,
+            cost,
+            effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+            caveats: context.defaultCaveats,
+        });
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return Object.freeze({
+            ok: false,
+            blocked: Object.freeze({ code: error.code, reason: error.message }),
+            cost,
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+}
+
+/**
+ * The caveats a run starts from: the defaults plus the weight the run would read, by the same
+ * rule the run reads it with.
+ * @param context - What planning reads.
+ * @param command - The run command.
+ * @param descriptor - The algorithm's descriptor, when it is registered.
+ * @returns The caveats, or the refused plan when the weight cannot be read.
+ */
+function weighedCaveats(
+    context: PlanningContext,
+    command: AlgorithmRunCommand,
+    descriptor: AlgorithmDescriptor | undefined,
+): { caveats: Caveats } | { refused: Plan } {
+    try {
+        const reading = resolveRunWeight(
+            descriptor?.weightMeaning ?? null,
+            command.params?.weight,
+            context.loadedWeight?.() ?? null,
+        );
+        return {
+            caveats: Object.freeze({
+                ...context.defaultCaveats,
+                weight: reading.weight,
+                ...(reading.skipped === undefined ? {} : { weightSkipped: reading.skipped }),
+            }),
+        };
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return {
+            refused: Object.freeze({
+                ok: false,
+                blocked: Object.freeze({ code: error.code, reason: error.message }),
+                cost: estimateCommand(context, command),
+                effect: Object.freeze({ kind: "none" as const }),
+                caveats: context.defaultCaveats,
+            }),
+        };
+    }
+}
+
+/**
+ * The plan of an algorithm run: what the gate would decide, and what the run would write.
+ * @param context - What planning reads.
+ * @param command - The run command.
+ * @returns The plan.
+ */
+function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand): Plan {
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
+    const weight = weighedCaveats(context, command, descriptor);
+    if ("refused" in weight) {
+        return weight.refused;
+    }
+
+    const weighed = weight.caveats;
     const built = costInput(context, command, descriptor);
 
     if ("unresolvableScope" in built) {
         return Object.freeze({
             ok: false,
-            blocked: Object.freeze({ code: "E_UNSUPPORTED", reason: built.unresolvableScope }),
+            blocked: Object.freeze({ code: "E_UNSUPPORTED", reason: built.unresolvableScope.reason }),
             cost: unavailableEstimate(descriptor, built.unresolvableScope),
             effect: Object.freeze({ kind: "none" as const }),
-            caveats: context.defaultCaveats,
+            caveats: weighed,
         });
     }
 
@@ -479,7 +702,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             blocked: Object.freeze({ code: decision.error.code, reason: decision.error.message }),
             cost: estimateCommand(context, command),
             effect,
-            caveats: context.defaultCaveats,
+            caveats: weighed,
         });
     }
 
@@ -489,7 +712,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             cost: decision.estimate,
             effect,
             caveats: Object.freeze({
-                ...context.defaultCaveats,
+                ...weighed,
                 method: descriptor?.technicalName ?? context.defaultCaveats.method,
                 ...(command.seed === undefined ? {} : { seed: command.seed }),
             }),
@@ -501,12 +724,449 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         cost: decision.estimate,
         effect,
         caveats: Object.freeze({
-            ...context.defaultCaveats,
+            ...weighed,
             exact: false,
             sampleSize: decision.sampleSize,
             seed: decision.seeded ? (command.seed ?? null) : null,
             method: decision.method,
             ...noted(decision.facts),
         }),
+    });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Layouts
+// ---------------------------------------------------------------------------------------------
+
+/** What a layout estimate keeps until the input tick moves: the answers, and the planarity test. */
+interface LayoutEstimates {
+    readonly tick: number;
+    readonly answers: Map<string, CostEstimate>;
+    /** Why the graph is not planar, null when it is; absent until a planar estimate asks. */
+    notPlanar?: EstimateRefusal | null;
+}
+
+/** One cache per planning context: a picker estimates every layout, and the graph is read once. */
+const layoutEstimates = new WeakMap<PlanningContext, LayoutEstimates>();
+
+/**
+ * The cost class an engine's work falls in. A live engine iterates; Kamada-Kawai and spectral
+ * solve over every pair or a dense matrix; ARF pulls every pair once per iteration; the rest place
+ * each node once.
+ * @param engine - The registered engine name.
+ * @param kind - Whether the engine runs live or in one batch.
+ * @returns The class.
+ */
+function layoutCostClass(engine: string, kind: "live" | "batch"): CostClass {
+    if (engine === "kamada-kawai" || engine === "spectral") {
+        return "cubic";
+    }
+
+    if (engine === "arf") {
+        return "heavy";
+    }
+
+    return kind === "live" ? "iterative" : "instant";
+}
+
+/**
+ * Whether a layout option names a node, and if it does, the refusal when the graph does not hold it.
+ * @param graph - The graph as it stands.
+ * @param layout - The layout id, for the sentence.
+ * @param option - The option's name.
+ * @param value - Its value.
+ * @returns The refusal, or undefined when the node is there.
+ */
+function missingNode(
+    graph: GraphSnapshot,
+    layout: string,
+    option: string,
+    value: unknown,
+): EstimateRefusal | undefined {
+    if (typeof value !== "string" && typeof value !== "number") {
+        return refused(`the layout "${layout}" needs ${option}: the node to start from`, "layout.needs-node", {
+            layout,
+            option,
+        });
+    }
+
+    return graph.ids.indexOf(value) === INVALID_INDEX
+        ? refused(
+              `the layout "${layout}" starts from node "${String(value)}", which the graph does not hold`,
+              "layout.node-missing",
+              { layout, option, node: value },
+          )
+        : undefined;
+}
+
+/** The raw grouping option each grouping engine accepted before `groupBy`. */
+const RAW_GROUPING: Readonly<Record<string, string>> = {
+    shell: "nlist",
+    multipartite: "subsetKey",
+    bipartite: "nodes",
+};
+
+/**
+ * Why a layout cannot run on the graph as it stands, using the same rules its engine refuses by.
+ * @param context - What planning reads.
+ * @param cache - This tick's cache, which holds the planarity test.
+ * @param id - The layout id.
+ * @param engine - The engine that would draw it.
+ * @param options - The options it would run with.
+ * @returns The refusal, or undefined when it can run.
+ */
+function layoutRefusal(
+    context: PlanningContext,
+    cache: LayoutEstimates | undefined,
+    id: string,
+    engine: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
+    const graph = context.snapshot?.();
+    if (graph === undefined) {
+        return undefined;
+    }
+
+    if (engine === "planar") {
+        return planarRefusal(graph, cache, id);
+    }
+
+    if (engine === "location-map") {
+        return locationRefusal(context, id, options);
+    }
+
+    if (engine === "bfs") {
+        return missingNode(graph, id, "start", options.start);
+    }
+
+    // Radial centres on the best-connected node when no root is named, so only a named one can be missing.
+    if (engine === "radial" && options.root !== undefined && options.root !== null) {
+        return missingNode(graph, id, "root", options.root);
+    }
+
+    const raw = RAW_GROUPING[engine];
+    if (raw === undefined) {
+        return undefined;
+    }
+
+    return groupingRefusal(context, id, engine, raw, options);
+}
+
+/**
+ * Every node attribute with its values, for finding the location.
+ * @param context - What planning reads.
+ * @returns The columns.
+ */
+function nodeColumns(context: PlanningContext): ColumnValues[] {
+    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+}
+
+/**
+ * The columns the location map layout reads when its own options name none: the designated ones,
+ * else the ones it finds by name or by their values.
+ * @param context - What planning reads.
+ * @returns The columns and where they come from.
+ */
+export function locationColumns(context: PlanningContext): LocationColumns {
+    const none = { location: null, latitude: null, longitude: null };
+    const designation = context.locationDesignation?.();
+    const choice = chosenLocation(none, designation);
+    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const places = cachedGazetteer();
+    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const listing = listLocation(designation, answer, (source) =>
+        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+    );
+    const { using } = listing;
+    const listed = {
+        kinds: listing.kinds,
+        using,
+        unused: Object.freeze(
+            using === null
+                ? []
+                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
+        ),
+    };
+    if (isLocationRefusal(answer)) {
+        const { location, latitude, longitude } = choice;
+        return Object.freeze({
+            from: designated ? "designated" : "none",
+            ...(designated ? { location, latitude, longitude } : none),
+            role: null,
+            within: null,
+            ...listed,
+        });
+    }
+
+    const { source } = answer;
+    if (source.kind === "place") {
+        const role = source.role === "auto" ? (bestRole(source.values, places) ?? "auto") : source.role;
+        return Object.freeze({
+            from: designated ? "designated" : "detected",
+            ...none,
+            location: source.column,
+            role,
+            within: source.within !== null && "column" in source.within ? source.within.column : null,
+            ...listed,
+        });
+    }
+
+    return Object.freeze({
+        from: designated ? "designated" : "detected",
+        ...(source.kind === "location"
+            ? { ...none, location: source.column }
+            : { ...none, latitude: source.latitude, longitude: source.longitude }),
+        role: "coords",
+        within: null,
+        ...listed,
+    });
+}
+
+/**
+ * Whether the location map layout refuses this graph: no column it can read locations from, or
+ * half a latitude and longitude pair it cannot complete. The same answer the layout's own run
+ * reaches, from the same resolver.
+ * @param context - What planning reads.
+ * @param id - The layout's id.
+ * @param options - The layout's options.
+ * @returns The refusal, or undefined.
+ */
+function locationRefusal(
+    context: PlanningContext,
+    id: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
+    const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
+    const option = (name: string): string | null =>
+        typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
+    const gazetteerUrl = typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL;
+    const answer = resolveLocation(
+        chosenLocation(
+            { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
+            context.locationDesignation?.(),
+        ),
+        nodeColumns(context),
+        read,
+        options.gazetteer === false ? false : cachedGazetteer(gazetteerUrl),
+    );
+    return isLocationRefusal(answer)
+        ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {
+              layout: id,
+              ...answer.params,
+          })
+        : undefined;
+}
+
+/**
+ * Whether the planar layout refuses this graph, kept in the estimates for the tick.
+ * @param graph - The graph.
+ * @param cache - The estimates kept for this tick, if any.
+ * @param id - The layout's id.
+ * @returns The refusal, or undefined when the graph is planar.
+ */
+function planarRefusal(
+    graph: GraphSnapshot,
+    cache: LayoutEstimates | undefined,
+    id: string,
+): EstimateRefusal | undefined {
+    let notPlanar = cache?.notPlanar;
+    if (notPlanar === undefined) {
+        try {
+            planar(graph);
+            notPlanar = null;
+        } catch (error) {
+            const why = error instanceof Error ? error.message : String(error);
+            notPlanar = refused(
+                `the layout "${id}" cannot draw this graph without crossings: ${why}`,
+                "layout.not-planar",
+                { layout: id },
+            );
+        }
+
+        if (cache !== undefined) {
+            cache.notPlanar = notPlanar;
+        }
+    }
+
+    return notPlanar ?? undefined;
+}
+
+/**
+ * Whether a grouping layout refuses its options: no groupBy, an attribute no node carries, or a
+ * bipartite layout without exactly two groups.
+ * @param context - What planning reads.
+ * @param id - The layout's id.
+ * @param engine - Its engine.
+ * @param raw - The engine's own grouping option, read when groupBy is not set.
+ * @param options - The layout's options.
+ * @returns The refusal, or undefined.
+ */
+function groupingRefusal(
+    context: PlanningContext,
+    id: string,
+    engine: string,
+    raw: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
+    const { groupBy } = options;
+    if (typeof groupBy !== "string" || groupBy === "") {
+        return options[raw] === undefined || options[raw] === null
+            ? refused(
+                  `the layout "${id}" needs groupBy: the attribute whose values name each node's group`,
+                  "layout.needs-grouping",
+                  { layout: id, option: "groupBy" },
+              )
+            : undefined;
+    }
+
+    const grouping = { layout: id, option: "groupBy", attribute: groupBy, run: context.runOf?.(groupBy) ?? null };
+
+    const groups = new Set(
+        (context.nodeValues?.(groupBy) ?? []).filter((value) => value !== undefined && value !== null),
+    );
+    if (groups.size === 0) {
+        return refused(
+            `the layout "${id}" groups nodes by "${groupBy}", which no node carries`,
+            "layout.grouping-absent",
+            grouping,
+        );
+    }
+
+    return engine === "bipartite" && groups.size !== 2
+        ? refused(
+              `the layout "${id}" needs exactly two groups, and "${groupBy}" names ${String(groups.size)}`,
+              "layout.needs-two-groups",
+              { ...grouping, groups: groups.size },
+          )
+        : undefined;
+}
+
+/**
+ * What choosing a layout would cost, and whether it can run on the graph as it stands. Kept per
+ * layout and options until the session's input tick moves, so a picker that estimates every
+ * layout reads the graph once per change to it.
+ * @param context - What planning reads.
+ * @param command - The layout choice.
+ * @returns The estimate.
+ */
+function estimateLayout(context: PlanningContext, command: LayoutSetCommand): CostEstimate {
+    // Freeze the graph first: a pending freeze moves the tick, and reading it before would key the
+    // answer to a tick that is already gone.
+    context.snapshot?.();
+    const tick = context.inputTick?.();
+    let cache = tick === undefined ? undefined : layoutEstimates.get(context);
+    if (tick !== undefined && cache?.tick !== tick) {
+        cache = { tick, answers: new Map() };
+        layoutEstimates.set(context, cache);
+    }
+
+    // ponytail: key order inside `options` splits the cache; harmless, it only costs a recompute.
+    const key = JSON.stringify([
+        command.id,
+        command.engine ?? null,
+        command.options ?? {},
+        context.acceleratorAvailable(),
+    ]);
+    const kept = cache?.answers.get(key);
+    if (kept !== undefined) {
+        return kept;
+    }
+
+    const answer = layoutEstimateNow(context, cache, command);
+    cache?.answers.set(key, answer);
+    return answer;
+}
+
+/**
+ * The layout estimate itself, uncached. Resolves the id the way `layout.set` does: a deprecated
+ * name is its layout and engine, and an engine name is the layout it serves.
+ * @param context - What planning reads.
+ * @param cache - This tick's cache, for the planarity test.
+ * @param command - The layout choice.
+ * @returns The estimate.
+ */
+function layoutEstimateNow(
+    context: PlanningContext,
+    cache: LayoutEstimates | undefined,
+    command: LayoutSetCommand,
+): CostEstimate {
+    const alias = layoutAlias(command.id);
+    const known = layoutDescriptor(alias?.id ?? command.id);
+    const id = alias?.id ?? (known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id);
+    const descriptor = known ?? layoutDescriptor(id);
+    const defaultEngine = alias?.engine ?? known?.engine ?? command.id;
+    const engine = command.engine !== undefined && command.engine !== command.id ? command.engine : defaultEngine;
+
+    if (descriptor === undefined) {
+        return unavailableLayout(
+            "unbounded",
+            refused(`no layout is named "${command.id}"`, "layout.unknown", { layout: command.id }),
+        );
+    }
+
+    const implementation = layoutEntry(id)?.implementations.find((candidate) => candidate.engine === engine);
+    const kind = implementation?.kind ?? descriptor.kind;
+    const costClass = layoutCostClass(engine, kind);
+    if (implementation?.requires?.accelerator === true && !context.acceleratorAvailable()) {
+        return unavailableLayout(
+            costClass,
+            refused(`the engine "${engine}" needs an accelerator, and none is attached`, "layout.needs-accelerator", {
+                layout: id,
+                engine,
+            }),
+        );
+    }
+
+    const options = command.options ?? {};
+    const refusal = layoutRefusal(context, cache, id, engine, options);
+    if (refusal !== undefined) {
+        return unavailableLayout(costClass, refusal);
+    }
+
+    const { nodeCount: n, edgeCount: e } = context.statistics();
+    const rates = context.calibration?.()?.rates ?? DEFAULT_COST_RATES;
+    const declared = Number(options.maxIter ?? options.iterations);
+    const iterations = Number.isFinite(declared) && declared > 0 ? declared : ASSUMED_ITERATION_BOUND;
+    // ponytail: rates borrowed from the algorithm model; time a layout run and fit its own when the
+    // seconds start gating anything finer than "fast or slow".
+    const seconds = {
+        instant: (n + e) / rates.linearElementsPerSecond,
+        iterative: (iterations * (n + e)) / rates.iterativeElementsPerSecond,
+        heavy: (iterations * n * n) / rates.heavyPairsPerSecond,
+        cubic: (n * n * n) / rates.cubicOperationsPerSecond,
+        unbounded: Number.POSITIVE_INFINITY,
+    }[costClass];
+
+    return Object.freeze({
+        seconds,
+        confidence: "modelled",
+        costClass,
+        // A live layout steps once a frame; a batch one computes in one go.
+        blocksFrame: kind === "batch" && seconds > 1 / 60,
+        cancellable: true,
+        available: true,
+        basis: `${costClass} layout "${id}" drawn by "${engine}" over n=${String(n)}, m=${String(e)}`,
+    });
+}
+
+/**
+ * The estimate a layout gets when it cannot run.
+ * @param costClass - The class its engine falls in.
+ * @param refusal - Why it cannot.
+ * @param refusal.reason - The sentence, for the deprecated `reason`.
+ * @param refusal.refusal - The coded fact.
+ * @returns The estimate.
+ */
+function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRefusal): CostEstimate {
+    return Object.freeze({
+        seconds: Number.POSITIVE_INFINITY,
+        confidence: "unknown",
+        costClass,
+        blocksFrame: false,
+        cancellable: false,
+        available: false,
+        reason,
+        refusal,
+        basis: reason,
     });
 }

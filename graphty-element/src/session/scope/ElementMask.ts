@@ -493,6 +493,22 @@ export class ElementMask<TId> {
     }
 
     /**
+     * Visit the index of every member, in ascending order: an indexed read of the bytes that
+     * stops at the last member, and one call per member.
+     * @param visit - Called with each member's dense index.
+     */
+    forEachMember(visit: (index: number) => void): void {
+        let left = this.members;
+
+        for (let index = 0; left > 0 && index < this.rows; index++) {
+            if (this.array[index] === MEMBER) {
+                left -= 1;
+                visit(index);
+            }
+        }
+    }
+
+    /**
      * The ids in the set, materialised lazily and handed back frozen.
      *
      * IDENTITY-STABLE: the same array object comes back until the contents actually change, so a

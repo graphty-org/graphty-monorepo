@@ -1,3 +1,81 @@
+## 3.4.14 (2026-10-21)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.39
+- Updated graph-format to 1.4.7
+
+## 3.4.13 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.38
+- Updated graph-format to 1.4.6
+
+## 3.4.12 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+
+## 3.4.11 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+
+## 3.4.10 (2026-10-17)
+
+### 🚀 Features
+
+- **docs:** theme the documentation site with the graphty brand colors ([#3041](https://github.com/graphty-org/graphty-monorepo/issues/3041))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.9 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+
+## 3.4.8 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.33
+
+## 3.4.7 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+
+## 3.4.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **algorithms:** stop seeded and iterative algorithms calling engine-dependent Math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.5 (2026-10-13)
 
 ### 🧱 Updated Dependencies

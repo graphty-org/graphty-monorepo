@@ -72,12 +72,20 @@ in the headset explores, with no new code. The only test of collaboration in thi
 ### The headline insight
 
 The best evidence for graph analysis in VR is old and was gathered on desktop stereo displays:
-stereo plus motion that is coupled to the head or hand lets people trace paths in graphs about
-three times larger than in 2D (Ware and Franck 1996; Ware and Mitchell 2008). No one has shown it
-for analysis judgments on a modern headset, and the headset studies that exist are mixed: VR lost
-on side-by-side comparison and on remembering nodes. So the first mock should test that one claim
-cheaply and directly. If depth in the hand does not beat a mouse-orbited 3D view on the desktop,
-graphty's VR story is comfort and novelty, and every other prototype should be scoped down.
+stereo plus motion lets people trace paths in graphs about three times larger than in 2D at the
+same error rate (Ware and Franck 1996). The motion did not have to come from the user: automatic
+rotation helped about as much as head- or hand-coupled motion. That gain was measured on graphs
+of at most 291 nodes, with paths of length 2, on a 1996 shutter-glasses monitor. The often-quoted
+1,000-node figure (Ware and Mitchell 2008) comes from that paper's abstract only (its full text
+could not be obtained) and from a display much sharper than any current headset, so it is a
+ceiling to test against, not an expected result. No one has shown either for analysis judgments
+on a modern headset, and the headset studies that exist are mixed: VR lost on side-by-side
+comparison and on remembering nodes, and where a study included desktop 3D that the user could
+rotate, the headset did not clearly beat it (Kraus et al. 2020; Whitlock et al. 2020; Huang et al.
+2023). The strongest headset result came with the graph held and rotated in the hand (McGuffin
+2022). So the first mock should test that one claim cheaply and directly. If depth in the hand
+does not beat a mouse-orbited 3D view on the desktop, graphty's VR story is comfort and novelty,
+and every other prototype should be scoped down.
 
 The second insight is where the differentiation comes from. The ideas that score highest on
 "could not exist on a desktop" do not reach for better menus. They make the graph's own structure
@@ -172,34 +180,34 @@ reference index in section 6, critical counts x3, important x2, nice x1, low x0.
 tiers: quick (1-5 internal testers, a day), study (12 or more participants, comparative, two
 sessions, preference and speed taken from session 2), longitudinal.
 
-| #   | Criterion                                                                                                                                                                                      | Weight    | Reference for a 2                                                                | Key evidence (strength)                                                                                                                                                                                                                                                                                                                                                                    | How it is measured                                                                                                                                           |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Core-loop speed: pick, hover-to-read and undo no slower than a mouse; other core tasks within about 2x the desktop                                                                             | important | VR baseline's times                                                              | Users' own stated need; the 2x figure is provisional                                                                                                                                                                                                                                                                                                                                       | Core task script in the headset and on the desktop (quick, then study)                                                                                       |
-| 2   | Structure-reading gain: better judgment of structure around a result (only route? bridge or clique center? sub-structure?) than desktop 3D with rotation, with confidence matching correctness | critical  | Free head motion with ray picking                                                | Strong for stereo plus motion on non-headset displays (Ware and Franck 1996; Ware and Mitchell 2008); Moderate on headsets (McGuffin 2022, N=34); counter-evidence: Huang et al. 2023, Kotlarek et al. 2020, Feyer et al. 2024                                                                                                                                                             | Plausibility questions on 300- and 1,000-node graphs vs desktop 3D; path tracing; insight counts; confidence calibration (study)                             |
-| 3   | Each answer in the representation that reads it best: exact values from text or a flat chart, never from depth or size alone; 2D available in the headset; two states comparable               | important | A flat ranked table and chart beside the graph                                   | Strong (Kotlarek 2020; Feyer 2024; Whitlock et al. 2020; a 184-experiment review: stereo helps depth tasks only)                                                                                                                                                                                                                                                                           | Read-the-value tasks; density comparison; "which edges appeared since last week" (study); audit for depth-only encodings (quick)                             |
-| 4   | Occlusion is cheap to defeat and the reader keeps their bearings, including after a re-layout or filter                                                                                        | critical  | Grab-and-rotate plus reset view                                                  | Moderate (Zimmermann and Bruckner 2025; Sorger et al. 2021; Drogemuller et al. 2020)                                                                                                                                                                                                                                                                                                       | Time to find a named node in the densest community; orientation probes; "I'm lost" count; time to re-find the focus after a filter                           |
-| 5   | The intended single node can be picked, even small and in a dense cluster; aim confirmed before commit; the press does not move the aim                                                        | critical  | Bubble or cone cursor with snapping                                              | Strong that plain rays fail on small dense targets (Argelaguet and Andujar 2013; SQUAD; Expand); Moderate: the button press caused about 30% of pointing errors (Wolf et al. 2020, N=16); Guideline: interactive targets at least 2.5-3 degrees across for both direct touch and ray (Meta hands UI guide; Microsoft asks at least 2 degrees at 45 cm by touch and 1 degree at 2 m by ray) | 20 named targets in a 1,000-node layout, half in the densest cluster, controllers and hands: error rate (target under 5%), time, errors at the commit moment |
-| 6   | Sets can be selected and edited in 3D: region, structure (k hops, community), attribute; add, subtract, intersect                                                                              | critical  | Single pick plus add, plus "select neighbors/community"                          | Weak: no graph-specific headset study found                                                                                                                                                                                                                                                                                                                                                | Select a community minus two nodes; select about 30 nodes in a region without neighbors                                                                      |
-| 7   | Multi-parameter commands without mid-air typing; exact numbers enterable; "this" and "these" resolve; interpreters show their parse and ask when unsure                                        | important | Panel form with dropdowns, keypad, virtual keyboard                              | Strong that typing must not be the only path (Grubert et al. 2018; Knierim et al. 2018); Weak for voice in this domain (Lee et al. 2026 preprint)                                                                                                                                                                                                                                          | Five parameter-heavy commands; five planted ambiguous requests, all answered with a question                                                                 |
-| 8   | Fatigue budget for arms and hands over a 20-minute block                                                                                                                                       | critical  | Controller ray from a hand resting at lap or desk height                         | Strong (Consumed Endurance; Jang et al.); Moderate (Kim et al. 2020: preferred reach 0.3-0.6 m; VirtualDesk: seated desk work comfortable)                                                                                                                                                                                                                                                 | Consumed Endurance from tracking; share of time hand above elbow or beyond 0.6 m; Borg CR10 no more than 1 point above the desktop                           |
-| 9   | Every change visible, previewable and undoable; modes visible                                                                                                                                  | critical  | Visible undo button and a change notice                                          | Moderate (Nafis et al. 2024: poor error handling was the main obstacle)                                                                                                                                                                                                                                                                                                                    | Audit: every action has a change indicator and one-step undo; time to notice and undo an injected wrong action; mode errors                                  |
-| 10  | The whole catalog (about 60 algorithms, about 20 layouts, style options, third-party extensions) reachable in the headset with no XR-specific code                                             | critical  | A generated panel with forms from each option schema                             | Constraint                                                                                                                                                                                                                                                                                                                                                                                 | Share reachable; register a test extension and check it appears                                                                                              |
-| 11  | Viewing comfort: reading content stable relative to world or body; 0-35 degrees below the horizon; near content budgeted                                                                       | important | World-locked panels at about 1.5 m, 10-20 degrees below eye level                | Strong (upward gaze: Penumudi 2020; vergence-accommodation conflict: Hoffman et al. 2008); Guideline for the bands and distances: panels meant to be touched at 42-46 cm, nothing interactive at 0.5-0.8 m, ray-driven UI at 0.8-3 m (Meta hands UI guide)                                                                                                                                 | Head pitch logs (under 5% of time above +10 degrees); time on near content (under about 25%); audit of panel distances against those bands                   |
-| 12  | The UI does not hide the data being worked on                                                                                                                                                  | important | A movable panel docked beside the graph                                          | None specific (a tension)                                                                                                                                                                                                                                                                                                                                                                  | Share of the graph's projected area hidden by UI                                                                                                             |
-| 13  | Label budget: how much is legible at once on the lowest-resolution headset (about 20 pixels per degree)                                                                                        | important | Labels for hovered, selected and top-N nodes at about 1 degree                   | Moderate (two studies disagree about 2x on preferred size, so size must be tested); Guideline: text no smaller than 0.35-0.4 degrees tall at 2 m and 0.4-0.5 degrees at 45 cm, comfortable at 0.6-0.75 degrees (Microsoft typography guide, from its own user research)                                                                                                                    | Audit: no text below 0.35 degrees; smallest label read on Quest 3S; labels legible at once in a 1,000-node view                                              |
-| 14  | Honest about hidden state: every cut, filter, label cull or aggregation is counted, never applied to the selection or path                                                                     | important | A status line of filters and hidden counts                                       | Correctness requirement                                                                                                                                                                                                                                                                                                                                                                    | Plant a hidden edge and ask whether two nodes connect                                                                                                        |
-| 15  | Interaction at 5,000-10,000 nodes, and a credible route from 100,000-1,000,000 nodes to a workable view                                                                                        | important | Filter by query to a neighborhood                                                | Domain need; no headset study                                                                                                                                                                                                                                                                                                                                                              | Repeat picking and set tasks at 5,000 nodes; walk a 100,000-node dataset to a named node                                                                     |
-| 16  | Robust input: tracking loss, false pinches, noise, including in its own resting posture                                                                                                        | important | Controllers in good light                                                        | Guideline; Wolf et al. 2020                                                                                                                                                                                                                                                                                                                                                                | Tracking loss and false activations in the recommended posture                                                                                               |
-| 17  | Two or more routes per frequent command; no color-only or audio-only signal; traversal by structure without sight                                                                              | important | Ray plus voice for frequent commands; a screen-reader list on a companion device | Guideline plus Shipped; Moderate on desktop (TADA 2024); Moderate: a head pointer, the usual no-hands route, is slower than a mouse in a headset (about 2.5 against 3.2 bits/s; Hansen et al. 2018, N=41)                                                                                                                                                                                  | Command-by-route matrix; core script hands-only, controller-only, voice plus one hand                                                                        |
-| 18  | Entering, leaving, interruptions and the real world: under 30 s in and out on the same state; keyboard, phone and people visible                                                               | important | A "send to headset" link and passthrough                                         | Strong that very long immersion is costly (Biener et al. 2022)                                                                                                                                                                                                                                                                                                                             | Seconds in and out; answer a phone call mid-task and resume                                                                                                  |
-| 19  | A silent, small-motion route for an open office and confidential names                                                                                                                         | important | Controller or pinch input with small movements                                   | Opinion and domain need                                                                                                                                                                                                                                                                                                                                                                    | "Would you use this at your desk at work?"; checklist                                                                                                        |
-| 20  | Provenance: every action, including gestures and voice, is a replayable record                                                                                                                 | important | An action log of panel commands                                                  | Domain need (reproducible sessions)                                                                                                                                                                                                                                                                                                                                                        | Replay a headset session on the desktop and diff the state                                                                                                   |
-| 21  | Learnable without a manual; the novice path rehearses the expert path                                                                                                                          | important | A labeled world-locked panel with tooltips                                       | Moderate for VR menus (Wentzel et al. 2024: raycast panels most consistently usable); Extrapolated (marking menus, Kurtenbach and Buxton 1994)                                                                                                                                                                                                                                             | First core task within about 5 minutes unaided; fast-route share by session 3                                                                                |
-| 22  | The reader's own spatial arrangement persists; positions are reproducible                                                                                                                      | important | Named viewpoints and pins in a list                                              | Weak to Moderate (case studies); counter-evidence: Kotlarek 2020                                                                                                                                                                                                                                                                                                                           | Share of found nodes re-reached within 30 s after a break                                                                                                    |
-| 23  | Presentable findings someone without a headset can follow                                                                                                                                      | important | Saved viewpoints played on a desktop mirror                                      | Moderate for mixed collaboration (Cordeil et al. 2017)                                                                                                                                                                                                                                                                                                                                     | Build a 5-stop walk; an observer answers questions about it                                                                                                  |
-| 24  | Graph editing in the headset                                                                                                                                                                   | nice      | --                                                                               | Knowledge-engineer need                                                                                                                                                                                                                                                                                                                                                                    | Add three nodes and connect them                                                                                                                             |
-| 25  | Delight                                                                                                                                                                                        | nice      | --                                                                               | Weak                                                                                                                                                                                                                                                                                                                                                                                       | UEQ hedonic scale, "would you show a colleague?", voluntary return                                                                                           |
-| 26  | Transfer to and from the desktop app's concepts                                                                                                                                                | low       | --                                                                               | Kept low so it does not pull designs back to copying the desktop                                                                                                                                                                                                                                                                                                                           | Desktop users name the headset equivalents of five concepts                                                                                                  |
+| #   | Criterion                                                                                                                                                                                      | Weight    | Reference for a 2                                                                | Key evidence (strength)                                                                                                                                                                                                                                                                                                                                                                                                                                                             | How it is measured                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Core-loop speed: pick, hover-to-read and undo no slower than a mouse; other core tasks within about 2x the desktop                                                                             | important | VR baseline's times                                                              | Users' own stated need; the 2x figure is provisional                                                                                                                                                                                                                                                                                                                                                                                                                                | Core task script in the headset and on the desktop (quick, then study)                                                                                       |
+| 2   | Structure-reading gain: better judgment of structure around a result (only route? bridge or clique center? sub-structure?) than desktop 3D with rotation, with confidence matching correctness | critical  | Free head motion with ray picking                                                | Strong for stereo plus motion on non-headset displays, on graphs up to 291 nodes (Ware and Franck 1996; Ware and Mitchell 2008 reports 1,000 nodes in its abstract only, on a much sharper display); Moderate on headsets (McGuffin 2022, N=34, graph held and rotated in the hand); counter-evidence: Huang et al. 2023, Kotlarek et al. 2020, Feyer et al. 2024, and no clear headset gain over rotatable desktop 3D (Kraus et al. 2020; Whitlock et al. 2020; Huang et al. 2023) | Plausibility questions on 300- and 1,000-node graphs vs desktop 3D; path tracing; insight counts; confidence calibration (study)                             |
+| 3   | Each answer in the representation that reads it best: exact values from text or a flat chart, never from depth or size alone; 2D available in the headset; two states comparable               | important | A flat ranked table and chart beside the graph                                   | Moderate: density judgments were more accurate on flat layouts (Feyer 2024); 2D was better for memory and faster at change detection (Kotlarek 2020); side-by-side 3D copies failed in a headset (Huang et al. 2023); headset resolution limits legibility ("resolution beats immersion", Munzner; Guideline); a 184-experiment review: stereo helps depth tasks only. Whitlock et al. 2020 found no effect of display on reading values, so it does not support this rule          | Read-the-value tasks; density comparison; "which edges appeared since last week" (study); audit for depth-only encodings (quick)                             |
+| 4   | Occlusion is cheap to defeat and the reader keeps their bearings, including after a re-layout or filter                                                                                        | critical  | Grab-and-rotate plus reset view                                                  | Moderate (Zimmermann and Bruckner 2025; Sorger et al. 2021; Drogemuller et al. 2020)                                                                                                                                                                                                                                                                                                                                                                                                | Time to find a named node in the densest community; orientation probes; "I'm lost" count; time to re-find the focus after a filter                           |
+| 5   | The intended single node can be picked, even small and in a dense cluster; aim confirmed before commit; the press does not move the aim                                                        | critical  | Bubble or cone cursor with snapping                                              | Strong that plain rays fail on small dense targets (Argelaguet and Andujar 2013; SQUAD; Expand); Moderate: the button press caused about 30% of pointing errors (Wolf et al. 2020, N=16); Guideline: interactive targets at least 2.5-3 degrees across for both direct touch and ray (Meta hands UI guide; Microsoft asks at least 2 degrees at 45 cm by touch and 1 degree at 2 m by ray)                                                                                          | 20 named targets in a 1,000-node layout, half in the densest cluster, controllers and hands: error rate (target under 5%), time, errors at the commit moment |
+| 6   | Sets can be selected and edited in 3D: region, structure (k hops, community), attribute; add, subtract, intersect                                                                              | critical  | Single pick plus add, plus "select neighbors/community"                          | Weak: no graph-specific headset study found                                                                                                                                                                                                                                                                                                                                                                                                                                         | Select a community minus two nodes; select about 30 nodes in a region without neighbors                                                                      |
+| 7   | Multi-parameter commands without mid-air typing; exact numbers enterable; "this" and "these" resolve; interpreters show their parse and ask when unsure                                        | important | Panel form with dropdowns, keypad, virtual keyboard                              | Strong that typing must not be the only path (Grubert et al. 2018; Knierim et al. 2018); Weak for voice in this domain (Lee et al. 2026 preprint)                                                                                                                                                                                                                                                                                                                                   | Five parameter-heavy commands; five planted ambiguous requests, all answered with a question                                                                 |
+| 8   | Fatigue budget for arms and hands over a 20-minute block                                                                                                                                       | critical  | Controller ray from a hand resting at lap or desk height                         | Strong (Consumed Endurance; Jang et al.); Moderate (Kim et al. 2020: preferred reach 0.3-0.6 m; VirtualDesk: seated desk work comfortable)                                                                                                                                                                                                                                                                                                                                          | Consumed Endurance from tracking; share of time hand above elbow or beyond 0.6 m; Borg CR10 no more than 1 point above the desktop                           |
+| 9   | Every change visible, previewable and undoable; modes visible                                                                                                                                  | critical  | Visible undo button and a change notice                                          | Moderate (Nafis et al. 2024: poor error handling was the main obstacle)                                                                                                                                                                                                                                                                                                                                                                                                             | Audit: every action has a change indicator and one-step undo; time to notice and undo an injected wrong action; mode errors                                  |
+| 10  | The whole catalog (about 60 algorithms, about 20 layouts, style options, third-party extensions) reachable in the headset with no XR-specific code                                             | critical  | A generated panel with forms from each option schema                             | Constraint                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Share reachable; register a test extension and check it appears                                                                                              |
+| 11  | Viewing comfort: reading content stable relative to world or body; 0-35 degrees below the horizon; near content budgeted                                                                       | important | World-locked panels at about 1.5 m, 10-20 degrees below eye level                | Strong (upward gaze: Penumudi 2020; vergence-accommodation conflict: Hoffman et al. 2008); Guideline for the bands and distances: panels meant to be touched at 42-46 cm, nothing interactive at 0.5-0.8 m, ray-driven UI at 0.8-3 m (Meta hands UI guide)                                                                                                                                                                                                                          | Head pitch logs (under 5% of time above +10 degrees); time on near content (under about 25%); audit of panel distances against those bands                   |
+| 12  | The UI does not hide the data being worked on                                                                                                                                                  | important | A movable panel docked beside the graph                                          | None specific (a tension)                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Share of the graph's projected area hidden by UI                                                                                                             |
+| 13  | Label budget: how much is legible at once on the lowest-resolution headset (about 20 pixels per degree)                                                                                        | important | Labels for hovered, selected and top-N nodes at about 1 degree                   | Moderate (two studies disagree about 2x on preferred size, so size must be tested); Guideline: text no smaller than 0.35-0.4 degrees tall at 2 m and 0.4-0.5 degrees at 45 cm, comfortable at 0.6-0.75 degrees (Microsoft typography guide, from its own user research)                                                                                                                                                                                                             | Audit: no text below 0.35 degrees; smallest label read on Quest 3S; labels legible at once in a 1,000-node view                                              |
+| 14  | Honest about hidden state: every cut, filter, label cull or aggregation is counted, never applied to the selection or path                                                                     | important | A status line of filters and hidden counts                                       | Correctness requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Plant a hidden edge and ask whether two nodes connect                                                                                                        |
+| 15  | Interaction at 5,000-10,000 nodes, and a credible route from 100,000-1,000,000 nodes to a workable view                                                                                        | important | Filter by query to a neighborhood                                                | Domain need; no headset study                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Repeat picking and set tasks at 5,000 nodes; walk a 100,000-node dataset to a named node                                                                     |
+| 16  | Robust input: tracking loss, false pinches, noise, including in its own resting posture                                                                                                        | important | Controllers in good light                                                        | Guideline; Wolf et al. 2020                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Tracking loss and false activations in the recommended posture                                                                                               |
+| 17  | Two or more routes per frequent command; no color-only or audio-only signal; traversal by structure without sight                                                                              | important | Ray plus voice for frequent commands; a screen-reader list on a companion device | Guideline plus Shipped; Moderate on desktop (TADA 2024); Moderate: a head pointer, the usual no-hands route, is slower than a mouse in a headset (about 2.5 against 3.2 bits/s; Hansen et al. 2018, N=41)                                                                                                                                                                                                                                                                           | Command-by-route matrix; core script hands-only, controller-only, voice plus one hand                                                                        |
+| 18  | Entering, leaving, interruptions and the real world: under 30 s in and out on the same state; keyboard, phone and people visible                                                               | important | A "send to headset" link and passthrough                                         | Strong that very long immersion is costly (Biener et al. 2022)                                                                                                                                                                                                                                                                                                                                                                                                                      | Seconds in and out; answer a phone call mid-task and resume                                                                                                  |
+| 19  | A silent, small-motion route for an open office and confidential names                                                                                                                         | important | Controller or pinch input with small movements                                   | Opinion and domain need                                                                                                                                                                                                                                                                                                                                                                                                                                                             | "Would you use this at your desk at work?"; checklist                                                                                                        |
+| 20  | Provenance: every action, including gestures and voice, is a replayable record                                                                                                                 | important | An action log of panel commands                                                  | Domain need (reproducible sessions)                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Replay a headset session on the desktop and diff the state                                                                                                   |
+| 21  | Learnable without a manual; the novice path rehearses the expert path                                                                                                                          | important | A labeled world-locked panel with tooltips                                       | Moderate for VR menus (Wentzel et al. 2024: raycast panels most consistently usable); Extrapolated (marking menus, Kurtenbach and Buxton 1994)                                                                                                                                                                                                                                                                                                                                      | First core task within about 5 minutes unaided; fast-route share by session 3                                                                                |
+| 22  | The reader's own spatial arrangement persists; positions are reproducible                                                                                                                      | important | Named viewpoints and pins in a list                                              | Weak to Moderate (case studies); counter-evidence: Kotlarek 2020                                                                                                                                                                                                                                                                                                                                                                                                                    | Share of found nodes re-reached within 30 s after a break                                                                                                    |
+| 23  | Presentable findings someone without a headset can follow                                                                                                                                      | important | Saved viewpoints played on a desktop mirror                                      | Moderate for mixed collaboration (Cordeil et al. 2017)                                                                                                                                                                                                                                                                                                                                                                                                                              | Build a 5-stop walk; an observer answers questions about it                                                                                                  |
+| 24  | Graph editing in the headset                                                                                                                                                                   | nice      | --                                                                               | Knowledge-engineer need                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Add three nodes and connect them                                                                                                                             |
+| 25  | Delight                                                                                                                                                                                        | nice      | --                                                                               | Weak                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | UEQ hedonic scale, "would you show a colleague?", voluntary return                                                                                           |
+| 26  | Transfer to and from the desktop app's concepts                                                                                                                                                | low       | --                                                                               | Kept low so it does not pull designs back to copying the desktop                                                                                                                                                                                                                                                                                                                                                                                                                    | Desktop users name the headset equivalents of five concepts                                                                                                  |
 
 ### Ranking axes
 
@@ -219,13 +227,28 @@ de-risks a differentiating option.
 
 ### What the evidence supports
 
-- **Stereo plus coupled motion for structure.** Head- or hand-coupled stereo let people understand
-  graphs about three times larger than 2D; skilled observers traced paths in graphs up to about
-  1,000 nodes (Ware and Franck 1996; Ware and Mitchell 2008; Strong, but on desktop stereo
-  displays). Motion alone gives much of the benefit, which is why every comparison here is against
+- **Stereo plus motion for structure.** Head-tracked stereo let people trace paths in graphs about
+  three times larger than in 2D at the same error rate (Ware and Franck 1996; Strong, but on a
+  1996 desktop stereo monitor, on graphs of at most 291 nodes and paths of length 2). A static 3D
+  picture was no better than 2D, and automatic rotation helped about as much as head- or
+  hand-coupled motion: what matters for reading is that the graph moves, while coupling to the
+  hand matters for selection. Ware and Mitchell 2008 report under 10% error at 1,000 nodes for
+  skilled observers, but only in the abstract (the full text could not be obtained) and on a very
+  high resolution display much sharper than a headset; treat 1,000 nodes as a ceiling to test, not
+  a promise. Motion alone gives much of the benefit, which is why every comparison here is against
   desktop 3D with rotation, not only flat 2D.
-- **Egocentric neighborhoods.** Standing at a node with its neighbors around you improved visual
-  search without hurting orientation (Sorger et al. 2021; Moderate).
+- **Holding the graph in the hand.** In the strongest headset result, people held a 70-node
+  network in the non-dominant hand and made fewer path-length errors in 3D than in 2D; most view
+  rotation came from the hand, not the head (McGuffin et al. 2022, N=34, preregistered preprint;
+  Moderate).
+- **Table or hand scale over room scale.** A graph at table scale was as accurate as one filling
+  the room, better remembered and preferred, with half the walking (Kraus et al. 2020, N=18;
+  Moderate, but scatterplots).
+- **Egocentric neighborhoods and animated hops.** Standing at a node with its neighbors highlighted
+  improved visual search without hurting orientation, and hopping node to node with a short eased
+  animation roughly halved path-following time against free flight (about 22 s against 40 s), with
+  no orientation or sickness cost (Sorger et al. 2021, N=25; Moderate). Finding a path, rather than
+  following one, was not helped without extra support.
 - **Sweeping the whole graph.** For a task that covered the entire visualization, the headset was
   more accurate and rated least frustrating (Huang, Pfister, Yang 2023, N=20; Moderate).
 - **Supported arms and real surfaces.** Passive haptics from a real surface helped (Lindeman et al.
@@ -240,18 +263,33 @@ de-risks a differentiating option.
   levels (Wentzel et al. 2024; Moderate). A panel was preferred over a radial menu, and placement
   mattered more than shape (IEEE Access 2019, N=51; Moderate).
 - **Desktop plus headset** beat the headset alone (Tong et al. 2025, N=18; Moderate).
-- **World-in-miniature** was the least demanding and preferred overview technique (Drogemuller et
-  al. 2020; Moderate).
+- **A world-in-miniature to read, not to drive the camera.** A hand-held miniature caused the
+  least head motion and was the favorite for counting triangles, but used as a remote for the
+  camera it was rated the most disorienting (Drogemuller et al. 2020, N=25; Moderate).
 
 ### What the evidence warns against
 
 - **Reading values in a headset.** About 20-25 pixels per degree, perspective distorting size, and
   tilted text: "resolution beats immersion" (Munzner; Guideline). Exact values belong on text or a
   flat chart.
-- **Comparison and memory.** VR was worse for side-by-side comparison (Huang et al. 2023); 2D was
-  better for remembering nodes and spotting change (Kotlarek et al. 2020); 2D was best for density
-  and patterns on large networks (Feyer et al. 2024). Immersive studies often report better
-  accuracy with slower times.
+- **Comparison and memory.** Finding differences between two side-by-side 3D copies failed in a
+  headset (276.8 s, with the copies seen from mismatched angles; Huang et al. 2023); 2D was better
+  for remembering nodes and faster, though not more accurate, at spotting change (Kotlarek et al.
+  2020); density judgments were more accurate on flat layouts of large networks (Feyer et al.
+  2024). Immersive studies often report better accuracy with slower times.
+- **Assuming a headset beats desktop 3D.** Where a study included desktop 3D that the user could
+  rotate, the headset did not clearly beat it: no significant difference in cluster counting, with
+  desktop 3D fastest (Kraus et al. 2020); no effect of display on reading values (Whitlock et al.
+  2020); 2D and desktop 3D no different, with VR ahead only on counting triangles (Huang et al.
+  2023). People prefer the headset regardless (17 of 20 in Kotlarek et al. 2020), so preference is
+  never evidence of accuracy.
+- **Room-scale walking and fade teleporting.** Room scale needed twice the walking of table scale
+  for no gain in accuracy, and recall was worse (Kraus et al. 2020); the arrangement that forced
+  walking was the slowest (Feyer et al. 2024). Teleporting with a fade was the slowest way across
+  clusters and the least liked (Drogemuller et al. 2020).
+- **Color over passthrough.** Reading values from color over video passthrough had about double
+  the error of the same task in VR (5.53% against 2.05%; Whitlock et al. 2020, N=42, 720p
+  passthrough).
 - **Raised arms** (Consumed Endurance; Strong), **upward gaze** (Strong) and **near content that
   forces refocusing** (vergence-accommodation conflict, Hoffman et al. 2008; Strong).
 - **The press moves the aim**: about 30% of pointing errors came from the button press itself
@@ -307,6 +345,34 @@ de-risks a differentiating option.
   list Layers); whether thumb microgestures reach WebXR (sources disagree).
 - No DOM in immersive sessions (DOM overlay is for handheld AR only): HTML panels must be drawn to
   a texture.
+
+### The literature review on graphs in headsets
+
+A separate review reads 19 studies and system papers on node-link graphs in headsets, on stereo
+desktop displays and on flat screens, gives a verdict on each prototype below, and lists what
+every prototype test should measure:
+
+See [Graphs in headsets: what the research says](vr-graph-literature.md).
+
+Its short answer: 3D only helps when it moves; 2D still wins for easy questions and for speed; a
+headset is not clearly better than desktop 3D the user can rotate; and inside the headset, hand
+or table scale and short animated hops work better than room scale and fade teleporting.
+
+It also finds large gaps in the field. In the most recent survey's 59 controlled studies, graphs
+had a median of 120 nodes and only one study was about scale; only 4 of 87 immersive applications
+run graph algorithms. graphty can compare 2D, desktop 3D and a headset on the same component, the
+same seeded graphs and the same algorithm catalog, which no earlier study could. The research it
+ranks highest for graphty to contribute:
+
+1. Whether Ware's error law holds on a current headset, and where 2D, desktop 3D and VR cross
+   over, on path tracing and community counting at about 50 to 1,000 nodes, with density varied.
+2. Speech bound to graphty-element's algorithm catalog, which must refuse anything outside it,
+   against free-form query generation, which invented queries in the one earlier study.
+3. Holding the graph against moving through it: a hand-held miniature against node-to-node hops
+   with signposts, on 300 to 1,000 node graphs.
+4. Whether signposts fix path finding during node-to-node travel.
+5. Comparing two states of a graph in the headset (superimposed marks, a lens, an animated toggle,
+   side-by-side), each also on the desktop.
 
 ---
 
@@ -1019,10 +1085,21 @@ needs the same yardstick. This is not a differentiator and is not ranked.
   virtual keyboard; Quest-style hand-tracked panels (poke and pinch); the desktop app flat; the
   desktop app with a mouse-orbited 3D view (this one separates "VR helps" from "3D helps"); and a
   faithful Tilt Brush style off-hand palette with the same catalog route, so the palette's form is
-  the only variable.
-- A core task battery of about 20 minutes on 300- and 1,000-node graphs (find by name, k-hop
-  neighbors, path, path tracing by eye, run and compare two rankings, filter, style and read the
-  legend, undo and cancel), with sickness checks (FMS every 2-3 minutes, VRSQ before and after).
+  the only variable. The desktop 3D view with rotation is the comparison that matters: three
+  studies that included it found no clear headset gain over it (Kraus et al. 2020; Whitlock et
+  al. 2020; Huang et al. 2023), and beating static 2D proves nothing. It runs in the same browser
+  engine, on the same graph, layout and seed.
+- A core task battery of about 20 minutes (find by name, k-hop neighbors, path, path tracing by
+  eye, run and compare two rankings, filter, style and read the legend, undo and cancel), with
+  sickness checks (FMS every 2-3 minutes, VRSQ before and after). It runs at several graph sizes,
+  not one: the literature's four size classes (up to 60, 61-120, 121-249, and 250 or more nodes)
+  plus 1,000 nodes, with density varied at a fixed size, because the 3D gain grows with size and
+  tangle and most earlier studies stopped near 120 nodes.
+- Movement logging in every study, from the head and hand poses WebXR gives every frame: head
+  travel and rotation, the share of view rotation done by the hand rather than the head (the
+  measure behind McGuffin et al. 2022), and how many viewpoints people use (Greffard et al. 2014).
+  Accuracy is scored first, split into misses and false positives, because most 3D gains are in
+  accuracy at a cost in time.
 
 ---
 
@@ -1030,8 +1107,9 @@ needs the same yardstick. This is not a differentiator and is not ranked.
 
 **Why try it.** It tests the central claim directly: holding a subgraph and turning it with the
 hand improves judgments about structure ("is this the only route?", "is this hub a bridge?") over
-desktop 3D. The evidence most in VR's favor comes from exactly this condition: stereo plus
-hand-coupled motion. If it fails, every later prototype should be scoped down.
+desktop 3D. The strongest headset result came from exactly this condition: a network held in the
+non-dominant hand, where the hand did most of the rotating (McGuffin et al. 2022). If it fails,
+every later prototype should be scoped down.
 
 **Interaction patterns.**
 
@@ -1051,8 +1129,16 @@ can. Values stay as readable text at reading distance. The world never moves on 
 
 **Strengths.**
 
-- The strongest evidence base for its key claim: Ware and Franck 1996 and Ware and Mitchell 2008
-  (Strong, non-headset displays); McGuffin 2022 (N=34, preprint, Moderate for headsets).
+- The strongest evidence base for its key claim: McGuffin 2022 (N=34, preregistered preprint,
+  Moderate for headsets), where 3D beat 2D on path length with the network held in the hand and
+  the hand doing most of the rotating; Ware and Franck 1996 (Strong, but a desktop stereo monitor,
+  graphs of at most 291 nodes, and automatic rotation helped as much as hand-coupled motion);
+  Ware and Mitchell 2008 (1,000 nodes, from the abstract only, on a much sharper display).
+- Table or hand scale matched room scale in accuracy with half the walking and better recall
+  (Kraus et al. 2020); the headset won on counting triangles, a whole-structure task (Huang et al.
+  2023).
+- A held diorama is something to read, which suits the evidence: a hand-held miniature used to
+  drive the camera was the most disorienting technique (Drogemuller et al. 2020).
 - Two-handed frame of reference: Guiard 1987 (theory); Hinckley et al. 1998 (Moderate).
 - The best comfort and reading profile in the set (criteria 3, 11, 13, 14).
 
@@ -1061,7 +1147,10 @@ can. Values stay as readable text at reading distance. The world never moves on 
 - Holding the diorama is an arm load, so fatigue is a 2, not a 3.
 - Rendering a second, hand-held copy has an unmeasured frame cost.
 - Counter-evidence: VR was worse for side-by-side comparison (Huang et al. 2023); 2D was better for
-  remembering nodes and spotting change (Kotlarek et al. 2020).
+  remembering nodes and faster, though not more accurate, at spotting change (Kotlarek et al.
+  2020); and the headset did not clearly beat desktop 3D with rotation in the studies that
+  included it (Kraus et al. 2020; Whitlock et al. 2020; Huang et al. 2023), so the desktop 3D
+  condition is the one this prototype has to beat.
 
 **Criteria scores.** 3 on readability, occlusion, single pick, undo, viewing comfort, labels,
 hidden state, silence and learnability; Low-confidence 3s on structure reading, sets and keeping
@@ -1073,10 +1162,11 @@ High; learning value Very high.
 - Smallest mock: a still diorama, the answer row with a sortable table form, "show in diorama",
   and "hold" in the off hand, on canned path and bridge questions. No question chips, no notes.
 - Tasks: path-judgment and bridge-judgment questions ("is this the only route between these two
-  groups?", "is this hub a bridge or the center of a clique?") on 300- and 1,000-node graphs.
+  groups?", "is this hub a bridge or the center of a clique?"), path-length questions at lengths
+  2-4 (McGuffin's task) and community counts, at the foundation's graph sizes up to 1,000 nodes.
 - Conditions: held diorama; the row alone; the desktop flat; desktop 3D with mouse orbit.
-- Measures: accuracy, time, and confidence calibration per answer; arm time above the elbow; Borg
-  CR10; frame time.
+- Measures: accuracy, time, and confidence calibration per answer; the share of rotation done by
+  the hand against the head; arm time above the elbow; Borg CR10; frame time.
 - Decision it drives: whether depth in the hand is graphty's VR thesis. The Desk's "lift a lasso
   into the hand" is the same question, so it is tested here once.
 
@@ -1171,16 +1261,16 @@ it. It also becomes the silent, resting-hands route for every other model.
 
 **Interaction patterns.**
 
-| Need                   | How it works                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pointing and selection | A sticky ray with a depth bead (slide along the ray by thumbstick) lands on a node; above about 300 nodes the bubble cursor is the default. "Set" on the ring opens add, subtract, intersect, select community, select component.                                                                                                                                                                                                                                             |
-| Navigation             | The camera never moves on its own. Once a node is focused, the dominant thumbstick walks the topology: forward hops to the candidate neighbor, back retraces, left and right step through a neighbor carousel. Hubs above about degree 12 are walked as groups first (communities, or attribute buckets), then members, with jump-to-rank. "Jump to ray target" means walking is never the only way to a distant node. With nothing focused, both sticks keep today's flying. |
-| Commands               | The off-hand thumbstick opens a fixed 4-verb ring: inspect, neighbors, path, run. Push toward a verb to preview, release to commit, the way game weapon wheels work. 8 directions and ballistic flicks come only after accuracy is measured. A no-timing mode (push highlights, a click commits) for tremor. A triage rail: flag, clear, refer, note, one press each with its own undo, plus bulk actions.                                                                    |
-| Text and numbers       | Find-where: an attribute drum, operator chips and a digit drum for numbers; hop count by stick clicks; names from the prefix list, so text entry produces only names the graph contains.                                                                                                                                                                                                                                                                                      |
-| Reading results        | An inspect card with every attribute; ranked results on a rail; signposts at the walked node, with their definition printed on first use; haptic step ticks and captioned readback.                                                                                                                                                                                                                                                                                           |
-| Running algorithms     | "Run" on the ring opens the catalog list; the carousel re-sorts only between walks, with a "re-sorted by PageRank" chip.                                                                                                                                                                                                                                                                                                                                                      |
-| Styling                | Through the shared encode command, reached from the ring's "more" slot; the candidate node is marked by outline thickness and pattern as well as color.                                                                                                                                                                                                                                                                                                                       |
-| Undo                   | B undoes and cancels a running algorithm; Y redoes; stick-back restores the previous view or selection.                                                                                                                                                                                                                                                                                                                                                                       |
+| Need                   | How it works                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pointing and selection | A sticky ray with a depth bead (slide along the ray by thumbstick) lands on a node; above about 300 nodes the bubble cursor is the default. "Set" on the ring opens add, subtract, intersect, select community, select component.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Navigation             | The camera never moves on its own. Once a node is focused, the dominant thumbstick walks the topology: forward hops the focus to the candidate neighbor, animated along the edge so the eye can follow it (reduce-motion makes it a step); if the reader asks to travel with it, the view moves as a short eased hop, never a fade cut; back retraces, left and right step through a neighbor carousel. Hubs above about degree 12 are walked as groups first (communities, or attribute buckets), then members, with jump-to-rank. "Jump to ray target" means walking is never the only way to a distant node. With nothing focused, both sticks keep today's flying. |
+| Commands               | The off-hand thumbstick opens a fixed 4-verb ring: inspect, neighbors, path, run. Push toward a verb to preview, release to commit, the way game weapon wheels work. 8 directions and ballistic flicks come only after accuracy is measured. A no-timing mode (push highlights, a click commits) for tremor. A triage rail: flag, clear, refer, note, one press each with its own undo, plus bulk actions.                                                                                                                                                                                                                                                             |
+| Text and numbers       | Find-where: an attribute drum, operator chips and a digit drum for numbers; hop count by stick clicks; names from the prefix list, so text entry produces only names the graph contains.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Reading results        | An inspect card with every attribute; ranked results on a rail; signposts at the walked node, with their definition printed on first use; haptic step ticks and captioned readback.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Running algorithms     | "Run" on the ring opens the catalog list; the carousel re-sorts only between walks, with a "re-sorted by PageRank" chip.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Styling                | Through the shared encode command, reached from the ring's "more" slot; the candidate node is marked by outline thickness and pattern as well as color.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Undo                   | B undoes and cancels a running algorithm; Y redoes; stick-back restores the previous view or selection.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 **What is unique.** It navigates topology instead of space. The same thumb motions do the same thing
 on every node, and it is the only model built for resting hands that never needs pointing into
@@ -1193,6 +1283,14 @@ depth.
 - Cheap to build on the element's existing thumbstick handling.
 - Structural navigation is known to work on desktop and tablet (TADA 2024; Moderate), and an
   egocentric neighborhood view helped search (Sorger et al. 2021; Moderate).
+- Animated node-to-node hops roughly halved path-following time against free flight, with no
+  orientation or sickness cost (Sorger et al. 2021), while teleporting with a fade was the slowest
+  and least liked way to travel (Drogemuller et al. 2020). So hops are animated, whether the focus
+  moves or the reader travels with it, and go only along real edges: hopping to the nearest node
+  by joystick was slow (Joos et al. 2024).
+- Path finding, unlike path following, was not helped by hops alone (Sorger et al. 2021, who
+  asked for "dedicated interaction support"); signposts are that support, and this prototype is
+  their first test.
 
 **Weaknesses.**
 
@@ -1237,8 +1335,10 @@ all from source X" removes 40 at once.
 
 ### Prototype 4. Then and Now: the volumetric lens
 
-**Why try it.** Comparison is the task where the evidence says VR loses (Huang et al. 2023;
-Kotlarek et al. 2020). It is also central to the scientist, ML engineer and fraud users: this week
+**Why try it.** Comparison is the task where the evidence says VR loses: two side-by-side 3D
+copies, seen from mismatched angles, took 276.8 s in a headset (Huang et al. 2023), and 2D was
+faster at spotting change, though not more accurate (Kotlarek et al. 2020). Neither study tried
+showing both states in one frame, so whether a lens can win comparison stays open. It is also central to the scientist, ML engineer and fraud users: this week
 vs last, with vs without a node, PageRank vs betweenness. A design that beats the desktop on
 comparison would be a real differentiator; one that cannot tells us to send comparison back to
 the desktop.
@@ -1267,7 +1367,10 @@ The only new element work is a neutral snapshot diff returning {added, removed, 
 
 **Weaknesses.**
 
-- The counter-evidence is direct.
+- The counter-evidence is direct for side-by-side copies and for recall after the viewpoint
+  changes, though not for one state superimposed on another. The arc of 3 copies is side-by-side,
+  so its copies must turn together and be seen from the same angle, and no answer may depend on
+  remembering what another view showed.
 - The lens and copies have an unmeasured frame cost on Quest 3S.
 - Magic lenses are an old technique (Viega et al. 1996), so the novelty is only in applying them to
   graph states.
@@ -1283,8 +1386,11 @@ Differentiation Medium-High; learning value High.
   PageRank vs betweenness) at 300-1,000 nodes. Then the arc of 3 copies; then the dial on a real
   public timestamped network (an email or transaction network; check the license).
 - Tasks: "what changed?" questions.
-- Conditions: lens, difference view, two rows, a simple toggle, a desktop side-by-side view.
-- Measures: time and accuracy; FMS during the scrub; frame time.
+- Conditions: lens, difference view, two rows, a simple toggle, a desktop side-by-side view, and
+  the same lens and difference view on the desktop, so a gain can be credited to the headset and
+  not to the design.
+- Measures: added and removed elements found, false alarms, and time; FMS during the scrub; frame
+  time.
 - Decision it drives: whether comparison stays in the headset or is routed to the desktop or a flat
   table.
 
@@ -1330,6 +1436,9 @@ passthrough and real typing beside a 3D graph. It does not recreate a desktop in
 - Passive haptics from a real surface helped (Lindeman et al. 1999, N=32); typists need to see
   their hands (Knierim et al. 2018, N=32); desktop plus VR beat VR alone (Tong et al. 2025, N=18);
   seated desk work was comfortable (VirtualDesk 2018). All Moderate.
+- The flat slab answers a request from graph studies: participants asked for a 2D overview and
+  mouse precision alongside VR, and 2D was faster on every task there (Kotlarek et al. 2020); a
+  world-fixed mouse cursor worked for seated headset users (Kwon et al. 2016).
 
 **Weaknesses.**
 
@@ -1337,6 +1446,9 @@ passthrough and real typing beside a 3D graph. It does not recreate a desktop in
 - The slab is near content, so viewing comfort is 2.
 - Vision Pro WebXR offers no passthrough (verify), so it gets only a virtual desk.
 - Weak on presentability.
+- Color is read worse over passthrough: error about doubled against the same task in VR (5.53%
+  against 2.05%; Whitlock et al. 2020). The graph, the slab and the boards each get a solid
+  neutral backing, and no value is carried by color alone (shape, pattern or a number as well).
 
 **Criteria scores.** 3 on every critical criterion (structure reading at Low confidence), and on
 speed (Low), parameters (Low), the real world, silence, provenance and desktop transfer; 2 on
@@ -1350,7 +1462,8 @@ value High.
   the command palette if keys arrive.
 - Tasks: the core task battery against the desktop and the raycast-panel control; slab picking at
   1,000 nodes.
-- Measures: time per task; picking errors; near-content time; calibration success.
+- Measures: time per task; picking errors; near-content time; calibration success; which tasks
+  people move to the slab; color-reading error with and without the backing.
 - Stop rule: if the keyboard check fails and slab picking does not beat the ray, cut The Desk rather
   than ship its fallback stack.
 - Decision it drives: whether "VR at the desk" is the default analyst posture, with the more
@@ -1401,7 +1514,10 @@ already place nodes by measures with edges drawn. It also gives graphty-element 
 **Weaknesses.**
 
 - Occlusion in a 3D scatter with edges: its occlusion score is only 2.
-- Reading values in depth is slower (Barrera Machuca and Stuerzlinger 2019; Moderate).
+- Reading values in depth is slower (Barrera Machuca and Stuerzlinger 2019; Moderate). In graph
+  studies, depth floating in free space cut accuracy on a tie-strength judgment to 71% (Takahira
+  et al. 2026, preprint), and density judgments were more accurate flat (Feyer et al. 2024), so a
+  measured axis needs a reference plane to read against.
 - The evidence for the base idea is exploratory: ImAxes (Cordeil et al. 2017; Weak). Cluster
   finding in VR scatterplots helped (Kraus et al. 2020, N=18; Moderate, but scatterplots, an
   analogue only).
@@ -1492,7 +1608,10 @@ editable before it acts; it is the route for users without hands.
 - Not silent and not confidential in an open office.
 - Speech and pointing are often not simultaneous (Oviatt 1999; Moderate, 2D pen and voice), which
   is exactly what the study measures.
-- Domain evidence for voice in graph VR is a preprint (Lee et al. 2026; Weak). Impaired speech needs
+- Domain evidence for voice in graph VR is a preprint (Lee et al. 2026; Weak). There, all 10
+  participants preferred voice to typing, but on requests outside the system's vocabulary the
+  language model invented plausible queries for half of them, so speech here binds only to
+  graphty-element's catalog and refuses anything outside it. Impaired speech needs
   personalization (Shor et al. 2019).
 
 **Criteria scores.** 3 on parameters, fatigue, undo, catalog, several routes, provenance and
@@ -1649,8 +1768,14 @@ diorama is its only route to a passing fatigue score.
   through the seated twin.
 - Needs a cleared room; not silent in an office; slow on the core loop.
 - Very long immersion is costly (Biener et al. 2022).
-- The evidence is extrapolated: physical navigation with large displays (Ball, North and Bowman
-  2007; Moderate, Extrapolated); real walking gave more presence (Usoh et al. 1999; Moderate).
+- The evidence for it is extrapolated: physical navigation with large displays (Ball, North and
+  Bowman 2007; Moderate, Extrapolated); real walking gave more presence (Usoh et al. 1999;
+  Moderate).
+- The evidence against it is direct: in a headset, a graph at table scale was as accurate as one
+  filling the room, with half the walking and better recall (Kraus et al. 2020); the arrangement
+  that forced walking was the slowest and least liked (Feyer et al. 2024); novices walked instead
+  of using the navigation technique and nearly hit walls (Drogemuller et al. 2020). This supports
+  keeping it a spike inside prototype 1, measured against the table-scale diorama.
 
 **Criteria scores.** As first scored: Low-confidence 3s on structure reading, occlusion,
 learnability and spatial arrangement; 3 on delight; 1 on speed, fatigue, the real world, silence,
@@ -1763,10 +1888,12 @@ trial overstates the real mode, so it can rule the mode out but not prove it.
 Twenty-two whole interaction models were considered. The ones not prototyped, and why:
 
 - **Wayfinder (egocentric travel).** Stand on a node; neighbors on an arc at reading distance; hop
-  along edges with fades. Scores well (3s on comfort, labels, hidden state and scale) but its two
+  along edges. Scores well (3s on comfort, labels, hidden state and scale) but its two
   lessons are covered: signposts are tested on the still cursor in prototype 3, and egocentric
-  views already have support (Sorger et al. 2021). Hop travel adds a sickness risk. Build it if
-  signposts work and users ask to "go there".
+  views already have support (Sorger et al. 2021). Hops should be short eased animations, not
+  fades: Sorger found eased hops cost nothing in orientation or sickness, and fade teleporting was
+  the least liked travel in Drogemuller et al. 2020. Build it if signposts work and users ask to
+  "go there".
 - **Result Objects (a palette made of your analysis state).** Computed results, attributes and sets
   are wells you place into color, size, label and highlight sockets; a well's histogram is a range
   filter. Sound, and this study's best answer to the Tilt Brush palette, but its sockets resemble
@@ -1853,8 +1980,9 @@ prototypes above:
 **Riskiest assumptions.**
 
 - **That depth helps analysis on a headset at all.** The strong evidence is on desktop stereo
-  displays and on path tracing, not on judgments about computed results; headset studies are mixed.
-  Prototype 1 settles this before anything else is invested.
+  displays, on graphs of at most 291 nodes and on path tracing, not on judgments about computed
+  results; headset studies are mixed, and the ones that included desktop 3D with rotation found no
+  clear headset gain over it. Prototype 1 settles this before anything else is invested.
 - **That the element can draw enough.** The element draws one object per node; the real flat-graph
   ceiling in a headset is unmeasured and may be a few thousand nodes. Fraud, cyber and intelligence
   graphs start far above that, which makes the community hierarchy a precondition, not an extra.
@@ -1865,8 +1993,9 @@ prototypes above:
 - **That comfort holds for the bold models.** The Graph Is the Material and Stand In It carry the
   highest fatigue and sickness risk; their no-hold and seated twins must be real routes, not
   afterthoughts.
-- **That comparison can be won in VR.** The counter-evidence is direct. Prototype 4 may simply
-  confirm that comparison belongs on a flat surface.
+- **That comparison can be won in VR.** The counter-evidence is direct for side-by-side copies;
+  showing both states in one frame is untested. Prototype 4 may simply confirm that comparison
+  belongs on a flat surface.
 - **That the personas are right.** graphty's personas are marked unvalidated; the use cases built on
   them are hypotheses. The strongest fit judged here is for intelligence, supply-chain,
   bioinformatics and marketing analysts with bounded graphs and audiences to brief; fraud and
@@ -1914,14 +2043,18 @@ on a device. Every catalog option's own sources are listed with the option in
 
 ### Depth, structure and graphs in immersive displays
 
+The graph studies below are read in full, with their numbers and limits, in
+[Graphs in headsets: what the research says](vr-graph-literature.md).
+
 - Ware, C. and Franck, G. "Evaluating stereo and motion cues for visualizing information nets in
   three dimensions." ACM TOG 15(2), 1996. https://doi.org/10.1145/234972.234975 [lab; Strong on
-  non-headset displays]
+  non-headset displays; graphs of at most 291 nodes, 11 people per experiment]
 - Ware, C. and Mitchell, P. "Visualizing graphs in three dimensions." ACM TAP 5(1), 2008.
-  https://dl.acm.org/doi/10.1145/1279640.1279642 [lab; Strong on non-headset displays]
+  https://dl.acm.org/doi/10.1145/1279640.1279642 [lab; abstract only: the full text could not be
+  obtained, so the 1,000-node figure and the display are as the abstract states them]
 - Greffard, N., Picarougne, F. and Kuntz, P. Stereoscopy and community identification, 2011
   (N=35), https://link.springer.com/chapter/10.1007/978-3-642-25878-7_21 ; and IEEE 3DVis 2014,
-  https://doi.org/10.1109/3dvis.2014.7160095 [lab; Moderate, abstract read]
+  https://doi.org/10.1109/3dvis.2014.7160095 [lab; Moderate; N=35 and N=18]
 - McGuffin, M. et al. 2022, N=34. https://arxiv.org/html/2207.11586 [preprint; Moderate for
   headsets]
 - Huang, H., Pfister, H. and Yang, Y. "Is embodied interaction beneficial? A study on navigating
@@ -1930,13 +2063,14 @@ on a device. Every catalog option's own sources are listed with the option in
   Moderate]
 - Kotlarek, J., Kwon, O.-H., Ma, K.-L., Eades, P., Kerren, A., Klein, K. and Schreiber, F. "A
   study of mental maps in immersive network visualization." IEEE PacificVis 2020.
-  https://arxiv.org/abs/2001.06462 [lab; the participant count was not confirmed]
+  https://arxiv.org/abs/2001.06462 [lab; N=20]
 - Feyer et al. "2D, 2.5D, or 3D? An exploratory study on multilayer network visualisations in
   virtual reality." IEEE TVCG 2024, N=22. https://arxiv.org/html/2307.10674v2 [exploratory lab]
 - Kraus, M. et al. IEEE TVCG 2020, N=18. https://doi.org/10.1109/tvcg.2019.2934395 [lab;
   scatterplots, an analogue]
-- Whitlock, Smart, Szafir. IEEE VR 2020.
-  https://cmci.colorado.edu/visualab/3DPerception/3DPerception.pdf [lab]
+- Whitlock, Smart, Szafir. "Graphical perception for immersive analytics." IEEE VR 2020, N=42.
+  https://cmci.colorado.edu/visualab/3DPerception/3DPerception.pdf [lab; scatterplots, no main
+  effect of display]
 - Kwon, O.-H., Muelder, C., Lee, K. and Ma, K.-L. "A study of layout, rendering, and interaction
   methods for immersive graph visualization." IEEE TVCG 22(7):1802-1815, 2016.
   https://doi.org/10.1109/TVCG.2016.2520921 [lab]
@@ -1948,6 +2082,9 @@ on a device. Every catalog option's own sources are listed with the option in
 - Joos, L. et al. "Visual network analysis in immersive environments: a survey." 2025.
   https://arxiv.org/abs/2501.08500 [survey]
 - Joos, L. et al. SUI 2024. https://dl.acm.org/doi/10.1145/3677386.3682102 [lab]
+- Takahira, K. et al. "Surrounded by friends: design and evaluation of immersive layouts of
+  egocentric network for visual analytics." ACM SUI 2026, N=24. https://arxiv.org/abs/2608.27194
+  [preprint; lab]
 - Cordeil, M. et al. "Immersive collaborative analysis of network connectivity: CAVE-style or
   head-mounted display?" IEEE TVCG 23(1), 2017.
   https://research.monash.edu/en/publications/immersive-collaborative-analysis-of-network-connectivity-cave-sty/

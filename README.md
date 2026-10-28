@@ -1,3 +1,8 @@
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/graphty-org/brand/main/logo/lockup/horizontal/svg/color-on-dark/graphty-lockup-color-on-dark.svg">
+    <img src="https://raw.githubusercontent.com/graphty-org/brand/main/logo/lockup/horizontal/svg/color-on-light/graphty-lockup-color-on-light.svg" alt="graphty" width="258">
+</picture>
+
 # Graphty Monorepo
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
@@ -40,6 +45,11 @@ optional WebGPU acceleration built in. [View package](./graphty-element)
 Every graphty layout and algorithm, plus graph generators, sample datasets and file import and export, as
 [Cytoscape.js](https://js.cytoscape.org/) extensions registered with one call. [View package](./cytoscape-extensions)
 
+#### babylonjs-map
+
+Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: map projections, and a Babylon-free parser for
+latitude and longitude. Early: tiles, a globe and map sources are on the way. [View package](./babylonjs-map)
+
 ### Graph computation
 
 #### @graphty/algorithms
@@ -54,7 +64,7 @@ and link prediction. [View package](./algorithms)
 #### @graphty/layout
 
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
 
 2D and 3D graph layouts ported from NetworkX (force-directed, circular, shell, spiral, bipartite, planar and more),

@@ -1,6 +1,7 @@
 /**
- * @file The visibility ops: `visibility.set` (the filter), `visibility.window` (the time window)
- * and `visibility.context` (whether hidden nodes are drawn faintly). Each is one undoable step.
+ * @file The visibility ops: `visibility.set` (the filter), `visibility.steps` (the filter steps),
+ * `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
+ * faintly). Each is one undoable step.
  *
  * All three run on the immediate lane: the value is written to the `visibility` slice when the
  * command is dispatched, and the masks are evaluated on the derivation lane against whatever the
@@ -9,10 +10,13 @@
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
+import type { FilterStep } from "../../catalog/types";
+import { GraphtyError } from "../../errors";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
-import { assertVisibility, type RuleTree, type TimeWindow } from "../visibility/filter";
+import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
+import { assertSteps, stepsFact } from "../visibility/steps";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -32,8 +36,25 @@ interface VisibilityContextCommand {
     readonly show: boolean;
 }
 
+/** `visibility.steps`: replace the filter steps, combined with AND; an empty list clears them. */
+interface VisibilityStepsCommand {
+    readonly op: "visibility.steps";
+    readonly steps: readonly FilterStep[];
+}
+
+/** `visibility.playback`: how `session.time` moves windows (results, mode, step, missing), or null for the defaults. */
+interface VisibilityPlaybackCommand {
+    readonly op: "visibility.playback";
+    readonly playback: TimePlayback | null;
+}
+
 /** Every visibility op. */
-export type VisibilityCommand = VisibilitySetCommand | VisibilityWindowCommand | VisibilityContextCommand;
+export type VisibilityCommand =
+    | VisibilitySetCommand
+    | VisibilityWindowCommand
+    | VisibilityContextCommand
+    | VisibilityStepsCommand
+    | VisibilityPlaybackCommand;
 
 /** The session's visibility model, as the visibility ops reach it. */
 export interface VisibilityService {
@@ -119,5 +140,100 @@ const visibilityContext: UndoableDefinition<VisibilityContextCommand> = {
     },
 };
 
+const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
+    ...COMMON,
+    op: "visibility.steps",
+    keys: () => ["visibility/steps"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed the filter steps",
+        fact: (command, state) => stepsFact(state.visibility.steps, command.steps),
+        // ponytail: no coalescing, so each add, edit, toggle or delete is its own step; a dragged
+        // step's bounds would need a key naming the step if that drag ever records too many.
+    },
+    execute: (command, ctx) => {
+        assertSteps(command.steps);
+        const service = ctx.services.visibility;
+        for (const step of command.steps) {
+            if (service === undefined) {
+                assertVisibility(step.rule, null);
+            } else {
+                service.check(step.rule, null);
+            }
+        }
+
+        ctx.draft.visibility.set("steps", Object.freeze([...command.steps]));
+    },
+};
+
+/** The values each playback setting takes. */
+const PLAYBACK_VALUES = {
+    results: ["keep", "stale", "rerun"],
+    mode: ["sliding", "cumulative"],
+    missing: ["inside", "outside"],
+    outside: ["hide", "ghost"],
+} as const;
+
+/** The named steps a playback setting takes besides a positive number. */
+const PLAYBACK_STEPS = new Set(["auto", "hour", "day", "week", "month", "quarter", "year"]);
+
+/**
+ * Refuse a malformed playback setting.
+ * @param playback - The settings, or null.
+ * @throws `E_BAD_COMMAND` naming the setting.
+ */
+function assertPlayback(playback: TimePlayback | null): void {
+    if (playback === null) {
+        return;
+    }
+
+    const bad = (field: string, value: unknown): GraphtyError =>
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A playback setting's ${field} is not one it takes.`,
+            source: "data",
+            details: { field, value, reason: "playback" },
+        });
+    for (const [field, allowed] of Object.entries(PLAYBACK_VALUES)) {
+        const value = (playback as Readonly<Record<string, unknown>>)[field];
+        if (value !== undefined && !(allowed as readonly unknown[]).includes(value)) {
+            throw bad(field, value);
+        }
+    }
+
+    const { step } = playback;
+    if (
+        step !== undefined &&
+        !(typeof step === "number" && Number.isFinite(step) && step > 0) &&
+        !(typeof step === "string" && PLAYBACK_STEPS.has(step))
+    ) {
+        throw bad("step", step);
+    }
+}
+
+const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
+    moves: false,
+    draws: false,
+    lane: { kind: "immediate" },
+    op: "visibility.playback",
+    keys: () => ["visibility/playback"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed how time plays",
+        fact: () => ({ code: "visibility.playback", params: {} }),
+        coalesce: () => "playback",
+    },
+    execute: (command, ctx) => {
+        assertPlayback(command.playback);
+        ctx.draft.visibility.set("playback", command.playback === null ? null : Object.freeze({ ...command.playback }));
+    },
+};
+
 /** The visibility ops' definitions. */
-export const VISIBILITY_DEFINITIONS = [visibilitySet, visibilityWindow, visibilityContext] as const;
+export const VISIBILITY_DEFINITIONS = [
+    visibilitySet,
+    visibilityWindow,
+    visibilityContext,
+    visibilitySteps,
+    visibilityPlayback,
+] as const;

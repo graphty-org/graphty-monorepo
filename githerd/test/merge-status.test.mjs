@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-
 import { describe, expect, it } from "vitest";
 
 import { createGitHub } from "../lib/github.mjs";
@@ -453,7 +451,17 @@ describe("head facts", () => {
 });
 
 describe("the merge gate's invariants", () => {
-    const mergify = readFileSync(new URL("../../.mergify.yml", import.meta.url), "utf8");
+    // The queue rules master's .mergify.yml had before Mergify was retired (it no longer exists).
+    const mergify = [
+        "queue_rules:",
+        "    - name: default",
+        "      queue_conditions:",
+        "          - label!=hold",
+        "          - -check-failure=Link PR Issue",
+        "      merge_conditions:",
+        "          - check-success=Queue Checks Pass",
+        "",
+    ].join("\n");
     // The coordination change: both conditions in the queue conditions (the queue is single-step,
     // with no merge_conditions), and a failure treated as the hold label is in the auto-merge
     // conditions that end the file.

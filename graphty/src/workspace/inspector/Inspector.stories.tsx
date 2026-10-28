@@ -12,6 +12,9 @@ import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
+import { storyWaitOptions } from "../../stories/wait";
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../state/store";
@@ -74,19 +77,6 @@ async function runToEnd(element: GraphtyElement, algorithm: string): Promise<str
 }
 
 /**
- * A story whose store the play function can write, as another package's row would.
- * @param initial - the chrome state to start from.
- * @returns the story's args and its store.
- */
-function withStore(initial: Partial<WorkspaceState> = OPEN): {
-    args: { store: WorkspaceStore };
-    store: WorkspaceStore;
-} {
-    const store = createWorkspaceStore(initial);
-    return { args: { store }, store };
-}
-
-/**
  * The inspector region.
  * @param canvasElement - the story's root.
  * @returns queries scoped to it.
@@ -94,10 +84,31 @@ function withStore(initial: Partial<WorkspaceState> = OPEN): {
 const inspector = (canvasElement: HTMLElement): ReturnType<typeof within> =>
     within(within(canvasElement).getByRole("complementary", { name: "Inspector" }));
 
+/**
+ * Open the inspector's Values tab, where a row's readings are; a run's row opens on Style.
+ * @param canvasElement - the story's root.
+ */
+async function openValues(canvasElement: HTMLElement): Promise<void> {
+    const tab = await inspector(canvasElement).findByRole("tab", { name: "Values" }, storyWaitOptions(1000));
+    if (tab.getAttribute("aria-selected") !== "true") {
+        await userEvent.click(tab);
+    }
+}
+
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Inspector",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A run's header and Made with show its start to the second, so its runs start on a fixed
+    // clock. Loaders run before beforeEach, and the held-session stories start their runs in a
+    // loader: this one is called before theirs, so those runs are stamped on the fixed clock too.
+    loaders: [
+        () => {
+            fixWallClock();
+        },
+    ],
+    // Its cleanup puts the real clock back when the story ends.
+    beforeEach: fixWallClock,
 };
 
 export default meta;
@@ -141,19 +152,27 @@ export const NodeWhyThisLook: Story = {
         const element = await loadRings(canvasElement);
         await runToEnd(element, "louvain");
         await element.session.selection.apply({ nodes: ["n3"] });
-        await userEvent.click(await inspector(canvasElement).findByRole("tab", { name: "Style" }));
+        await userEvent.click(
+            await inspector(canvasElement).findByRole("tab", { name: "Style" }, storyWaitOptions(1000)),
+        );
         await element.waitForStableFrame();
     },
 };
 
-/** Degree picked: the node's connections by name, strongest first (`#/inspector-several-elements/neighborhood`). */
+/** Degree picked: the node's connections, in name order (`#/inspector-several-elements/neighborhood`). */
 export const SeveralElementsNeighborhood: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
-        await userEvent.click(await inspector(canvasElement).findByRole("button", { name: /Degree/ }));
-        await inspector(canvasElement).findByRole("region", { name: "n0's 3 connections" });
+        await userEvent.click(
+            await inspector(canvasElement).findByRole("button", { name: /Degree/ }, storyWaitOptions(1000)),
+        );
+        await inspector(canvasElement).findByRole(
+            "group",
+            { name: "Node 0 and 3 connections" },
+            storyWaitOptions(1000),
+        );
         await element.waitForStableFrame();
     },
 };
@@ -164,62 +183,75 @@ export const SeveralElementsSummary: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n1", "n4", "n9"] });
-        await inspector(canvasElement).findByRole("group", { name: "Edges among them" });
+        await inspector(canvasElement).findByRole(
+            "group",
+            { name: "Edges joining these nodes" },
+            storyWaitOptions(1000),
+        );
         await element.waitForStableFrame();
     },
 };
 
-const measure = withStore();
 /** PageRank's row: Values with the caption, Top 10 and Made with (`#/inspector-measure-row/data`). */
 export const MeasureRowData: Story = {
-    args: measure.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
-        measure.store.set({ inspected: { kind: "measure-row", id } });
-        await inspector(canvasElement).findByRole("group", { name: "Top 10" });
+        storeOf(context).set({ inspected: { kind: "measure-row", id } });
+        await openValues(canvasElement);
+        await inspector(canvasElement).findByRole("group", { name: "Top 10" }, storyWaitOptions(1000));
     },
 };
 
-const groups = withStore();
 /** Louvain's row: Summary, Sizes and Made with (`#/inspector-run-row/data`). */
 export const RunRowData: Story = {
-    args: groups.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
-        groups.store.set({ inspected: { kind: "run-row", id } });
-        await inspector(canvasElement).findByRole("group", { name: "Sizes" });
+        storeOf(context).set({ inspected: { kind: "run-row", id } });
+        await openValues(canvasElement);
+        await inspector(canvasElement).findByRole("group", { name: "Sizes" }, storyWaitOptions(1000));
     },
 };
 
-const retuned = withStore();
 /** A setting changed in Made with: the state bar's Rerun and Revert (`#/inspector-run-row/settings-changed`). */
 export const RunRowSettingsChanged: Story = {
-    args: retuned.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
-        retuned.store.set({ inspected: { kind: "measure-row", id } });
-        const field = await inspector(canvasElement).findByRole("spinbutton", { name: "Damping Factor" });
+        storeOf(context).set({ inspected: { kind: "measure-row", id } });
+        await openValues(canvasElement);
+        const field = await inspector(canvasElement).findByRole(
+            "spinbutton",
+            { name: /^Damping factor(,|$)/ },
+            storyWaitOptions(1000),
+        );
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
-        await inspector(canvasElement).findByRole("status");
+        // The state bar's Rerun, not "the" status: the field's own Escape note is a live region too.
+        await inspector(canvasElement).findByRole("button", { name: "Rerun" }, storyWaitOptions(1000));
     },
 };
 
-const community = withStore();
 /** One of Louvain's groups: its size and first members (`#/inspector-group-set-path-row/community-3`). */
 export const GroupSetPathRowCommunity: Story = {
-    args: community.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
         const first = element.session.runs.get(id)?.result?.summary().groups?.[0];
         if (first !== undefined) {
-            community.store.set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
+            storeOf(context).set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
         }
-        await inspector(canvasElement).findByRole("group", { name: "Members" });
+        await openValues(canvasElement);
+        await inspector(canvasElement).findByRole("group", { name: "Members" }, storyWaitOptions(1000));
     },
 };
 
@@ -233,10 +265,10 @@ export const SelectionAndEverythingEverything: Story = {
 
 /** An attribute from Data > Attributes: its table, roles and completeness (`#/inspector-attribute-and-filter-step/lesmis-field`). */
 export const AttributeAndFilterStepField: Story = {
-    args: { initialState: { ...OPEN, inspected: { kind: "attribute", id: "data.team" } } },
+    args: { initialState: { ...OPEN, place: "data", inspected: { kind: "attribute", id: "data.team" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
-        await inspector(canvasElement).findByRole("group", { name: "Table" });
+        await inspector(canvasElement).findByRole("group", { name: "Table" }, storyWaitOptions(1000));
     },
 };
 
@@ -249,7 +281,7 @@ export const EdgeData: Story = {
         if (bridge !== undefined) {
             await element.session.selection.apply({ edges: [bridge.id] });
         }
-        await inspector(canvasElement).findByRole("button", { name: /^From/ });
+        await inspector(canvasElement).findByRole("button", { name: /^From/ }, storyWaitOptions(1000));
         await element.waitForStableFrame();
     },
 };

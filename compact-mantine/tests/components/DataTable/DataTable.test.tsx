@@ -184,9 +184,9 @@ describe("DataTable structure", () => {
         expect(within(headerFor("Name")).queryByRole("button")).toBeNull();
     });
 
-    it("draws rows at the 32px list pitch, and at whatever height it is given", () => {
+    it("draws rows at Figma's 40px spreadsheet height, and at whatever height it is given", () => {
         const { rerender } = renderTable(<DataTable columns={COLUMNS} data={CATS} />);
-        expect(rowNamed("Whiskers")).toHaveStyle({ height: "32px" });
+        expect(rowNamed("Whiskers")).toHaveStyle({ height: "40px" });
 
         rerender(
             <MantineProvider theme={compactTheme}>
@@ -196,12 +196,32 @@ describe("DataTable structure", () => {
         expect(rowNamed("Whiskers")).toHaveStyle({ height: "20px" });
     });
 
-    it("says what it is announcing out loud as well as drawing it", () => {
-        renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+    it("keeps an empty status line from the start and speaks a count only when it changes", () => {
+        const { rerender } = renderTable(<DataTable columns={COLUMNS} data={[]} />);
 
+        // A region that arrives holding words is not read by many screen readers, and an empty
+        // table (rows on their way) is not worth saying.
         const status = screen.getByTestId("data-table-status");
         expect(status).toHaveAttribute("aria-live", "polite");
-        expect(status).toHaveTextContent("4 of 4 rows");
+        expect(status).toHaveTextContent(/^$/);
+
+        rerender(
+            <MantineProvider theme={compactTheme}>
+                <DataTable
+                    columns={COLUMNS}
+                    data={CATS}
+                    labels={{ rowsShown: (shown, all) => `first ${shown} of ${all}` }}
+                />
+            </MantineProvider>,
+        );
+        expect(screen.getByTestId("data-table-status")).toBe(status);
+        expect(status).toHaveTextContent("first 4 of 4");
+    });
+
+    it("does not speak the count a table opens with", () => {
+        renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+
+        expect(screen.getByTestId("data-table-status")).toHaveTextContent(/^$/);
     });
 });
 
@@ -637,6 +657,39 @@ describe("DataTable keyboard", () => {
         expect(handleRowClick).toHaveBeenCalledWith(CATS[1], expect.anything(), { source: "keyboard" });
     });
 
+    it("pads its cells less when compact, for a list in a popover", () => {
+        const { container } = renderTable(<DataTable columns={COLUMNS} data={CATS} density="compact" />);
+        expect(container.querySelector(".cm-dt")).toHaveClass("cm-dt-compact");
+        const { container: plain } = renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+        expect(plain.querySelector(".cm-dt")).not.toHaveClass("cm-dt-compact");
+    });
+
+    it("activates a row of a selection of several with Enter and keeps the selection", async () => {
+        const user = userEvent.setup();
+        const handleSelectionChange = vi.fn();
+        const handleRowClick = vi.fn();
+        renderTable(
+            <DataTable
+                columns={COLUMNS}
+                data={CATS}
+                getRowId={(cat) => cat.id}
+                onSelectionChange={handleSelectionChange}
+                onRowClick={handleRowClick}
+            />,
+        );
+
+        await user.tab();
+        await user.keyboard("{ArrowDown}");
+        await user.keyboard(" ");
+        await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        expect(handleSelectionChange).toHaveBeenLastCalledWith(["c1", "c2"], expect.anything());
+        const changes = handleSelectionChange.mock.calls.length;
+
+        await user.keyboard("{Enter}");
+        expect(handleRowClick).toHaveBeenCalledWith(CATS[1], expect.anything(), { source: "keyboard" });
+        expect(handleSelectionChange).toHaveBeenCalledTimes(changes);
+    });
+
     it("adds to the selection with Space, the way Control and a click does", async () => {
         const user = userEvent.setup();
         const handleSelectionChange = vi.fn();
@@ -949,5 +1002,17 @@ describe("DataTable controlled state", () => {
         await user.click(cellIn("Nibbles"));
         await user.keyboard("{/Shift}");
         expect(screen.getByTestId("selected-ids")).toHaveTextContent("c3,c4");
+    });
+});
+
+describe("DataTable row headers", () => {
+    it("draws a rowHeader column's cells as row headers, so a cell reads with its row", () => {
+        const columns = COLUMNS.map((column) => (column.id === "name" ? { ...column, rowHeader: true } : column));
+        renderTable(<DataTable label="Cats" data={CATS} columns={columns} getRowId={(cat) => cat.id} />);
+        const row = screen.getAllByTestId("data-table-row")[0];
+        const headers = within(row).getAllByRole("rowheader", { hidden: true });
+        expect(headers).toHaveLength(1);
+        expect(headers[0]).toHaveTextContent("Whiskers");
+        expect(within(row).getAllByRole("gridcell", { hidden: true })).toHaveLength(2);
     });
 });

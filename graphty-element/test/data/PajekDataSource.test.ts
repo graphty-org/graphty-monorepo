@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { PajekDataSource } from "../../src/data/PajekDataSource.js";
+import { createGraphSession } from "../../src/session";
 
 describe("PajekDataSource", () => {
     describe("constructor", () => {
@@ -261,7 +262,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk4.done, true);
         });
 
-        it("should include all edges with first chunk", async () => {
+        it("should include all edges with the last chunk", async () => {
             const data = `*Vertices 4
 1 "A"
 2 "B"
@@ -276,11 +277,11 @@ describe("PajekDataSource", () => {
 
             const chunk1 = await gen.next();
             assert.equal(chunk1.value?.nodes.length, 2);
-            assert.equal(chunk1.value?.edges.length, 3); // All edges with first chunk
+            assert.equal(chunk1.value?.edges.length, 0); // No edges before the last chunk
 
             const chunk2 = await gen.next();
             assert.equal(chunk2.value?.nodes.length, 2);
-            assert.equal(chunk2.value?.edges.length, 0); // No edges in subsequent chunks
+            assert.equal(chunk2.value?.edges.length, 3); // All edges with the last chunk
         });
     });
 
@@ -400,5 +401,19 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.nodes.length, 2);
             assert.equal(chunk.value.edges.length, 1);
         });
+    });
+
+    it("draws a file under the Pajek Draw window settings given as pajekDraw", async () => {
+        const data = '*Vertices 2\n1 "a" 0.1 0.1 0.5\n2 "b" 0.9 0.9 0.5\n*Arcs\n1 2 1\n';
+        const labels = async (config: Record<string, unknown>): Promise<string> => {
+            const session = createGraphSession();
+            await session.data.import({ type: "pajek", config: { data, ...config } }, { styles: "file" });
+            await session.styles.settled();
+            const [node] = session.data.nodes();
+            return JSON.stringify(session.styles.explain({ node: node.id }).merged);
+        };
+        // Pajek's default draws the vertex label; Mark Vertices Using / Numbers draws its number instead
+        assert.include(await labels({}), '"a"');
+        assert.include(await labels({ pajekDraw: { ini: { "Form8.MarkVerticesUsing": "2" } } }), '"1"');
     });
 });

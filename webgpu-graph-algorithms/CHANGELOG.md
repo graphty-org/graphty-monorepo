@@ -1,3 +1,94 @@
+## 0.6.61 (2026-10-21)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+- Updated algorithms to 3.4.14
+- Updated layout to 2.5.10
+
+## 0.6.60 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+- Updated algorithms to 3.4.13
+- Updated layout to 2.5.9
+
+## 0.6.59 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated layout to 2.5.8
+
+## 0.6.58 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated layout to 2.5.7
+
+## 0.6.57 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated layout to 2.5.6
+
+## 0.6.56 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated layout to 2.5.5
+
+## 0.6.55 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+## 0.6.54 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+- Updated layout to 2.5.3
+
+## 0.6.53 (2026-10-14)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** size the 3D grid without Math.cbrt ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+- Updated layout to 2.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.52 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.5.1
+
+## 0.6.51 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.5.0
+
 ## 0.6.50 (2026-10-13)
 
 ### 🧱 Updated Dependencies

@@ -1,0 +1,558 @@
+import type { Channel, LabelStyle } from "@graphty/graphty-element/catalog";
+import { GraphBackground, GraphSelectionStyleOpts } from "@graphty/graphty-element/schema";
+
+/**
+ * Where a style lives in the panel: the control that sets it, or why the panel does not offer it.
+ * Every channel, label style field and graph setting graphty-element publishes has one, so a style
+ * the element adds cannot go missing from the panel unnoticed (`__tests__/coverage.test.ts`).
+ */
+export type Home = { readonly place: string } | { readonly notOffered: string };
+
+const at = (place: string): Home => ({ place });
+const no = (notOffered: string): Home => ({ notOffered });
+
+/** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
+const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
+/** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
+const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
+
+/** Every channel, by where the Style tab sets it. */
+export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
+    "node.color": at("Nodes, Fill, Color"),
+    "node.size": at("Nodes, Shape, Size"),
+    "node.shape": at("Nodes, Shape, Shape"),
+    "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
+    "node.wireframe": at("Nodes, Rendering, Wireframe"),
+    "node.visible": at("Nodes, Visibility, Show"),
+    "node.label": at("Nodes, Text, Label entry, source (a value, or Fixed text)"),
+    "node.labelStyle": at("Nodes, Label entry look, position and Label settings"),
+    "node.labelSize": at("Nodes, Label entry, size"),
+    "node.labelColor": at("Nodes, Label settings, Text color (varies by a value)"),
+    "node.labelBackground": at("Nodes, Label settings, Background (varies by a value)"),
+    "node.tooltip": at("Nodes, Text, Tooltip entry, source"),
+    "node.tooltipStyle": at("Nodes, Text, Tooltip entry look, position and Tooltip settings"),
+    "node.tooltipSize": at("Nodes, Text, Tooltip entry size"),
+    "node.tooltipColor": at("Nodes, Text, Tooltip entry Tooltip settings, Text color"),
+    "node.tooltipBackground": at("Nodes, Text, Tooltip entry Tooltip settings, Background"),
+    "node.outline": at("Nodes, Effects, Outline"),
+    "node.glow": at("Nodes, Effects, Glow"),
+    "node.glowStrength": at("Nodes, Effects, Glow strength"),
+    "node.haloColor": at("Nodes, Effects, Halo"),
+    "node.haloScale": at("Nodes, Effects, Halo size"),
+    "node.haloOpacity": at("Nodes, Effects, Halo opacity"),
+    "node.flat": no('nothing draws it; Graph settings, Lighting "flat" gives the look'),
+    "node.marker": no("graphty-element refuses it"),
+    "node.sizeMode": NOT_PLACED,
+    "node.labelFont": TEXT_FIELD,
+    "node.labelWeight": TEXT_FIELD,
+    "node.labelItalic": TEXT_FIELD,
+    "node.halo": NOT_PLACED,
+    "node.unlit": NOT_PLACED,
+    "node.width": NOT_PLACED,
+    "node.height": NOT_PLACED,
+    "node.depth": NOT_PLACED,
+    "node.planar": NOT_PLACED,
+    "node.zIndex": NOT_PLACED,
+    "node.drawOrder": NOT_PLACED,
+    "node.borderColor": NOT_PLACED,
+    "node.borderWidth": NOT_PLACED,
+    "node.borderStyle": NOT_PLACED,
+    "node.cornerRadius": NOT_PLACED,
+    "edge.bends": NOT_PLACED,
+    "edge.labelFont": TEXT_FIELD,
+    "edge.labelWeight": TEXT_FIELD,
+    "edge.labelItalic": TEXT_FIELD,
+    "edge.color": at("Edges, Line, Color"),
+    "edge.width": at("Edges, Line, Width"),
+    "edge.opacity": at("Edges, Line, Color opacity (its own line when it varies by a value)"),
+    "edge.style": at("Edges, Line, Pattern"),
+    "edge.patternCount": at("Edges, Line, Pattern count"),
+    "edge.curvature": at("Edges, Line, Curved"),
+    "edge.visible": at("Edges, Visibility, Show"),
+    "edge.arrowHead": at("Edges, Arrowheads, Target end"),
+    "edge.arrowTail": at("Edges, Arrowheads, Source end"),
+    "edge.arrowHeadSize": at("Edges, Arrowheads"),
+    "edge.arrowHeadColor": at("Edges, Arrowheads"),
+    "edge.arrowHeadOpacity": at("Edges, Arrowheads"),
+    "edge.arrowTailSize": at("Edges, Arrowheads"),
+    "edge.arrowTailColor": at("Edges, Arrowheads"),
+    "edge.arrowTailOpacity": at("Edges, Arrowheads"),
+    "edge.arrowHeadText": at("Edges, Text, Label at target end, source"),
+    "edge.arrowHeadTextStyle": at("Edges, Text, Label at target end look, position and settings"),
+    "edge.arrowHeadTextSize": at("Edges, Text, Label at target end size"),
+    "edge.arrowHeadTextColor": at("Edges, Text, Label at target end settings, Text color"),
+    "edge.arrowHeadTextBackground": at("Edges, Text, Label at target end settings, Background"),
+    "edge.arrowTailText": at("Edges, Text, Label at source end, source"),
+    "edge.arrowTailTextStyle": at("Edges, Text, Label at source end look, position and settings"),
+    "edge.arrowTailTextSize": at("Edges, Text, Label at source end size"),
+    "edge.arrowTailTextColor": at("Edges, Text, Label at source end settings, Text color"),
+    "edge.arrowTailTextBackground": at("Edges, Text, Label at source end settings, Background"),
+    "edge.bandColor": at("Edges, Effects, Band"),
+    "edge.bandWidth": at("Edges, Effects, Band width"),
+    "edge.bandOpacity": at("Edges, Effects, Band opacity"),
+    "edge.animationSpeed": at("Edges, Effects, Motion"),
+    "edge.label": at("Edges, Text, Label entry, source (a value, or Fixed text)"),
+    "edge.labelStyle": at("Edges, Label entry look, position and Label settings"),
+    "edge.labelSize": at("Edges, Label entry, size"),
+    "edge.labelColor": at("Edges, Label settings, Text color (varies by a value)"),
+    "edge.labelBackground": at("Edges, Label settings, Background (varies by a value)"),
+    "node.labelLetterSize": NOT_PLACED,
+    "node.labelWrapWidth": NOT_PLACED,
+    "node.labelWrapTrailingSpace": NOT_PLACED,
+    "node.labelWrapEllipsis": NOT_PLACED,
+    "node.labelWrapAnywhere": NOT_PLACED,
+    "node.labelWrapSpaceCount": NOT_PLACED,
+    "node.labelRunAlign": NOT_PLACED,
+    "node.labelMinScreenSize": NOT_PLACED,
+    "node.labelOnTop": NOT_PLACED,
+    "node.labelDeclutter": NOT_PLACED,
+    "node.labelMinNodeScreenSize": NOT_PLACED,
+    "node.labelTextAlign": NOT_PLACED,
+    "node.labelLocation": NOT_PLACED,
+    "node.labelRotation": NOT_PLACED,
+    "node.labelOutline": NOT_PLACED,
+    "node.labelOutlineWidth": NOT_PLACED,
+    "node.labelBorder": NOT_PLACED,
+    "node.labelBorderWidth": NOT_PLACED,
+    "node.labelOpacity": NOT_PLACED,
+    "node.labelBackgroundOpacity": NOT_PLACED,
+    "node.labelOutlineOpacity": NOT_PLACED,
+    "node.labelBorderOpacity": NOT_PLACED,
+    "node.labelPadding": NOT_PLACED,
+    "node.labelCornerRadius": NOT_PLACED,
+    "node.labelLineHeight": NOT_PLACED,
+    "node.labelOffsetX": NOT_PLACED,
+    "node.labelOffsetY": NOT_PLACED,
+    "node.labelShiftX": NOT_PLACED,
+    "node.labelShiftY": NOT_PLACED,
+    "node.borderScreenWidth": NOT_PLACED,
+    "node.borderOpacity": NOT_PLACED,
+    "node.borderPosition": NOT_PLACED,
+    "node.borderWaveAmplitude": NOT_PLACED,
+    "node.borderWavePeriod": NOT_PLACED,
+    "node.outerBorderColor": NOT_PLACED,
+    "node.outerBorderWidth": NOT_PLACED,
+    "node.outerBorderOpacity": NOT_PLACED,
+    "node.outerBorderStyle": NOT_PLACED,
+    "node.outerBorderOffset": NOT_PLACED,
+    "node.underlayColor": NOT_PLACED,
+    "node.underlayOpacity": NOT_PLACED,
+    "node.underlayPadding": NOT_PLACED,
+    "node.underlayShape": NOT_PLACED,
+    "node.underlayCornerRadius": NOT_PLACED,
+    "node.overlayColor": NOT_PLACED,
+    "node.overlayOpacity": NOT_PLACED,
+    "node.overlayPadding": NOT_PLACED,
+    "node.overlayShape": NOT_PLACED,
+    "node.overlayCornerRadius": NOT_PLACED,
+    "node.exactCornerRadius": NOT_PLACED,
+    "node.shapePoints": NOT_PLACED,
+    "node.shapeStretchPoints": NOT_PLACED,
+    "node.shapeParts": NOT_PLACED,
+    "node.shapeLines": NOT_PLACED,
+    "node.shapeTexts": NOT_PLACED,
+    "node.shapeLineWidth": NOT_PLACED,
+    "node.labelFit": NOT_PLACED,
+    "node.labelPaddingX": NOT_PLACED,
+    "node.labelPaddingY": NOT_PLACED,
+    "node.labelFitSquare": NOT_PLACED,
+    "node.gradientColor": NOT_PLACED,
+    "node.gradientDirection": NOT_PLACED,
+    "node.gradientColors": NOT_PLACED,
+    "node.gradientStops": NOT_PLACED,
+    "node.gradientKind": NOT_PLACED,
+    "node.image": NOT_PLACED,
+    "node.imageFallback": NOT_PLACED,
+    "node.imageFit": NOT_PLACED,
+    "node.imageWidth": NOT_PLACED,
+    "node.imageHeight": NOT_PLACED,
+    "node.imagePixelSize": NOT_PLACED,
+    "node.imagePositionX": NOT_PLACED,
+    "node.imagePositionY": NOT_PLACED,
+    "node.imageOffsetX": NOT_PLACED,
+    "node.imageOffsetY": NOT_PLACED,
+    "node.imageRepeat": NOT_PLACED,
+    "node.imageClip": NOT_PLACED,
+    "node.imageSmoothing": NOT_PLACED,
+    "node.imageAutoSize": NOT_PLACED,
+    "node.imageOpacity": NOT_PLACED,
+    "node.glyph": NOT_PLACED,
+    "node.glyphFont": NOT_PLACED,
+    "node.glyphSize": NOT_PLACED,
+    "node.glyphWeight": NOT_PLACED,
+    "node.glyphColor": NOT_PLACED,
+    "node.pieColors": NOT_PLACED,
+    "node.pieSizes": NOT_PLACED,
+    "node.pieOpacities": NOT_PLACED,
+    "node.pieRadius": NOT_PLACED,
+    "node.pieHole": NOT_PLACED,
+    "node.pieRotation": NOT_PLACED,
+    "node.pieFitBox": NOT_PLACED,
+    "node.pieOffsetX": NOT_PLACED,
+    "node.pieOffsetY": NOT_PLACED,
+    "node.stripeColors": NOT_PLACED,
+    "node.stripeSizes": NOT_PLACED,
+    "node.stripeOpacities": NOT_PLACED,
+    "node.stripeDirection": NOT_PLACED,
+    "node.stripeSize": NOT_PLACED,
+    "node.chartKind": NOT_PLACED,
+    "node.chartValues": NOT_PLACED,
+    "node.chartColors": NOT_PLACED,
+    "node.chartMin": NOT_PLACED,
+    "node.chartMax": NOT_PLACED,
+    "node.chartHorizontal": NOT_PLACED,
+    "node.chartSize": NOT_PLACED,
+    "node.chartMargin": NOT_PLACED,
+    "node.chartGap": NOT_PLACED,
+    "node.chartLineWidth": NOT_PLACED,
+    "node.chartBorderColor": NOT_PLACED,
+    "node.chartBorderWidth": NOT_PLACED,
+    "edge.minScreenWidth": NOT_PLACED,
+    "edge.outlineColor": NOT_PLACED,
+    "edge.outlineWidth": NOT_PLACED,
+    "edge.outlineOpacity": NOT_PLACED,
+    "edge.outlineStyle": NOT_PLACED,
+    "edge.underlayColor": NOT_PLACED,
+    "edge.underlayOpacity": NOT_PLACED,
+    "edge.underlayPadding": NOT_PLACED,
+    "edge.overlayColor": NOT_PLACED,
+    "edge.overlayOpacity": NOT_PLACED,
+    "edge.overlayPadding": NOT_PLACED,
+    "edge.gradientColors": NOT_PLACED,
+    "edge.gradientStops": NOT_PLACED,
+    "edge.gradientKind": NOT_PLACED,
+    "edge.waveAmplitude": NOT_PLACED,
+    "edge.wavePeriod": NOT_PLACED,
+    "edge.fanSpacing": NOT_PLACED,
+    "edge.fanned": NOT_PLACED,
+    "edge.bendCurve": NOT_PLACED,
+    "edge.arcRadius": NOT_PLACED,
+    "edge.route": NOT_PLACED,
+    "edge.arcHeight": NOT_PLACED,
+    "edge.nodeGap": NOT_PLACED,
+    "edge.sourcePort": NOT_PLACED,
+    "edge.targetPort": NOT_PLACED,
+    "edge.arrowHeadWidth": NOT_PLACED,
+    "edge.arrowHeadSide": NOT_PLACED,
+    "edge.arrowHeadPosition": NOT_PLACED,
+    "edge.arrowHeadGap": NOT_PLACED,
+    "edge.arrowHeadImage": NOT_PLACED,
+    "edge.arrowHeadTextLetterSize": NOT_PLACED,
+    "edge.arrowHeadTextFont": NOT_PLACED,
+    "edge.arrowHeadTextWeight": NOT_PLACED,
+    "edge.arrowHeadTextOpacity": NOT_PLACED,
+    "edge.arrowHeadTextDistance": NOT_PLACED,
+    "edge.arrowHeadTextRotation": NOT_PLACED,
+    "edge.arrowHeadTextOffsetX": NOT_PLACED,
+    "edge.arrowHeadTextOffsetY": NOT_PLACED,
+    "edge.arrowTailWidth": NOT_PLACED,
+    "edge.arrowTailSide": NOT_PLACED,
+    "edge.arrowTailPosition": NOT_PLACED,
+    "edge.arrowTailGap": NOT_PLACED,
+    "edge.arrowTailImage": NOT_PLACED,
+    "edge.arrowTailTextLetterSize": NOT_PLACED,
+    "edge.arrowTailTextFont": NOT_PLACED,
+    "edge.arrowTailTextWeight": NOT_PLACED,
+    "edge.arrowTailTextOpacity": NOT_PLACED,
+    "edge.arrowTailTextDistance": NOT_PLACED,
+    "edge.arrowTailTextRotation": NOT_PLACED,
+    "edge.arrowTailTextOffsetX": NOT_PLACED,
+    "edge.arrowTailTextOffsetY": NOT_PLACED,
+    "edge.arrowMiddleHead": NOT_PLACED,
+    "edge.arrowMiddleHeadSize": NOT_PLACED,
+    "edge.arrowMiddleHeadWidth": NOT_PLACED,
+    "edge.arrowMiddleHeadSide": NOT_PLACED,
+    "edge.arrowMiddleHeadPosition": NOT_PLACED,
+    "edge.arrowMiddleHeadColor": NOT_PLACED,
+    "edge.arrowMiddleHeadOpacity": NOT_PLACED,
+    "edge.arrowMiddleHeadImage": NOT_PLACED,
+    "edge.arrowMiddleTail": NOT_PLACED,
+    "edge.arrowMiddleTailSize": NOT_PLACED,
+    "edge.arrowMiddleTailWidth": NOT_PLACED,
+    "edge.arrowMiddleTailSide": NOT_PLACED,
+    "edge.arrowMiddleTailPosition": NOT_PLACED,
+    "edge.arrowMiddleTailColor": NOT_PLACED,
+    "edge.arrowMiddleTailOpacity": NOT_PLACED,
+    "edge.arrowMiddleTailImage": NOT_PLACED,
+    "edge.labelLetterSize": NOT_PLACED,
+    "edge.labelWrapWidth": NOT_PLACED,
+    "edge.labelWrapTrailingSpace": NOT_PLACED,
+    "edge.labelWrapEllipsis": NOT_PLACED,
+    "edge.labelWrapAnywhere": NOT_PLACED,
+    "edge.labelWrapSpaceCount": NOT_PLACED,
+    "edge.labelRunAlign": NOT_PLACED,
+    "edge.labelMinScreenSize": NOT_PLACED,
+    "edge.labelOnTop": NOT_PLACED,
+    "edge.labelTextAlign": NOT_PLACED,
+    "edge.labelLocation": NOT_PLACED,
+    "edge.labelRotation": NOT_PLACED,
+    "edge.labelOutline": NOT_PLACED,
+    "edge.labelOutlineWidth": NOT_PLACED,
+    "edge.labelBorder": NOT_PLACED,
+    "edge.labelBorderWidth": NOT_PLACED,
+    "edge.labelOpacity": NOT_PLACED,
+    "edge.labelBackgroundOpacity": NOT_PLACED,
+    "edge.labelOutlineOpacity": NOT_PLACED,
+    "edge.labelBorderOpacity": NOT_PLACED,
+    "edge.labelPadding": NOT_PLACED,
+    "edge.labelCornerRadius": NOT_PLACED,
+    "edge.labelLineHeight": NOT_PLACED,
+    "edge.labelOffsetX": NOT_PLACED,
+    "edge.labelOffsetY": NOT_PLACED,
+    "edge.labelShiftX": NOT_PLACED,
+    "edge.labelShiftY": NOT_PLACED,
+};
+
+const TYPE = at("Label settings, Type");
+const BOX = at("Label settings, Box");
+const LETTERS = at("Label settings, Letters");
+const PLACEMENT = at("Label settings, Placement");
+const MOTION = at("Label settings, Motion and distance");
+const BADGE = at("Label settings, Badge");
+
+/** Every field of a label's style, by where the label entry or its settings set it. */
+export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
+    look: at("Label entry, look"),
+    enabled: at("Label entry, eye (off draws no label here)"),
+    sizePx: at("Label entry, size (through the label size channel)"),
+    sizeMode: at("Label settings, Type, Size in"),
+    size: no("the panel sets the size as sizePx, Label settings, Type, Size"),
+    italic: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    keepInView: PLACEMENT,
+    panelShadow: BOX,
+    panelShadowColor: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowBlur: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowOffsetX: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowOffsetY: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    closeButton: BOX,
+    location: at("Label entry, position"),
+    color: at("Label settings, Text color"),
+    background: at("Label settings, Background"),
+    font: TYPE,
+    weight: TYPE,
+    lineHeight: TYPE,
+    textAlign: TYPE,
+    padding: BOX,
+    cornerRadius: BOX,
+    borderWidth: BOX,
+    borderColor: BOX,
+    marginTop: BOX,
+    marginBottom: BOX,
+    marginLeft: BOX,
+    marginRight: BOX,
+    gradient: BOX,
+    gradientType: BOX,
+    gradientDirection: BOX,
+    gradientColors: BOX,
+    outline: LETTERS,
+    outlineWidth: LETTERS,
+    shadow: LETTERS,
+    shadowColor: LETTERS,
+    shadowBlur: LETTERS,
+    shadowOffsetX: LETTERS,
+    shadowOffsetY: LETTERS,
+    attachOffset: PLACEMENT,
+    pointer: PLACEMENT,
+    pointerDirection: PLACEMENT,
+    pointerWidth: PLACEMENT,
+    pointerHeight: PLACEMENT,
+    pointerOffset: PLACEMENT,
+    pointerCurve: PLACEMENT,
+    onTop: PLACEMENT,
+    pickable: PLACEMENT,
+    animation: MOTION,
+    animationSpeed: MOTION,
+    depthFade: MOTION,
+    depthFadeNear: MOTION,
+    depthFadeFar: MOTION,
+    badge: BADGE,
+    iconPosition: BADGE,
+    progress: BADGE,
+    smartOverflow: BADGE,
+    maxNumber: BADGE,
+    icon: BADGE,
+    overflowSuffix: BADGE,
+    letterSize: NOT_PLACED,
+    wrapWidth: NOT_PLACED,
+    wrapTrailingSpace: NOT_PLACED,
+    wrapEllipsis: NOT_PLACED,
+    wrapAnywhere: NOT_PLACED,
+    wrapSpaceCount: NOT_PLACED,
+    runAlign: NOT_PLACED,
+    rotation: NOT_PLACED,
+    minScreenSize: NOT_PLACED,
+    declutter: NOT_PLACED,
+    minNodeScreenSize: NOT_PLACED,
+    opacity: NOT_PLACED,
+    backgroundOpacity: NOT_PLACED,
+    boxPadding: NOT_PLACED,
+    borderOpacity: NOT_PLACED,
+    offsetX: NOT_PLACED,
+    offsetY: NOT_PLACED,
+    shiftX: NOT_PLACED,
+    shiftY: NOT_PLACED,
+    outlineOpacity: NOT_PLACED,
+};
+
+/**
+ * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
+ * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
+ */
+export const VARY_DECISIONS = {
+    yesOrNo:
+        "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
+    look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
+    opacity:
+        "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Halo and Band settings), shown as a percent",
+} as const;
+
+/**
+ * The drawn properties with no vary glyph, each with its decision. Every other drawn property
+ * varies by a value; an opacity varies from its settings pop-out ({@link VARY_DECISIONS}.opacity).
+ */
+export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
+    "node.wireframe": VARY_DECISIONS.yesOrNo,
+    "node.visible": VARY_DECISIONS.yesOrNo,
+    "edge.visible": VARY_DECISIONS.yesOrNo,
+    "edge.curvature": VARY_DECISIONS.yesOrNo,
+    "node.labelStyle": VARY_DECISIONS.look,
+    "node.tooltipStyle": VARY_DECISIONS.look,
+    "edge.labelStyle": VARY_DECISIONS.look,
+    "edge.arrowHeadTextStyle": VARY_DECISIONS.look,
+    "edge.arrowTailTextStyle": VARY_DECISIONS.look,
+};
+
+/**
+ * The styles the design places in the panel (tier3 design, section 6) that are easy to leave
+ * without a control: the coverage test fails when one of them is marked "not offered".
+ */
+export const DESIGN_PLACED: {
+    readonly channels: readonly Channel[];
+    readonly labelFields: readonly (keyof LabelStyle)[];
+} = {
+    channels: [
+        "node.label",
+        "node.labelColor",
+        "node.labelBackground",
+        "node.tooltipStyle",
+        "node.tooltipSize",
+        "node.tooltipColor",
+        "node.tooltipBackground",
+        "edge.label",
+        "edge.labelColor",
+        "edge.labelBackground",
+        "edge.arrowHeadText",
+        "edge.arrowHeadTextStyle",
+        "edge.arrowHeadTextSize",
+        "edge.arrowHeadTextColor",
+        "edge.arrowHeadTextBackground",
+        "edge.arrowTailText",
+        "edge.arrowTailTextStyle",
+        "edge.arrowTailTextSize",
+        "edge.arrowTailTextColor",
+        "edge.arrowTailTextBackground",
+    ],
+    labelFields: ["gradientColors", "icon", "overflowSuffix"],
+};
+
+/**
+ * The graph settings graphty-element publishes as a list: each selection look field
+ * (`selection.<field>`) and each kind of background (`background.<kind>`). The rest of the graph's
+ * settings have no published list, so they are named in {@link GRAPH_SETTING_HOMES} by hand.
+ * @returns the settings' names.
+ */
+export function publishedGraphSettings(): string[] {
+    return [
+        ...Object.keys(GraphSelectionStyleOpts.shape).map((field) => `selection.${field}`),
+        ...GraphBackground.options.map((option) => `background.${option.shape.backgroundType.value}`),
+    ];
+}
+
+/** Every graph setting, by where Graph settings (no row selected) or a default row sets it. */
+export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
+    "background.color": at("Graph settings, Canvas, Background color"),
+    "background.skybox": at("Graph settings, Canvas, Background image"),
+    "selection.color": at("Selected row, Effects, Halo"),
+    "selection.scale": at("Selected row, Effects, Halo settings"),
+    "selection.opacity": at("Selected row, Effects, Halo settings"),
+    "selection.edgeColor": at("Selected row, Effects, Band"),
+    "selection.edgeScale": at("Selected row, Effects, Band settings"),
+    "selection.edgeOpacity": at("Selected row, Effects, Band settings"),
+    viewMode: no("not a style: the toolbar's 2D / 3D"),
+    lighting: at("Graph settings, Canvas, Lighting"),
+    "layoutBehavior.labels": at("Graph settings, Labels"),
+    "layoutBehavior.node.depthIndependentSize": at("Graph settings, Canvas, Same size at any depth"),
+    highlightColor: no("the app keeps one highlight color; a route's color is its layer's Fill"),
+    "layoutBehavior.node.outlineWidth": at("Graph settings, Canvas, Outline width"),
+    twoD: no("deprecated: View sets it"),
+    addDefaultStyle: no("ignored by graphty-element"),
+    startingRows: no("a project setting, not a style"),
+    startingCameraDistance: no("not a style: the camera"),
+    layout: no("not a style: the toolbar's Layout"),
+    layoutOptions: no("not a style: the toolbar's Layout"),
+};
+
+/**
+ * The names in a published list that have no home.
+ * @param list - the element's list.
+ * @param homes - the map that should hold every name in it.
+ * @returns the names the map lacks, in the list's order.
+ */
+export function homeless(list: readonly string[], homes: Readonly<Record<string, Home>>): string[] {
+    return list.filter((name) => !Object.hasOwn(homes, name));
+}
+
+/**
+ * The per-value and per-group controls of the Style tab, each with the file that draws it (tier3
+ * decisions, round 6: "no color-only controls"). Every one draws its field through `ValueField`
+ * (or the group detail, which does), so it offers a field for every kind of property its parent,
+ * the property row, can vary: a color, a number, a shape, pattern or arrow, or words. The coverage
+ * test fails when a control's file stops drawing the shared field, and when the field leaves a kind
+ * the property row varies without a control.
+ */
+export const PER_VALUE_CONTROLS: Readonly<Record<string, { readonly file: string; readonly draws: string }>> = {
+    "Binding popover, a group's row (the chit for the popover's property)": {
+        file: "workspace/style/Groups.tsx",
+        draws: "<ValueField",
+    },
+    "Group detail, one field per property the layer varies by the groups": {
+        file: "workspace/style/Groups.tsx",
+        draws: "<ValueField",
+    },
+    "Binding popover, No value: Use one value": { file: "workspace/style/BindingPopover.tsx", draws: "<ValueField" },
+    "Property row, the one value of a property set for a few groups": {
+        file: "workspace/style/PropertyRow.tsx",
+        draws: "<ValueField",
+    },
+    "A group row's Style tab": { file: "workspace/style/StylePanel.tsx", draws: "<GroupDetail" },
+};
+
+/**
+ * Every place the app branches on a color, by file: how many branches it holds and why each either
+ * has a branch for every other kind or is about color by nature. The coverage test counts the
+ * branches on a color in every source file (a test of a property accepting color, an is-color
+ * flag) and fails on a file or a count this map does not hold, so a new color-only branch is
+ * caught and has to say why (or offer the other kinds).
+ */
+export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {
+    "workspace/style/BindingPopover.tsx": {
+        count: 14,
+        reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
+    },
+    "workspace/style/PropertyRow.tsx": {
+        count: 14,
+        reason: "The color field beside the number, choice and words fields; the document's colors offered as the color picker's swatches on every color field of the row, set or not; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
+    },
+    "workspace/style/words.ts": {
+        count: 2,
+        reason: "takesBinding lists color with number, choice and words; valueWords names a color, and names every other kind in its own branch",
+    },
+    "workspace/style/row.ts": {
+        count: 5,
+        reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+    },
+    "workspace/style/StylePanel.tsx": {
+        count: 1,
+        reason: "The document's colors, offered as the color picker's swatches: no other kind has swatches",
+    },
+};

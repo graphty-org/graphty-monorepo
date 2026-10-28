@@ -30,7 +30,17 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
+import type {
+    EdgeId,
+    LayerId,
+    NodeId,
+    Path,
+    Query,
+    Scope,
+    ScopeInput,
+    SelectionDirection,
+    TextMatchMode,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { eachAdjacentArc } from "../adjacency";
 import type { NoteMembers } from "../notes/select";
@@ -62,10 +72,12 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
  * - `substring`: the id or an attribute value contains the text, ignoring case.
  * - `exact`: the id or an attribute value is the text, exactly.
  * - `regex`: the id or an attribute value matches the text as a regular expression.
+ * - `starts-with`, `ends-with`: the id or an attribute value starts (ends) with the text, ignoring
+ *   case.
  * - `attribute`: the text is `key:value`, and the node's `key` (or its id, for `id`) is the value,
  *   ignoring case. A key no node carries is searched as plain substring text.
  */
-export type SelectionTextMode = "substring" | "exact" | "regex" | "attribute";
+export type SelectionTextMode = TextMatchMode | "attribute";
 
 export type { SelectionDirection } from "../../catalog/types";
 
@@ -154,7 +166,13 @@ export type SelectionTarget =
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
      * `result` target names no elements.
      */
-    | { readonly note: NoteId; readonly target?: number };
+    | { readonly note: NoteId; readonly target?: number }
+    /**
+     * Every element a style layer's rule matches, whether or not the layer is shown: what
+     * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
+     * @since 3.26.0
+     */
+    | { readonly layer: LayerId };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver reads
@@ -232,6 +250,12 @@ export interface TargetContext {
      * @returns The rows, the scopes and the skipped count.
      */
     readonly note?: (id: NoteId, target: number | undefined) => NoteMembers;
+    /**
+     * What a style layer's rule matches. Absent refuses a `layer` target.
+     * @param id - The layer.
+     * @returns The elements it matches.
+     */
+    readonly layer?: (id: LayerId) => SelectionMatch;
 }
 
 /** The elements one target named. */
@@ -279,7 +303,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { range }, { note }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { range }, { note }, { layer }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -697,9 +721,287 @@ function resolveNote(id: NoteId, only: number | undefined, context: TargetContex
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS, skipped };
 }
 
+/**
+ * The elements a predicate target names.
+ * @param target - The predicate and its optional scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks and the paths nothing answers.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no query engine is attached.
+ */
+function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, context: TargetContext): TargetMembers {
+    if (context.match === undefined) {
+        throw unsupported("a predicate", "a query engine");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const matched = context.match(target.where);
+    addIds(nodes, matched.nodes ?? []);
+    addIds(edges, matched.edges ?? []);
+    narrowToScope(context, target.scope, nodes, edges);
+
+    return {
+        nodes,
+        edges,
+        unmatched: EMPTY_STRINGS,
+        unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
+    };
+}
+
+/**
+ * Sets the bit of the element a search hit names, when the graph holds it.
+ * @param hit - The search hit.
+ * @param nodes - The node mask to add a node hit to.
+ * @param edges - The edge mask to add an edge hit to.
+ */
+function addSearchHit(hit: SelectionSearchHit, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): void {
+    if (hit.kind === "edge") {
+        const index = edges.indexOf(String(hit.id));
+
+        if (index !== INVALID_INDEX) {
+            edges.add(index);
+        }
+    } else {
+        const index = nodes.indexOf(hit.id);
+
+        if (index !== INVALID_INDEX) {
+            nodes.add(index);
+        }
+    }
+}
+
+/**
+ * The elements a text search target names.
+ * @param target - The text, its optional mode and its optional scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no search index (or, for an `=` expression,
+ *   no query engine) is attached.
+ */
+function resolveText(target: Extract<SelectionTarget, { text: unknown }>, context: TargetContext): TargetMembers {
+    // A search box's `=` prefix: the rest is an expression, so a single text field can offer
+    // both without its host parsing anything.
+    if (target.mode === undefined && target.text.startsWith("=")) {
+        const where = target.text.slice(1);
+
+        return resolveTarget(target.scope === undefined ? { where } : { where, scope: target.scope }, context);
+    }
+
+    if (context.find === undefined) {
+        throw unsupported("a text search", "a search index");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const search = target.mode === undefined ? searchOf(target.text) : { text: target.text, mode: target.mode };
+
+    for (const hit of context.find(search.text, search.mode)) {
+        addSearchHit(hit, nodes, edges);
+    }
+
+    narrowToScope(context, target.scope, nodes, edges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a list of pasted ids names.
+ * @param ids - The pasted ids, as the caller passed them.
+ * @param context - What the resolution reads.
+ * @returns The two masks and the ids that named nothing.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when an entry is neither a string nor a finite
+ *   number.
+ */
+function resolvePastedIds(ids: readonly unknown[], context: TargetContext): TargetMembers {
+    const { nodes, edges } = emptyMasks(context);
+    const unmatched: string[] = [];
+
+    for (const raw of ids) {
+        if (typeof raw !== "string" && !(typeof raw === "number" && Number.isFinite(raw))) {
+            throw badOption("ids entry", JSON.stringify(raw), "a string or a finite number");
+        }
+
+        if (!addPastedId(raw, nodes, edges)) {
+            unmatched.push(String(raw));
+        }
+    }
+
+    return { nodes, edges, unmatched: Object.freeze(unmatched), unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a scope names.
+ * @param scope - The scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached.
+ */
+function resolveScope(scope: ScopeInput, context: TargetContext): TargetMembers {
+    if (context.scope === undefined) {
+        throw unsupported("a scope", "a scope resolver");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const resolved = context.scope.resolveNow(admitted(context.scope, scope));
+    addIds(nodes, resolved.nodes);
+    addIds(edges, resolved.edges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements whose value in a run's field lies above a threshold.
+ * @param above - The run, the optional field and the threshold.
+ * @param above.run - The run to read.
+ * @param above.field - The field to rank on; the run's primary field when absent.
+ * @param above.threshold - The value an element must exceed.
+ * @param context - What the resolution reads.
+ * @returns The two masks, and the path when this session cannot answer it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the threshold is not finite.
+ */
+function resolveAbove(
+    above: { run: RunRef; field?: string; threshold: number },
+    context: TargetContext,
+): TargetMembers {
+    const { run, threshold } = above;
+
+    if (!Number.isFinite(threshold)) {
+        throw badOption("threshold", threshold, "a finite number");
+    }
+
+    return resolveRanked(context, run, above.field, (result, field) =>
+        result.ranking(field).filter((entry) => entry.value > threshold),
+    );
+}
+
+/**
+ * The elements whose value in a run's field lies within a range.
+ * @param range - The run, the optional field and the optional bounds.
+ * @param range.run - The run to read.
+ * @param range.field - The field to rank on; the run's primary field when absent.
+ * @param range.min - The lowest value admitted; unbounded when absent.
+ * @param range.max - The highest value admitted; unbounded when absent.
+ * @param context - What the resolution reads.
+ * @returns The two masks, and the path when this session cannot answer it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when a bound is not finite or min exceeds max.
+ */
+function resolveRange(
+    range: { run: RunRef; field?: string; min?: number; max?: number },
+    context: TargetContext,
+): TargetMembers {
+    const { run, min, max } = range;
+
+    for (const [option, bound] of [
+        ["min", min],
+        ["max", max],
+    ] as const) {
+        if (bound !== undefined && !Number.isFinite(bound)) {
+            throw badOption(option, bound, "a finite number");
+        }
+    }
+
+    const low = min ?? Number.NEGATIVE_INFINITY;
+    const high = max ?? Number.POSITIVE_INFINITY;
+
+    if (low > high) {
+        throw badOption("min", min, `at most its max (${String(max)})`);
+    }
+
+    return resolveRanked(context, run, range.field, (result, field) =>
+        result.ranking(field).filter((entry) => entry.value >= low && entry.value <= high),
+    );
+}
+
+/**
+ * The edges whose two ends are both selected.
+ * @param target - The edges-between target.
+ * @param context - What the resolution reads.
+ * @returns The two masks, with only edges set.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the flag is not `true`.
+ */
+function resolveEdgesBetween(
+    target: Extract<SelectionTarget, { edgesBetween: unknown }>,
+    context: TargetContext,
+): TargetMembers {
+    // Read through `unknown` on purpose: the type says the flag is `true`, and a caller
+    // writing plain JavaScript can still pass `false`, which means nothing and must not be
+    // taken for "yes".
+    const flag: unknown = target.edgesBetween;
+
+    if (flag !== true) {
+        throw notATarget(target);
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const list = context.graph.edgeList();
+
+    for (let edge = 0; edge < context.graph.edgeCount; edge++) {
+        if (context.selectedNodes.has(list.src[edge]) && context.selectedNodes.has(list.dst[edge])) {
+            edges.add(edge);
+        }
+    }
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * Every element the current selection does not hold.
+ * @param target - The invert target.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the flag is not `true`.
+ */
+function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, context: TargetContext): TargetMembers {
+    const flag: unknown = target.invert;
+
+    if (flag !== true) {
+        throw notATarget(target);
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    nodes.fill();
+    nodes.subtract(context.selectedNodes);
+    edges.fill();
+    edges.subtract(context.selectedEdges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a node-and-edge id target names.
+ * @param target - The node ids and edge ids.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ */
+function resolveElementIds(target: ElementIdTarget, context: TargetContext): TargetMembers {
+    const { nodes, edges } = emptyMasks(context);
+    addIds(nodes, target.nodes ?? []);
+    addIds(edges, target.edges ?? []);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The elements a style layer selects.
+ * @param layer - The layer.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when the session has no style stack.
+ */
+function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
+    if (context.layer === undefined) {
+        throw unsupported("a style layer", "a style stack");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const matched = context.layer(layer);
+    addIds(nodes, matched.nodes ?? []);
+    addIds(edges, matched.edges ?? []);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
 
 /**
  * The elements one target names.
@@ -719,93 +1021,27 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("where" in target) {
-        if (context.match === undefined) {
-            throw unsupported("a predicate", "a query engine");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const matched = context.match(target.where);
-        addIds(nodes, matched.nodes ?? []);
-        addIds(edges, matched.edges ?? []);
-        narrowToScope(context, target.scope, nodes, edges);
-
-        return {
-            nodes,
-            edges,
-            unmatched: EMPTY_STRINGS,
-            unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
-        };
+        return resolveWhere(target, context);
     }
 
     if ("note" in target) {
         return resolveNote(target.note, target.target, context);
     }
 
+    if ("layer" in target) {
+        return resolveLayer(target.layer, context);
+    }
+
     if ("text" in target) {
-        // A search box's `=` prefix: the rest is an expression, so a single text field can offer
-        // both without its host parsing anything.
-        if (target.mode === undefined && target.text.startsWith("=")) {
-            const where = target.text.slice(1);
-
-            return resolveTarget(target.scope === undefined ? { where } : { where, scope: target.scope }, context);
-        }
-
-        if (context.find === undefined) {
-            throw unsupported("a text search", "a search index");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const search = target.mode === undefined ? searchOf(target.text) : { text: target.text, mode: target.mode };
-
-        for (const hit of context.find(search.text, search.mode)) {
-            if (hit.kind === "edge") {
-                const index = edges.indexOf(String(hit.id));
-
-                if (index !== INVALID_INDEX) {
-                    edges.add(index);
-                }
-            } else {
-                const index = nodes.indexOf(hit.id);
-
-                if (index !== INVALID_INDEX) {
-                    nodes.add(index);
-                }
-            }
-        }
-
-        narrowToScope(context, target.scope, nodes, edges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveText(target, context);
     }
 
     if ("ids" in target) {
-        const { nodes, edges } = emptyMasks(context);
-        const unmatched: string[] = [];
-
-        for (const raw of target.ids as readonly unknown[]) {
-            if (typeof raw !== "string" && !(typeof raw === "number" && Number.isFinite(raw))) {
-                throw badOption("ids entry", JSON.stringify(raw), "a string or a finite number");
-            }
-
-            if (!addPastedId(raw, nodes, edges)) {
-                unmatched.push(String(raw));
-            }
-        }
-
-        return { nodes, edges, unmatched: Object.freeze(unmatched), unresolvedPaths: EMPTY_PATHS };
+        return resolvePastedIds(target.ids, context);
     }
 
     if ("scope" in target) {
-        if (context.scope === undefined) {
-            throw unsupported("a scope", "a scope resolver");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const resolved = context.scope.resolveNow(admitted(context.scope, target.scope));
-        addIds(nodes, resolved.nodes);
-        addIds(edges, resolved.edges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveScope(target.scope, context);
     }
 
     if ("top" in target) {
@@ -815,77 +1051,19 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("above" in target) {
-        const { run, threshold } = target.above;
-
-        if (!Number.isFinite(threshold)) {
-            throw badOption("threshold", threshold, "a finite number");
-        }
-
-        return resolveRanked(context, run, target.above.field, (result, field) =>
-            result.ranking(field).filter((entry) => entry.value > threshold),
-        );
+        return resolveAbove(target.above, context);
     }
 
     if ("range" in target) {
-        const { run, min, max } = target.range;
-
-        for (const [option, bound] of [
-            ["min", min],
-            ["max", max],
-        ] as const) {
-            if (bound !== undefined && !Number.isFinite(bound)) {
-                throw badOption(option, bound, "a finite number");
-            }
-        }
-
-        const low = min ?? Number.NEGATIVE_INFINITY;
-        const high = max ?? Number.POSITIVE_INFINITY;
-
-        if (low > high) {
-            throw badOption("min", min, `at most its max (${String(max)})`);
-        }
-
-        return resolveRanked(context, run, target.range.field, (result, field) =>
-            result.ranking(field).filter((entry) => entry.value >= low && entry.value <= high),
-        );
+        return resolveRange(target.range, context);
     }
 
     if ("edgesBetween" in target) {
-        // Read through `unknown` on purpose: the type says the flag is `true`, and a caller
-        // writing plain JavaScript can still pass `false`, which means nothing and must not be
-        // taken for "yes".
-        const flag: unknown = target.edgesBetween;
-
-        if (flag !== true) {
-            throw notATarget(target);
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const list = context.graph.edgeList();
-
-        for (let edge = 0; edge < context.graph.edgeCount; edge++) {
-            if (context.selectedNodes.has(list.src[edge]) && context.selectedNodes.has(list.dst[edge])) {
-                edges.add(edge);
-            }
-        }
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveEdgesBetween(target, context);
     }
 
     if ("invert" in target) {
-        const flag: unknown = target.invert;
-
-        if (flag !== true) {
-            throw notATarget(target);
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        nodes.fill();
-        nodes.subtract(context.selectedNodes);
-        edges.fill();
-        edges.subtract(context.selectedEdges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveInvert(target, context);
     }
 
     if (isNeighborhood(target)) {
@@ -893,11 +1071,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if (isElementIds(target)) {
-        const { nodes, edges } = emptyMasks(context);
-        addIds(nodes, target.nodes ?? []);
-        addIds(edges, target.edges ?? []);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveElementIds(target, context);
     }
 
     throw notATarget(target);

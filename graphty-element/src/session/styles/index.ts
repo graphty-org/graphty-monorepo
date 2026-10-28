@@ -22,8 +22,18 @@
 
 export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles } from "./autoApply";
 export { createAutoApplyPolicy } from "./autoApply";
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
+export type { ColorWrite, StyleColor } from "./colors";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
+export type {
+    BindingPreview,
+    BindingPreviewBin,
+    PreviewDefaultedPart,
+    PreviewSpan,
+    StyleAdjustmentCode,
+    StyleSequence,
+} from "./encoding";
+export { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,
@@ -35,16 +45,20 @@ export type {
 } from "./EncodingSpec";
 export type {
     ChannelAgreement,
+    ChannelCovers,
     ChannelExplanation,
     ChannelRefusalCode,
     ChannelShare,
     ExplainTarget,
+    LeftOutCode,
     StyleAgreement,
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    TopFactCode,
     UnboundLayer,
     UnboundLayerCode,
+    UndrawnCode,
 } from "./explain";
 export type {
     CompiledLayer,
@@ -69,18 +83,31 @@ export type {
     LegendReading,
     LegendSwatch,
 } from "./legend";
-export { quotePath } from "./predicate";
+export { quotePath, renamePaths, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
-export type { Selector } from "./selector";
+export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } from "./rows";
+export type { RuleSelector, Selector } from "./selector";
+export { selectorRule } from "./selector";
 export type {
+    AgreementOptions,
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
+    LayerPatch,
+    LayerReach,
+    MarkSpec,
     SessionStylesApi,
+    StyleBatchChange,
     StyleChange,
+    StyleFileDocument,
     StylesApi,
     StylesSources,
+    StyleUpdateOptions,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
+    UpdateManyResult,
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";
+export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";
+export type { LayerGroup, ValueCategory, ValueEntryWrite, ValueGroup } from "./values";

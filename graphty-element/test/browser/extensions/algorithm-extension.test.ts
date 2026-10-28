@@ -1691,7 +1691,7 @@ describe("an algorithm written outside this package", () => {
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
         assert.lengthOf(suggestions, 1, "a route is one picture, however many kinds of element it runs through");
-        assert.strictEqual(suggestions[0].as, "highlight", "a route highlights what it chose rather than ramping");
+        assert.strictEqual(suggestions[0].as, "mark", "a route marks what it chose rather than ramping");
         assert.deepStrictEqual(
             suggestions[0].channels,
             ["node.color", "edge.color"],

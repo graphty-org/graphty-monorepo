@@ -1,0 +1,99 @@
+{
+    "about": "Gephi JSON's style vocabulary: every key the Gephi JSON Exporter plugin writes (its model classes GraphElement, GraphNode and GraphEdge, serialized by Gson's default toJson: nulls left out, HTML characters escaped as \\u003c and so on, doubles with a decimal point), and the sigma.js defaults that decide how sigma draws a file that says nothing more. gephi-json.mjs checks every key here has a specimen or a reason, and that sigma's live DEFAULT_SETTINGS still equal sigmaSettings (--vocabulary rewrites that part from the pinned sigma).",
+    "program": "Gephi JSON Exporter plugin (oxfordinternetinstitute/gephi-plugins, branch jsonexporter-plugin)",
+    "doc": "https://gephi.org/plugins/",
+    "source": [
+        "https://github.com/oxfordinternetinstitute/gephi-plugins/blob/jsonexporter-plugin/modules/JsonExporter/src/main/java/uk/ac/ox/oii/jsonexporter/JSONExporter.java",
+        "https://github.com/oxfordinternetinstitute/gephi-plugins/blob/jsonexporter-plugin/modules/JsonExporter/src/main/java/uk/ac/ox/oii/jsonexporter/model/GraphElement.java",
+        "https://github.com/oxfordinternetinstitute/gephi-plugins/blob/jsonexporter-plugin/modules/JsonExporter/src/main/java/uk/ac/ox/oii/jsonexporter/model/GraphNode.java",
+        "https://github.com/oxfordinternetinstitute/gephi-plugins/blob/jsonexporter-plugin/modules/JsonExporter/src/main/java/uk/ac/ox/oii/jsonexporter/model/GraphEdge.java"
+    ],
+    "document": {
+        "keys": ["nodes", "edges"],
+        "note": "The exporter puts both arrays in a HashMap, so Gson writes edges before nodes; the order of elements in each array is a HashSet's, not the graph's."
+    },
+    "node": {
+        "id": { "kind": "string", "from": "n.getId().toString()" },
+        "label": { "kind": "string", "from": "n.getLabel(); left out when null" },
+        "x": { "kind": "double", "from": "n.x(); Gephi's y-up graph space" },
+        "y": { "kind": "double", "from": "n.y(); Gephi's y-up graph space" },
+        "size": { "kind": "double", "from": "n.size()" },
+        "color": {
+            "kind": "rgb",
+            "from": "\"rgb(\" + (int)(r * 255) + \",\" + (int)(g * 255) + \",\" + (int)(b * 255) + \")\"; no alpha"
+        },
+        "attributes": {
+            "kind": "map<string,string>",
+            "from": "every column but id and label, toString(), nulls left out; written as {} when there are none; not drawn"
+        }
+    },
+    "edge": {
+        "id": { "kind": "string", "from": "String.valueOf(e.getId())" },
+        "source": { "kind": "string", "from": "e.getSource().getId()" },
+        "target": { "kind": "string", "from": "e.getTarget().getId()" },
+        "label": { "kind": "string", "from": "e.getLabel(); left out when null" },
+        "size": { "kind": "double", "from": "e.getWeight()" },
+        "color": {
+            "kind": "rgb",
+            "from": "the edge's own rgb when e.alpha() != 0, else EdgeColor MIXED of the source and target colors (written as one rgb, so a file cannot tell the two apart)"
+        },
+        "attributes": {
+            "kind": "map<string,string>",
+            "from": "every column that is not a property and not weight; written as {} when there are none; not drawn. An older build of the plugin also wrote the weight column, titled Weight (the corpus export gephi-worldcup.json.gz has \"Weight\": \"1.0\" on every edge)"
+        }
+    },
+    "notWritten": {
+        "about": "What a Gephi workspace has that the exporter never writes, so no Gephi JSON file can carry it.",
+        "keys": [
+            "node shape",
+            "node border",
+            "node alpha",
+            "label font, size, color",
+            "edge direction (directed / undirected)",
+            "edge shape or curve",
+            "edge alpha",
+            "groups or hierarchy",
+            "images",
+            "Preview settings"
+        ]
+    },
+    "exporterOptions": {
+        "exportVisible": "the visible graph (graphModel.getGraphVisible()) or the whole graph: which elements are written, never how they look"
+    },
+    "sigmaDisplayDefaults": {
+        "about": "sigma 4.0.1's DEFAULT_NODE_DISPLAY_DATA and DEFAULT_EDGE_DISPLAY_DATA (sigma/dist/types-*.js) for what the file leaves out: the default specimens show them.",
+        "node": {
+            "size": 10,
+            "color": "#666",
+            "label": "",
+            "labelColor": "#000",
+            "labelSize": 12,
+            "labelFont": "sans-serif",
+            "labelPosition": "right"
+        },
+        "edge": {
+            "size": 1,
+            "color": "#ccc",
+            "path": "straight",
+            "selfLoopPath": "loop",
+            "head": "none",
+            "label": "",
+            "labelColor": "#666"
+        }
+    },
+    "sigmaSettings": {
+        "about": "The pinned sigma's DEFAULT_SETTINGS that change what a Gephi JSON file looks like (the oracle draws with sigma's defaults: the file carries no settings).",
+        "version": "4.0.1",
+        "values": {
+            "renderLabels": true,
+            "renderEdgeLabels": false,
+            "labelDensity": 1,
+            "labelGridCellSize": 100,
+            "labelRenderedSizeThreshold": 6,
+            "minEdgeThickness": 1.7,
+            "itemSizesReference": "positions",
+            "autoRescale": true,
+            "stagePadding": 30
+        }
+    }
+}

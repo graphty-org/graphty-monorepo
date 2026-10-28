@@ -1,6 +1,5 @@
 .ws-table {
     display: flex;
-    flex-direction: column;
     height: 100%;
     min-height: 0;
 }
@@ -14,11 +13,41 @@
     flex: 0 0 auto;
 }
 
+/* Many group tabs scroll sideways rather than stack. */
+.ws-table-tabs {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.ws-table-tabs [role="tablist"] {
+    flex-wrap: nowrap;
+}
+
 .ws-table-spacer {
     flex: 1;
 }
 
+/* In a narrow dock the count gives way first, then the Columns label, and the tabs last. */
 .ws-table-count {
+    flex: 0 100 auto;
+    min-width: 0;
+}
+
+.ws-table-columns {
+    flex: 0 20 auto;
+    min-width: 40px;
+}
+
+.ws-table-columns .mantine-Button-inner,
+.ws-table-columns .mantine-Button-label {
+    min-width: 0;
+}
+
+.ws-table-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
@@ -27,4 +56,105 @@
     line-height: 24px;
     padding: 0 12px;
     flex: 0 0 auto;
+}
+
+/* The table, beside the configuration column when maximized. */
+.ws-table-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.ws-table-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* Maximized (spec section 3.5): the dock covers the canvas area, toolbar, minimap and legend. */
+.ws-dock[data-maximized] {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-top: 0;
+    background: var(--cm-bg);
+}
+
+.ws-table-config {
+    display: flex;
+    flex: 0 0 280px;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+/* A header's icons: type, role badge, origin. */
+.ws-th-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.ws-th-role {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--cm-bg-selected);
+    color: var(--cm-text-onselected);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+}
+
+.ws-th-warning {
+    display: inline-flex;
+    align-items: center;
+    color: var(--cm-text-warning);
+    cursor: default;
+}
+
+.ws-th-anchor {
+    display: inline-block;
+    width: 1px;
+    height: 1px;
+}
+
+/* The Issues list, and one issue's row (in the list and in a header's hover). */
+.ws-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-issue {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    min-height: 28px;
+    padding-inline: 8px 4px;
+}
+
+.ws-issue[data-ignored] {
+    opacity: 0.6;
+}
+
+.ws-issue-icon {
+    flex: none;
+    color: var(--cm-text-warning);
+}
+
+.ws-issue-label {
+    white-space: nowrap;
+}
+
+.ws-issue-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-inline-start: auto;
 }

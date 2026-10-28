@@ -64,4 +64,24 @@ describe("load draft on the element", () => {
         assert.strictEqual(session.data.statistics().nodeCount, 3);
         assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
     });
+
+    it("draws the nodes an edge table names when the load has no node rows", async () => {
+        const element = await mount();
+        const { session } = element;
+        const csv = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,1\n";
+
+        const draft = await session.data.prepare({ config: { file: new File([csv], "friends.csv") } });
+        await draft.load({ unmatched: "leave-out", directed: "auto" });
+
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        assert.strictEqual(session.data.statistics().edgeCount, 3);
+        const drawn = element.graph.getNodes().map((node) => String(node.id));
+        assert.sameMembers(drawn, ["Ava", "Ben", "Chloe"]);
+
+        await session.undo();
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
+        assert.lengthOf(element.graph.getNodes(), 0);
+        await session.redo();
+        assert.lengthOf(element.graph.getNodes(), 3);
+    });
 });

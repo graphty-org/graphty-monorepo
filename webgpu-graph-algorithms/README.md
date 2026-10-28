@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-webgpu-graph-algorithms-lockup-color-on-light-800w.png" alt="graphty webgpu-graph-algorithms" width="467">
+
 # @graphty/webgpu-graph-algorithms
 
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node

@@ -69,6 +69,17 @@ describe("ComboInput", () => {
         expect(box).toHaveAttribute("aria-expanded", "false");
     });
 
+    it("a number box says aloud, and draws nothing (Figma), when Escape took back the typing", async () => {
+        renderCombo(<ComboInput label="Width" numeric defaultValue={3} options={[]} />);
+        const box = screen.getByRole("spinbutton");
+        await userEvent.click(box);
+        await userEvent.keyboard("24{Escape}");
+        expect(box).toHaveValue("3");
+        expect(box).toHaveFocus();
+        expect(screen.getByRole("status")).toHaveTextContent("Edit discarded; this stays 3.");
+        expect(screen.getAllByText("Edit discarded; this stays 3.")).toHaveLength(1);
+    });
+
     it("an arrow pressed before the open frame moves from the current value", async () => {
         // Hold back the frame in which the list highlights the current value, as a fast
         // keyboard user (or a test) outruns it.
@@ -104,7 +115,7 @@ describe("ComboInput", () => {
         );
         await userEvent.click(screen.getByRole("button", { name: "Open list" }));
         expect(screen.getByRole("option", { name: "Hug", hidden: true })).toHaveAttribute("data-checked");
-        expect(screen.getByRole("separator", { hidden: true })).toBeInTheDocument();
+        expect(screen.getByRole("separator", { hidden: true }).tagName).toBe("HR");
     });
 
     it("shows its mode word and a disabled field refuses the list", () => {
@@ -112,5 +123,19 @@ describe("ComboInput", () => {
         expect(screen.getByText("Hug")).toBeInTheDocument();
         expect(screen.getByRole("combobox")).toBeDisabled();
         expect(screen.getByRole("button", { name: "Open list", hidden: true })).toBeDisabled();
+    });
+
+    it("with no choices is a spin button: no list button, and nothing opens a list", async () => {
+        renderCombo(<ComboInput label="Size" numeric defaultValue={4} min={1} options={[]} />);
+        expect(screen.queryByRole("button", { name: "Open list", hidden: true })).toBeNull();
+        expect(screen.queryByRole("combobox")).toBeNull();
+        const box = screen.getByRole("spinbutton", { name: "Size" });
+        expect(box).toHaveAttribute("aria-valuenow", "4");
+        expect(box).toHaveAttribute("aria-valuemin", "1");
+        expect(box).not.toHaveAttribute("aria-haspopup");
+        expect(box).not.toHaveAttribute("aria-expanded");
+        await userEvent.click(box);
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        expect(screen.queryByRole("listbox", { hidden: true })).toBeNull();
     });
 });

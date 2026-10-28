@@ -854,12 +854,28 @@ describe("checking a layer before it is committed", () => {
         assert.include(result.errors[0]?.candidates ?? [], "linear");
     });
 
-    it("refuses a run-bound encoding on a layer that paints everything", () => {
+    it("accepts a run-bound encoding on a layer that paints everything, which paints only measured elements", () => {
+        const { styles } = makeStyles();
+        for (const [channel, by] of [
+            ["node.opacity", "results.degree.value"],
+            ["node.color", "results.louvain.group"],
+        ] as const) {
+            const result = styles.validate({
+                name: "Everything",
+                selector: { match: "everything" },
+                encode: { [channel]: { by } },
+            });
+
+            assert.deepStrictEqual(codesOf(result), [], channel);
+        }
+    });
+
+    it("refuses a run-bound encoding that paints missing results on a layer that paints everything", () => {
         const { styles } = makeStyles();
         const result = styles.validate({
             name: "Unscoped",
             selector: { match: "everything" },
-            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal" } },
+            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", missing: { value: "#888888" } } },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSCOPED_RUN_ENCODING"]);
@@ -1140,6 +1156,57 @@ describe("highlight(), which is exclusive", () => {
         const [nodes] = await styles.highlight({ run: "influencers" });
 
         assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
+    });
+
+    it("keeps ultramarine as the element's own highlight colour", () => {
+        assert.strictEqual(DEFAULT_HIGHLIGHT.color, "#0000AA");
+    });
+
+    it("paints the consumer's highlight colour on both halves, and the element's again once cleared", async () => {
+        const { styles } = makeStyles();
+
+        styles.setHighlightColor("#000000");
+        const layers = await styles.highlight({ run: "route" });
+        const edges = layers.find((layer) => layer.target === "edge");
+
+        assert.strictEqual(layers.find((layer) => layer.target === "node")?.set?.["node.color"], "#000000");
+        assert.strictEqual(edges?.set?.["edge.color"], "#000000");
+        assert.strictEqual(edges?.set?.["edge.width"], DEFAULT_HIGHLIGHT.edgeWidth);
+
+        styles.setHighlightColor(undefined);
+        const [nodes] = await styles.highlight({ run: "influencers" });
+
+        assert.strictEqual(nodes?.set?.["node.color"], DEFAULT_HIGHLIGHT.color);
+    });
+
+    it("states the style a highlight with no set paints, and follows the highlight colour", async () => {
+        const { styles } = makeStyles();
+        const painted = async (): Promise<[unknown, unknown]> => {
+            const layers = await styles.highlight({ run: "route" });
+            return [
+                layers.find((layer) => layer.target === "node")?.set,
+                layers.find((layer) => layer.target === "edge")?.set,
+            ];
+        };
+
+        assert.deepStrictEqual([styles.highlightStyle("node"), styles.highlightStyle("edge")], await painted());
+        assert.deepStrictEqual(styles.highlightStyle("edge"), {
+            "edge.color": DEFAULT_HIGHLIGHT.color,
+            "edge.width": EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
+        });
+
+        styles.setHighlightColor("#000000");
+
+        assert.deepStrictEqual([styles.highlightStyle("node"), styles.highlightStyle("edge")], await painted());
+        assert.strictEqual(styles.highlightStyle("edge")["edge.color"], "#000000");
+    });
+
+    it("refuses a highlight colour a layer would not accept", () => {
+        const { styles } = makeStyles();
+
+        assert.throws(() => {
+            styles.setHighlightColor("not a colour");
+        }, /not a colour a layer accepts/);
     });
 
     it("draws a highlighted edge wider than a default edge, so a route reads as a route", async () => {

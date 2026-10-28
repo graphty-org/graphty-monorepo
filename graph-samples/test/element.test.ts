@@ -1,9 +1,9 @@
+import { fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { florentineFamilies } from "../src/datasets/florentine-families/index.js";
-import { karate } from "../src/datasets/karate/index.js";
 import { toElementData } from "../src/element.js";
 import { plantedPartitionGraph } from "../src/generators/index.js";
+import { florentineFamilies, karate } from "./helpers/datasets.js";
 
 describe("toElementData", () => {
     it("uses indices as ids and copies typed node columns", () => {
@@ -27,5 +27,11 @@ describe("toElementData", () => {
         const club = toElementData(karate());
         expect(club.nodes[33]).toEqual({ id: 33, club: "Officer" });
         expect(club.edges[0]).toEqual({ source: 0, target: 1, weight: 4 });
+    });
+
+    it("gives a dataset's snapshot the same records as the graph it was built from", () => {
+        for (const graph of [karate(), florentineFamilies()]) {
+            expect(toElementData(fromEdgeArrays(graph))).toEqual(toElementData(graph));
+        }
     });
 });

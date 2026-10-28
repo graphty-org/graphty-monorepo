@@ -3,10 +3,11 @@
  * (design/figma-spec.md 10.1), the Alt+Arrow keyboard move, pointer selection, the caret, rename,
  * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */
+import { Menu, ScrollArea } from "@mantine/core";
 import { screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { ToggleIconButton } from "../../../src/components/buttons";
 import {
@@ -18,6 +19,7 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -78,6 +80,56 @@ describe("Tree: semantics", () => {
         expect(item).toHaveTextContent("value");
     });
 
+    it("draws a visible description as a whole second line under a long name", async () => {
+        const name = "shared_chapters is at least 5";
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree
+                    items={[
+                        { id: "s", name, description: "77 to 26 nodes", descriptionVisible: true },
+                        { id: "h", name: "hidden", description: "Running" },
+                    ]}
+                />
+            </div>,
+        );
+        const item = row(name);
+        expect(item).toHaveAccessibleDescription("77 to 26 nodes");
+        expect(item.getBoundingClientRect().height).toBe(44);
+        const line = within(item).getByText("77 to 26 nodes");
+        expect(line.checkVisibility()).toBe(true);
+        const shown = within(item).getByText(name);
+        expect(shown.scrollWidth).toBeLessThanOrEqual(shown.clientWidth);
+        expect(line.getBoundingClientRect().top).toBeGreaterThanOrEqual(shown.getBoundingClientRect().bottom);
+        // Without the flag the description is only read.
+        expect(within(row("hidden")).getByText("Running").checkVisibility()).toBe(false);
+        expect(row("hidden").getBoundingClientRect().height).toBe(32);
+    });
+
+    it("wraps a description too long for one line, and the row grows to hold it", async () => {
+        const words = "77 to 26 nodes, 254 to 51 edges";
+        await renderThemed(
+            <div style={{ width: 180 }}>
+                <Tree
+                    items={[
+                        {
+                            id: "s",
+                            name: "shared_chapters is at least 5",
+                            description: words,
+                            descriptionVisible: true,
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        const item = row("shared_chapters is at least 5");
+        const line = within(item).getByText(words);
+        // The whole description shows, on more than one line, inside the row.
+        expect(line.scrollWidth).toBeLessThanOrEqual(line.clientWidth);
+        expect(line.getBoundingClientRect().height).toBeGreaterThan(16);
+        expect(item.getBoundingClientRect().height).toBeGreaterThan(44);
+        expect(line.getBoundingClientRect().bottom).toBeLessThanOrEqual(item.getBoundingClientRect().bottom);
+    });
+
     it("has one Tab stop, on the selected row", async () => {
         await renderThemed(
             <>
@@ -96,6 +148,67 @@ describe("Tree: semantics", () => {
         expect(focused()).toBe("rect");
         await userEvent.tab();
         expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+    });
+    it("with nothing selected, Tab lands on the resting row, and on the selected row once there is one", async () => {
+        const resting = await renderThemed(<Tree items={ITEMS} restingId="leaf" />);
+        await tabIn();
+        expect(focused()).toBe("leaf");
+        resting.unmount();
+        await renderThemed(<Tree items={ITEMS} restingId="leaf" defaultSelected={["other"]} />);
+        await tabIn();
+        expect(focused()).toBe("other");
+    });
+});
+
+describe("Tree: a long pinned text", () => {
+    it("shares a narrow row with the name instead of squeezing the name to nothing", async () => {
+        const items: TreeNodeData[] = [
+            {
+                id: "passes",
+                name: "passes.csv",
+                actions: <span data-pinned="">17 edges, 1 row left out, and a good deal more text</span>,
+            },
+        ];
+        await renderThemed(
+            <div style={{ width: 200 }}>
+                <Tree label="Sources" items={items} />
+            </div>,
+        );
+        const row = screen.getByRole("treeitem", { name: "passes.csv" });
+        const name = row.querySelector(".cm-tree-name")!.getBoundingClientRect();
+        const pinned = within(row)
+            .getByText(/17 edges/)
+            .getBoundingClientRect();
+        // "passes.csv" is about 55px wide at rest; the pinned text gives way first.
+        expect(name.width).toBeGreaterThan(40);
+        expect(pinned.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
+    });
+
+    it("keeps a pinned checkbox whole on a narrow row with a count", async () => {
+        const items: TreeNodeData[] = [
+            {
+                id: "step",
+                name: "shared_chapters is at least 5",
+                count: "77 to 26 nodes",
+                actions: (
+                    <span data-pinned="">
+                        <input type="checkbox" aria-label="Apply step" defaultChecked />
+                    </span>
+                ),
+            },
+        ];
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree label="Filters" items={items} />
+            </div>,
+        );
+        const row = screen.getByRole("treeitem", { name: /shared_chapters/ }).getBoundingClientRect();
+        const box = screen.getByRole("checkbox", { name: "Apply step" }).getBoundingClientRect();
+        expect(box.width).toBeGreaterThan(8);
+        expect(box.right).toBeLessThanOrEqual(row.right);
+        expect(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)).toBe(
+            screen.getByRole("checkbox", { name: "Apply step" }),
+        );
     });
 });
 
@@ -168,6 +281,22 @@ describe("Tree: keyboard", () => {
         expect(row("Leaf")).toHaveAttribute("aria-selected", "true");
     });
 
+    it("extends the selection with Shift+ArrowDown and Shift+ArrowUp from the selected row", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} onSelect={onSelect} />);
+        await tabIn();
+
+        await userEvent.keyboard("{ArrowDown}{Enter}{Shift>}{ArrowDown}{ArrowDown}{/Shift}");
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "group", "other"], expect.anything());
+        expect(focused()).toBe("other");
+        await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "group"], expect.anything());
+        // A plain arrow moves focus and leaves the selection alone.
+        await userEvent.keyboard("{ArrowDown}");
+        expect(row("Group")).toHaveAttribute("aria-selected", "true");
+        expect(row("Other")).toHaveAttribute("aria-selected", "false");
+    });
+
     it("keeps one selected row when multiselect is off", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} multiselect={false} onSelect={onSelect} />);
@@ -195,6 +324,42 @@ describe("Tree: keyboard", () => {
             expect(focused()).toBe("other");
         } finally {
             vi.useRealTimers();
+        }
+    });
+
+    it("leaves '/' and other punctuation to the page: type-ahead takes letters and digits only", async () => {
+        const seen: boolean[] = [];
+        const onKey = (event: KeyboardEvent): void => {
+            seen.push(event.defaultPrevented);
+        };
+        await renderThemed(<Tree items={ITEMS} />);
+        await tabIn();
+        globalThis.addEventListener("keydown", onKey);
+        try {
+            await userEvent.keyboard("/");
+            expect(focused()).toBe("frame");
+            expect(seen).toEqual([false]);
+        } finally {
+            globalThis.removeEventListener("keydown", onKey);
+        }
+    });
+
+    it("leaves Shift+letter chords to the page: Shift+L does not jump to Leaf", async () => {
+        const seen: boolean[] = [];
+        const onKey = (event: KeyboardEvent): void => {
+            if (event.code === "KeyL" && event.shiftKey) {
+                seen.push(event.defaultPrevented);
+            }
+        };
+        await renderThemed(<Tree items={ITEMS} />);
+        await tabIn();
+        globalThis.addEventListener("keydown", onKey);
+        try {
+            await userEvent.keyboard("{Shift>}l{/Shift}");
+            expect(focused()).toBe("frame");
+            expect(seen).toEqual([false]);
+        } finally {
+            globalThis.removeEventListener("keydown", onKey);
         }
     });
 
@@ -248,11 +413,90 @@ describe("Tree: keyboard", () => {
         expect(focused()).toBe("frame");
     });
 
+    it("opens a rename the caller asks for, and keeps one the caller refuses closed", async () => {
+        const asked: (string | null)[] = [];
+        /**
+         * A caller that renames only "other", and opens it from its own button.
+         * @returns the tree and the button
+         */
+        function Caller(): React.JSX.Element {
+            const [renaming, setRenaming] = React.useState<string | null>(null);
+            return (
+                <>
+                    <Tree
+                        items={ITEMS}
+                        onRename={vi.fn()}
+                        renaming={renaming}
+                        onRenamingChange={(id) => {
+                            asked.push(id);
+                            setRenaming(id === "frame" ? null : id);
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setRenaming("other");
+                        }}
+                    >
+                        Rename Other
+                    </button>
+                </>
+            );
+        }
+        await renderThemed(<Caller />);
+        await tabIn();
+        await userEvent.keyboard("{F2}");
+        expect(asked).toEqual(["frame"]);
+        expect(screen.queryByRole("textbox")).toBeNull();
+
+        await userEvent.click(screen.getByRole("button", { name: "Rename Other" }));
+        const field = await screen.findByRole("textbox", { name: "Layer name" });
+        expect((field as HTMLInputElement).value).toBe("Other");
+    });
+
     it("does not rename without onRename", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await tabIn();
         await userEvent.keyboard("{F2}");
         expect(screen.queryByRole("textbox")).toBeNull();
+    });
+});
+
+describe("Tree: a focused row that goes away", () => {
+    /**
+     * A flat tree whose Delete key removes the focused row, as a caller's delete command does.
+     * @returns the tree
+     */
+    function Deleting(): React.JSX.Element {
+        const [items, setItems] = React.useState<TreeNodeData[]>([
+            { id: "a", name: "Alpha" },
+            { id: "b", name: "Beta" },
+            { id: "c", name: "Gamma" },
+        ]);
+        return (
+            <Tree
+                items={items}
+                onRowKeyDown={(id, event) => {
+                    if (event.key === "Delete") {
+                        event.preventDefault();
+                        setItems((now) => now.filter((item) => item.id !== id));
+                    }
+                }}
+            />
+        );
+    }
+
+    it("hands focus to the row now in its place, or to the new last row", async () => {
+        await renderThemed(<Deleting />);
+        await tabIn();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("b");
+
+        await userEvent.keyboard("{Delete}");
+        expect(focused()).toBe("c");
+
+        await userEvent.keyboard("{Delete}");
+        expect(focused()).toBe("a");
     });
 });
 
@@ -319,15 +563,16 @@ describe("Tree: keyboard move", () => {
         expect(order()).toEqual(["a", "b", "c"]);
     });
 
-    it("moves among siblings only, reporting the parent", async () => {
+    it("moves within its parent, reporting the parent, and into a neighboring folder", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} onMove={onMove} />);
         await tabIn();
         await userEvent.keyboard("{ArrowDown}");
         expect(focused()).toBe("rect");
 
+        // Group, below Rect, is a folder: Rect goes in as its first child.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        expect(onMove).toHaveBeenCalledWith({ id: "rect", parentId: "frame", index: 1 });
+        expect(onMove).toHaveBeenCalledWith({ id: "rect", parentId: "group", index: 0 });
 
         // Group is the last child of Frame: Alt+ArrowDown does not carry it out of its parent.
         onMove.mockClear();
@@ -480,17 +725,114 @@ describe("Tree: pointer", () => {
         expect(onSelect).toHaveBeenLastCalledWith(["rect", "other"], expect.anything());
     });
 
+    it("in checkbox mode, draws a checkbox per row and a plain click adds or takes out a row", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} checkboxes onSelect={onSelect} />);
+
+        expect(within(row("Rect")).getByTestId("tree-check")).toBeInTheDocument();
+        await userEvent.click(row("Rect"));
+        await userEvent.click(row("Leaf"));
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "leaf"], expect.anything());
+        expect(within(row("Leaf")).getByRole("checkbox", { hidden: true })).toBeChecked();
+        await userEvent.click(row("Rect"));
+        expect(onSelect).toHaveBeenLastCalledWith(["leaf"], expect.anything());
+    });
+
+    it("in checkbox mode, a folder with a checked row inside it reads partly checked", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame", "group"]} checkboxes />);
+        const box = (name: string): HTMLElement => within(row(name)).getByRole("checkbox", { hidden: true });
+        await userEvent.click(row("Text"));
+        await userEvent.click(row("Vector"));
+        expect(box("Group")).not.toBeChecked();
+        expect(box("Group")).toHaveAttribute("data-indeterminate", "true");
+        expect(box("Frame")).toHaveAttribute("data-indeterminate", "true");
+        expect(box("Other")).not.toHaveAttribute("data-indeterminate");
+        await userEvent.click(row("Group"));
+        expect(box("Group")).toBeChecked();
+    });
+
     it("opens and closes one row from the caret without selecting it", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} onSelect={onSelect} />);
-        // The caret is drawn only while the pointer is over the tree.
+        // Hidden at rest, as in Figma, and shown once the pointer is over the tree.
+        await commands.mouseAway();
         expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("hidden");
         await userEvent.hover(row("Frame"));
+        expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("visible");
         await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
         expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
         await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
         expect(row("Frame")).toHaveAttribute("aria-expanded", "false");
         expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it("gives the caret a 24 px target and no tooltip (Figma)", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.hover(row("Frame"));
+        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit");
+        expect(hit).not.toBeNull();
+        const box = hit!.getBoundingClientRect();
+        expect(box.width).toBeGreaterThanOrEqual(24);
+        expect(box.height).toBeGreaterThanOrEqual(24);
+        // A click past the 16 px glyph slot, over the type glyph's edge, still opens the row.
+        const slot = within(row("Frame")).getByTestId("tree-caret").getBoundingClientRect();
+        expect(box.right).toBeGreaterThan(slot.right);
+        await userEvent.click(hit!, { position: { x: slot.right - box.left + 2, y: 12 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        await userEvent.hover(hit!);
+        expect(document.querySelector("[role=tooltip]")).toBeNull();
+    });
+
+    it("takes a click on the caret anywhere on the row's height", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.hover(row("Frame"));
+        const slot = within(row("Frame")).getByTestId("tree-caret").getBoundingClientRect();
+        const line = row("Frame").getBoundingClientRect();
+        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit")!;
+        const box = hit.getBoundingClientRect();
+        expect(box.top).toBeLessThanOrEqual(line.top);
+        expect(box.bottom).toBeGreaterThanOrEqual(line.bottom);
+        // Past the glyph's slot, at the row's very top and then its very bottom.
+        await userEvent.click(hit, { position: { x: slot.right - box.left + 2, y: line.top - box.top + 1 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        await userEvent.click(hit, { position: { x: slot.right - box.left + 2, y: line.bottom - box.top - 1 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "false");
+        expect(row("Frame")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("with revealSelected, opens the folders around a row selected from outside and keeps a closed one closed", async () => {
+        /**
+         * A tree whose selection a button outside it sets.
+         * @returns the tree and the button
+         */
+        function Outside(): React.JSX.Element {
+            const [selected, setSelected] = React.useState<string[]>([]);
+            return (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSelected(["vector"]);
+                        }}
+                    >
+                        Open Vector
+                    </button>
+                    <Tree items={ITEMS} selected={selected} onSelect={setSelected} revealSelected />
+                </>
+            );
+        }
+        await renderThemed(<Outside />);
+        expect(screen.queryByRole("treeitem", { name: "Vector" })).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Open Vector" }));
+        await expect.poll(() => screen.queryByRole("treeitem", { name: "Vector" })).not.toBeNull();
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Group")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Vector")).toHaveAttribute("aria-selected", "true");
+        // The reader closes the folder: the same selection does not open it again.
+        await userEvent.hover(row("Frame"));
+        await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "false");
+        expect(screen.queryByRole("treeitem", { name: "Vector" })).toBeNull();
     });
 
     it("renames on double-click", async () => {
@@ -540,6 +882,178 @@ describe("Tree: pointer", () => {
             "other",
             "leaf",
         ]);
+    });
+});
+
+describe("Tree: pointer drag (touch, mouse)", () => {
+    const FLAT: TreeNodeData[] = ["A", "B", "C", "D"].map((n) => ({ id: n.toLowerCase(), name: n }));
+    const HOLD = 600;
+    const wait = (ms: number): Promise<void> =>
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        new Promise((resolve) => {
+            setTimeout(resolve, ms);
+        });
+
+    /**
+     * Send one pointer event at a point, to whatever is drawn there.
+     * @param type - the event type
+     * @param x - client x
+     * @param y - client y
+     * @param pointerType - touch, mouse or pen
+     */
+    function send(type: string, x: number, y: number, pointerType = "touch"): void {
+        const target = document.elementFromPoint(x, y) ?? document.body;
+        target.dispatchEvent(
+            new PointerEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clientX: x,
+                clientY: y,
+                pointerId: 7,
+                pointerType,
+                isPrimary: true,
+                button: type === "pointermove" ? -1 : 0,
+                buttons: type === "pointerup" ? 0 : 1,
+            }),
+        );
+    }
+    const middle = (name: string): { x: number; y: number } => {
+        const box = row(name).getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    };
+    // Low in row C: the drop lands after it.
+    const afterC = (): { x: number; y: number } => {
+        const box = row("C").getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.bottom - 3 };
+    };
+
+    it("lifts a row held half a second and then moved, and reports one move", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={FLAT} onMove={onMove} />);
+        const a = middle("A");
+        send("pointerdown", a.x, a.y);
+        await wait(HOLD);
+        send("pointermove", a.x, a.y + 12);
+        await vi.waitFor(() => {
+            expect(row("A")).toHaveAttribute("data-dragging");
+        });
+        const to = afterC();
+        send("pointermove", to.x, to.y);
+        await vi.waitFor(() => {
+            expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
+        });
+        send("pointerup", to.x, to.y);
+        expect(onMove).toHaveBeenCalledTimes(1);
+        expect(onMove).toHaveBeenCalledWith({ id: "a", parentId: null, index: 2 });
+    });
+
+    it("moves nothing on a swipe that starts before the hold elapses", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={FLAT} onMove={onMove} />);
+        const a = middle("A");
+        send("pointerdown", a.x, a.y);
+        send("pointermove", a.x, a.y + 20);
+        await wait(HOLD);
+        const to = afterC();
+        send("pointermove", to.x, to.y);
+        expect(screen.queryByTestId("tree-drop-line")).toBeNull();
+        send("pointerup", to.x, to.y);
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("shows no drop line and moves nothing where canDrop refuses", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={FLAT} onMove={onMove} canDrop={() => false} />);
+        const a = middle("A");
+        send("pointerdown", a.x, a.y);
+        await wait(HOLD);
+        send("pointermove", a.x, a.y + 12);
+        const to = afterC();
+        send("pointermove", to.x, to.y);
+        expect(screen.queryByTestId("tree-drop-line")).toBeNull();
+        send("pointerup", to.x, to.y);
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("never lifts a row that is not movable, by pointer or keyboard", async () => {
+        const onMove = vi.fn();
+        const items = FLAT.map((n) => (n.id === "a" ? { ...n, movable: false } : n));
+        await renderThemed(<Tree items={items} onMove={onMove} />);
+        const a = middle("A");
+        send("pointerdown", a.x, a.y);
+        await wait(HOLD);
+        send("pointermove", a.x, a.y + 12);
+        expect(row("A")).not.toHaveAttribute("data-dragging");
+        const to = afterC();
+        send("pointermove", to.x, to.y);
+        send("pointerup", to.x, to.y);
+        await tabIn();
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("opens the row menu for the row a touch holds, and closes it when the row lifts", async () => {
+        await renderThemed(
+            <Tree
+                items={FLAT}
+                onMove={() => undefined}
+                rowMenu={(node) => <Menu.Item>Delete {node.name}</Menu.Item>}
+            />,
+        );
+        const b = middle("B");
+        send("pointerdown", b.x, b.y);
+        await wait(HOLD);
+        await vi.waitFor(() => {
+            expect(screen.getByRole("menuitem", { name: "Delete B" })).toBeVisible();
+        });
+        // Moving the held finger on lifts the row and closes the menu.
+        send("pointermove", b.x, b.y + 12);
+        await vi.waitFor(() => {
+            expect(screen.queryByRole("menuitem", { name: "Delete B" })).toBeNull();
+            expect(row("B")).toHaveAttribute("data-dragging");
+        });
+        send("pointerup", b.x, b.y + 12);
+    });
+
+    it("opens no menu for a row whose rowMenu is null", async () => {
+        await renderThemed(
+            <Tree items={FLAT} rowMenu={(node) => (node.id === "a" ? null : <Menu.Item>Delete</Menu.Item>)} />,
+        );
+        await tabIn();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        expect(screen.queryByRole("menuitem")).toBeNull();
+        await userEvent.keyboard("{ArrowDown}{Shift>}{F10}{/Shift}");
+        await vi.waitFor(() => {
+            expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+        });
+    });
+
+    it("starts a mouse drag after 4px, and Escape cancels it", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={FLAT} onMove={onMove} />);
+        const a = middle("A");
+        const to = afterC();
+        send("pointerdown", a.x, a.y, "mouse");
+        send("pointermove", a.x, a.y + 3, "mouse");
+        expect(row("A")).not.toHaveAttribute("data-dragging");
+        send("pointermove", a.x, a.y + 6, "mouse");
+        send("pointermove", to.x, to.y, "mouse");
+        await vi.waitFor(() => {
+            expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
+        });
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        await vi.waitFor(() => {
+            expect(screen.queryByTestId("tree-drop-line")).toBeNull();
+        });
+        send("pointerup", to.x, to.y, "mouse");
+        expect(onMove).not.toHaveBeenCalled();
+
+        send("pointerdown", a.x, a.y, "mouse");
+        send("pointermove", a.x, a.y + 6, "mouse");
+        send("pointermove", to.x, to.y, "mouse");
+        send("pointerup", to.x, to.y, "mouse");
+        expect(onMove).toHaveBeenCalledWith({ id: "a", parentId: null, index: 2 });
     });
 });
 
@@ -637,6 +1151,28 @@ describe("PageList: second line, value and row menu", () => {
         expect(screen.getByRole("gridcell", { name: "Plain" }).getBoundingClientRect().height).toBeCloseTo(32, 0);
     });
 
+    it("wraps a second line too long for the row rather than cutting it", async () => {
+        const when = "In this browser - 20 nodes - Oct 8, 2026, 8:20 PM";
+        await renderThemed(
+            <div style={{ width: 200 }}>
+                <PageList
+                    label="Recent projects"
+                    items={[
+                        {
+                            id: "f",
+                            name: "friends",
+                            description: when,
+                            menu: <button type="button">More for friends</button>,
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        const second = screen.getByText(when);
+        expect(second.scrollWidth).toBeLessThanOrEqual(second.clientWidth);
+        expect(second.getBoundingClientRect().height).toBeGreaterThan(16);
+    });
+
     it("keeps the menu out of the row's name and out of switching, and reaches it with ArrowRight", async () => {
         const onCurrentChange = vi.fn();
         await renderThemed(<PageList label="Recent projects" items={RECENT} onCurrentChange={onCurrentChange} />);
@@ -654,6 +1190,32 @@ describe("PageList: second line, value and row menu", () => {
 
         await userEvent.click(more);
         expect(onCurrentChange).not.toHaveBeenCalled();
+    });
+
+    it("opens the row menu with the menu key or Shift+F10, not with F10 alone", async () => {
+        const onMenu = vi.fn();
+        const items = [
+            {
+                id: "les",
+                name: "Les Miserables",
+                menu: (
+                    <button type="button" onClick={onMenu}>
+                        More for Les Miserables
+                    </button>
+                ),
+            },
+        ];
+        await renderThemed(<PageList label="Recent projects" items={items} />);
+        await tabIn();
+        const cell = screen.getByRole("gridcell", { name: "Les Miserables" });
+        await userEvent.keyboard("{F10}");
+        expect(onMenu).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(cell);
+        await userEvent.keyboard("{ContextMenu}");
+        expect(onMenu).toHaveBeenCalledTimes(1);
+        cell.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        expect(onMenu).toHaveBeenCalledTimes(2);
     });
 
     it("stays one Tab stop: Tab from the focused row leaves the list, past every row menu", async () => {
@@ -792,5 +1354,174 @@ describe("ResultRow", () => {
         expect(onClick).toHaveBeenCalled();
         expect(document.activeElement).toBe(field);
         expect(screen.getByText("rect")).toHaveClass("cm-result-match");
+    });
+
+    it("ends a long name in ... inside a list that scrolls only up and down, and shows it whole on hover", async () => {
+        const long = "A very long node name that cannot fit in a narrow find list at all";
+        const { container } = await renderThemed(
+            <ScrollArea.Autosize mah={200} w={200} scrollbars="y">
+                <div role="listbox" aria-label="Results">
+                    <ResultRow id="r1" name={long} path="name: a value just as long as the name above it" />
+                </div>
+            </ScrollArea.Autosize>,
+        );
+        const viewport = container.querySelector<HTMLElement>(".mantine-ScrollArea-viewport");
+        if (viewport === null) {
+            throw new Error("no ScrollArea viewport");
+        }
+        // Before: the content took the widest row's width, so the row ran past the area's edge.
+        expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
+        const name = screen.getByText(long);
+        expect(getComputedStyle(name).textOverflow).toBe("ellipsis");
+        expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+        expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
+        await userEvent.hover(name);
+        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        expect(tip.textContent).toContain(long);
+    });
+});
+
+/**
+ * The WCAG contrast ratio of two opaque `rgb()` colors.
+ * @param a - one computed color
+ * @param b - the other
+ * @returns the ratio, 1 or more
+ */
+function contrastOf(a: string, b: string): number {
+    const lum = (color: string): number => {
+        const [r, g, bl] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((c) => {
+            const v = Number(c) / 255;
+            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+describe("Tree: a selected parent stands apart from its children", () => {
+    for (const scheme of ["light", "dark"] as const) {
+        // Figma's tints differ by 1.05:1 light and 1.2:1 dark; the AA option swaps them.
+        it(`${scheme}, AA option: the parent's fill and the band behind its children differ by at least 1.25:1`, async () => {
+            await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} defaultSelected={["frame"]} />, {
+                scheme,
+                highContrast: true,
+            });
+            const parent = row("Frame");
+            expect(parent).toHaveAttribute("data-tint", "parent");
+            const child = row("Rect");
+            expect(child.getAttribute("data-tint")).toMatch(/^child/);
+            const parentFill = getComputedStyle(parent, "::after").backgroundColor;
+            const band = getComputedStyle(child, "::before").backgroundColor;
+            expect(contrastOf(parentFill, band)).toBeGreaterThanOrEqual(1.25);
+        });
+    }
+});
+
+describe("Tree: childBand={false}", () => {
+    it("draws a selected open parent as a lone selected row, its children with no band", async () => {
+        await renderThemed(
+            <Tree items={ITEMS} defaultExpanded={["frame"]} defaultSelected={["frame"]} childBand={false} />,
+        );
+        expect(row("Frame")).toHaveAttribute("data-tint", "selected");
+        expect(row("Rect")).toHaveAttribute("data-tint", "none");
+        expect(getComputedStyle(row("Rect"), "::before").display).toBe("none");
+    });
+});
+
+describe("Tree: one Tab stop with row toggles, and a right-click that selects", () => {
+    /**
+     * Rows that each carry an eye and a lock, as the app's style tree does.
+     * @param count - how many rows
+     * @returns the items
+     */
+    const withToggles = (count: number): TreeNodeData[] =>
+        Array.from({ length: count }, (_, i) => ({
+            id: `r${String(i)}`,
+            name: `Row ${String(i)}`,
+            actions: (
+                <>
+                    <button type="button" aria-label={`Lock Row ${String(i)}`}>
+                        L
+                    </button>
+                    <button type="button" aria-label={`Hide Row ${String(i)}`}>
+                        H
+                    </button>
+                </>
+            ),
+        }));
+
+    it.each([1, 8])("Tab enters the tree once and the next Tab leaves it, with %i rows of toggles", async (count) => {
+        await renderThemed(
+            <>
+                <button type="button">before</button>
+                <Tree items={withToggles(count)} />
+                <button type="button">after</button>
+            </>,
+        );
+        await userEvent.click(screen.getByRole("button", { name: "before" }));
+        await userEvent.tab();
+        expect(focused()).toBe("r0");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+        await userEvent.tab({ shift: true });
+        expect(focused()).toBe("r0");
+    });
+
+    it("keeps a toggle working by pointer once it is out of the Tab order", async () => {
+        const onLock = vi.fn();
+        const items: TreeNodeData[] = [
+            {
+                id: "a",
+                name: "A",
+                actions: (
+                    <button type="button" aria-label="Lock A" onClick={onLock}>
+                        L
+                    </button>
+                ),
+            },
+        ];
+        await renderThemed(<Tree items={items} />);
+        await userEvent.hover(row("A"));
+        await userEvent.click(screen.getByRole("button", { name: "Lock A" }));
+        expect(onLock).toHaveBeenCalledTimes(1);
+    });
+
+    it("selects an unselected row on a right-click, then opens its menu", async () => {
+        const onSelect = vi.fn();
+        const menuFor: string[] = [];
+        await renderThemed(
+            <Tree
+                items={withToggles(3)}
+                defaultSelected={["r0"]}
+                onSelect={onSelect}
+                rowMenu={(node) => {
+                    menuFor.push(node.id);
+                    return <Menu.Item>Rename</Menu.Item>;
+                }}
+            />,
+        );
+        await userEvent.click(row("Row 2"), { button: "right" });
+        expect(onSelect).toHaveBeenLastCalledWith(["r2"], expect.anything());
+        expect(row("Row 2")).toHaveAttribute("aria-selected", "true");
+        expect(row("Row 0")).toHaveAttribute("aria-selected", "false");
+        expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeVisible();
+        expect(menuFor.at(-1)).toBe("r2");
+    });
+
+    it("keeps a several-row selection whole on a right-click inside it", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(
+            <Tree
+                items={withToggles(3)}
+                defaultSelected={["r0", "r1"]}
+                onSelect={onSelect}
+                rowMenu={() => <Menu.Item>Rename</Menu.Item>}
+            />,
+        );
+        await userEvent.click(row("Row 1"), { button: "right" });
+        await screen.findByRole("menuitem", { name: "Rename" });
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(row("Row 0")).toHaveAttribute("aria-selected", "true");
     });
 });

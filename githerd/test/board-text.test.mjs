@@ -373,4 +373,38 @@ describe("whyText", () => {
         expect(lines[1]).toBe('  ? note {"key":"k","n":5}');
         expect(whyText("nothing", state, ledger, NOW)).toBeNull();
     });
+
+    it("shows a finished job the state dropped or keeps as a tombstone from its whole record in the ledger", () => {
+        const record = {
+            id: "issue-7",
+            kind: "issue",
+            target: "#7",
+            state: "done",
+            stateSince: NOW.toISOString(),
+            reason: "front of the issue queue",
+            attempts: [],
+            facts: { since: "y" },
+        };
+        const ledger = [{ ts: "2026-10-03T09:00:00.000Z", kind: "job-dropped", job: "issue-7", record }];
+        const text = /** @type {string} */ (whyText("#7", {}, ledger, NOW)).split("\n");
+        expect(text.slice(0, 3)).toEqual([
+            "job issue-7 (issue, #7): done 0 s",
+            "  reason: front of the issue queue",
+            '  facts: {"since":"y"}',
+        ]);
+        expect(text.at(-1)).toMatch(/^ {2}10-03 09:00 job-dropped /);
+        const tombstone = { id: "issue-7", kind: "issue", target: "#7", state: "done", tombstone: true, facts: {} };
+        expect(whyText("issue-7", { jobs: { "issue-7": tombstone } }, ledger, NOW)).toBe(
+            whyText("issue-7", {}, ledger, NOW),
+        );
+    });
+
+    it("shows an owner item the daemon dropped from the state from its last ledger record", () => {
+        const record = { id: "c", kind: "fault", question: "late", endedAt: "2026-10-03T12:00:00.000Z" };
+        const ledger = [
+            { kind: "owner-item", item: "c", event: "dropped", record: { ...record, question: "early" } },
+            { kind: "owner-item", item: "c", event: "dropped", record },
+        ];
+        expect(whyText("c", state, ledger, NOW)?.split("\n")[0]).toBe("owner item c [fault], ended 10-03 12:00: late");
+    });
 });

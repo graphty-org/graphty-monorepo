@@ -1,0 +1,533 @@
+{
+    "about": "The GML style vocabulary the GML specimen sheets sweep, by source; written by gml_vocabulary.py. gml.py fails when a value here is on no sheet and not listed as not swept.",
+    "sources": {
+        "gmlDraft": "http://web.archive.org/web/20061209102127/http://www.infosun.fmi.uni-passau.de:80/Graphlet/download/misc/GML.ps.gz",
+        "gmlReport": "http://web.archive.org/web/20190718030537/http://www.fim.uni-passau.de:80/fileadmin/files/lehrstuhl/brandenburg/projekte/gml/gml-technical-report.pdf",
+        "tkCanvas": "https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm",
+        "tkColors": "https://www.tcl.tk/man/tcl8.6/TkLib/GetColor.htm",
+        "tkBitmaps": "https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm",
+        "yedSchema": "https://www.yworks.com/xml/schema/graphml/1.1/ygraphics.xsd",
+        "yedCorpus": "graph-io/test/corpus: GML files with Creator \"yFiles\"",
+        "cytoscapeReader": "Cytoscape 3.10.5 io-impl-3.10.5.jar org.cytoscape.io.internal.read.gml.GMLNetworkReader",
+        "gml2gv": "https://gitlab.com/graphviz/graphviz/-/blob/14.1.2/cmd/tools/gmlparse.y",
+        "cytoscapeShapes": "Cytoscape 3.10.5 CyREST GET /v1/styles/visualproperties/NODE_SHAPE/values",
+        "ogdf": "OGDF 2025.10 as shipped in https://pypi.org/project/ogdf-wheel/2025.10/: include/ogdf/basic/graphics.h (Shape, StrokeType, FillPattern, EdgeArrow), include/ogdf/fileformats/GML.h (Key), and what GraphIO::writeGML writes"
+    },
+    "graphlet": {
+        "node.graphics.type": {
+            "source": "gmlDraft A.4: 'Values for type are arc, bitmap, image, line, oval, polygon, rectangle and text'",
+            "values": ["arc", "bitmap", "image", "line", "oval", "polygon", "rectangle", "text"]
+        },
+        "node.graphics.w": {
+            "source": "gmlDraft A.4",
+            "values": ["number"]
+        },
+        "node.graphics.h": {
+            "source": "gmlDraft A.4",
+            "values": ["number"]
+        },
+        "node.graphics.x": {
+            "source": "gmlDraft A.4",
+            "values": ["number"]
+        },
+        "node.graphics.y": {
+            "source": "gmlDraft A.4",
+            "values": ["number"]
+        },
+        "node.graphics.image": {
+            "source": "gmlDraft A.4: the name of an image file",
+            "values": ["file"]
+        },
+        "node.graphics.bitmap": {
+            "source": "gmlDraft A.4: the name of a bitmap file",
+            "values": ["file"]
+        },
+        "node.graphics.fill": {
+            "source": "tkCanvas -fill, color syntax tkColors",
+            "values": ["#rgb", "#rrggbb", "#rrrgggbbb", "#rrrrggggbbbb", "name", "name-with-space", "name-uppercase"]
+        },
+        "node.graphics.outline": {
+            "source": "tkCanvas -outline",
+            "values": ["#rrggbb", "name"]
+        },
+        "node.graphics.width": {
+            "source": "tkCanvas -width (the outline's width)",
+            "values": ["number"]
+        },
+        "node.graphics.stipple": {
+            "source": "gmlDraft A.4 stipple; Tk's built-in bitmaps (tkBitmaps)",
+            "values": [
+                "error",
+                "gray75",
+                "gray50",
+                "gray25",
+                "gray12",
+                "hourglass",
+                "info",
+                "questhead",
+                "question",
+                "warning"
+            ]
+        },
+        "node.label": {
+            "source": "gmlDraft A.1: 'A graphical browser should use this attribute to annotate the object'",
+            "values": ["text", "entity", "char-ref", "long"]
+        },
+        "edge.label": {
+            "source": "gmlDraft A.1",
+            "values": ["text"]
+        },
+        "edge.graphics.Line.point": {
+            "source": "gmlDraft A.4 (the points include the end points)",
+            "values": ["straight", "one-bend", "two-bends", "loop", "parallel"]
+        },
+        "edge.graphics.width": {
+            "source": "gmlDraft A.4: 'Sets the line width (in pixels)'",
+            "values": ["number"]
+        },
+        "edge.graphics.fill": {
+            "source": "tkCanvas line -fill",
+            "values": ["#rrggbb", "name"]
+        },
+        "edge.graphics.stipple": {
+            "source": "gmlDraft A.4 edge stipple; tkBitmaps",
+            "values": ["gray50", "gray25"]
+        },
+        "edge.graphics.arrow": {
+            "source": "tkCanvas line -arrow",
+            "values": ["none", "first", "last", "both"]
+        },
+        "edge.graphics.smooth": {
+            "source": "tkCanvas line -smooth",
+            "values": ["0", "1"]
+        }
+    },
+    "tkNotSwept": {
+        "arrowshape": "Tk line option; no GML writer in the corpus writes it",
+        "capstyle": "Tk line option; no GML writer in the corpus writes it",
+        "joinstyle": "Tk line option; no GML writer in the corpus writes it",
+        "splinesteps": "Tk line option; no GML writer in the corpus writes it",
+        "dash": "Tk 8.3 option, later than the GML draft; no GML writer in the corpus writes it",
+        "outlinestipple": "Tk option; no GML writer in the corpus writes it",
+        "z": "the draft marks z 'Not yet implemented in Graphlet'; a 2D sheet cannot show it",
+        "d": "the draft marks d 'Not yet implemented in Graphlet'; a 2D sheet cannot show it",
+        "edgeAnchor": "the draft's node key 'how the edges are attached to the node' names no values; no GML writer in the corpus writes it and no program here reads it"
+    },
+    "yed": {
+        "shapes": [
+            "rectangle",
+            "roundrectangle",
+            "ellipse",
+            "parallelogram",
+            "hexagon",
+            "octagon",
+            "diamond",
+            "triangle",
+            "trapezoid",
+            "trapezoid2",
+            "rectangle3d",
+            "fatarrow",
+            "fatarrow2",
+            "parallelogram2",
+            "star5",
+            "star6",
+            "star8",
+            "triangle2",
+            "hexagon2",
+            "octagon2"
+        ],
+        "arrows": [
+            "standard",
+            "delta",
+            "diamond",
+            "white_diamond",
+            "white_delta",
+            "none",
+            "plain",
+            "concave",
+            "convex",
+            "circle",
+            "dash",
+            "transparent_circle",
+            "skewed_dash",
+            "t_shape",
+            "cross",
+            "crows_foot_many",
+            "crows_foot_many_mandatory",
+            "crows_foot_many_optional",
+            "crows_foot_one",
+            "crows_foot_one_mandatory",
+            "crows_foot_one_optional",
+            "crows_foot_optional",
+            "short",
+            "white_circle",
+            "white_delta_bar"
+        ],
+        "lineTypes": ["line", "dashed", "dotted", "dashed_dotted"],
+        "nodeLabelPositions": {
+            "internal": ["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"],
+            "sandwich": ["n", "s"],
+            "sides": ["n", "s", "e", "w"],
+            "corners": ["nw", "ne", "sw", "se"],
+            "eight_pos": ["n", "ne", "e", "se", "s", "sw", "w", "nw"],
+            "free": ["anywhere"],
+            "custom": ["anywhere"]
+        },
+        "edgeLabelPositions": {
+            "centered": ["center"],
+            "two_pos": ["head", "tail"],
+            "three_center": ["scentr", "center", "tcentr"],
+            "six_pos": ["shead", "head", "thead", "stail", "tail", "ttail"],
+            "center_slider": ["center"],
+            "side_slider": ["center"],
+            "free": ["anywhere"],
+            "custom": ["anywhere"]
+        },
+        "flowchart": [
+            "com.yworks.flowchart.start1",
+            "com.yworks.flowchart.start2",
+            "com.yworks.flowchart.terminator",
+            "com.yworks.flowchart.process",
+            "com.yworks.flowchart.predefinedProcess",
+            "com.yworks.flowchart.decision",
+            "com.yworks.flowchart.loopLimit",
+            "com.yworks.flowchart.loopLimitEnd",
+            "com.yworks.flowchart.document",
+            "com.yworks.flowchart.data",
+            "com.yworks.flowchart.directData",
+            "com.yworks.flowchart.storedData",
+            "com.yworks.flowchart.sequentialData",
+            "com.yworks.flowchart.dataBase",
+            "com.yworks.flowchart.internalStorage",
+            "com.yworks.flowchart.manualInput",
+            "com.yworks.flowchart.card",
+            "com.yworks.flowchart.paperType",
+            "com.yworks.flowchart.cloud",
+            "com.yworks.flowchart.delay",
+            "com.yworks.flowchart.display",
+            "com.yworks.flowchart.manualOperation",
+            "com.yworks.flowchart.preparation",
+            "com.yworks.flowchart.onPageReference",
+            "com.yworks.flowchart.offPageReference",
+            "com.yworks.flowchart.userMessage",
+            "com.yworks.flowchart.networkMessage",
+            "com.yworks.flowchart.annotation"
+        ],
+        "from": "yed-vocabulary.json",
+        "keysBeyondCorpus": [
+            "edge.graphics.type",
+            "edge.graphics.arcType",
+            "edge.graphics.arcHeight",
+            "edge.graphics.arcRatio",
+            "node.LabelGraphics.outline",
+            "node.LabelGraphics.visible",
+            "node.LabelGraphics.underlinedText",
+            "edge.LabelGraphics.fontStyle",
+            "edge.LabelGraphics.fill"
+        ],
+        "fontStyles": ["plain", "bold", "italic", "bolditalic"],
+        "alignments": ["left", "center", "right"],
+        "autoSizePolicies": ["node_width", "node_height", "content", "none", "node_size"],
+        "arcTypes": ["fixedHeight", "fixedRatio"],
+        "corpusKeys": {
+            "files": 12,
+            "keys": {
+                "edge.LabelGraphics.alignment": 83,
+                "edge.LabelGraphics.color": 49,
+                "edge.LabelGraphics.fontName": 142,
+                "edge.LabelGraphics.fontSize": 142,
+                "edge.LabelGraphics.model": 142,
+                "edge.LabelGraphics.position": 59,
+                "edge.LabelGraphics.text": 142,
+                "edge.LabelGraphics.x": 83,
+                "edge.LabelGraphics.y": 83,
+                "edge.graphics.Line.point.x": 252,
+                "edge.graphics.Line.point.y": 252,
+                "edge.graphics.arrow": 12,
+                "edge.graphics.fill": 1331,
+                "edge.graphics.smoothBends": 96,
+                "edge.graphics.sourceArrow": 193,
+                "edge.graphics.style": 307,
+                "edge.graphics.targetArrow": 419,
+                "edge.graphics.width": 313,
+                "node.LabelGraphics.alignment": 31,
+                "node.LabelGraphics.anchor": 598,
+                "node.LabelGraphics.autoSizePolicy": 36,
+                "node.LabelGraphics.borderDistance": 30,
+                "node.LabelGraphics.color": 205,
+                "node.LabelGraphics.fill": 2,
+                "node.LabelGraphics.fontName": 675,
+                "node.LabelGraphics.fontSize": 690,
+                "node.LabelGraphics.fontStyle": 205,
+                "node.LabelGraphics.model": 86,
+                "node.LabelGraphics.text": 690,
+                "node.LabelGraphics.x": 31,
+                "node.LabelGraphics.y": 31,
+                "node.gid": 11,
+                "node.graphics.customconfiguration": 41,
+                "node.graphics.fill": 682,
+                "node.graphics.fill2": 14,
+                "node.graphics.h": 697,
+                "node.graphics.hasFill": 15,
+                "node.graphics.hasOutline": 6,
+                "node.graphics.outline": 691,
+                "node.graphics.outlineStyle": 236,
+                "node.graphics.outlineWidth": 198,
+                "node.graphics.raisedBorder": 286,
+                "node.graphics.type": 656,
+                "node.graphics.w": 697,
+                "node.graphics.x": 697,
+                "node.graphics.y": 697,
+                "node.graphics.z": 120,
+                "node.isGroup": 2
+            }
+        }
+    },
+    "cytoscape2Arrows": {
+        "0": "NONE",
+        "1": "DELTA",
+        "2": "DELTA",
+        "3": "DELTA",
+        "4": "ARROW",
+        "5": "ARROW",
+        "6": "ARROW",
+        "7": "DIAMOND",
+        "8": "DIAMOND",
+        "9": "DIAMOND",
+        "10": "CIRCLE",
+        "11": "CIRCLE",
+        "12": "CIRCLE",
+        "13": "T",
+        "14": "T",
+        "15": "T",
+        "16": "HALF_TOP",
+        "17": "HALF_BOTTOM"
+    },
+    "cytoscape": {
+        "shapes": [
+            "ROUND_RECTANGLE",
+            "HEXAGON",
+            "PARALLELOGRAM",
+            "OCTAGON",
+            "TRIANGLE",
+            "RECTANGLE",
+            "VEE",
+            "DIAMOND",
+            "ELLIPSE"
+        ],
+        "legacyShapes": ["rect", "round_rect", "rect_3d", "trapezoid", "trapezoid_2"],
+        "nodeKeys": [
+            "graphics.x",
+            "graphics.y",
+            "graphics.w",
+            "graphics.h",
+            "graphics.fill",
+            "graphics.type",
+            "graphics.outline",
+            "graphics.outline_width",
+            "label"
+        ],
+        "edgeKeys": [
+            "graphics.width",
+            "graphics.fill",
+            "graphics.type",
+            "graphics.source_arrow",
+            "graphics.target_arrow",
+            "label"
+        ],
+        "notSwept": {
+            "graphics.Line": "Cytoscape 3.10.5's GML reader ignores it (layoutEdgeGraphicsLine is empty), so its drawing cannot show bends; the GML draft sheets sweep Line",
+            "lexicon names": "Cytoscape's GML reader resolves any other graphics key through its visual lexicon (vizmap names such as nodeTransparency, and visual property ids), but no GML writer writes them"
+        }
+    },
+    "ogdf": {
+        "creator": "ogdf::GraphIO::writeGML",
+        "shapes": [
+            "Rect",
+            "RoundedRect",
+            "Ellipse",
+            "Triangle",
+            "Pentagon",
+            "Hexagon",
+            "Octagon",
+            "Rhomb",
+            "Trapeze",
+            "Parallelogram",
+            "InvTriangle",
+            "InvTrapeze",
+            "InvParallelogram",
+            "Image"
+        ],
+        "strokes": ["None", "Solid", "Dash", "Dot", "Dashdot", "Dashdotdot"],
+        "patterns": [
+            "None",
+            "Solid",
+            "Dense1",
+            "Dense2",
+            "Dense3",
+            "Dense4",
+            "Dense5",
+            "Dense6",
+            "Dense7",
+            "Horizontal",
+            "Vertical",
+            "Cross",
+            "BackwardDiagonal",
+            "ForwardDiagonal",
+            "DiagonalCross"
+        ],
+        "arrows": ["none", "last", "first", "both"],
+        "nodeKeys": [
+            "graphics.x",
+            "graphics.y",
+            "graphics.w",
+            "graphics.h",
+            "graphics.label.x",
+            "graphics.label.y",
+            "graphics.fill",
+            "graphics.fillbg",
+            "graphics.outline",
+            "graphics.pattern",
+            "graphics.stipple",
+            "graphics.lineWidth",
+            "graphics.type",
+            "label"
+        ],
+        "edgeKeys": [
+            "graphics.arrow",
+            "graphics.stipple",
+            "graphics.lineWidth",
+            "graphics.Line",
+            "graphics.fill",
+            "label"
+        ],
+        "clusterKeys": [
+            "graphics.x",
+            "graphics.y",
+            "graphics.width",
+            "graphics.height",
+            "graphics.fill",
+            "graphics.fillbg",
+            "graphics.pattern",
+            "graphics.color",
+            "graphics.lineWidth",
+            "graphics.stipple",
+            "label",
+            "vertex"
+        ],
+        "notSwept": {
+            "graphics.z": "OGDF writes z for 3D drawings; its SVG drawing is 2D",
+            "color alpha": "GraphIO::writeGML writes colors as #RRGGBB, dropping alpha",
+            "Image": "OGDF's GML keeps no image file (GML.h has no image key), so an Image node draws as its outline only"
+        }
+    },
+    "gephi": {
+        "source": "graph-io/test/corpus/styles/gml/TwelveYC_network-vi__metabolicpos.gml (Creator \"Gephi\"), and Gephi Toolkit 0.11.3's org.gephi.io.exporter.plugin.ExporterGML (printNode, printEdge; javap -c)",
+        "nodeKeys": [
+            "label",
+            "graphics.x",
+            "graphics.y",
+            "graphics.z",
+            "graphics.w",
+            "graphics.h",
+            "graphics.d",
+            "graphics.fill"
+        ],
+        "edgeKeys": ["id", "label", "value", "directed", "fill"]
+    },
+    "readers": {
+        "cytoscape-gml": {
+            "source": "cytoscapeReader (layoutGraphics, getVisualProperties; key names resolved by VisualLexicon.lookup)",
+            "node": [
+                "label (the name and the drawn label)",
+                "graphics.x",
+                "graphics.y",
+                "graphics.w",
+                "graphics.h",
+                "graphics.type (a Cytoscape shape name, any case)",
+                "graphics.fill",
+                "graphics.outline",
+                "graphics.width",
+                "graphics.outline_width"
+            ],
+            "edge": [
+                "graphics.fill",
+                "graphics.width",
+                "graphics.arrow (first / last / both / none)",
+                "graphics.sourceArrow / targetArrow (yEd names: none, delta, white_delta, diamond, white_diamond, short, standard)",
+                "graphics.source_arrow / target_arrow (Cytoscape 2.x numbers)"
+            ],
+            "ignored": [
+                "LabelGraphics",
+                "graphics.Line (layoutEdgeGraphicsLine is empty)",
+                "graphics.style",
+                "graphics.outlineStyle",
+                "graphics.outlineWidth",
+                "graphics.fill2",
+                "graphics.hasFill",
+                "isGroup / gid",
+                "edge label"
+            ]
+        },
+        "gml2gv": {
+            "source": "gml2gv (gmlparse.y addNodeGraphics, addEdgeGraphics, addNodeLabelGraphics, addEdgeLabelGraphics)",
+            "node": [
+                "label",
+                "graphics.x/y -> pos (y not flipped)",
+                "graphics.w/h -> width/height (/72)",
+                "graphics.type -> shape",
+                "graphics.fill -> color (the outline)",
+                "graphics.outline -> pencolor",
+                "graphics.width / outlineWidth -> penwidth",
+                "graphics.style / outlineStyle -> style",
+                "LabelGraphics.text -> label",
+                "LabelGraphics.color -> fontcolor",
+                "LabelGraphics.fontSize -> fontsize",
+                "LabelGraphics.fontName -> fontname"
+            ],
+            "edge": [
+                "label",
+                "graphics.width -> penwidth",
+                "graphics.style -> style",
+                "graphics.fill -> color",
+                "graphics.Line -> pos",
+                "LabelGraphics.text/color/fontSize/fontName",
+                "LabelGraphics.x/y -> lp"
+            ],
+            "syntax": "y, w and h must be reals and outlineWidth and fontSize integers, or gml2gv stops with a syntax error; ids must be integers"
+        },
+        "ogdf": {
+            "source": "OGDF 2025.10 GraphIO::readGML into ClusterGraphAttributes, drawn by GraphIO::drawSVG",
+            "node": [
+                "label",
+                "graphics.x/y/w/h",
+                "graphics.label.x/y (the label's offset)",
+                "graphics.type (Shape)",
+                "graphics.fill",
+                "graphics.fillbg",
+                "graphics.pattern",
+                "graphics.outline",
+                "graphics.stipple",
+                "graphics.lineWidth"
+            ],
+            "edge": [
+                "label",
+                "graphics.arrow",
+                "graphics.stipple",
+                "graphics.lineWidth",
+                "graphics.fill",
+                "graphics.Line (the bends only, without the end points)"
+            ],
+            "cluster": [
+                "rootcluster / cluster / vertex",
+                "label",
+                "graphics.x/y/width/height",
+                "graphics.fill",
+                "graphics.color",
+                "graphics.lineWidth",
+                "graphics.stipple",
+                "graphics.pattern"
+            ]
+        }
+    }
+}

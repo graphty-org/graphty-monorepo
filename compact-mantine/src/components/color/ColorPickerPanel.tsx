@@ -7,15 +7,19 @@ import {
     parseColor,
     SegmentedControl,
     Select,
+    Tooltip,
+    VisuallyHidden,
 } from "@mantine/core";
 import { clampUseMovePosition, useMove } from "@mantine/hooks";
 import React, { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
-import { normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { useOptionalPopoutContext } from "../popout/PopoutContext";
 import { Chit } from "./Chit";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
+import { revertOnEscape } from "./escape";
 import { OpacityInput } from "./OpacityInput";
+import { typedColor } from "./typed-color";
 
 /** Mantine's color model: hue 0-360, saturation and value 0-100, alpha 0-1. */
 interface Hsva {
@@ -53,7 +57,32 @@ export interface ColorPickerPanelLabels {
     gradient: string;
     /** Name of the swatch list. */
     swatches: string;
+    /** A color as a reader says it ("dark green"), for the swatches' names and tooltips. */
+    colorWord: (color: string) => string;
+    /**
+     * A swatch's name and tooltip: its color word and hex, and whether it is the color the field
+     * held when the picker opened (the color before this edit).
+     */
+    swatch: (word: string, hex: string, start: boolean) => string;
+    /**
+     * Drawn under the value row, and spoken, after Enter on text that reads as no color in the
+     * format: what the box takes instead. The text stays in the box, marked, to be corrected.
+     */
+    refused: (typed: string, format: ColorPickerFormat) => string;
+    /**
+     * Drawn and spoken when the reader leaves the value box holding text that reads as no color:
+     * the box went back to `kept`, the value it shows for the color in force.
+     */
+    refusedKept: (typed: string, kept: string, format: ColorPickerFormat) => string;
 }
+
+/** What the value box takes, in each format, as the refusal says it. */
+const TAKES: Record<ColorPickerFormat, string> = {
+    hex: "Type a color name or a hex code such as 2E8B57.",
+    rgb: "Type three numbers such as 46, 139, 87.",
+    hsl: "Type three numbers such as 146, 50, 36.",
+    hsb: "Type three numbers such as 146, 67, 55.",
+};
 
 const DEFAULT_LABELS: ColorPickerPanelLabels = {
     saturation: "Saturation and brightness",
@@ -66,6 +95,11 @@ const DEFAULT_LABELS: ColorPickerPanelLabels = {
     solid: "Solid",
     gradient: "Gradient",
     swatches: "Swatches",
+    colorWord,
+    swatch: (word, hex, start) =>
+        `${[word, hex].filter(Boolean).join(" ")}${start ? ", the color before this edit" : ""}`,
+    refused: (typed, format) => `"${typed}" is not a color. ${TAKES[format]}`,
+    refusedKept: (typed, kept, format) => `"${typed}" is not a color, so this stays ${kept}. ${TAKES[format]}`,
 };
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
@@ -94,8 +128,20 @@ export interface ColorPickerPanelProps {
      * @default true
      */
     withAlpha?: boolean;
-    /** The swatch set under the divider, as hex or hexa strings. Each is named by its string. */
+    /**
+     * The swatch set under the divider, as hex or hexa strings. Each is named by its color word
+     * and hex. The color the picker opened on is always one of them (first, when the set lacks
+     * it), marked as the color before this edit, so going back to it is one click. While the
+     * picker is open, a swatch the set drops keeps its place and one it gains joins the end, so a
+     * picked swatch never moves away from under the pointer.
+     */
     swatches?: readonly string[];
+    /**
+     * Enter in the value box applies the color and closes the pop-out the picker sits in, which
+     * gives focus back to what opened it.
+     * @default false
+     */
+    closeOnEnter?: boolean;
     /**
      * The format the value row starts in.
      * @default "hex"
@@ -164,12 +210,9 @@ function formatValue(hsva: Hsva, format: ColorPickerFormat): string {
  */
 function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsva | undefined {
     if (format === "hex") {
-        const digits = text.trim().replace("#", "");
-        if (digits.length !== 3 && digits.length !== 6) {
-            return undefined;
-        }
-        const hexa = normalizeHexa(digits);
-        return hexa === undefined ? undefined : { ...parseColor(hexa.slice(0, 7)), a: alpha };
+        // The same entries as the paint field's hex box: hex digits or a color's name.
+        const color = typedColor(text);
+        return color === undefined ? undefined : { ...parseColor(color), a: alpha };
     }
     const n = text
         .split(/[\s,]+/)
@@ -259,6 +302,7 @@ function GradientGlyph(): React.JSX.Element {
  * @param props.onChangeEnd - called once per finished edit: a settled drag, a step, a commit or a pick
  * @param props.withAlpha - offer opacity
  * @param props.swatches - the swatch set
+ * @param props.closeOnEnter - Enter in the value box closes the enclosing pop-out
  * @param props.defaultFormat - the value row's first format
  * @param props.gradient - gradient content for the paint-type bar
  * @param props.paintType - the selected paint type
@@ -278,6 +322,7 @@ export function ColorPickerPanel({
     onChangeEnd,
     withAlpha = true,
     swatches = [],
+    closeOnEnter = false,
     defaultFormat = "hex",
     gradient,
     paintType = "solid",
@@ -290,6 +335,10 @@ export function ColorPickerPanel({
     hsvaRef.current = hsva;
     const [format, setFormat] = useState<ColorPickerFormat>(defaultFormat);
     const [draft, setDraft] = useState(formatValue(hsva, format));
+    // Why the last entry in the value box was refused: said aloud, never drawn, since Figma's box
+    // silently goes back to the color in force.
+    const [refusal, setRefusal] = useState<string>("");
+    const popout = useOptionalPopoutContext();
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
     // describes the same color.
@@ -302,6 +351,8 @@ export function ColorPickerPanel({
 
     useEffect(() => {
         setDraft(formatValue(hsva, format));
+        // A new color or format answers an earlier refusal.
+        setRefusal("");
     }, [hsva, format]);
 
     /**
@@ -366,12 +417,20 @@ export function ColorPickerPanel({
         settle();
     };
 
+    /**
+     * Apply what was typed in the value box. Text that reads as no color goes back to the color
+     * in force, as Figma's box does, and the reason is said aloud.
+     */
     const commitDraft = (): void => {
         const parsed = parseValue(draft, format, hsvaRef.current.a);
         if (parsed === undefined) {
-            setDraft(formatValue(hsvaRef.current, format));
+            const typed = draft.trim();
+            const shownValue = formatValue(hsvaRef.current, format);
+            setRefusal(typed !== "" && draft !== shownValue ? labels.refusedKept(typed, shownValue, format) : "");
+            setDraft(shownValue);
             return;
         }
+        setRefusal("");
         if (toHexa(parsed) !== toHexa(hsvaRef.current)) {
             emit(parsed);
             settle();
@@ -394,6 +453,15 @@ export function ColorPickerPanel({
     };
 
     const opaque = toHexa(hsva).slice(0, 7);
+    /**
+     * Whether a swatch is the color in force (its opacity too, when the picker offers one).
+     * @param swatch - a hex or hexa color
+     * @returns true for the swatch equal to the value
+     */
+    const isCurrent = (swatch: string): boolean => {
+        const length = withAlpha ? 9 : 7;
+        return normalizeHexa(swatch)?.slice(0, length).toUpperCase() === toHexa(hsva).slice(0, length);
+    };
     const percent = Math.round(hsva.a * 100);
     const showGradient = gradient !== undefined && paintType === "gradient";
 
@@ -437,7 +505,7 @@ export function ColorPickerPanel({
             ) : (
                 <>
                     <div className="cm-color-picker-body">
-                        <div
+                        <div // NOSONAR(S6819): a two-axis saturation and value field; input type=range is one axis only
                             ref={fieldRef}
                             className="cm-color-saturation"
                             data-testid="color-picker-saturation"
@@ -531,23 +599,34 @@ export function ColorPickerPanel({
                                     data-testid="color-picker-value"
                                     value={draft}
                                     onChange={(event) => {
+                                        setRefusal("");
                                         setDraft(event.currentTarget.value);
                                     }}
                                     onFocus={(event) => {
                                         event.currentTarget.select();
                                     }}
-                                    onBlur={(event) => {
-                                        if (!isLeavingWithoutCommit(event)) {
-                                            commitDraft();
-                                        }
+                                    onBlur={() => {
+                                        commitDraft();
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
                                             commitDraft();
+                                            if (closeOnEnter && popout !== null) {
+                                                // Without this the Enter would go on to press the
+                                                // trigger that close() focuses, opening it again.
+                                                event.preventDefault();
+                                                popout.close(event);
+                                            }
                                         } else if (event.key === "Escape") {
-                                            leaveWithoutCommit(event, () => {
-                                                setDraft(formatValue(hsvaRef.current, format));
-                                            });
+                                            const shownValue = formatValue(hsvaRef.current, format);
+                                            setRefusal("");
+                                            revertOnEscape(
+                                                event,
+                                                () => {
+                                                    setDraft(shownValue);
+                                                },
+                                                draft !== shownValue,
+                                            );
                                         }
                                     }}
                                 />
@@ -564,24 +643,35 @@ export function ColorPickerPanel({
                                 )}
                             </div>
                         </div>
+                        <VisuallyHidden role="status">{refusal}</VisuallyHidden>
                     </div>
 
                     {swatches.length > 0 && (
-                        <div className="cm-color-swatches" role="group" aria-label={labels.swatches}>
-                            {swatches.map((swatch, index) => (
-                                <button
-                                    key={`${String(index)}-${swatch}`}
-                                    type="button"
-                                    className="cm-color-swatch-button cm-focus-double"
-                                    aria-label={swatch}
-                                    onClick={() => {
-                                        emitExact(swatch);
-                                    }}
-                                >
-                                    <Chit color={swatch} />
-                                </button>
-                            ))}
-                        </div>
+                        <fieldset className="cm-fieldset cm-color-swatches" aria-label={labels.swatches}>
+                            {swatches.map((swatch, index) => {
+                                const hexa = normalizeHexa(swatch);
+                                const name = labels.swatch(
+                                    labels.colorWord(swatch),
+                                    (hexa ?? swatch).replace("#", "").replace(/(.{6})FF$/, "$1"),
+                                    false,
+                                );
+                                return (
+                                    <Tooltip key={`${String(index)}-${swatch}`} label={name}>
+                                        <button
+                                            type="button"
+                                            className="cm-color-swatch-button cm-focus-double"
+                                            aria-label={name}
+                                            aria-pressed={isCurrent(swatch)}
+                                            onClick={() => {
+                                                emitExact(swatch);
+                                            }}
+                                        >
+                                            <Chit color={swatch} />
+                                        </button>
+                                    </Tooltip>
+                                );
+                            })}
+                        </fieldset>
                     )}
                 </>
             )}

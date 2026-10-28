@@ -3,8 +3,8 @@ import React, { useId } from "react";
 // Why this module exists, and what it repairs.
 //
 // Every control in this library could be turned off -- `disabled` has been on
-// StyleSelect, StyleNumberInput, CompactColorInput, ToggleRow and
-// ToggleWithContent since they were written -- but not one of
+// PanelField, CompactColorInput, ToggleRow and ToggleWithContent since they
+// were written -- but not one of
 // them could say WHY it was off. A control that is dimmed and silent is the
 // defect the shell kept hitting: the reader sees a "Show legend" toggle they
 // cannot press and has no way at all to learn that nothing is encoded yet, so

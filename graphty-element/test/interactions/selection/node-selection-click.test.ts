@@ -5,48 +5,31 @@
  * and clicking on the background deselects the current selection.
  */
 
-import { PointerEventTypes } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
+import { drag, pressFor } from "../../helpers/real-input";
 import {
     clickOnBackground,
     clickOnNode,
     DEFAULT_TEST_EDGES,
     DEFAULT_TEST_NODES,
-    getNodeScreenPosition,
     setupTestGraph,
     teardownTestGraph,
     waitForGraphReady,
 } from "../helpers/interaction-helpers";
 
 /**
- * Press on a node, carry the pointer well past the click tolerance, and let go.
+ * Press on a node, carry the pointer well past the click tolerance, and let go, with the real
+ * mouse.
  * @param graph - The graph.
  * @param nodeId - The node to drag.
  */
 async function dragOnNode(graph: Graph, nodeId: string): Promise<void> {
-    const at = getNodeScreenPosition(graph, nodeId);
-    assert.isNotNull(at, `node ${nodeId} should be on screen`);
-    const { scene } = graph;
-    const send = (type: number, x: number, y: number, buttons: number): void => {
-        scene.pointerX = x;
-        scene.pointerY = y;
-        scene.onPrePointerObservable.notifyObservers({
-            type,
-            event: { clientX: x, clientY: y, buttons, button: 0 } as PointerEvent,
-        } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-    };
-
-    send(PointerEventTypes.POINTERDOWN, at.x, at.y, 1);
-    for (let step = 1; step <= 4; step++) {
-        await nextFrame();
-        send(PointerEventTypes.POINTERMOVE, at.x + step * 10, at.y, 1);
-    }
-
-    send(PointerEventTypes.POINTERUP, at.x + 40, at.y, 0);
+    const at = graph.nodeScreenPosition(nodeId);
+    assert.isDefined(at, `node ${nodeId} should be on screen`);
+    await drag(graph.canvas, at, { x: at.x + 40, y: at.y }, 4);
     await graph.waitForSettled();
 }
 
@@ -260,42 +243,30 @@ describe("Node Selection - Click Interactions", () => {
         });
 
         /**
-         * Press and release on a point, with the events stamped `heldMs` apart, while the page's
-         * clocks move on by `busyMs` between handling the two -- a frame, a layout step or the OS
-         * that kept the page from getting to the pointerup.
+         * Press and release on a point with the real mouse, the events stamped `heldMs` apart,
+         * while the page's clocks move on by `busyMs` between handling the two -- a frame, a layout
+         * step or the OS that kept the page from getting to the pointerup.
          * @param at - Where to press.
          * @param at.x - X on the canvas.
          * @param at.y - Y on the canvas.
          * @param heldMs - How long the button was down, by the events' stamps.
          * @param busyMs - How long the page was busy before it handled the pointerup.
          */
-        function pressAndRelease(at: { x: number; y: number }, heldMs: number, busyMs: number): void {
-            const { scene } = graph;
-            const send = (type: number, buttons: number, timeStamp: number): void => {
-                scene.pointerX = at.x;
-                scene.pointerY = at.y;
-                scene.onPrePointerObservable.notifyObservers({
-                    type,
-                    event: { clientX: at.x, clientY: at.y, buttons, button: 0, timeStamp } as PointerEvent,
-                } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-            };
-
-            const pressedAt = performance.now();
-            send(PointerEventTypes.POINTERDOWN, 1, pressedAt);
-
-            const realDate = Date.now.bind(Date);
-            const realPerformance = performance.now.bind(performance);
-            vi.spyOn(Date, "now").mockImplementation(() => realDate() + busyMs);
-            vi.spyOn(performance, "now").mockImplementation(() => realPerformance() + busyMs);
-
-            send(PointerEventTypes.POINTERUP, 0, pressedAt + heldMs);
+        async function pressAndRelease(at: { x: number; y: number }, heldMs: number, busyMs: number): Promise<void> {
+            await pressFor(graph.canvas, at, heldMs, () => {
+                const realDate = Date.now.bind(Date);
+                const realPerformance = performance.now.bind(performance);
+                vi.spyOn(Date, "now").mockImplementation(() => realDate() + busyMs);
+                vi.spyOn(performance, "now").mockImplementation(() => realPerformance() + busyMs);
+            });
+            await graph.waitForSettled();
         }
 
-        it("a quick click whose pointerup is handled late still selects the node", () => {
-            const at = getNodeScreenPosition(graph, "node2");
-            assert.isNotNull(at);
+        it("a quick click whose pointerup is handled late still selects the node", async () => {
+            const at = graph.nodeScreenPosition("node2");
+            assert.isDefined(at);
 
-            pressAndRelease(at, 16, 1000);
+            await pressAndRelease(at, 16, 1000);
 
             assert.equal(graph.getSelectedNode()?.id, "node2");
         });
@@ -304,17 +275,17 @@ describe("Node Selection - Click Interactions", () => {
             await clickOnNode(graph, "node1");
             assert.equal(graph.getSelectedNode()?.id, "node1");
 
-            const { engine } = graph;
-            pressAndRelease({ x: engine.getRenderWidth() - 10, y: engine.getRenderHeight() - 10 }, 16, 1000);
+            const { clientWidth, clientHeight } = graph.canvas;
+            await pressAndRelease({ x: clientWidth - 10, y: clientHeight - 10 }, 16, 1000);
 
             assert.isNull(graph.getSelectedNode());
         });
 
-        it("a long press handled at once selects nothing", () => {
-            const at = getNodeScreenPosition(graph, "node2");
-            assert.isNotNull(at);
+        it("a long press handled at once selects nothing", async () => {
+            const at = graph.nodeScreenPosition("node2");
+            assert.isDefined(at);
 
-            pressAndRelease(at, 1000, 0);
+            await pressAndRelease(at, 1000, 0);
 
             assert.isNull(graph.getSelectedNode());
         });

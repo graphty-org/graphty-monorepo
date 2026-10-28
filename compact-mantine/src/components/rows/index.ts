@@ -19,21 +19,23 @@ export { ActionRow } from "./ActionRow";
 export { HistogramRow, MetricRow, SparklineRow } from "./ChartRow";
 export { CompoundRow } from "./CompoundRow";
 export { DataRow, DataRowHeader, RankChip } from "./DataRow";
+export { EllipsizedName } from "./EllipsizedName";
 export { FieldRow } from "./FieldRow";
 export { PanelField } from "./PanelField";
 export { ProseBlock } from "./ProseBlock";
 export { RampRow } from "./RampRow";
 export { ToggleRow, ToggleRowGroup } from "./ToggleRow";
-export { AdvancedButton, TrailingSlot } from "./TrailingSlot";
+export { AdvancedButton, ResetButton, TrailingSlot } from "./TrailingSlot";
 
 // Prop and shape types
 export type { ActionRowProps } from "./ActionRow";
-export type { HistogramBin, HistogramRowProps, MetricRowProps, SparklineRowProps } from "./ChartRow";
+export type { HistogramBin, HistogramOverlay, HistogramRowProps, MetricRowProps, SparklineRowProps } from "./ChartRow";
 export type { CompoundRowProps, CompoundSegment } from "./CompoundRow";
 export type { DataRowHeaderProps, DataRowProps, RankChipProps } from "./DataRow";
 export type { FieldRowProps } from "./FieldRow";
+export type { HistogramBrushProps } from "./HistogramBrush";
 export type { PanelFieldProps } from "./PanelField";
 export type { ProseBlockProps } from "./ProseBlock";
 export type { RampRowProps } from "./RampRow";
 export type { ToggleRowGroupProps, ToggleRowProps } from "./ToggleRow";
-export type { AdvancedButtonProps, TrailingSlotProps } from "./TrailingSlot";
+export type { AdvancedButtonProps, ResetButtonProps, TrailingSlotProps } from "./TrailingSlot";

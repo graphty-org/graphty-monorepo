@@ -933,6 +933,42 @@ export function deriveRelabel(source: GraphSnapshot, list: EdgeListView, perm: U
 // ============================================================ toUndirected, transpose
 
 /**
+ * The end of the run of parallel arcs (same column) that starts at arc `a` of a row ending at `end`.
+ * @param colIdx - the column indices
+ * @param a - the first arc of the run
+ * @param end - the end of the row
+ * @returns the first arc past the run
+ */
+function parallelRunEnd(colIdx: U32, a: number, end: number): number {
+    const v = colIdx[a];
+    let g = a + 1;
+    while (g < end && colIdx[g] === v) {
+        g++;
+    }
+    return g;
+}
+
+/**
+ * Pair the i-th arc u -> v (from `a`) with the i-th arc v -> u (from `lo`) for `pairs` pairs: both
+ * edges survive as the lower edge index.
+ * @param survivorOf - the survivor of each edge (written)
+ * @param arcToEdge - the arc -> edge permutation
+ * @param a - the first arc u -> v
+ * @param lo - the first arc v -> u
+ * @param pairs - how many pairs
+ */
+function pairReciprocalArcs(survivorOf: U32, arcToEdge: U32, a: number, lo: number, pairs: number): void {
+    for (let i = 0; i < pairs; i++) {
+        const e1 = arcToEdge[a + i];
+        const e2 = arcToEdge[lo + i];
+        const low = Math.min(e1, e2);
+        const high = Math.max(e1, e2);
+        survivorOf[low] = low;
+        survivorOf[high] = low;
+    }
+}
+
+/**
  * `toUndirected(options)` on a directed snapshot (design section 7.3): every edge becomes undirected;
  * reciprocal pairs u -> v / v -> u (paired k-th to k-th among parallels, in edge order) collapse to
  * one edge keeping the lower index's row and the reduced weight (default "first"); with
@@ -959,21 +995,10 @@ export function deriveToUndirected(
         let a = rowPtr[u];
         while (a < end) {
             const v = colIdx[a];
-            let g = a + 1;
-            while (g < end && colIdx[g] === v) {
-                g++;
-            }
+            const g = parallelRunEnd(colIdx, a, end);
             if (v > u) {
                 const [lo, hi] = arcRangeIn(rowPtr, colIdx, v, u);
-                const pairs = Math.min(g - a, hi - lo);
-                for (let i = 0; i < pairs; i++) {
-                    const e1 = arcToEdge[a + i];
-                    const e2 = arcToEdge[lo + i];
-                    const low = Math.min(e1, e2);
-                    const high = Math.max(e1, e2);
-                    survivorOf[low] = low;
-                    survivorOf[high] = low;
-                }
+                pairReciprocalArcs(survivorOf, arcToEdge, a, lo, Math.min(g - a, hi - lo));
             }
             a = g;
         }
@@ -1103,16 +1128,11 @@ export function deriveSimplified(
         let a = rowPtr[u];
         while (a < end) {
             const v = colIdx[a];
-            let g = a + 1;
-            while (g < end && colIdx[g] === v) {
-                g++;
-            }
-            if (source.directed || v >= u) {
-                if (!(v === u && dropLoops)) {
-                    const survivor = arcToEdge[a];
-                    for (let i = a; i < g; i++) {
-                        survivorOf[arcToEdge[i]] = survivor;
-                    }
+            const g = parallelRunEnd(colIdx, a, end);
+            if ((source.directed || v >= u) && !(v === u && dropLoops)) {
+                const survivor = arcToEdge[a];
+                for (let i = a; i < g; i++) {
+                    survivorOf[arcToEdge[i]] = survivor;
                 }
             }
             a = g;
@@ -1171,31 +1191,53 @@ export function renumberPartition(labels: U32, out?: U32): { readonly labels: U3
             maxLabel = label;
         }
     }
-    let count = 0;
-    if (maxLabel < 4 * n + 1024) {
-        const lookup = new Uint32Array(maxLabel + 1).fill(INVALID_INDEX);
-        for (let i = 0; i < n; i++) {
-            const label = labels[i];
-            let dense = lookup[label];
-            if (dense === INVALID_INDEX) {
-                dense = count++;
-                lookup[label] = dense;
-            }
-            result[i] = dense;
-        }
-    } else {
-        const lookup = new Map<number, number>();
-        for (let i = 0; i < n; i++) {
-            const label = labels[i];
-            let dense = lookup.get(label);
-            if (dense === undefined) {
-                dense = count++;
-                lookup.set(label, dense);
-            }
-            result[i] = dense;
-        }
-    }
+    const count = maxLabel < 4 * n + 1024 ? renumberByTable(labels, result, maxLabel) : renumberByMap(labels, result);
     return { labels: result, count };
+}
+
+/**
+ * Write the first-seen dense label of each label to `result`, looking labels up in a table of
+ * `maxLabel + 1` slots (labels small enough for one).
+ * @param labels - the labels
+ * @param result - the destination, same length (may be `labels` itself)
+ * @param maxLabel - the largest label
+ * @returns the block count
+ */
+function renumberByTable(labels: U32, result: U32, maxLabel: number): number {
+    const lookup = new Uint32Array(maxLabel + 1).fill(INVALID_INDEX);
+    let count = 0;
+    for (let i = 0; i < labels.length; i++) {
+        const label = labels[i];
+        let dense = lookup[label];
+        if (dense === INVALID_INDEX) {
+            dense = count++;
+            lookup[label] = dense;
+        }
+        result[i] = dense;
+    }
+    return count;
+}
+
+/**
+ * Write the first-seen dense label of each label to `result`, looking labels up in a Map (labels too
+ * large for a table).
+ * @param labels - the labels
+ * @param result - the destination, same length (may be `labels` itself)
+ * @returns the block count
+ */
+function renumberByMap(labels: U32, result: U32): number {
+    const lookup = new Map<number, number>();
+    let count = 0;
+    for (let i = 0; i < labels.length; i++) {
+        const label = labels[i];
+        let dense = lookup.get(label);
+        if (dense === undefined) {
+            dense = count++;
+            lookup.set(label, dense);
+        }
+        result[i] = dense;
+    }
+    return count;
 }
 
 /**

@@ -1,5 +1,8 @@
 # githerd
 
+> githerd is no longer developed or run by its authors (since 2026-10-18). It is published as it
+> was last used, with no support.
+
 githerd keeps a GitHub repository's pipeline moving when most of the work is done by Claude Code
 sessions and GitHub Actions. One daemon per repository watches the default branch, the open pull
 requests and the issue backlog, turns what needs doing into jobs, and hands each job to an
@@ -9,13 +12,24 @@ the owner only for what only the owner can do. Every GitHub write and every push
 deterministic code in the daemon, and in dry-run mode (the default) each write, push and worker
 start is recorded instead of performed.
 
-The package is private, plain `.mjs` with JSDoc types. It talks to GitHub through Octokit with the
-token of the owner's gh login (`gh auth token`, read at start and again after a 401), and needs
-`pnpm install` in the main checkout, whose `githerd/node_modules` every installed copy links to. A
-repository turns it on with a `githerd.config.json` at its root on the default branch.
+The package is plain `.mjs` with JSDoc types and needs Node.js 22 or later. It talks to GitHub
+through Octokit with the token of the owner's gh login (`gh auth token`, read at start and again
+after a 401). A repository turns it on with a `githerd.config.json` at its root on the default
+branch.
 
-The design is `design/githerd/githerd-design.md`; the build order is
-`design/githerd/githerd-plan.md`.
+## Installing
+
+githerd runs the copy of this package that the repository's default branch holds (see "Adopting
+githerd in another repository" below), so it is installed by putting the package into the
+repository at `githerd/` and installing its dependencies there:
+
+```bash
+npm pack @graphty/githerd
+mkdir githerd && tar -xzf graphty-githerd-*.tgz -C githerd --strip-components=1
+(cd githerd && npm install --omit=dev)
+```
+
+Then commit `githerd/` (without its `node_modules`) and follow "Prerequisites" below.
 
 ## Whose input githerd acts on
 
@@ -48,7 +62,7 @@ merges count); one issue job for the front of the backlog; a re-land job after a
 promotion job per advisory CI check that is due (below). A queued job whose target closed or no
 longer needs work is cancelled.
 
-The queue order is design section 5.4, and every job carries a one-line reason. Three tiers,
+The queue order is fixed, and every job carries a one-line reason. Three tiers,
 highest first, each finishing work in flight before starting new work:
 
 1. Keep things running: incidents (master and release, then shared ones), reviews, broken pull
@@ -87,7 +101,7 @@ the worker's `gh pr create`, comments, issue creation and every other `gh` write
 run for real and write nothing to GitHub. Its worktree (`.worktrees/githerd-<job>`) is installed
 and built in the background first; sessions open one at a time, urgent ones first.
 
-Every session gets the fourteen tools of design section 6 from the MCP server in `.mcp.json`:
+Every session gets the fourteen tools from the MCP server in `.mcp.json`:
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
 `githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner`, `githerd_record`,
 `githerd_mine`, `githerd_offers` and `githerd_verdict`. A master failure that matches none of the classifier's
@@ -118,10 +132,14 @@ says so, until `pause` false or `githerd resume-offers`. A session whose githerd
 step of a job from its shell with `githerd next`, `claim`, `status-answer` and `done` (the tools of
 the same names, for the session the command runs under); every message githerd sends prints them. It stays a worker. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
-the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
-more pushes wait in the push queue than it has gate slots, the repository's Actions runs wait for a
-runner, or more test runs wait than there are test slots, githerd invites no session to new work and its status question says to
-take none; the board names the constraint. `workers.maxActive` (working, starting, or waiting on its
+the jobs it claimed since. No fixed allowance limits a session; the shared resources do (the
+owner's rule of 2026-10-08): while more pushes wait in the push queue than it has gate slots, the
+repository's Actions runs wait for a runner, or more test runs wait than there are test slots,
+githerd invites no session that is actively working a job to new work and its status question
+says to take none; the board names the constraint. A session actively working no job (nothing it
+holds is working, starting or waiting on its own task, or all of that only waits to push, for CI,
+for the owner's review or to merge) still gets work (the owner's rule of 2026-10-13): githerd
+invites it and asks its capacity as usual, and tells it it may take one job. `workers.maxActive` (working, starting, or waiting on its
 own task; blocked, parked and verifying jobs do not count) is only a runaway guard: a session at it
 is not invited, and `githerd_claim` refuses it another until it finishes or reports one. The number
 of queued issue jobs follows the room the sessions reported (at least one, at most twice
@@ -129,7 +147,7 @@ of queued issue jobs follows the room the sessions reported (at least one, at mo
 finishes before it starts: within one owner priority, a broken pull request's job, a review or a
 fix to verify comes before a fresh issue. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
-request another session works on is never offered (design section 8.2): one whose job a live session
+request another session works on is never offered: one whose job a live session
 claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI
 failed on such a head while githerd waits for an answer. For that last case githerd asks every live
 Claude session working in this repository once per failed head, through Claude Code's session
@@ -260,7 +278,7 @@ githerd stats [--json]           # issues and pull requests per week, where issu
 githerd stats --backfill         # first rebuild the missing days of the last 8 weeks from GitHub (reads only)
 githerd stats --backfill-gate    # first recover older pushes' pre-push gate output from transcripts and shard logs
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
-githerd pause | resume           # stop / restart every worker start and doorbell
+githerd pause | resume           # stop / restart every worker start, doorbell and message to sessions
 githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all
 githerd keep <window> [--with-job]  # hand a worker's window to you
 githerd release <job>            # give back a job you stopped or kept
@@ -396,19 +414,15 @@ requests; mode dry-run`), to the person and into the session's context. It waits
       reopen or label removal a Claude session made with the owner's account as his own input. A
       read such as `gh issue view` logs nothing. It prints nothing and always exits 0.
 
-    Workers get every hook of design section 4.10 (the Stop gate, steering, API failures, the guard)
+    Workers get every hook (the Stop gate, steering, API failures, the guard)
     from their generated settings.
 
 On a branch that is not merged, both files act only in sessions started in that branch's own
 worktree.
 
-`githerd/scripts/smoke-launcher.sh` checks the launcher against the real servherd: five launchers
-at once in a scratch repository, under the name `githerd-smoke`, must share one daemon; it removes
-its entry at the end.
-
 ## Prerequisites
 
-The owner does these once (design section 12.1), in this order: soak the branch's code as the
+The owner does these once, in this order: soak the branch's code as the
 development daemon, merge it, then install the shared daemon. `install` and `ensure` archive
 githerd from the default branch, so they fail until the merge.
 
@@ -416,8 +430,7 @@ githerd from the default branch, so they fail until the merge.
    (it has the signing variables and the Pushover keys), run
    `GITHERD_CONFIG=$PWD/githerd.config.json node githerd/bin/githerd.mjs dev`. The development
    daemon runs this worktree's code, keeps its state in `.githerd-dev/` (point the other commands
-   at it with `GITHERD_STATE_DIR=.githerd-dev`) and never rises above dry-run.
-   `design/githerd/githerd-plan.md` ("How to run 2.3") has the procedure; stop it with
+   at it with `GITHERD_STATE_DIR=.githerd-dev`) and never rises above dry-run. Stop it with
    `githerd dev --stop`.
 2. **Merge.** Once the soak's findings are fixed or explained, merge the pull request.
 3. **Start githerd once.** From the main checkout on the default branch, in one of the owner's own
@@ -474,12 +487,3 @@ real worker can work a real issue while every GitHub write stays dry-run. Starti
 
 Every write group is turned on the same way, one pull request per switch under `actions`, and only
 the owner approves each one.
-
-## Development
-
-```bash
-pnpm exec nx run githerd:test        # unit tests (vitest, node)
-pnpm exec nx run githerd:coverage    # with the 80/75 coverage thresholds
-pnpm exec nx run githerd:lint        # eslint and tsc over the JSDoc types
-./tools/run-knip.sh --workspace githerd
-```

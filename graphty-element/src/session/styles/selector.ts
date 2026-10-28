@@ -33,13 +33,15 @@
  */
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
+    expressionRule,
     hasPredicate,
+    hoverPredicate,
     idsPredicate,
     scopePredicate,
     type SelectorSource,
@@ -82,20 +84,57 @@ export type Selector =
      * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
-     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason.
+     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason. With
+     * `ties: "all"` the group the cut falls in is painted whole instead, past `n`.
      */
-    | { readonly match: "top"; readonly path: Path; readonly n: number }
+    | { readonly match: "top"; readonly path: Path; readonly n: number; readonly ties?: TopTies }
     /**
      * The members of a scope, usually a kept set. One bit test per element against the scope's
      * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
      */
-    | { readonly match: "member"; readonly of: Scope };
+    | { readonly match: "member"; readonly of: Scope }
+    /**
+     * The elements a rule tree holds, re-evaluated as the data changes: a `member` of the inline
+     * rule set `{ kind: "rule", where, reading: edges }`, so it costs what that does and follows
+     * the data the same way. `edges` defaults to `clipped`, the edges between the rule's nodes.
+     * "Top N by" any number column is a `threshold` leaf with `top`.
+     */
+    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading }
+    /**
+     * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
+     * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
+     * ever hovered), or drawn outside the time window (`"ghosted"`, while the timeline setting
+     * `outside` is `"ghost"`), or pinned in place (`"pinned"`, nodes only, as
+     * `session.positions.pinned` holds them). View state, never data: the layer follows each
+     * change without a step.
+     * @since 3.26.0
+     */
+    | { readonly match: "state"; readonly state: ElementState }
+    /**
+     * What the reader is pointing at: the hovered node, or it and its neighbors; inverted, the
+     * rest of the graph while a node is hovered. See the public `Selector` for the reading.
+     */
+    | {
+          readonly match: "hover";
+          readonly reach?: "node" | "neighbors";
+          readonly invert?: boolean;
+          readonly orSelected?: boolean;
+      };
+
+/**
+ * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
+ * @since 3.26.0
+ */
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+/** Every element state, for a refusal that lists what was allowed. */
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state", "hover"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -106,12 +145,17 @@ const RESULT_PATH_PREFIX = "results.";
 
 /**
  * The refusal a selector whose shape is wrong gets.
+ *
+ * `reason` is a stable code, so a consumer writes its own words without parsing the message:
+ * `bare-string`, `not-a-selector`, `where-missing`, `has-path-missing`, `ids-not-a-list`,
+ * `not-an-id`, `top-path-not-a-result`, `top-n-not-whole`, `bad-member-scope`, `unknown-kind`.
+ * @param reason - Which mistake it is, as a stable code.
  * @param message - What is wrong, in a sentence.
  * @param details - The offending values, for an editor that points at them.
  * @returns The error to throw.
  */
-function badShape(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
-    return new GraphtyError({ code: "E_BAD_SELECTOR", message, source: "style", details });
+function badShape(reason: string, message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
+    return new GraphtyError({ code: "E_BAD_SELECTOR", message, source: "style", details: { ...details, reason } });
 }
 
 /**
@@ -148,15 +192,43 @@ function assertIdList(ids: unknown, field: string): void {
     }
 
     if (!Array.isArray(ids)) {
-        throw badShape(`An "ids" selector's ${field} is a list of ids.`, { field, [field]: ids });
+        throw badShape("ids-not-a-list", `An "ids" selector's ${field} is a list of ids.`, { field, [field]: ids });
     }
 
     const wrong = ids.findIndex((id) => typeof id !== "string" && typeof id !== "number");
     if (wrong !== -1) {
-        throw badShape(`An "ids" selector's ${field} holds ids, and entry ${String(wrong)} is not one.`, {
+        throw badShape("not-an-id", `An "ids" selector's ${field} holds ids, and entry ${String(wrong)} is not one.`, {
             field,
             at: wrong,
             value: ids[wrong],
+        });
+    }
+}
+
+/**
+ * Refuse a value that is not even an object with a "match", such as a legacy selector string.
+ * @param given - The value offered as a selector.
+ */
+function assertSelectorObject(given: unknown): void {
+    // Read through `unknown` because these refusals are about a value the type system was
+    // told is a Selector and that arrived as something else -- a legacy selector string, most of
+    // all, which is the shape every layer in the element carries today.
+    if (typeof given === "string") {
+        const advice =
+            given === ""
+                ? 'The empty string matched every element, so write { match: "everything" } if that is what it meant.'
+                : `Write { match: "expression", where: ${JSON.stringify(given)} }.`;
+
+        throw badShape(
+            "bare-string",
+            `A selector is an object naming one of ${SELECTOR_KINDS.join(", ")}, not a bare string. ${advice}`,
+            { selector: given },
+        );
+    }
+
+    if (typeof given !== "object" || given === null || !("match" in given)) {
+        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, {
+            selector: given,
         });
     }
 }
@@ -170,26 +242,7 @@ function assertIdList(ids: unknown, field: string): void {
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
  */
 function assertSelector(selector: Selector): void {
-    // Read through `unknown` because the refusals below are about a value the type system was
-    // told is a Selector and that arrived as something else -- a legacy selector string, most of
-    // all, which is the shape every layer in the element carries today.
-    const given: unknown = selector;
-
-    if (typeof given === "string") {
-        const advice =
-            given === ""
-                ? 'The empty string matched every element, so write { match: "everything" } if that is what it meant.'
-                : `Write { match: "expression", where: ${JSON.stringify(given)} }.`;
-
-        throw badShape(
-            `A selector is an object naming one of ${SELECTOR_KINDS.join(", ")}, not a bare string. ${advice}`,
-            { selector: given },
-        );
-    }
-
-    if (typeof given !== "object" || given === null || !("match" in given)) {
-        throw badShape(`A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, { selector: given });
-    }
+    assertSelectorObject(selector);
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
     // does not contain, which is exactly the case this check exists for.
@@ -199,25 +252,11 @@ function assertSelector(selector: Selector): void {
         case "everything":
             return;
         case "expression":
-            if (typeof selector.where !== "string") {
-                throw badShape('An "expression" selector needs a where.', { where: selector.where });
-            }
-
-            if (selector.where.trim() === "") {
-                throw emptySelector("where", { where: selector.where });
-            }
+            assertExpressionSelector(selector);
 
             return;
         case "has":
-            if (typeof selector.path !== "string") {
-                throw badShape('A "has" selector needs a path, such as "results.louvain.group".', {
-                    path: selector.path,
-                });
-            }
-
-            if (selector.path.trim() === "") {
-                throw emptySelector("path", { path: selector.path });
-            }
+            assertHasSelector(selector);
 
             return;
         case "ids":
@@ -226,35 +265,217 @@ function assertSelector(selector: Selector): void {
 
             return;
         case "top":
-            if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
-                throw badShape(
-                    'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
-                    { path: selector.path },
-                );
-            }
+            assertTopSelector(selector);
 
-            if (!Number.isInteger(selector.n) || selector.n < 0) {
-                throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
-            }
+            return;
+        case "state":
+            assertStateSelector(selector);
 
             return;
         case "member":
-            try {
-                parseScope(selector.of);
-            } catch (error) {
-                if (!isGraphtyError(error)) {
-                    throw error;
-                }
+        case "rule":
+            assertScopeSelector(selector);
 
-                throw badShape(`A "member" selector names a scope: ${error.message}`, {
-                    of: selector.of,
-                    reason: error.details,
-                });
-            }
+            return;
+        case "hover":
+            assertHoverSelector(selector);
 
             return;
         default:
-            throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
+            throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, {
+                match: kind,
+                kinds: SELECTOR_KINDS,
+            });
+    }
+}
+
+/**
+ * The scope a `member` or `rule` selector paints: the named scope, or the rule as an inline rule
+ * set. The session keeps one live membership per scope, keyed by this value.
+ * @param selector - The selector.
+ * @returns The scope, or null for a selector that names none.
+ */
+export function selectorScope(selector: Selector): Scope | null {
+    switch (selector.match) {
+        case "member":
+            return selector.of;
+        case "rule":
+            return { define: { kind: "rule", where: selector.where, reading: selector.edges ?? "clipped" } };
+        default:
+            return null;
+    }
+}
+
+/** A selector in its rule form, which an editor of rules reads and writes. */
+export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
+
+/**
+ * Read any layer's selector as an editable rule, so an editor draws a run's layer the way it draws
+ * a reader's: "carries a Degree value", "Louvain group is 3", "on the shortest route". The rule
+ * matches the same elements, so writing it back changes nothing on the canvas.
+ *
+ * ```ts
+ * import { selectorRule } from "@graphty/graphty-element/session";
+ *
+ * const route = session.styles.list().find((layer) => layer.source.by === "run" && layer.kind === "highlight");
+ * selectorRule(route.selector);
+ * // { match: "rule", where: { kind: "text", reads: "results.route.onPath", mode: "exact", text: "true", caseSensitive: true } }
+ * ```
+ * @param selector - Any selector.
+ * @returns Its rule form: a `rule` selector as it is; `has` as "has a value" (a `text` leaf
+ *     with an empty `regex`); `top` as a `threshold` leaf; an `expression` that compares a
+ *     `data.` or `results.` path with a number, a yes-or-no value or `null` (and `&&` of those)
+ *     as the matching leaves. Undefined for a selector with no rule form (`everything`, `ids`,
+ *     `member`, `state`, and any other expression), which an editor draws its own way. With
+ *     `options.comparisons`, an expression is also read through `>=` and `<=` (a `range` leaf)
+ *     and `>` (a `threshold` leaf's `above`) against a number, and through a bare column name,
+ *     which a rule reads as that file column: `` donations >= `10000` `` is the range leaf on
+ *     `data.donations` from 10000 up.
+ * @param options - How much to read.
+ * @param options.comparisons - Read ordering comparisons and bare column names too. Default false.
+ * @since 3.26.0
+ */
+export function selectorRule(
+    selector: Selector,
+    options: { readonly comparisons?: boolean } = {},
+): RuleSelector | undefined {
+    switch (selector.match) {
+        case "rule":
+            return selector;
+        case "has":
+            return { match: "rule", where: { kind: "text", reads: selector.path, mode: "regex", text: "" } };
+        case "top":
+            return {
+                match: "rule",
+                where: {
+                    kind: "threshold",
+                    path: selector.path,
+                    top: selector.n,
+                    ...(selector.ties === undefined ? {} : { ties: selector.ties }),
+                },
+            };
+        case "expression": {
+            const where = expressionRule(selector.where, options.comparisons === true);
+            return where === undefined ? undefined : { match: "rule", where };
+        }
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Check an "expression" selector's fields.
+ * @param selector - The selector.
+ */
+function assertExpressionSelector(selector: Extract<Selector, { match: "expression" }>): void {
+    if (typeof selector.where !== "string") {
+        throw badShape("where-missing", 'An "expression" selector needs a where.', { where: selector.where });
+    }
+
+    if (selector.where.trim() === "") {
+        throw emptySelector("where", { where: selector.where });
+    }
+}
+
+/**
+ * Check a "has" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHasSelector(selector: Extract<Selector, { match: "has" }>): void {
+    if (typeof selector.path !== "string") {
+        throw badShape("has-path-missing", 'A "has" selector needs a path, such as "results.louvain.group".', {
+            path: selector.path,
+        });
+    }
+
+    if (selector.path.trim() === "") {
+        throw emptySelector("path", { path: selector.path });
+    }
+}
+
+/**
+ * Check a "top" selector's fields.
+ * @param selector - The selector.
+ */
+function assertTopSelector(selector: Extract<Selector, { match: "top" }>): void {
+    if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
+        throw badShape(
+            "top-path-not-a-result",
+            'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+            { path: selector.path },
+        );
+    }
+
+    if (!Number.isInteger(selector.n) || selector.n < 0) {
+        throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', {
+            n: selector.n,
+        });
+    }
+
+    if (selector.ties !== undefined && selector.ties !== "fewer" && selector.ties !== "all") {
+        throw badShape("top-ties-unknown", 'A "top" selector\'s ties is "fewer" or "all".', {
+            ties: selector.ties,
+        });
+    }
+}
+
+/**
+ * Check a "state" selector's fields.
+ * @param selector - The selector.
+ */
+function assertStateSelector(selector: Extract<Selector, { match: "state" }>): void {
+    if (!ELEMENT_STATES.includes(selector.state)) {
+        throw badShape("unknown-state", `A "state" selector reads one of ${ELEMENT_STATES.join(", ")}.`, {
+            state: selector.state,
+            states: ELEMENT_STATES,
+        });
+    }
+}
+
+/**
+ * Check the scope a "member" or "rule" selector holds.
+ * @param selector - The selector.
+ */
+function assertScopeSelector(selector: Extract<Selector, { match: "member" | "rule" }>): void {
+    try {
+        parseScope(selectorScope(selector));
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw badShape(
+            `bad-${selector.match}-scope`,
+            `A "${selector.match}" selector ${selector.match === "rule" ? "holds a rule" : "names a scope"}: ${error.message}`,
+            {
+                of: selectorScope(selector),
+                scope: error.details,
+            },
+        );
+    }
+}
+
+/**
+ * Check a "hover" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): void {
+    if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
+        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', {
+            reach: selector.reach,
+        });
+    }
+
+    if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
+        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', {
+            invert: selector.invert,
+        });
+    }
+
+    if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {
+        throw badShape("hover-or-selected-not-boolean", 'A "hover" selector\'s orSelected is true or false.', {
+            orSelected: selector.orSelected,
+        });
     }
 }
 
@@ -300,7 +521,7 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
         }
         case "top": {
             const { topCut } = source;
-            const { path, n } = selector;
+            const { path, n, ties } = selector;
 
             if (topCut === undefined) {
                 throw new GraphtyError({
@@ -314,11 +535,26 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
             return {
                 match: "top",
                 target,
-                test: topPredicate(columns, path, () => topCut(path, target, n)),
+                test: topPredicate(columns, path, () => topCut(path, target, n, ties)),
                 paths: Object.freeze([path]),
             };
         }
-        case "member": {
+        case "state": {
+            const { inState } = source;
+            const { state } = selector;
+            if (inState === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: 'This session cannot evaluate a "state" selector, because it has no selection to read.',
+                    source: "style",
+                    details: { match: "state" },
+                });
+            }
+
+            return { match: "state", target, test: (index) => inState(state, target, index), paths: EMPTY_PATHS };
+        }
+        case "member":
+        case "rule": {
             if (source.scope === undefined) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",
@@ -329,14 +565,33 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 });
             }
 
-            const live = source.scope(parseScope(selector.of));
+            const live = source.scope(parseScope(selectorScope(selector)));
 
             return {
-                match: "member",
+                match: selector.match,
                 target,
                 test: scopePredicate(live, target),
                 paths: EMPTY_PATHS,
                 problem: () => live.problem(),
+            };
+        }
+        case "hover": {
+            const hover = selector.orSelected === true ? source.focus : source.hover;
+            if (hover === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message:
+                        'This session cannot evaluate a "hover" selector, because nothing reports the pointer to it.',
+                    source: "style",
+                    details: { match: "hover" },
+                });
+            }
+
+            return {
+                match: "hover",
+                target,
+                test: hoverPredicate(hover, target, selector.reach ?? "node", selector.invert === true),
+                paths: EMPTY_PATHS,
             };
         }
         default: {

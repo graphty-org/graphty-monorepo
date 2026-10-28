@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "pr": 2640,
+  "subject": {
+    "builtMerge": "361e7de0a26f3b5bf4006de5545cb4e1c16d5abe",
+    "head": "fb5bf3d34734ebd6339165f72cd3753df4c1a9d9",
+    "runId": 38652469934,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "361e7de0a26f3b5bf4006de5545cb4e1c16d5abe"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/data--graph-mly-files.png",
+      "from": "6662346e5de1d0ba4aa4385912a5970052dbd26a8b810623e430d4c0c3e261ab",
+      "to": "6af1a42addbe66d52e967aa0f3ed5700bcfeb4c62049623900ca21a79a22e7d3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--pajek-3-d.png",
+      "from": null,
+      "to": "65ae6cbe3e0bb243b6106acdfa0b31cd78f4695a42705fdc73f772af2984d9d9",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--cx-2.png",
+      "capture": "299898a2cfad95b7cb056fba8d461b2da6dc8c8353db5659e364124bd3ab6dae",
+      "reason": "most nodes are overlapping, doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--cx.png",
+      "capture": "57f888abb1996651a12b479dfbcba0eed9bbafd75cfa5d26c85a1e1668c373d2",
+      "reason": "most nodes are overlapping, doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--cytoscape-session.png",
+      "capture": "b2e95625f394325016b9b7dc2b7d11f89f6383ab3eebc0889b5e04a1571090ed",
+      "reason": "most nodes are overlapping, doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--dot.png",
+      "capture": "8ba4a7dda8a9994671053b5a2f62b28a26693eb7506a4235d6e22be56e8308da",
+      "reason": "doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--gexf.png",
+      "capture": "c86243848a22a6f30cc30b11e0a91c8b199a6d8eb9f253faec0032b29b36fcd6",
+      "reason": "most nodes are overlapping, doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--gml.png",
+      "capture": "9dce8aaa550b827193c554841f4c981af75a02a3de5c75119653baba9d92765f",
+      "reason": "doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--graph-mly-ed.png",
+      "capture": "e70e0a9999c96f6ba913bd7b1100d3c04c7c988043e40f14bbc1e90805f0afd6",
+      "reason": "doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--pajek.png",
+      "capture": "f27e5c994fb35876bacaf71cb2d7547f6a794b7392c7cbad35f7acfeee3553cf",
+      "reason": "doesn't look like source file"
+    },
+    {
+      "path": "visual-baselines/graphty-element/data-file-positions--xgmml.png",
+      "capture": "7e26c3caa84fbe0017428074d965b7344fc4713a116f38e83420307ff6d50e50",
+      "reason": "doesn't look like source file"
+    }
+  ],
+  "reviewedAt": "2026-10-16T03:50:16.589Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZkFRUHZ3RExjVDhLWXV0RURCTXJYX3E5TWRIYUdiMmJNXzBSbzJlT0RMOCIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIHvpkEs_3pM5zul1vcAjfd1LliaSW_aETJEfBoe_ixCOAiAdb89nImlnHaCIcsX1ua28PVOizyQIW-EobSVb2WFiKg"
+  }
+}

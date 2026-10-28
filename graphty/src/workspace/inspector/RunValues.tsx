@@ -1,22 +1,45 @@
-import { ControlSection, DataRow, DataRowHeader, HistogramRow, StyleNumberInput } from "@graphty/compact-mantine";
-import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
+import { ControlSection, DataRow, DataRowHeader, HistogramRow, PANEL_GRID } from "@graphty/compact-mantine";
 import {
     type GraphSession,
+    type GraphtyErrorCode,
     RESULT_SHAPE_CONTRACTS,
     type Run,
     type RunId,
     type ScopeInput,
 } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Group, Select, Text } from "@mantine/core";
-import type React from "react";
+import { Button, Group, Stack, Text } from "@mantine/core";
+import React, { useEffect } from "react";
 
-import { modularityBandName } from "../../components/shell/readings/readingFormat";
+import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
+import { focusInspectorTitle } from "../frame/focus";
+import { OptionsForm } from "../options/OptionsForm";
 import { runName } from "../runWords";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { unitOf } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
-import { groupKey, nodeKey } from "./inspected";
-import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, rankedName, runDate, runFailureWords } from "./words";
+import { groupInspected, groupKey, nodeKey } from "./inspected";
+import {
+    type Draft,
+    measuredNoun,
+    rowKindOf,
+    selectNode,
+    settingsChanged,
+    settingsOf,
+    takePathValuesFocus,
+} from "./reads";
+import {
+    count,
+    formatNumber,
+    groupName,
+    modularityBandName,
+    queuedWords,
+    rankedName,
+    routeWords,
+    runFailureWords,
+    runTime,
+    staleWords,
+} from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -27,7 +50,7 @@ const TOP = 10;
  * @param props.run - The run
  * @param props.draft - The reader's changes to its settings
  * @param props.onDraft - Replaces the changes
- * @returns The bar, or nothing when nothing needs saying
+ * @returns The bar: its words alone are the live region, and it draws nothing when nothing needs saying
  */
 export function RunStateBar({
     run,
@@ -38,7 +61,7 @@ export function RunStateBar({
     draft: Draft;
     onDraft: (draft: Draft) => void;
 }>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     let words: string;
     let buttons: React.ReactNode;
     if (run.status === "queued" || run.status === "running") {
@@ -63,8 +86,13 @@ export function RunStateBar({
                 <Button
                     size="compact-xs"
                     onClick={() => {
-                        session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id });
+                        startAgain(store, () =>
+                            session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id }),
+                        );
                         onDraft({});
+                        // The bar and its Rerun go once the run is current, so focus would fall
+                        // to the page: it goes to the inspector's title, as after any run.
+                        focusInspectorTitle();
                     }}
                 >
                     Rerun
@@ -80,83 +108,65 @@ export function RunStateBar({
                 </Button>
             </>
         );
+    } else if (run.status === "succeeded" && run.stale !== null) {
+        // Nothing reruns by itself (tier2-design.md section 7): the reader starts it, here.
+        const { scopeSpec } = run.stale;
+        words = staleWords(run.stale, session === null ? "ms" : unitOf(session));
+        buttons = (
+            <Button
+                size="compact-xs"
+                onClick={() => {
+                    startAgain(store, () =>
+                        session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec }),
+                    );
+                    focusInspectorTitle();
+                }}
+            >
+                Rerun
+            </Button>
+        );
     } else {
-        return null;
+        words = "";
     }
+    // The words are the live region, and it stays mounted while the run is shown, so a change of
+    // state is spoken once, without its buttons; with no state the bar draws nothing.
+    const showing = words !== "";
     return (
         <Group
-            role="status"
             gap={6}
-            px="md"
-            py={4}
+            px={showing ? "md" : 0}
+            py={showing ? 4 : 0}
             justify="space-between"
             wrap="nowrap"
-            bg="var(--mantine-color-default-hover)"
+            bg={showing ? "var(--mantine-color-default-hover)" : undefined}
         >
-            <Text size="xs">{words}</Text>
-            <Group gap={4} wrap="nowrap">
-                {buttons}
-            </Group>
+            <Text size="xs" role="status">
+                {words}
+            </Text>
+            {buttons ? (
+                <Group gap={4} wrap="nowrap">
+                    {buttons}
+                </Group>
+            ) : null}
         </Group>
     );
 }
 
 /**
- * One setting of the run, drawn from graphty-element's option descriptor.
- * @param props - Component props
- * @param props.option - The descriptor
- * @param props.value - The value now
- * @param props.onChange - Called with a new value
- * @returns The control, or nothing for a kind of option the Values tab does not edit
+ * Starts a run again, and says in words why the element refused or the run failed, instead of
+ * leaving the rejection unhandled.
+ * @param store - the chrome store.
+ * @param start - starts the run.
  */
-function SettingField({
-    option,
-    value,
-    onChange,
-}: Readonly<{
-    option: OptionDescriptor;
-    value: unknown;
-    onChange: (value: unknown) => void;
-}>): React.JSX.Element | null {
-    switch (option.type) {
-        case "number":
-        case "integer":
-            return (
-                <StyleNumberInput
-                    label={option.plainName}
-                    value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof option.default === "number" ? option.default : 0}
-                    min={typeof option.min === "number" ? option.min : undefined}
-                    max={typeof option.max === "number" ? option.max : undefined}
-                    step={option.step ?? (option.type === "integer" ? 1 : undefined)}
-                    decimalScale={option.type === "integer" ? 0 : undefined}
-                    onChange={onChange}
-                />
-            );
-        case "enum":
-            return (
-                <Select
-                    size="xs"
-                    label={option.plainName}
-                    value={typeof value === "string" ? value : null}
-                    data={(option.values ?? []).map(({ value: v, label }) => ({ value: v, label: label ?? v }))}
-                    allowDeselect={false}
-                    onChange={onChange}
-                />
-            );
-        case "boolean":
-            return (
-                <Checkbox
-                    size="xs"
-                    label={option.plainName}
-                    checked={value === true}
-                    onChange={(event) => {
-                        onChange(event.currentTarget.checked);
-                    }}
-                />
-            );
-        default:
-            return null;
+function startAgain(store: WorkspaceStore, start: () => PromiseLike<unknown> | undefined): void {
+    const report = (error: unknown): void => {
+        const { code } = error as { code?: GraphtyErrorCode };
+        store.set({ notice: { message: runFailureWords(code), error: true } });
+    };
+    try {
+        start()?.then(undefined, report);
+    } catch (error) {
+        report(error);
     }
 }
 
@@ -181,27 +191,82 @@ function MadeWith({
     const { session } = useWorkspace();
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
-    const options = (descriptor?.options ?? []).filter(
-        (option) => option.internal !== true && option.advanced !== true,
-    );
-    const date = runDate(run.startedAt);
+    const date = runTime(run.startedAt);
+    const weighted = (descriptor?.weightMeaning ?? null) !== null;
+    // The run's nodes (a path's From and To) are facts like Analysis and Ran: rows, in line with
+    // them. The weight is one row too, saying what the run read, so it is stated once.
+    const options = descriptor?.options ?? [];
+    const rows = options.filter((o) => o.type === "node-id" && o.advanced !== true && o.internal !== true);
+    // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
+    const follow = options.find((o) => isPathFollow(run.algorithm, o.name));
+    const fields = options.filter((o) => !rows.includes(o) && o !== follow && !(weighted && o.name === "weight"));
+    const form = (shown: typeof options, advancedLabel?: string, fieldInset?: "md"): React.JSX.Element | null =>
+        session === null || descriptor === undefined ? null : (
+            <OptionsForm
+                session={session}
+                options={shown}
+                values={settings}
+                words={(option) => ranOptionWords(run, option)}
+                weightReads={descriptor.weightMeaning ?? null}
+                algorithm={run.algorithm}
+                canUseSelectedNode
+                advancedLabel={advancedLabel}
+                fieldInset={fieldInset}
+                onChange={(name, value) => {
+                    onDraft({ ...draft, [name]: value });
+                }}
+            />
+        );
 
     return (
-        <ControlSection label="Made with" defaultOpened>
-            <DataRow stat name="Analysis" value={descriptor?.plainName ?? run.algorithm} />
+        <ControlSection label="Made with" collapsible={false} headingLevel={3}>
+            <DataRow
+                stat
+                name="Analysis"
+                value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name}
+            />
             {date !== null && <DataRow stat name="Ran" value={date} />}
-            {options.map((option) => (
-                <div key={option.name} style={{ padding: "0 16px" }}>
-                    <SettingField
-                        option={option}
-                        value={settings[option.name] ?? option.default}
-                        onChange={(value) => {
-                            onDraft({ ...draft, [option.name]: value });
-                        }}
-                    />
-                </div>
-            ))}
+            {form(rows)}
+            {follow !== undefined && session?.status.directed === true && (
+                <DataRow
+                    stat
+                    name={ranOptionWords(run, follow).label}
+                    value={ranOptionWords(run, follow).choice(
+                        typeof settings.direction === "string" ? settings.direction : "all",
+                    )}
+                />
+            )}
+            {run.status === "succeeded" && weighted && <WeightRow run={run} />}
+            {fields.length > 0 && (
+                <Stack gap={8}>
+                    {/* Named for the panel, so it is never taken for a popover's own Advanced. The
+                        fields are inset; the fold's toggle is not, so its chevron sits in the
+                        section's gutter with the section chevrons. */}
+                    {form(fields, "Advanced run settings", "md")}
+                </Stack>
+            )}
         </ControlSection>
+    );
+}
+
+/**
+ * Made with's Weight: a short value in the row, and its explanation on a line of its own under
+ * it, so the value column never holds a wrapped sentence.
+ * @param props - Component props
+ * @param props.run - The run
+ * @returns The row and its note
+ */
+function WeightRow({ run }: Readonly<{ run: Run }>): React.JSX.Element {
+    const { value, note } = weightRead(run.caveats);
+    return (
+        <>
+            <DataRow stat name="Weight" value={value} />
+            {note !== null && (
+                <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} pb={8}>
+                    {note}
+                </Text>
+            )}
+        </>
     );
 }
 
@@ -236,7 +301,7 @@ function MeasureValues({
 
     return (
         <>
-            <ControlSection label="Values" defaultOpened>
+            <ControlSection label="Distribution" collapsible={false} headingLevel={3}>
                 {first !== undefined && last !== undefined && (
                     <HistogramRow
                         label={runName(session, run)}
@@ -249,12 +314,13 @@ function MeasureValues({
                     />
                 )}
                 {summary.min !== null && summary.max !== null && summary.median !== null && (
-                    <Text size="xs" c="dimmed" px="md">
+                    // On the section's content edge, where the histogram draws its end labels.
+                    <Text size="sm" c="dimmed">
                         {`${formatNumber(summary.measured)} of ${formatNumber(summary.count)} have a value, ${formatNumber(summary.min)} to ${formatNumber(summary.max)}, median ${formatNumber(summary.median)}`}
                     </Text>
                 )}
             </ControlSection>
-            <ControlSection label={`Top ${String(TOP)}`} defaultOpened>
+            <ControlSection label={`Top ${String(TOP)}`} collapsible={false} headingLevel={3}>
                 {top.entries.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
@@ -279,9 +345,9 @@ function MeasureValues({
  * @returns The sections
  */
 function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
-    const { store } = useWorkspace();
+    const { session, store } = useWorkspace();
     const groups = run.result?.summary().groups;
-    if (run.result === undefined || groups === undefined) {
+    if (session === null || run.result === undefined || groups === undefined) {
         return null;
     }
     const { modularity } = run.result.graph;
@@ -289,7 +355,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <DataRow stat name="Groups" value={groups.length} />
                 {typeof modularity === "number" && (
                     <DataRow
@@ -303,7 +369,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                     />
                 )}
             </ControlSection>
-            <ControlSection label="Sizes" defaultOpened>
+            <ControlSection label="Sizes" collapsible={false} headingLevel={3}>
                 <HistogramRow
                     label="Group sizes"
                     bins={groups.map((group) => ({
@@ -320,7 +386,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                         name={groupName(group)}
                         value={group.size}
                         onClick={() => {
-                            store.set({ inspected: { kind: "group-row", id: groupKey(run.id, group.group) } });
+                            store.set({ inspected: groupInspected(session, run.id, group.group) });
                         }}
                     />
                 ))}
@@ -330,8 +396,109 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 }
 
 /**
- * A run row's Values tab (tier1-design.md section 2.7): a measure's histogram and top 10, or a
- * grouping's summary and sizes; then Made with.
+ * A path run's values: how big the path is, its total named by the weight column when it read a
+ * distance weight ("Total minutes"), then its nodes from source to target, each selecting that node.
+ * @param props - Component props
+ * @param props.session - The session
+ * @param props.run - The run
+ * @param props.summaryLabel - The first section's heading: "Route" inside a layer's Values tab,
+ *   which has its own Summary
+ * @returns The sections
+ */
+export function PathValues({
+    session,
+    run,
+    summaryLabel = "Summary",
+}: Readonly<{ session: GraphSession; run: Run; summaryLabel?: string }>): React.JSX.Element | null {
+    // After Find path, focus goes to the inspector's title once the route is drawn: the result the
+    // reader asked for, not the canvas, the control that opened the form, or a node row whose
+    // ring would read as picked.
+    useEffect(() => {
+        if (run.result !== undefined && takePathValuesFocus(run.id)) {
+            focusInspectorTitle();
+        }
+    });
+    const { result } = run;
+    if (result === undefined) {
+        return null;
+    }
+    const { length, hops, cost } = result.graph;
+    const nodes = result
+        .ranking("order")
+        .filter((entry) => Number.isFinite(entry.value))
+        .sort((a, b) => a.value - b.value);
+    const { weight } = run.caveats;
+    // Named by its column, so the total carries its unit: "Total minutes 14", not "Total distance".
+    const total = weight?.meaning === "distance" && typeof cost === "number" ? cost : null;
+    return (
+        <>
+            <ControlSection label={summaryLabel} collapsible={false} headingLevel={3}>
+                {typeof length === "number" && typeof hops === "number" && (
+                    <DataRow stat name="Path" value={routeWords(length, hops)} />
+                )}
+                {total !== null && (
+                    <DataRow stat name={`Total ${weight?.attribute ?? ""}`} value={formatNumber(total)} />
+                )}
+            </ControlSection>
+            <ControlSection label="Nodes in order" collapsible={false} headingLevel={3}>
+                {nodes.map((entry) => (
+                    <DataRow
+                        key={nodeKey(entry.id)}
+                        name={String(entry.id)}
+                        value={formatNumber(entry.value + 1)}
+                        onClick={() => {
+                            selectNode(session, entry.id);
+                        }}
+                    />
+                ))}
+            </ControlSection>
+        </>
+    );
+}
+
+/**
+ * A set run's values: how many nodes or edges it holds.
+ * @param props - Component props
+ * @param props.run - The run
+ * @returns The section
+ */
+function SetValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
+    const size = run.result?.graph.count;
+    if (typeof size !== "number") {
+        return null;
+    }
+    return (
+        <ControlSection label="Summary" collapsible={false} headingLevel={3}>
+            <DataRow stat name="Holds" value={count(size, measuredNoun(run))} />
+        </ControlSection>
+    );
+}
+
+/**
+ * Which values view a finished run gets, from its shape's contract and its primary field's type:
+ * a grouping's summary, a path's route, a set's size, a number's histogram, or none.
+ * @param run - the run.
+ * @returns the view.
+ */
+function viewOf(run: Run): "groups" | "path" | "set" | "measure" | null {
+    const contract = RESULT_SHAPE_CONTRACTS[run.shape];
+    const { nodeFields }: { nodeFields: readonly string[] } = contract;
+    if (run.status !== "succeeded" || contract.primaryField === null) {
+        return null;
+    }
+    if (rowKindOf(run) === "run-row") {
+        return "groups";
+    }
+    if (contract.layer === "highlight") {
+        return nodeFields.includes("order") ? "path" : "set";
+    }
+    const type = run.fields.find((field) => field.name === contract.primaryField)?.type;
+    return type === "number" || type === "integer" ? "measure" : null;
+}
+
+/**
+ * A run row's Values tab (tier1-design.md section 2.7): a measure's histogram and top 10, a
+ * grouping's summary and sizes, a path's route or a set's size; then Made with.
  * @param props - Component props
  * @param props.run - The run
  * @param props.draft - The reader's changes to its settings
@@ -352,13 +519,13 @@ export function RunValues({
         return null;
     }
     const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
-    const grouping = rowKindOf(run) === "run-row";
+    const view = viewOf(run);
     return (
         <>
-            {run.status === "succeeded" && field !== null && !grouping && (
-                <MeasureValues session={session} run={run} field={field} />
-            )}
-            {run.status === "succeeded" && grouping && <GroupsValues run={run} />}
+            {view === "measure" && field !== null && <MeasureValues session={session} run={run} field={field} />}
+            {view === "groups" && <GroupsValues run={run} />}
+            {view === "path" && <PathValues session={session} run={run} />}
+            {view === "set" && <SetValues run={run} />}
             <MadeWith run={run} draft={draft} onDraft={onDraft} />
         </>
     );
@@ -414,7 +581,7 @@ export function GroupValues({
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 {size !== undefined && (
                     <DataRow
                         name="Size"
@@ -427,7 +594,7 @@ export function GroupValues({
                 <DataRow stat name="Made by" value={runName(session, run)} />
             </ControlSection>
             {members !== undefined && (
-                <ControlSection label="Members" defaultOpened>
+                <ControlSection label="Members" collapsible={false} headingLevel={3}>
                     <DataRowHeader label={`First ${String(Math.min(TOP, members.nodeCount))}`} />
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow

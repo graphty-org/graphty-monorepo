@@ -1,3 +1,6 @@
+// Only the environment presets: baseTest()'s CI reporters would file these deliberate failures as real ones.
+import "../../../../vitest.base.mjs";
+
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 

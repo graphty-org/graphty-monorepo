@@ -1,10 +1,13 @@
 import {
     Color3,
     Color4,
+    DirectionalLight,
     Engine,
     EngineStore,
     HemisphericLight,
     Logger,
+    Material,
+    NullEngine,
     PhotoDome,
     Quaternion,
     Scene,
@@ -12,14 +15,21 @@ import {
     TransformNode,
     Vector3,
     WebGPUEngine,
+    WebXRState,
 } from "@babylonjs/core";
 
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
+import { GraphtyLogger } from "../logging";
+import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
+import { batchUploadFrames } from "../meshes/FrameRoster";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -47,7 +57,15 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
+    pixelRatio?: PixelRatio;
 }
+
+/**
+ * How many drawing-buffer pixels the canvas has per CSS pixel: a number, or `"device"` for the
+ * screen's own `devicePixelRatio`, followed as it changes.
+ */
+export type PixelRatio = number | "device";
 
 /** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
 export type RendererRequest = "webgl" | "webgpu" | "auto";
@@ -72,6 +90,13 @@ export interface RendererStatus {
      * the one asked for, and under `"webgl"`.
      */
     readonly reason: string | null;
+    /**
+     * Whether anything is drawn. False when the browser gave the page no working WebGL context:
+     * the graph's data, its session and autosave still work, and the canvas stays empty. The log
+     * records it as `E_NO_WEBGL`.
+     * @since 3.29.0
+     */
+    readonly drawing: boolean;
 }
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */
@@ -195,13 +220,43 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
 }
 
 /**
+ * A WebGL engine and its scene, or -- when the browser gives the page no working WebGL context (none
+ * at all, or one whose GPU process keeps crashing, as Safari on iOS ends up) -- Babylon's
+ * NullEngine, which draws nothing. Without it the element could not be built at all, so the graph's
+ * data, its session and the work autosave kept would not load either; with it only the picture is
+ * missing, which the log reports as E_NO_WEBGL.
+ * @param canvas - The element's canvas.
+ * @returns The engine and the scene.
+ */
+function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+    let engine: Engine | undefined;
+    try {
+        engine = new Engine(canvas, true, {
+            preserveDrawingBuffer: true, // Required for screenshots
+        });
+        return { engine, scene: new Scene(engine) };
+    } catch (error) {
+        try {
+            engine?.dispose();
+        } catch {
+            // An engine whose context failed cannot always release what it never built.
+        }
+
+        GraphtyLogger.getLogger(["graphty", "render"]).error(
+            "E_NO_WEBGL: no WebGL context could be used, so nothing is drawn; the data and the session still work",
+            error instanceof Error ? error : undefined,
+            { code: "E_NO_WEBGL", reason: error instanceof Error ? error.message : String(error) },
+        );
+        const fallback = new NullEngine();
+        return { engine: fallback, scene: new Scene(fallback) };
+    }
+}
+
+/**
  * The name of the graph-root TransformNode used for XR gestures
  * Gestures (zoom, rotate, pan) manipulate this node to transform the entire graph
  */
 const GRAPH_ROOT_NAME = "graph-root";
-
-/** What the scene is cleared to when nothing names a colour. Whitesmoke. */
-const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
@@ -269,6 +324,28 @@ const READER_INPUT_EVENTS = [
 ] as const;
 
 /**
+ * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
+ * is white, toward +x+y), and the key light's intensity and direction in camera space.
+ *
+ * - studio: the headlight's lights (below) plus the node rim (NodeLighting): a 0.45 light from just
+ *   above and left of the camera, a 0.4 fill with ground gray 0.65, no specular, and a rim in the
+ *   node's own color (fresnel bias 0.1, power 2.5, boost 1.8). Because the main light follows the
+ *   camera and the ground is light, no side goes dark: in the lighting experiment the darkest face
+ *   seen from the front, back or below was about 0.51-0.53 of the style lightness, the median
+ *   0.89-0.92, and no pixel clipped to white.
+ * - headlight: the same lights without the rim. Brightest 0.99x the style lightness, median 0.88x,
+ *   spread 0.226.
+ * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
+ * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
+ */
+const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+    studio: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
+    headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
+    matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+    flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+};
+
+/**
  * Manages Babylon.js scene, engine, and render loop
  */
 export class RenderManager implements Manager {
@@ -285,12 +362,27 @@ export class RenderManager implements Manager {
     private lastFrameFence: WebGLSync | null = null;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
+    /**
+     * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
+     * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
+     * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
+     * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
+     * resize (`drawNow`) counts as drawn.
+     */
+    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
+    /**
+     * While it answers true, a tick runs its update but draws nothing: set by the graph while an
+     * element built from the defaults waits for its style to be drawn, so no frame shows it in
+     * them. The update still runs, so the frame that applies the style is the one drawn.
+     * @internal
+     */
+    drawHeld: (() => boolean) | null = null;
     /** What the last frame drawn left behind; see {@link RenderManager.sameAsDrawn}. */
     private readonly drawnFrom = {
         view: new Float32Array(16),
@@ -302,10 +394,31 @@ export class RenderManager implements Manager {
         observers: [] as readonly unknown[],
         contents: [] as unknown[],
     };
+    /** The hemispheric fill light; see {@link applyLighting}. */
+    private readonly hemi: HemisphericLight;
+    /** The key (or head) light, a directional light that turns with the camera. */
+    private readonly key: DirectionalLight;
+    /** The key light's direction in camera space (x right, y up, z forward). */
+    private readonly keyInCameraSpace = new Vector3(0, 0, 1);
     /** Whether the last frame drawn left the camera, size or background other than the one before. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
         this.drawOwed = true;
+    };
+    /**
+     * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
+     * the lost context never signals in the restored one, so kept, it held every tick in
+     * {@link gpuBehind} and the graph was never drawn again (iPad Safari takes the context from a
+     * tab in the background). A restore also has the edge and arrow batches upload every slot
+     * again on the next frame, because Babylon gives their buffers back empty.
+     * @param event - The canvas's `webglcontextlost` or `webglcontextrestored` event.
+     */
+    private readonly dropFence = (event: Event): void => {
+        this.lastFrameFence = null;
+        this.drawOwed = true;
+        if (event.type === "webglcontextrestored") {
+            batchUploadFrames.contextRestored(this.scene);
+        }
     };
     /**
      * Set when the scene gained or lost something it draws with, and cleared by the first frame
@@ -317,6 +430,8 @@ export class RenderManager implements Manager {
     private effectsPending = false;
     /** Scratch for {@link RenderManager.sameContents}. */
     private readonly contentsNow: unknown[] = [];
+    /** What the scene held as the frame being drawn began; see {@link readyToDrawChange}. */
+    private readonly contentsAtDraw: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -329,12 +444,26 @@ export class RenderManager implements Manager {
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
-     * canvas. This one does the same thing without scrolling.
-     * @param evt - The pointer down or up event on the canvas
+     * canvas; this one focuses without scrolling. It does not cancel the event: a canceled
+     * pointerdown suppresses the browser's mousedown and mouseup, so a host page's popover or menu
+     * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
+     * `user-select: none` keeps a drag from selecting page text instead.
+     *
+     * NO FOCUS RING FOR A POINTER. Focus given by script is shown with a ring whenever the browser
+     * thinks the reader is on the keyboard -- after a key press, or on a page nothing had focused
+     * yet -- so turning the graph with the mouse outlined the whole canvas in blue. Focus that came
+     * from a pointer hides the outline until the canvas loses focus or a key is pressed in it (the
+     * reader is on the keyboard then); focus that comes any other way (Tab, a key, the page's
+     * script) keeps the browser's own `:focus-visible` ring.
      */
-    private readonly focusOnPointer = (evt: PointerEvent): void => {
-        evt.preventDefault();
+    private readonly focusOnPointer = (): void => {
+        this.canvas.style.outline = "none";
         this.canvas.focus({ preventScroll: true });
+    };
+
+    /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
+    private readonly restoreFocusRing = (): void => {
+        this.canvas.style.outline = "";
     };
 
     /**
@@ -353,23 +482,29 @@ export class RenderManager implements Manager {
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
 
-        // Create engine
-        this.engine =
-            this.config.engine ??
-            new Engine(this.canvas, true, {
-                preserveDrawingBuffer: true, // Required for screenshots
-            });
+        if (this.config.engine === undefined) {
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+        } else {
+            this.engine = this.config.engine;
+            this.scene = new Scene(this.engine);
+        }
 
-        // Create scene
-        this.scene = new Scene(this.engine);
+        useBundledStandardShaders(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
         this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        this.canvas.addEventListener("blur", this.restoreFocusRing);
+        this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
+        this.canvas.addEventListener("webglcontextlost", this.dropFence);
+        this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
+        // Assigning the canvas's size clears its drawing, even when a resize ends at the size the
+        // last frame was drawn at, so every resize owes a frame.
+        this.engine.onResizeObservable.add(this.owe);
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -381,8 +516,13 @@ export class RenderManager implements Manager {
 
         // Setup resize handler
         this.resizeHandler = (): void => {
-            this.engine.resize();
+            // The device ratio changes with the browser's zoom and the screen the window is on,
+            // and both fire a resize.
+            this.applyPixelRatio();
+            this.resize();
         };
+        this.pixelRatio = this.config.pixelRatio ?? 1;
+        this.applyPixelRatio();
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
@@ -394,9 +534,22 @@ export class RenderManager implements Manager {
         // Setup cameras
         this.setupCameras();
 
-        // Setup lighting with ground color for fill from below
-        const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
-        light.groundColor = new Color3(0.35, 0.35, 0.35);
+        // Two lights at most, neither with any specular, so nothing a light adds is ever white: a
+        // hemispheric fill from above, and a key that keeps its place relative to the camera.
+        this.hemi = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
+        this.hemi.specular = Color3.Black();
+        this.key = new DirectionalLight("key-light", new Vector3(0, 0, 1), this.scene);
+        this.key.specular = Color3.Black();
+        this.scene.onBeforeRenderObservable.add(() => {
+            const camera = this.scene.activeCamera;
+            if (camera) {
+                this.key.direction = Vector3.TransformNormal(
+                    this.keyInCameraSpace,
+                    camera.getWorldMatrix(),
+                ).normalize();
+            }
+        });
+        this.applyLighting(DEFAULT_LIGHTING);
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
@@ -437,10 +590,15 @@ export class RenderManager implements Manager {
         window.removeEventListener("resize", this.resizeHandler);
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        this.canvas.removeEventListener("blur", this.restoreFocusRing);
+        this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.removeEventListener(type, this.owe);
         }
+        this.canvas.removeEventListener("webglcontextlost", this.dropFence);
+        this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
+        this.engine.onResizeObservable.removeCallback(this.owe);
 
         // Dispose camera system
         this.camera.dispose();
@@ -479,6 +637,7 @@ export class RenderManager implements Manager {
             // keeps to wall-clock pace would run slower by exactly the ticks skipped.
             if (this.gpuBehind()) {
                 this.skippedMs += this.engine.getDeltaTime();
+                this.ticks.gpuBehind++;
                 return;
             }
 
@@ -496,28 +655,104 @@ export class RenderManager implements Manager {
                 // Commenting out to avoid double updates
                 // this.camera.update();
 
-                if (this.mayRest()) {
+                if (this.drawHeld?.() === true) {
                     return;
                 }
 
-                // Cleared BEFORE the frame, so anything the frame itself announces asks for the
-                // next one.
-                this.drawOwed = false;
-                this.scene.render();
-                this.fenceFrame();
-                this.noteDrawnFrom();
-            } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                this.eventManager.emitGraphError(null, err, "other", {
-                    component: "RenderManager",
-                    phase: "render-loop",
-                });
+                if (this.mayRest()) {
+                    this.ticks.rested++;
+                    return;
+                }
 
-                // Don't stop render loop on error, but log it
-                console.error("Error in render loop:", error);
-                reportCaught(error);
+                this.drawFrame();
+            } catch (error) {
+                this.reportFrameError(error);
             }
         });
+    }
+
+    /** Draws one frame, for the loop's tick and for {@link drawNow}. */
+    private drawFrame(): void {
+        // Cleared BEFORE the frame, so anything the frame itself announces asks for the next one.
+        this.drawOwed = false;
+        const drawnReady = this.readyToDrawChange();
+        this.scene.render();
+        this.ticks.drawn++;
+        this.fenceFrame();
+        this.noteDrawnFrom(drawnReady);
+    }
+
+    /**
+     * Reports what a frame threw, without stopping the loop.
+     * @param error - What it threw.
+     */
+    private reportFrameError(error: unknown): void {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.eventManager.emitGraphError(null, err, "other", {
+            component: "RenderManager",
+            phase: "render-loop",
+        });
+
+        // Don't stop render loop on error, but log it
+        console.error("Error in render loop:", error);
+        reportCaught(error);
+    }
+
+    /**
+     * Fits the drawing to the canvas's current size and, when that changed the size, draws it at
+     * once, so the frame the page paints after a resize holds the graph rather than the canvas the
+     * resize cleared. Every resize goes through here: the element's ResizeObserver and the
+     * window's resize event alike, since either one can be the call that assigns the new size.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery or a box
+        // change that keeps the render size are not. An XR session draws in its own frames, so
+        // nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.drawNow();
+        }
+    }
+
+    /**
+     * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
+     *
+     * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
+     * resize found by a ResizeObserver lands after the step's animation frames have run, so
+     * without this the page paints that step with an empty canvas -- and a full-page screenshot,
+     * which resizes the page, captures it (#3373). Drawn even while the GPU is still behind, every
+     * time: a full-page screenshot shrinks the page and restores it in two quick steps, and when
+     * the second resize was skipped to keep {@link gpuBehind}'s pacing, the screenshot caught the
+     * cleared canvas and the graph was missing from it (#3704). A resize is delivered at most once
+     * per rendering step, so this adds at most one frame per step past the pacing.
+     *
+     * Wrapped in the engine's frame, as Babylon's own loop wraps every tick: WebGPU submits what a
+     * frame encoded only when the frame ends, and the frame observers fire as for any other frame.
+     * @internal
+     */
+    drawNow(): void {
+        if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
+            return;
+        }
+
+        this.engine.beginFrame();
+        // The time since the last frame, which no update was handed; the loop's next update is.
+        this.skippedMs += this.engine.getDeltaTime();
+        try {
+            this.drawFrame();
+        } catch (error) {
+            this.drawOwed = true;
+            this.reportFrameError(error);
+        } finally {
+            this.engine.endFrame();
+        }
     }
 
     /**
@@ -557,6 +792,12 @@ export class RenderManager implements Manager {
             return;
         }
 
+        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
+        // newer one signals after it, so the older is no longer needed.
+        if (this.lastFrameFence !== null) {
+            gl.deleteSync(this.lastFrameFence);
+        }
+
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     }
 
@@ -569,6 +810,33 @@ export class RenderManager implements Manager {
      */
     requestFrame(): void {
         this.drawOwed = true;
+    }
+
+    /** See {@link setPixelRatio}. */
+    private pixelRatio: PixelRatio = 1;
+
+    /**
+     * Draws the canvas at this many pixels per CSS pixel. Every size the element measures on
+     * screen (fit insets, label sizes, line widths, `nodeScreenPosition`) stays in CSS pixels;
+     * only the sharpness changes, and the cost of each frame with it.
+     * @param ratio - A positive number, or `"device"`; anything else is read as 1.
+     */
+    setPixelRatio(ratio: PixelRatio): void {
+        this.pixelRatio = ratio;
+        this.applyPixelRatio();
+    }
+
+    /** Sets the engine's hardware scaling level from {@link pixelRatio}, and owes a frame when it changed. */
+    private applyPixelRatio(): void {
+        const device = globalThis.devicePixelRatio;
+        const wanted = this.pixelRatio === "device" ? device : this.pixelRatio;
+        const ratio = typeof wanted === "number" && Number.isFinite(wanted) && wanted > 0 ? wanted : 1;
+        const level = 1 / ratio;
+        if (this.engine.getHardwareScalingLevel() !== level) {
+            // Babylon resizes the drawing buffer to the canvas's CSS size over the level.
+            this.engine.setHardwareScalingLevel(level);
+            this.drawOwed = true;
+        }
     }
 
     /**
@@ -718,10 +986,35 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Asked just before a frame is drawn: whether the scene holds something added or removed since
+     * the last frame drawn (or still unconfirmed from before it), and every part of it is ready, so
+     * this frame draws the change whole.
+     *
+     * Such a frame needs no second one to show the change. The check used to wait for the next
+     * tick instead, which then drew the same picture again only to find the scene ready: on a
+     * software GPU a frame of OpenFlights (3,214 nodes, 36,906 edges) costs the page's main thread
+     * 5 to 6 seconds with two cores free, so one opening paid that once more for nothing (#3317).
+     * @returns True when this frame draws a change to the scene's contents whole.
+     */
+    private readyToDrawChange(): boolean {
+        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+            return false;
+        }
+
+        this.readSceneContents(this.contentsAtDraw);
+        const changed =
+            this.sceneChanged || !this.contentsAtDraw.every((value, i) => value === this.drawnFrom.contents[i]);
+        // The walk visits every mesh, so it is asked only when the contents changed.
+        return changed && this.scene.isReady();
+    }
+
+    /**
      * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
      * whether it differed from what the frame before left.
+     * @param drawnReady - Whether the frame began with a change to the scene's contents all ready
+     *     to draw; see {@link readyToDrawChange}.
      */
-    private noteDrawnFrom(): void {
+    private noteDrawnFrom(drawnReady = false): void {
         if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
@@ -748,6 +1041,11 @@ export class RenderManager implements Manager {
         // Something added while frames were being drawn may not have been ready to draw in them.
         if (!this.sameContents()) {
             this.sceneChanged = true;
+        }
+
+        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
+        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
+            this.sceneChanged = false;
         }
 
         this.readSceneContents(from.contents);
@@ -845,6 +1143,55 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Light the scene's 3D nodes one of the {@link Lighting} ways. Takes effect on the next frame,
+     * for the nodes on screen and every node built afterwards.
+     *
+     * The numbers are the ones measured in `stories/experiments/NodeLighting.stories.ts` (25
+     * shapes x 4 colors x 12 rotations). Node materials are frozen, and a frozen material keeps the
+     * shader it compiled -- which lights it counts, whether it has a rim -- so every frozen material
+     * is thawed, recompiled on the next frame and frozen again after it.
+     * @param lighting - The lighting.
+     */
+    applyLighting(lighting: Lighting): void {
+        const { hemi, key, scene } = this;
+        const light = LIGHTS[lighting];
+        hemi.intensity = light.fill;
+        hemi.groundColor = new Color3(light.ground, light.ground, light.ground);
+        key.setEnabled(light.key > 0);
+        key.intensity = light.key;
+        this.keyInCameraSpace.copyFrom(light.keyDirection);
+
+        scene.metadata = { ...(scene.metadata as Record<string, unknown> | null), lighting };
+
+        const thawed: Material[] = [];
+        for (const material of scene.materials) {
+            if (material.isFrozen) {
+                material.unfreeze();
+                thawed.push(material);
+            }
+
+            if (isNodeMaterial(material)) {
+                lightNodeMaterial(material, lighting);
+                for (const mesh of material.getBindedMeshes()) {
+                    outlineNodeMesh(mesh, lighting);
+                }
+            }
+
+            material.markAsDirty(Material.AllDirtyFlag);
+        }
+
+        if (thawed.length > 0) {
+            scene.onAfterRenderObservable.addOnce(() => {
+                for (const material of thawed) {
+                    material.freeze();
+                }
+            });
+        }
+
+        this.requestFrame();
+    }
+
+    /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
@@ -881,10 +1228,12 @@ export class RenderManager implements Manager {
     private setupCameras(): void {
         const orbitCamera = new OrbitCameraController(this.canvas, this.scene, {
             trackballRotationSpeed: 0.005,
-            keyboardRotationSpeed: 0.03,
-            keyboardZoomSpeed: 0.2,
+            // Radians a frame while an arrow is held: the same angular speed as A and D
+            keyboardRotationSpeed: 0.02,
+            // A held W or S changes the distance tenfold in the 157 frames A or D take to spin
+            // half a turn (PI / keyboardYawSpeed): 0.985 ** 157 = 0.093
+            keyboardZoomSpeed: 0.015,
             keyboardYawSpeed: 0.02,
-            pinchZoomSensitivity: 10,
             twistYawSensitivity: 1.5,
             minZoomDistance: 2,
             maxZoomDistance: 2000, // The zoom-out ceiling for a small graph; a fit of a larger one raises it
@@ -909,7 +1258,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });
@@ -929,7 +1278,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });

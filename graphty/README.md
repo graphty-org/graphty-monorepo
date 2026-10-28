@@ -1,79 +1,43 @@
-# Graphty - Graph Visualization Tool
+# graphty
 
-A React TypeScript application providing a user-friendly interface for graph visualization and exploration, built on top of the powerful `graphty-element` web component.
+graphty is a graph visualization app that runs in the browser: open a graph file, lay it out in 2D
+or 3D, run graph algorithms over it and style the result. It is the app at
+[graphty.app](https://graphty.app/), built on the
+[graphty-element](https://www.npmjs.com/package/@graphty/graphty-element) web component.
+
+To use it, open [graphty.app](https://graphty.app/). This package is for hosting your own copy.
 
 ## Features
 
-- Interactive graph visualization
-- Multiple layout algorithms (Force-directed, Circular, etc.)
-- Rich styling and theming options
-- 2D/3D visualization modes
-- Export and import capabilities
+- Open graph files in every format graphty-element reads, from a file, a URL or pasted text
+- Layouts, and about thirty graph algorithms whose results can drive the styling
+- Style layers: color, size, shape, labels and more, set by hand or from the data
+- Node and edge tables, 2D and 3D views, image and data export
+- Projects saved to and reopened from this computer
 
-## Development
+## What the package holds
 
-### Prerequisites
+The built app, as static files under `dist/`: `index.html`, its scripts and styles under
+`dist/assets/`, and the start screen's sample graphs under `dist/samples/`. It has no runtime
+dependencies and no JavaScript API to import; everything it needs is in those files.
 
-- Node.js 18+
-- npm 9+
-
-### Setup
+## Hosting your own copy
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Run tests
-npm test
-
-# Run Storybook
-npm run storybook
+npm install @graphty/graphty
+npx serve node_modules/@graphty/graphty/dist
 ```
 
-### Scripts
+Any static web server works. Serve the contents of `dist/` at the root of a site (`/`), since the
+app loads its files from there, over HTTPS or from `localhost` (browsers allow WebGPU and some
+storage features only in a secure context).
 
-- `npm run dev` - Start Vite development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm test` - Run Vitest tests
-- `npm run test:ui` - Run tests with UI
-- `npm run test:coverage` - Generate coverage report
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint errors
-- `npm run storybook` - Start Storybook
-- `npm run build-storybook` - Build Storybook
+The sample datasets the app offers beyond the start screen's own are downloaded from graphty.app
+when a reader opens one.
 
-## Architecture
+Usage data (error reports and masked session replays) is sent to graphty.app's error tracker only
+after a reader turns on Share usage data in the app.
 
-The application is structured as follows:
+## License
 
-- `/src/components` - React components
-- `/src/hooks` - Custom React hooks
-- `/src/utils` - Utility functions
-- `/src/stories` - Storybook stories
-- `/src/test` - Test setup and utilities
-
-## Working with graphty-element
-
-This project wraps the `graphty-element` web component. During development, it references the local graphty-element project at `../graphty-element`.
-
-When graphty-element is published to npm, update the import in:
-
-- `package.json` - Add as dependency
-- `vite.config.ts` - Remove alias
-- `tsconfig.json` - Remove path mapping
-- `src/components/Graphty.tsx` - Update import path
-
-## Contributing
-
-This project uses:
-
-- ESLint for code linting
-- Prettier formatting (via ESLint)
-- Conventional commits with commitlint
-- Husky for git hooks
-
-Please ensure all tests pass and linting is clean before submitting PRs.
+MIT

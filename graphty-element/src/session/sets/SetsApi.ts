@@ -41,6 +41,7 @@ import type {
 import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { quoteEach } from "../../utils/quote-each";
 import type { MintedSetCreateCommand, SetCommand, SetService } from "../commands/sets";
 import type { Dispatcher } from "../project/Dispatcher";
 import type { SessionAttributes } from "../types";
@@ -391,7 +392,7 @@ export function createSetsApi(
         const cycle = setCycle(id, definition, references);
         if (cycle !== null) {
             throw refuseChain(
-                `This definition reaches the set it is written to through ${cycle.map((step) => `"${step}"`).join(", ")}, so it would contain ` +
+                `This definition reaches the set it is written to through ${quoteEach(cycle, ", ")}, so it would contain ` +
                     "itself. Create a set from the current members instead.",
                 id,
                 "cycle",
@@ -483,7 +484,7 @@ export function createSetsApi(
         if (reading !== undefined && !(EDGE_READINGS as readonly unknown[]).includes(reading)) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: `A reading is one of ${EDGE_READINGS.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(reading)}.`,
+                message: `A reading is one of ${quoteEach(EDGE_READINGS, ", ")}, not ${JSON.stringify(reading)}.`,
                 source: "data",
                 details: { reading },
             });
@@ -719,7 +720,7 @@ export function createSetsApi(
             if (!SET_COMBINES.includes(op)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
-                    message: `A combination is one of ${SET_COMBINES.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(op)}.`,
+                    message: `A combination is one of ${quoteEach(SET_COMBINES, ", ")}, not ${JSON.stringify(op)}.`,
                     source: "data",
                     details: { op },
                 });

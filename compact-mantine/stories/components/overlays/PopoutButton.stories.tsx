@@ -1,10 +1,11 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 // Imported from "../../../src", the package's published entry point, so a story stops compiling
 // if an export is dropped.
@@ -182,7 +183,7 @@ export const DefaultInteractions: Story = {
         await expect(button).toHaveAttribute("aria-expanded", "true");
         await expect(button).toHaveAttribute("data-open", "true");
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(panel).toBeVisible();
 
         await userEvent.keyboard("{Escape}");

@@ -1,6 +1,47 @@
 import type { GraphImpl as BenchmarkGraphImpl } from "../../benchmark-graph";
 
 /**
+ * Pick one adjacency-matrix cell by recursively choosing a quadrant until it is a single cell.
+ * @param vertices - The matrix side length (a power of two)
+ * @param cumA - Cumulative probability of the top-left quadrant
+ * @param cumB - Cumulative probability up to the top-right quadrant
+ * @param cumC - Cumulative probability up to the bottom-left quadrant
+ * @returns The cell's row and column
+ */
+function pickRmatCell(vertices: number, cumA: number, cumB: number, cumC: number): [number, number] {
+    let x1 = 0,
+        y1 = 0;
+    let x2 = vertices - 1,
+        y2 = vertices - 1;
+
+    // Recursively partition the adjacency matrix
+    while (x1 < x2) {
+        const rand = Math.random();
+        const midX = Math.floor((x1 + x2) / 2);
+        const midY = Math.floor((y1 + y2) / 2);
+
+        if (rand < cumA) {
+            // Top-left quadrant
+            x2 = midX;
+            y2 = midY;
+        } else if (rand < cumB) {
+            // Top-right quadrant
+            x1 = midX + 1;
+            y2 = midY;
+        } else if (rand < cumC) {
+            // Bottom-left quadrant
+            x2 = midX;
+            y1 = midY + 1;
+        } else {
+            // Bottom-right quadrant
+            x1 = midX + 1;
+            y1 = midY + 1;
+        }
+    }
+    return [x1, y1];
+}
+
+/**
  * Generate RMAT (Recursive Matrix) graphs
  *
  * RMAT graphs model real-world networks with power-law degree distributions.
@@ -59,35 +100,7 @@ export function generateRMAT(
     const edgeSet = new Set<string>();
 
     for (let i = 0; i < numEdges; i++) {
-        let x1 = 0,
-            y1 = 0;
-        let x2 = vertices - 1,
-            y2 = vertices - 1;
-
-        // Recursively partition the adjacency matrix
-        while (x1 < x2) {
-            const rand = Math.random();
-            const midX = Math.floor((x1 + x2) / 2);
-            const midY = Math.floor((y1 + y2) / 2);
-
-            if (rand < cumA) {
-                // Top-left quadrant
-                x2 = midX;
-                y2 = midY;
-            } else if (rand < cumB) {
-                // Top-right quadrant
-                x1 = midX + 1;
-                y2 = midY;
-            } else if (rand < cumC) {
-                // Bottom-left quadrant
-                x2 = midX;
-                y1 = midY + 1;
-            } else {
-                // Bottom-right quadrant
-                x1 = midX + 1;
-                y1 = midY + 1;
-            }
-        }
+        const [x1, y1] = pickRmatCell(vertices, cumA, cumB, cumC);
 
         // Add edge if not self-loop and not duplicate
         if (x1 !== y1) {

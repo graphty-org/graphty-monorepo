@@ -86,6 +86,23 @@ describe("readScreen on edge cases", () => {
         expect(readScreen(" Do you want to proceed?", "x")).toEqual({ kind: "permission", agent: null, rule: null });
     });
 
+    it("reads the newer one-line usage-limit status and its reset time", () => {
+        expect(
+            readScreen("Usage limit reached \u00B7 continuing automatically at 1:30am \u00B7 esc to cancel", "x"),
+        ).toEqual({
+            kind: "usage-limit",
+            resets: "1:30am",
+            extraUsage: false,
+        });
+        expect(
+            readScreen(" Usage limit reached \u00B7 Continuing automatically at 3pm (America/Los_Angeles)", "x"),
+        ).toEqual({
+            kind: "usage-limit",
+            resets: "3pm (America/Los_Angeles)",
+            extraUsage: false,
+        });
+    });
+
     it("reads a usage-limit screen without a reset time or extra usage", () => {
         expect(readScreen(" You've hit your limit", "x")).toEqual({
             kind: "usage-limit",

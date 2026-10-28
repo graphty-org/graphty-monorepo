@@ -24,6 +24,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -457,7 +458,7 @@ export const FloydWarshall: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount ** 3 * 2 + 20) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount ** 3 * 2 + 20) * args.animationSpeed),
         );
     },
 };

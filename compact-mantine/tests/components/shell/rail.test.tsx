@@ -31,7 +31,9 @@ describe("NavRail", () => {
     it("is a vertical toolbar named Navigation by default", () => {
         renderShell(<Rail />);
         expect(screen.getByRole("toolbar", { name: "Navigation" })).toHaveAttribute("aria-orientation", "vertical");
-        expect(screen.getByRole("separator")).toHaveClass("cm-nav-rail-separator");
+        const separator = screen.getByRole("separator");
+        expect(separator).toHaveClass("cm-nav-rail-separator");
+        expect(separator.tagName).toBe("HR");
     });
 
     it("starts on the open destination and moves with ArrowUp / ArrowDown, into the footer", async () => {

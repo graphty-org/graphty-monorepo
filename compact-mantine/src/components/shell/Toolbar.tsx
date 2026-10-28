@@ -15,6 +15,13 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
      * to position the toolbar yourself.
      */
     floating?: boolean;
+    /**
+     * Where Tab first lands in the toolbar: the selected tool ("pressed", the default, for a tool
+     * palette whose pressed button is the current tool) or the first item ("first", for a bar of
+     * commands and toggles, where a pressed toggle is not where the reader starts). After that,
+     * Tab returns to the item that last had focus.
+     */
+    startAt?: "pressed" | "first";
     /** Tool groups, tool buttons, dividers and a mode switch. */
     children?: React.ReactNode;
 }
@@ -24,10 +31,11 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
  * 200 elevation, holding tool buttons, tool groups with flyouts, dividers and a
  * `SegmentedControl variant="toolbar"` mode switch.
  *
- * It is one Tab stop: focus lands on the selected tool, and ArrowLeft / ArrowRight / Home / End
- * move between tools, chevrons and the mode radios.
+ * It is one Tab stop: focus lands on the selected tool (or the first item, `startAt="first"`),
+ * and ArrowLeft / ArrowRight / Home / End move between tools, chevrons and the mode radios.
  * @param props - Component props
  * @param props.floating - Pin the toolbar to the bottom center of the window
+ * @param props.startAt - Where Tab first lands: the selected tool or the first item
  * @param props.children - Tool groups, tool buttons, dividers and a mode switch
  * @param props.className - Extra class on the root
  * @param props.onKeyDown - Called before the roving-focus key handling
@@ -44,6 +52,7 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
  */
 function ToolbarRoot({
     floating,
+    startAt,
     children,
     className,
     onKeyDown,
@@ -52,7 +61,7 @@ function ToolbarRoot({
 }: ToolbarProps): React.JSX.Element {
     useShellStyles();
     const labels = useLabels();
-    const roving = useRovingFocus<HTMLDivElement>("horizontal");
+    const roving = useRovingFocus<HTMLDivElement>("horizontal", startAt);
     return (
         <Box
             {...others}
@@ -81,7 +90,7 @@ function ToolbarRoot({
  * @returns The divider
  */
 function ToolbarDivider(): React.JSX.Element {
-    return <div className="cm-toolbar-divider" role="separator" aria-orientation="vertical" />;
+    return <hr className="cm-toolbar-divider" aria-orientation="vertical" />;
 }
 
 /** The floating editor toolbar, with `Toolbar.Divider`. */

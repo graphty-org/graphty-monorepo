@@ -1,0 +1,186 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-sizes-opacity-p3"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 152,
+                "y": 669
+            }
+        },
+        {
+            "key": "index-3",
+            "attributes": {
+                "x": 376,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "index": 3
+            }
+        },
+        {
+            "key": "vx-1",
+            "attributes": {
+                "x": 600,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "vx": 1
+            }
+        },
+        {
+            "key": "vy-1",
+            "attributes": {
+                "x": 824,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "vy": 1
+            }
+        },
+        {
+            "key": "fx-100",
+            "attributes": {
+                "x": 1048,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "fx": 100
+            }
+        },
+        {
+            "key": "fy-100",
+            "attributes": {
+                "x": 152,
+                "y": 259,
+                "size": 18,
+                "color": "#c8c8c8",
+                "fy": 100
+            }
+        },
+        {
+            "key": "physics-false",
+            "attributes": {
+                "x": 376,
+                "y": 259,
+                "size": 18,
+                "color": "#c8c8c8",
+                "physics": false
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 77.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-index-3",
+            "attributes": {
+                "x": 285.2,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "index=3"
+            }
+        },
+        {
+            "key": "cap-vx-1",
+            "attributes": {
+                "x": 579.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "vx=1"
+            }
+        },
+        {
+            "key": "cap-vy-1",
+            "attributes": {
+                "x": 803.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "vy=1"
+            }
+        },
+        {
+            "key": "cap-fx-100",
+            "attributes": {
+                "x": 990.5999999999999,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "fx=100"
+            }
+        },
+        {
+            "key": "cap-fy-100",
+            "attributes": {
+                "x": 64.6,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "fy=100"
+            }
+        },
+        {
+            "key": "cap-physics-false",
+            "attributes": {
+                "x": 264.8,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "physics=false"
+            }
+        }
+    ],
+    "edges": []
+}

@@ -12,6 +12,12 @@
  * `cx.bypass` columns, the provenance aspects a CX import created, the style rules and unknown
  * aspects a CX import kept, and `status`.
  *
+ * Given styles (`exportGraph(..., { styles })`), `cyVisualProperties` holds the Cytoscape style of the rules
+ * (`network`, `nodes:default` and `edges:default` with their mappings and dependencies) and a bypass for every
+ * element whose value the style cannot give, and the style values the rules read are attributes. The
+ * `graphty.styles` block, which graph-io hands over as a graph attribute, is written as an aspect of its own
+ * (a kept one is written back the same way).
+ *
  * What CX cannot hold is announced by check() before anything is written: every edge is directed
  * (W_CX_UNDIRECTED_AS_DIRECTED, W_MUTUAL_EXPANDED), node ids are integers (E_ID_CHARSET unless
  * `sanitizeIds: "mangle"`, which keeps the original in the `graphty:originalId` attribute the
@@ -42,8 +48,12 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { cytoscapeCxAspect, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE } from "../cx2/importer.js";
+import { blockAspect, CX_STYLE_CAPABILITIES, cytoscapeStyledExport, snapshotBlock } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -216,6 +226,7 @@ const NEVER_WRITTEN: ReadonlySet<string> = new Set([
     "status",
     "groups",
     "subnetwork",
+    STYLE_BLOCK_NAME,
 ]);
 
 /** The weight attribute name (the CX importer's weightFrom default). */
@@ -559,7 +570,12 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     nonfinite += weight.nonfinite;
 
     graphColumnNotes(snapshot, note);
-    const graphAttrs = attributePlans(snapshot.graph, isBypass, (c) => c.meta.name);
+    // the graphty.styles block is an aspect of its own
+    const graphAttrs = attributePlans(
+        snapshot.graph,
+        (c) => isBypass(c) || c.meta.name === STYLE_BLOCK_NAME,
+        (c) => c.meta.name,
+    );
 
     if (children.column !== null && children.column.meta.role === "parents" && !several) {
         note(
@@ -900,9 +916,10 @@ function writtenEdges(snapshot: GraphSnapshot, folding: PairFolding): number[] {
  * @param snapshot - the snapshot
  * @param p - the plan
  * @param ids - the written node ids
+ * @param styled - the styles as a Cytoscape style, or null without styles
  * @returns the aspects (those without elements included; the writer skips them)
  */
-function aspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds): Aspect[] {
+function aspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds, styled: CytoscapeEmitted | null): Aspect[] {
     const { src, dst } = snapshot.edgeList();
     const edges = writtenEdges(snapshot, p.folding);
     const nodeRange = (): number[] => Array.from({ length: snapshot.nodeCount }, (_, i) => i);
@@ -1017,8 +1034,18 @@ function aspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds): Aspect[] {
         { name: "cyTableColumn", elements: () => tableColumns(p, ids) },
         { name: "cartesianLayout", elements: () => layoutElements(p, ids, nodeRange()) },
         { name: "cyGroups", elements: () => groupElements(snapshot, p, ids, edges) },
-        { name: "cyVisualProperties", elements: () => visualProperties(p, ids, nodeRange(), edges, kept) },
+        {
+            name: "cyVisualProperties",
+            elements: () =>
+                styled === null
+                    ? visualProperties(p, ids, nodeRange(), edges, kept)
+                    : styledVisualProperties(styled, ids, p.edgeIds, edges),
+        },
     ];
+    const block = snapshotBlock(snapshot);
+    if (block !== null) {
+        out.push({ name: STYLE_BLOCK_NAME, elements: () => blockAspect(block) });
+    }
     out.push(...provenanceAspects(snapshot, p, ids, edges));
     for (const [name, value] of Object.entries(kept)) {
         if (!NEVER_WRITTEN.has(name) && Array.isArray(value)) {
@@ -1282,6 +1309,38 @@ function* visualProperties(
 }
 
 /**
+ * The cyVisualProperties entries of a styled export: the style's defaults, mappings and dependencies, then every
+ * element's bypasses (as text, Cytoscape's form).
+ * @param styled - the styles as a Cytoscape style
+ * @param ids - the written ids
+ * @param edgeIds - the written edge ids
+ * @param edges - the written edges
+ * @yields the entries
+ */
+function* styledVisualProperties(
+    styled: CytoscapeEmitted,
+    ids: WrittenIds,
+    edgeIds: readonly number[],
+    edges: readonly number[],
+): Generator<unknown, void, undefined> {
+    yield* cytoscapeCxAspect(styled.style);
+    const text = (m: ReadonlyMap<string, unknown>): Record<string, string> =>
+        Object.fromEntries([...m].map(([k, v]) => [k, String(v)]));
+    for (let row = 0; row < styled.bypasses.node.length; row++) {
+        const m = styled.bypasses.node[row];
+        if (m !== null && m.size > 0) {
+            yield { properties_of: "nodes", applies_to: ids.idAt(row), properties: text(m) };
+        }
+    }
+    for (const e of edges) {
+        const m = styled.bypasses.edge[e];
+        if (m !== null && m.size > 0) {
+            yield { properties_of: "edges", applies_to: edgeIds[e], properties: text(m) };
+        }
+    }
+}
+
+/**
  * The view of the subnetwork a CX import read (the one its style rules belong to).
  * @param kept - meta.extra.cx
  * @returns the view id, or null when the file named none
@@ -1393,10 +1452,15 @@ function provenanceAspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds, ed
  * Write the document as text parts.
  * @param snapshot - the snapshot
  * @param p - the plan
+ * @param styled - the styles as a Cytoscape style, or null without styles
  * @yields the document's text
  * @returns nothing
  */
-function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undefined> {
+function* write(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    styled: CytoscapeEmitted | null = null,
+): Generator<string, void, undefined> {
     if (p.fatal !== null) {
         throw p.fatal;
     }
@@ -1404,7 +1468,7 @@ function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undef
     if (ids === null) {
         throw new GraphFormatError("E_INVALID_ID", "node ids cannot be written as CX integers", { reason: "charset" });
     }
-    const all = aspects(snapshot, p, ids);
+    const all = aspects(snapshot, p, ids, styled);
     const written: { aspect: Aspect; count: number }[] = [];
     for (const aspect of all) {
         let count = 0;
@@ -1450,6 +1514,7 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
     format: CX_FORMAT,
     options: Object.freeze([]),
     capabilities: CX_CAPABILITIES,
+    styles: Object.freeze({ capabilities: CX_STYLE_CAPABILITIES }),
 
     /**
      * Pre-flight: what export() would lose, without writing anything.
@@ -1457,8 +1522,12 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: CxExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
+    check(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): readonly LossNote[] {
+        const styled = cytoscapeStyledExport(snapshot, options?.styles, "desktop");
+        return Object.freeze([
+            ...plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
+            ...(styled?.notes ?? []),
+        ]);
     },
 
     /**
@@ -1467,8 +1536,8 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: CxExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    export(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): AsyncIterable<Uint8Array> {
+        return encodeChunks(written(snapshot, options));
     },
 
     /**
@@ -1477,7 +1546,22 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: CxExportOptions): Promise<string> {
-        return joinText(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    exportToString(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): Promise<string> {
+        return joinText(written(snapshot, options));
     },
 });
+
+/**
+ * The document's text, with the styles when they are given.
+ * @param snapshot - the snapshot
+ * @param options - the options
+ * @returns the text parts
+ */
+function written(
+    snapshot: GraphSnapshot,
+    options: (CxExportOptions & ExporterStyleOptions) | undefined,
+): Generator<string, void, undefined> {
+    const styled = cytoscapeStyledExport(snapshot, options?.styles, "desktop");
+    const target = styled?.snapshot ?? snapshot;
+    return write(target, plan(target, resolveExportOptions(options)), styled?.styled ?? null);
+}

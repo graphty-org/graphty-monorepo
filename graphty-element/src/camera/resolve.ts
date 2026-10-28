@@ -29,7 +29,7 @@ import { resolveOptionValues } from "../catalog/options";
 import type { CameraDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { builtInCameraView } from "./builtins";
-import type { CameraState, CameraViewInput, DrawingMode, GraphBounds } from "./types";
+import type { CameraState, CameraViewInput, DrawingMode, GraphBounds, ViewInsets } from "./types";
 
 /** Everything the element measures before it can ask a view where the viewer stands. */
 export interface CameraViewContext {
@@ -41,10 +41,14 @@ export interface CameraViewContext {
     readonly aspect: number;
     /** How big the drawing surface is, in device pixels. */
     readonly viewport: { readonly width: number; readonly height: number };
+    /** The view insets in force, in device pixels like `viewport`. */
+    readonly insets?: Required<ViewInsets>;
     /** The vertical field of view in radians, when the current camera has one. */
     readonly fov?: number;
     /** Where the camera is right now, so a view can be relative to it. */
     readonly current: CameraState;
+    /** The side the drawing is meant to be seen from, when the active layout has one. */
+    readonly facing?: CameraViewInput["facing"];
     /** What the caller configured, before the declared defaults are filled in. */
     readonly options?: Readonly<Record<string, unknown>>;
 }
@@ -139,8 +143,10 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
         mode: context.mode,
         aspect: context.aspect,
         viewport: context.viewport,
+        ...(context.insets === undefined ? {} : { insets: context.insets }),
         ...(context.fov === undefined ? {} : { fov: context.fov }),
         current: context.current,
+        ...(context.facing === undefined ? {} : { facing: context.facing }),
         options,
     };
 

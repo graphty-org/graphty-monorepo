@@ -1,0 +1,24 @@
+{
+ "commit": "8f0d5a6f77911a0093a614457ac3c9db5fde3235",
+ "toolCommit": "1f351c1d606ae463c14a15e945590e14bd342441",
+ "uncommittedChanges": false,
+ "buildStamp": "8f0d5a6f7791 graphty@0.8.61",
+ "url": "/?next",
+ "screenReaderMode": true,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-10T04:31:59.494Z",
+ "setup": [
+  "--click No thanks",
+  "--click New from data...",
+  "--click choose a file...",
+  "--upload people.csv",
+  "--click Add a table",
+  "--click File...",
+  "--upload messages.csv"
+ ],
+ "task": null,
+ "followUp": "none"
+}

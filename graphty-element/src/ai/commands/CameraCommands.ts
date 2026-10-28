@@ -8,7 +8,7 @@ import { z } from "zod";
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS, cameraDescriptor } from "../../catalog/cameras";
 import type { Graph } from "../../Graph";
-import { isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
+import { CONNECTED_BY_SYNTAX, isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -177,9 +177,10 @@ export const setCameraPosition: GraphCommand = {
 export const zoomToNodes: GraphCommand = {
     name: "zoomToNodes",
     description:
-        "Zoom the camera to fit specific nodes in view. Takes the same selector as findNodes and findAndStyleNodes; leave it empty to fit all nodes. Optionally add padding around the nodes.",
+        "Zoom the camera to fit specific nodes in view. Takes the same selector and connectedBy as findNodes and findAndStyleNodes; leave both empty to fit all nodes. Optionally add padding around the nodes.",
     parameters: z.object({
         selector: z.string().optional().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
+        connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
         animate: z.boolean().optional().describe("Whether to animate the zoom (default: true)"),
         padding: z.number().optional().describe("Extra padding around nodes (default: 1.2 = 20% padding)"),
     }),
@@ -190,16 +191,21 @@ export const zoomToNodes: GraphCommand = {
     ],
 
     async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
-        const { selector = "", animate = true } = params as {
+        const {
+            selector = "",
+            connectedBy,
+            animate = true,
+        } = params as {
             selector?: string;
+            connectedBy?: string;
             animate?: boolean;
             padding?: number;
         };
 
         try {
             // Find matching nodes
-            const matchingIds = await matchingNodeIds(graph, selector);
-            const scoped = !isMatchAllSelector(selector);
+            const matchingIds = await matchingNodeIds(graph, selector, connectedBy);
+            const scoped = connectedBy !== undefined || !isMatchAllSelector(selector);
 
             if (matchingIds.length === 0 && scoped) {
                 return {

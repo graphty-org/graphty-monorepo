@@ -22,6 +22,7 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -384,12 +385,9 @@ export const Bipartite: Story = {
         const findButton = canvas.getByRole("button", { name: /find matching/i });
         await userEvent.click(findButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Maximum matching");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Maximum matching");
+        }, storyWaitOptions(5000));
     },
 };

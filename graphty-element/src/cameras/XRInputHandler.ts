@@ -15,7 +15,7 @@ import {
 import type { NodeId } from "../catalog/types";
 import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
-import type { NodeDragHandler } from "../NodeBehavior";
+import { alongRay, type NodeDragHandler } from "../NodeBehavior";
 import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 
@@ -970,10 +970,11 @@ export class XRInputHandler {
         }
 
         // Pick meshes in the scene
-        const pickInfo = this.scene.pickWithRay(ray, (mesh) => {
-            // Only pick node meshes (they have dragHandler in metadata or on the node)
-            return mesh.isPickable && mesh.isEnabled();
-        });
+        // Only pick node meshes (they have dragHandler in metadata or on the node)
+        const pickInfo = this.scene.pickWithRay(
+            ray,
+            alongRay(this.scene, ray, (mesh) => mesh.isPickable && mesh.isEnabled()),
+        );
 
         if (!pickInfo?.hit || !pickInfo.pickedMesh) {
             return;

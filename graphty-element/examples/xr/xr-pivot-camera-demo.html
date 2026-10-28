@@ -1525,7 +1525,7 @@
                     // PATH 1: Try controller trigger first
                     // Find controller by handedness (Map is keyed by uniqueId, not handedness)
                     let controller = null;
-                    for (const [uniqueId, entry] of this.controllers) {
+                    for (const [, entry] of this.controllers) {
                         if (entry.handedness === handedness) {
                             controller = entry.controller;
                             break;
@@ -1772,17 +1772,8 @@
                     return hasPhysical;
                 }
 
-                _updateInternal() {
-                    // GUARD REMOVED: We now use the delay mechanism in controllerAdded instead
-                    // of blocking gesture processing when controllers are active.
-                    // The delay gives Babylon.js time to clean up internal state.
-                    // This allows both controller gestures AND hand gestures to work.
-
-                    // Get current hand states
-                    const left = this.getHandState("left");
-                    const right = this.getHandState("right");
-
-                    // Update UI for pinch state (with defensive checks for pinchStrength)
+                // Update UI for pinch state (with defensive checks for pinchStrength)
+                _showPinchState(left, right) {
                     const lp = left?.pinching ?? false;
                     const rp = right?.pinching ?? false;
                     const leftStrength = (left?.pinchStrength ?? 0).toFixed(2);
@@ -1798,6 +1789,19 @@
                     } else {
                         document.getElementById("gestureState").textContent = "No gesture";
                     }
+                }
+
+                _updateInternal() {
+                    // GUARD REMOVED: We now use the delay mechanism in controllerAdded instead
+                    // of blocking gesture processing when controllers are active.
+                    // The delay gives Babylon.js time to clean up internal state.
+                    // This allows both controller gestures AND hand gestures to work.
+
+                    // Get current hand states
+                    const left = this.getHandState("left");
+                    const right = this.getHandState("right");
+
+                    this._showPinchState(left, right);
 
                     // Update hand tracking state (this calculates previousDistance/Direction)
                     this.updateHands(left, right);
@@ -1977,28 +1981,37 @@
 
                     // Try hand tracking
                     if (this.gestureHandler?.handTrackingFeature) {
-                        try {
-                            const hand = this.gestureHandler.handTrackingFeature.getHandByHandedness(handedness);
-                            if (hand) {
-                                const thumbTip = hand.getJointMesh(BABYLON.WebXRHandJoint.THUMB_TIP);
-                                const indexTip = hand.getJointMesh(BABYLON.WebXRHandJoint.INDEX_FINGER_TIP);
+                        return this._isHandTrackingPinch(handedness);
+                    }
 
-                                if (thumbTip && indexTip) {
-                                    const pinchDist = BABYLON.Vector3.Distance(thumbTip.position, indexTip.position);
+                    return false;
+                }
 
-                                    // Hysteresis
-                                    const wasP = this.wasPinching[handedness];
-                                    const isP = wasP
-                                        ? pinchDist < this.PINCH_RELEASE_THRESHOLD
-                                        : pinchDist < this.PINCH_THRESHOLD;
-                                    this.wasPinching[handedness] = isP;
+                /**
+                 * Check if a tracked hand is pinching, with hysteresis
+                 */
+                _isHandTrackingPinch(handedness) {
+                    try {
+                        const hand = this.gestureHandler.handTrackingFeature.getHandByHandedness(handedness);
+                        if (hand) {
+                            const thumbTip = hand.getJointMesh(BABYLON.WebXRHandJoint.THUMB_TIP);
+                            const indexTip = hand.getJointMesh(BABYLON.WebXRHandJoint.INDEX_FINGER_TIP);
 
-                                    return isP;
-                                }
+                            if (thumbTip && indexTip) {
+                                const pinchDist = BABYLON.Vector3.Distance(thumbTip.position, indexTip.position);
+
+                                // Hysteresis
+                                const wasP = this.wasPinching[handedness];
+                                const isP = wasP
+                                    ? pinchDist < this.PINCH_RELEASE_THRESHOLD
+                                    : pinchDist < this.PINCH_THRESHOLD;
+                                this.wasPinching[handedness] = isP;
+
+                                return isP;
                             }
-                        } catch (e) {
-                            // Hand tracking error - ignore
                         }
+                    } catch (e) {
+                        // Hand tracking error - ignore
                     }
 
                     return false;
@@ -2256,6 +2269,13 @@
                         return;
                     }
 
+                    this._grabWith(activeHand, transform);
+                }
+
+                /**
+                 * Grab whatever the active hand points at, dropping an object another hand holds
+                 */
+                _grabWith(activeHand, transform) {
                     // If we're dragging with a DIFFERENT hand, drop first
                     if (this.draggedMesh && this.draggingHand !== activeHand) {
                         console.log(`📦 Hand switch during drag, dropping`);
@@ -2601,7 +2621,7 @@
                 // This will detect if the render loop freezes
                 let watchdogLastFrame = 0;
                 let watchdogFreezeDetected = false;
-                const watchdogInterval = setInterval(() => {
+                setInterval(() => {
                     if (frameCount === watchdogLastFrame && frameCount > 0 && !watchdogFreezeDetected) {
                         watchdogFreezeDetected = true;
                         const freezeDuration = Date.now() - lastFrameTime;
@@ -2632,6 +2652,33 @@
                     watchdogLastFrame = frameCount;
                 }, 1000); // Check every second
 
+                // The handlers' state, for the health check log
+                const handlerHealth = () => ({
+                    thumbstick: thumbstickHandler
+                        ? {
+                              enabled: thumbstickHandler.enabled,
+                              setupControllers: thumbstickHandler.setupControllers?.size ?? 0,
+                          }
+                        : null,
+                    gesture: gestureHandler
+                        ? {
+                              enabled: gestureHandler.enabled,
+                              controllers: gestureHandler.controllers?.size ?? 0,
+                              hasHandTracking: !!gestureHandler.handTrackingFeature,
+                          }
+                        : null,
+                    dragDrop: dragDropHandler
+                        ? {
+                              enabled: dragDropHandler.enabled,
+                              dragging: !!dragDropHandler.draggedMesh,
+                              meshName: dragDropHandler.draggedMesh?.name ?? null,
+                              draggables: dragDropHandler.draggableMeshes?.size ?? 0,
+                          }
+                        : null,
+                    xrState: xrHelper?.baseExperience?.state ?? "unknown",
+                    inputControllers: xrHelper?.input?.controllers?.length ?? 0,
+                });
+
                 scene.onBeforeRenderObservable.add(() => {
                     try {
                         frameStartTime = Date.now();
@@ -2653,32 +2700,7 @@
 
                         // Health check every 10 seconds - log full handler state
                         if (now - lastHealthCheck > 10000) {
-                            const healthInfo = {
-                                frame: frameCount,
-                                thumbstick: thumbstickHandler
-                                    ? {
-                                          enabled: thumbstickHandler.enabled,
-                                          setupControllers: thumbstickHandler.setupControllers?.size ?? 0,
-                                      }
-                                    : null,
-                                gesture: gestureHandler
-                                    ? {
-                                          enabled: gestureHandler.enabled,
-                                          controllers: gestureHandler.controllers?.size ?? 0,
-                                          hasHandTracking: !!gestureHandler.handTrackingFeature,
-                                      }
-                                    : null,
-                                dragDrop: dragDropHandler
-                                    ? {
-                                          enabled: dragDropHandler.enabled,
-                                          dragging: !!dragDropHandler.draggedMesh,
-                                          meshName: dragDropHandler.draggedMesh?.name ?? null,
-                                          draggables: dragDropHandler.draggableMeshes?.size ?? 0,
-                                      }
-                                    : null,
-                                xrState: xrHelper?.baseExperience?.state ?? "unknown",
-                                inputControllers: xrHelper?.input?.controllers?.length ?? 0,
-                            };
+                            const healthInfo = { frame: frameCount, ...handlerHealth() };
                             console.log(`🏥 Health check:`, JSON.stringify(healthInfo));
                             lastHealthCheck = now;
                         }

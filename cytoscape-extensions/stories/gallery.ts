@@ -1,6 +1,7 @@
 /**
  * A gallery: one small Cytoscape per tile, each running one layout, algorithm, generator, dataset or format on a
- * seeded graph, with what the picture shows under it (and, where a GPU could have run, which backend ran and why). Tiles run one after another, and the root's whenDone()
+ * seeded graph, with one line under it saying what the picture shows (and, where a GPU could have run, one more saying
+ * which backend ran and why); the explanation is the story's description, on its Docs page. Tiles run one after another, and the root's whenDone()
  * resolves once every tile has finished, which is what a visual-review capture waits for. No tile shows a time:
  * the pictures are meant to be the same on every run.
  */
@@ -93,10 +94,10 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
             title.append(again);
         }
         const body = document.createElement("div");
-        // a full tile leaves room for the line above it, its heading and its status line; a small tile with a panel is
+        // a full tile leaves room for the line above it, its heading and its status lines; a small tile with a panel is
         // taller, so the panel's summary fits whole with room for the file under it
         const small = t.panel === true ? "300px" : "170px";
-        body.style.cssText = `display:flex;height:${full ? "calc(100vh - 168px)" : small};`;
+        body.style.cssText = `display:flex;height:${full ? "calc(100vh - 128px)" : small};`;
         const canvas = document.createElement("div");
         canvas.style.cssText = "flex:1;min-width:0;position:relative;";
         body.append(canvas);
@@ -120,10 +121,10 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         }
         const status = document.createElement("div");
         status.dataset.testid = "status";
-        // at least six lines (a caption, the counts and the backend line); a longer caption wraps, even inside a long
-        // option array, and grows the tile instead of being cut off
+        // room for three lines (the caption, wrapped in a small tile, and the backend line); more grows the tile
+        // instead of being cut off
         status.style.cssText =
-            "padding:4px 6px;min-height:84px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;";
+            "padding:4px 6px;min-height:44px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;";
         status.textContent = "waiting...";
         cell.append(title, body, status);
         grid.append(cell);

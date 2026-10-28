@@ -48,9 +48,27 @@ export default defineConfig({
         },
     },
 
-    title: "Graphty",
+    title: "graphty",
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
+
+    // head hrefs are not rewritten by `base`, so they carry /docs/ themselves
+    head: [
+        ["link", { rel: "icon", href: "/docs/favicon.ico", sizes: "48x48" }],
+        ["link", { rel: "icon", href: "/docs/favicon.svg", type: "image/svg+xml" }],
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#ffffff" }],
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#14161f" }],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { property: "og:site_name", content: "graphty" }],
+        ["meta", { property: "og:title", content: "graphty documentation" }],
+        ["meta", { property: "og:description", content: "Modular graph visualization ecosystem" }],
+        ["meta", { property: "og:image", content: "https://graphty.app/docs/open-graph-1200x630.png" }],
+        ["meta", { name: "twitter:card", content: "summary_large_image" }],
+        ["meta", { name: "twitter:image", content: "https://graphty.app/docs/open-graph-1200x630.png" }],
+        // A package lockup is wide; the hero's default 192 px cap on phones would shrink it below the
+        // brand's 24 px minimum height, so it may use the hero image box's full width.
+        ["style", {}, ".VPHero .image-src[src*='-lockup-color-on-']:not([src*='stacked']) { max-width: 100%; }"],
+    ],
 
     vue: {
         template: {
@@ -61,6 +79,13 @@ export default defineConfig({
     },
 
     themeConfig: {
+        // the lockup already spells the name, so the typed site title is hidden
+        logo: {
+            light: "/brand/graphty-lockup-color-on-light.svg",
+            dark: "/brand/graphty-lockup-color-on-dark.svg",
+            alt: "graphty",
+        },
+        siteTitle: false,
         nav: [
             { text: "Home", link: "/" },
             {
@@ -68,7 +93,7 @@ export default defineConfig({
                 items: [
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
-                    { text: "layout", link: "/layout/api/generated/" },
+                    { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
                     { text: "visual-review", link: "/visual-review/" },
@@ -83,7 +108,7 @@ export default defineConfig({
                     items: [
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
-                        { text: "layout", link: "/layout/api/generated/" },
+                        { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
                         { text: "visual-review", link: "/visual-review/" },
@@ -120,11 +145,14 @@ export default defineConfig({
                         { text: "JavaScript API", link: "/graphty-element/guide/javascript-api" },
                         { text: "Styling", link: "/graphty-element/guide/styling" },
                         { text: "Coloring by a Column", link: "/graphty-element/guide/column-encoding" },
+                        { text: "Styles from Files", link: "/graphty-element/guide/file-styles" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
+                        { text: "Graphviz Layouts", link: "/graphty-element/guide/graphviz-layouts" },
                         { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
+                        { text: "Network Sources", link: "/graphty-element/guide/network-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/graphty-element/guide/vocabulary" },
                         { text: "Undo & History", link: "/graphty-element/guide/undo" },
@@ -211,10 +239,14 @@ export default defineConfig({
                     text: "Using graph-io",
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Loading from a service", link: "/graph-io/guide/loading-from-a-service" },
+                        { text: "Cypher: Neo4j and Neptune", link: "/graph-io/guide/sources/cypher" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
+                        { text: "Styles", link: "/graph-io/guide/styles" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
                         { text: "Format detection", link: "/graph-io/guide/detection" },
+                        { text: "Reading stored positions", link: "/graph-io/guide/positions" },
                         { text: "Options reference", link: "/graph-io/guide/options" },
                     ],
                 },
@@ -227,6 +259,7 @@ export default defineConfig({
                     items: [
                         { text: "Writing a format plugin", link: "/graph-io/guide/extending/new-format" },
                         { text: "Extending an existing format", link: "/graph-io/guide/extending/existing-format" },
+                        { text: "Writing a source", link: "/graph-io/guide/writing-a-source" },
                     ],
                 },
                 {
@@ -239,12 +272,40 @@ export default defineConfig({
                     items: graphIoTypedoc,
                 },
             ],
-            // layout has no guide pages yet (there is no layout/docs/): its section is the
-            // generated TypeDoc reference alone.
             "/layout/": [
                 {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/layout/" },
+                        { text: "Getting Started", link: "/layout/guide/getting-started" },
+                        { text: "Installation", link: "/layout/guide/installation" },
+                    ],
+                },
+                {
+                    text: "Core Concepts",
+                    items: [
+                        { text: "Results and Options", link: "/layout/guide/results" },
+                        { text: "2D and 3D", link: "/layout/guide/dimensions" },
+                    ],
+                },
+                {
+                    text: "Layouts",
+                    items: [
+                        { text: "Geometric", link: "/layout/guide/geometric" },
+                        { text: "Structural", link: "/layout/guide/structural" },
+                        { text: "Force-Directed and Spectral", link: "/layout/guide/force-directed" },
+                        { text: "Steppable Simulations", link: "/layout/guide/simulations" },
+                        { text: "Performance", link: "/layout/guide/performance" },
+                    ],
+                },
+                {
                     text: "API",
-                    items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
+                    items: [{ text: "Overview", link: "/layout/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: layoutTypedoc,
                 },
             ],
             "/cytoscape-extensions/": [

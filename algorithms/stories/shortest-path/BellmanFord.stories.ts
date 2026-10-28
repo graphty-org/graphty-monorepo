@@ -25,6 +25,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -467,7 +468,7 @@ export const BellmanFord: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * args.nodeCount * 4 + 20) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * args.nodeCount * 4 + 20) * args.animationSpeed),
         );
     },
 };

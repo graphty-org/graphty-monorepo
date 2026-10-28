@@ -40,7 +40,7 @@
 
 import { maskTest, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -152,9 +152,10 @@ export interface SelectorSource {
      * @param path - The column path, `results.<run>.<field>`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param n - The most elements the top may hold.
+     * @param ties - What the top does with the tie group its cut falls in.
      * @returns The cut, or undefined.
      */
-    readonly topCut?: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    readonly topCut?: (path: Path, target: SelectorTarget, n: number, ties?: TopTies) => number | undefined;
     /**
      * The live membership of one scope, which a `{match:"member"}` selector tests by index.
      * Absent, a `{match:"member"}` selector is refused.
@@ -165,6 +166,41 @@ export interface SelectorSource {
      * @returns Its live membership.
      */
     readonly scope?: (scope: Scope) => LiveScope;
+    /**
+     * Whether a reader is pointing at one element now: selected, or under the pointer. Read per
+     * element, live, by a `{match:"state"}` selector. Absent, that selector is refused.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when the element is in that state.
+     */
+    readonly inState?: (
+        state: "selected" | "hovered" | "ghosted" | "pinned",
+        target: SelectorTarget,
+        index: number,
+    ) => boolean;
+    /**
+     * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
+     * a `{match:"hover"}` selector is refused.
+     * @returns The hovered node's neighborhood now, or null while no node is hovered.
+     */
+    readonly hover?: () => LiveHover | null;
+    /**
+     * What `{match:"hover", orSelected: true}` tests: the hovered node's neighborhood, else a
+     * lone selected node's. Absent, such a selector is refused.
+     * @returns The neighborhood now, or null.
+     */
+    readonly focus?: () => LiveHover | null;
+}
+
+/** The node under the pointer and what touches it, by dense index, as `{match:"hover"}` reads it. */
+export interface LiveHover {
+    /** The hovered node. */
+    readonly node: number;
+    /** The hovered node and its neighbors, one byte per node. */
+    readonly neighbors: Uint8Array;
+    /** The edges that touch the hovered node, one byte per edge. */
+    readonly edges: Uint8Array;
 }
 
 /** The live membership of one scope, as a `{match:"member"}` selector reads it. */
@@ -260,7 +296,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -373,6 +409,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * Every one of these names the construct and the offset, because the person who reads it typed
  * the expression into a field and has to be told which character to change.
+ * The `reason` is a stable code a consumer branches on to write its own words, so nobody has to
+ * parse the English message.
+ * @param reason - Which mistake it is, as a stable code.
  * @param message - What is wrong, in a sentence.
  * @param where - The whole expression, so the message can be shown beside it.
  * @param position - The character offset the problem starts at.
@@ -380,6 +419,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * @returns The error to throw.
  */
 function badSelector(
+    reason: ExpressionRefusalReason,
     message: string,
     where: Query,
     position: number,
@@ -389,9 +429,51 @@ function badSelector(
         code: "E_BAD_SELECTOR",
         message: `${message} (at character ${String(position)} of ${JSON.stringify(where)})`,
         source: "style",
-        details: { ...details, position, where },
+        details: { ...details, reason, position, where },
     });
 }
+
+/**
+ * Why an expression selector was refused: the `details.reason` of its `E_BAD_SELECTOR`.
+ *
+ * - `unclosed-quote`: a backtick, a single quote or a double quote is never closed (`details.delimiter`).
+ * - `bare-word-needs-quotes`: a backtick literal is not JSON, usually a word without its quotes.
+ * - `bad-quoted-name`: a double-quoted attribute name is not a valid JSON string.
+ * - `unsupported-syntax`: a JMESPath construct the subset does not read (`details.construct`).
+ * - `pipe-not-supported`: a single `|`.
+ * - `expression-reference-not-supported`: a single `&`.
+ * - `number-needs-backticks`: a bare number, such as `weight > 3`, where `` `3` `` is meant
+ *   (`details.suggestion`: the expression with every bare number put between backticks, present
+ *   only when that rewrite is itself a selector that parses).
+ * - `bad-character`: a character no selector can contain (`details.character`).
+ * - `dot-needs-name`: a `.` with no attribute name after it.
+ * - `name-contains-dot`: a quoted attribute name holding a `.` (`details.segment`).
+ * - `function-not-supported`: a function call (`details.function`).
+ * - `unclosed-parenthesis`: a `(` with no `)`.
+ * - `missing-operand`: an attribute name, a literal or a `(` is missing, such as after `==`.
+ * - `not-needs-parentheses`: `!` before a dotted path, which must be written `!(a.b)` (`details.path`).
+ * - `trailing-input`: something is left over after a complete expression.
+ * - `quoted-whole-expression`: the whole expression is a quoted string, which is always true.
+ * - `reads-no-attribute`: the expression reads no attribute, so it answers the same for every element.
+ */
+type ExpressionRefusalReason =
+    | "bad-character"
+    | "bad-quoted-name"
+    | "bare-word-needs-quotes"
+    | "dot-needs-name"
+    | "expression-reference-not-supported"
+    | "function-not-supported"
+    | "missing-operand"
+    | "name-contains-dot"
+    | "not-needs-parentheses"
+    | "number-needs-backticks"
+    | "pipe-not-supported"
+    | "quoted-whole-expression"
+    | "reads-no-attribute"
+    | "trailing-input"
+    | "unclosed-parenthesis"
+    | "unclosed-quote"
+    | "unsupported-syntax";
 
 /**
  * The JMESPath constructs this subset does not implement, keyed by the character that opens one.
@@ -471,7 +553,89 @@ function findClose(where: Query, from: number, delimiter: string): number {
         }
     }
 
-    throw badSelector(`A ${delimiter} is opened and never closed`, where, from, { delimiter });
+    throw badSelector("unclosed-quote", `A ${delimiter} is opened and never closed`, where, from, { delimiter });
+}
+
+/**
+ * The expression with every bare number put between backticks, the rewrite a
+ * `number-needs-backticks` refusal suggests. Quoted text and names such as `col2` are left as
+ * they are; an unclosed quote leaves the rest as it is.
+ * @param where - The expression being lexed.
+ * @returns The rewritten expression.
+ */
+function backtickNumbers(where: Query): string {
+    let out = "";
+    let at = 0;
+    while (at < where.length) {
+        const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(where.slice(at))?.[0];
+        const character = where.charAt(at);
+        if (number !== undefined && !isQuote(character) && !startsIdentifier(character)) {
+            out += `\`${number}\``;
+            at += number.length;
+            continue;
+        }
+        const end = tokenEnd(where, at);
+        out += where.slice(at, end);
+        at = end;
+    }
+    return out;
+}
+
+/**
+ * Whether a character opens a quoted literal or name.
+ * @param character - The character.
+ * @returns true for a backtick, a single quote or a double quote.
+ */
+function isQuote(character: string): boolean {
+    return character === "`" || character === "'" || character === '"';
+}
+
+/**
+ * Where the token starting at a character ends: past the closing quote of a quoted literal (or at
+ * the end of an unclosed one), past the last character of a name, or one character on.
+ * @param where - The expression being lexed.
+ * @param at - The token's first character.
+ * @returns The offset just past the token.
+ */
+function tokenEnd(where: Query, at: number): number {
+    const character = where.charAt(at);
+    let end = at + 1;
+    if (isQuote(character)) {
+        while (end < where.length && where.charAt(end) !== character) {
+            end += where.charAt(end) === "\\" ? 2 : 1;
+        }
+        return Math.min(end + 1, where.length);
+    }
+    if (startsIdentifier(character)) {
+        while (end < where.length && continuesIdentifier(where.charAt(end))) {
+            end++;
+        }
+    }
+    return end;
+}
+
+/**
+ * The `number-needs-backticks` refusal's suggestion, offered only when the selector would accept
+ * the rewrite: a suggestion it would refuse in turn (`x >= 10x` becomes `` x >= `10`x ``, and `10`
+ * becomes a lone `` `10` `` that reads no attribute) is no help.
+ * @param where - The refused expression.
+ * @returns `{ suggestion }`, or nothing when the rewrite does not parse or reads no attribute.
+ */
+function suggestBackticks(where: Query): { readonly suggestion?: string } {
+    const suggestion = backtickNumbers(where);
+    // A rewrite that still holds a bare number would ask for its own suggestion, forever.
+    if (suggestion === where) {
+        return {};
+    }
+    try {
+        // The selector's own acceptance test: it parses and reads an attribute. A lone `10`
+        // parses, but compileExpressionPredicate refuses it as reading no attribute.
+        const paths: Path[] = [];
+        collectPaths(parseExpression(suggestion), paths);
+        return paths.length > 0 ? { suggestion } : {};
+    } catch {
+        return {};
+    }
 }
 
 /**
@@ -510,6 +674,7 @@ function decodeJsonLiteral(where: Query, at: number, body: string): unknown {
         return JSON.parse(json) as unknown;
     } catch {
         throw badSelector(
+            "bare-word-needs-quotes",
             `A literal between backticks must be JSON, so a bare word needs quotes: write \`"${json}"\` ` +
                 `rather than \`${json}\``,
             where,
@@ -538,9 +703,15 @@ function decodeQuotedName(where: Query, at: number, quoted: string): string {
         // Falls through to the one refusal below, so both failures read the same way.
     }
 
-    throw badSelector(`A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`, where, at, {
-        name: quoted,
-    });
+    throw badSelector(
+        "bad-quoted-name",
+        `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`,
+        where,
+        at,
+        {
+            name: quoted,
+        },
+    );
 }
 
 /**
@@ -561,81 +732,121 @@ function tokenize(where: Query): readonly Token[] {
             continue;
         }
 
-        const unsupported = UNSUPPORTED_BY_CHARACTER[character];
-        if (unsupported !== undefined) {
-            throw badSelector(`A selector does not support ${unsupported}`, where, at, { construct: unsupported });
-        }
-
-        if (character === "|" && where.charAt(at + 1) !== "|") {
-            throw badSelector("A selector does not support pipe expressions", where, at, {
-                construct: "pipe expressions",
-            });
-        }
-
-        if (character === "&" && where.charAt(at + 1) !== "&") {
-            throw badSelector("A selector does not support expression references", where, at, {
-                construct: "expression references",
-            });
-        }
-
-        const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
-        if (operator !== undefined) {
-            tokens.push({ kind: "operator", text: operator, at });
-            at += operator.length;
-            continue;
-        }
-
-        if (character === "`") {
-            const close = findClose(where, at, "`");
-            tokens.push({
-                kind: "literal",
-                text: "",
-                value: decodeJsonLiteral(where, at, where.slice(at + 1, close)),
-                at,
-            });
-            at = close + 1;
-            continue;
-        }
-
-        if (character === "'") {
-            const close = findClose(where, at, "'");
-            tokens.push({ kind: "literal", text: "", value: decodeRawString(where.slice(at + 1, close)), at });
-            at = close + 1;
-            continue;
-        }
-
-        if (character === '"') {
-            const close = findClose(where, at, '"');
-            tokens.push({ kind: "identifier", text: decodeQuotedName(where, at, where.slice(at, close + 1)), at });
-            at = close + 1;
-            continue;
-        }
-
-        if (startsIdentifier(character)) {
-            let end = at + 1;
-            while (end < where.length && continuesIdentifier(where.charAt(end))) {
-                end++;
-            }
-
-            tokens.push({ kind: "identifier", text: where.slice(at, end), at });
-            at = end;
-            continue;
-        }
-
-        if (/[0-9-]/.test(character)) {
-            throw badSelector("A number in a selector goes between backticks, so write `5` rather than 5", where, at, {
-                character,
-            });
-        }
-
-        throw badSelector(`${JSON.stringify(character)} is not something a selector can contain`, where, at, {
-            character,
-        });
+        rejectUnsupported(where, at, character);
+        const lexed = lexToken(where, at, character) ?? rejectCharacter(where, at, character);
+        tokens.push(lexed.token);
+        at = lexed.next;
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });
 
     return tokens;
+}
+
+/**
+ * Throw for a character that starts a JMESPath construct outside the subset.
+ * @param where - The expression as it was typed.
+ * @param at - The character's offset.
+ * @param character - The character.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the construct is unsupported.
+ */
+function rejectUnsupported(where: Query, at: number, character: string): void {
+    const unsupported = UNSUPPORTED_BY_CHARACTER[character];
+    if (unsupported !== undefined) {
+        throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, {
+            construct: unsupported,
+        });
+    }
+
+    if (character === "|" && where.charAt(at + 1) !== "|") {
+        throw badSelector("pipe-not-supported", "A selector does not support pipe expressions", where, at, {
+            construct: "pipe expressions",
+        });
+    }
+
+    if (character === "&" && where.charAt(at + 1) !== "&") {
+        throw badSelector(
+            "expression-reference-not-supported",
+            "A selector does not support expression references",
+            where,
+            at,
+            {
+                construct: "expression references",
+            },
+        );
+    }
+}
+
+/**
+ * Lex the token that starts at one offset.
+ * @param where - The expression as it was typed.
+ * @param at - The token's offset.
+ * @param character - The character at that offset.
+ * @returns The token and the offset after it, or undefined when nothing lexes there.
+ */
+function lexToken(where: Query, at: number, character: string): { token: Token; next: number } | undefined {
+    const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
+    if (operator !== undefined) {
+        return { token: { kind: "operator", text: operator, at }, next: at + operator.length };
+    }
+
+    if (character === "`") {
+        const close = findClose(where, at, "`");
+        const value = decodeJsonLiteral(where, at, where.slice(at + 1, close));
+        return { token: { kind: "literal", text: "", value, at }, next: close + 1 };
+    }
+
+    if (character === "'") {
+        const close = findClose(where, at, "'");
+        const value = decodeRawString(where.slice(at + 1, close));
+        return { token: { kind: "literal", text: "", value, at }, next: close + 1 };
+    }
+
+    if (character === '"') {
+        const close = findClose(where, at, '"');
+        const text = decodeQuotedName(where, at, where.slice(at, close + 1));
+        return { token: { kind: "identifier", text, at }, next: close + 1 };
+    }
+
+    if (startsIdentifier(character)) {
+        let end = at + 1;
+        while (end < where.length && continuesIdentifier(where.charAt(end))) {
+            end++;
+        }
+
+        return { token: { kind: "identifier", text: where.slice(at, end), at }, next: end };
+    }
+
+    return undefined;
+}
+
+/**
+ * Throw for a character that starts no token.
+ * @param where - The expression as it was typed.
+ * @param at - The character's offset.
+ * @param character - The character.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, always.
+ */
+function rejectCharacter(where: Query, at: number, character: string): never {
+    if (/[0-9-]/.test(character)) {
+        throw badSelector(
+            "number-needs-backticks",
+            "A number in a selector goes between backticks, so write `5` rather than 5",
+            where,
+            at,
+            { character, ...suggestBackticks(where) },
+        );
+    }
+
+    throw badSelector(
+        "bad-character",
+        `${JSON.stringify(character)} is not something a selector can contain`,
+        where,
+        at,
+        {
+            character,
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -737,11 +948,12 @@ function parsePath(state: ParseState): ExpressionNode {
         const token = peek(state);
 
         if (token.kind !== "identifier") {
-            throw badSelector("A `.` must be followed by an attribute name", state.where, token.at);
+            throw badSelector("dot-needs-name", "A `.` must be followed by an attribute name", state.where, token.at);
         }
 
         if (token.text.includes(".")) {
             throw badSelector(
+                "name-contains-dot",
                 `A quoted attribute name may not contain a dot: ${JSON.stringify(token.text)} would be ` +
                     "indistinguishable from two names",
                 state.where,
@@ -754,6 +966,7 @@ function parsePath(state: ParseState): ExpressionNode {
 
         if (atOperator(state, "(")) {
             throw badSelector(
+                "function-not-supported",
                 `A selector does not support functions, so ${token.text}(...) cannot be called here`,
                 state.where,
                 token.at,
@@ -795,7 +1008,7 @@ function parseOperand(state: ParseState): ExpressionNode {
         const inner = parseOr(state);
 
         if (!atOperator(state, ")")) {
-            throw badSelector("A `(` is opened and never closed", state.where, token.at);
+            throw badSelector("unclosed-parenthesis", "A `(` is opened and never closed", state.where, token.at);
         }
 
         state.index++;
@@ -804,6 +1017,7 @@ function parseOperand(state: ParseState): ExpressionNode {
     }
 
     throw badSelector(
+        "missing-operand",
         token.kind === "end"
             ? "The selector ends where an attribute name, a literal or a `(` should be"
             : `${JSON.stringify(token.text)} is where an attribute name, a literal or a \`(\` should be`,
@@ -834,6 +1048,7 @@ function parseUnary(state: ParseState): ExpressionNode {
 
     if (operand.kind === "path" && operand.path.includes(".")) {
         throw badSelector(
+            "not-needs-parentheses",
             `In JMESPath \`!\` binds tighter than \`.\`, so !${operand.path} means (!${operand.path.split(".")[0]})` +
                 `${operand.path.slice(operand.path.indexOf("."))} rather than the opposite of ${operand.path}. ` +
                 `Write !(${operand.path}) for that`,
@@ -898,18 +1113,27 @@ function parseOr(state: ParseState): ExpressionNode {
 }
 
 /**
+ * Invocation counts the counted-work tests read: `parses` is whole expressions parsed. A compiled
+ * selector parses once, when its layer is added, and never while a repaint calls its predicate.
+ * Internal; never reset here.
+ */
+export const predicateCounters = { parses: 0 };
+
+/**
  * Parse a whole selector expression.
  * @param where - The expression as it was typed.
  * @returns The parsed tree.
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` naming the offset of whatever is wrong.
  */
 function parseExpression(where: Query): ExpressionNode {
+    predicateCounters.parses++;
     const state: ParseState = { where, tokens: tokenize(where), index: 0 };
     const parsed = parseOr(state);
     const trailing = peek(state);
 
     if (trailing.kind !== "end") {
         throw badSelector(
+            "trailing-input",
             `${JSON.stringify(trailing.text)} is left over at the end of the selector`,
             where,
             trailing.at,
@@ -957,6 +1181,188 @@ function collectPaths(node: ExpressionNode, into: Path[]): void {
         default:
             return;
     }
+}
+
+/**
+ * The leaf "carries a value for this path": the text test any value passes and no value fails.
+ * @param path - The value path.
+ * @returns The leaf.
+ */
+const hasValue = (path: Path): RuleTree => ({ kind: "text", reads: path, mode: "regex", text: "" });
+
+/**
+ * A path as a rule leaf names it: a bare column name (`minutes`) is the file column it reads
+ * (`data.minutes`); a `data.` or `results.` path is itself.
+ * @param path - The path as the expression wrote it.
+ * @param bare - Whether a bare column name is read.
+ * @returns The leaf's path, or undefined for a path a leaf does not read the same way.
+ */
+function leafPathOf(path: Path, bare: boolean): Path | undefined {
+    if (/^(data|results)\./.test(path)) {
+        return path;
+    }
+    // The node id and the element's own `graphty.` values are not file columns.
+    return bare && isUnquotedName(path) && path !== "id" && path !== "graphty" ? `data.${path}` : undefined;
+}
+
+/**
+ * The leaf an ordering comparison with a number reads as: `>=` and `<=` as a range, `>` as
+ * "strictly above". `<` has no leaf that matches exactly the same elements.
+ * @param operator - The comparison, written with the path on the left.
+ * @param path - The leaf's path.
+ * @param value - The number.
+ * @returns The leaf, or undefined.
+ */
+function orderingRule(operator: CompareOperator, path: Path, value: number): RuleTree | undefined {
+    switch (operator) {
+        case ">=":
+            return { kind: "range", attribute: path, min: value };
+        case "<=":
+            return { kind: "range", attribute: path, max: value };
+        case ">":
+            return { kind: "threshold", path, above: value };
+        default:
+            return undefined;
+    }
+}
+
+/** The same comparison with its two sides swapped: `5 < x` is `x > 5`. */
+const FLIPPED: Readonly<Record<CompareOperator, CompareOperator>> = Object.freeze({
+    "==": "==",
+    "!=": "!=",
+    "<": ">",
+    "<=": ">=",
+    ">": "<",
+    ">=": "<=",
+});
+
+/**
+ * The rule leaf one parsed expression node reads as, or undefined when it has none.
+ * @param node - The node.
+ * @param comparisons - Whether ordering comparisons and bare column names are read too.
+ * @returns The rule.
+ */
+function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefined {
+    if (node.kind === "group") {
+        return nodeRule(node.inner, comparisons);
+    }
+
+    if (node.kind === "and") {
+        const left = nodeRule(node.left, comparisons);
+        const right = nodeRule(node.right, comparisons);
+        return left === undefined || right === undefined ? undefined : { kind: "all", of: [left, right] };
+    }
+
+    if (node.kind !== "compare") {
+        return undefined;
+    }
+
+    const literal = pickLiteral(node.left, node.right);
+    const other = node.left.kind === "literal" ? node.right : node.left;
+    const path = other.kind === "path" ? leafPathOf(other.path, comparisons) : undefined;
+    if (literal === null || path === undefined) {
+        return undefined;
+    }
+
+    const { value } = literal;
+    if (node.operator !== "==" && node.operator !== "!=") {
+        // Only a number orders: an ordering comparison of anything else matches no element, as a
+        // range leaf does not.
+        const operator = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
+        return comparisons && typeof value === "number" && Number.isFinite(value)
+            ? orderingRule(operator, path, value)
+            : undefined;
+    }
+
+    return equalityRule(node.operator, path, value);
+}
+
+/**
+ * The rule leaf an equality comparison of a path with a literal reads as.
+ * @param operator - `==` or `!=`.
+ * @param path - The path compared.
+ * @param value - The literal's value.
+ * @returns The rule, or undefined when the literal has no exact rule form.
+ */
+function equalityRule(operator: "==" | "!=", path: Path, value: unknown): RuleTree | undefined {
+    let leaf: RuleTree | undefined;
+    if (value === null) {
+        // `!= null` is the presence test; `== null` its opposite.
+        return operator === "!=" ? hasValue(path) : { kind: "not", of: hasValue(path) };
+    } else if (typeof value === "number") {
+        leaf = { kind: "range", attribute: path, min: value, max: value };
+    } else if (typeof value === "boolean") {
+        leaf = { kind: "text", reads: path, mode: "exact", text: String(value), caseSensitive: true };
+    }
+
+    // ponytail: a string literal stays an expression: the text leaf folds spaces and accents.
+    return leaf === undefined || operator === "==" ? leaf : { kind: "not", of: leaf };
+}
+
+/**
+ * The rule tree an expression reads as, for an editor that draws rules: `results.route.onPath ==
+ * \`true\`` is the leaf "onPath is true". Only the forms whose rule matches exactly the same
+ * elements are read: equality with a number or a yes-or-no value, the presence test, and `&&` of
+ * those, over a `data.` or `results.` path. With `comparisons`, also `>=` and `<=` with a number
+ * (a range), `>` with a number ("strictly above") and a bare column name (`minutes`, which a rule
+ * reads as `data.minutes`).
+ * @param where - The expression.
+ * @param comparisons - Whether to read ordering comparisons and bare column names too.
+ * @returns The rule, or undefined when the expression has no exact rule form.
+ */
+export function expressionRule(where: Query, comparisons = false): RuleTree | undefined {
+    try {
+        return nodeRule(parseExpression(where), comparisons);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * An expression with some of the paths it reads written another way, everything else kept as it
+ * was typed: what a refusal or a check offers as the reader's own rule, corrected, or a rule
+ * written with each column under the name a screen shows it by.
+ *
+ * ```ts
+ * import { renamePaths } from "@graphty/graphty-element/session";
+ *
+ * renamePaths("graphty.degree > `30`", (path) => (path === "graphty.degree" ? "Degree" : undefined));
+ * // "Degree > `30`"
+ * ```
+ * @param where - The expression.
+ * @param rename - The new source for a path (given as the rule names it: a bare column name such
+ * as `minutes`, or a dotted path), or undefined to keep it.
+ * @returns The rewritten expression.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` for an expression that does not lex.
+ * @since 3.35.0
+ */
+export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query {
+    const tokens = tokenize(where);
+    const isDot = (token: Token | undefined): boolean => token?.kind === "operator" && token.text === ".";
+    let out = "";
+    let copied = 0;
+    let next = 0;
+    while (next < tokens.length) {
+        const at = next;
+        next = at + 1;
+        if (tokens[at].kind !== "identifier" || isDot(tokens[at - 1])) {
+            continue;
+        }
+        // A path: this name and every `.name` after it.
+        const segments = [tokens[at].text];
+        let last = at;
+        while (isDot(tokens[last + 1]) && tokens[last + 2]?.kind === "identifier") {
+            last += 2;
+            segments.push(tokens[last].text);
+        }
+        const replacement = rename(segments.join("."));
+        if (replacement !== undefined) {
+            out += where.slice(copied, tokens[at].at) + replacement;
+            copied = tokenEnd(where, tokens[last].at);
+        }
+        next = last + 1;
+    }
+    return out + where.slice(copied);
 }
 
 /**
@@ -1179,6 +1585,28 @@ export function quotePath(path: Path): Query {
 }
 
 /**
+ * Write a column key as the shortest text a rule reads back as that column.
+ *
+ * A rule reads a bare name as a file column -- `minutes` is the column `data.minutes` -- so a
+ * data column whose name needs no quotes comes back as that bare name. Anything else (a name
+ * with a dot, a hyphen or a space, or a key outside `data.`, such as a run's result) comes back
+ * as {@link quotePath} writes it, so the rule still names exactly that column.
+ *
+ * ```ts
+ * import { rulePath } from "@graphty/graphty-element/session";
+ *
+ * rulePath("data.minutes"); // "minutes"
+ * rulePath("data.min-cut"); // 'data."min-cut"'
+ * ```
+ * @param path - The column key.
+ * @returns Expression source naming the same column.
+ */
+export function rulePath(path: Path): Query {
+    const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
+    return isUnquotedName(bare) ? bare : quotePath(path);
+}
+
+/**
  * Whether a path segment can be written in an expression without quotes.
  * @param segment - One segment of a column key.
  * @returns True when the lexer would read the whole segment as one identifier.
@@ -1305,6 +1733,39 @@ export function scopePredicate(live: LiveScope, target: SelectorTarget): Element
 }
 
 /**
+ * The predicate for `{match:"hover"}`: whether an element is the hovered node, or in its
+ * neighborhood, or -- inverted -- outside it while a node is hovered. Reads the pointer's state at
+ * each call, so the compiled layer follows the pointer without being compiled again.
+ * @param hover - The hovered node's neighborhood now, or null.
+ * @param target - Which half the layer paints.
+ * @param reach - The node alone, or it and its neighbors.
+ * @param invert - Whether the layer paints everything else while a node is hovered.
+ * @returns The test.
+ */
+export function hoverPredicate(
+    hover: () => LiveHover | null,
+    target: SelectorTarget,
+    reach: "node" | "neighbors",
+    invert: boolean,
+): ElementPredicate {
+    return (index): boolean => {
+        const now = hover();
+        if (now === null) {
+            return false;
+        }
+
+        let inside: boolean;
+        if (target === "edge") {
+            inside = now.edges[index] === 1;
+        } else {
+            inside = reach === "node" ? index === now.node : now.neighbors[index] === 1;
+        }
+
+        return inside !== invert;
+    };
+}
+
+/**
  * Parse and compile `{match:"expression"}`.
  *
  * The parse happens HERE, once, when the layer is added or updated. An expression that is not in
@@ -1335,6 +1796,7 @@ export function compileExpressionPredicate(
 
         const quoted = root.kind === "literal" && typeof root.value === "string";
         throw badSelector(
+            quoted ? "quoted-whole-expression" : "reads-no-attribute",
             quoted
                 ? "The selector is a quoted string literal, which is always true, so it would match every element. " +
                       "Remove the outer quotes so it is read as an expression"

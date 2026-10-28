@@ -17,10 +17,12 @@ const LEAF_KINDS: Record<RuleTree["kind"], true> = {
     isolated: true,
     "self-loop": true,
     "repeated-edge": true,
+    source: true,
     edges: true,
     member: true,
     item: true,
     threshold: true,
+    text: true,
     all: true,
     any: true,
     not: true,
@@ -38,7 +40,7 @@ const CREATED_FROM_KINDS: Record<SetCreatedFrom["kind"], true> = {
     result: true,
     combine: true,
 };
-const READINGS: Record<EdgeReading, true> = { induced: true, listed: true, clipped: true };
+const READINGS: Record<EdgeReading, true> = { induced: true, listed: true, clipped: true, incident: true };
 const COMBINES: Record<SetCombine, true> = {
     union: true,
     intersection: true,

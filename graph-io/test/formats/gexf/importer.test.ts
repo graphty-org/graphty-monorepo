@@ -450,6 +450,12 @@ describe("gexfImporter: a 1.3 dynamic document", () => {
         expect(snapshot.edges.isSet("id", 2)).toBe(false);
     });
 
+    it("reads hex over r / g / b when a viz:color has both, as Gephi does", async () => {
+        const doc = `<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3"><graph><nodes><node id="a"><viz:color r="255" g="0" b="0" hex="#0000ff"/></node></nodes></graph></gexf>`;
+        const { snapshot } = await load(doc);
+        expect(values(snapshot.nodes.get("color"))[0]).toEqual([0, 0, 1, 1]);
+    });
+
     it("skips viz elements under viz: false", async () => {
         const { snapshot, report } = await load(DYNAMIC_1_3, { viz: false });
         expect(snapshot.nodes.byRole("color")).toBeNull();
@@ -1092,7 +1098,7 @@ describe("gexfImporter: less common constructs", () => {
     it("rejects a timed weight that is not a number and a mangled viz element", async () => {
         const doc = `<gexf version="1.3"><graph defaultedgetype="directed" timeformat="double">
             <attributes class="edge" mode="dynamic"><attribute id="w" title="weight" type="double"/></attributes>
-            <nodes><node id="a"><viz:color hex="#12345"/><viz:shape/><viz:size/></node><node id="b"><viz:color r="1" g="x" b="3"/></node></nodes>
+            <nodes><node id="a"><viz:color hex="#12g45"/><viz:shape/><viz:size/></node><node id="b"><viz:color r="1" g="x" b="3"/></node></nodes>
             <edges><edge source="a" target="b"><attvalues><attvalue for="w" value="heavy" start="1"/><attvalue for="w" value="2" start="2"/></attvalues></edge></edges></graph></gexf>`;
         const { snapshot, report } = await load(doc);
         expect(codes(report)).toEqual([
@@ -1103,7 +1109,7 @@ describe("gexfImporter: less common constructs", () => {
             "E_INVALID_WEIGHT",
         ]);
         expect(report.issues.map((i) => i.message)).toEqual([
-            expect.stringContaining("#RRGGBB"),
+            expect.stringContaining("is not a color Gephi reads"),
             expect.stringContaining("without a value"),
             expect.stringContaining("without a value attribute"),
             expect.stringContaining('"x" is not a double'),

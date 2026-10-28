@@ -69,7 +69,7 @@ export interface ToggleWithContentProps {
      * @example
      * ```tsx
      * <ToggleWithContent label="Glow" onChange={(next) => { setGlow(next); }}>
-     *     <StyleNumberInput label="Radius" defaultValue={4} />
+     *     <PanelField label="Radius" kind="number" defaultValue={4} />
      * </ToggleWithContent>
      * ```
      */
@@ -172,7 +172,7 @@ export interface ToggleWithContentProps {
  * ```tsx
  * <ToggleWithContent label="Glow" defaultChecked>
  *     <CompactColorInput label="Color" defaultColor="#5b8ff9" />
- *     <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+ *     <PanelField label="Radius" kind="number" defaultValue={4} min={0} max={20} />
  * </ToggleWithContent>
  * ```
  */

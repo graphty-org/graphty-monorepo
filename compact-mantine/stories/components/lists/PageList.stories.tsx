@@ -1,7 +1,7 @@
 import { ActionIcon, Group, Menu, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { PageList, PageRow, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

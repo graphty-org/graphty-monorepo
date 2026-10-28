@@ -21,6 +21,7 @@ import { commands } from "vitest/browser";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -115,25 +116,14 @@ async function animateEdges(graph: Graph): Promise<void> {
         set: { "edge.animationSpeed": 1, "edge.color": "#d62728" },
     });
     await operationQueueOf(graph).waitForCompletion();
-    await frames(8);
+    // Every mesh built and every shader compiled, and then a frame drawn with them: a shader that
+    // has not compiled yet reports no failure either.
+    await graph.scene.whenReadyAsync();
+    await drawnFrames(graph.scene, 1);
 }
 
 /**
- * Waits for the render loop to draw some frames; a paint lands on a frame.
- * @param count - How many.
- */
-async function frames(count: number): Promise<void> {
-    for (let at = 0; at < count; at++) {
-        await new Promise<void>((done) => {
-            requestAnimationFrame(() => {
-                done();
-            });
-        });
-    }
-}
-
-/**
- * Draws a few frames and takes a screenshot the way the element does.
+ * Waits for the picture to be final and takes a screenshot the way the element does.
  *
  * Babylon's own `CreateScreenshotAsync`, the call `captureScreenshot` makes, rather than
  * `captureScreenshot` itself: test/setup.ts replaces that call with a one-pixel stub for every
@@ -144,7 +134,7 @@ async function frames(count: number): Promise<void> {
  * @returns The RGBA pixels.
  */
 async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray> {
-    await frames(8);
+    await graph.waitForStableFrame();
     const { CreateScreenshotAsync } = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
     const camera = graph.scene.activeCamera;
     assert.isNotNull(camera);
@@ -221,7 +211,7 @@ function shaderFailures(graph: Graph): string[] {
 describe("the renderer a graph is drawn with", () => {
     it("is WebGL unless something else is asked for", async () => {
         const graph = await open();
-        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null });
+        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null, drawing: true });
         assert.notInstanceOf(graph.engine, WebGPUEngine);
     });
 
@@ -368,7 +358,7 @@ describe("the element's renderer attribute", () => {
         host.appendChild(element);
         await element.updateComplete;
         for (let wait = 0; wait < 600 && !(initialized && element.graph.initialized); wait++) {
-            await frames(1);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
         }
 
         // Babylon imports each shader the first time it compiles it. Removing the element with
@@ -393,7 +383,12 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
     it("opens a WebGPU engine when asked, and under auto", async () => {
         for (const renderer of ["webgpu", "auto"] as const) {
             const graph = await open(renderer);
-            assert.deepEqual(graph.rendererStatus, { requested: renderer, active: "webgpu", reason: null });
+            assert.deepEqual(graph.rendererStatus, {
+                requested: renderer,
+                active: "webgpu",
+                reason: null,
+                drawing: true,
+            });
             assert.instanceOf(graph.engine, WebGPUEngine);
             assert.strictEqual(graph.canvas.isConnected, true, "the WebGPU canvas is the one in the page");
         }
@@ -437,6 +432,57 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.isBelow(differ, ink / 10, "the WebGPU frame is not the WebGL frame");
         assert.deepEqual(sceneObjects(webgpu), sceneObjects(webgl));
         assert.deepEqual(shaderFailures(webgpu), []);
+    });
+
+    it("holds the drawn graph in the frame a resize is painted in, and keeps drawing after it", async () => {
+        const graph = await open("webgpu");
+        await drawStyledRing(graph);
+        await graph.waitForStableFrame();
+        const { engine } = graph;
+        assert.instanceOf(engine, WebGPUEngine);
+        const errors: string[] = [];
+        engine._device.addEventListener("uncapturederror", (event) => {
+            errors.push(event.error.message);
+        });
+
+        const { container } = mounted[mounted.length - 1];
+        const height = HEIGHT + 100;
+        // The element's own ResizeObserver calls graph.resize(); this one stands in for it and
+        // reads the canvas in the same rendering step, before it is painted.
+        const opaque = new Promise<number>((resolve) => {
+            const observer = new ResizeObserver(([entry]) => {
+                if (entry.contentRect.height !== height) {
+                    return;
+                }
+
+                observer.disconnect();
+                graph.resize();
+                const copy = document.createElement("canvas");
+                copy.width = graph.canvas.width;
+                copy.height = graph.canvas.height;
+                const context = copy.getContext("2d");
+                assert.isNotNull(context);
+                context.drawImage(graph.canvas, 0, 0);
+                const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+                let count = 0;
+                for (let at = 3; at < pixels.length; at += 4) {
+                    count += pixels[at] === 255 ? 1 : 0;
+                }
+
+                resolve(count / (pixels.length / 4));
+            });
+            observer.observe(container);
+        });
+        container.style.height = `${String(height)}px`;
+
+        assert.isAbove(await opaque, 0.99, "the canvas holds a frame, not the texture the resize cleared");
+        // The frame drawn for the resize ended inside its own frame, so the loop's next frames
+        // reach the canvas too: no command buffer refers to a texture already presented.
+        await drawnFrames(graph.scene, 2);
+        assert.deepEqual(errors, []);
+        const resized = await screenshot(graph, "webgpu-resized");
+        const { ink } = compare(resized, resized);
+        assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
     });
 
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {

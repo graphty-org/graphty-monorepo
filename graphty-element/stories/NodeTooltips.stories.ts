@@ -18,7 +18,7 @@ import type { LayerSpec } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
-import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, realInput, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Four cities, each with something worth saying about it. */
 const NODES = [
@@ -117,16 +117,54 @@ async function settled(canvasElement: HTMLElement, story: string): Promise<Drawn
 }
 
 /**
- * Move the real pointer onto a node and let the scene react.
+ * Move the pointer to a point on the canvas and let the scene react.
  *
- * `button: -1` is not decoration. A real pointermove carries no button; a `PointerEvent` built by
- * hand defaults to 0, which is the LEFT button, and Babylon's input manager reads that as a
- * press. A hand-built move therefore starts a drag, and a node being dragged stops reporting
- * hover -- so without this the pointer arrives and nothing happens.
+ * As a test, the browser's own pointer moves (the `realInput` parameter the storybook test
+ * project's setup supplies), so hit testing and event order are real. In Storybook's own UI a page
+ * script cannot make trusted input, so the move is replayed: `button: -1` there is not decoration.
+ * A real pointermove carries no button; a `PointerEvent` built by hand defaults to 0, which is the
+ * LEFT button, and Babylon's input manager reads that as a press. A hand-built move therefore
+ * starts a drag, and a node being dragged stops reporting hover -- so without it the pointer
+ * arrives and nothing happens.
+ * @param scene - The scene to point at.
+ * @param point - Where, in CSS pixels from the canvas's top-left corner.
+ * @param parameters - The story's parameters.
+ */
+async function pointTo(
+    scene: Drawn,
+    point: { x: number; y: number },
+    parameters: Record<string, unknown>,
+): Promise<void> {
+    const { canvas } = scene.graph;
+    const real = realInput(parameters);
+
+    if (real) {
+        await real.hover(canvas, point);
+    } else {
+        const box = canvas.getBoundingClientRect();
+
+        canvas.dispatchEvent(
+            new PointerEvent("pointermove", {
+                clientX: box.left + point.x,
+                clientY: box.top + point.y,
+                bubbles: true,
+                pointerId: 1,
+                pointerType: "mouse",
+                button: -1,
+            }),
+        );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+}
+
+/**
+ * Move the pointer onto a node and let the scene react.
  * @param scene - The scene to point at.
  * @param id - The node to hover.
+ * @param parameters - The story's parameters.
  */
-async function hover(scene: Drawn, id: string): Promise<void> {
+async function hover(scene: Drawn, id: string, parameters: Record<string, unknown>): Promise<void> {
     const { graph } = scene;
     const node = graph.getNode(id);
 
@@ -146,20 +184,7 @@ async function hover(scene: Drawn, id: string): Promise<void> {
         ),
     );
 
-    const box = graph.canvas.getBoundingClientRect();
-
-    graph.canvas.dispatchEvent(
-        new PointerEvent("pointermove", {
-            clientX: box.left + Math.round(at.x),
-            clientY: box.top + Math.round(at.y),
-            bubbles: true,
-            pointerId: 1,
-            pointerType: "mouse",
-            button: -1,
-        }),
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    await pointTo(scene, { x: Math.round(at.x), y: Math.round(at.y) }, parameters);
 }
 
 /**
@@ -184,7 +209,7 @@ async function assertTooltip(scene: Drawn, id: string, words: string): Promise<v
 
 /** No tooltip until the pointer arrives, and one as soon as it does. */
 export const OnHover: Story = {
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "OnHover");
         const node = scene.graph.getNode(HOVERED);
 
@@ -193,31 +218,20 @@ export const OnHover: Story = {
             "Styles/Node Tooltip OnHover: a tooltip was drawn before anything was hovered",
         );
 
-        await hover(scene, HOVERED);
+        await hover(scene, HOVERED, parameters);
         await assertTooltip(scene, HOVERED, "Paris -- 2.1m people");
     },
 };
 
 /** The pointer leaves, and the words go with it. */
 export const GoneWhenThePointerLeaves: Story = {
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "GoneWhenThePointerLeaves");
 
-        await hover(scene, HOVERED);
+        await hover(scene, HOVERED, parameters);
         await assertTooltip(scene, HOVERED, "Paris -- 2.1m people");
 
-        const box = scene.graph.canvas.getBoundingClientRect();
-        scene.graph.canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: box.left + 2,
-                clientY: box.top + 2,
-                bubbles: true,
-                pointerId: 1,
-                pointerType: "mouse",
-                button: -1,
-            }),
-        );
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        await pointTo(scene, { x: 2, y: 2 }, parameters);
 
         await holds(
             scene.graph.getNode(HOVERED)?.tooltip === undefined,
@@ -237,17 +251,17 @@ export const OnOneNodeOnly: Story = {
             },
         ],
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "OnOneNodeOnly");
 
-        await hover(scene, HOVERED);
+        await hover(scene, HOVERED, parameters);
         await holds(
             scene.graph.getNode(HOVERED)?.tooltip === undefined,
             "Styles/Node Tooltip OnOneNodeOnly: a node the layer did not name drew a tooltip",
         );
 
         // Last, so the snapshot taken when play ends shows the one tooltip this story is about.
-        await hover(scene, "london");
+        await hover(scene, "london", parameters);
         await assertTooltip(scene, "london", "the only one with a tooltip");
     },
 };
@@ -288,10 +302,10 @@ export const InItsOwnColours: Story = {
             },
         ],
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "InItsOwnColours");
 
-        await hover(scene, HOVERED);
+        await hover(scene, HOVERED, parameters);
         await assertTooltip(scene, HOVERED, "Paris -- 2.1m people");
 
         // The picture is the point of the story, and the picture is what a default looks exactly

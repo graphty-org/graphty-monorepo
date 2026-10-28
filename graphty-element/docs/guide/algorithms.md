@@ -46,6 +46,23 @@ grids need more passes; raise the param and run it again:
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
 ```
 
+An algorithm that refuses the graph or its options fails the run with a code of its own, and the
+algorithm's original error as `cause`:
+
+| Code                    | When                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `E_NOT_BIPARTITE`       | the algorithm needs a bipartite graph                                        |
+| `E_NOT_CONNECTED`       | the algorithm needs a connected graph                                        |
+| `E_EMPTY_GRAPH`         | the graph has no nodes                                                       |
+| `E_NEEDS_UNDIRECTED`    | the algorithm is defined for undirected graphs only                          |
+| `E_NEEDS_DIRECTED`      | the algorithm is defined for directed graphs only                            |
+| `E_BAD_WEIGHT`          | an edge weight it cannot use: negative, infinite or NaN                      |
+| `E_OPTION_RANGE`        | an option out of range or inconsistent with another                          |
+| `E_UNKNOWN_ELEMENT`     | an option names a node the graph does not hold                               |
+| `E_TOO_LARGE`           | the result would exceed a size bound the run's options set                   |
+| `E_BAD_PATH`            | an accelerator returned shortest paths that cannot be walked; run without it |
+| `E_PATH_COUNT_OVERFLOW` | an accelerator's shortest-path counts overflowed; run without it             |
+
 `closeness` is exact by default: one breadth-first search from every node, which grows with the
 square of the node count. On a big graph, sample it. `k` draws that many source nodes (the same
 ones every time for the same graph), and each node is then scored from its distances to those
@@ -198,7 +215,7 @@ Explore the graph systematically:
 | `dfs`     | Depth-first search   |
 
 ```typescript
-await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
+await graph.runAlgorithm("graphty", "bfs", { algorithmOptions: { source: "node1" } });
 ```
 
 ### Shortest Path
@@ -214,8 +231,7 @@ Find optimal paths between nodes:
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
-    source: "node1",
-    target: "node5",
+    algorithmOptions: { source: "node1", target: "node5" },
 });
 ```
 
@@ -262,8 +278,7 @@ Network flow analysis:
 
 ```typescript
 await graph.runAlgorithm("graphty", "max-flow", {
-    source: "source",
-    sink: "sink",
+    algorithmOptions: { source: "source", sink: "sink" },
 });
 ```
 
@@ -686,7 +701,10 @@ await element.session.styles.encode({ run, channel: "node.color", overflow: "sha
 await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
 ```
 
-`"shape"` is for nodes only; an edge encoding refuses it. If you name a `palette` and no
+`"shape"` is for nodes only; an edge encoding refuses it. Its edge counterpart is `"pattern"`:
+the colours cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
+...), so two edge groups that share a colour never share a pattern. A layer that varies only the
+colour with either policy still draws the second cue. If you name a `palette` and no
 `overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
 folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
 

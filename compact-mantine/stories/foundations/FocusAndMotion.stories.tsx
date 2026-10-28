@@ -1,11 +1,12 @@
 import { ActionIcon, Box, Button, Checkbox, Menu, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { PANEL_INK, UiGlyph } from "../../src";
 import { expectStatesApply } from "../helpers/assert-states";
 import { StateGrid } from "../helpers/input-states";
 import { BOTH_SCHEMES } from "../helpers/schemes";
+import { storyWaitOptions } from "../helpers/settled";
 
 /**
  * How the theme shows keyboard focus, and what moves.
@@ -141,7 +142,7 @@ export const Motion: Story = {
         await expect(duration(".mantine-Switch-thumb")).toBe(moving);
         // The menu is drawn in full the moment it opens.
         await userEvent.click(canvas.getByRole("button", { name: "Open a menu" }));
-        const menu = await within(doc.body).findByRole("menu");
+        const menu = await within(doc.body).findByRole("menu", {}, storyWaitOptions(1000));
         await expect(getComputedStyle(menu).opacity).toBe("1");
         await expect(getComputedStyle(menu).transitionDuration).toBe("0s");
         await userEvent.keyboard("{Escape}");
@@ -149,10 +150,10 @@ export const Motion: Story = {
         await userEvent.hover(canvas.getByRole("button", { name: "Hover me" }));
         await new Promise((resolve) => setTimeout(resolve, 500));
         await expect(within(doc.body).queryByRole("tooltip")).toBeNull();
-        await expect(await within(doc.body).findByRole("tooltip", {}, { timeout: 2000 })).toBeVisible();
+        await expect(await within(doc.body).findByRole("tooltip", {}, storyWaitOptions(2000))).toBeVisible();
         await userEvent.unhover(canvas.getByRole("button", { name: "Hover me" }));
         // The tooltip closes after its close delay; the story is finished once it has, so a
         // screenshot never catches it half the time.
-        await waitFor(() => expect(within(doc.body).queryByRole("tooltip")).toBeNull());
+        await waitFor(() => expect(within(doc.body).queryByRole("tooltip")).toBeNull(), storyWaitOptions(1000));
     },
 };

@@ -78,6 +78,39 @@ await graph.zoomStep("in");
 await graph.zoomStep("out");
 ```
 
+### Zoom toward the pointer
+
+By default the mouse wheel zooms toward the center of the view. Turn on `zoomToPointer` and it
+zooms toward the point under the pointer instead, so the node under the pointer stays under it:
+
+```typescript
+element.zoomToPointer = true;
+```
+
+```html
+<graphty-element zoom-to-pointer></graphty-element>
+```
+
+Like `autoFrame`, it is a preference of the view: it records no undo step and is not saved in a
+project file.
+
+### Keys on the canvas
+
+While the canvas has focus, keys move the camera. A key held repeats; a key tapped acts once.
+`CANVAS_KEY_DESCRIPTORS` from `@graphty/graphty-element/catalog` lists every key, what it does and
+in which view, so a shortcuts page can list them without keeping its own copy:
+
+| View | Keys                          | Action   |
+| ---- | ----------------------------- | -------- |
+| 3D   | W, =, +                       | Zoom in  |
+| 3D   | S, -, \_                      | Zoom out |
+| 3D   | Arrow keys                    | Turn     |
+| 3D   | A, D                          | Roll     |
+| 2D   | =, +                          | Zoom in  |
+| 2D   | -, \_                         | Zoom out |
+| 2D   | W, A, S, D and the arrow keys | Pan      |
+| 2D   | Q, E                          | Roll     |
+
 ### Zoom to Nodes
 
 Frame one node or several, in 2D or 3D. Ids that name no node are skipped, and when none of them

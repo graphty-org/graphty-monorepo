@@ -1,0 +1,34 @@
+{
+    "sample": "vis-network-specimen-mappings-bypass",
+    "program": "vis-network",
+    "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
+    "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); net.renderer._redraw() onto an svgcanvas Context",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "svgKind": "vector",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/vis-network/specimen-mappings-bypass.json",
+    "fileSha256": "5105221d727497d10e5fff2d387fa2cc54afc6294f068fb7d726b355a9427a25",
+    "svgSha256": "3da726bc81dbbba3074fb81b2b7fc95ca032e2e224544ca7f577bc1bf19afb16",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 86,
+        "edges": 12,
+        "physics": false,
+        "snapshotAt": "first draw (physics off)",
+        "scale": 0.9221547683086143,
+        "viewCenter": {
+            "x": 591.5,
+            "y": 450
+        }
+    },
+    "pageErrors": []
+}

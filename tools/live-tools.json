@@ -6,7 +6,7 @@
     },
     "visual-review": {
         "worktree": ".worktrees/visual-review-server-v3",
-        "servers": ["visual-review-v3", "visual-review-notify"],
+        "servers": ["visual-review-v3"],
         "test": "cd visual-review && npm run lint && npx vitest run"
     },
     "gate": {
@@ -14,9 +14,19 @@
         "servers": [],
         "test": "pnpm run test:ci-workflows && pnpm run test:sonar-gate"
     },
+    "land": {
+        "worktree": ".worktrees/land-live",
+        "servers": [],
+        "test": "node tools/land.test.mjs && node tools/verify.test.mjs && node tools/branch-tracking.test.mjs"
+    },
     "sonar-baseline": {
         "worktree": ".worktrees/sonar-baseline-runner",
         "servers": ["sonar-baseline"],
         "test": "node tools/sonar/sonar-baseline.test.mjs"
+    },
+    "worktree-cleanup": {
+        "worktree": ".worktrees/worktree-cleanup-live",
+        "servers": ["worktree-cleanup"],
+        "test": "node tools/worktree-cleanup.test.mjs"
     }
 }

@@ -1,8 +1,10 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-graphty-element-lockup-color-on-light-800w.png" alt="graphty graphty-element" width="346">
+
 # @graphty/graphty-element
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
 [![CI/CD](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-element/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-element?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/graphty-element/)
 
@@ -63,6 +65,7 @@ npm install @graphty/graphty-element @babylonjs/core lit
 - **Extensible** - Plugin architecture for custom layouts, algorithms, and data sources ([Extending Guide](https://graphty.app/docs/graphty-element/guide/extending/))
 - **Graph Algorithms** - Built-in algorithms for analysis ([Algorithms Guide](https://graphty.app/docs/graphty-element/guide/algorithms))
 - **VR/AR Support** - WebXR integration for immersive visualization ([VR/AR Guide](https://graphty.app/docs/graphty-element/guide/vr-ar))
+- **Experiments** - Unfinished features ship switched off; turn them on with the `features` attribute ([Experiments Guide](https://graphty.app/docs/graphty-element/guide/experiments)). API marked `@experimental` may change or disappear in a minor release; only unmarked API waits for a major release to break
 
 ## Browser Support
 

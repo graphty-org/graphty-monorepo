@@ -11,6 +11,7 @@ export {
     compactColors,
     compactDarkColors,
     compactGlobalCss,
+    compactGraphtyColors,
     compactTheme,
     compactThemeOverride,
     createCompactTheme,
@@ -21,8 +22,8 @@ export {
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
-export { ControlSubGroup } from "./components/ControlSubGroup";
 export { DataTable } from "./components/DataTable";
+export { EntityChip } from "./components/EntityChip";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
 export {
@@ -33,23 +34,27 @@ export {
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";
+export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
-export { StyleNumberInput } from "./components/StyleNumberInput";
-export { StyleSelect } from "./components/StyleSelect";
+export { RangeSlider, Slider } from "./components/Slider";
 export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6).
-export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
+// with its drop hook and file picker, and focus put on a field by program with its ring drawn.
+export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
+export { focusWithRing } from "./components/inputs/listbox";
 
-// Overlays: the context menu, the checkable menu row, the modal footer, the toast and the
-// tooltip's shortcut label (8.1-8.6).
+// Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
+// the toast and the tooltip's shortcut label (8.1-8.6).
 export {
     ContextMenu,
     MenuCheckItem,
+    MenuItemDescription,
+    MenuShortcut,
     ModalFooter,
     Toast,
     ToastProvider,
@@ -87,6 +92,7 @@ export {
     RailButton,
     SecondaryToolbar,
     ShortcutSheet,
+    StatusBar,
     Toolbar,
     ToolButton,
     ToolGroup,
@@ -100,6 +106,7 @@ export {
     CompoundRow,
     DataRow,
     DataRowHeader,
+    EllipsizedName,
     FieldRow,
     HistogramRow,
     MetricRow,
@@ -107,6 +114,7 @@ export {
     ProseBlock,
     RampRow,
     RankChip,
+    ResetButton,
     SparklineRow,
     ToggleRow,
     ToggleRowGroup,
@@ -173,7 +181,7 @@ export {
     parseHexaColor,
     toHexaColor,
 } from "./utils";
-export { isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
+export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
 export { isRtl } from "./utils/rtl";
 
 // Type exports
@@ -186,6 +194,7 @@ export type {
     AdvancedButtonProps,
     ChangeHandler,
     ColorStop,
+    CompactAccent,
     CompactColorInputProps,
     CompactMantineLabels,
     CompactThemeOptions,
@@ -193,7 +202,6 @@ export type {
     CompoundSegment,
     ControlGroupProps,
     ControlSectionProps,
-    ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
     DataRowSortDirection,
@@ -209,6 +217,8 @@ export type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -219,6 +229,8 @@ export type {
     GestureStartHandler,
     GradientEditorProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     InfoCircleProps,
     LabelsProviderProps,
@@ -245,12 +257,15 @@ export type {
     PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
     SparklineRowProps,
-    StyleNumberInputProps,
-    StyleSelectOption,
-    StyleSelectProps,
     ToggleRowGroupProps,
     ToggleRowProps,
     ToggleWithContentProps,
@@ -263,7 +278,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "./types";
 export type {
@@ -300,6 +320,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "./types";
 export type {
@@ -314,6 +335,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

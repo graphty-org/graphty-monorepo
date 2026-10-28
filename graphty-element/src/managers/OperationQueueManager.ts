@@ -91,9 +91,21 @@ export class OperationQueueManager implements Manager {
     // Active operation controllers for cancellation
     private readonly activeControllers = new Map<string, AbortController>();
 
+    // The delayed cleanups of finished operations. Cleared on dispose: each one holds this manager,
+    // and through it the whole graph, until it fires (issue #3413).
+    private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>();
+
     // Track running vs queued operations
     private readonly runningOperations = new Map<string, Operation>();
     private readonly queuedOperations = new Map<string, Operation>();
+    /**
+     * Every operation by category, from when it is queued. An entry outlives its operation until
+     * a lookup finds it in none of the maps above and drops it.
+     */
+    private readonly byCategory = new Map<string, Set<Operation>>();
+    /** When each operation entered the map it is in now, which orders that map. */
+    private readonly entered = new WeakMap<Operation, number>();
+    private enteredCount = 0;
 
     // Track completed operation categories for cross-batch dependency resolution
     private readonly completedCategories = new Set<OperationCategory>();
@@ -238,6 +250,12 @@ export class OperationQueueManager implements Manager {
             controller.abort();
         });
 
+        // A disposed graph is garbage at once, not a second after its last operation.
+        this.cleanupTimers.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        this.cleanupTimers.clear();
+
         // Before the maps are emptied, because emptying them is what loses the resolvers.
         this.settleEveryOutstandingOperation();
 
@@ -247,6 +265,7 @@ export class OperationQueueManager implements Manager {
         this.currentBatch.clear();
         this.activeControllers.clear();
         this.runningOperations.clear();
+        this.byCategory.clear();
         this.queuedOperations.clear();
     }
 
@@ -292,7 +311,11 @@ export class OperationQueueManager implements Manager {
         };
 
         this.pendingOperations.set(id, operation);
+        this.entered.set(operation, this.enteredCount++);
         this.activeControllers.set(id, controller);
+        const sameCategory = this.byCategory.get(category) ?? new Set<Operation>();
+        sameCategory.add(operation);
+        this.byCategory.set(category, sameCategory);
 
         this.logger.debug("Operation queued", {
             id,
@@ -357,12 +380,17 @@ export class OperationQueueManager implements Manager {
         const skipRunning = metadata?.skipRunning ?? defaultRule?.skipRunning ?? false;
         const respectProgress = metadata?.respectProgress ?? defaultRule?.respectProgress ?? true;
 
-        // Check all operations for obsolescence
-        const allOperations = [
-            ...this.pendingOperations.values(),
-            ...this.queuedOperations.values(),
-            ...(skipRunning ? [] : this.runningOperations.values()),
-        ];
+        // Check all operations for obsolescence. With no `shouldObsolete`, only the operations of
+        // the categories it obsoletes can be, so only those are looked at, in the same order: a
+        // run of queued adds -- `addNode` in a loop -- would otherwise walk every add queued
+        // before it, at every add.
+        const allOperations = shouldObsolete
+            ? [
+                  ...this.pendingOperations.values(),
+                  ...this.queuedOperations.values(),
+                  ...(skipRunning ? [] : this.runningOperations.values()),
+              ]
+            : this.liveOf(categoriesToObsolete, skipRunning);
 
         for (const operation of allOperations) {
             // Skip if it's the same operation
@@ -370,60 +398,114 @@ export class OperationQueueManager implements Manager {
                 continue;
             }
 
-            let shouldCancel = false;
-
-            // Check category-based obsolescence
-            if (categoriesToObsolete.has(operation.category)) {
-                shouldCancel = true;
-            }
-
-            // Check custom shouldObsolete function
-            if (!shouldCancel && shouldObsolete) {
-                shouldCancel = shouldObsolete({
+            // Category-based obsolescence, then the custom shouldObsolete function
+            const shouldCancel =
+                categoriesToObsolete.has(operation.category) ||
+                (shouldObsolete?.({
                     category: operation.category,
                     id: operation.id,
                     metadata: operation.metadata,
-                });
+                }) ??
+                    false);
+
+            if (shouldCancel && !(respectProgress && this.nearlyDone(operation))) {
+                this.obsolete(operation, newOperation);
             }
+        }
+    }
 
-            if (shouldCancel) {
-                // Check progress if respectProgress is enabled
-                if (respectProgress && this.runningOperations.has(operation.id)) {
-                    const progress = this.operationProgress.get(operation.id);
-                    if (progress && progress.percent >= PROGRESS_CANCELLATION_THRESHOLD) {
-                        // Don't cancel near-complete operations
-                        continue;
-                    }
-                }
+    /**
+     * Whether a running operation is far enough along that it is not cancelled.
+     * @param operation - The operation.
+     * @returns True when it is running and past the cancellation threshold.
+     */
+    private nearlyDone(operation: Operation): boolean {
+        if (!this.runningOperations.has(operation.id)) {
+            return false;
+        }
 
-                // Cancel the operation
-                const controller = this.activeControllers.get(operation.id);
-                if (controller && !controller.signal.aborted) {
-                    controller.abort();
+        const progress = this.operationProgress.get(operation.id);
+        return progress !== undefined && progress.percent >= PROGRESS_CANCELLATION_THRESHOLD;
+    }
 
-                    // Emit obsolescence event
-                    this.eventManager.emit("operation-obsoleted", {
-                        id: operation.id,
-                        category: operation.category,
-                        reason: `Obsoleted by ${newOperation.category} operation`,
-                        obsoletedBy: newOperation.id,
-                    });
+    /**
+     * Cancel an operation a newer one made obsolete, and settle whoever awaits it.
+     * @param operation - The obsolete operation.
+     * @param newOperation - The operation that made it so.
+     */
+    private obsolete(operation: Operation, newOperation: Operation): void {
+        const controller = this.activeControllers.get(operation.id);
+        if (!controller || controller.signal.aborted) {
+            return;
+        }
 
-                    // Remove from pending/queued
-                    this.pendingOperations.delete(operation.id);
-                    this.queuedOperations.delete(operation.id);
-                    this.currentBatch.delete(operation.id);
+        controller.abort();
 
-                    // AND SETTLE WHOEVER IS AWAITING IT. Aborting the controller stops the work;
-                    // it does not answer the caller. An operation dropped here never reaches
-                    // `executeOperation`, which is the only other place that settles, so without
-                    // this line `await graph.setViewMode("2d")` waits for ever whenever a second
-                    // view-mode switch arrives behind it -- no value, no error, no event the
-                    // caller can see. See `settleResolved` for why it resolves rather than throws.
-                    this.settleResolved(operation);
+        // Emit obsolescence event
+        this.eventManager.emit("operation-obsoleted", {
+            id: operation.id,
+            category: operation.category,
+            reason: `Obsoleted by ${newOperation.category} operation`,
+            obsoletedBy: newOperation.id,
+        });
+
+        // Remove from pending/queued
+        this.pendingOperations.delete(operation.id);
+        this.queuedOperations.delete(operation.id);
+        this.currentBatch.delete(operation.id);
+
+        // AND SETTLE WHOEVER IS AWAITING IT. Aborting the controller stops the work;
+        // it does not answer the caller. An operation dropped here never reaches
+        // `executeOperation`, which is the only other place that settles, so without
+        // this line `await graph.setViewMode("2d")` waits for ever whenever a second
+        // view-mode switch arrives behind it -- no value, no error, no event the
+        // caller can see. See `settleResolved` for why it resolves rather than throws.
+        this.settleResolved(operation);
+    }
+
+    /**
+     * Where an operation is, as {@link OperationQueueManager.liveOf} orders them: 0 pending,
+     * 1 queued, 2 running, or -1 in none of them.
+     * @param id - The operation's id.
+     * @returns The rank.
+     */
+    private rankOf(id: string): number {
+        if (this.pendingOperations.has(id)) {
+            return 0;
+        }
+
+        if (this.queuedOperations.has(id)) {
+            return 1;
+        }
+
+        return this.runningOperations.has(id) ? 2 : -1;
+    }
+
+    /**
+     * The pending, queued and (unless `skipRunning`) running operations of some categories, in the
+     * order the three maps hold them: pending, then queued, then running, each in the order it
+     * entered that map. Drops the index entries of operations that are in none of them.
+     * @param categories - The categories.
+     * @param skipRunning - Whether to leave the running operations out.
+     * @returns The operations.
+     */
+    private liveOf(categories: ReadonlySet<string>, skipRunning: boolean): Operation[] {
+        const found: { operation: Operation; rank: number }[] = [];
+        for (const category of categories) {
+            const operations = this.byCategory.get(category) ?? new Set<Operation>();
+            for (const operation of operations) {
+                const rank = this.rankOf(operation.id);
+                if (rank === -1) {
+                    operations.delete(operation);
+                } else if (rank < 2 || !skipRunning) {
+                    found.push({ operation, rank });
                 }
             }
         }
+
+        const entered = (operation: Operation): number => this.entered.get(operation) ?? 0;
+        found.sort((a, b) => a.rank - b.rank || entered(a.operation) - entered(b.operation));
+        return found.map(({ operation }) => operation);
     }
 
     /**
@@ -450,6 +532,7 @@ export class OperationQueueManager implements Manager {
             const op = this.pendingOperations.get(id);
             if (op) {
                 this.queuedOperations.set(id, op);
+                this.entered.set(op, this.enteredCount++);
             }
 
             this.pendingOperations.delete(id);
@@ -476,11 +559,15 @@ export class OperationQueueManager implements Manager {
                             };
                             await this.executeOperation(operation, context);
                         } finally {
-                            // Cleanup progress and controller after delay
-                            setTimeout(() => {
-                                this.operationProgress.delete(operation.id);
-                                this.activeControllers.delete(operation.id);
+                            // Cleanup progress and controller after delay. Only the id is
+                            // captured: the operation holds its work, and the work the graph.
+                            const { id } = operation;
+                            const timer = setTimeout(() => {
+                                this.cleanupTimers.delete(timer);
+                                this.operationProgress.delete(id);
+                                this.activeControllers.delete(id);
                             }, CLEANUP_DELAY_MS);
+                            this.cleanupTimers.add(timer);
                         }
                     },
                     {
@@ -579,6 +666,7 @@ export class OperationQueueManager implements Manager {
         // Move from queued to running
         this.queuedOperations.delete(operation.id);
         this.runningOperations.set(operation.id, operation);
+        this.entered.set(operation, this.enteredCount++);
 
         this.logger.debug("Operation started", {
             id: operation.id,
@@ -812,6 +900,19 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Whether an operation is queued, about to be, or running: what
+     * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     *
+     * Not an operation held by an open `batchOperations()` callback: it runs only when the batch
+     * closes, so a settle wait made inside the batch that counted it would wait for ever, and
+     * `waitForCompletion` does not wait for it either.
+     * @returns True until the queue is idle.
+     */
+    get hasWork(): boolean {
+        return this.currentBatch.size > 0 || this.queue.size > 0 || this.queue.pending > 0;
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */
@@ -863,6 +964,7 @@ export class OperationQueueManager implements Manager {
         this.pendingOperations.clear();
         this.currentBatch.clear();
         this.runningOperations.clear();
+        this.byCategory.clear();
         this.queuedOperations.clear();
     }
 
@@ -878,8 +980,6 @@ export class OperationQueueManager implements Manager {
      */
     enableBatching(): void {
         this.batchingEnabled = true;
-        // TODO: Operations queued while batching was disabled will be executed
-        // when waitForCompletion() is called
     }
 
     /**

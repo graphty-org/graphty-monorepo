@@ -14,14 +14,15 @@
  * rules that are stronger are answered with a matching selector, noted where they occur.
  */
 import { cmFont } from "../tokens";
+import { ROW_LIT, ROW_UNLIT } from "./00-foundation.css";
 
 const css = `
-/* ---------------------------------------------------------------- 8.1 dark menu */
+/* ---------------------------------------------------------------- 8.1 menu */
 
-/* The dropdown: the foundation's cm-menu-surface (#1e1e1e, radius 13, elevation 400 from the
-   page's scheme, padding 8 0, children dark-scoped) plus the menu's own width floor and the
-   viewport clamp, whose max-height the Menu's size middleware writes. The native scrollbar is
-   hidden, as in Figma. */
+/* The dropdown: the foundation's cm-menu-surface (the page's scheme, or always dark with
+   cm-menu-inverse; radius 13, elevation 400 from the page's scheme, padding 8 0) plus the
+   menu's own width floor and the viewport clamp, whose max-height the Menu's size middleware
+   writes. The native scrollbar is hidden, as in Figma. */
 .cm-menu {
     min-width: 152px;
     overflow-y: auto;
@@ -30,8 +31,8 @@ const css = `
 .cm-menu::-webkit-scrollbar { display: none; }
 
 /* Figma's scroll chevron rows: 24 tall, the menu's fill, a 5 x 3 chevron (the register's
-   chevronUp / chevronDown polyline drawn in a 10px box; white because the menu is dark in both
-   themes). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
+   chevronUp / chevronDown polyline drawn in a 10px box; white on a dark menu, the menu's dark ink
+   on a light one). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
    clamped menu for each end it can still scroll towards, and scrolls it while one is hovered.
    The rows are sticky pseudo elements laid over the first and last visible rows. */
 .cm-menu[data-cm-scroll-up]::before,
@@ -55,6 +56,12 @@ const css = `
     margin-bottom: -8px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E");
 }
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-up]::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,10 8,6 12,10' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-down]::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
+}
 
 /* A mount hook: overlayBehavior.ts listens for these animations' animationstart to see a
    menu or tooltip appear, without observing the whole page. */
@@ -67,15 +74,12 @@ const css = `
 .cm-tooltip { animation: cm-tooltip-mount 1ms; }
 .cm-tooltip:not([data-cm-seen]) { visibility: hidden; }
 
-/* A submenu is rendered inside its parent's dropdown, so the foundation's "children are dark"
-   rule reaches it and would resolve its shadow dark in the light app. Its shadow follows the
-   page like every other menu's. */
-:where([data-mantine-color-scheme="light"]) .cm-menu-surface > .cm-menu-surface { color-scheme: light; }
 /* Menu.Sub draws its dropdown through a Popover, so the dropdown also carries the popover's
-   classes (cm-popover-surface, cm-popover). The menu's dark surface wins. */
+   classes (cm-popover-surface, cm-popover). The menu's surface, and its page shadow, win. */
 .cm-menu-surface.cm-popover-surface {
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
 
@@ -100,6 +104,20 @@ const css = `
     text-overflow: ellipsis;
 }
 
+/* A row with a second line (MenuItemDescription), which Figma never draws: it grows to hold both
+   lines whole (38: 16 + 14 + 4 above and below); the leading and trailing slots stay centered. */
+.cm-menu-item:has(.cm-menu-item-description) {
+    height: auto;
+    padding-block: 4px;
+}
+.cm-menu-item-description {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cm-text-menu-secondary);
+    ${cmFont("caption")}
+}
+
 /* Leading slot: a 24 x 24 icon starts 12px from the menu edge with a 4px gap to the label; the
    16 x 16 check column starts at 16 with no gap (labels 32 from the edge). */
 .cm-menu-item-section {
@@ -122,34 +140,40 @@ const css = `
     height: 24px;
 }
 :where([dir="rtl"]) .cm-menu-chevron { transform: scaleX(-1); }
-.cm-menu-row-check { color: var(--cm-text-menu); }
+.cm-menu-row-check { color: var(--cm-row-ink, var(--cm-text-menu)); }
 
 /* Highlight: pointer (:hover, from the foundation), keyboard (:focus: Mantine moves focus
    through the rows) and an open submenu's parent row. Only one row is ever filled: a row under
-   the pointer takes the highlight from a keyboard-focused one. */
-.cm-menu-item:focus::before,
+   the pointer takes the highlight from a keyboard-focused one. A disabled row never takes it,
+   focused (it stays focusable to show its reason) or hovered. */
+.cm-menu-item:not([data-disabled], :disabled):focus::before,
 .cm-menu-item[aria-expanded="true"]::before {
     background: var(--cm-bg-brand);
 }
+.cm-menu-item:focus,
+.cm-menu-item[aria-expanded="true"] { ${ROW_LIT} }
 .cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"])::before {
     background: transparent;
 }
-.cm-menu-item:is(:hover, :focus, [data-hovered], [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
-    color: var(--cm-text-onbrand-secondary);
-}
-.cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
-    color: var(--cm-text-menu-secondary);
+.cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) { ${ROW_UNLIT} }
+/* The trailing slot (shortcut, chevron) takes the dimmed ink on the highlight. */
+.cm-menu-item-section[data-position="right"] {
+    color: var(--cm-row-ink-secondary, var(--cm-text-menu-secondary));
 }
 .cm-menu-item:where([data-disabled], :disabled)::before { background: transparent; }
+.cm-menu-item:where([data-disabled], :disabled) { ${ROW_UNLIT} }
 .cm-menu-item:where([data-disabled], :disabled) .cm-menu-item-section { color: var(--cm-text-menu-disabled); }
 .cm-menu-item:focus { outline: none; }
 
 /* Danger rows (color="red"): Mantine writes the color into the row's inline --menu-item-color;
    the danger slots replace the menu's. ponytail: keyed on the inline style Mantine writes for
-   color="red"; any other color keeps the menu's white. */
+   color="red"; any other color keeps the menu's ink. */
 .cm-menu-item[style*="--mantine-color-red"] { color: var(--cm-text-danger); }
-.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
-.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) { color: var(--cm-text-onbrand); }
+.cm-menu-item[style*="--mantine-color-red"]:not([data-disabled], :disabled):is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
+.cm-menu-item[style*="--mantine-color-red"]:not([data-disabled], :disabled):is(:hover, :focus, [data-hovered]) {
+    color: var(--cm-text-onsolid);
+    --cm-row-ink-secondary: var(--cm-text-onsolid-secondary);
+}
 
 /* Menu.Label: a group heading in a row of its own, secondary text. */
 .cm-menu-label {
@@ -190,12 +214,15 @@ const css = `
 }
 .cm-tooltip-arrow { border: 0; }
 /* Hidden by overlayBehavior.ts: dismissed (pointer-down, key, wheel, pointer left the window)
-   for the rest of this tooltip's life, or held for the cold delay after a keyboard focus. */
-.cm-tooltip:is([data-cm-dismissed], [data-cm-held]) { visibility: hidden; }
+   for the rest of this tooltip's life, held for the cold delay after a keyboard focus, or still:
+   its trigger came under a resting pointer and nobody has pointed at it yet. */
+.cm-tooltip:is([data-cm-dismissed], [data-cm-held], [data-cm-still]) { visibility: hidden; }
 
 /* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text color. */
 .cm-tooltip-shortcut-row { display: flex; align-items: center; white-space: nowrap; }
 .cm-tooltip-shortcut { margin-inline-start: 12px; color: var(--cm-text-menu-secondary); }
+/* A cut section title's technical name, in the tooltip's own secondary ink. */
+.cm-tooltip .cm-section-technical { color: var(--cm-text-menu-secondary); }
 
 /* ---------------------------------------------------------------- 8.4 light popover */
 
@@ -203,8 +230,12 @@ const css = `
 .cm-popover { padding: 8px; }
 .cm-popover-arrow { border: 0; }
 
-/* The Popout panel. */
-.cm-popout { overflow: hidden; }
+/* The Popout panel. Never taller than the window: the header stays and the body scrolls, so every
+   field can be reached, and focus moving to a field scrolls it into view. */
+/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx). */
+.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 6px); }
+.cm-popout > .cm-popout-header { flex-shrink: 0; }
+.cm-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cm-popout:focus { outline: none; }
 .cm-popout:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 
@@ -265,7 +296,6 @@ const css = `
     --modal-size-md: 480px;
     --modal-size-lg: 760px;
 }
-.cm-modal-overlay { background: var(--cm-modal-backdrop); }
 .cm-modal-content {
     background-color: var(--cm-bg);
     color: var(--cm-text);
@@ -296,8 +326,8 @@ const css = `
     ${cmFont("body")}
 }
 /* ModalFooter: 40 tall across the modal's full width (it cancels the body's 8px 16px padding,
-   leaving Figma's 8px between the last field and the footer),
-   a 1px top divider, buttons end-aligned 8px apart. */
+   leaving Figma's 8px between the last field and the footer), a 1px top divider, buttons
+   end-aligned 8px apart, padding 0 8 0 16 (pm/dialog-file--save-to-version-history). */
 .cm-modal-footer {
     display: flex;
     align-items: center;
@@ -404,6 +434,11 @@ const css = `
 
 /* ---------------------------------------------------------------- 8.7 overlay scrollbar */
 
+/* A ScrollArea that scrolls only up and down (scrollbars="y") is never wider than itself: its
+   content takes the area's width, so a long row ellipsizes instead of widening the content past
+   an edge it cannot scroll to. Mantine sizes that content to its widest row (min-content). */
+.cm-scroll-viewport[data-scrollbars="y"] > div { min-width: 0; }
+
 /* Track 10 wide, padding 2, transparent; shown only while the pointer is over the container.
    Mantine's hover rule is :where(scheme) .m_x:hover (0,2,0) and its thumb rule under it (0,3,0),
    answered with the same weight. */
@@ -447,7 +482,7 @@ const css = `
     background-color: var(--cm-bg-secondary);
     border-radius: 9999px;
 }
-.cm-progress-section { background-color: var(--progress-section-color, var(--cm-bg-brand)); }
+.cm-progress-section { background-color: var(--progress-section-color, var(--cm-graphic-brand)); }
 .cm-progress-label { ${cmFont("caption")} color: var(--cm-text-onbrand); }
 
 /* RingProgress: the track in the field fill and the label in the text color. Mantine sets the

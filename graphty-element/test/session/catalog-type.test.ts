@@ -17,13 +17,16 @@ import type { GraphSession, SessionCatalogApi } from "../../src/session/types";
 const IMPLEMENTED = [
     "algorithms",
     "cameras",
+    "datasets",
     "formats",
+    "generators",
     "layouts",
     "logSinks",
     "metrics",
     "optionsFor",
     "palettes",
     "scales",
+    "screenshotPresets",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
 
 describe("session.catalog", () => {

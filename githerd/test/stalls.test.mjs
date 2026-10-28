@@ -1,14 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
-import { planPages } from "../lib/notify.mjs";
+import { droppableItems, endItem, planPages } from "../lib/notify.mjs";
 import { scanTranscripts } from "../lib/owners.mjs";
-import { stallStep, usageLimitStep } from "../lib/stalls.mjs";
+import { stallStep, usageBackStep, usageLimitStep } from "../lib/stalls.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 // The real stall of graphty-monorepo-2d (githerd's ledger, 2026-10-12): it claimed issue-2071 at
 // 00:52 and issue-467 at 01:08, heard the status question about both at 02:45:21, never answered,
@@ -96,11 +96,13 @@ describe("a session that stops answering githerd", () => {
         expect((await poll(state, at("05:40:00"), "busy")).pages).toHaveLength(1);
     });
 
-    it("does not page when the session called githerd after the question it missed", async () => {
+    it("neither releases nor pages when the session called githerd after the question it missed", async () => {
         const state = held();
         state.sessions[ID].calledAt = at("02:50:00").toISOString();
         const { lines, pages } = await poll(state, at("03:02:05"), "busy");
-        expect(lines.filter((l) => l.kind === "claim-released")).toHaveLength(2);
+        // The call is the session at work, which answers the question (asks.mjs progress).
+        expect(lines.filter((l) => l.kind === "claim-released")).toEqual([]);
+        expect(lines.filter((l) => l.kind === "status-seen")).toHaveLength(2);
         expect(pages).toEqual([]);
     });
 
@@ -163,7 +165,7 @@ describe("the usage limit", () => {
      * @returns {Promise<any>} the transcripts as the daemon keeps them
      */
     async function scanned(quota = { status: "rejected", resetsAt: 1791849600, rateLimitType: "seven_day" }) {
-        const projects = mkdtempSync(join(tmpdir(), "githerd-stalls-"));
+        const projects = tempDir("githerd-stalls-");
         dirs.push(projects);
         const cwd = "/home/u/repo";
         mkdirSync(join(projects, "-home-u-repo"));
@@ -211,6 +213,18 @@ describe("the usage limit", () => {
         ]);
     });
 
+    it("keeps a limit the owner answered until it resets, so it is not raised again, then lets it go", async () => {
+        const state = { transcripts: await scanned() };
+        usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
+        const id = "usage-limit:2026-10-13T00:00:00.000Z";
+        endItem(state, id, "record", new Date("2026-10-10T09:00:00Z"));
+        expect(droppableItems(state)).toEqual([]);
+        expect(usageLimitStep(state, new Date("2026-10-10T12:00:00Z"))).toEqual([]);
+        expect(state.ownerItems[id].endedBy).toBe("record");
+        expect(usageLimitStep(state, new Date("2026-10-13T00:01:00Z"))).toEqual([]);
+        expect(droppableItems(state).map((i) => i.id)).toEqual([id]);
+    });
+
     it("reads the reset from the message when the API gave none", async () => {
         const state = { transcripts: await scanned(null) };
         const lines = usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
@@ -222,6 +236,94 @@ describe("the usage limit", () => {
     it("ignores a limit that already reset", async () => {
         const state = { transcripts: await scanned() };
         expect(usageLimitStep(state, new Date("2026-10-14T00:00:00Z"))).toEqual([]);
+    });
+
+    // 2026-10-13: the owner topped up credits at about 21:45 PDT, hours before the reset; the
+    // sessions stayed parked on "Usage limit reached - Continuing automatically at 1:30am" and the
+    // background agents that died with HTTP 429 waited until someone messaged each session.
+    it("tells the limited sessions and ends the owner item when usage comes back before the reset", async () => {
+        const state = { transcripts: await scanned() };
+        const id = "usage-limit:2026-10-13T00:00:00.000Z";
+        /** @type {{socket: string, text: string}[]} */
+        const sent = [];
+        const transport = {
+            send: async (/** @type {string} */ socket, /** @type {string} */ text) => void sent.push({ socket, text }),
+        };
+        const sessions = [
+            {
+                pid: 1,
+                sessionId: "d2b6",
+                name: "graphty-monorepo-d2",
+                cwd: "/home/u/repo",
+                socket: "/s/d2",
+                status: "idle",
+            },
+            {
+                pid: 2,
+                sessionId: "e7",
+                name: "graphty-monorepo-e7",
+                cwd: "/home/u/repo",
+                socket: "/s/e7",
+                status: "idle",
+            },
+        ];
+        let usable = false;
+        let probes = 0;
+        const probe = async () => (probes++, usable);
+        const step = (/** @type {string} */ iso, acting = true) =>
+            usageBackStep(state, { now: new Date(iso), minutes: MINUTES, sessions, transport, acting, probe });
+
+        usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
+        // Still limited: the probe fails, nothing is told, the item stays open.
+        expect(await step("2026-10-10T08:35:00Z")).toEqual([{ kind: "usage-probe", back: false }]);
+        // No second probe within the status cadence.
+        expect(await step("2026-10-10T08:45:00Z")).toEqual([]);
+        expect(probes).toBe(1);
+        expect(state.ownerItems[id].endedAt).toBeUndefined();
+
+        // The owner restores usage; the next probe succeeds hours before the reset.
+        usable = true;
+        expect(await step("2026-10-10T08:51:00Z")).toEqual([
+            { kind: "usage-back", resets: ["2026-10-13T00:00:00.000Z"], sent: ["graphty-monorepo-d2"], failed: [] },
+        ]);
+        expect(sent).toEqual([{ socket: "/s/d2", text: expect.stringContaining("usage limit is over") }]);
+        expect(state.ownerItems[id]).toMatchObject({ endedBy: "cleared" });
+        expect(droppableItems(state).map((i) => i.id)).toEqual([id]);
+
+        // The same limit is not raised or told again, even once its item is dropped.
+        delete state.ownerItems[id];
+        expect(usageLimitStep(state, new Date("2026-10-10T09:30:00Z"))).toEqual([]);
+        expect(await step("2026-10-10T09:30:00Z")).toEqual([]);
+        expect(probes).toBe(2);
+
+        // A new limit later pages again and is probed again.
+        state.transcripts.d2b6.limit = { ...state.transcripts.d2b6.limit, at: "2026-10-11T10:00:00.000Z" };
+        expect(usageLimitStep(state, new Date("2026-10-11T10:01:00Z"))).toEqual([
+            { kind: "usage-limit-seen", session: "graphty-monorepo-d2", resets: "2026-10-13T00:00:00.000Z" },
+        ]);
+        usable = false;
+        expect(await step("2026-10-11T10:01:00Z")).toEqual([{ kind: "usage-probe", back: false }]);
+    });
+
+    it("only says whom it would tell in dry-run", async () => {
+        const state = { transcripts: await scanned() };
+        usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
+        const transport = { send: async () => expect.unreachable() };
+        const sessions = [
+            { pid: 1, sessionId: "d2b6", name: "graphty-monorepo-d2", cwd: "/r", socket: "/s", status: null },
+        ];
+        const lines = await usageBackStep(state, {
+            now: new Date("2026-10-10T08:40:00Z"),
+            minutes: MINUTES,
+            sessions,
+            transport,
+            acting: false,
+            probe: async () => true,
+        });
+        expect(lines).toEqual([
+            { kind: "would-do", group: "workers", op: "tell 1 session(s) the usage limit is over" },
+            { kind: "usage-back", resets: ["2026-10-13T00:00:00.000Z"], sent: [], failed: [] },
+        ]);
     });
 
     it("raises no stall for a session silenced by the limit", async () => {

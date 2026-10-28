@@ -19,6 +19,7 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
@@ -68,9 +69,7 @@ async function atRest(graph: Graph): Promise<void> {
         await nextFrame();
     }
 
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**
@@ -302,5 +301,28 @@ describe("the element's layout properties", () => {
 
         await session.undo();
         assert.strictEqual(element.layout, undefined, "one undo takes both back to the default");
+    });
+
+    it("a catalog id names the layout and its default engine draws it", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.layout = "force";
+        element.layoutConfig = { seed: 1 };
+        document.body.appendChild(element);
+        cleanups.push(() => {
+            element.remove();
+        });
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        const { session } = element;
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+
+        assert.strictEqual(session.layout.id, "force");
+        assert.strictEqual(session.layout.engine, "ngraph");
+        assert.deepEqual(session.layout.options, { seed: 1 });
     });
 });

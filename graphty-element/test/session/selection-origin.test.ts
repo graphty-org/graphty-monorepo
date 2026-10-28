@@ -80,3 +80,54 @@ describe("session.selection.origin", () => {
         session.dispose();
     });
 });
+
+describe("session.selection.originPaths", () => {
+    it("names the columns a rule tested, while the selection is still that rule", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }, { id: "Park" }]);
+        await session.data.addEdges([
+            { source: "Station", target: "Stadium", minutes: 7 },
+            { source: "Stadium", target: "Park", minutes: 3 },
+        ]);
+        assert.deepStrictEqual([...session.selection.originPaths], []);
+
+        await session.selection.apply({ text: "=minutes > `5`" });
+        assert.strictEqual(session.selection.edges.length, 1);
+        assert.deepStrictEqual([...session.selection.originPaths], ["data.minutes"]);
+
+        await session.selection.apply({ where: "minutes < `5`" });
+        assert.deepStrictEqual([...session.selection.originPaths], ["data.minutes"]);
+
+        await session.selection.apply({ nodes: ["Park"] });
+        assert.deepStrictEqual([...session.selection.originPaths], [], "not a rule");
+        session.dispose();
+    });
+});
+
+describe("selection:origin-changed", () => {
+    it("tells subscribers when a rule selects exactly what is already selected", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }, { id: "Park" }]);
+        await session.data.addEdges([
+            { source: "Station", target: "Stadium", minutes: 12 },
+            { source: "Stadium", target: "Park", minutes: 3 },
+        ]);
+        const membership: number[] = [];
+        const origins: unknown[] = [];
+        session.on("selection:changed", (delta) => membership.push(delta.edges));
+        session.on("selection:origin-changed", ({ origin }) => origins.push(origin));
+
+        await session.selection.apply({ text: "=minutes >= `10`" });
+        assert.deepStrictEqual(membership, [1]);
+        assert.deepStrictEqual(origins, [], "the members moved, so selection:changed said it");
+
+        await session.selection.apply({ text: "=minutes > `9`" });
+        assert.deepStrictEqual(session.selection.origin, { text: "=minutes > `9`" });
+        assert.deepStrictEqual(membership, [1], "no member moved");
+        assert.deepStrictEqual(origins, [{ text: "=minutes > `9`" }]);
+
+        await session.selection.apply({ text: "=minutes > `9`" });
+        assert.strictEqual(origins.length, 1, "the same rule again changes nothing");
+        session.dispose();
+    });
+});

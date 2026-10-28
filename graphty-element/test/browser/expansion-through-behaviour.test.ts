@@ -33,7 +33,8 @@ function doubleClick(graph: Graph, id: string): void {
     const action = actions.find((candidate) => candidate.trigger === ActionManager.OnDoublePickTrigger);
 
     assert.isDefined(action, "double-clicking a node does something");
-    (action as unknown as { execute?: () => void }).execute?.();
+    // The action is shared by every node of the scene and reads the node from the picked mesh.
+    (action as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
 }
 
 describe("expansion switched on through the element's own behaviour setting", () => {

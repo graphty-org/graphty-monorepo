@@ -27,8 +27,10 @@ import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
     PatternedLineRenderer,
+    type PatternShapeType,
     type PatternType,
 } from "./PatternedLineRenderer";
+import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
 
 /**
  * Centre-to-centre distance between two consecutive elements of a discrete pattern.
@@ -165,6 +167,25 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
     return offsets;
 }
 
+/** How a patterned line looks: everything but its pattern, its endpoints and its scene. */
+export interface PatternedLineOptions {
+    /** Line width. */
+    width: number;
+    /** Line color. */
+    color: string;
+    /** Line opacity (0-1). */
+    opacity: number;
+    /** Whether to use 2D mode rendering; default false. */
+    is2DMode?: boolean | undefined;
+    /** Explicit element count from `line.patternCount`; omit to follow the spacing rule. */
+    patternCount?: number | undefined;
+    /**
+     * A sinewave's or zigzag's own swing and period, in world units (`line.waveAmplitude`,
+     * `line.wavePeriod`); omit to draw the wave within the width.
+     */
+    wave?: WaveShape | undefined;
+}
+
 /**
  * Manages pattern meshes for a single edge line with adaptive mesh density
  */
@@ -184,6 +205,12 @@ export class PatternedLineMesh {
     private readonly is2DMode: boolean;
     /** Explicit element count from `line.patternCount`; undefined means follow the spacing rule. */
     private readonly patternCount: number | undefined;
+    /** A wave's own swing and period, for a sinewave or zigzag that has them. */
+    readonly wave: WaveShape | undefined;
+    /** How much of its period each element of a wave with a period of its own draws, in order. */
+    private stretches: ZigzagPiece[] = [];
+    /** Where the line was last laid: its start, its direction and its length. */
+    private laidAt: { start: Vector3; direction: Vector3; length: number } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
@@ -206,31 +233,18 @@ export class PatternedLineMesh {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line
      * @param end - Ending point of the line
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Whether to use 2D mode rendering
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode and pattern count
      */
-    constructor(
-        pattern: PatternType,
-        start: Vector3,
-        end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-        is2DMode = false,
-        patternCount?: number,
-    ) {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions) {
         this.pattern = pattern;
         this.scene = scene;
-        this.width = width;
-        this.color = color;
-        this.opacity = opacity;
-        this.is2DMode = is2DMode;
-        this.patternCount = patternCount;
+        this.width = options.width;
+        this.color = options.color;
+        this.opacity = options.opacity;
+        this.is2DMode = options.is2DMode ?? false;
+        this.patternCount = options.patternCount;
+        this.wave = PATTERN_DEFINITIONS[pattern].connected ? options.wave : undefined;
 
         this.createInitialMeshes(start, end);
     }
@@ -250,9 +264,13 @@ export class PatternedLineMesh {
 
         const newLength = Vector3.Distance(start, end);
         this.lineDirection = end.subtract(start).normalize();
+        this.laidAt = { start: start.clone(), direction: this.lineDirection.clone(), length: newLength };
 
-        // Adaptive density: adjust mesh count if needed
-        if (this.needsMeshCountAdjustment(newLength)) {
+        // Adaptive density: adjust mesh count if needed. A wave with a period of its own has exactly
+        // the periods that fit, as Cytoscape desktop draws it.
+        if (this.wave !== undefined) {
+            this.fitWave(newLength);
+        } else if (this.needsMeshCountAdjustment(newLength)) {
             this.adjustMeshCount(newLength);
         }
 
@@ -287,8 +305,9 @@ export class PatternedLineMesh {
      * @param lineLength - Total length of the line
      */
     private clipLastSegment(lineLength: number): void {
-        // Clipping only applies to 3D mode (the clip is the billboard shader's)
-        if (this.is2DMode) {
+        // Clipping only applies to 3D mode (the clip is the billboard shader's). A wave with a period
+        // of its own runs its last period past the line's end, as Cytoscape desktop draws it.
+        if (this.is2DMode || this.wave !== undefined) {
             return;
         }
 
@@ -326,11 +345,16 @@ export class PatternedLineMesh {
         this.lineDirection = end.subtract(start).normalize();
 
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
-        const meshCount = this.calculateOptimalMeshCount(length, patternDef);
+        this.laidAt = { start: start.clone(), direction: this.lineDirection.clone(), length };
+        if (this.wave !== undefined) {
+            this.fitWave(length);
+        } else {
+            const meshCount = this.calculateOptimalMeshCount(length, patternDef);
 
-        // Phase 3: Create elements with alternating shapes for multi-shape patterns
-        for (let i = 0; i < meshCount; i++) {
-            this.elements.push(this.createPatternElement(i));
+            // Phase 3: Create elements with alternating shapes for multi-shape patterns
+            for (let i = 0; i < meshCount; i++) {
+                this.elements.push(this.createPatternElement(i));
+            }
         }
 
         this.placeElements(start, end);
@@ -471,9 +495,11 @@ export class PatternedLineMesh {
         const meshCount = this.elements.length;
         const positions: Vector3[] = [];
 
-        // Position segments at fixed 0.75 intervals (same geometry for all)
+        // Position segments at fixed 0.75 intervals (same geometry for all), or a period apart for a
+        // wave with a period of its own
+        const step = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
         for (let i = 0; i < meshCount; i++) {
-            const distance = i * PatternedLineMesh.SEGMENT_LENGTH;
+            const distance = i * step;
             positions.push(start.add(direction.scale(distance)));
         }
 
@@ -523,7 +549,8 @@ export class PatternedLineMesh {
                 // These have 1:1 aspect ratio: rendered size = width
                 return this.width;
             default:
-                return this.width;
+                // a glyph is spaced by its aspect ratio in widths (an arrow, a chevron, two bars: 2)
+                return this.width * aspectRatio;
         }
     }
 
@@ -535,6 +562,10 @@ export class PatternedLineMesh {
      * @returns Optimal number of meshes for the line
      */
     private calculateOptimalMeshCount(lineLength: number, patternDef: PatternDefinition): number {
+        if (patternDef.connected && this.wave !== undefined) {
+            return this.waveStretches(lineLength).length;
+        }
+
         if (patternDef.connected) {
             // A connected pattern (zigzag, sinewave) tiles seamlessly, so its count follows the
             // fixed segment length; the last segment is clipped to the remainder (clipLastSegment).
@@ -550,16 +581,90 @@ export class PatternedLineMesh {
     }
 
     /**
+     * The pieces of a wave with a period of its own over a line's length, as Cytoscape desktop draws
+     * it: a sine wave's whole periods centered a period apart from the start while one still starts on
+     * the line; a zigzag's turns a half period apart from a quarter period on while they fit, two to a
+     * period, its last piece stopping at its last turn and the line capped square at both ends.
+     * @param length - The line's length.
+     * @returns How much of its period each piece draws, and its caps.
+     */
+    private waveStretches(length: number): ZigzagPiece[] {
+        const period = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
+        if (this.pattern === "sinewave") {
+            return Array.from({ length: Math.floor(length / period) + 1 }, () => ({ stretch: "period" }));
+        }
+
+        const turns = length >= period / 4 ? Math.floor((length - period / 4) / (period / 2)) + 1 : 1;
+        const count = Math.ceil(turns / 2);
+        const end: ZigzagPiece["stretch"] = turns % 2 === 1 ? "first-turn" : "second-turn";
+        return Array.from({ length: count }, (_unused, i) => ({
+            stretch: i < count - 1 ? "period" : end,
+            startCap: i === 0,
+            endCap: i === count - 1,
+        }));
+    }
+
+    /**
+     * Make this wave's elements the pieces its length holds, replacing any drawn as another piece.
+     * @param length - The line's length.
+     */
+    private fitWave(length: number): void {
+        const wanted = this.waveStretches(length);
+        while (this.elements.length > wanted.length) {
+            this.elements.pop()?.dispose();
+        }
+        wanted.forEach((piece, i) => {
+            const held = this.stretches.at(i);
+            if (i < this.elements.length && held !== undefined && zigzagPieceKey(held) === zigzagPieceKey(piece)) {
+                return;
+            }
+            const element = this.createPatternElement(i, piece);
+            if (i < this.elements.length) {
+                this.elements[i].dispose();
+                this.elements[i] = element;
+            } else {
+                this.elements.push(element);
+            }
+        });
+        this.stretches = wanted;
+    }
+
+    /**
+     * Where a wave with a period of its own runs, end to end along its line as it was last laid: from
+     * the near end of its first piece to the far end of its last, as drawn (a sine wave's first period
+     * is centered on the line's start; a zigzag's last piece stops at its last turn, capped).
+     * @returns The two ends, or null for any other line.
+     */
+    drawnEnds(): [Vector3, Vector3] | null {
+        const first = this.stretches.at(0);
+        const last = this.stretches.at(-1);
+        if (this.wave === undefined || this.laidAt === null || first === undefined || last === undefined) {
+            return null;
+        }
+
+        const { start, direction } = this.laidAt;
+        const { wave } = this;
+        const along = (piece: ZigzagPiece): number[] => {
+            const { inner, outer } = PatternedLineRenderer.wavePiece(this.pattern, this.width, wave, piece);
+            return [...inner, ...outer].map(([x]) => x);
+        };
+        const from = Math.min(...along(first));
+        const to = (this.stretches.length - 1) * wave.period + Math.max(...along(last));
+        return [start.add(direction.scale(from)), start.add(direction.scale(to))];
+    }
+
+    /**
      * Create a single pattern element
      * Phase 3: Updated to handle alternating patterns via element index
      * @param meshIndex - Index of the element in the sequence (for alternating patterns)
+     * @param piece - How much of its period a wave's element draws, and its caps
      * @returns The element: a slot in its shape's batch
      */
-    private createPatternElement(meshIndex: number): ArrowCap {
+    private createPatternElement(meshIndex: number, piece: ZigzagPiece = WHOLE_PERIOD): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
         // Phase 3: For multi-shape patterns, determine which shape to use based on index
-        let shapeType: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment" | undefined;
+        let shapeType: PatternShapeType | undefined;
 
         if (patternDef.shapes.length > 1) {
             // Alternating pattern: use modulo to cycle through shapes
@@ -574,8 +679,7 @@ export class PatternedLineMesh {
             this.color,
             this.opacity,
             this.scene,
-            shapeType,
-            this.is2DMode,
+            { shapeType, is2DMode: this.is2DMode, wave: this.wave, piece },
         );
     }
 }

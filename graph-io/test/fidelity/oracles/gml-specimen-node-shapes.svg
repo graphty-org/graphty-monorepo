@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g />
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="92.222200000000001" y="426" width="20" height="20" fill="#FFFFFF" stroke-width="1.000000px" stroke="#000000" />
+		<text x="102.2222" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="58.722200000000001" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="102.2222" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<rect x="208.66669999999999" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="226.66669999999999" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="198.66669999999999" y="469.5" width="56" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="226.66669999999999" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=arc</text>
+	</g>
+	<g>
+		<rect x="333.11110000000002" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="351.11110000000002" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="314.11110000000002" y="469.5" width="74" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="351.11110000000002" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=bitmap</text>
+	</g>
+	<g>
+		<rect x="457.55560000000003" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="475.55560000000003" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="441.55560000000003" y="469.5" width="68" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="475.55560000000003" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=image</text>
+	</g>
+	<g>
+		<rect x="582" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="569" y="469.5" width="62" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=line</text>
+	</g>
+	<g>
+		<rect x="706.44439999999997" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="724.44439999999997" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="693.44439999999997" y="469.5" width="62" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="724.44439999999997" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=oval</text>
+	</g>
+	<g>
+		<rect x="830.88890000000004" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="848.88890000000004" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="808.88890000000004" y="469.5" width="80" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="848.88890000000004" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=polygon</text>
+	</g>
+	<g>
+		<rect x="955.33330000000001" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="973.33330000000001" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="926.83330000000001" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="973.33330000000001" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=rectangle</text>
+	</g>
+	<g>
+		<rect x="1079.7778000000001" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1097.7778000000001" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1066.7778000000001" y="469.5" width="62" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="1097.7778000000001" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">type=text</text>
+	</g>
+</svg>

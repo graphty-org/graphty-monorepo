@@ -1,3 +1,351 @@
+## 0.8.92 (2026-10-21)
+
+### 🚀 Features
+
+- **graphty:** drop the Start here chip from the Analyze list ([e8daf9796](https://github.com/graphty-org/graphty-monorepo/commit/e8daf9796))
+- **graphty:** leave out the samples graphty-element cannot open, and show licenses as attribution ([9e9d3bf96](https://github.com/graphty-org/graphty-monorepo/commit/9e9d3bf96))
+- **graphty:** start page marks the focused node with the selection halo ([6de9afaf9](https://github.com/graphty-org/graphty-monorepo/commit/6de9afaf9))
+- **graphty-element:** node.halo channels draw the selection halo on any node a layer picks ([49c96397e](https://github.com/graphty-org/graphty-monorepo/commit/49c96397e))
+- **graphty:** add a label or a card from the Label "+", the card as one row with a settings popover ([9e60d0d68](https://github.com/graphty-org/graphty-monorepo/commit/9e60d0d68))
+- **graphty:** draw the start page's hero graph nodes 1.6 times larger ([8d2ce8572](https://github.com/graphty-org/graphty-monorepo/commit/8d2ce8572))
+- **graphty:** show graph-samples' picture on every start page sample and generator tile ([2d46b562e](https://github.com/graphty-org/graphty-monorepo/commit/2d46b562e))
+- **graphty:** every sample dataset and every generator in the start page's library ([88e1849ba](https://github.com/graphty-org/graphty-monorepo/commit/88e1849ba))
+- **graphty-element:** load a generated graph or a sample dataset by name ([d1a66f391](https://github.com/graphty-org/graphty-monorepo/commit/d1a66f391))
+- **graphty:** choose a plain label or a card, and edit what the card shows ([7d3807ff6](https://github.com/graphty-org/graphty-monorepo/commit/7d3807ff6))
+- **graphty:** start page shows key players and shortest path together, and sample pictures ([984be3595](https://github.com/graphty-org/graphty-monorepo/commit/984be3595))
+- **graphty-element:** lay graphs out with Graphviz engines in WebAssembly ([13b699bee](https://github.com/graphty-org/graphty-monorepo/commit/13b699bee))
+- **compact-mantine:** menus follow the page theme, with an opt-in inverse variant ([#1](https://github.com/graphty-org/graphty-monorepo/issues/1), [#0768](https://github.com/graphty-org/graphty-monorepo/issues/0768), [#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+- **graphty:** the start page matches the approved mock on the real element ([8ef858481](https://github.com/graphty-org/graphty-monorepo/commit/8ef858481))
+- **graphty:** autosave in the workspace ([6d283be41](https://github.com/graphty-org/graphty-monorepo/commit/6d283be41))
+- **graphty-element:** list and delete autosaved work without an element ([3421bd441](https://github.com/graphty-org/graphty-monorepo/commit/3421bd441))
+- **graph-io:** the Cypher source for Neo4j and Neptune (experimental) ([fe4858f9e](https://github.com/graphty-org/graphty-monorepo/commit/fe4858f9e))
+- **graphty-element:** load from network sources through the session (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graphty-element:** network source seams (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graphty:** the start page, over a live graph drawn by graphty-element ([5fdee5854](https://github.com/graphty-org/graphty-monorepo/commit/5fdee5854))
+- **graphty:** show the selected node as a card label by default ([9a2dc9c96](https://github.com/graphty-org/graphty-monorepo/commit/9a2dc9c96))
+- **graphty-element:** scaffold the card-label options and hooks ([501fb0551](https://github.com/graphty-org/graphty-monorepo/commit/501fb0551))
+- **graphty:** add the GPU acceleration setting to the workspace's Settings ([f98c03a63](https://github.com/graphty-org/graphty-monorepo/commit/f98c03a63))
+- **graphty:** show the graphty logo, favicon, app icons and link previews ([#2971](https://github.com/graphty-org/graphty-monorepo/issues/2971))
+- **graphty:** keep the reader's work with graphty-element's autosave ([4dbdf51fe](https://github.com/graphty-org/graphty-monorepo/commit/4dbdf51fe))
+
+### 🩹 Fixes
+
+- **graphty:** draw the start page's graph on demand, and wait for the bar's algorithm count ([#1943](https://github.com/graphty-org/graphty-monorepo/issues/1943))
+- **graphty:** draw the start page's still graph only when it changes ([#1943](https://github.com/graphty-org/graphty-monorepo/issues/1943))
+- **workspace:** clear the SonarQube findings golden picked up ([c89ebf4be](https://github.com/graphty-org/graphty-monorepo/commit/c89ebf4be))
+- **graphty:** make the start page's Storybook captures the same every time ([57b222e6e](https://github.com/graphty-org/graphty-monorepo/commit/57b222e6e))
+- **graphty-element:** keep a flat node's halo visible while a solid's draws only its far side ([b56fcc3cc](https://github.com/graphty-org/graphty-monorepo/commit/b56fcc3cc))
+- **graphty:** stop adding a card layer to every project ([03e953185](https://github.com/graphty-org/graphty-monorepo/commit/03e953185))
+- **graphty:** return focus to Card settings at once when Escape closes it ([a53f23a53](https://github.com/graphty-org/graphty-monorepo/commit/a53f23a53))
+- **graphty-element:** draw a layer's halo while the selection's own halo is hidden ([53b881ebc](https://github.com/graphty-org/graphty-monorepo/commit/53b881ebc))
+- **graphty:** read the sample library's datasets and generators from graphty-element ([2dc5ecd34](https://github.com/graphty-org/graphty-monorepo/commit/2dc5ecd34))
+- **graphty-element:** declare neo4j-driver as an optional peer ([ea9d70521](https://github.com/graphty-org/graphty-monorepo/commit/ea9d70521))
+- **graphty:** drop Memgraph from the start page's network sources ([#3174](https://github.com/graphty-org/graphty-monorepo/issues/3174))
+- **graphty:** the sample library's view and field controls are fieldsets ([b5339fc5b](https://github.com/graphty-org/graphty-monorepo/commit/b5339fc5b))
+- **graphty:** start page dry-run fixes: sharp graph, iPad bar, library fields, neutral nodes ([3b0118f23](https://github.com/graphty-org/graphty-monorepo/commit/3b0118f23))
+- **graphty:** sample library intro names what is in it; test the analysis names by their label style ([399777813](https://github.com/graphty-org/graphty-monorepo/commit/399777813))
+- **graphty:** the start page's bar of facts is an aside, not a second footer ([1ca73a6b7](https://github.com/graphty-org/graphty-monorepo/commit/1ca73a6b7))
+- **graphty:** start page dry-run fixes: names on top, library search, footer, sticky header ([b17ee910b](https://github.com/graphty-org/graphty-monorepo/commit/b17ee910b))
+- **graphty:** start page feedback: shortest path, iPad bar, sample library, theme toggle, scrolling ([dacc1ef18](https://github.com/graphty-org/graphty-monorepo/commit/dacc1ef18))
+- **graphty-element:** draw outlines by depth and no focus ring for pointer focus ([e8546ecf5](https://github.com/graphty-org/graphty-monorepo/commit/e8546ecf5))
+- **graphty:** set the start page graph's framing and halo as element attributes ([8cc6593b8](https://github.com/graphty-org/graphty-monorepo/commit/8cc6593b8))
+- **graphty:** the start page's graph, card and type match the approved mock ([133c9c143](https://github.com/graphty-org/graphty-monorepo/commit/133c9c143))
+- **graphty:** color three more status inks with the text inks ([#3057](https://github.com/graphty-org/graphty-monorepo/issues/3057))
+- **graphty:** color three more status lines with the text inks (Fixes #3032) ([#3032](https://github.com/graphty-org/graphty-monorepo/issues/3032), [#2](https://github.com/graphty-org/graphty-monorepo/issues/2))
+- **graphty:** stamp graphty-element's version into the app build ([934568926](https://github.com/graphty-org/graphty-monorepo/commit/934568926))
+- **graphty:** word the NODE_SIZE_LABEL file style reason ([#2660](https://github.com/graphty-org/graphty-monorepo/issues/2660))
+- **graphty:** split the entry chunk so the build fits the default heap ([#2563](https://github.com/graphty-org/graphty-monorepo/issues/2563))
+- **graphty:** split the entry chunk so the build fits the default heap ([#2606](https://github.com/graphty-org/graphty-monorepo/issues/2606))
+- **graphty:** word the END_NODES_COLOR and FILL_BORDER file style reasons ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+- **graph-io:** round Cytoscape's integer properties and paint Graphviz's default background white ([#2497](https://github.com/graphty-org/graphty-monorepo/issues/2497))
+- **graphty-element:** autosave keeps edits made while a page load settles ([cd57abc99](https://github.com/graphty-org/graphty-monorepo/commit/cd57abc99))
+- **graphty-element:** autosave survives long frames and browser-aborted transactions ([2b1d1473d](https://github.com/graphty-org/graphty-monorepo/commit/2b1d1473d))
+
+### 🔥 Performance
+
+- **graphty:** keep Babylon.js, the project frame and the old shell out of the first load ([5e8f3c0c1](https://github.com/graphty-org/graphty-monorepo/commit/5e8f3c0c1))
+- **graphty:** define graphty-element after the first frame ([dea5bd4ca](https://github.com/graphty-org/graphty-monorepo/commit/dea5bd4ca))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.61
+- Updated compact-mantine to 0.9.33
+- Updated graphty-element to 3.30.0
+- Updated graph-samples to 0.1.39
+- Updated graph-format to 1.4.7
+- Updated graph-io to 0.3.48
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.91 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.60
+- Updated compact-mantine to 0.9.32
+- Updated graphty-element to 3.29.3
+- Updated graph-samples to 0.1.38
+- Updated graph-format to 1.4.6
+- Updated graph-io to 0.3.47
+
+## 0.8.90 (2026-10-19)
+
+### 🩹 Fixes
+
+- **graphty:** split the entry chunk so the build fits the default heap ([#2606](https://github.com/graphty-org/graphty-monorepo/issues/2606))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.29.2
+- Updated graph-io to 0.3.46
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.89 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty:** use the graphty brand accent ([#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.31
+- Updated graphty-element to 3.29.1
+- Updated graph-io to 0.3.45
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.88 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty-element:** draw overlapping file nodes in the file's own order ([6200b61ba](https://github.com/graphty-org/graphty-monorepo/commit/6200b61ba))
+- **graphty-element:** draw edges through bends with the edge.bends channel ([8ebc4190d](https://github.com/graphty-org/graphty-monorepo/commit/8ebc4190d))
+- **graphty-element:** draw file group nodes behind their members with node.zIndex ([b1332a531](https://github.com/graphty-org/graphty-monorepo/commit/b1332a531))
+- **graphty:** name and offer the new node width, height, depth, planar and border channels ([f36607b25](https://github.com/graphty-org/graphty-monorepo/commit/f36607b25))
+- **graph-io:** draw a Gephi edge with no thickness as thick as its weight ([cff1c0b23](https://github.com/graphty-org/graphty-monorepo/commit/cff1c0b23))
+- **graphty:** warn before an export loses the graph's styles ([cc4367ee8](https://github.com/graphty-org/graphty-monorepo/commit/cc4367ee8))
+- **graphty:** a preference to import styles from files, on every load path ([7d15a07c7](https://github.com/graphty-org/graphty-monorepo/commit/7d15a07c7))
+- **graphty-element:** bindable label fields, label styles merged in explain() ([a5037638a](https://github.com/graphty-org/graphty-monorepo/commit/a5037638a))
+
+### 🩹 Fixes
+
+- **graphty-element:** cap a file's rounded corners so large groups keep small ones ([c6aefbdbc](https://github.com/graphty-org/graphty-monorepo/commit/c6aefbdbc))
+- **graphty-element:** read JSON node positions through the shared file-positions path ([578a6f627](https://github.com/graphty-org/graphty-monorepo/commit/578a6f627))
+- **graphty:** tell the reader what a file's styles lost, and never offer to save a refused file ([6004b0323](https://github.com/graphty-org/graphty-monorepo/commit/6004b0323))
+- **graphty:** save every format from the export's bytes and word refusals from their codes ([15fde8de4](https://github.com/graphty-org/graphty-monorepo/commit/15fde8de4))
+- **graphty:** name a style only graphty draws by its channel's name in the export warning ([72d998ac7](https://github.com/graphty-org/graphty-monorepo/commit/72d998ac7))
+- **graphty-element:** report no style loss for what only the element's base layers draw ([e0927dd89](https://github.com/graphty-org/graphty-monorepo/commit/e0927dd89))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated compact-mantine to 0.9.30
+- Updated graphty-element to 3.29.0
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated graph-io to 0.3.44
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.87 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.29
+- Updated graphty-element to 3.28.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.86 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated compact-mantine to 0.9.28
+- Updated graphty-element to 3.28.6
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated graph-io to 0.3.43
+
+## 0.8.85 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.27
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.84 (2026-10-17)
+
+### 🚀 Features
+
+- **graphty:** open the workspace by default ([#3056](https://github.com/graphty-org/graphty-monorepo/issues/3056))
+
+### 🩹 Fixes
+
+- **graphty:** show copy feedback at once, and let Enter on Copy all copy ([2b67499c0](https://github.com/graphty-org/graphty-monorepo/commit/2b67499c0))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graphty-element to 3.28.5
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated graph-io to 0.3.42
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.83 (2026-10-16)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.26
+
+## 0.8.82 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** apply a held-back mark suggestion with styles.mark() ([6d56a198c](https://github.com/graphty-org/graphty-monorepo/commit/6d56a198c))
+- **graphty:** keep focus where a panel More row moved it ([#2950](https://github.com/graphty-org/graphty-monorepo/issues/2950))
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+- **graphty:** keep the device-lost toast clear of the activity rail ([#2949](https://github.com/graphty-org/graphty-monorepo/issues/2949))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.25
+- Updated graphty-element to 3.28.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.81 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** color canvas strip action text with the brand text token ([#2948](https://github.com/graphty-org/graphty-monorepo/issues/2948))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.80 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated compact-mantine to 0.9.24
+- Updated graphty-element to 3.28.2
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated graph-io to 0.3.41
+
+## 0.8.79 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.1
+
+## 0.8.78 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.0
+
+## 0.8.77 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty:** offer the node size mode in the Style tab ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty:** pivot the camera on the selected nodes ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graphty-element to 3.27.0
+- Updated graph-samples to 0.1.33
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.76 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty:** split the entry chunk so the build fits the default heap ([#2563](https://github.com/graphty-org/graphty-monorepo/issues/2563))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated compact-mantine to 0.9.23
+- Updated graphty-element to 3.26.0
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated graph-io to 0.3.40
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.75 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+- Updated graphty-element to 3.25.8
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated graph-io to 0.3.39
+
+## 0.8.74 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.25.7
+
+## 0.8.73 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated graphty-element to 3.25.6
+
+## 0.8.72 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated graphty-element to 3.25.5
+
 ## 0.8.71 (2026-10-13)
 
 ### 🩹 Fixes

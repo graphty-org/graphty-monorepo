@@ -1,15 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ComboInput } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 
 /**
  * A value you can type or pick from a list of presets: a filled 24px field with a chevron that
- * opens a dark list over the field, the current value sitting exactly on top of it. Figma uses it
+ * opens a list over the field, the current value sitting exactly on top of it. Figma uses it
  * for font size, auto-layout width and height ("Hug"), gap and export scale.
  *
  * ## When to use it
@@ -60,7 +61,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * |---|---|
  * | Field | 24px tall, filled, radius 5px, 88px wide by default (`width`) |
  * | Chevron slot | 24px; 25px with `divided` (a 1px divider in the panel color) |
- * | List | dark in both schemes, 24px rows, opens over the field with the current value on it |
+ * | List | follows the page scheme, 24px rows, opens over the field with the current value on it |
  */
 const meta: Meta<typeof ComboInput> = {
     title: "Components/Inputs/ComboInput",
@@ -151,21 +152,22 @@ export const OpenOverTheField: Story = {
         const box = canvas.getByRole("combobox", { name: "Font size" });
         await userEvent.click(canvas.getByRole("button", { name: "Open list" }));
         const body = within(canvasElement.ownerDocument.body);
-        const checked = await body.findByRole("option", { name: "24" });
-        await waitFor(() => {
-            const { top } = checked.getBoundingClientRect();
-            const field = box.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0;
-            return expect(Math.abs(top - field)).toBeLessThanOrEqual(1);
-        });
+        const checked = await body.findByRole("option", { name: "24" }, storyWaitOptions(1000));
+        // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
+        const offset = (option: HTMLElement): number =>
+            Math.abs(
+                option.getBoundingClientRect().top -
+                    (box.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0),
+            );
+        await untilPasses(() => offset(checked) <= 1);
+        await expect(offset(checked)).toBeLessThanOrEqual(1);
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await expect(box).toHaveValue("32");
         // Reopen, so the story rests on the open list with the new value's row over the field.
         await userEvent.click(canvas.getByRole("button", { name: "Open list" }));
-        const now = await body.findByRole("option", { name: "32" });
-        await waitFor(() => {
-            const field = box.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0;
-            return expect(Math.abs(now.getBoundingClientRect().top - field)).toBeLessThanOrEqual(1);
-        });
+        const now = await body.findByRole("option", { name: "32" }, storyWaitOptions(1000));
+        await untilPasses(() => offset(now) <= 1);
+        await expect(offset(now)).toBeLessThanOrEqual(1);
     },
 };
 

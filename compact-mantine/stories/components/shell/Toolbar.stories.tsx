@@ -1,11 +1,12 @@
 import { SegmentedControl, Stack, Text, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures";
 
 /**
@@ -69,7 +70,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * | ToolButton | 32 x 32, padding 4, radius 5, 24px icon box |
  * | Chevron | 16 x 32, 1px after its tool (a group is 49 x 32) |
  * | Divider | 1 x 48, full height |
- * | Flyout | the dark menu, 4px above the chevron, start-aligned |
+ * | Flyout | the menu, 4px above the chevron, start-aligned |
  * | `floating` | fixed, bottom 12, centered |
  */
 const meta: Meta<typeof Toolbar> = {
@@ -156,7 +157,7 @@ function CanvasFoot({ children }: { children: React.ReactNode }): React.JSX.Elem
  */
 async function flyoutOf(chevron: HTMLElement): Promise<HTMLElement> {
     const id = chevron.getAttribute("aria-controls") ?? "";
-    await waitFor(() => expect(document.getElementById(id)).toBeVisible());
+    await waitFor(() => expect(document.getElementById(id)).toBeVisible(), storyWaitOptions(1000));
     return document.getElementById(id) as HTMLElement;
 }
 
@@ -202,7 +203,7 @@ export const States: Story = {
         }),
 };
 
-/** A flyout left open: the dark menu 4px above the chevron, start-aligned, a check on the face. */
+/** A flyout left open: the menu 4px above the chevron, start-aligned, a check on the face. */
 export const FlyoutOpen: Story = {
     args: { "aria-label": "Editor" },
     render: (args) => (
@@ -239,19 +240,18 @@ export const PickFromFlyout: Story = {
         const face = canvas.getByRole("button", { name: "Ellipse" });
         await expect(face).toHaveAttribute("aria-pressed", "true");
         // The picked tool is now the toolbar's Tab stop (spec 11.1).
-        await waitFor(() => expect(face).toHaveFocus());
+        await waitFor(() => expect(face).toHaveFocus(), storyWaitOptions(1000));
         await expect(face).toHaveAttribute("tabindex", "0");
-        // Focus shows the face's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
-        // story ends settled: a screenshot taken while that timer runs shows the tooltip or not
-        // depending on how long the capture took.
-        await waitFor(
-            () => {
-                const tip = within(document.body).getByRole("tooltip");
-                expect(tip).toHaveTextContent(/Ellipse/);
-                expect(tip).toBeVisible();
-            },
-            { timeout: 2000 },
-        );
+        // The pick handed focus to the face by script, not by a key that moves focus: its tooltip
+        // stays hidden, so no bubble covers the toolbar the reader is working in. Wait for the
+        // decision, so the story ends settled.
+        await waitFor(() => {
+            const id = face.getAttribute("aria-describedby");
+            expect(id).not.toBeNull();
+            const tip = document.getElementById(id ?? "");
+            expect(tip).toHaveTextContent(/Ellipse/);
+            expect(tip).toHaveAttribute("data-cm-dismissed");
+        }, storyWaitOptions(2000));
     },
 };
 
@@ -280,13 +280,10 @@ export const Keyboard: Story = {
         // Focus shows Move's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
         // story ends settled: a screenshot taken while that timer runs shows the tooltip or not
         // depending on how long the capture took.
-        await waitFor(
-            () => {
-                const tip = within(document.body).getByRole("tooltip");
-                expect(tip).toHaveTextContent(/Move/);
-                expect(tip).toBeVisible();
-            },
-            { timeout: 2000 },
-        );
+        await waitFor(() => {
+            const tip = within(document.body).getByRole("tooltip");
+            expect(tip).toHaveTextContent(/Move/);
+            expect(tip).toBeVisible();
+        }, storyWaitOptions(2000));
     },
 };

@@ -1,0 +1,446 @@
+{
+  "version": 2,
+  "pr": 3230,
+  "subject": {
+    "builtMerge": "210061b87c936f16550eda2d105a856bab5cf5f9",
+    "head": "a253768c108eda8c1856f0c07f255221599950fc",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "210061b87c936f16550eda2d105a856bab5cf5f9"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty",
+        "merge": "210061b87c936f16550eda2d105a856bab5cf5f9",
+        "host": "dev.ato.ms",
+        "tool": "210061b87c936f16550eda2d105a856bab5cf5f9"
+      },
+      {
+        "project": "graphty-element",
+        "merge": "210061b87c936f16550eda2d105a856bab5cf5f9",
+        "host": "dev.ato.ms",
+        "tool": "210061b87c936f16550eda2d105a856bab5cf5f9"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/autosave-diagnostics--diagnostics.png",
+      "from": "5c8ae3dd3dfe323ce3d1950c29ffaaddcfcc7e94433e9a763e66a9426d1aed3b",
+      "to": "9c3664b9dceed1b0eaf0ddd1c4e891f038139744b0557a146c269ba94727dc84",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3321,
+        "commit": "543c15e61c66598be8a83e40a1adcef945f3bbf8",
+        "record": "visual-baselines/reviews/20261024T031828Z-pr3321.json",
+        "reviewedAt": "2026-10-24T03:18:28.596Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--finished.dark.png",
+      "from": "f4afe109932da676f2193ba662aab3b95d61563ad7589a21ce5956b127b593e4",
+      "to": "9bf8a3648491c2b2a4641865c981a156fba29479d4ac61c371c63d9b84512a00",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--finished.light.png",
+      "from": "0bf444b933b965cf00c4ea7c66532fda24c5891f167add087ba1844ec94add3e",
+      "to": "7bfa2311cd5a06bef8a6012110a43d212ee381448826967f819917134a001c04",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--hidden-by-your-layer.dark.png",
+      "from": "4a068ade4543d8f9c3101b2810ba398a5af5813ec3c1a04b7fa7136e73d671ee",
+      "to": "e46f250854a95af1636bd3d081e0b32db89cb2cf1aa80b94cb887ece3a6f88ef",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--hidden-by-your-layer.light.png",
+      "from": "f6002d3ce2c7d3dc71a3510d736ddda963b835b20c3b0d5ef8361c8b40870e28",
+      "to": "30b4bc7779e5ca4cba9a631068bf0315fc7cb3a1e5df2d5aa3c151d692da5eee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--louvain-open.dark.png",
+      "from": "fe9fbc0247075a51a4d02107feecee6f43f24fb299ce1d8204a9edf6cb8140a4",
+      "to": "2e370f173583eb6c96b61ce63ffcee88fbf78e04b79e435c2ea6df252a87332e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--louvain-open.light.png",
+      "from": "73936db550dddd52f83522cb345b942893b489c63f2a8282866b769efd173489",
+      "to": "e3a9e32bfad19a9d4a3ed509fe3e29cb0f6a5137031fa17f410190c0dd68f624",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--painted-size.dark.png",
+      "from": "f369f8bcad27e10bc410a8c236f3768a2992cbbb92cecba527f3a1a1167d6145",
+      "to": "4c4c5f15950f2321a24cf6f27221f1ef77484a2f955181a5267d4dcdcaa72d7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--painted-size.light.png",
+      "from": "7ed006c3f24e5f54bdc2572f24fc7a2c1df1693c3fea2f742192bd8c3b80d1fd",
+      "to": "690747cd02aafb8a2c8ba53654502d19f68ee5117e71a031603851f06076c432",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--path-over-ranking.dark.png",
+      "from": "bc351cd95f566fb61bd10749316c19fc8f122636abd1d28d8afcae12ccd2c96f",
+      "to": "3a9f57aeaf4012cc7323bcdb65c321676e3853a87ce4c330b8db75c0a9633f9f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--path-over-ranking.light.png",
+      "from": "3ef5b59d5871958d63c90e81d52d3d3f5306ac44c734ab766fc90abf69445ee8",
+      "to": "f50f0e3bf4f1256360c2af09adfb46659bd0535ccb889d7db3a2825541105927",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--add-to-shape.dark.png",
+      "from": "11b2e248cd10eae88e9196450eb049b09295a25cf4a6a972ed4161f7d00cc5b6",
+      "to": "49f6e1dde60124c351234502c8bae7dabe2b5dfe9bee3d7282533559d6bf3da5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--add-to-shape.light.png",
+      "from": "aefb91651688c7f098ba66bd2673ca7cde888fed8111cd6cd79ec4d6948f44a3",
+      "to": "d4ef3938dc6ecff7403759ea4ca1849c07fb90a9f577fd537560521463db6bf2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-folder.dark.png",
+      "from": "8b94927bc19d9f0df7e3a9307785e2a570a393a370dcd1033b1f88bbbed51cdb",
+      "to": "51c30f22e1e7fb2a3c2b6c89ce231b537f5c85b7740efb7ab70c510c81e9f69b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-folder.light.png",
+      "from": "08444d71acd1bbb7fc4defff06b7635f78f16dbe8f7c273cce05102bdd3d6265",
+      "to": "47f5de826768e409537ba6417d4c67811103a49830cdb703c58f399c029b0b11",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-receipt.dark.png",
+      "from": "2b45de8751c0f93eeb912dcde17fcd1b90d2b550f750005a3b322d5ff262f17a",
+      "to": "1036e6ee3e6484de85c6d258fa64a81bcf4bc780c1f75d9f8dd4ea0088fef5b7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-receipt.light.png",
+      "from": "5170df9efff3927d2a453271a7186e09b979986a0a8497674c92bdcd8359cf21",
+      "to": "951b49ce1c41e8939f44cced1d6bdf82958939a300980d533a8636db9ef22408",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-vary-by-layer.dark.png",
+      "from": "3f2ccc988c56843c9def53e64c7eef2596e1cdf4b3fcf8ac7c3bfb16cc97d853",
+      "to": "f4edf8577f5669b880dcf7f7ff0d62b3fd71737116a38b78dea464b788e55048",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--bulk-vary-by-layer.light.png",
+      "from": "7559d7e1472343a200075b554fe9dab9804a5892583cb870afa30d46cc5fae5b",
+      "to": "71c20bff279ad4f1135899bb4a911b4e060ee9fa85f5f74c83e2afa4c9d953fc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-ramp.dark.png",
+      "from": "850566b839be837e2361c966295471b25ea96842701e0a9c4b6b1f211d5afbfb",
+      "to": "2fbe929340edb415f757db906a1f526e7a6229af92f2e70518208f36d8394d1c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-ramp.light.png",
+      "from": "0d078437c59c63f1f395decd319cb1e77cc7c16550b40a12fc0b9c2562ca55c8",
+      "to": "fc24db9f150aaca0a50e6bdfe06b686fdc4373e75cfd1a83588e4985b75210e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-values.dark.png",
+      "from": "e0b25901f496555554c04eecde6b9d08458df7f8b59cd0b50972ece3c6ca0d3b",
+      "to": "32a365d9fe8a2d0f383736e279b5125804d2382c7d09db447a89ed25c2a2ba3c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--degree-values.light.png",
+      "from": "a0b79afee6fef49146feef3a5d4556c82528cd3093cb9b832245aa6e36338c7d",
+      "to": "f73f67f67b914fbc624e15616d6c363b47c83381de754225f2a427e3323806fe",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--edge-betweenness.dark.png",
+      "from": "c509d11ab364e710e1dd0a4d4dcecf1ab2a2e0b95cfaf19ab9155d654cd9c833",
+      "to": "c7738f424fdb2d62fd755cc154056403fd789456b6001dd7b43a43b18b887665",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--edge-betweenness.light.png",
+      "from": "f1884c72353a97a065e0934b158a9a9bf73187fbba6c3b687c97d820d1608617",
+      "to": "67b574059210112a2bf726f7c8443592fd9579d632735afdbd5bc71d313a27c0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--effects-menu.dark.png",
+      "from": "05679de674df0b621b6b1e3529dd5b52860d4dcb5c01f17617ebeef0e9108bc6",
+      "to": "9675a7af9e607f934b8f983ea72b286220a577efe4edea2d2e572db322152ee5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--effects-menu.light.png",
+      "from": "c881aacafb63fa6b5245b60e05b0ccb9e0cc9d043cc2ba4d0be6f416a18d181c",
+      "to": "0977c0a34ff75383cb22ede92ef0fd468a243861e68a41926084bd04f6d364f6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--everything-hidden.dark.png",
+      "from": "680d6e74de789db06fb4116e2236de5d4ac194083eaeee557cb538600cb4017d",
+      "to": "c4dac8fec21b1cfa3b6ec67db1d36ee51ef6a4fc021d95f6931ac980f6e9e387",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--everything-hidden.light.png",
+      "from": "3fc7c100a9df5c0846f0737910740cc68d15949dfaad88e7c03c063fc9a3f592",
+      "to": "2e38551dc36b8a4028013f39d20ce1da9b9380b7588d7c27120c0ad172b95baf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--folder-panel.dark.png",
+      "from": "dda25999152edcde235aa2de740983b268b3676dbf3c455d4e4e587be733f029",
+      "to": "6d28a1151322bf8e6faba40864563d6bb765c2955a8421adf6f65978e0414d23",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--folder-panel.light.png",
+      "from": "b5a6ef2c84115e01483459c247d65e52b9fe4ec60ab75a415478f4ccdd82bb9d",
+      "to": "1a0122eaf1c37470ce5fe730b65d7de5a6e524b8780ab20209a99fa4cc963aa1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--graph-settings.dark.png",
+      "from": "23270fd25875669f22de97aa0dd1710dd4baf24607b48d6f3fbb1a2953e44616",
+      "to": "74d2cd933283e5e7ccb9788b501df573f453a85ae2c9c405a16e775509f93af0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--graph-settings.light.png",
+      "from": "f47e1e5a0cb8c0220dd328c81f9af1ba5a52f716efb867ef76566eb4043c016d",
+      "to": "8870b06c48e24da734f007e68280af157eab6497f5ba698bdfeeb9de64cf7e28",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--hovered-at-rest.dark.png",
+      "from": "a5c891a61643639bbc0569f140ec2f9f4dccd975f21d662e4600b9caab81c63e",
+      "to": "1cd5a005ed0773441b754766ccd1ebb5ea4138b6df34fe05ba3a716437d96dee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--hovered-at-rest.light.png",
+      "from": "b8af67aea3bd92a70d8172a4ec917c4c50a56c49315278efe616e00bcfa0a036",
+      "to": "d2d6a98947963f8708e6ecca9df367a0d6dd49338b591cfe82a3ddbd46dc23b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--key-people-at-rest.dark.png",
+      "from": "ce287f070e1299fae91a316f26b51c8ca12c9038302ce577e256d679fe518c77",
+      "to": "3647eb6fb0a67b27bd578a585f3c658c3b7fa04f50a93d35300d7d7d3bbc7df3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--key-people-at-rest.light.png",
+      "from": "0e1ca9659d6194366e5f1632f4dc3400e0a5e55a34906aa0c2339355a1d73115",
+      "to": "1e06c465adadea065b2abf0b49f3c2c2876c9826f444de6b6fd3ff12e7ff4888",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-entry.dark.png",
+      "from": "f99ada722aec6030ab7877773336b71f022270330bcfec6ad174b545bd6f9ce2",
+      "to": "a0bc4534ebc3566236ea37aaa5b119cb0d55fadf86657e1004d2299e840ea903",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-entry.light.png",
+      "from": "efb0dcfb234828de0c866e5e284b72aa2aeb58f5907f65f693c4363f1a95fa85",
+      "to": "a289bb2a3499e7c50f92edfaff92f696bb961ea6055b2944b19a62829abdd8cf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-settings.dark.png",
+      "from": "96a22ed557a4a81b6219bbb982649ce2b9282b851ceea0b55645fca044d15cfa",
+      "to": "ad55279df4d6a1dd72f870eb8930ba8de570cef00a0e9fadfab9a1a078790a56",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--label-settings.light.png",
+      "from": "ef951c517fa063ae4541f5e6c4d5653d4ccc201108c7817fb444ca100d0f67c5",
+      "to": "1634ce62b24d0fbdcccbd64080e1c71a819147e764ed91900d91a7fa2cc1b657",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--labels-menu.dark.png",
+      "from": "bbcf960e4a566170cf64380cad51bc79ffd605d3c169d85cdda10fefff12a6a1",
+      "to": "9272def1d3e64c2475c895b6bf4a362dc66ded4cb0a400588e14e5aff34f631b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--labels-menu.light.png",
+      "from": "502489a27464366ccf6e07d83da6a92afe75a8100d152f5166363e6ae109df15",
+      "to": "1a9d3e67b9546bea33b8a8046132344b7417a484fc965685461ed23c48a561f4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.dark.png",
+      "from": "e36ee4e3dba71cca477782c6676e042994957d190382d9b4fda63577c530b767",
+      "to": "5b011d8f9c6eb013b53d455c23a04e1b492609401ce5906f4f998ce2980a6530",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.light.png",
+      "from": "a354d0768ff5e13ecf16ba8745d7faff89a2e631458ed3b3228d2a8b0422ddec",
+      "to": "6f2837bc5382143729d601c79281f066e1df9f628fe035825140dcccaff0563c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-group-detail.dark.png",
+      "from": "b8bb07954e02c1cf7e6bed2c74d4283eaac795f8c91572004d3f909cf9f3c206",
+      "to": "0f381f6cc7925b43bed3a5d8bb6d67c21fa6957778d8e2b93435e654ea2970b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-group-detail.light.png",
+      "from": "398b6cf194dc72e025c5b69b6a228cd615bfc6f02484bb7935acd33928240c72",
+      "to": "da20fe4d8f8d93fca26644f273c815893a67f42bd2cc6b93181744e376452fbf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-shape-for-one-group.dark.png",
+      "from": "39c7303b7db4340276b79d72ae0287cd4fd25dd3d53087a7ed11d336d0cff967",
+      "to": "724af7afa52044e54c0846b4eb0d0dbeb3d34341894bee62f35974d232b9726c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-shape-for-one-group.light.png",
+      "from": "48f3794484bebec23cae159dc5669716890ba32363711535a9f6a3b85b9933fc",
+      "to": "89d18285255881322f028e82941aebb551fb1b66001ce2500acd33a07a47443f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-values.dark.png",
+      "from": "c8e92b297b93dc5bf5281934fecee7569f17c2f2bf838977bc5595ad57a130b5",
+      "to": "5f990d7ad8a23c37ee583eab2cfe4e39c0046998d3eae9ac22089db711781b0c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-values.light.png",
+      "from": "3fd7c9742c7097c81c569099f810aa3c8e319e4a527dc8f4334d5c5c4bee1f1b",
+      "to": "57bed7bac8459bac2802969606bb96265e624f7cca5288d2f835c141359051e3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--new-layer.dark.png",
+      "from": "42e4a735945e76ac241acee8545516d4c45d0848402ebf47ca4856bf0d988994",
+      "to": "aa30502a5940d01a60d664cc31306833aa576f0c45c084eceea1167af5514407",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--new-layer.light.png",
+      "from": "ee611d7c105da32684cd5cb654694c5af373e2144ece6e3830f191b3dbb73e7c",
+      "to": "bad8d7cf8ed94e4137f455762ab7f254979cdca2f26265fed8d35470717556cc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-at-rest.dark.png",
+      "from": "56c5e93c43940ba073daa6b25645259fda9e6b0a790ad46c7c1bc0410ab41af7",
+      "to": "a878464f68eaf78bbb04087335e5130cccb327a190ff1889efa1ba83f4ba0205",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-at-rest.light.png",
+      "from": "7ddc242fd67b9b680cadb1e42b1ef7c49277204ec54fd9f73afccf8816269be8",
+      "to": "f099274267662fb99a7d5892ec6514b5821c3f2776b9377a35d5fc94c3150b43",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-values.dark.png",
+      "from": "f6976a72b7fb697b35421bdbfb3c3a4914ca4d557a4dd1bdd21b84dcbc912c88",
+      "to": "4f23c5ec3bd05bf8128b20f7824dc71839e3c9c31ad8fae3c90da589bf8188a4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--route-values.light.png",
+      "from": "41d2f75cf7fa13611b4944d9257552542e46927d896dc196f03e3ff50dc268b7",
+      "to": "400c1a8c30eb6b94bbcf77fd512ee53e9b7b815e1f10c4740a83f65104c4cd6f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--selected-at-rest.dark.png",
+      "from": "b9c66ea196fda75de2155a3db96daf9d28e3566e869b4199e6394a344a6d0e7e",
+      "to": "6336de142e377e8c235b229d2b951e82227fa4c3a4987149f256951af2aeedf2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--selected-at-rest.light.png",
+      "from": "2cfaf5a94fbd1c9581624d5f024e9f7a93a403954cb77225fb934ed363330866",
+      "to": "87396110482fadec1f782af419647966d7a84b464676211bdcb522dcf1e2d658",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--size-removed.dark.png",
+      "from": "8f6f893fb71309565e5646066c5915ff58612693bf2641863bc55e5c79c0cc67",
+      "to": "90bbdc75b3810bc09b700b3e895dbe6ec5600d4550614480bea978ec5a22834b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--size-removed.light.png",
+      "from": "1af8b0fefcac41d3e25b1a5ec7b5e23165759ce7e84233c0d8904baf704d29e9",
+      "to": "c376f42c4a93a938b4848d4ca84a033e0bbc3fe074ecfa03a2addcfe5c34eda2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--tree.dark.png",
+      "from": "b10554e8fd485249a854d0dfd8985d4bf9326129073cc19e5f259758b301a761",
+      "to": "592d0f97537a4463e8a5150d8d737c977de58947cebf597015b6a482a61d813e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--tree.light.png",
+      "from": "01350a21b40f03ea8e6913e45b13bfcd806b603d5049e1ace87bf3dc7ea637c3",
+      "to": "e17087083e7c47fb9430fc730151145628043e1081f76f656b003d456b950106",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--two-rows.dark.png",
+      "from": "7b9814509ec9486765e81afe425e4e1b449c54746bf1109bdff42f09fecae9e9",
+      "to": "4e740bb8d1c6ec0220710cd1f0d38b3cfa883f1720beb9b3c2463edba6a58b54",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--two-rows.light.png",
+      "from": "1d2322efe1528756cc0781ed7c9b30ec0ed9ab9998bd643f47f048968822ccc4",
+      "to": "1b4ff2ab131e94a1bcc24d076c5e9ffba8a4f7b2d21ec6348a8c553734a3c2f6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--vary-by.dark.png",
+      "from": "00c1dac312aa151578bff65cff01fb4b6d2caae737d14966f4cf79c679d32f76",
+      "to": "ae506e0e2065e33e3195086ec7249b4c6573d0114a4b5d221ce81eae60f048f8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--vary-by.light.png",
+      "from": "9b4948bf61e237941660dcc7ba8f17e01a55d271a01e6ad36a8e470488c35fb8",
+      "to": "48f6859d6fd228ab8aeca495af4251c3e2956d052a7a7a2c4703d51f0bf5d3d3",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-24T05:30:27.042Z"
+}

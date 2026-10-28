@@ -1,5 +1,6 @@
 import {
     type DerivedGraph,
+    detHypot,
     type F32,
     GraphBuilder,
     type GraphSnapshot,
@@ -100,8 +101,17 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "d3",
     "fixed",
     "forceatlas2",
+    "graphviz-circo",
+    "graphviz-dot",
+    "graphviz-fdp",
+    "graphviz-neato",
+    "graphviz-osage",
+    "graphviz-patchwork",
+    "graphviz-sfdp",
+    "graphviz-twopi",
     "grid",
     "kamada-kawai",
+    "location-map",
     "multipartite",
     "ngraph",
     "planar",
@@ -221,6 +231,8 @@ export const layoutEngineInternals = {} as {
     attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+    /** See `LayoutEngine.setFollowers`. */
+    setFollowers(engine: LayoutEngine, rows: ReadonlySet<number> | null): void;
 };
 
 /**
@@ -309,6 +321,9 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
+        layoutEngineInternals.setFollowers = (engine, rows) => {
+            engine.setFollowers(rows);
+        };
     }
 
     static type: string;
@@ -380,6 +395,9 @@ export abstract class LayoutEngine {
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
+
+    /** The rows the element places itself (group nodes following their members), or null. */
+    private followers: ReadonlySet<number> | null = null;
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -606,12 +624,48 @@ export abstract class LayoutEngine {
      * @returns True while a hold is set and the row is held or newer than the hold.
      */
     protected isHeld(index: number): boolean {
+        if (this.isFollower(index)) {
+            return true;
+        }
+
         const { hold } = this;
         if (hold === null) {
             return false;
         }
 
         return index >= this.holdRows || !Number.isInteger(index) || index < 0 || maskTest(hold, index);
+    }
+
+    /**
+     * Hand the engine the rows the element places itself: group nodes with no stored position,
+     * which follow their members' box. Each is held like a scoped layout's held row -- never
+     * integrated, never written by a layout step -- and an engine with forces of its own makes
+     * it exert none (see {@link LayoutEngine.isFollower}). Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * the followers up too.
+     * @param rows - The follower rows, or null for none.
+     */
+    protected setFollowers(rows: ReadonlySet<number> | null): void {
+        this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Whether the element places this row itself, as a group following its members: an engine
+     * with forces of its own gives it none, so it neither repels nor attracts another node.
+     * @param index - The node's row.
+     * @returns True for a follower row.
+     */
+    protected isFollower(index: number): boolean {
+        return this.followers?.has(index) === true;
+    }
+
+    /**
+     * Whether any row is held, by a scope or as a follower.
+     * @returns True when {@link LayoutEngine.isHeld} can answer true.
+     */
+    protected get holdsAny(): boolean {
+        return this.hold !== null || this.followers !== null;
     }
 
     /**
@@ -1207,10 +1261,10 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
     // alone would pick either; the mirror has to win by more than rounding, or the newcomers of a
     // re-run that already matches (the fixed layout's) would be reflected across the line.
     const tie = 1e-6 * Math.sqrt(spreadFrom * spreadTo);
-    const mirror = Math.hypot(mirrorRe, mirrorIm) > Math.hypot(re, im) + tie;
+    const mirror = detHypot(mirrorRe, mirrorIm) > detHypot(re, im) + tie;
     const turnRe = mirror ? mirrorRe : re;
     const turnIm = mirror ? mirrorIm : im;
-    const length = Math.hypot(turnRe, turnIm);
+    const length = detHypot(turnRe, turnIm);
     const cos = length === 0 ? 1 : turnRe / length;
     const sin = length === 0 ? 0 : turnIm / length;
     const scale = spreadFrom === 0 || spreadTo === 0 ? 1 : Math.sqrt(spreadTo / spreadFrom);
@@ -1423,12 +1477,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param id - the node id
      * @param what - what the option names, for the message
      * @returns the row
-     * @throws when the graph has no such node
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` when the graph has no such node; `details`
+     * carry `kind: "node"`, the `id`, the `option` and the `layout`
      */
     protected requireRow(id: string | number, what: string): number {
         const row = this.rowOfId(id);
         if (row === INVALID_INDEX) {
-            throw new Error(`${what} node ${String(id)} is not in the graph`);
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ELEMENT",
+                message: `${what} node ${String(id)} is not in the graph`,
+                source: "layout",
+                details: { kind: "node", id, option: what, layout: (this.constructor as typeof LayoutEngine).type },
+            });
         }
 
         return row;
@@ -1684,7 +1744,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
         // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
         if (this._nodes.length > 0) {
-            this.doLayout();
+            try {
+                this.doLayout();
+            } catch (error) {
+                // A layout that refuses the graph (planar's E_NOT_PLANAR) places nothing: every node
+                // stays where it was, and no later publish puts back the answer it gave an earlier
+                // graph. The refused graph was not laid out, so an add to it is not an add either.
+                this.stale = false;
+                this.#column = new Float32Array(0);
+                this.#keep = null;
+                this.#laidOut = null;
+                throw error;
+            }
         }
 
         // doLayout() clears this itself in every engine that ships here, but an engine written

@@ -182,7 +182,8 @@ class Collector {
                 return;
             case "range":
             case "categories":
-                this.path(node.attribute);
+            case "text":
+                this.attributeRule(node);
                 return;
             case "degree":
             case "component":
@@ -190,22 +191,14 @@ class Collector {
             case "isolated":
             case "self-loop":
             case "repeated-edge":
+            case "source":
                 this.add({ kind: "topology" });
                 return;
             case "member":
                 this.scope(node.of);
                 return;
             case "item":
-                if (isObject(node.item)) {
-                    const run = runIdOfRef(node.item.result);
-                    if (typeof run === "string") {
-                        const execution = node.item.run;
-                        this.add(
-                            typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run },
-                        );
-                    }
-                }
-
+                this.itemRule(node.item);
                 return;
             case "threshold":
                 this.path(node.path);
@@ -223,6 +216,41 @@ class Collector {
                 this.tree(node.of);
                 return;
             default:
+        }
+    }
+
+    /**
+     * A range, categories or text rule: the attribute it reads, and the topology when it reads ids
+     * or edge ends.
+     * @param node - The rule.
+     */
+    private attributeRule(node: Loose): void {
+        const read = node.kind === "text" ? node.reads : node.attribute;
+        if (read === "id") {
+            // The id moves only with the graph's own shape.
+            this.add({ kind: "topology" });
+        } else {
+            this.path(read);
+        }
+
+        if (node.nodes === "ends") {
+            this.add({ kind: "topology" });
+        }
+    }
+
+    /**
+     * An item rule: the run whose result it names, and the execution when it pins one.
+     * @param item - The rule's item.
+     */
+    private itemRule(item: unknown): void {
+        if (!isObject(item)) {
+            return;
+        }
+
+        const run = runIdOfRef(item.result);
+        if (typeof run === "string") {
+            const execution = item.run;
+            this.add(typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run });
         }
     }
 

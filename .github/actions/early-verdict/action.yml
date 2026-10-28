@@ -3,12 +3,13 @@ description: >
     Marks "All Checks Pass" and "Queue Checks Pass" as failed on the pull request's head commit the
     moment a job they require fails, instead of when the slowest job of the run ends. Without it a
     pull request, or a merge-queue batch Mergify could already be splitting, waited up to half an hour
-    for a verdict that was settled. Each check is a new check run of the same name; the summary jobs
-    themselves still run when every job has ended and post their own verdict, which is then the newest
-    check run of that name and the one GitHub and Mergify read. This step only ever reports a failure,
-    and only for a job whose failure fails "All Checks Pass" anyway, so it can make a verdict earlier but
-    never different: a job in its warning period (tools/ci-advisory-checks.json) is skipped. A re-run
-    that passes posts newer, passing summary checks. Use it as the last step of a required job, with
+    for a verdict that was settled. Each check is a new check run of the same name, which GitHub files
+    under another workflow's check suite, not this run's: the summary jobs' own verdict does NOT replace
+    it, and Mergify kept a pull request whose re-run passed out of the queue for days (#2639). So a
+    summary job that passes rewrites every early verdict of its name on the commit as passing (its "Clear
+    this check's early verdicts" step in ci.yml). This step only ever reports a failure, and only for a
+    job whose failure fails "All Checks Pass" anyway, so it can make a verdict earlier but never
+    different: a job in its warning period (tools/ci-advisory-checks.json) is skipped. Use it as the last step of a required job, with
     `if: failure() && github.event_name == 'pull_request'` and `continue-on-error: true` (a fork's
     read-only token cannot create check runs, and that must not change the job's result).
 inputs:

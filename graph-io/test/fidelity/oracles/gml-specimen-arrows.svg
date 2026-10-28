@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g>
+		<g>
+			<polygon points="184 436 181 436.75 181 435.25 " stroke="#000000" stroke-width="1.000000px" fill="#000000" />
+			<path fill="none" d=" M114,436 L184,436" stroke="#000000" stroke-width="1.000000px" />
+		</g>
+		<g>
+			<path fill="none" d=" M338,436 L414,436" stroke="#505050" stroke-width="1.000000px" />
+		</g>
+		<g>
+			<polygon points="568 436 571 435.25 571 436.75 " stroke="#505050" stroke-width="1.000000px" fill="#505050" />
+			<path fill="none" d=" M568,436 L638,436" stroke="#505050" stroke-width="1.000000px" />
+		</g>
+		<g>
+			<polygon points="856 436 853 436.75 853 435.25 " stroke="#505050" stroke-width="1.000000px" fill="#505050" />
+			<path fill="none" d=" M786,436 L856,436" stroke="#505050" stroke-width="1.000000px" />
+		</g>
+		<g>
+			<polygon points="1016 436 1019 435.25 1019 436.75 " stroke="#505050" stroke-width="1.000000px" fill="#505050" />
+			<polygon points="1080 436 1077 436.75 1077 435.25 " stroke="#505050" stroke-width="1.000000px" fill="#505050" />
+			<path fill="none" d=" M1016,436 L1080,436" stroke="#505050" stroke-width="1.000000px" />
+		</g>
+	</g>
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="108" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="114" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="184" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="190" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="108.5" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="152" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<rect x="332" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="338" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="408" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="414" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="342" y="469.5" width="68" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="376" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">arrow=none</text>
+	</g>
+	<g>
+		<rect x="556" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="562" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="632" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="638" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="563" y="469.5" width="74" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">arrow=first</text>
+	</g>
+	<g>
+		<rect x="780" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="786" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="856" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="862" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="790" y="469.5" width="68" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="824" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">arrow=last</text>
+	</g>
+	<g>
+		<rect x="1004" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1010" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1080" y="430" width="12" height="12" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1086" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1014" y="469.5" width="68" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="1048" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">arrow=both</text>
+	</g>
+</svg>

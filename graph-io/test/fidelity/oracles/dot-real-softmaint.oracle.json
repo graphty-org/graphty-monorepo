@@ -1,0 +1,22 @@
+{
+    "sample": "dot-real-softmaint",
+    "file": "graph-io/test/corpus/styles/dot/fidelity/real-softmaint.gv",
+    "sha256": "fba2fdc4be5ae5ae9a1217dfe6b4bce4239378e9177814543c3ca3ec13c04a8d",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato",
+    "command": "dot -Kneato -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "engineSource": "the file's own layout=neato",
+    "standIn": false,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 824,
+        "heightPt": 675,
+        "widthPx": 1099,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-real-softmaint && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-real-softmaint.svg"
+}

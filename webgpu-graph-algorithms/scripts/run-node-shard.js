@@ -507,6 +507,18 @@ export async function main(argv, options = {}) {
         outputFile,
         outputWritten: reportComplete(outputPath, started),
     });
+    printVerdict(decision, { status, output, signalled, silenceMs });
+    return decision.exitCode;
+}
+
+/**
+ * Prints the wrapper's verdict line: FAIL with its cause (after the missing files, when vitest itself exited 0), or a
+ * PASS note when the run was signalled for a snapshot along the way; nothing for a quiet pass.
+ * @param {{ exitCode: number, cause: string }} decision - verdict()'s decision
+ * @param {{ status: number, output: string, signalled: number, silenceMs: number }} run - vitest's exit status, its
+ *     transcript, the processes signalled for a snapshot and the silence that counted as a hang
+ */
+function printVerdict(decision, { status, output, signalled, silenceMs }) {
     if (decision.exitCode !== 0) {
         if (status === 0) {
             console.log(`\n${formatMissingFiles(missingTestFiles(output))}`);
@@ -518,7 +530,6 @@ export async function main(argv, options = {}) {
                 `process(es) were signalled for a snapshot; it then finished with its summary and report)`,
         );
     }
-    return decision.exitCode;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

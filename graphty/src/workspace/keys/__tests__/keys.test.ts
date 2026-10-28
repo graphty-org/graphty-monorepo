@@ -1,7 +1,17 @@
 import { assert, describe, it } from "vitest";
 
 import { tabFor } from "../../state/store";
-import { firesWhileTyping, formatKey, isSingleKey, isTypingTarget, matchesKey, parseKey } from "../keys";
+import {
+    firesWhileTyping,
+    formatKey,
+    hasPendingEdit,
+    isPanelEscape,
+    isSingleKey,
+    isTypingTarget,
+    matchesKey,
+    parseKey,
+    trackPendingEdits,
+} from "../keys";
 
 /**
  * A key press with nothing held.
@@ -57,10 +67,41 @@ describe("workspace keys", () => {
         assert.isFalse(firesWhileTyping("Escape"));
     });
 
+    it("hands Undo and Redo to the app while the field holds no edit of its own", () => {
+        assert.isTrue(firesWhileTyping("Mod+Z", false));
+        assert.isTrue(firesWhileTyping("Shift+Mod+Z", false));
+        assert.isFalse(firesWhileTyping("Mod+A", false), "select all stays the field's");
+        const stop = trackPendingEdits();
+        const input = document.createElement("input");
+        document.body.append(input);
+        try {
+            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "focus alone is no edit");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            assert.isTrue(hasPendingEdit(input), "typing is");
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            assert.isTrue(hasPendingEdit(input), "after Enter the typing is still the field's to undo");
+            input.dataset.committed = "";
+            assert.isFalse(hasPendingEdit(input), "a field holding its committed value has no edit of its own");
+            delete input.dataset.committed;
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "Escape drops the typing");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "focusing it again starts over");
+        } finally {
+            stop();
+            input.remove();
+        }
+    });
+
     it("knows a field from a button", () => {
         assert.isTrue(isTypingTarget(document.createElement("input")));
         assert.isTrue(isTypingTarget(document.createElement("textarea")));
         assert.isFalse(isTypingTarget(document.createElement("button")));
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        assert.isFalse(isTypingTarget(checkbox), "Ctrl+Z on a ticked checkbox is the app's Undo");
         assert.isFalse(isTypingTarget(null));
     });
 
@@ -86,5 +127,16 @@ describe("inspector tab memory", () => {
     it("gives a kind with one body no tab", () => {
         assert.isNull(tabFor({ kind: "selection-row", tabs: [] }, {}));
         assert.isNull(tabFor(undefined, {}));
+    });
+
+    it("leaves a panel an Escape only when no inner control took it", () => {
+        const field = document.createElement("input");
+        assert.isTrue(isPanelEscape({ key: "Escape", defaultPrevented: false, target: field }));
+        assert.isFalse(isPanelEscape({ key: "Enter", defaultPrevented: false, target: field }));
+        // A list field that closed its list used the key up.
+        assert.isFalse(isPanelEscape({ key: "Escape", defaultPrevented: true, target: field }));
+        // A field whose list is still open closes it first.
+        field.setAttribute("data-expanded", "true");
+        assert.isFalse(isPanelEscape({ key: "Escape", defaultPrevented: false, target: field }));
     });
 });

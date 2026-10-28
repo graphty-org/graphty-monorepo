@@ -1,42 +1,168 @@
 import {
     AbstractMesh,
-    type Color3,
-    type Color4,
+    Camera,
+    Color3,
     type EffectLayer,
-    GlowLayer,
     HighlightLayer,
     InstancedMesh,
-    type Material,
     Mesh,
     Scene,
-    type SubMesh,
+    StandardMaterial,
+    TransformNode,
+    Vector3,
+    VertexData,
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
+import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
 
-/**
- * Default outline configuration for selection highlight.
- */
-const DEFAULT_OUTLINE_COLOR = "#FFFF00";
+/** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
+const GLOW_SPREAD = 2;
+
+/** The name every outline ring's source mesh and instances start with; the color follows. */
+const OUTLINE_RING_PREFIX = "graphty-node-outline-";
 
 /**
- * Glow colour for a glowing mesh whose colour entry is missing from the selector's map. A style
- * with no glow colour does not glow at all, so this is a defensive default only.
+ * The ring's inner radius, in radii of the node's outline as the camera sees it: a little inside
+ * the node's edge, so it overlaps it.
  */
-const DEFAULT_GLOW_COLOR = "#FFFFFF";
+const OUTLINE_RING_INNER = 0.9;
+
+/** The ring's outer radius, in radii of the node's outline as the camera sees it. */
+const OUTLINE_RING_OUTER = 1.35;
+
+/**
+ * How far the ring sits in front of the node's centre, toward the camera, in node radii: at the
+ * node's front surface. Through the centre, the node's own edges (which meet there) were drawn
+ * over the ring wherever they crossed it; in front, they pass behind it.
+ */
+const OUTLINE_RING_LIFT = 1.05;
+
+/** How many straight pieces the ring is drawn in. */
+const OUTLINE_RING_SEGMENTS = 48;
+
+/** The ring's depth offset; see createOutlineRingSource. */
+const OUTLINE_RING_DEPTH_OFFSET = 2;
+
+/** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
+const MIN_RING_RADIUS = 0.01;
+
+/** Scratch vector, so placing a ring every frame allocates nothing. */
+const TO_CAMERA = new Vector3();
+
+/**
+ * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
+ * takes seven samples, so a wider spacing breaks the glow into blotches.
+ */
+const GLOW_SPREAD_LIMITS = [0.5, 1.25] as const;
+
+/**
+ * The rendering group outlines and glows are drawn at the end of: the graph's own. Babylon's
+ * default draws them after every group, over the labels (`RichTextLabel` draws them in later
+ * groups), so a selected node's ring was drawn across its name.
+ */
+const GRAPH_RENDERING_GROUP = 0;
+
+/**
+ * The glow: a highlight layer drawn around each glowing node and never over it, blended over what
+ * is behind it, with a per-mesh opacity.
+ *
+ * NOT A GlowLayer. A GlowLayer ADDS a blur of the node over the whole frame, the node included:
+ * over the node it replaced the node's own color with the glow's, and around it, added to the
+ * light (#F5F5F5) canvas, it saturated to white and showed almost nothing. A highlight layer's
+ * outer glow is masked by the stencil to outside the node and blended (not added), so the node
+ * keeps its color and the glow shows on a light canvas.
+ *
+ * Babylon writes every highlighted mesh's opacity as 1; the per-mesh opacity is set just before
+ * each mesh is drawn into the glow map, which is the one hook the layer offers for it.
+ */
+class NodeGlowLayer extends HighlightLayer {
+    /** The opacity each glowing source mesh is drawn at, by uniqueId. */
+    readonly alphas = new Map<number, number>();
+
+    /**
+     * A glow layer that draws only outside the node, with a per-mesh opacity.
+     * @param name - The layer name.
+     * @param scene - The scene.
+     */
+    constructor(name: string, scene: Scene) {
+        super(name, scene, {
+            blurHorizontalSize: GLOW_SPREAD,
+            blurVerticalSize: GLOW_SPREAD,
+            renderingGroupId: GRAPH_RENDERING_GROUP,
+        });
+        this.innerGlow = false;
+        this.onBeforeRenderMeshToEffect.add((mesh) => {
+            const alpha = this.alphas.get(mesh.uniqueId);
+            if (alpha !== undefined) {
+                this._emissiveTextureAndColor.color.a = alpha;
+            }
+        });
+    }
+}
 
 /**
  * Manages visual effects for node meshes.
  * Currently supports:
- * - Outline effect using Babylon.js HighlightLayer
- * - Glow effect using Babylon.js GlowLayer
+ * - Outline effect: a ring mesh around the node
+ * - Glow effect using a second HighlightLayer that draws only outside the node (NodeGlowLayer)
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class NodeEffects {
-    private static readonly HIGHLIGHT_LAYER_NAME = "graphty-selection-highlight";
-
     private static readonly GLOW_LAYER_NAME = "graphty-node-glow";
+
+    /** The source meshes that write the stencil, each once: those an outline or a glow was put on. */
+    private static readonly stencilWriters = new WeakSet<Mesh>();
+
+    /**
+     * Lets only outlined and glowing nodes write the stencil an outline and a glow are masked by.
+     *
+     * WHAT WAS BROKEN: Babylon's highlight layer draws its ring wherever the stencil does not hold
+     * the node's mark, and every mesh drawn in the main pass writes the stencil -- so an edge (or a
+     * label, or an arrowhead) drawn in front of an outlined node overwrote the node's mark along
+     * its line, and the ring was drawn there too: streaks of outline color across the node. Now the
+     * main pass writes no stencil except while an outlined or glowing node draws, so the mark is
+     * the node's whole silhouette and the ring stays outside it.
+     * @param mesh - The source mesh just put on a highlight layer.
+     */
+    private static writeStencilOnlyFor(mesh: Mesh): void {
+        const scene = mesh.getScene();
+        const engine = scene.getEngine();
+        scene.metadata = scene.metadata ?? {};
+        // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
+        // and the next frame's clear keep the full write mask.
+        let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
+        if (main === undefined) {
+            const state = { on: false };
+            main = state;
+            scene.metadata.stencilMainPass = state;
+            scene.onBeforeDrawPhaseObservable.add(() => {
+                state.on = true;
+                engine.setStencilMask(0x00);
+            });
+            scene.onAfterDrawPhaseObservable.add(() => {
+                state.on = false;
+                engine.setStencilMask(0xff);
+            });
+        }
+        if (this.stencilWriters.has(mesh)) {
+            return;
+        }
+        this.stencilWriters.add(mesh);
+        const pass = main;
+        mesh.onBeforeBindObservable.add(() => {
+            if (pass.on) {
+                engine.setStencilMask(0xff);
+            }
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            if (pass.on) {
+                engine.setStencilMask(0x00);
+            }
+        });
+    }
 
     /**
      * Check if an effect layer has been disposed.
@@ -52,81 +178,205 @@ export class NodeEffects {
     }
 
     /**
-     * Get or create the HighlightLayer for selection outlines.
-     *
-     * CREATED LAZILY, ON THE FIRST MESH THAT ASKS FOR AN OUTLINE, for the reason spelled out on
-     * {@link NodeEffects.getOrCreateGlowLayer}: a highlight layer is a full-screen post-process
-     * with a render target and two blur passes, and until this was lazy every graph paid for one
-     * on its first node paint whether anything was ever outlined or not. The removal branch of
-     * {@link NodeEffects.applyOutlineEffect} deliberately does NOT create one.
-     *
-     * The layer is stored on scene.metadata for reuse.
-     * @param scene - The Babylon.js scene
-     * @returns The highlight layer for the scene
+     * Set how wide every outline in a scene is drawn (`layoutBehavior.node.outlineWidth`): the
+     * ring's band, as a multiple of its own width, on every ring now drawn and every ring made
+     * later.
+     * @param scene - The Babylon.js scene.
+     * @param width - The width as a multiple of the ring's own, or undefined for that.
      */
-    private static getOrCreateHighlightLayer(scene: Scene): HighlightLayer {
-        // Check if layer already exists on scene metadata
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            return existingLayer;
-        }
-
-        // Create new highlight layer
-        const highlightLayer = new HighlightLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
-            isStroke: true,
-            blurHorizontalSize: 0.5,
-            blurVerticalSize: 0.5,
-        });
-
-        // Store on scene metadata
+    static setOutlineWidth(scene: Scene, width: number | undefined): void {
         scene.metadata = scene.metadata ?? {};
-        scene.metadata.highlightLayer = highlightLayer;
-
-        return highlightLayer;
+        scene.metadata.outlineWidth = width;
+        for (const mesh of scene.meshes) {
+            if (mesh instanceof Mesh && mesh.name.startsWith(OUTLINE_RING_PREFIX)) {
+                this.ringVertexData(scene).applyToMesh(mesh, true);
+            }
+        }
     }
 
     /**
-     * Apply (or remove) the outline effect for a mesh, based on the style configuration.
-     *
-     * WHAT WAS BROKEN, and it drew nothing at all in any circumstance: this method used to hand
-     * `HighlightLayer.addMesh` the node's own mesh, which is always an `InstancedMesh` -- see
-     * {@link NodeEffects.resolveRenderedMesh}. Babylon renders an instance through its SOURCE
-     * mesh, so the inclusion list was given a mesh the layer never consults; and before it could
-     * even fail quietly it failed loudly, because `addMesh` subscribes to
-     * `mesh.onBeforeBindObservable`, which `Mesh` declares and `InstancedMesh` does not. The
-     * resulting TypeError went into a `try/catch` whose comment said the failure "is expected for
-     * instanced meshes", so an outline was accepted, validated, interned and silently dropped for
-     * the whole life of the channel. `test/browser/channel-paints.test.ts` measured it at zero
-     * pixels changed and `node.outline` sat in `UNPAINTED_CHANNELS` because of it.
-     *
-     * THE FIX IS THE ONE THE GLOW PATH ALREADY USED: resolve the rendered mesh first. The call no
-     * longer throws, so there is no catch here -- an outline that cannot be applied is a defect
-     * that must be seen rather than a frame that must be saved.
-     * @param mesh The mesh to apply the effect to
-     * @param effect The effect configuration from the node style
+     * The outer radius of a scene's rings: the inner radius plus the band, widened by the scene's
+     * outline width.
+     * @param scene - The Babylon.js scene.
+     * @returns The outer radius.
      */
-    static applyOutlineEffect(mesh: AbstractMesh, effect: NodeStyleConfig["effect"] | undefined): void {
-        const scene = mesh.getScene();
-        const renderedMesh = this.resolveRenderedMesh(mesh);
+    private static ringOuterOf(scene: Scene): number {
+        const width: unknown = scene.metadata?.outlineWidth;
+        return OUTLINE_RING_INNER + (OUTLINE_RING_OUTER - OUTLINE_RING_INNER) * (typeof width === "number" ? width : 1);
+    }
 
-        if (effect?.outline) {
-            // THE ALPHA IS DROPPED, because the highlight layer draws every outline with alpha 1
-            // (ThinHighlightLayer pins it) -- there is no translucent outline to draw. The layer
-            // check reports it as W_ALPHA_IGNORED, so the drop is said rather than silent.
-            const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+    /**
+     * Draw (or take away) a node's outline: a flat ring around the node, facing the camera.
+     *
+     * THE RING IS GEOMETRY IN THE SCENE, drawn in the opaque pass and depth-tested like the node
+     * it rings. It used to be a Babylon highlight layer, a full-screen pass composited after the
+     * whole frame with the depth test off and kept off only the outlined node's own pixels by the
+     * stencil. So the ring of a node behind another was painted across the nearer node, and every
+     * ring was painted over every label (`test/browser/node-outline-depth.test.ts`). As geometry
+     * at the node's front surface, a nearer node or label covers the ring, a label beside it is
+     * drawn over it, and the node's own edges pass behind it.
+     *
+     * ONE SOURCE MESH PER OUTLINE COLOR, cached in the mesh cache, and one instance of it per
+     * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
+     * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
+     * called again for the new mesh). Its scaling is the node's own largest half-extent, and the
+     * node mesh's scaling and the graph root's carry through the parent link.
+     * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
+     * @param effect - The effect configuration from the node style.
+     * @param cache - The mesh cache the ring's source mesh is kept in.
+     */
+    static applyOutlineEffect(
+        mesh: AbstractMesh,
+        effect: NodeStyleConfig["effect"] | undefined,
+        cache: MeshCache,
+    ): void {
+        const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
+        if (!effect?.outline) {
+            existing?.dispose();
 
             return;
         }
 
-        // NO LAYER IS CREATED HERE, for the reason on getOrCreateHighlightLayer: asking a node
-        // not to be outlined must not cost the scene a full-screen post-process.
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
+        // THE ALPHA IS DROPPED: an outline is drawn opaque. The layer check reports it as
+        // W_ALPHA_IGNORED, so the drop is said rather than silent.
+        const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}`;
+        const ring =
+            existing?.name === name && !existing.isDisposed()
+                ? existing
+                : cache.get(name, () => this.createOutlineRingSource(name, rgb, mesh.getScene()));
 
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.removeMesh(renderedMesh);
+        if (ring !== existing) {
+            existing?.dispose();
+            ring.isPickable = false;
+            ring.parent = mesh;
+            const scene = mesh.getScene();
+            const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
+                this.followCamera(ring, camera);
+            });
+            ring.onDisposeObservable.addOnce(() => {
+                scene.onBeforeCameraRenderObservable.remove(observer);
+            });
         }
+
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
+        const camera = mesh.getScene().activeCamera;
+        if (camera) {
+            this.followCamera(ring, camera);
+        }
+    }
+
+    /**
+     * Place a node's ring for one camera, before that camera draws: on the line from the node's
+     * centre to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
+     * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
+     *
+     * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
+     * cone depends on how far away and in which direction the camera is. The ring used to be a
+     * billboard turned with the camera's rotation, lifted along the view axis and sized once for a
+     * node straight ahead: for a node off to the side the lift carried the ring further out than
+     * the node, and as the graph turned a node toward the side of the view a gap opened between
+     * the node and its ring (`test/browser/node-outline-perspective.test.ts`). An orthographic
+     * camera has no cone: the ring is the node's own radius, lifted along the view axis, as before.
+     *
+     * Cost: a few vector operations per outlined node per camera, no scene search.
+     * @param ring - The node's ring, a child of the node's mesh.
+     * @param camera - The camera about to draw.
+     */
+    private static followCamera(ring: AbstractMesh, camera: Camera): void {
+        const node = ring.parent;
+        const radius = (ring.metadata as { outlineRadius?: number } | null)?.outlineRadius;
+        if (!(node instanceof AbstractMesh) || radius === undefined) {
+            return;
+        }
+
+        const { m } = node.computeWorldMatrix();
+        // The node's world scale; a node is scaled the same along every axis.
+        const scale = Math.hypot(m[0], m[1], m[2]) || 1;
+        const r = radius * scale;
+        const lift = OUTLINE_RING_LIFT * r;
+        const toCamera = TO_CAMERA;
+        let seen = r;
+
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
+            toCamera.scaleInPlace(-1);
+        } else {
+            // Turned toward the camera's POSITION, not its rotation, so the ring is square to the
+            // line of sight to this node wherever it is in the view.
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
+            camera.globalPosition.subtractToRef(node.getAbsolutePosition(), toCamera);
+            const distance = toCamera.length();
+            toCamera.scaleInPlace(1 / (distance || 1));
+            // The cone's radius at the ring's distance from the camera.
+            seen = (Math.max(distance - lift, 0) * r) / Math.sqrt(Math.max(distance * distance - r * r, r * r * 1e-6));
+        }
+
+        // The billboard keeps the parent's scale and position but not its rotation, so the
+        // position is a world direction in the parent's units.
+        toCamera.scaleToRef(lift / scale, ring.position);
+        ring.scaling.setAll(seen / scale);
+    }
+
+    /**
+     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to the scene's outer radius
+     * in the XY plane, facing +z.
+     * @param scene - The scene whose outline width sets the outer radius.
+     * @returns The vertex data.
+     */
+    private static ringVertexData(scene: Scene): VertexData {
+        const outer = this.ringOuterOf(scene);
+        const positions: number[] = [];
+        const indices: number[] = [];
+        for (let i = 0; i <= OUTLINE_RING_SEGMENTS; i++) {
+            const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
+            const x = Math.cos(angle);
+            const y = Math.sin(angle);
+            positions.push(x * OUTLINE_RING_INNER, y * OUTLINE_RING_INNER, 0, x * outer, y * outer, 0);
+            if (i < OUTLINE_RING_SEGMENTS) {
+                const at = i * 2;
+                indices.push(at, at + 1, at + 2, at + 1, at + 3, at + 2);
+            }
+        }
+
+        const data = new VertexData();
+        data.positions = positions;
+        data.indices = indices;
+        // +z faces the camera: the ring is a billboard turned toward the camera's position.
+        data.normals = positions.map((_, i) => (i % 3 === 2 ? 1 : 0));
+        return data;
+    }
+
+    /**
+     * Build the source mesh of one outline color: a flat ring of inner radius
+     * {@link OUTLINE_RING_INNER} and the scene's outer radius in the XY plane;
+     * followCamera places and sizes it.
+     * @param name - The mesh name, which is also its cache key.
+     * @param color - The ring's color.
+     * @param scene - The scene to build it in.
+     * @returns The source mesh.
+     */
+    private static createOutlineRingSource(name: string, color: Color3, scene: Scene): Mesh {
+        const source = new Mesh(name, scene);
+        this.ringVertexData(scene).applyToMesh(source, true);
+
+        const material = new StandardMaterial(`${name}-material`, scene);
+        // Unlit: a ring is a mark on the node, the same color from every side.
+        material.disableLighting = true;
+        material.emissiveColor = color;
+        material.diffuseColor = Color3.Black();
+        material.specularColor = Color3.Black();
+        material.backFaceCulling = false;
+        // Pushed back a little in depth, so a label drawn in the same plane (a billboard through
+        // the same node) is drawn over the ring rather than fighting it for the pixel.
+        material.zOffset = OUTLINE_RING_DEPTH_OFFSET;
+        material.freeze();
+        source.material = material;
+
+        return source;
     }
 
     /**
@@ -141,7 +391,7 @@ export class NodeEffects {
      * the same class of failure as the "HighlightLayer has issues with InstancedMesh" note on
      * `applyOutlineEffect`.
      *
-     * Including the source is not a compromise, it is exactly the right granularity: glow colour
+     * Including the source is not a compromise, it is exactly the right granularity: glow color
      * and strength are part of the node style, `Styles.styleToId` interns a style by deep value
      * equality, and `MeshCache` keys on that style id -- so one source mesh is precisely the set
      * of nodes sharing one glow configuration.
@@ -157,10 +407,10 @@ export class NodeEffects {
     }
 
     /**
-     * Get or create the GlowLayer for node glow effects.
+     * Get or create the glow layer for node glow effects.
      *
      * CREATED LAZILY, ON THE FIRST MESH THAT ASKS FOR GLOW, and never from scene setup. A
-     * GlowLayer is a full-screen post-process: it costs a render target plus a blur pass every
+     * glow layer is a full-screen post-process: it costs a render target plus a blur pass every
      * frame for the WHOLE scene whether one node glows or a thousand. A graph that uses no glow
      * must not pay for it, so the only call site is the `effect.glow` branch of
      * {@link NodeEffects.applyGlowEffect}; the removal branch deliberately does NOT create one.
@@ -170,40 +420,25 @@ export class NodeEffects {
      * to another source mesh and the old glowing source stays listed with no instances. The next
      * glow recreates the layer through this method.
      *
-     * `excludeByDefault: true` is a safety catch, not a tuning knob. Babylon's inclusion list
-     * means "only these" when it is non-empty and "no opinion" -- i.e. EVERY mesh in the scene --
-     * when it is empty (ThinGlowLayer.hasMesh). With this set, `_internalShouldRender` returns
-     * false while the list is empty, so an emptied layer renders nothing rather than blooming
-     * the whole graph.
+     * A highlight layer draws only the meshes added to it, so an emptied layer draws nothing.
+     *
+     * TWO HIGHLIGHT LAYERS, ONE STENCIL. A node with both an outline and a glow is in both, and
+     * each layer marks its nodes with its own stencil value, so one of the two may draw over that
+     * node. ponytail: accepted for the rare node that has both; give the layers disjoint stencil
+     * bits (`numStencilBits`) if it shows.
      * @param scene - The Babylon.js scene
      * @returns The glow layer for the scene
      */
-    private static getOrCreateGlowLayer(scene: Scene): GlowLayer {
-        const existingLayer = scene.metadata?.glowLayer as GlowLayer | undefined;
+    private static getOrCreateGlowLayer(scene: Scene): NodeGlowLayer {
+        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             return existingLayer;
         }
 
-        const glowLayer = new GlowLayer(this.GLOW_LAYER_NAME, scene, {
-            excludeByDefault: true,
-        });
-
-        // Per-source-mesh colour. The layer has ONE customEmissiveColorSelector, called with the
-        // mesh being rendered, so the colour has to be looked up rather than closed over.
-        const glowColors = new Map<number, Color3>();
-        glowLayer.customEmissiveColorSelector = (
-            mesh: Mesh,
-            _subMesh: SubMesh,
-            _material: Material,
-            result: Color4,
-        ): void => {
-            const color = glowColors.get(mesh.uniqueId) ?? readColor(DEFAULT_GLOW_COLOR, DEFAULT_GLOW_COLOR).rgb;
-            result.set(color.r, color.g, color.b, 1);
-        };
+        const glowLayer = new NodeGlowLayer(this.GLOW_LAYER_NAME, scene);
 
         scene.metadata = scene.metadata ?? {};
         scene.metadata.glowLayer = glowLayer;
-        scene.metadata.glowColors = glowColors;
 
         // Strengths are re-shared every frame, not only when a glow is applied: a node that
         // moves to another source mesh (a strength edit) leaves the old one with no instances,
@@ -234,14 +469,16 @@ export class NodeEffects {
      * when the merged style names a glow colour: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
-     * `mat.freeze()` immediately after building it. `customEmissiveColorSelector` is the right
-     * mechanism precisely because it feeds the glow pass a colour without mutating the frozen
-     * material. Unfreezing to set `emissiveColor` would make every glowing style pay a material
-     * re-bind per frame and would change the node's lit appearance as a side effect.
+     * `mat.freeze()` immediately after building it. The highlight layer's per-mesh color is the
+     * right mechanism precisely because it feeds the glow pass a color without mutating the
+     * frozen material.
      *
-     * STRENGTH IS PER SOURCE MESH, like colour, through {@link NodeEffects.syncGlowStrengths}.
-     * It used to be written to `glowLayer.intensity`, which belongs to the one layer the scene
-     * shares, so the last glowing style applied set the strength of every glowing node.
+     * THE GLOW IS DRAWN AROUND THE NODE, NEVER OVER IT, and its color's opacity fades it; see
+     * {@link NodeGlowLayer} for why it is not a Babylon GlowLayer.
+     *
+     * STRENGTH IS PER SOURCE MESH, like color, through {@link NodeEffects.syncGlowStrengths}.
+     * It used to be written to the layer, which the scene shares, so the last glowing style
+     * applied set the strength of every glowing node.
      * @param mesh - The mesh to apply the effect to
      * @param effect - The effect configuration from the node style
      */
@@ -259,65 +496,58 @@ export class NodeEffects {
         const strength = effect?.glow?.strength ?? 1;
         if (effect?.glow && colorValue !== undefined && strength > 0) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
-            const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            // A glow is added light, so its color's alpha fades it: `#ff000080` glows as
-            // `#800000` does, and the strength scales that as it scales any color.
-            const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
-            glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
-            this.glowStrengths(scene).set(renderedMesh, strength);
+            // The fallback only covers an unreadable color string; a missing one never gets here.
+            const { rgb: color, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
+            this.glowStrengths(scene).set(renderedMesh, { strength, alpha });
 
-            // Same defence as the outline path: the inclusion list is keyed by uniqueId and the
-            // call is cheap, but a mesh in an unexpected state must not take down a repaint.
+            // Same defence as the outline path: a mesh in an unexpected state must not take down
+            // a repaint.
             try {
-                glowLayer.addIncludedOnlyMesh(renderedMesh);
+                glowLayer.addMesh(renderedMesh, color);
+                this.writeStencilOnlyFor(renderedMesh);
             } catch {
-                // Silently fail -- a node that does not bloom is better than a broken repaint.
+                // Silently fail -- a node that does not glow is better than a broken repaint.
             }
         } else {
             // NO LAYER IS CREATED HERE. Asking a node not to glow must not cost a full-screen
             // post-process, which is what calling getOrCreateGlowLayer in this branch would do --
             // and it would do it for every node of every graph, since most nodes have no glow.
-            const existingLayer = scene.metadata?.glowLayer as GlowLayer | undefined;
+            const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
             if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-                const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-                glowColors?.delete(renderedMesh.uniqueId);
                 this.glowStrengths(scene).delete(renderedMesh);
-                try {
-                    existingLayer.removeIncludedOnlyMesh(renderedMesh);
-                } catch {
-                    // Silently fail - mesh may not be in the layer
-                }
+                existingLayer.alphas.delete(renderedMesh.uniqueId);
+                existingLayer.removeMesh(renderedMesh);
             }
         }
     }
 
     /**
-     * The glow strength each glowing source mesh asked for, kept on scene.metadata beside the
-     * glow colours.
+     * The glow strength and the color's opacity each glowing source mesh asked for, kept on
+     * scene.metadata beside the layer.
      * @param scene - The Babylon.js scene
-     * @returns The per-source-mesh strengths
+     * @returns The per-source-mesh strengths and opacities
      */
-    private static glowStrengths(scene: Scene): Map<Mesh, number> {
+    private static glowStrengths(scene: Scene): Map<Mesh, { strength: number; alpha: number }> {
         scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowStrengths = scene.metadata.glowStrengths ?? new Map<Mesh, number>();
+        scene.metadata.glowStrengths =
+            scene.metadata.glowStrengths ?? new Map<Mesh, { strength: number; alpha: number }>();
 
-        return scene.metadata.glowStrengths as Map<Mesh, number>;
+        return scene.metadata.glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
     }
 
     /**
      * Draw every glowing source mesh at its own strength, with one layer.
      *
-     * Babylon multiplies a per-mesh `setEffectIntensity` into the glow colour as the glow map is
-     * drawn, and the layer's `intensity` scales the blurred result. The glow map is an 8-bit
-     * texture, so a per-mesh factor above 1 clamps and a strength of 3 would read the same as 1.
-     * So the layer carries the LARGEST strength on screen and each mesh carries its share of it,
-     * which is never above 1.
+     * The layer's spread belongs to the layer, so it follows the LARGEST strength on screen, and
+     * each mesh is drawn at its share of that strength as an opacity, times its color's own
+     * opacity -- never above 1. One glowing style alone is drawn opaque and as wide as its
+     * strength; two at different strengths differ in opacity.
      *
      * Only source meshes that still draw a node count toward the largest strength. MeshCache
      * never evicts a source mesh, so a strength that is no longer used (a slider dragged from 100
      * back to 0.1) leaves a mesh with no instances behind; counted, it would hold the layer at 100
-     * and round the live glow away in the 8-bit map. It keeps its entry, because a node that goes
-     * back to that strength reuses the cached mesh. A disposed mesh is dropped.
+     * and fade the live glow away. It keeps its entry, because a node that goes back to that
+     * strength reuses the cached mesh. A disposed mesh is dropped.
      *
      * When no glowing source mesh draws a node any more, the layer is disposed: it is a
      * full-screen post-process that would otherwise render nothing every frame for the life of
@@ -325,14 +555,15 @@ export class NodeEffects {
      * @param glowLayer - The scene's glow layer
      * @param scene - The Babylon.js scene
      */
-    private static syncGlowStrengths(glowLayer: GlowLayer, scene: Scene): void {
+    private static syncGlowStrengths(glowLayer: NodeGlowLayer, scene: Scene): void {
         const strengths = this.glowStrengths(scene);
         let max = 0;
         let anyDrawn = false;
 
-        for (const [mesh, strength] of strengths) {
+        for (const [mesh, { strength }] of strengths) {
             if (mesh.isDisposed()) {
                 strengths.delete(mesh);
+                glowLayer.alphas.delete(mesh.uniqueId);
             } else if (mesh.instances.length > 0) {
                 anyDrawn = true;
                 max = Math.max(max, strength);
@@ -345,31 +576,15 @@ export class NodeEffects {
             return;
         }
 
-        glowLayer.intensity = max;
-
-        for (const [mesh, strength] of strengths) {
-            glowLayer.setEffectIntensity(mesh, max > 0 ? strength / max : 0);
+        const [low, high] = GLOW_SPREAD_LIMITS;
+        const spread = GLOW_SPREAD * Math.min(high, Math.max(low, max));
+        if (glowLayer.blurHorizontalSize !== spread) {
+            glowLayer.blurHorizontalSize = spread;
+            glowLayer.blurVerticalSize = spread;
         }
-    }
 
-    /**
-     * Remove a mesh from the highlight layer.
-     *
-     * EXACTLY THE MESH IT IS HANDED, AND NOT THAT MESH'S SOURCE, which is what makes it safe to
-     * call while a node is being disposed. An outline is applied to the shared source mesh (see
-     * {@link NodeEffects.applyOutlineEffect}), so one source is precisely the set of nodes drawn
-     * with one outline configuration -- and resolving to it here would take the outline away from
-     * every sibling still on screen. That is the same reasoning `Node.dispose` records for glow,
-     * and it has the same consequence: for an instanced node this removes nothing, the source is
-     * freed when `MeshCache` prunes or clears it, and the layer's leftover uniqueId is inert
-     * because Babylon's uniqueIds are monotonic per scene and never reused.
-     * @param mesh - The mesh to remove from highlighting
-     */
-    static removeFromHighlight(mesh: AbstractMesh): void {
-        const scene = mesh.getScene();
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.removeMesh(mesh as Mesh);
+        for (const [mesh, { strength, alpha }] of strengths) {
+            glowLayer.alphas.set(mesh.uniqueId, max > 0 ? (alpha * strength) / max : 0);
         }
     }
 
@@ -394,37 +609,20 @@ export class NodeEffects {
     }
 
     /**
-     * Dispose the highlight layer for a scene.
-     * Should be called when the graph is disposed.
-     * @param scene - The Babylon.js scene
-     */
-    static disposeHighlightLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.dispose();
-            scene.metadata.highlightLayer = undefined;
-        }
-    }
-
-    /**
-     * Dispose the glow layer for a scene, and forget the per-style colours and strengths with it.
-     *
-     * The colour map is keyed by mesh uniqueId, so it MUST die with the layer: leaving it behind
-     * would let a later mesh that happens to reuse a uniqueId inherit a dead style's glow colour.
+     * Dispose the glow layer for a scene, and forget the per-style strengths with it.
      *
      * Called by {@link NodeEffects.syncGlowStrengths} once no node glows; the next glow
      * recreates the layer lazily.
      * @param scene - The Babylon.js scene
      */
     static disposeGlowLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.glowLayer as GlowLayer | undefined;
+        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             existingLayer.dispose();
         }
 
         if (scene.metadata) {
             scene.metadata.glowLayer = undefined;
-            scene.metadata.glowColors = undefined;
             scene.metadata.glowStrengths = undefined;
         }
     }

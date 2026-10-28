@@ -33,6 +33,8 @@
  * node choices against a scope of this graph.
  */
 
+import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
+
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
@@ -45,6 +47,7 @@ import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
@@ -132,6 +135,22 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the settings it sets.
+     * Static.
+     * @returns the preset descriptors
+     */
+    screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
+    /**
+     * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
+     * @returns the generator descriptors
+     */
+    generators: () => GENERATOR_CATALOG,
+    /**
+     * Every sample dataset `data.loadDataset` downloads: graph-samples' catalogue. Static.
+     * @returns the dataset descriptors
+     */
+    datasets: () => DATASETS,
 });
 
 /**
@@ -141,7 +160,9 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  *   `optionsFor` resolves a scope.
  * @returns The catalogue.
  */
-export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSource, "resolve">): SessionCatalogApi {
+export function createSessionCatalog(
+    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues">,
+): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
         /**
@@ -164,6 +185,9 @@ export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSour
                         algorithms: SESSION_CATALOG_TABLES.algorithms,
                         layouts: SESSION_CATALOG_TABLES.layouts,
                         resolve: source.resolve,
+                        attributes: source.attributes,
+                        results: source.results,
+                        nodeValues: source.nodeValues,
                     },
                     key,
                     scope,

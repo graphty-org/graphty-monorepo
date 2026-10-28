@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<key for="node" id="d6" yfiles.type="nodegraphics"/>
+<key for="edge" id="d10" yfiles.type="edgegraphics"/>
+<key attr.name="kind" attr.type="string" for="node" id="d0"/>
+<key attr.name="w" attr.type="double" for="node" id="d1"/>
+<graph edgedefault="directed" id="G">
+<node id="n0"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel visible="false">hidden</y:NodeLabel><y:NodeLabel>shown second</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n1"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel>first</y:NodeLabel><y:NodeLabel>second</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n2"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel></y:NodeLabel><y:NodeLabel>only real text</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n3"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel>&lt;html&gt;&lt;b&gt;bold&lt;/b&gt; text&lt;/html&gt;</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n4"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel fontSize="0" textColor="#00000000">plain</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n5"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:NodeLabel fontStyle="bolditalic" fontFamily="Comic Sans MS" modelName="sandwich" modelPosition="s">  padded  </y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+</graph></graphml>

@@ -1,19 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { loadConfig } from "../trusted/lib/config.mjs";
 import { GENERATED, init, packageManager, renderTemplate } from "../trusted/lib/init.mjs";
-import { git, isolateGit } from "./helpers.mjs";
+import { git, isolateGit, tempDir } from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
 const CLI = new URL("../trusted/cli.mjs", import.meta.url).pathname;
 
 function repo(lockfile = null) {
-    const dir = mkdtempSync(join(tmpdir(), "vr-init-"));
+    const dir = tempDir("vr-init-");
     git(dir, "init", "-q", "-b", "trunk");
     if (lockfile) {
         writeFileSync(join(dir, lockfile), "");
@@ -89,7 +88,7 @@ describe("init", () => {
         init(dir);
         expect(existsSync(join(dir, ".github/workflows/visual-review.yml"))).toBe(false);
         const wf = read(dir, ".github/workflows/shots.yml");
-        expect(wf).toContain("            - uses: pnpm/action-setup@v4\n");
+        expect(wf).toMatch(/^ {12}- uses: pnpm\/action-setup@\S+\n/m);
         expect(wf).toContain("              run: pnpm install --frozen-lockfile\n");
         expect(wf).toContain("run: pnpm exec visual-review install-browser");
     });

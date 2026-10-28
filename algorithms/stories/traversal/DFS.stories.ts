@@ -28,6 +28,7 @@ import {
     updateDataStructure,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -366,7 +367,7 @@ export const DFS: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * 3 + 5) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * 3 + 5) * args.animationSpeed),
         );
     },
 };

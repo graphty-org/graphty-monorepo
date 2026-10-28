@@ -256,6 +256,25 @@ export class History<P> {
     }
 
     /**
+     * How many steps there are: `steps.length`, without publishing the list, which a change
+     * rebuilds -- a count read on every commit would cost the whole history each time.
+     * @returns The count.
+     */
+    get length(): number {
+        return this.entries.length;
+    }
+
+    /**
+     * One step as `steps` lists it, without publishing the whole list.
+     * @param index - Its place, oldest first.
+     * @returns The step, or undefined past either end.
+     */
+    stepAt(index: number): HistoryStepView | undefined {
+        const step = this.entries[index] as Step<P> | undefined;
+        return step === undefined ? undefined : this.view(step, index);
+    }
+
+    /**
      * The byte limit.
      * @returns Bytes.
      */
@@ -595,6 +614,29 @@ export class History<P> {
         this.dropProvisionals();
         this.mergeable = false;
         this.counted = null;
+        this.changed("clear");
+    }
+
+    /**
+     * Start the history again over the oldest steps: they are dropped as eviction drops them (what
+     * they did stays, folded into the baseline, and they can no longer be undone; undone ones go
+     * with the rest), and the change is published as a clear, even when there were none.
+     * @param count - How many, from the oldest.
+     */
+    dropOldest(count: number): void {
+        for (const [index, step] of this.entries.slice(0, count).entries()) {
+            const done = index < this.cursor;
+            this.total -= this.size(step, done);
+            if (done) {
+                this.fold(step);
+            }
+        }
+
+        this.entries.splice(0, count);
+        this.cursor = Math.max(0, this.cursor - count);
+        this.counted = null;
+        // A boundary, as `clear()` is: the next edit does not coalesce into a step before it.
+        this.mergeable = false;
         this.changed("clear");
     }
 

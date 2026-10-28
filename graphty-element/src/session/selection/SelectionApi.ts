@@ -34,7 +34,7 @@
 
 import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, ScopeId } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeId, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
@@ -42,6 +42,7 @@ import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
+import { deepEquals } from "../styles/predicate";
 import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
@@ -63,6 +64,9 @@ const EMPTY_STRINGS: readonly string[] = Object.freeze([]);
 
 /** The frozen empty path list handed back wherever every path resolved. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
+
+/** A rule that reads nothing unknown. */
+const NOTHING_UNKNOWN: RuleCheck = Object.freeze({ unknown: Object.freeze([]) });
 
 // ---------------------------------------------------------------------------------------------
 // The surface
@@ -120,12 +124,49 @@ export interface SelectionDelta {
     readonly cause: SelectionCause;
 }
 
+/**
+ * A path a rule reads that nothing in this session answers, and the readable values it may have
+ * meant. See {@link SelectionApi.checkRule}.
+ * @since 3.32.0
+ */
+export interface UnknownRulePath {
+    /** The path as the rule reads it: a bare column name such as `degree`, or a dotted path. */
+    readonly path: Path;
+    /**
+     * The `data.readableValues()` paths whose catalog name (`plainName` or `technicalName`) is the
+     * path's last name, ignoring case: `degree` names a Degree run's `results.<run>.value`. When
+     * none is, the node structure value of that name, which a rule reads with no run:
+     * `graphty.degree` for `degree`, and on a directed graph `graphty.inDegree` and
+     * `graphty.outDegree` for `indegree` and `outdegree`.
+     */
+    readonly candidates: readonly Path[];
+}
+
+/**
+ * What a rule reads that this session cannot answer. See {@link SelectionApi.checkRule}.
+ * @since 3.32.0
+ */
+export interface RuleCheck {
+    /** The paths nothing answers, in the order the rule names them. Empty when every one is answered. */
+    readonly unknown: readonly UnknownRulePath[];
+    /**
+     * The rule with every unknown path written as its one candidate, everything else as it was
+     * typed. Absent when nothing is unknown, or when an unknown path has no candidate or several.
+     */
+    readonly suggestion?: Query;
+}
+
 /** One attribute of the selected nodes, summarised against the same attribute across the graph. */
 export interface SelectionAttributeStatistics {
     /** The attribute's published path, such as "data.department". */
     readonly path: Path;
     /** What to call it in front of a person. */
     readonly plainName: string;
+    /**
+     * How many of the selected nodes carry a value for it (empty text counts as none), so a column
+     * only some of them fill, or one whose values are all different, still says how far it reaches.
+     */
+    readonly count: number;
     /** The average across the selected nodes that carry a number. */
     readonly mean?: number;
     /** The middle value across the selected nodes that carry a number. */
@@ -164,6 +205,11 @@ export interface SelectionStatistics {
      * adds up to is the three counts above.
      */
     readonly attributes: readonly SelectionAttributeStatistics[];
+    /**
+     * The lowest and highest degree among the selected nodes: how many edges touch each, the
+     * value a rule reads as `graphty.degree`. Absent while no node is selected.
+     */
+    readonly degree?: { readonly min: number; readonly max: number };
 }
 
 /**
@@ -211,6 +257,30 @@ export interface SelectionApi {
      */
     readonly origin: SelectionTarget | null;
     /**
+     * The paths the rule the selection was made from tests, while the selection is still exactly
+     * that rule: `["data.minutes"]` after `apply({ text: "=minutes > \`5\`" })` or
+     * `apply({ where: "minutes > \`5\`" })`, so a panel can show each selected element's value
+     * for what was tested. Empty when {@link SelectionApi.origin} is null or is not a rule.
+     *
+     * ```ts
+     * const [tested] = session.selection.originPaths; // "data.minutes"
+     * ```
+     */
+    readonly originPaths: readonly Path[];
+    /**
+     * A style layer selector that holds what is selected: the rule the selection was made from,
+     * while the selection is still exactly that rule and it names no scope (`{ where }`, or text
+     * starting with `=`), as `{ match: "expression" }`, so a layer made from it follows the data;
+     * else the selected nodes and edges by id, `{ match: "ids" }`.
+     *
+     * ```ts
+     * await session.styles.add({ name: "Picked", target: "node", selector: session.selection.layerSelector,
+     *     set: { "node.color": "#e63946" } });
+     * ```
+     * @since 3.26.0
+     */
+    readonly layerSelector: Selector;
+    /**
      * Whether one element is selected.
      *
      * One array read, and no allocation at all, so a render loop can ask once per element per
@@ -239,10 +309,76 @@ export interface SelectionApi {
      */
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     /**
+     * How many nodes and edges `apply(target)` would select, without changing the selection. It
+     * reads the target exactly as `apply` does, so a rule `apply` refuses is refused here too,
+     * and a rule over an edge column counts the edges it matches.
+     *
+     * ```ts
+     * const { nodes, edges } = await session.selection.count({ text: "=minutes >= `10`" });
+     * ```
+     * @param target - What `apply` would select.
+     * @returns How many nodes and how many edges it names, before the selection's cap.
+     * @throws The same `GraphtyError` as `apply` for a target it refuses, such as `E_BAD_SELECTOR`
+     *   for a rule it cannot read.
+     */
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
+    /**
+     * Which paths a rule reads that nothing in this session answers, before it is applied: a rule
+     * over a misspelt column matches nothing, which reads like a correct answer of zero. Each
+     * unknown path carries the readable values whose name it is, and when each has exactly one,
+     * the rule rewritten to read them.
+     *
+     * ```ts
+     * // After a Degree run, with no file column named degree:
+     * session.selection.checkRule("degree > `16`");
+     * // { unknown: [{ path: "degree", candidates: ["results.degree.value"] }],
+     * //   suggestion: "results.degree.value > `16`" }
+     * ```
+     * Before any run, the same rule suggests the degree every node carries:
+     * `` graphty.degree > `16` ``.
+     * @param where - The rule, as a `where` target or a text target after its "=" reads it.
+     * @returns The unknown paths and the suggestion.
+     * @throws A `GraphtyError` with `E_BAD_SELECTOR` for a rule `apply` refuses.
+     * @since 3.32.0
+     */
+    checkRule(where: Query): RuleCheck;
+    /**
      * Empty the selection.
      * @returns What changed.
      */
     clear(): SelectionDelta;
+    /**
+     * The node under the pointer now, or null. Not part of the selection and never a step: the
+     * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` or a
+     * `{ match: "hover" }` style layer paints it.
+     * @since 3.26.0
+     */
+    readonly hovered: NodeId | null;
+    /**
+     * Say which node is under the pointer, or null for none. The element calls it as the pointer
+     * moves over its canvas; a consumer pointing at a node elsewhere (a table row) may call it too.
+     * @param id - The node, or null.
+     * @since 3.26.0
+     */
+    hover(id: NodeId | null): void;
+    /**
+     * Whether every selected node reads as hovered: see {@link SelectionApi.previewHover}.
+     * @since 3.26.0
+     */
+    readonly hoverPreview: boolean;
+    /**
+     * Preview what a `{ match: "state", state: "hovered" }` layer paints on the selection: while on,
+     * every selected node reads as hovered to a state selector, beside the node under the pointer.
+     * View-only, like the pointer: never a step, never saved, and a selection change while it is on
+     * repaints the new members.
+     *
+     * ```ts
+     * session.selection.previewHover(true); // the hover look on every selected node
+     * ```
+     * @param on - True to preview, false to read only the pointer again.
+     * @since 3.26.0
+     */
+    previewHover(on: boolean): void;
     /**
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
@@ -290,6 +426,15 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked.
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
+    /**
+     * Whether taking edges out of the selection would change nothing: no edge is selected (or,
+     * given the edges, none of them is), no change is waiting, and the cap has truncated nothing.
+     * Answered without reading the graph, so a removal that selects no edge does not freeze it to
+     * find that out.
+     * @param ids - The edges about to be taken out; absent, any selected edge counts.
+     * @returns True when it would change nothing.
+     */
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -349,8 +494,22 @@ export interface SelectionSources {
      * @returns The elements found.
      */
     readonly find?: (text: string, mode: SelectionTextMode) => Iterable<SelectionSearchHit>;
+    /**
+     * The paths a predicate reads. Absent leaves `originPaths` empty.
+     * @param where - The predicate.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
+    /**
+     * What a rule reads that nothing answers. Absent reports nothing unknown.
+     * @param where - The rule.
+     * @returns The check.
+     */
+    readonly checkRule?: (where: Query) => RuleCheck;
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
+    /** What a style layer's rule matches. Absent refuses a `layer` target. */
+    readonly layer?: TargetContext["layer"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
     /**
@@ -366,8 +525,26 @@ export interface SelectionSources {
      * @param delta - What joined, what left, what the selection holds now, and who asked.
      */
     readonly onChange?: (delta: SelectionDelta) => void;
+    /**
+     * Called when {@link Selection.origin} changes while the membership does not -- a rule that
+     * selects exactly what is already selected -- so a host can tell its own subscribers without
+     * publishing a membership event that moved nothing.
+     * @param origin - The origin now.
+     */
+    readonly onOriginChange?: (origin: SelectionTarget | null) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
+    /**
+     * Called when the node under the pointer changes.
+     * @param before - The node that was hovered, or null.
+     * @param after - The node hovered now, or null.
+     */
+    readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
+    /**
+     * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
+     * @param nodes - The selected nodes.
+     */
+    readonly onHoverPreview?: (nodes: readonly NodeId[]) => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -398,6 +575,36 @@ interface CapturedMembership {
     readonly edges: U8;
 }
 
+/**
+ * Add to `added` each element a mask holds now that a captured membership did not, and to
+ * `removed` each it held that the mask does not, in index order.
+ * @param mask - The membership now.
+ * @param mask.count - How many elements it spans.
+ * @param mask.has - Whether it holds the element at an index.
+ * @param before - The captured membership, one byte per element.
+ * @param idOf - The id of the element at an index.
+ * @param added - Where the added ids go.
+ * @param removed - Where the removed ids go.
+ */
+function diffMembership(
+    mask: { readonly count: number; has(index: number): boolean },
+    before: U8,
+    idOf: (index: number) => NodeId,
+    added: NodeId[],
+    removed: NodeId[],
+): void {
+    for (let index = 0; index < mask.count; index++) {
+        const was = index < before.length && before[index] === MEMBER;
+        const is = mask.has(index);
+
+        if (is && !was) {
+            added.push(idOf(index));
+        } else if (was && !is) {
+            removed.push(idOf(index));
+        }
+    }
+}
+
 /** What one attribute looked like as a walk accumulated it. */
 interface AttributeAccumulator {
     /** The finite numbers seen, in index order. */
@@ -408,6 +615,8 @@ interface AttributeAccumulator {
     nonNumeric: boolean;
     /** Whether there were more distinct values than a legend could hold. */
     tooMany: boolean;
+    /** How many elements carried a value that is not empty text. */
+    count: number;
 }
 
 /**
@@ -425,6 +634,10 @@ function frameOf(graph: GraphSnapshot): SelectionFrame {
  * @param value - The value one record carried.
  */
 function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
+    if (value !== "") {
+        accumulator.count++;
+    }
+
     if (typeof value === "number" && Number.isFinite(value)) {
         accumulator.numbers.push(value);
     } else {
@@ -455,7 +668,7 @@ function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
  * @returns The accumulator.
  */
 function newAccumulator(): AttributeAccumulator {
-    return { numbers: [], counts: new Map<string, number>(), nonNumeric: false, tooMany: false };
+    return { numbers: [], counts: new Map<string, number>(), nonNumeric: false, tooMany: false, count: 0 };
 }
 
 /**
@@ -510,6 +723,10 @@ class Selection implements SelectionOwner {
     #frameStale = false;
 
     #truncated = false;
+
+    /** The node under the pointer. */
+    #hovered: NodeId | null = null;
+    #hoverPreview = false;
 
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
@@ -594,6 +811,43 @@ class Selection implements SelectionOwner {
         this.#sync();
 
         return this.#origin;
+    }
+
+    /**
+     * A style layer selector that holds what is selected.
+     * @returns The origin rule as an expression, or the selected ids.
+     */
+    get layerSelector(): Selector {
+        const { origin } = this;
+        if (origin !== null && !("scope" in origin)) {
+            if ("where" in origin) {
+                return { match: "expression", where: origin.where };
+            }
+            if ("text" in origin && origin.mode === undefined && origin.text.startsWith("=")) {
+                return { match: "expression", where: origin.text.slice(1) };
+            }
+        }
+
+        return { match: "ids", nodes: [...this.nodes], edges: [...this.edges] };
+    }
+
+    /**
+     * The paths the rule the selection was made from tests.
+     * @returns The paths, or none when the origin is not a rule.
+     */
+    get originPaths(): readonly Path[] {
+        const { origin } = this;
+        const { pathsOf } = this.#sources;
+        if (origin === null || pathsOf === undefined) {
+            return EMPTY_PATHS;
+        }
+        if ("where" in origin) {
+            return pathsOf(origin.where);
+        }
+
+        return "text" in origin && origin.mode === undefined && origin.text.startsWith("=")
+            ? pathsOf(origin.text.slice(1))
+            : EMPTY_PATHS;
     }
 
     /**
@@ -718,6 +972,7 @@ class Selection implements SelectionOwner {
         const cap = this.#cap();
         const members = resolveTarget(target, this.#context());
         const before = this.#capture();
+        const originBefore = this.#origin;
 
         if (op === "replace") {
             this.#nodes.clear();
@@ -744,26 +999,89 @@ class Selection implements SelectionOwner {
         this.#origin =
             op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
-        return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+        return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+    }
+
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }> {
+        this.#sync();
+        const members = resolveTarget(target, this.#context());
+        return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
+    }
+
+    checkRule(where: Query): RuleCheck {
+        return this.#sources.checkRule?.(where) ?? NOTHING_UNKNOWN;
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
         this.#pending = { target, op, cause };
     }
 
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean {
+        if (this.#pending !== null || this.#truncated) {
+            return false;
+        }
+
+        if (this.#edges.size === 0) {
+            return true;
+        }
+
+        // The masks as they stand, as `has` reads them: one lookup per edge, no freeze. A frame a
+        // renumbering freeze left stale cannot answer, so that case takes the full path.
+        if (ids === undefined || this.#frameStale) {
+            return false;
+        }
+
+        for (const id of ids) {
+            if (this.#edges.hasId(id)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Empty the selection.
      * @returns What changed.
      */
+    get hovered(): NodeId | null {
+        return this.#hovered;
+    }
+
+    hover(id: NodeId | null): void {
+        const before = this.#hovered;
+        if (before === id) {
+            return;
+        }
+
+        this.#hovered = id;
+        this.#sources.onHover?.(before, id);
+    }
+
+    get hoverPreview(): boolean {
+        return this.#hoverPreview;
+    }
+
+    previewHover(on: boolean): void {
+        if (this.#hoverPreview === on) {
+            return;
+        }
+
+        this.#sync();
+        this.#hoverPreview = on;
+        this.#sources.onHoverPreview?.(this.#nodes.ids());
+    }
+
     clear(): SelectionDelta {
         this.#sync();
         const before = this.#capture();
+        const originBefore = this.#origin;
         this.#nodes.clear();
         this.#edges.clear();
         this.#truncated = false;
         this.#origin = null;
 
-        return this.#delta(before, EMPTY_STRINGS, EMPTY_PATHS, "api");
+        return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, "api");
     }
 
     /**
@@ -828,6 +1146,17 @@ class Selection implements SelectionOwner {
             }
         }
 
+        const degrees = graph.degree();
+        let min = Infinity;
+        let max = -Infinity;
+
+        for (let node = 0; node < this.#nodes.count; node++) {
+            if (this.#nodes.has(node)) {
+                min = Math.min(min, degrees[node]);
+                max = Math.max(max, degrees[node]);
+            }
+        }
+
         return Promise.resolve(
             Object.freeze({
                 nodes: this.#nodes.size,
@@ -835,6 +1164,7 @@ class Selection implements SelectionOwner {
                 inducedEdges: induced,
                 cutEdges: cut,
                 attributes: this.#attributeStatistics(),
+                ...(this.#nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
             }),
         );
     }
@@ -878,7 +1208,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note } = this.#sources;
+        const { scope, results, match, find, note, layer } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -891,6 +1221,7 @@ class Selection implements SelectionOwner {
             ...(match === undefined ? {} : { match }),
             ...(find === undefined ? {} : { find }),
             ...(note === undefined ? {} : { note }),
+            ...(layer === undefined ? {} : { layer }),
         };
     }
 
@@ -967,6 +1298,7 @@ class Selection implements SelectionOwner {
      * A row that the graph itself dropped is not reported: it has no id any more, and naming the
      * element that now sits at its index would be a lie.
      * @param before - The membership before the mutation.
+     * @param originBefore - The origin before the mutation.
      * @param unmatched - The pasted ids that named nothing.
      * @param unresolvedPaths - The paths nothing in this session answers.
      * @param cause - Who asked.
@@ -975,6 +1307,7 @@ class Selection implements SelectionOwner {
      */
     #delta(
         before: CapturedMembership,
+        originBefore: SelectionTarget | null,
         unmatched: readonly string[],
         unresolvedPaths: readonly Path[],
         cause: SelectionCause,
@@ -984,27 +1317,8 @@ class Selection implements SelectionOwner {
         const removed: NodeId[] = [];
         const { nodeSpace, edgeSpace } = this.#frame;
 
-        for (let index = 0; index < this.#nodes.count; index++) {
-            const was = index < before.nodes.length && before.nodes[index] === MEMBER;
-            const is = this.#nodes.has(index);
-
-            if (is && !was) {
-                added.push(nodeSpace.idOf(index));
-            } else if (was && !is) {
-                removed.push(nodeSpace.idOf(index));
-            }
-        }
-
-        for (let index = 0; index < this.#edges.count; index++) {
-            const was = index < before.edges.length && before.edges[index] === MEMBER;
-            const is = this.#edges.has(index);
-
-            if (is && !was) {
-                added.push(edgeSpace.idOf(index));
-            } else if (was && !is) {
-                removed.push(edgeSpace.idOf(index));
-            }
-        }
+        diffMembership(this.#nodes, before.nodes, (index) => nodeSpace.idOf(index), added, removed);
+        diffMembership(this.#edges, before.edges, (index) => edgeSpace.idOf(index), added, removed);
 
         const delta: SelectionDelta = Object.freeze({
             added: Object.freeze(added),
@@ -1020,6 +1334,8 @@ class Selection implements SelectionOwner {
 
         if (added.length > 0 || removed.length > 0) {
             this.#sources.onChange?.(delta);
+        } else if (!deepEquals(originBefore, this.#origin)) {
+            this.#sources.onOriginChange?.(this.#origin);
         }
 
         return delta;
@@ -1139,7 +1455,7 @@ function describeAttribute(
     accumulator: AttributeAccumulator,
     graphValues: readonly number[] | undefined,
 ): SelectionAttributeStatistics {
-    const base = { path: `data.${name}`, plainName: name };
+    const base = { path: `data.${name}`, plainName: name, count: accumulator.count };
 
     if (accumulator.nonNumeric || accumulator.numbers.length === 0) {
         return accumulator.tooMany ? base : { ...base, distribution: distributionOf(accumulator.counts) };

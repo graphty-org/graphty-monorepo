@@ -1,5 +1,12 @@
-import { KeyboardEventTypes, PointerEventTypes, PointerInfo, Scene } from "@babylonjs/core";
+/**
+ * @file The input system: BabylonInputSystem, the adapter the element reads Babylon's scene input
+ * through, driven by real mouse, wheel and keyboard input on the canvas (test/helpers/real-input.ts,
+ * `userEvent`), and MockDeviceInputSystem, the scripted stand-in, through its own simulate methods.
+ */
+
+import { Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { Graph } from "../../src/Graph";
 import { BabylonInputSystem } from "../../src/input/babylon-input-system";
@@ -12,7 +19,13 @@ import {
     type TouchPoint,
     type WheelInfo,
 } from "../../src/input/types";
+import { click, hover, moveHeld, type Point, press, release, wheel } from "../helpers/real-input";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+
+/** A spot on the canvas, well inside it. */
+const AT: Point = { x: 100, y: 80 };
+/** Another spot on the canvas. */
+const TO: Point = { x: 150, y: 130 };
 
 describe("Input System Architecture", () => {
     let graph: Graph;
@@ -28,6 +41,16 @@ describe("Input System Architecture", () => {
     afterEach(() => {
         cleanupTestGraph(graph);
     });
+
+    /**
+     * Where a point on the canvas lands in the page's client coordinates, which pointer events carry.
+     * @param point - The point, in CSS pixels from the canvas's top-left corner.
+     * @returns Its clientX and clientY.
+     */
+    function clientOf(point: Point): Point {
+        const rect = canvas.getBoundingClientRect();
+        return { x: rect.left + point.x, y: rect.top + point.y };
+    }
 
     describe("BabylonInputSystem", () => {
         let inputSystem: BabylonInputSystem;
@@ -63,101 +86,59 @@ describe("Input System Architecture", () => {
             assert.isFunction(inputSystem.dispose, "dispose should be a function");
         });
 
-        test("converts Babylon.js pointer events", () => {
-            const pointerEvents: { type: string; info: InputPointerInfo }[] = [];
-            inputSystem.onPointerDown.add((info) => pointerEvents.push({ type: "down", info }));
-            inputSystem.onPointerMove.add((info) => pointerEvents.push({ type: "move", info }));
-            inputSystem.onPointerUp.add((info) => pointerEvents.push({ type: "up", info }));
+        test("converts Babylon.js pointer events", async () => {
+            const recorded: { type: string; info: InputPointerInfo }[] = [];
+            inputSystem.onPointerDown.add((info) => recorded.push({ type: "down", info }));
+            inputSystem.onPointerMove.add((info) => recorded.push({ type: "move", info }));
+            inputSystem.onPointerUp.add((info) => recorded.push({ type: "up", info }));
 
-            // Simulate Babylon.js scene pointer events
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: {
-                    clientX: 100,
-                    clientY: 200,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 1.0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Press, move with the button held, release: real mouse input on the canvas
+            await press(canvas, AT);
+            await moveHeld(canvas, TO);
+            await release(canvas, TO);
+            const from = clientOf(AT);
+            const to = clientOf(TO);
 
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: {
-                    clientX: 150,
-                    clientY: 250,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 0.5,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: {
-                    clientX: 150,
-                    clientY: 250,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // From the press on: `press` moves the pointer to its start first, a move of its own
+            const pointerEvents = recorded.slice(recorded.findIndex((e) => e.type === "down"));
 
             // Verify events were converted and emitted
             assert.equal(pointerEvents.length, 3, "Should have received 3 pointer events");
 
             const downEvent = pointerEvents[0];
             assert.equal(downEvent.type, "down", "First event should be pointer down");
-            assert.equal(downEvent.info.x, 100, "Down event X coordinate should be correct");
-            assert.equal(downEvent.info.y, 200, "Down event Y coordinate should be correct");
+            assert.closeTo(downEvent.info.x, from.x, 1, "Down event X coordinate should be correct");
+            assert.closeTo(downEvent.info.y, from.y, 1, "Down event Y coordinate should be correct");
             assert.equal(downEvent.info.button, MouseButton.Left, "Down event button should be Left");
             assert.equal(downEvent.info.deviceType, DeviceType.Mouse, "Down event device type should be Mouse");
 
             const moveEvent = pointerEvents[1];
             assert.equal(moveEvent.type, "move", "Second event should be pointer move");
-            assert.equal(moveEvent.info.x, 150, "Move event X coordinate should be correct");
-            assert.equal(moveEvent.info.y, 250, "Move event Y coordinate should be correct");
+            assert.closeTo(moveEvent.info.x, to.x, 1, "Move event X coordinate should be correct");
+            assert.closeTo(moveEvent.info.y, to.y, 1, "Move event Y coordinate should be correct");
 
             const upEvent = pointerEvents[2];
             assert.equal(upEvent.type, "up", "Third event should be pointer up");
             assert.equal(upEvent.info.pressure, 0, "Up event pressure should be 0");
         });
 
-        test("converts Babylon.js keyboard events", () => {
+        test("converts Babylon.js keyboard events", async () => {
             const keyboardEvents: { type: string; info: KeyboardInfo }[] = [];
-            inputSystem.onKeyDown.add((info) => keyboardEvents.push({ type: "down", info }));
-            inputSystem.onKeyUp.add((info) => keyboardEvents.push({ type: "up", info }));
-
-            // Simulate Babylon.js scene keyboard events
-            scene.onKeyboardObservable.notifyObservers({
-                type: KeyboardEventTypes.KEYDOWN,
-                event: {
-                    key: "w",
-                    code: "KeyW",
-                    ctrlKey: false,
-                    shiftKey: false,
-                    altKey: false,
-                    metaKey: false,
-                } as KeyboardEvent,
+            // Only the W key's events: holding Ctrl makes events of its own
+            inputSystem.onKeyDown.add((info) => {
+                if (info.key === "w") {
+                    keyboardEvents.push({ type: "down", info });
+                }
+            });
+            inputSystem.onKeyUp.add((info) => {
+                if (info.key === "w") {
+                    keyboardEvents.push({ type: "up", info });
+                }
             });
 
-            scene.onKeyboardObservable.notifyObservers({
-                type: KeyboardEventTypes.KEYUP,
-                event: {
-                    key: "w",
-                    code: "KeyW",
-                    ctrlKey: true,
-                    shiftKey: false,
-                    altKey: false,
-                    metaKey: false,
-                } as KeyboardEvent,
-            });
+            // Real key presses on the focused canvas: W down, Ctrl down, W up with Ctrl held
+            canvas.focus();
+            await userEvent.keyboard("{w>}{Control>}{/w}{/Control}");
 
             // Verify events were converted and emitted
             assert.equal(keyboardEvents.length, 2, "Should have received 2 keyboard events");
@@ -173,19 +154,17 @@ describe("Input System Architecture", () => {
             assert.isTrue(upEvent.info.ctrlKey, "Up event ctrlKey should be true");
         });
 
-        test("handles wheel events", () => {
+        // A turn on two axes, as a trackpad sends: Babylon raises one POINTERWHEEL per changed axis,
+        // each carrying the same WheelEvent, and it must still arrive once (issue #2937).
+        test("handles wheel events", async () => {
             const wheelEvents: WheelInfo[] = [];
             inputSystem.onWheel.add((info) => wheelEvents.push(info));
 
-            // Simulate wheel event
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERWHEEL,
-                event: {
-                    deltaX: 10,
-                    deltaY: -100,
-                    deltaMode: 0,
-                } as WheelEvent,
-            } as unknown as PointerInfo);
+            // A real wheel turn over the canvas
+            await wheel(canvas, AT, -100, 10);
+            await vi.waitFor(() => {
+                assert.isNotEmpty(wheelEvents, "the wheel event arrived");
+            });
 
             assert.equal(wheelEvents.length, 1, "Should have received 1 wheel event");
             assert.equal(wheelEvents[0].deltaX, 10, "Wheel deltaX should be correct");
@@ -194,24 +173,13 @@ describe("Input System Architecture", () => {
             assert.equal(wheelEvents[0].deltaMode, 0, "Wheel deltaMode should be correct");
         });
 
-        test("tracks pointer state", () => {
+        test("tracks pointer state", async () => {
             // Initially no pointer should be down
             assert.isFalse(inputSystem.isPointerDown(), "No pointer should be down initially");
             assert.isFalse(inputSystem.isPointerDown(MouseButton.Left), "Left button should not be down initially");
 
-            // Simulate pointer down
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: {
-                    clientX: 100,
-                    clientY: 200,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 1.0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Real mouse: press the left button on the canvas
+            await press(canvas, AT);
 
             assert.isTrue(inputSystem.isPointerDown(), "Some pointer should be down after pointer down event");
             assert.isTrue(
@@ -220,19 +188,8 @@ describe("Input System Architecture", () => {
             );
             assert.isFalse(inputSystem.isPointerDown(MouseButton.Right), "Right button should not be down");
 
-            // Simulate pointer up
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: {
-                    clientX: 100,
-                    clientY: 200,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Release it
+            await release(canvas, AT);
 
             assert.isFalse(inputSystem.isPointerDown(), "No pointer should be down after pointer up event");
             assert.isFalse(
@@ -241,28 +198,18 @@ describe("Input System Architecture", () => {
             );
         });
 
-        test("tracks pointer position", () => {
+        test("tracks pointer position", async () => {
             const initialPosition = inputSystem.getPointerPosition();
             assert.equal(initialPosition.x, 0, "Initial pointer X should be 0");
             assert.equal(initialPosition.y, 0, "Initial pointer Y should be 0");
 
-            // Simulate pointer move
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: {
-                    clientX: 300,
-                    clientY: 400,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 0.5,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Real mouse move over the canvas
+            await hover(canvas, TO);
+            const to = clientOf(TO);
 
             const newPosition = inputSystem.getPointerPosition();
-            assert.equal(newPosition.x, 300, "Pointer X should be updated");
-            assert.equal(newPosition.y, 400, "Pointer Y should be updated");
+            assert.closeTo(newPosition.x, to.x, 1, "Pointer X should be updated");
+            assert.closeTo(newPosition.y, to.y, 1, "Pointer Y should be updated");
         });
 
         test("attach and detach lifecycle", () => {
@@ -582,7 +529,7 @@ describe("Input System Architecture", () => {
             mockSystem.dispose();
         });
 
-        test("Event data structures are compatible", () => {
+        test("Event data structures are compatible", async () => {
             const babylonSystem = new BabylonInputSystem(scene);
             const mockSystem = new MockDeviceInputSystem();
             mockSystem.attach(canvas);
@@ -598,19 +545,8 @@ describe("Input System Architecture", () => {
                 mockPointerInfo = info;
             });
 
-            // Trigger events from both systems
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: {
-                    clientX: 100,
-                    clientY: 200,
-                    button: 0,
-                    pointerType: "mouse",
-                    pointerId: 1,
-                    isPrimary: true,
-                    pressure: 1.0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Trigger events from both systems: a real click for Babylon's, a scripted one for the mock
+            await click(canvas, AT);
 
             mockSystem.simulateMouseDown(MouseButton.Left);
 

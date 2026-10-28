@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <!-- A reporter's sources for a story on waterfront zoning. A tie: a documented contact or payment between two of them. donations: political donations in dollars; on_record: agreed to speak on the record; email: left out where no address is known. -->
+  <key id="name" for="node" attr.name="name" attr.type="string"/>
+  <key id="kind" for="node" attr.name="kind" attr.type="string"/>
+  <key id="donations" for="node" attr.name="donations" attr.type="int"/>
+  <key id="on_record" for="node" attr.name="on_record" attr.type="boolean"/>
+  <key id="email" for="node" attr.name="email" attr.type="string"/>
+  <graph id="G" edgedefault="undirected">
+    <node id="s01">
+      <data key="name">Harlan Development</data>
+      <data key="kind">company</data>
+      <data key="donations">250000</data>
+      <data key="on_record">false</data>
+      <data key="email">press@harlandev.example</data>
+    </node>
+    <node id="s02">
+      <data key="name">Rita Vance</data>
+      <data key="kind">person</data>
+      <data key="donations">12000</data>
+      <data key="on_record">true</data>
+      <data key="email">rvance@mail.example</data>
+    </node>
+    <node id="s03">
+      <data key="name">Cole Brandt</data>
+      <data key="kind">person</data>
+      <data key="donations">0</data>
+      <data key="on_record">false</data>
+    </node>
+    <node id="s04">
+      <data key="name">Northgate Capital</data>
+      <data key="kind">company</data>
+      <data key="donations">90000</data>
+      <data key="on_record">false</data>
+    </node>
+    <node id="s05">
+      <data key="name">Della Whitfield</data>
+      <data key="kind">person</data>
+      <data key="donations">4500</data>
+      <data key="on_record">true</data>
+    </node>
+    <node id="s06">
+      <data key="name">Marcus Lee</data>
+      <data key="kind">person</data>
+      <data key="donations">800</data>
+      <data key="on_record">true</data>
+      <data key="email">mlee@mail.example</data>
+    </node>
+    <node id="s07">
+      <data key="name">Bayview Holdings</data>
+      <data key="kind">company</data>
+      <data key="donations">30000</data>
+      <data key="on_record">false</data>
+      <data key="email">info@bayview.example</data>
+    </node>
+    <node id="s08">
+      <data key="name">Eileen Park</data>
+      <data key="kind">person</data>
+      <data key="donations">0</data>
+      <data key="on_record">true</data>
+      <data key="email">epark@mail.example</data>
+    </node>
+    <node id="s09">
+      <data key="name">City Planning Office</data>
+      <data key="kind">agency</data>
+      <data key="donations">0</data>
+      <data key="on_record">true</data>
+      <data key="email">planning@city.example</data>
+    </node>
+    <node id="s10">
+      <data key="name">Victor Szabo</data>
+      <data key="kind">person</data>
+      <data key="donations">15000</data>
+      <data key="on_record">false</data>
+      <data key="email">vszabo@mail.example</data>
+    </node>
+    <node id="s11">
+      <data key="name">Ines Moreau</data>
+      <data key="kind">person</data>
+      <data key="donations">2000</data>
+      <data key="on_record">true</data>
+    </node>
+    <node id="s12">
+      <data key="name">Port Authority</data>
+      <data key="kind">agency</data>
+      <data key="donations">0</data>
+      <data key="on_record">false</data>
+      <data key="email">media@port.example</data>
+    </node>
+    <node id="s13">
+      <data key="name">Gary Holt</data>
+      <data key="kind">person</data>
+      <data key="donations">500</data>
+      <data key="on_record">false</data>
+    </node>
+    <node id="s14">
+      <data key="name">Lena Fischer</data>
+      <data key="kind">person</data>
+      <data key="donations">0</data>
+      <data key="on_record">true</data>
+      <data key="email">lfischer@mail.example</data>
+    </node>
+    <node id="s15">
+      <data key="name">Zoning Board</data>
+      <data key="kind">agency</data>
+      <data key="donations">0</data>
+      <data key="on_record">false</data>
+    </node>
+    <node id="s16">
+      <data key="name">Keith Ramos</data>
+      <data key="kind">person</data>
+      <data key="donations">7000</data>
+      <data key="on_record">true</data>
+      <data key="email">kramos@mail.example</data>
+    </node>
+    <node id="s17">
+      <data key="name">Friends of the Waterfront</data>
+      <data key="kind">company</data>
+      <data key="donations">18000</data>
+      <data key="on_record">true</data>
+    </node>
+    <node id="s18">
+      <data key="name">Paula Greene</data>
+      <data key="kind">person</data>
+      <data key="donations">22000</data>
+      <data key="on_record">false</data>
+      <data key="email">pgreene@mail.example</data>
+    </node>
+    <node id="s19">
+      <data key="name">Tomas Varga</data>
+      <data key="kind">person</data>
+      <data key="donations">0</data>
+      <data key="on_record">true</data>
+    </node>
+    <node id="s20">
+      <data key="name">Silverline Media</data>
+      <data key="kind">company</data>
+      <data key="donations">11000</data>
+      <data key="on_record">false</data>
+      <data key="email">news@silverline.example</data>
+    </node>
+    <node id="s21">
+      <data key="name">Rhoda Adeyemi</data>
+      <data key="kind">person</data>
+      <data key="donations">300</data>
+      <data key="on_record">true</data>
+      <data key="email">radeyemi@mail.example</data>
+    </node>
+    <node id="s22">
+      <data key="name">State Ethics Commission</data>
+      <data key="kind">agency</data>
+      <data key="donations">0</data>
+      <data key="on_record">true</data>
+      <data key="email">tips@ethics.example</data>
+    </node>
+    <node id="s23">
+      <data key="name">Owen Clarke</data>
+      <data key="kind">person</data>
+      <data key="donations">9500</data>
+      <data key="on_record">false</data>
+    </node>
+    <node id="s24">
+      <data key="name">Riverside Partners</data>
+      <data key="kind">company</data>
+      <data key="donations">60000</data>
+      <data key="on_record">false</data>
+      <data key="email">contact@riverside.example</data>
+    </node>
+    <edge id="e0" source="s01" target="s02"/>
+    <edge id="e1" source="s01" target="s05"/>
+    <edge id="e2" source="s01" target="s06"/>
+    <edge id="e3" source="s01" target="s08"/>
+    <edge id="e4" source="s01" target="s10"/>
+    <edge id="e5" source="s02" target="s03"/>
+    <edge id="e6" source="s02" target="s06"/>
+    <edge id="e7" source="s02" target="s07"/>
+    <edge id="e8" source="s02" target="s08"/>
+    <edge id="e9" source="s03" target="s04"/>
+    <edge id="e10" source="s03" target="s06"/>
+    <edge id="e11" source="s04" target="s05"/>
+    <edge id="e12" source="s04" target="s07"/>
+    <edge id="e13" source="s04" target="s08"/>
+    <edge id="e14" source="s04" target="s18"/>
+    <edge id="e15" source="s05" target="s06"/>
+    <edge id="e16" source="s05" target="s07"/>
+    <edge id="e17" source="s05" target="s08"/>
+    <edge id="e18" source="s06" target="s07"/>
+    <edge id="e19" source="s06" target="s08"/>
+    <edge id="e20" source="s07" target="s08"/>
+    <edge id="e21" source="s07" target="s24"/>
+    <edge id="e22" source="s09" target="s10"/>
+    <edge id="e23" source="s09" target="s12"/>
+    <edge id="e24" source="s09" target="s14"/>
+    <edge id="e25" source="s09" target="s16"/>
+    <edge id="e26" source="s10" target="s11"/>
+    <edge id="e27" source="s10" target="s16"/>
+    <edge id="e28" source="s11" target="s12"/>
+    <edge id="e29" source="s11" target="s13"/>
+    <edge id="e30" source="s11" target="s14"/>
+    <edge id="e31" source="s11" target="s16"/>
+    <edge id="e32" source="s12" target="s13"/>
+    <edge id="e33" source="s12" target="s14"/>
+    <edge id="e34" source="s12" target="s20"/>
+    <edge id="e35" source="s13" target="s14"/>
+    <edge id="e36" source="s13" target="s15"/>
+    <edge id="e37" source="s14" target="s15"/>
+    <edge id="e38" source="s15" target="s16"/>
+    <edge id="e39" source="s17" target="s18"/>
+    <edge id="e40" source="s17" target="s21"/>
+    <edge id="e41" source="s17" target="s22"/>
+    <edge id="e42" source="s17" target="s23"/>
+    <edge id="e43" source="s18" target="s19"/>
+    <edge id="e44" source="s18" target="s20"/>
+    <edge id="e45" source="s18" target="s21"/>
+    <edge id="e46" source="s18" target="s22"/>
+    <edge id="e47" source="s18" target="s23"/>
+    <edge id="e48" source="s19" target="s20"/>
+    <edge id="e49" source="s19" target="s22"/>
+    <edge id="e50" source="s19" target="s23"/>
+    <edge id="e51" source="s20" target="s21"/>
+    <edge id="e52" source="s20" target="s23"/>
+    <edge id="e53" source="s20" target="s24"/>
+    <edge id="e54" source="s21" target="s22"/>
+    <edge id="e55" source="s21" target="s23"/>
+    <edge id="e56" source="s22" target="s23"/>
+    <edge id="e57" source="s22" target="s24"/>
+    <edge id="e58" source="s23" target="s24"/>
+  </graph>
+</graphml>

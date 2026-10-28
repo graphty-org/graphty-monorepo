@@ -4,26 +4,30 @@ import path from "node:path";
 import { type AttributeTable, type ColumnInput, fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { buildDataset, type DatasetMeta } from "../../src/datasets/build.js";
+import { buildDataset } from "../../data/build.js";
+import { type DatasetMeta } from "../../src/datasets/build.js";
 import { DATASETS } from "../../src/datasets/catalog.js";
-import { celegansNeural } from "../../src/datasets/celegans-neural/index.js";
-import { contiguousUsa } from "../../src/datasets/contiguous-usa/index.js";
-import { davisSouthernWomen } from "../../src/datasets/davis-southern-women/index.js";
-import { dolphins } from "../../src/datasets/dolphins/index.js";
-import { florentineFamilies } from "../../src/datasets/florentine-families/index.js";
-import { football } from "../../src/datasets/football/index.js";
-import { goSlimGeneric } from "../../src/datasets/go-slim-generic/index.js";
-import { karate } from "../../src/datasets/karate/index.js";
-import { knuthMiles } from "../../src/datasets/knuth-miles/index.js";
-import { lesMiserables } from "../../src/datasets/les-miserables/index.js";
 import { DATASET_NAMES } from "../../src/datasets/names.js";
-import { openflights } from "../../src/datasets/openflights/index.js";
-import { politicalBlogs } from "../../src/datasets/political-blogs/index.js";
-import { politicalBooks } from "../../src/datasets/political-books/index.js";
-import { stelzlInteractome } from "../../src/datasets/stelzl-interactome/index.js";
-import { wikipathwaysSenescenceAutophagy } from "../../src/datasets/wikipathways-senescence-autophagy/index.js";
-import { yeastPerturbation } from "../../src/datasets/yeast-perturbation/index.js";
 import { type SampleGraph } from "../../src/types.js";
+import {
+    celegansNeural,
+    contiguousUsa,
+    davisSouthernWomen,
+    dolphins,
+    florentineFamilies,
+    football,
+    goSlimGeneric,
+    karate,
+    knuthMiles,
+    lesMiserables,
+    openflights,
+    politicalBlogs,
+    politicalBooks,
+    stelzlInteractome,
+    veniceTransit,
+    wikipathwaysSenescenceAutophagy,
+    yeastPerturbation,
+} from "../helpers/datasets.js";
 import { degrees, expectSimple } from "../helpers/graph.js";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
@@ -41,13 +45,14 @@ const LOADERS: Readonly<Record<string, () => SampleGraph>> = {
     "celegans-neural": celegansNeural,
     "political-blogs": politicalBlogs,
     openflights,
+    "venice-transit": veniceTransit,
     "yeast-perturbation": yeastPerturbation,
     "stelzl-interactome": stelzlInteractome,
     "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagy,
     "go-slim-generic": goSlimGeneric,
 };
 
-const BUNDLED = DATASETS.filter((meta) => meta.hosting !== "remote");
+const SMALL = DATASETS.filter((meta) => meta.name in LOADERS);
 
 /**
  * A node column's value for every node of a loaded snapshot.
@@ -62,7 +67,7 @@ function columnValues(table: AttributeTable, name: string, count: number): unkno
     return Array.from({ length: count }, (_, i) => column?.value(i));
 }
 
-describe.each(BUNDLED.map((meta) => [meta.name, meta] as const))("dataset %s", (name, meta: DatasetMeta) => {
+describe.each(SMALL.map((meta) => [meta.name, meta] as const))("dataset %s", (name, meta: DatasetMeta) => {
     const load = LOADERS[name];
 
     it("has a loader", () => {
@@ -106,7 +111,7 @@ describe.each(BUNDLED.map((meta) => [meta.name, meta] as const))("dataset %s", (
 describe.each(DATASETS.map((meta) => [meta.name, meta] as const))("NOTICE: %s", (name, meta: DatasetMeta) => {
     it("is recorded in NOTICE with its source, citation and license", () => {
         const notice = readFileSync(path.join(packageRoot, "NOTICE"), "utf8");
-        expect(notice).toContain(meta.hosting === "remote" ? `(hosted: ${name})` : `(datasets/${name})`);
+        expect(notice).toContain(name in LOADERS ? `(datasets/${name})` : `(hosted: ${name})`);
         expect(notice).toContain(meta.source);
         expect(notice).toContain(meta.citation);
         expect(notice).toContain(meta.license);
@@ -123,7 +128,7 @@ describe("the catalogue", () => {
             .filter((entry) => entry.isDirectory())
             .map((entry) => entry.name)
             .sort();
-        expect(BUNDLED.map((meta) => meta.name).sort()).toEqual(dirs);
+        expect(SMALL.map((meta) => meta.name).sort()).toEqual(dirs);
     });
 });
 
@@ -294,6 +299,21 @@ describe("dataset contents", () => {
         expect(snapshot.nodes.get("country")?.value(index)).toBe("United States");
         expect(snapshot.nodes.get("latitude")?.value(index)).toBeCloseTo(33.64, 1);
         expect(Array.from(g.weights ?? []).reduce((a, b) => a + b, 0)).toBe(66771 - 1);
+    });
+
+    it("venice transit: every stop within the city's 20 km extract, ferries and trams included", () => {
+        const snapshot = fromEdgeArrays(veniceTransit());
+        const n = snapshot.nodeCount;
+        const latitude = columnValues(snapshot.nodes, "latitude", n) as number[];
+        const longitude = columnValues(snapshot.nodes, "longitude", n) as number[];
+        expect(latitude.every((lat) => lat > 45.3 && lat < 45.7)).toBe(true);
+        expect(longitude.every((lon) => lon > 11.9 && lon < 12.5)).toBe(true);
+        const redentore = snapshot.ids.requireIndex("1");
+        expect(snapshot.nodes.get("label")?.value(redentore)).toBe("Redentore");
+        expect(snapshot.nodes.get("mode")?.value(redentore)).toBe("ferry");
+        expect(new Set(columnValues(snapshot.nodes, "mode", n))).toEqual(
+            new Set(["bus", "bus and tram", "ferry", "tram"]),
+        );
     });
 });
 

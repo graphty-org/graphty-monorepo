@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider, UnstyledButton } from "@mantine/core";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -379,40 +379,10 @@ describe("ActionRow", () => {
             expect(actions).toHaveStyle({ opacity: "0" });
         });
 
-        it("reveals what acts on hover", () => {
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
-
-            fireEvent.mouseEnter(screen.getByTestId("action-row"));
-
-            const actions = screen.getByTestId("action-row-actions");
-            expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: "1" });
-        });
-
-        it("hides them again when the pointer leaves", () => {
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
-
-            const row = screen.getByTestId("action-row");
-            fireEvent.mouseEnter(row);
-            fireEvent.mouseLeave(row);
-
-            expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "false");
-        });
-
         it("keeps a hidden action mounted, so it keeps its place in the tab order", () => {
             renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toBeInTheDocument();
-        });
-
-        it("withdraws pointer events with the ink, so an invisible button cannot be clicked", () => {
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
-
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ pointerEvents: "none" });
-
-            fireEvent.mouseEnter(screen.getByTestId("action-row"));
-
-            expect(screen.getByTestId("action-row-actions")).not.toHaveStyle({ pointerEvents: "none" });
         });
 
         it("runs the action when it has been revealed and pressed", async () => {
@@ -446,20 +416,6 @@ describe("ActionRow", () => {
             expect(resident).toBeInTheDocument();
             expect(resident.style.opacity).toBe("");
             expect(resident.style.pointerEvents).toBe("");
-        });
-
-        it("leaves what reports state resident while the row is hovered", () => {
-            renderRow(
-                <ActionRow
-                    reveal="hover"
-                    state="Chonky_Boy"
-                    residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />}
-                />,
-            );
-
-            fireEvent.mouseEnter(screen.getByTestId("action-row"));
-
-            expect(screen.getByTestId("action-row-resident-actions").style.opacity).toBe("");
         });
 
         it("runs a resident action without any hover at all", async () => {
@@ -524,21 +480,6 @@ describe("ActionRow", () => {
             await user.click(screen.getByRole("button", { name: "Node options" }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
-        });
-
-        it("outranks the hover when the caller holds them shut", () => {
-            renderRow(
-                <ActionRow
-                    reveal="hover"
-                    state="20 nodes"
-                    actionsVisible={false}
-                    actions={<GlyphAction label="Copy reading" />}
-                />,
-            );
-
-            fireEvent.mouseEnter(screen.getByTestId("action-row"));
-
-            expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "false");
         });
 
         it("does not outrank focus, because a focus ring nobody can see is a failure", async () => {

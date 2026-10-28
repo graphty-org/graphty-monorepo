@@ -2,7 +2,8 @@ import { createCompactTheme } from "@graphty/compact-mantine";
 
 /**
  * The one theme the application mounts, and the one its tests mount: `@graphty/compact-mantine`'s
- * Figma theme with its WCAG 2.2 AA option on.
+ * Figma theme with its WCAG 2.2 AA option on and the graphty brand accent: mark-green fills with
+ * ink labels and olive text on light, the bright lime with near-black labels on dark.
  *
  * The AA option changes color tokens only -- nothing moves or resizes. The app needs it because
  * Figma's own colors miss AA in places the shell draws everywhere: a filled button's white label
@@ -14,4 +15,4 @@ import { createCompactTheme } from "@graphty/compact-mantine";
  * If the app ever needs a theme value the library does not have, the value goes into the
  * library, not into a local override here.
  */
-export const theme = createCompactTheme({ highContrast: true });
+export const theme = createCompactTheme({ highContrast: true, accent: "graphty" });

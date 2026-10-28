@@ -148,11 +148,12 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
 }
 
 /**
- * The dialect of a parsed JSON document, by the shape rules of design section 8.2 (Cytoscape:
+ * The dialect of a parsed JSON document, told by its shape (Cytoscape:
  * `elements` or a top-level array of `{ data }` elements; OBO Graphs: `graphs[]` whose first graph
  * has an edge with `sub` (or `subj`) and `obj` or a `pred`, or a node with `lbl`, `meta` or an OWL
  * `type`; JGF: `graph.nodes` / `graph.edges` or any other `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
- * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, both only without
+ * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, or no edge record and an `options`
+ * object holding a vis-network option group (`nodes`, `edges`, `groups`, `physics`, ...), both only without
  * NetworkX's `links` / `directed` / `multigraph` / `graph` keys; d3: `links` without
  * `directed` / `multigraph` / `graph`; NetworkX adjacency_data: `nodes` and `adjacency` without
  * `links` / `edges`; NetworkX tree_data: `children` without `nodes` / `links` / `edges`; else
@@ -170,6 +171,17 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     if (!isJsonObject(root)) {
         return null;
     }
+    const decided = sniffWrapperDialect(root) ?? sniffEdgelessDialect(root);
+    return decided === undefined ? sniffEdgeListDialect(root) : decided;
+}
+
+/**
+ * The dialects a top-level wrapper key settles: Cytoscape `elements`, JGF `graph.nodes` /
+ * `graph.edges`, and a `graphs[]` array (OBO Graphs when any graph looks like one, else JGF).
+ * @param root - the parsed document object
+ * @returns the dialect, or undefined when no wrapper key decides it
+ */
+function sniffWrapperDialect(root: Record<string, unknown>): JsonImportDialect | undefined {
     if (hasKey(root, "elements")) {
         return "cytoscape";
     }
@@ -180,14 +192,31 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
         // any graph decides: an ontology's first graph may be an empty stub before its imports
         return root.graphs.some((g: unknown) => isJsonObject(g) && isOboGraph(g)) ? "obographs" : "jgf";
     }
-    if (!hasKey(root, "edges") && !hasKey(root, "links")) {
-        if (hasKey(root, "nodes") && hasKey(root, "adjacency")) {
-            return "adjacency";
-        }
-        if (!hasKey(root, "nodes")) {
-            return hasKey(root, "children") ? "tree" : null;
-        }
+    return undefined;
+}
+
+/**
+ * The dialect of a document with neither `edges` nor `links`: NetworkX adjacency_data (`nodes`
+ * and `adjacency`), tree_data (`children` without `nodes`), or no graph at all.
+ * @param root - the parsed document object
+ * @returns the dialect; null for no graph; undefined when the edge-list rules decide
+ */
+function sniffEdgelessDialect(root: Record<string, unknown>): JsonImportDialect | null | undefined {
+    if (hasKey(root, "edges") || hasKey(root, "links")) {
+        return undefined;
     }
+    if (hasKey(root, "nodes")) {
+        return hasKey(root, "adjacency") ? "adjacency" : undefined;
+    }
+    return hasKey(root, "children") ? "tree" : null;
+}
+
+/**
+ * The dialect of a node and edge list document: graphology, vis, d3 or NetworkX node-link.
+ * @param root - the parsed document object
+ * @returns the dialect
+ */
+function sniffEdgeListDialect(root: Record<string, unknown>): JsonImportDialect {
     const firstNode = firstJsonObject(root.nodes);
     const firstEdge = firstJsonObject(hasKey(root, "edges") ? root.edges : root.links);
     if (isJsonObject(root.options) && (hasKey(root.options, "type") || hasKey(root.options, "multi"))) {
@@ -197,25 +226,71 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     // like a graphology or vis field (`attributes`, `undirected`, `key`, `from`) must not re-route it
     const networkx =
         hasKey(root, "links") || hasKey(root, "directed") || hasKey(root, "multigraph") || hasKey(root, "graph");
-    if (!networkx && firstNode !== null && hasKey(firstNode, "key") && !hasKey(firstNode, "id")) {
-        return "graphology";
+    const record = networkx ? undefined : sniffRecordDialect(firstNode, firstEdge);
+    if (record !== undefined) {
+        return record;
     }
-    if (!networkx && firstEdge !== null && !hasKey(firstEdge, "from")) {
-        if (hasKey(firstEdge, "undirected") || isJsonObject(firstEdge.attributes)) {
-            return "graphology";
-        }
-    }
-    if (
-        !networkx &&
-        firstEdge !== null &&
-        hasKey(firstEdge, "from") &&
-        hasKey(firstEdge, "to") &&
-        !hasKey(firstEdge, "source")
-    ) {
+    // vis: a `{ nodes, edges, options }` document with no edge record still carries vis-network's options
+    if (!networkx && firstEdge === null && isVisOptions(root.options)) {
         return "vis";
     }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");
     return bare && hasKey(root, "links") ? "d3" : "node-link";
+}
+
+/** vis-network's top-level option groups (https://visjs.github.io/vis-network/docs/network/#options). */
+const VIS_OPTION_GROUPS = [
+    "nodes",
+    "edges",
+    "groups",
+    "physics",
+    "layout",
+    "interaction",
+    "manipulation",
+    "configure",
+    "autoResize",
+    "clickToUse",
+    "locale",
+    "locales",
+    "height",
+    "width",
+];
+
+/**
+ * Whether a document's `options` is vis-network's: an object holding one of its top-level option groups.
+ * @param options - the document's `options`
+ * @returns true for vis-network options
+ */
+function isVisOptions(options: unknown): boolean {
+    return isJsonObject(options) && VIS_OPTION_GROUPS.some((k) => hasKey(options, k));
+}
+
+/**
+ * The graphology or vis dialect, read from the first node and edge records of a document without
+ * NetworkX's keys: graphology for a `key` node without `id`, an edge without `from` that has
+ * `undirected` or an `attributes` record, or, with no edges, an `id` node with an `attributes` record
+ * (Gephi's JSON export); vis for an edge with `from` and `to` but no `source`.
+ * @param firstNode - the first node record, or null
+ * @param firstEdge - the first edge record, or null
+ * @returns the dialect, or undefined when the records name neither
+ */
+function sniffRecordDialect(
+    firstNode: Record<string, unknown> | null,
+    firstEdge: Record<string, unknown> | null,
+): JsonImportDialect | undefined {
+    if (firstNode !== null && hasKey(firstNode, "key") && !hasKey(firstNode, "id")) {
+        return "graphology";
+    }
+    if (firstEdge === null) {
+        // Gephi's JSON export of a graph with no edges: its nodes still carry the exporter's `attributes` record
+        return firstNode !== null && hasKey(firstNode, "id") && isJsonObject(firstNode.attributes)
+            ? "graphology"
+            : undefined;
+    }
+    if (!hasKey(firstEdge, "from")) {
+        return hasKey(firstEdge, "undirected") || isJsonObject(firstEdge.attributes) ? "graphology" : undefined;
+    }
+    return hasKey(firstEdge, "to") && !hasKey(firstEdge, "source") ? "vis" : undefined;
 }
 
 /** The node types of OBO Graphs (the OWL entity kinds). */

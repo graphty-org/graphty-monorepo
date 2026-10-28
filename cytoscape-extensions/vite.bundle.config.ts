@@ -2,8 +2,6 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig, type Plugin, type UserConfig } from "vite";
 
-import { BUNDLED_DATASET_NAMES } from "./src/samples.js";
-
 /**
  * The two builds for a page with no bundler, both in dist/ (tsc owns the rest of it):
  *
@@ -11,13 +9,13 @@ import { BUNDLED_DATASET_NAMES } from "./src/samples.js";
  *   The library build (tsc) leaves every dependency to the consumer's installer; this one bundles them all
  *   (Cytoscape excepted: the extension never imports it, `use()` hands it over), so every import is a relative
  *   path the browser resolves against the CDN. It keeps the library's code splitting: the WebGPU code, the
- *   generators, each dataset and the file formats are chunks fetched on first use. The file formats
- *   (`io.js`) and each dataset (`datasets/<name>.js`) have fixed names, because the script-tag build loads them.
+ *   generators and the file formats are chunks fetched on first use. The file formats (`io.js`) have a fixed
+ *   name, because the script-tag build loads them. The datasets are not code: they download from graphty.app.
  *
  * - the default mode: the script-tag build, `dist/cytoscape-extensions.bundle.js`, one classic script. Every
- *   dynamic import is inlined, GPU detection included, except the file formats and the datasets: those are most
- *   of the size and few pages use them, so the bundle loads them from dist/cdn/ next to itself, at the same URL
- *   prefix (so the same version) the bundle came from.
+ *   dynamic import is inlined, GPU detection included, except the file formats: those are most of the size and
+ *   few pages use them, so the bundle loads them from dist/cdn/ next to itself, at the same URL prefix (so the
+ *   same version) the bundle came from.
  */
 
 const pkg = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -25,33 +23,19 @@ const pkg = (path: string): string => fileURLToPath(new URL(path, import.meta.ur
 // the package's `imports` field maps "#gpu-platform" to the Node or the browser build; both builds are for a browser
 const resolve = { alias: { "#gpu-platform": pkg("src/gpu-platform-browser.ts") } };
 
-const DATASET = /^@graphty\/graph-samples\/datasets\/(.+)$/;
-
 /**
- * The script-tag build's lazy parts: the dynamic import of ./io.js and of each dataset becomes a call to
- * `graphtyLoadLazy("io.js")` (defined in the bundle's intro), which imports that file from dist/cdn/.
+ * The script-tag build's lazy part: the dynamic import of ./io.js becomes a call to `graphtyLoadLazy("io.js")`
+ * (defined in the bundle's intro), which imports that file from dist/cdn/.
  * @returns the plugin
  */
 function lazyFromCdnBuild(): Plugin {
-    const lazy = new Set<string>();
     return {
         name: "graphty-lazy-from-cdn-build",
         resolveDynamicImport(specifier) {
-            if (typeof specifier !== "string") {
-                return null;
-            }
-            const dataset = DATASET.exec(specifier);
-            if (specifier !== "./io.js" && dataset === null) {
-                return null;
-            }
-            const id = dataset === null ? "io.js" : `datasets/${dataset[1]}.js`;
-            lazy.add(id);
-            return { id, external: true };
+            return specifier === "./io.js" ? { id: "io.js", external: true } : null;
         },
         renderDynamicImport({ targetModuleId }) {
-            return targetModuleId !== null && lazy.has(targetModuleId)
-                ? { left: "graphtyLoadLazy(", right: ")" }
-                : null;
+            return targetModuleId === "io.js" ? { left: "graphtyLoadLazy(", right: ")" } : null;
         },
     };
 }
@@ -62,7 +46,7 @@ var graphtyLazyBase = typeof document !== "undefined" && document.currentScript 
 function graphtyLoadLazy(path) {
     if (!graphtyLazyBase) {
         return Promise.reject(new Error(
-            "graphty: the script-tag bundle loads the file formats and the datasets from dist/cdn/ next to itself, " +
+            "graphty: the script-tag bundle loads the file formats from dist/cdn/ next to itself, " +
             "but it was not loaded by a <script src> tag, so it cannot tell where that is. Load it with " +
             "<script src>, or use the ES module build: <script type='module'> importing " +
             "https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js"));
@@ -86,12 +70,6 @@ const cdn: UserConfig = {
             input: {
                 "cytoscape-extensions": pkg("src/index.ts"),
                 io: pkg("src/io.ts"),
-                ...Object.fromEntries(
-                    BUNDLED_DATASET_NAMES.map((n) => [
-                        `datasets/${n}`,
-                        fileURLToPath(import.meta.resolve(`@graphty/graph-samples/datasets/${n}`)),
-                    ]),
-                ),
             },
             preserveEntrySignatures: "strict",
             output: { entryFileNames: "[name].js", chunkFileNames: "chunks/[name]-[hash].js" },

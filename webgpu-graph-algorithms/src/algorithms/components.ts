@@ -177,6 +177,56 @@ function checkLabels(raw: U32): number {
 }
 
 /**
+ * The result of a graph with nodes and no arcs: every node is its own block, and the identity is already first-seen
+ * dense, so renumbered and raw labels agree.
+ * @param n - the node count
+ * @param dest - the caller's label array, or null
+ * @param options - onProgress
+ * @returns the identity labels and a count of n
+ */
+function identityResult(n: number, dest: U32 | null, options: GpuRunOptions | undefined): GpuLabelResult {
+    const labels = dest ?? new Uint32Array(n);
+    for (let v = 0; v < n; v++) {
+        labels[v] = v;
+    }
+    options?.onProgress?.(1, 1);
+    return labelResult(labels, n);
+}
+
+/**
+ * Whether the edge rounds are done after a batch: an aborted signal throws E_ABORTED { batchId }; a cleared changed
+ * flag ends them; still changing after MAX_WCC_ROUNDS throws E_VALIDATION.
+ * @param back - the batch's readback bytes
+ * @param flagOffset - where the changed flag sits in them
+ * @param rounds - the rounds run so far
+ * @param batchId - the batch just read back
+ * @param signal - the caller's abort signal
+ * @returns true when the labels settled
+ */
+function roundsSettled(
+    back: ArrayBuffer,
+    flagOffset: number,
+    rounds: number,
+    batchId: number,
+    signal: AbortSignal | undefined,
+): boolean {
+    if (signal?.aborted) {
+        throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, { batchId });
+    }
+    if (new Uint32Array(back, flagOffset, 1)[0] === 0) {
+        return true;
+    }
+    if (rounds >= MAX_WCC_ROUNDS) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: the changed flag never settled in ${MAX_WCC_ROUNDS} rounds`,
+            { label: ALGORITHM, message: `the changed flag never settled in ${MAX_WCC_ROUNDS} rounds` },
+        );
+    }
+    return false;
+}
+
+/**
  * Weakly connected components on the device (spec 3.3, 8.3): Afforest over the resident core and the edge list;
  * labels dense in first-seen order (`renumber: true`, the default) or the raw roots (`renumber: false`).
  * @param ctx - the context whose device runs the kernels
@@ -203,13 +253,7 @@ export async function connectedComponents(
     }
     const core = coreOf(ctx, s);
     if (s.arcCount === 0) {
-        // every node is its own block, and the identity is already first-seen dense: renumbered and raw agree
-        const labels = dest ?? new Uint32Array(n);
-        for (let v = 0; v < n; v++) {
-            labels[v] = v;
-        }
-        options?.onProgress?.(1, 1);
-        return labelResult(labels, n);
+        return identityResult(n, dest, options);
     }
     const edges = ctx.residency.view(s, "edgeList");
     const edgeCount = edges.scalars.edgeCount[0];
@@ -305,20 +349,8 @@ export async function connectedComponents(
             const back = await submitted.readback;
             rounds += ROUNDS_PER_BATCH;
             ctx.assertReady();
-            if (options?.signal?.aborted) {
-                throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, {
-                    batchId: submitted.id,
-                });
-            }
-            if (new Uint32Array(back, flagRequest.offset, 1)[0] === 0) {
+            if (roundsSettled(back, flagRequest.offset, rounds, submitted.id, options?.signal)) {
                 break;
-            }
-            if (rounds >= MAX_WCC_ROUNDS) {
-                throw new WebGpuGraphError(
-                    "E_VALIDATION",
-                    `${ALGORITHM}: the changed flag never settled in ${MAX_WCC_ROUNDS} rounds`,
-                    { label: ALGORITHM, message: `the changed flag never settled in ${MAX_WCC_ROUNDS} rounds` },
-                );
             }
         }
 

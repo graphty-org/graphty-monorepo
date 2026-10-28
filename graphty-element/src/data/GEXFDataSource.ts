@@ -1,9 +1,10 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
-import { GEXF_ISSUE, gexfImporter } from "@graphty/graph-io/gexf";
+import { gexfImporter } from "@graphty/graph-io/gexf";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
     aggregateErrors,
+    attributeKey,
     attributeTitle,
     cell,
     components,
@@ -13,8 +14,22 @@ import {
     toRecords,
 } from "./graph-io-import.js";
 
-// GEXF has no additional config currently, so just use the base config
-type GEXFDataSourceConfig = BaseDataSourceConfig;
+/** What the GEXF reader is configured with. */
+interface GEXFDataSourceConfig extends BaseDataSourceConfig {
+    /**
+     * The Gephi Preview settings the file was drawn with, by Gephi's own property names and values
+     * (`{ "edge.curved": "false", "edge.color": "source" }`). Gephi keeps them in its project, not in
+     * the GEXF file, so with `styles: "file"` a file is drawn under Gephi's defaults unless they are
+     * given here. graph-io's `gephiPreview` import option.
+     */
+    gephiPreview?: Readonly<Record<string, string | number | boolean>>;
+}
+
+/** The node record keys the viz values are written under, over an attribute titled like one. */
+const VIZ_KEYS: ReadonlySet<string> = new Set(["position", "color", "size"]);
+
+/** The viz record keys a load that draws the file's styles still writes. */
+const VIZ_POSITION: ReadonlySet<string> = new Set(["position"]);
 
 /** The bits of graph-io's `open` column: which bound of an interval is open. */
 const OPEN_START = 1;
@@ -107,10 +122,80 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
 }
 
 /**
+ * The columns of one row that state an interval: its bounds (start / end / timestamp roles), the
+ * original text of each bound by the bound's name, and its open bits.
+ * @param table - the node or edge table, or an extension table of attribute slices
+ * @param row - the row
+ * @returns the set bound columns, their texts and the open bits (0 when none)
+ */
+function intervalColumns(
+    table: Iterable<Column>,
+    row: number,
+): { bounds: Column[]; texts: Map<string, Column>; open: number } {
+    const texts = new Map<string, Column>();
+    const bounds: Column[] = [];
+    let open = 0;
+    for (const column of table) {
+        if (!column.isSet(row)) {
+            continue;
+        }
+
+        const { role, extra } = column.meta;
+        if (role === "start" || role === "end" || role === "timestamp") {
+            bounds.push(column);
+        } else if (role === "open") {
+            open = column.value(row) as number;
+        } else if (typeof extra.for === "string" && column.dtype === "string") {
+            texts.set(extra.for, column);
+        }
+    }
+
+    return { bounds, texts, open };
+}
+
+/**
+ * Read one interval's time keys from a row of a table's start / end / timestamp / open roles.
+ * @param table - the node or edge table, or an extension table of attribute slices
+ * @param row - the row
+ * @param timeFormat - the file's time format
+ * @returns only the keys the row carries
+ */
+function intervalKeys(table: Iterable<Column>, row: number, timeFormat: string | null): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    const { bounds, texts, open } = intervalColumns(table, row);
+    for (const column of bounds) {
+        const text = texts.get(column.meta.name);
+        const value = column.value(row) as number;
+        // A slice with only one bound stores the other as an infinity: leave it out, as spells do.
+        if (text === undefined && !Number.isFinite(value)) {
+            continue;
+        }
+
+        out[column.meta.role as string] = timeText(
+            value,
+            text === undefined ? null : (text.value(row) as string),
+            timeFormat,
+        );
+    }
+
+    if ((open & OPEN_START) !== 0 && "start" in out) {
+        out.startOpen = true;
+    }
+
+    if ((open & OPEN_END) !== 0 && "end" in out) {
+        out.endOpen = true;
+    }
+
+    return out;
+}
+
+/**
  * The record mapping for GEXF: the keys the element has always given a GEXF node and edge.
  *
  * - `label`; `position` `{x, y, z}`, `color` `{r, g, b, a}` with 0-255 channels, and `size` from
- *   the viz namespace (nodes only);
+ *   the viz namespace (nodes only). `color` and `size` are deprecated and left out when the load
+ *   draws the file's styles, whose layers carry them; an attribute titled `color`
+ *   or `size` then keeps its own value;
  * - each declared attribute under its title, typed by its declared type;
  * - on an edge, its GEXF id under `gexfId` (never `id`, which on an edge record means the
  *   element's own identifier), and its own `type` when that differs from the graph's direction
@@ -120,56 +205,16 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
  *   slices `{ value, start, end }`.
  * @param snapshot - the imported graph
  * @param graphDirected - the direction declared for the whole graph
+ * @param fileStyles - whether the load draws the file's styles, so no viz color or size is copied
  * @returns the mapping
  */
-function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMapping {
+function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles: boolean): RecordMapping {
+    // Deprecated (removed in the next major): the viz color and size copied into the records.
+    const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
 
-    /**
-     * Read one interval's time keys from a row of a table's start / end / timestamp / open roles.
-     * @param table - the node or edge table, or an extension table of attribute slices
-     * @param row - the row
-     * @returns only the keys the row carries
-     */
-    const interval = (table: Iterable<Column>, row: number): Record<string, unknown> => {
-        const out: Record<string, unknown> = {};
-        const texts = new Map<string, Column>();
-        const bounds: Column[] = [];
-        let open = 0;
-        for (const column of table) {
-            if (!column.isSet(row)) {
-                continue;
-            }
-
-            const { role, extra } = column.meta;
-            if (role === "start" || role === "end" || role === "timestamp") {
-                bounds.push(column);
-            } else if (role === "open") {
-                open = column.value(row) as number;
-            } else if (typeof extra.for === "string" && column.dtype === "string") {
-                texts.set(extra.for, column);
-            }
-        }
-
-        for (const column of bounds) {
-            const text = texts.get(column.meta.name);
-            out[column.meta.role as string] = timeText(
-                column.value(row) as number,
-                text === undefined ? null : (text.value(row) as string),
-                timeFormat,
-            );
-        }
-
-        if ((open & OPEN_START) !== 0 && "start" in out) {
-            out.startOpen = true;
-        }
-
-        if ((open & OPEN_END) !== 0 && "end" in out) {
-            out.endOpen = true;
-        }
-
-        return out;
-    };
+    const interval = (table: Iterable<Column>, row: number): Record<string, unknown> =>
+        intervalKeys(table, row, timeFormat);
 
     /**
      * The slices of each time-sliced attribute, by the row of the element they belong to.
@@ -215,42 +260,30 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
     /**
      * Copy the lifetime, spells and declared attributes shared by nodes and edges.
+     * @param kind - node or edge
      * @param table - the node or edge table
      * @param row - the row
      * @param record - the record being built
      */
-    const common = (table: Iterable<Column>, row: number, record: Record<string, unknown>): void => {
+    const common = (
+        kind: "node" | "edge",
+        table: Iterable<Column>,
+        row: number,
+        record: Record<string, unknown>,
+    ): void => {
         Object.assign(record, interval(table, row));
         for (const column of table) {
             const slices = dynamic.get(column)?.get(row);
             if (slices !== undefined) {
                 // A static value next to timed slices was an untimed attvalue; it leads the list.
-                const title = attributeTitle(column.meta.name, column.meta.origin?.id ?? "");
-                record[title] = column.isSet(row) ? [{ value: cell(column, row) }, ...slices] : slices;
-                continue;
-            }
-
-            if (!column.isSet(row)) {
-                continue;
-            }
-
-            if (column.meta.role === "spells") {
-                const openColumn = spellsOpen.get(table);
-                const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
-                record.spells = (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
-                    ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
-                    ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
-                    ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
-                    ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
-                }));
-            } else if (typeof column.meta.origin?.id === "string") {
-                const { id, type } = column.meta.origin;
-                const value = cell(column, row);
-                // A date attribute is stored as epoch milliseconds; the record keeps it as text.
-                record[attributeTitle(column.meta.name, id)] =
-                    (type === "date" || type === "dateTime") && typeof value === "number"
-                        ? timeText(value, null, type)
-                        : value;
+                const id = column.meta.origin?.id ?? "";
+                record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] = column.isSet(row)
+                    ? [{ value: cell(column, row) }, ...slices]
+                    : slices;
+            } else if (column.meta.role === "spells" && column.isSet(row)) {
+                record.spells = spellsOf(column, spellsOpen.get(table) ?? null, row, timeFormat);
+            } else if (column.isSet(row)) {
+                copyAttribute(kind, column, row, record);
             }
         }
     };
@@ -269,25 +302,27 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 record.label = label.value(row);
             }
 
-            common(nodes, row, record);
+            common("node", nodes, row, record);
             for (const column of nodes) {
                 if (!column.isSet(row)) {
                     continue;
                 }
 
                 switch (column.meta.role) {
-                    case "position": {
-                        const [x, y, z] = components(column, row);
-                        record.position = { x, y, z };
-                        break;
-                    }
                     case "color": {
+                        if (fileStyles) {
+                            break;
+                        }
+
                         const [r, g, b, a] = components(column, row);
                         record.color = { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };
                         break;
                     }
                     case "size":
-                        record.size = cell(column, row);
+                        if (!fileStyles) {
+                            record.size = cell(column, row);
+                        }
+
                         break;
                     default:
                         break;
@@ -312,15 +347,126 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
             }
 
             // Last, so an attribute titled `label` or `type` overrides the edge's own.
-            common(edges, row, record);
+            common("edge", edges, row, record);
+        },
+        path(kind, column): string | null {
+            const table = kind === "node" ? nodes : edges;
+            const { name, role, origin } = column.meta;
+            if (column.meta.dynamic) {
+                return null;
+            }
+
+            if (typeof origin?.id === "string" && role === null) {
+                if (origin.type === "date" || origin.type === "dateTime") {
+                    return null;
+                }
+
+                const key = attributeKey(kind, attributeTitle(name, origin.id), origin.id);
+                // On a node, the viz values are written over an attribute titled like them.
+                const viz = kind === "node" && vizKeys.has(key);
+                return viz && table.byRole(key) !== null ? null : key;
+            }
+
+            return rolePath(kind, table, role, fileStyles);
         },
     };
+}
+
+/**
+ * The record key a column with a role is written under.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param role - the column's role
+ * @param fileStyles - whether the file's styles are read as layers, so a node's size is not a record key
+ * @returns the key, or null when the column is not written
+ */
+function rolePath(
+    kind: "node" | "edge",
+    table: Iterable<Column>,
+    role: string | null,
+    fileStyles: boolean,
+): string | null {
+    switch (role) {
+        case "label":
+            // An attribute titled `label` is written over the file's label.
+            return hasAttributeTitled(kind, table, "label") ? null : "label";
+        case "size":
+            return kind === "node" && !fileStyles ? "size" : null;
+        case "id":
+            return kind === "edge" ? "gexfId" : null;
+        default:
+            return null;
+    }
+}
+
+/**
+ * Whether a declared attribute is written under a record key.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param key - the record key
+ * @returns true when one is
+ */
+function hasAttributeTitled(kind: "node" | "edge", table: Iterable<Column>, key: string): boolean {
+    return [...table].some(
+        (each) =>
+            typeof each.meta.origin?.id === "string" &&
+            each.meta.role === null &&
+            attributeKey(kind, attributeTitle(each.meta.name, each.meta.origin.id), each.meta.origin.id) === key,
+    );
+}
+
+/**
+ * An element's spells as records: `{ start, end }` with `startOpen` / `endOpen` for an open bound; an infinite bound
+ * is left out.
+ * @param column - the spells column
+ * @param openColumn - the column of their open bounds, or null
+ * @param row - the element
+ * @param timeFormat - the graph's timeformat
+ * @returns the spells
+ */
+function spellsOf(
+    column: Column,
+    openColumn: Column | null,
+    row: number,
+    timeFormat: string | null,
+): Record<string, unknown>[] {
+    const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
+    return (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
+        ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
+        ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
+        ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
+        ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
+    }));
+}
+
+/**
+ * Copies a declared attribute's value onto its record key; a date attribute is stored as epoch milliseconds and the
+ * record keeps it as text.
+ * @param kind - node or edge
+ * @param column - the attribute's column
+ * @param row - the element
+ * @param record - the record being built
+ */
+function copyAttribute(kind: "node" | "edge", column: Column, row: number, record: Record<string, unknown>): void {
+    const id = column.meta.origin?.id;
+    if (typeof id !== "string") {
+        return;
+    }
+    const { type } = column.meta.origin ?? {};
+    const value = cell(column, row);
+    record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] =
+        (type === "date" || type === "dateTime") && typeof value === "number" ? timeText(value, null, type) : value;
 }
 
 /**
  * Data source for loading graph data from GEXF (Graph Exchange XML Format) files, read by
  * `@graphty/graph-io`'s GEXF importer. Supports node and edge attributes, attribute types, the viz
  * namespace and dynamic graphs.
+ *
+ * A node's viz color and size are copied onto its record as `color` `{r, g, b, a}` and `size`.
+ * Those two keys are deprecated and removed in the next major version: load with
+ * `styles: "file"` to draw the file's colors and sizes as style layers instead, and the records
+ * then carry neither key.
  *
  * Dynamic graphs keep their time data on each record rather than acting on it:
  * - a node's or edge's `start` / `end` / `timestamp` go onto its data under those names, with
@@ -330,6 +476,10 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
  *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value.
  *
  * An edge that names a node the file never declared is kept, and the node is created for it.
+ *
+ * With `styles: "file"` the file is drawn as Gephi's Preview draws it, under Gephi's default Preview
+ * settings; pass `gephiPreview` (Gephi's property names and values) to draw it under the settings a
+ * Gephi project used: `{ type: "gexf", config: { url, gephiPreview: { "edge.curved": "false" } } }`.
  */
 export class GEXFDataSource extends DataSource {
     static readonly type = "gexf";
@@ -400,7 +550,8 @@ export class GEXFDataSource extends DataSource {
         // the builder while it is still empty -- which is the only moment the builder accepts one.
         this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
 
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed));
+        const fileStyles = this.config.styles === "file";
+        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed, fileStyles), this);
         yield* this.chunkData(nodes, edges);
     }
 
@@ -411,11 +562,11 @@ export class GEXFDataSource extends DataSource {
      * @returns the import
      */
     private read(text: string | Uint8Array, defaultDirected: boolean): Promise<ImportedGraph> {
-        return importDocument(
-            gexfImporter,
-            text,
-            { addMissingNodes: true, defaultDirected, errorLimit: this.config.errorLimit ?? 100 },
-            [GEXF_ISSUE.NO_GRAPH],
-        );
+        return importDocument(gexfImporter, text, {
+            addMissingNodes: true,
+            defaultDirected,
+            errorLimit: this.config.errorLimit ?? 100,
+            ...(this.config.gephiPreview === undefined ? {} : { gephiPreview: this.config.gephiPreview }),
+        });
     }
 }

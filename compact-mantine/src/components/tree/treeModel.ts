@@ -35,7 +35,7 @@ export interface TreeNodeData {
     /**
      * The row's trailing toggles (lock, eye): the caller's own controls. They stay hidden until
      * the row is hovered or focused; a control with `aria-pressed="true"`, `aria-checked="true"`
-     * or `data-pinned` stays visible. A click on passive text here (nothing focusable) counts as a
+     * or `data-pinned` or `data-at-rest` stays visible. A click on passive text here (nothing focusable) counts as a
      * click on the row. Their focusable controls are out of the Tab order: the keyboard reaches
      * them with ArrowRight on a row without children or Alt+ArrowRight on any row (see Tree).
      */
@@ -48,6 +48,9 @@ export interface TreeNodeData {
     /**
      * A count drawn before the toggles in the secondary ink, always visible (the toggles hide
      * until hover). It joins the row's accessible description, so it is heard as well as seen.
+     * Pass a row's quiet text here (a count, a fill, a filter's outcome): it stays whole until
+     * it would take more than half the row, and while the name or the count is cut short, the
+     * name's tooltip shows both.
      */
     count?: React.ReactNode;
     /**
@@ -63,6 +66,18 @@ export interface TreeNodeData {
      * too.
      */
     description?: string;
+    /**
+     * Draw `description` as a second line under the name, in the secondary ink, instead of only
+     * reading it; the row grows from 32 to 44. For a state the reader must see beside a long
+     * name (a filter step's "77 to 26 nodes", "off") where a count would cut the name. Default
+     * false.
+     */
+    descriptionVisible?: boolean;
+    /**
+     * Whether the item can be picked up and moved (a drag, Alt+ArrowUp / Alt+ArrowDown).
+     * Default true. Where an item may land is `Tree`'s `canDrop`.
+     */
+    movable?: boolean;
 }
 
 /** One visible row. */
@@ -119,12 +134,43 @@ export function flattenTree(items: readonly TreeNodeData[], expanded: ReadonlySe
 export type TreeRowTint = "none" | "selected" | "first" | "middle" | "last" | "parent" | "child" | "child-last";
 
 /**
+ * The fill of a selected, collapsed row: alone, or its place in a run of adjacent selected rows.
+ * @param rows - the visible rows
+ * @param i - the row's index
+ * @param tints - the fills of the rows before it
+ * @param selected - the selected ids
+ * @param childBand - whether an expanded selected row is a parent band (see rowTints)
+ * @returns the row's tint
+ */
+function selectedRunTint(
+    rows: readonly FlatTreeRow[],
+    i: number,
+    tints: readonly TreeRowTint[],
+    selected: ReadonlySet<string>,
+    childBand: boolean,
+): TreeRowTint {
+    const prev = rows[i - 1] as FlatTreeRow | undefined;
+    const next = rows[i + 1] as FlatTreeRow | undefined;
+    const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
+    const nextJoins = next !== undefined && selected.has(next.node.id) && !(childBand && next.expanded);
+    if (prevJoins && nextJoins) {
+        return "middle";
+    }
+    if (nextJoins) {
+        return "first";
+    }
+    return prevJoins ? "last" : "selected";
+}
+
+/**
  * Work out every row's fill.
  * @param rows - the visible rows
  * @param selected - the selected ids
+ * @param childBand - false draws a selected parent like any selected row and never bands its
+ *   descendants (for trees where selecting a parent does not select its children)
  * @returns one tint per row
  */
-export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>): TreeRowTint[] {
+export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>, childBand = true): TreeRowTint[] {
     const tints: TreeRowTint[] = [];
     // The current row's ancestors; the outermost selected one owns the band.
     const stack: { level: number; selected: boolean }[] = [];
@@ -132,26 +178,11 @@ export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<str
         while (stack.length > 0 && stack[stack.length - 1].level >= row.level) {
             stack.pop();
         }
-        const band = stack.find((a) => a.selected);
+        const band = childBand ? stack.find((a) => a.selected) : undefined;
         const isSelected = selected.has(row.node.id);
         const next = rows[i + 1] as FlatTreeRow | undefined;
         if (isSelected) {
-            if (row.expanded) {
-                tints.push("parent");
-            } else {
-                const prev = rows[i - 1] as FlatTreeRow | undefined;
-                const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
-                const nextJoins = next !== undefined && selected.has(next.node.id) && !next.expanded;
-                if (prevJoins && nextJoins) {
-                    tints.push("middle");
-                } else if (nextJoins) {
-                    tints.push("first");
-                } else if (prevJoins) {
-                    tints.push("last");
-                } else {
-                    tints.push("selected");
-                }
-            }
+            tints.push(childBand && row.expanded ? "parent" : selectedRunTint(rows, i, tints, selected, childBand));
         } else if (band) {
             tints.push(next === undefined || next.level <= band.level ? "child-last" : "child");
         } else {
@@ -178,15 +209,107 @@ export interface TreeDrop {
     line: { boundary: number; level: number } | null;
 }
 
+/** Where over a row a drop lands: before or after it, into it, or as its first child. */
+type DropZone = "before" | "after" | "into" | "first";
+
+/**
+ * Which zone of a row the pointer is in: top quarter = before it, middle half = into it (a
+ * container) or the nearer edge (a leaf), bottom quarter = its first child when it is expanded,
+ * else after it.
+ * @param over - the row under the pointer
+ * @param fraction - the pointer's height within that row, 0..1
+ * @returns the zone
+ */
+function dropZone(over: FlatTreeRow, fraction: number): DropZone {
+    if (fraction < 0.25) {
+        return "before";
+    }
+    if (fraction > 0.75) {
+        return over.expanded ? "first" : "after";
+    }
+    if (over.node.children !== undefined) {
+        return "into";
+    }
+    return fraction < 0.5 ? "before" : "after";
+}
+
+/**
+ * The last visible row in a row's subtree.
+ * @param rows - the visible rows
+ * @param i - the row
+ * @returns the index of its last descendant, or i itself
+ */
+function lastDescendant(rows: readonly FlatTreeRow[], i: number): number {
+    let j = i;
+    while (j + 1 < rows.length && rows[j + 1].level > rows[i].level) {
+        j++;
+    }
+    return j;
+}
+
+/**
+ * Where a drop in a zone of a row puts the item, and what to draw.
+ * @param rows - the visible rows
+ * @param over - the row under the pointer
+ * @param overIndex - its index
+ * @param zone - the zone of the row the pointer is in
+ * @returns the parent, the index among its children, the row to box and the line to draw
+ */
+function dropTarget(
+    rows: readonly FlatTreeRow[],
+    over: FlatTreeRow,
+    overIndex: number,
+    zone: DropZone,
+): { parentId: string | null; index: number; boxRow: number | null; line: TreeDrop["line"] } {
+    if (zone === "into") {
+        return { parentId: over.node.id, index: 0, boxRow: overIndex, line: null };
+    }
+    if (zone === "first") {
+        return {
+            parentId: over.node.id,
+            index: 0,
+            boxRow: overIndex,
+            line: { boundary: overIndex + 1, level: over.level + 1 },
+        };
+    }
+    const { parentId } = over;
+    const before = zone === "before";
+    const parentRow = parentId === null ? -1 : rows.findIndex((r) => r.node.id === parentId);
+    return {
+        parentId,
+        index: before ? over.posInSet - 1 : over.posInSet,
+        boxRow: parentRow >= 0 ? parentRow : null,
+        line: { boundary: before ? overIndex : lastDescendant(rows, overIndex) + 1, level: over.level },
+    };
+}
+
+/**
+ * Whether a container is an item or inside its subtree, among the visible rows.
+ * @param rows - the visible rows
+ * @param containerId - the container, or null for the top level
+ * @param id - the item
+ * @returns true when the container is the item or one of its descendants
+ */
+function isInSubtree(rows: readonly FlatTreeRow[], containerId: string | null, id: string): boolean {
+    const parentOf = new Map(rows.map((r) => [r.node.id, r.parentId]));
+    for (let p: string | null = containerId; p !== null; p = parentOf.get(p) ?? null) {
+        if (p === id) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Turn a pointer over a row into a drop: top quarter = before it, middle half = into it (a
  * container) or the nearer edge (a leaf), bottom quarter = its first child when it is expanded,
  * else after it. Returns null for a drop onto the dragged item, into its own subtree, or back
- * where it already is.
+ * where it already is, and for a move `canDrop` refuses.
  * @param rows - the visible rows
  * @param dragId - the item being dragged
  * @param overIndex - the row under the pointer
  * @param fraction - the pointer's height within that row, 0..1
+ * @param canDrop - the caller's rule for where an item may land; a refused move is no drop
  * @returns the drop, or null
  */
 export function computeDrop(
@@ -194,62 +317,20 @@ export function computeDrop(
     dragId: string,
     overIndex: number,
     fraction: number,
+    canDrop?: (move: TreeMove) => boolean,
 ): TreeDrop | null {
     const over = rows[overIndex] as FlatTreeRow | undefined;
     const dragged = rows.find((r) => r.node.id === dragId);
     if (!over || !dragged) {
         return null;
     }
-    const isContainer = over.node.children !== undefined;
-    let parentId: string | null;
-    let index: number;
-    let boxRow: number | null = null;
-    let line: TreeDrop["line"] = null;
-    const lastDescendant = (i: number): number => {
-        let j = i;
-        while (j + 1 < rows.length && rows[j + 1].level > rows[i].level) {
-            j++;
-        }
-        return j;
-    };
-
-    let zone: "before" | "after" | "into" | "first";
-    if (fraction < 0.25) {
-        zone = "before";
-    } else if (fraction > 0.75) {
-        zone = over.expanded ? "first" : "after";
-    } else if (isContainer) {
-        zone = "into";
-    } else {
-        zone = fraction < 0.5 ? "before" : "after";
-    }
-
-    if (zone === "into") {
-        parentId = over.node.id;
-        index = 0;
-        boxRow = overIndex;
-    } else if (zone === "first") {
-        parentId = over.node.id;
-        index = 0;
-        line = { boundary: overIndex + 1, level: over.level + 1 };
-        boxRow = overIndex;
-    } else {
-        ({ parentId } = over);
-        index = zone === "before" ? over.posInSet - 1 : over.posInSet;
-        line = {
-            boundary: zone === "before" ? overIndex : lastDescendant(overIndex) + 1,
-            level: over.level,
-        };
-        const parentRow = parentId === null ? -1 : rows.findIndex((r) => r.node.id === parentId);
-        boxRow = parentRow >= 0 ? parentRow : null;
-    }
+    const target = dropTarget(rows, over, overIndex, dropZone(over, fraction));
+    const { parentId, boxRow, line } = target;
+    let { index } = target;
 
     // No drop into itself or its own subtree.
-    const parentOf = new Map(rows.map((r) => [r.node.id, r.parentId]));
-    for (let p: string | null = parentId; p !== null; p = parentOf.get(p) ?? null) {
-        if (p === dragId) {
-            return null;
-        }
+    if (isInSubtree(rows, parentId, dragId)) {
+        return null;
     }
     if (dragged.parentId === parentId && dragged.posInSet - 1 < index) {
         index -= 1;
@@ -257,7 +338,179 @@ export function computeDrop(
     if (dragged.parentId === parentId && dragged.posInSet - 1 === index) {
         return null;
     }
-    return { move: { id: dragId, parentId, index }, boxRow, line };
+    const move = { id: dragId, parentId, index };
+    if (canDrop && !canDrop(move)) {
+        return null;
+    }
+    return { move, boxRow, line };
+}
+
+/** Where an item sits in the whole tree, collapsed or not. */
+interface Located {
+    node: TreeNodeData;
+    parentId: string | null;
+    siblings: readonly TreeNodeData[];
+    index: number;
+}
+
+/**
+ * Find an item anywhere in the tree, including inside collapsed folders.
+ * @param items - the top-level items
+ * @param id - the item to find
+ * @returns the item, its parent's id, its siblings and its index among them, or undefined
+ */
+export function locateTreeItem(items: readonly TreeNodeData[], id: string): Located | undefined {
+    const walk = (nodes: readonly TreeNodeData[], parentId: string | null): Located | undefined => {
+        for (let index = 0; index < nodes.length; index++) {
+            const node = nodes[index];
+            if (node.id === id) {
+                return { node, parentId, siblings: nodes, index };
+            }
+            const found = node.children && walk(node.children, node.id);
+            if (found) {
+                return found;
+            }
+        }
+        return undefined;
+    };
+    return walk(items, null);
+}
+
+/**
+ * The items a move lands among: the top level, or its container's children.
+ * @param items - the top-level items
+ * @param move - the move
+ * @returns the siblings, or undefined when the destination is not a container or lies in the
+ * item's own subtree
+ */
+function destinationSiblings(items: readonly TreeNodeData[], move: TreeMove): readonly TreeNodeData[] | undefined {
+    if (move.parentId === null) {
+        return items;
+    }
+    const parent = locateTreeItem(items, move.parentId);
+    if (!parent?.node.children) {
+        return undefined;
+    }
+    // Never into itself or its own subtree.
+    for (let p: string | null = move.parentId; p !== null; p = locateTreeItem(items, p)?.parentId ?? null) {
+        if (p === move.id) {
+            return undefined;
+        }
+    }
+    return parent.node.children;
+}
+
+/**
+ * Whether a move is a real change the tree allows: the item exists, is movable, lands in a
+ * container (or the top level) that is not itself or inside it, at a valid index, somewhere it
+ * is not already, and `canDrop` agrees.
+ * @param items - the top-level items
+ * @param move - the move to check
+ * @param canDrop - the caller's rule for where an item may land
+ * @returns true when the move may be reported
+ */
+export function isValidMove(
+    items: readonly TreeNodeData[],
+    move: TreeMove,
+    canDrop?: (move: TreeMove) => boolean,
+): boolean {
+    const at = locateTreeItem(items, move.id);
+    if (!at || at.node.movable === false) {
+        return false;
+    }
+    const siblings = destinationSiblings(items, move);
+    if (siblings === undefined) {
+        return false;
+    }
+    const count = siblings.filter((n) => n.id !== move.id).length;
+    if (move.index < 0 || move.index > count) {
+        return false;
+    }
+    if (at.parentId === move.parentId && at.index === move.index) {
+        return false;
+    }
+    return canDrop?.(move) ?? true;
+}
+
+/**
+ * The move out of a folder: to just after it.
+ * @param items - the top-level items
+ * @param at - where the item sits
+ * @param id - the item
+ * @returns the candidate moves, none at the top level
+ */
+function outCandidates(items: readonly TreeNodeData[], at: Located, id: string): TreeMove[] {
+    const parent = at.parentId === null ? undefined : locateTreeItem(items, at.parentId);
+    return parent ? [{ id, parentId: parent.parentId, index: parent.index + 1 }] : [];
+}
+
+/**
+ * The moves up or down: into the neighboring sibling when it is a folder (as its last child going
+ * up, its first going down), else past it.
+ * @param at - where the item sits
+ * @param id - the item
+ * @param direction - up or down
+ * @returns the candidate moves, in the order to try them
+ */
+function stepCandidates(at: Located, id: string, direction: "up" | "down"): TreeMove[] {
+    const candidates: TreeMove[] = [];
+    const step = direction === "up" ? -1 : 1;
+    const next = at.siblings[at.index + step] as TreeNodeData | undefined;
+    if (next?.children) {
+        candidates.push({ id, parentId: next.id, index: step < 0 ? next.children.length : 0 });
+    }
+    if (next) {
+        candidates.push({ id, parentId: at.parentId, index: at.index + step });
+    }
+    return candidates;
+}
+
+/**
+ * The move Alt+ArrowUp, Alt+ArrowDown or Alt+ArrowLeft makes: up or down past the neighboring
+ * sibling, or into it when it is a folder (an item with a `children` array) -- as its last child
+ * going up, its first going down; out to just after its folder. A move the tree refuses is
+ * skipped: a refused move into a folder falls back to stepping past it.
+ * @param items - the top-level items
+ * @param id - the item to move
+ * @param direction - which key: up, down, or out of its folder
+ * @param canDrop - the caller's rule for where an item may land
+ * @returns the move, or null when there is none
+ */
+export function keyboardMove(
+    items: readonly TreeNodeData[],
+    id: string,
+    direction: "up" | "down" | "out",
+    canDrop?: (move: TreeMove) => boolean,
+): TreeMove | null {
+    const at = locateTreeItem(items, id);
+    if (!at) {
+        return null;
+    }
+    const candidates = direction === "out" ? outCandidates(items, at, id) : stepCandidates(at, id, direction);
+    return candidates.find((move) => isValidMove(items, move, canDrop)) ?? null;
+}
+
+/**
+ * Where a move puts an item, for announcing it: its folder's name (null at the top level), its
+ * 1-based position there and how many items the folder then holds. Read before the move is
+ * applied.
+ * @param items - the top-level items, before the move
+ * @param move - the move
+ * @returns the item's name and its new place
+ */
+export function movePlace(
+    items: readonly TreeNodeData[],
+    move: TreeMove,
+): { name: string; parent: string | null; position: number; count: number } {
+    const moved = locateTreeItem(items, move.id);
+    const parent = move.parentId === null ? undefined : locateTreeItem(items, move.parentId)?.node;
+    const siblings = parent ? (parent.children ?? []) : items;
+    return {
+        name: moved?.node.name ?? move.id,
+        parent: parent?.name ?? null,
+        position: move.index + 1,
+        count: siblings.filter((n) => n.id !== move.id).length + 1,
+    };
 }
 
 /**

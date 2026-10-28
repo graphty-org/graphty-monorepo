@@ -61,11 +61,15 @@ export type {
 export type { CompactColorInputProps } from "../components/CompactColorInput";
 export type { ControlGroupProps } from "../components/ControlGroup";
 export type { ControlSectionProps } from "../components/ControlSection";
-export type { ControlSubGroupProps } from "../components/ControlSubGroup";
 export type { GradientEditorProps } from "../components/GradientEditor";
 export type { InfoCircleProps } from "../components/InfoCircle";
-export type { StyleNumberInputProps } from "../components/StyleNumberInput";
-export type { StyleSelectOption, StyleSelectProps } from "../components/StyleSelect";
+export type {
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
+} from "../components/RampEditor";
 export type { ToggleWithContentProps } from "../components/ToggleWithContent";
 
 // The data table: its columns, its values and the strings it produces.
@@ -82,6 +86,9 @@ export type {
     DataTableValue,
 } from "../components/DataTable";
 
+// The node and edge chip.
+export type { EntityChipProps, EntityKind } from "../components/EntityChip";
+
 // Panel rows, and the two atoms every row is built from.
 export type {
     ActionRowProps,
@@ -92,12 +99,15 @@ export type {
     DataRowProps,
     FieldRowProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     MetricRowProps,
     PanelFieldProps,
     ProseBlockProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
     SparklineRowProps,
     ToggleRowGroupProps,
     ToggleRowProps,
@@ -114,7 +124,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "../components/inputs";
 
@@ -155,6 +170,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "../components/tree";
 
@@ -171,6 +187,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,
@@ -178,7 +195,7 @@ export type {
 } from "../components/shell";
 
 // The theme's options.
-export type { CompactThemeOptions } from "../theme";
+export type { CompactAccent, CompactThemeOptions } from "../theme";
 
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";

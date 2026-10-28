@@ -12,13 +12,18 @@ import { registration as exportDialog } from "./export/commands";
 import { registration as frame } from "./frame/commands";
 import { registration as graphPlace } from "./graph-place/commands";
 import { registration as inspector } from "./inspector/commands";
+import { registration as join } from "./join/commands";
 import { registration as layout } from "./layout/commands";
+import { registration as notes } from "./notes/commands";
 import { registration as privacy } from "./privacy/commands";
 import { registration as project } from "./project/commands";
+import { registration as replace } from "./replace/commands";
+import { registration as server } from "./server/commands";
 import { registration as settings } from "./settings/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
+import { registration as time } from "./time/commands";
 import { registration as toolbar } from "./toolbar/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
@@ -35,7 +40,12 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     inspector,
     style,
     table,
+    join,
+    replace,
+    server,
     exportDialog,
     dataPage,
     project,
+    notes,
+    time,
 ];

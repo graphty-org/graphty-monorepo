@@ -1,0 +1,32 @@
+{
+    "sample": "gexf-sigma-ediaspora",
+    "file": "graph-io/test/corpus/styles/gexf/sigma-moroccan-ediaspora.gexf.gz",
+    "sha256": "7b4d35663b9696c23f7b7959b138dfb413798ca7b65a58f7fb37c48988402044",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored .gz unpacked with zlib, then handed to Gephi as .gexf",
+    "previewItems": {
+        "nodes": 156,
+        "edges": 397
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 4115.369,
+        "height": 3861,
+        "viewBox": "-1956.761475 -1800.000000 4115.369141 3861.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
+    "date": "2026-10-18",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-sigma-ediaspora && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-sigma-ediaspora.svg"
+}

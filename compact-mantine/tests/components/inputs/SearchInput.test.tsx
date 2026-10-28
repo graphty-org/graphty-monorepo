@@ -61,6 +61,18 @@ describe("SearchInput", () => {
         }
     });
 
+    it("Escape on the clear button clears too, and focus goes back to the field", async () => {
+        const onChange = vi.fn();
+        renderSearch(<SearchInput defaultValue="abc" onChange={onChange} />);
+        await userEvent.click(screen.getByRole("searchbox"));
+        await userEvent.tab();
+        expect(screen.getByRole("button", { name: "Clear search" })).toHaveFocus();
+        await userEvent.keyboard("{Escape}");
+        expect(screen.getByRole("searchbox")).toHaveValue("");
+        expect(screen.getByRole("searchbox")).toHaveFocus();
+        expect(onChange).toHaveBeenLastCalledWith("", expect.anything());
+    });
+
     it("takes a caller's names for the clear button and the placeholder", async () => {
         renderSearch(<SearchInput defaultValue="a" clearLabel="Empty" placeholder="Find layers" />);
         expect(screen.getByRole("button", { name: "Empty" })).toBeInTheDocument();

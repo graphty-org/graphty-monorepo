@@ -175,6 +175,49 @@ interface TierDispatch {
 }
 
 /**
+ * The rows and the arc end one tier dispatch covers in TieredPlanner.recordWindow (its comment has the rule): the
+ * tier's range (TIER 0 to n) up to the window's end or the next window's start, or, for an untiered windowed
+ * dispatch, exactly the window's rows and arcs.
+ * @param dispatch - the tier and its row range
+ * @param core - the core (its arc count when there is no window)
+ * @param n - the row count
+ * @param w - the window, or null for the single whole-core dispatch
+ * @param nextStart - the next window's first arc (w.end for the last window)
+ * @param untiered - whether the planner has no perm (the single thread-per-row dispatch)
+ * @returns the first row, one past the last row, and the arc end
+ */
+function tierRange(
+    dispatch: TierDispatch,
+    core: CoreBinding,
+    n: number,
+    w: ArcWindow | null,
+    nextStart: number,
+    untiered: boolean,
+): { first: number; last: number; arcEnd: number } {
+    if (w !== null && untiered) {
+        return { first: w.rowFirst, last: w.rowLast + 1, arcEnd: w.end };
+    }
+    return {
+        first: dispatch.start,
+        last: dispatch.tier === 0 ? n : dispatch.end,
+        arcEnd: w === null ? arcCountOf(core) : Math.min(w.end, nextStart),
+    };
+}
+
+/**
+ * The rows one workgroup folds in a tier: one for TIER 2, WG / 32 for TIER 1, WG for TIER 0.
+ * @param tier - the tier
+ * @param wg - the workgroup size
+ * @returns the rows per workgroup
+ */
+function rowsPerGroupOf(tier: TierDispatch["tier"], wg: number): number {
+    if (tier === 2) {
+        return 1;
+    }
+    return tier === 1 ? wg / MID_TIER_LANES : wg;
+}
+
+/**
  * The tiered planner: without tiers ONE `segmented-reduce` dispatch with TIER 0 over [0, n); with tiers TIER 2 over
  * [0, hiEnd) (one workgroup per row), then TIER 1 over [hiEnd, midEnd) (WG / 32 rows per workgroup), then TIER 0
  * over [midEnd, n), each with its own RangeParams record and the perm binding.
@@ -306,15 +349,9 @@ class TieredPlanner implements SegmentedReducePlanner {
         nextStart: number,
     ): void {
         const wg = this.scope.workgroupSize;
-        for (const { tier, kernel, start, end } of this.tiers) {
-            let first = start;
-            let last = tier === 0 ? n : end;
-            let arcEnd = w === null ? arcCountOf(core) : Math.min(w.end, nextStart);
-            if (w !== null && this.perm === null) {
-                first = w.rowFirst;
-                last = w.rowLast + 1;
-                arcEnd = w.end;
-            }
+        for (const dispatch of this.tiers) {
+            const { tier, kernel } = dispatch;
+            const { first, last, arcEnd } = tierRange(dispatch, core, n, w, nextStart, this.perm === null);
             const rows = last - first;
             if (rows <= 0) {
                 continue;
@@ -328,13 +365,7 @@ class TieredPlanner implements SegmentedReducePlanner {
                 n,
             });
             const bound = kernel.bind({ ...graphBindings(core, this.perm), out, P: params.binding });
-            let rowsPerGroup = wg;
-            if (tier === 2) {
-                rowsPerGroup = 1;
-            } else if (tier === 1) {
-                rowsPerGroup = wg / MID_TIER_LANES;
-            }
-            kernel.dispatch(pass, bound, plan1d(rows, rowsPerGroup, this.scope.caps), [params.offset]);
+            kernel.dispatch(pass, bound, plan1d(rows, rowsPerGroupOf(tier, wg), this.scope.caps), [params.offset]);
             this.dispatches++;
         }
     }

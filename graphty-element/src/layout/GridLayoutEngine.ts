@@ -15,6 +15,7 @@ const gridLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     columns: {

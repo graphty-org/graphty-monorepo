@@ -1,35 +1,32 @@
-import {
-    type AbstractActionManager,
-    AbstractMesh,
-    type Node as SceneNode,
-    type Observer,
-    type PointerInfoPre,
-    type Scene,
-} from "@babylonjs/core";
+import { type AbstractActionManager, AbstractMesh, type Node as SceneNode, type Scene } from "@babylonjs/core";
 import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf, type NodeGroup } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
-import type { LoadReport } from "../data/report";
+import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
+    addsRows,
     type DataImportCommand,
     type DataMutation,
     replaceEdgesCommand,
     replaceNodesCommand,
 } from "../session/commands/data";
-import type { LaneStore } from "../session/GraphSession";
+import type { FreezeFollower, LaneStore } from "../session/GraphSession";
+import { supersededError } from "../session/loadLine";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
@@ -41,6 +38,7 @@ import {
 } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
+import type { ImportOutcome } from "../session/styles/fileStyles/apply";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -53,37 +51,67 @@ const GRAPH_RESULTS = "graphResults";
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
+/** Where an edge is drawn among the edges joining the same two nodes: see `DataManager.drawnBundle`. */
+export interface EdgeBundle {
+    /** Its place in the bundle, from zero. */
+    readonly rank: number;
+    /** How many edges the bundle holds. */
+    readonly count: number;
+    /** The bundle's first edge, whose direction the fan is measured from. */
+    readonly first: Edge;
+    /** Every edge of the bundle, in bundle order. */
+    readonly members: readonly Edge[];
+}
+
 /**
- * Take what the given nodes and edges are about to dispose out of every scene-wide list that holds
- * it, in one pass over each list, before any of them is disposed: their meshes out of
- * `scene.meshes` and out of their parent's children, each node mesh's action manager out of
- * `scene.actionManagers`, and each node's two pointer observers out of
- * `scene.onPrePointerObservable`.
+ * Dispose the given nodes and edges -- `teardown` does that -- at a cost in proportion to them,
+ * not to the scene they leave.
  *
- * Babylon removes each of those with `indexOf` and `splice` -- an observer a frame later, from a
- * timer of its own -- so disposing N elements one at a time out of a scene that holds them costs N
- * x scene size: about 20 s for a clear, a replacing import or undoing a load at the 50,000-node
- * render ceiling (issue #543). Dropped here first, each dispose searches only what is left and
- * finds nothing to splice; Babylon still runs the rest of its dispose, including the
- * `onMeshRemovedObservable` notification and the scene root-node bookkeeping.
+ * Babylon takes each disposed mesh and action manager out of a scene-wide list
+ * with `indexOf` and `splice`, and checks whether an action manager is still owned by walking
+ * `scene.meshes`. Disposing k elements one at a time out of a scene of N costs k x N: about 20 s
+ * for a clear at the 50,000-node render ceiling (issue #543), and quadratic for removing half a
+ * graph (issue #2732). So, before `teardown` runs, everything the elements are about to dispose
+ * is taken out of those lists in one pass over each: their meshes out of `scene.meshes` and their
+ * parent's children, and each mesh's action manager out of `scene.actionManagers`. (A node's
+ * pointer callbacks leave a set of their own in constant time; see `nodePointerRosterOf`.)
+ * While `teardown` runs, the survivors are set aside and
+ * the two scene lists are empty, so every search a dispose makes finds nothing at once; Babylon
+ * still runs the rest of its dispose, including the `onMeshRemovedObservable` notification and
+ * the scene root-node bookkeeping. Afterwards the survivors go back in their order, less any that
+ * `teardown` disposed, followed by anything it added.
  *
- * An observer list compacted while it is being notified would skip a surviving observer for that
- * one event. No teardown runs inside a pre-pointer notification today: removals go through the
- * session's dispatcher, not a pointer observer.
+ * An action manager a surviving mesh shares is unhooked from the doomed mesh first, so the
+ * doomed mesh's dispose, finding no other owner in the emptied list, does not dispose it.
+ *
+ * No frame runs during `teardown`: it is synchronous.
  *
  * ONLY MESHES THE CALLER IS ABOUT TO DISPOSE may be passed: a live mesh dropped here would stay
  * alive and simply stop being drawn. Each element's own mesh and everything parented to it (a
  * node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose` free. A
  * shared batch an edge's line or arrowhead is a slot in is never collected, because it still draws
  * the edges that stay. A mesh not collected -- a batch, a tooltip, a halo, a patterned line's
- * segments -- is still freed correctly by its own dispose, at the old per-mesh cost.
- * @param nodes - The nodes about to be disposed.
- * @param edges - The edges about to be disposed.
+ * segments -- is still freed correctly by its own dispose, and cheaply while the lists are empty.
+ * @param nodes - The nodes `teardown` disposes.
+ * @param edges - The edges `teardown` disposes.
+ * @param teardown - Disposes them.
+ * @returns What `teardown` returns.
  */
-function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
+export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+    // The labels go together too, after the lists below are restored: see LabelBatch (issue #2804).
+    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown));
+}
+
+/**
+ * The body of {@link disposeReleased}, inside its label batch.
+ * @param nodes - The nodes `teardown` disposes.
+ * @param edges - The edges `teardown` disposes.
+ * @param teardown - Disposes them.
+ * @returns What `teardown` returns.
+ */
+function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
-    const observers = new Set<Observer<PointerInfoPre>>();
-    collectDoomed(nodes, edges, doomed, observers);
+    collectDoomed(nodes, edges, doomed);
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.
@@ -98,7 +126,7 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     }
 
     if (scene === undefined) {
-        return;
+        return teardown();
     }
 
     dropAll(scene.meshes, doomed);
@@ -107,39 +135,70 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     const managers = new Set<AbstractActionManager>();
     for (const mesh of doomed) {
         const manager = mesh.actionManager;
-        if (manager?.disposeWhenUnowned && !kept.has(manager)) {
+        if (manager && kept.has(manager)) {
+            mesh.actionManager = null;
+        } else if (manager?.disposeWhenUnowned) {
             managers.add(manager);
         }
     }
 
     // Read through a plain shape: `Scene` declares this list itself, undeprecated, but also inherits
     // the deprecation `IAssetContainer` puts on it for asset containers, and lint sees only that.
-    dropAll((scene as { actionManagers: AbstractActionManager[] }).actionManagers, managers);
-    dropAll(scene.onPrePointerObservable.observers, observers);
+    const { actionManagers } = scene as { actionManagers: AbstractActionManager[] };
+    dropAll(actionManagers, managers);
 
+    // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
+    // node mesh shares one parent, the graph root: that list is set aside too (issues #2733, #2749).
+    const families: [SceneNode, SceneNode[], SceneNode[]][] = [];
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
         const children = (parent as unknown as { _children: SceneNode[] | null })._children;
         if (children) {
             dropAll(children, doomed);
+            families.push([parent, children, children.splice(0)]);
+        }
+    }
+
+    const meshes = scene.meshes.splice(0);
+    const owned = actionManagers.splice(0);
+    try {
+        return teardown();
+    } finally {
+        restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
+        restore(actionManagers, owned, () => true);
+        for (const [parent, children, kept] of families) {
+            restore(children, kept, (child) => child.parent === parent && !child.isDisposed());
         }
     }
 }
 
 /**
- * Collect what {@link releaseFromScene} drops: each element's own live mesh and everything
- * parented to it, and each node's pointer observers.
+ * Put the survivors a teardown set aside back into a list it emptied, ahead of anything it added.
+ * @param list - The list.
+ * @param survivors - What was in it before.
+ * @param alive - Whether a survivor is still alive.
+ */
+function restore<T>(list: T[], survivors: readonly T[], alive: (item: T) => boolean): void {
+    const added = list.splice(0);
+    for (const item of survivors) {
+        if (alive(item)) {
+            list.push(item);
+        }
+    }
+
+    for (const item of added) {
+        list.push(item);
+    }
+}
+
+/**
+ * Collect what {@link disposeReleased} drops: each element's own live mesh and everything
+ * parented to it.
  * @param nodes - The nodes about to be disposed.
  * @param edges - The edges about to be disposed.
  * @param doomed - Receives the meshes.
- * @param observers - Receives the pointer observers.
  */
-function collectDoomed(
-    nodes: Iterable<Node>,
-    edges: Iterable<Edge>,
-    doomed: Set<AbstractMesh>,
-    observers: Set<Observer<PointerInfoPre>>,
-): void {
+function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set<AbstractMesh>): void {
     // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
     // their own dispose.
     const add = (mesh: unknown): void => {
@@ -152,9 +211,6 @@ function collectDoomed(
     };
     for (const node of nodes) {
         add(node.mesh);
-        for (const observer of node.dragHandler?.sceneObservers ?? []) {
-            observers.add(observer);
-        }
     }
 
     for (const edge of edges) {
@@ -220,6 +276,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get seededNodeCount() {
             return manager.seededNodeCount;
         },
+        partialSeeds: () => dataManagerInternals.partialSeeds(manager),
         get directionSettledBy() {
             return manager.directionSettledBy;
         },
@@ -235,6 +292,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get inputs() {
             return inputCountersOf(manager);
         },
+        followRenumbering: (follower) => dataManagerInternals.followRenumbering(manager, follower),
     };
 }
 
@@ -265,21 +323,13 @@ export const dataManagerInternals = {} as {
     adoptNode(manager: DataManager, node: Node): void;
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
     adoptEdge(manager: DataManager, edge: Edge): void;
+    /** Free the meshes of removed nodes still waiting for the end of their run; see `releaseLater`. */
+    flushReleasing(manager: DataManager): void;
+    /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
+    followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
 };
-
-/**
- * The refusal of a load a newer replacing load, or a clear, overtook.
- * @param type - The load's format, for the message.
- * @returns The error.
- */
-function supersededError(type: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_SUPERSEDED",
-        source: "data",
-        message: `The ${type} load was overtaken by a newer replacing load, so the graph was left to it.`,
-        details: { format: type },
-    });
-}
 
 /**
  * Manages all data operations for nodes and edges
@@ -313,13 +363,27 @@ export class DataManager implements Manager {
     private readonly nodeMap = new Map<string | number, Node>();
     private readonly edgeMap = new Map<string, Edge>();
     private readonly edgeRows: (Edge | undefined)[] = [];
+    /** Who else holds rows by index (the session's selection), told after the render objects. */
+    private readonly renumberFollowers = new Set<FreezeFollower>();
 
     static {
+        dataManagerInternals.followRenumbering = (manager, follower) => {
+            manager.renumberFollowers.add(follower);
+            return () => {
+                manager.renumberFollowers.delete(follower);
+            };
+        };
+        dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
+            manager.nodeVersion++;
+        };
+        dataManagerInternals.flushReleasing = (manager) => {
+            manager.flushReleasing();
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
+            manager.edgeVersion++;
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -355,6 +419,8 @@ export class DataManager implements Manager {
 
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
+    /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
+    nodeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
 
     /**
@@ -369,6 +435,9 @@ export class DataManager implements Manager {
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
+
+    /** Removed nodes whose meshes leave the scene at the end of the run; see `releaseLater`. */
+    private releasing: Node[] = [];
 
     /**
      * The edge counter every store this manager builds draws from, so a Clear or a replacing
@@ -478,6 +547,17 @@ export class DataManager implements Manager {
     private loadId: number | undefined = undefined;
 
     /**
+     * The finished-load events of the import running now, held until its step is recorded: an
+     * import reaches its last chunk before its placement, its whole-graph paint and its commit, and
+     * a load withdrawn in between must not have been announced (issue #3384). Null outside an
+     * import dispatched through the session, where the events go out at once.
+     */
+    private heldLoadEvents: (() => void) | null = null;
+
+    /** Numbers each held announcement, so two imports in one step each keep theirs. */
+    private heldLoadSeq = 0;
+
+    /**
      * Creates an instance of DataManager
      * @param eventManager - Event manager for emitting data events
      * @param styles - Styles instance for applying styles to data
@@ -502,6 +582,14 @@ export class DataManager implements Manager {
      */
     getSnapshot(): GraphSnapshot {
         return this.store.getSnapshot();
+    }
+
+    /**
+     * Whether the graph is directed, which decides whether an edge draws an arrowhead by default.
+     * @returns the store's direction, read without a freeze
+     */
+    get directed(): boolean {
+        return this.store.directed;
     }
 
     /**
@@ -579,6 +667,15 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The groups the loaded files nest nodes in and store no position for, which the layout
+     * places on their members' box.
+     * @returns The groups; empty when no file nested any.
+     */
+    get groups(): readonly NodeGroup[] {
+        return groupsOf(this.graph.slice.values.get(GROUPS_VALUE));
+    }
+
+    /**
      * What the last load did: which endpoint spelling answered, how many repeats were seen and
      * what the policy did with them, and how many edges the graph actually holds.
      *
@@ -634,19 +731,85 @@ export class DataManager implements Manager {
                 hooks.loading(true);
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
                 this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+                let outcome: ImportOutcome | null;
+                this.heldLoadEvents = () => undefined;
+                let announce: () => void;
                 try {
-                    await this.ingest.importSource(command, writer, signal);
+                    outcome = await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
                     this.loadId = undefined;
+                    announce = this.heldLoadEvents;
+                    this.heldLoadEvents = null;
                     hooks.loading(false);
                 }
 
-                if (command.source.type !== undefined && command.source.config !== undefined) {
+                this.announceOnCommit(announce, after);
+
+                if (addsRows(command)) {
                     hooks.rowsAdded(after);
                 }
+
+                return outcome;
             },
         };
+    }
+
+    /**
+     * Announce a finished import once it can no longer be withdrawn: when its step is recorded and
+     * the pass that places and paints it has run, still before the import's promise settles. A
+     * step that rolls back drops the announcement with it.
+     * @param announce - Emits the import's finished-load events.
+     * @param after - The import's way to start work once its step is recorded, when it has one.
+     */
+    private announceOnCommit(announce: () => void, after: UndoableContext["after"] | undefined): void {
+        const lane = this.dispatcher?.lane;
+        if (after === undefined || lane === undefined) {
+            announce();
+            return;
+        }
+
+        after(`load-complete:${String(this.heldLoadSeq++)}`, () => {
+            queueMicrotask(() => {
+                void lane.settled().then(announce);
+            });
+        });
+    }
+
+    /**
+     * Emit `data-loading-complete` and `data-loaded` for one finished load.
+     * @param format - The load's format.
+     * @param report - What the load did.
+     * @param chunks - How many chunks it read.
+     * @param duration - How long it took, in milliseconds.
+     * @param errors - How many errors its source counted.
+     * @param loadId - Which load it is.
+     */
+    private emitLoadComplete(
+        format: string,
+        report: ImportReport,
+        chunks: number,
+        duration: number,
+        errors: number,
+        loadId: number | undefined,
+    ): void {
+        if (!this.graphContext) {
+            return;
+        }
+
+        this.eventManager.emitDataLoadingComplete(
+            format,
+            report.counts.nodes,
+            report.counts.edges,
+            duration,
+            errors,
+            0, // warnings
+            true,
+            report,
+            loadId,
+        );
+        // Keep existing data-loaded event for backward compatibility
+        this.eventManager.emitGraphDataLoaded(this.graphContext, chunks, format, report, loadId);
     }
 
     /**
@@ -733,17 +896,7 @@ export class DataManager implements Manager {
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
             } else if (key.startsWith("n:")) {
-                const id = JSON.parse(key.slice(2)) as NodeIdType;
-                const record = slice.nodes.get(id);
-                const node = this.nodes.get(id);
-                if (record === undefined && node !== undefined) {
-                    doomed.add(node.id);
-                } else if (record !== undefined && node === undefined) {
-                    this.buildNode(id, record, this.store.builder.indexOf(id));
-                    addedNodes++;
-                } else if (record !== undefined && node !== undefined) {
-                    adoptNodeRecord(node, record as AdHocData<string | number>);
-                }
+                addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed);
             }
         }
 
@@ -754,39 +907,12 @@ export class DataManager implements Manager {
             removedNodes.push(...doomed);
         }
 
-        // Edges after nodes: an edge is built only once both its endpoints are drawn.
+        // Edges after nodes: an edge is built only once both its endpoints are drawn. The waiting
+        // ones looked up by id from one index, not one scan of the queue per edge: a scan per edge
+        // is edges x waiting, which never finished on a million of each.
+        const waiting = new Map(this.pendingEdges.map((entry) => [entry.edgeId, entry]));
         for (const id of edgeKeys) {
-            const record = slice.edges.get(id);
-            const edge = this.edges.get(id);
-            const counter = edgeCounterOf(id);
-            const pending = this.pendingEdges.find((entry) => entry.edgeId === counter);
-            if (record === undefined) {
-                if (edge !== undefined) {
-                    this.teardownEdge(edge, edge.index);
-                    removedEdges.push(id);
-                } else if (pending !== undefined) {
-                    this.forgetPending(pending);
-                    this.pendingEdges.splice(this.pendingEdges.indexOf(pending), 1);
-                    removedEdges.push(id);
-                }
-            } else if (edge !== undefined) {
-                adoptEdgeRecord(edge, record as AdHocData);
-            } else if (pending !== undefined) {
-                pending.record = record;
-            } else {
-                const row = this.store.edgeIndexOf(counter);
-                if (row !== INVALID_INDEX) {
-                    const [source, target] = this.store.builder.edgeEndpoints(row);
-                    this.buildEdge({
-                        record: record,
-                        sourceId: this.store.builder.idOf(source),
-                        targetId: this.store.builder.idOf(target),
-                        edgeIndex: row,
-                        edgeId: counter,
-                    });
-                    addedEdges++;
-                }
-            }
+            addedEdges += this.reconcileEdge(id, slice, waiting, removedEdges);
         }
 
         if (addedNodes > 0) {
@@ -806,6 +932,120 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Bring one node's render object in line with the slice: build it, mark it to be torn down, or
+     * hand it its new record.
+     * @param id - The node.
+     * @param slice - The slice to draw.
+     * @param doomed - Receives a drawn node the slice no longer holds.
+     * @returns 1 when the node was built, else 0.
+     */
+    private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>): number {
+        const record = slice.nodes.get(id);
+        const node = this.nodes.get(id);
+        if (record === undefined) {
+            if (node !== undefined) {
+                doomed.add(node.id);
+            }
+
+            return 0;
+        }
+
+        if (node === undefined) {
+            this.buildNode(id, record, this.store.builder.indexOf(id));
+            return 1;
+        }
+
+        adoptNodeRecord(node, record as AdHocData<string | number>);
+        this.placeKept("node", node, this.store.builder.indexOf(id));
+        return 0;
+    }
+
+    /**
+     * Bring one edge's render object in line with the slice: build it, tear it down, drop it from
+     * the waiting queue, or hand it (drawn or waiting) its new record.
+     * @param id - The edge.
+     * @param slice - The slice to draw.
+     * @param waiting - The waiting edges, by counter.
+     * @param removedEdges - Receives the edge when it is torn down or dropped from the queue.
+     * @returns 1 when the edge was built, else 0.
+     */
+    private reconcileEdge(
+        id: EdgeId,
+        slice: GraphSlice,
+        waiting: ReadonlyMap<number, PendingEdge>,
+        removedEdges: EdgeId[],
+    ): number {
+        const record = slice.edges.get(id);
+        const edge = this.edges.get(id);
+        const counter = edgeCounterOf(id);
+        const pending = waiting.get(counter);
+        if (record === undefined) {
+            if (edge !== undefined) {
+                this.teardownEdge(edge, edge.index);
+                removedEdges.push(id);
+            } else if (pending !== undefined) {
+                this.forgetPending(pending);
+                this.pendingEdges.splice(this.pendingEdges.indexOf(pending), 1);
+                removedEdges.push(id);
+            }
+
+            return 0;
+        }
+
+        if (edge !== undefined) {
+            adoptEdgeRecord(edge, record as AdHocData);
+            this.placeKept("edge", edge, this.store.edgeIndexOf(counter));
+            return 0;
+        }
+
+        if (pending !== undefined) {
+            pending.record = record;
+            return 0;
+        }
+
+        const row = this.store.edgeIndexOf(counter);
+        if (row === INVALID_INDEX) {
+            return 0;
+        }
+
+        const [source, target] = this.store.builder.edgeEndpoints(row);
+        this.buildEdge({
+            record: record,
+            sourceId: this.store.builder.idOf(source),
+            targetId: this.store.builder.idOf(target),
+            edgeIndex: row,
+            edgeId: counter,
+        });
+        return 1;
+    }
+
+    /**
+     * Put a render object the slice keeps back on its row, and queue it to be drawn from that row's
+     * paint. Undoing a replacing load puts the graph it replaced back as a new builder, whose walk
+     * from the old rows names none of them, so a node or edge drawn in both graphs (a file opened
+     * over itself) was left with no row: every later repaint missed it and it kept the look it had.
+     * @param target - Node or edge.
+     * @param element - The render object.
+     * @param row - Its row in the store now.
+     */
+    private placeKept(target: "node" | "edge", element: Node | Edge, row: number): void {
+        if (element.index === row) {
+            return;
+        }
+
+        if (element instanceof Node) {
+            placeNodeRow(element, row);
+        } else {
+            placeEdgeRow(element, row);
+            if (row !== INVALID_INDEX) {
+                this.edgeRows[row] = element;
+            }
+        }
+
+        this.graphContext?.getStylePainter?.()?.queue(target, row);
+    }
+
+    /**
      * Tear down nodes' render objects and every render edge attached to one of them, leaving the
      * store alone: the store already reflects the state being drawn.
      * @param ids - The nodes.
@@ -815,42 +1055,44 @@ export class DataManager implements Manager {
     private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
         const removed: EdgeId[] = [];
         const edges = [...this.edges.values()];
-        releaseFromScene(
+        disposeReleased(
             [...ids].flatMap((id) => this.nodes.get(id) ?? []),
             edges.filter((edge) => ids.has(edge.srcId) || ids.has(edge.dstId)),
-        );
-        for (const edge of edges) {
-            if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
-                // An edge the slice still holds outlives its endpoint's render object: it goes
-                // back to waiting, as it waited before the endpoint arrived, so the redo that
-                // brings the endpoint back draws it again.
-                const record = slice.edges.get(edge.id);
-                const counter = edgeCounterOf(edge.id);
-                const row = this.store.edgeIndexOf(counter);
-                const { srcId, dstId } = edge;
-                this.teardownEdge(edge, edge.index);
-                if (record !== undefined && row !== INVALID_INDEX) {
-                    const pending: PendingEdge = {
-                        record: record,
-                        sourceId: srcId,
-                        targetId: dstId,
-                        edgeIndex: row,
-                        edgeId: counter,
-                    };
-                    this.pendingEdges.push(pending);
-                    this.rememberPending(pending);
-                    continue;
+            () => {
+                for (const edge of edges) {
+                    if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
+                        // An edge the slice still holds outlives its endpoint's render object: it goes
+                        // back to waiting, as it waited before the endpoint arrived, so the redo that
+                        // brings the endpoint back draws it again.
+                        const record = slice.edges.get(edge.id);
+                        const counter = edgeCounterOf(edge.id);
+                        const row = this.store.edgeIndexOf(counter);
+                        const { srcId, dstId } = edge;
+                        this.teardownEdge(edge, edge.index);
+                        if (record !== undefined && row !== INVALID_INDEX) {
+                            const pending: PendingEdge = {
+                                record: record,
+                                sourceId: srcId,
+                                targetId: dstId,
+                                edgeIndex: row,
+                                edgeId: counter,
+                            };
+                            this.pendingEdges.push(pending);
+                            this.rememberPending(pending);
+                            continue;
+                        }
+
+                        removed.push(edge.id);
+                    }
                 }
 
-                removed.push(edge.id);
-            }
-        }
-
-        for (const node of [...this.nodes.values()]) {
-            if (ids.has(node.id)) {
-                this.disposeRenderNode(node);
-            }
-        }
+                for (const node of [...this.nodes.values()]) {
+                    if (ids.has(node.id)) {
+                        this.disposeRenderNode(node);
+                    }
+                }
+            },
+        );
 
         return removed;
     }
@@ -862,29 +1104,32 @@ export class DataManager implements Manager {
      * @param edges - The edge ids removed, including every edge attached to a removed node.
      */
     private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
-        releaseFromScene(
-            nodes.flatMap((id) => this.nodes.get(id) ?? []),
+        // The edges go now. The nodes leave every map now too, but their meshes leave the scene at
+        // the end of the run, with every other node removed in it: see `releaseLater`.
+        disposeReleased(
+            [],
             edges.flatMap((id) => this.edges.get(id) ?? []),
+            () => {
+                for (const id of edges) {
+                    const edge = this.edges.get(id);
+                    if (edge !== undefined) {
+                        this.teardownEdge(edge, edge.index);
+                        continue;
+                    }
+
+                    const counter = edgeCounterOf(id);
+                    const pending = this.pendingEdges.findIndex((entry) => entry.edgeId === counter);
+                    if (pending !== -1) {
+                        this.forgetPending(this.pendingEdges[pending]);
+                        this.pendingEdges.splice(pending, 1);
+                    }
+                }
+            },
         );
-        for (const id of edges) {
-            const edge = this.edges.get(id);
-            if (edge !== undefined) {
-                this.teardownEdge(edge, edge.index);
-                continue;
-            }
-
-            const counter = edgeCounterOf(id);
-            const pending = this.pendingEdges.findIndex((entry) => entry.edgeId === counter);
-            if (pending !== -1) {
-                this.forgetPending(this.pendingEdges[pending]);
-                this.pendingEdges.splice(pending, 1);
-            }
-        }
-
         for (const id of nodes) {
             const node = this.nodes.get(id);
             if (node !== undefined) {
-                this.disposeRenderNode(node);
+                this.disposeRenderNode(node, true);
             }
         }
 
@@ -903,6 +1148,8 @@ export class DataManager implements Manager {
         // next freeze does not name it a second time.
         this.eventManager.emitSnapshotDropped();
         this.store.forgetSnapshot();
+        // Nothing that was waiting for its style is drawn any more.
+        this.unpainted.clear();
 
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
         // still holding the old nodes would lay out a graph that no longer exists and write their
@@ -926,6 +1173,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeRows.length = 0;
@@ -942,15 +1190,57 @@ export class DataManager implements Manager {
      * Take one node's render object out of every structure that holds it and free it. Its edges
      * must already be gone.
      * @param node - The node.
+     * @param later - Free its meshes at the end of the run rather than now; see `releaseLater`.
      */
-    private disposeRenderNode(node: Node): void {
+    private disposeRenderNode(node: Node, later = false): void {
         this.nodeMap.delete(node.id);
+        this.nodeVersion++;
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
         if (this.layoutEngine) {
             layoutEngineInternals.removeNode(this.layoutEngine, node);
         }
-        node.dispose();
+
+        if (later) {
+            this.releaseLater(node);
+        } else {
+            node.dispose();
+        }
+    }
+
+    /**
+     * Free a node's meshes with the other nodes removed in the same synchronous run, at its end.
+     *
+     * Setting the scene's lists aside for a teardown costs a pass over them however few elements
+     * go, so a consumer removing nodes one call at a time -- `removeNodeAndIncidentEdges` in a
+     * loop -- paid a pass over the whole scene per node (issue #2733). Batched, the run pays one.
+     * The node has already left every map and the layout; only its meshes wait, and no frame is
+     * drawn before a microtask runs. Whatever tears every node down, or the mesh cache, frees the
+     * waiting ones first (`flushReleasing`).
+     * @param node - The node.
+     */
+    private releaseLater(node: Node): void {
+        this.releasing.push(node);
+        if (this.releasing.length === 1) {
+            queueMicrotask(() => {
+                this.flushReleasing();
+            });
+        }
+    }
+
+    /** Free every node waiting in `releaseLater`, in one pass over the scene. */
+    private flushReleasing(): void {
+        const nodes = this.releasing;
+        if (nodes.length === 0) {
+            return;
+        }
+
+        this.releasing = [];
+        disposeReleased(nodes, [], () => {
+            for (const node of nodes) {
+                node.dispose();
+            }
+        });
     }
 
     /**
@@ -1028,26 +1318,14 @@ export class DataManager implements Manager {
                 }
             },
             loadComplete: (format, report, progress, duration, errors) => {
-                if (this.graphContext) {
-                    this.eventManager.emitDataLoadingComplete(
-                        format,
-                        report.counts.nodes,
-                        report.counts.edges,
-                        duration,
-                        errors,
-                        0, // warnings
-                        true,
-                        report,
-                        this.loadId,
-                    );
-                    // Keep existing data-loaded event for backward compatibility
-                    this.eventManager.emitGraphDataLoaded(
-                        this.graphContext,
-                        progress.chunks,
-                        format,
-                        report,
-                        this.loadId,
-                    );
+                const { loadId } = this;
+                const emit = (): void => {
+                    this.emitLoadComplete(format, report, progress.chunks, duration, errors, loadId);
+                };
+                if (this.heldLoadEvents === null) {
+                    emit();
+                } else {
+                    this.heldLoadEvents = emit;
                 }
             },
             progress: (change) => this.dispatcher?.services.progress?.(change),
@@ -1087,11 +1365,19 @@ export class DataManager implements Manager {
             positionScale: () => this.styles.config.data.knownFields.positionScale,
             edgeCounter: this.edgeCounter,
             inputs: this.inputs,
+            // The count is read from the store, as the headless session does: a freeze in delivery
+            // answers `getSnapshot()` from the snapshot it is delivering.
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
+                for (const follower of this.renumberFollowers) {
+                    follower.nodes(remap, this.store.getSnapshot().nodeCount);
+                }
             },
             onEdgeRemap: (remap) => {
                 this.walkEdgeRemap(remap);
+                for (const follower of this.renumberFollowers) {
+                    follower.edges(remap, this.store.getSnapshot().edgeCount);
+                }
             },
             onReplaced: (replacement) => {
                 // Before the graph context is set there is nobody to emit to, and nothing has been
@@ -1287,20 +1573,23 @@ export class DataManager implements Manager {
      * cache and is only ever freed here. Before this existed, roughly sixty arrowheads per
      * dataset stayed in the scene forever; see Edge.dispose for the full account.
      *
-     * NOTE ON THE LAYOUT ENGINE: this class still does not notify it (the standing TODO in
-     * `clear`), so the engine keeps its own lists of these now-disposed objects and UpdateManager
-     * keeps walking them. Node and Edge both carry a `disposed` guard for exactly that reason --
-     * without it, the next frame would rebuild the meshes this method just freed.
+     * NOTE ON THE LAYOUT ENGINE: `clear()` takes every node and edge out of it before calling
+     * this (#121); `dispose()` does not, so there the engine keeps its own lists of these
+     * now-disposed objects and UpdateManager can keep walking them. Node and Edge both carry a
+     * `disposed` guard for exactly that reason -- without it, the next frame would rebuild the
+     * meshes this method just freed.
      */
     private disposeNodesAndEdges(): void {
-        releaseFromScene(this.nodes.values(), this.edges.values());
-        for (const edge of this.edges.values()) {
-            edge.dispose();
-        }
+        this.flushReleasing();
+        disposeReleased(this.nodes.values(), this.edges.values(), () => {
+            for (const edge of this.edges.values()) {
+                edge.dispose();
+            }
 
-        for (const node of this.nodes.values()) {
-            node.dispose();
-        }
+            for (const node of this.nodes.values()) {
+                node.dispose();
+            }
+        });
     }
 
     /**
@@ -1314,6 +1603,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
 
@@ -1377,6 +1667,89 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The record keys of the render objects built from the element's own defaults whose rows no
+     * pass has painted since. An import builds each chunk as it reads it, ahead of the pass that
+     * paints it; until that pass has painted them and a frame's update has applied the paint, no
+     * frame is drawn ({@link drawHeld}), so none shows an element in the defaults.
+     */
+    private readonly unpainted = new Set<string>();
+
+    /** Rows painted since the last frame's update applied what the painter had queued. */
+    private paintUndrawn = false;
+
+    /**
+     * The waiting edges built since the last pass took them: an edge whose endpoint arrived in a
+     * later chunk is built then, and its record is not among that pass's dirty keys.
+     */
+    private lateEdges: { readonly row: number; readonly key: string }[] = [];
+
+    /** The keys of the late edges the pass now painting took; see {@link takeLateEdgeRows}. */
+    private lateKeysPainting: readonly string[] = [];
+
+    /**
+     * Note a render object built from the defaults, and queue its row to be drawn: the pass that
+     * paints the row may already have run, its paint taken by a frame before this object existed.
+     * @param key - Its record key in the graph slice.
+     * @param target - Node or edge.
+     * @param index - Its row.
+     */
+    private builtUnpainted(key: string, target: "node" | "edge", index: number): void {
+        this.unpainted.add(key);
+        this.graphContext?.getStylePainter?.()?.queue(target, index);
+    }
+
+    /**
+     * Take the rows of the waiting edges built since the last pass took them, for the pass to
+     * paint with its own rows; {@link notePainted} then counts them painted.
+     * @returns Their rows.
+     * @internal
+     */
+    takeLateEdgeRows(): number[] {
+        const taken = this.lateEdges;
+        this.lateEdges = [];
+        this.lateKeysPainting = taken.map((late) => late.key);
+        return taken.map((late) => late.row);
+    }
+
+    /**
+     * Note that the style stack has painted the rows of some records (and the late edges last
+     * taken), or of every record.
+     * @param dirty - The keys of the records painted, or null for the whole graph.
+     * @internal
+     */
+    notePainted(dirty: ReadonlySet<string> | null): void {
+        const before = this.unpainted.size;
+        if (dirty === null) {
+            this.unpainted.clear();
+        } else {
+            for (const key of [...dirty, ...this.lateKeysPainting]) {
+                this.unpainted.delete(key);
+            }
+        }
+
+        this.lateKeysPainting = [];
+        this.paintUndrawn ||= this.unpainted.size < before;
+    }
+
+    /**
+     * Note that a frame's update has applied everything the painter had queued.
+     * @internal
+     */
+    notePaintDrawn(): void {
+        this.paintUndrawn = false;
+    }
+
+    /**
+     * Whether a frame drawn now would show an element in the defaults: one was built from them
+     * and its style is not painted, or painted and not yet applied.
+     * @returns True while the frames should wait.
+     * @internal
+     */
+    get drawHeld(): boolean {
+        return this.unpainted.size > 0 || this.paintUndrawn;
+    }
+
+    /**
      * Build the render object for a node the store has just taken.
      * @param nodeId - the node id
      * @param node - the raw record
@@ -1389,13 +1762,16 @@ export class DataManager implements Manager {
         }
 
         // The element's own defaults, because the row index the session's paint is addressed
-        // by is assigned on the line below this one. The first style pass replaces it.
+        // by is assigned on the line below this one. The pass that paints the row replaces it,
+        // and no frame is drawn before then.
+        this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);
+        this.nodeVersion++;
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
@@ -1455,11 +1831,13 @@ export class DataManager implements Manager {
                 sourceId,
                 targetId,
                 edgeId,
-                bootstrapEdgePaint(),
+                bootstrapEdgePaint(this.store.directed),
                 record as AdHocData,
                 opts,
             );
             this.registerEdge(e, edgeIndex);
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+            this.lateEdges.push({ row: edgeIndex, key: `e:${edgeIdOf(edgeId)}` });
 
             // Add to layout engine if it exists
             if (this.layoutEngine) {
@@ -1517,6 +1895,25 @@ export class DataManager implements Manager {
 
         const other = otherIdSpelling(nodeId);
         return other === undefined ? undefined : this.nodes.get(other);
+    }
+
+    /**
+     * The edges attached to a node that have render objects, found through the store's incidence
+     * lists in O(degree) rather than by walking every edge.
+     * @param node - The node.
+     * @returns Their ids.
+     * @internal
+     */
+    incidentEdgeIds(node: Node): EdgeId[] {
+        const ids: EdgeId[] = [];
+        for (const counter of this.store.incidentEdgeIds([node.id])) {
+            const id = edgeIdOf(counter);
+            if (this.edgeMap.has(id)) {
+                ids.push(id);
+            }
+        }
+
+        return ids;
     }
 
     /**
@@ -1673,11 +2070,12 @@ export class DataManager implements Manager {
             srcNodeId,
             dstNodeId,
             edgeId,
-            bootstrapEdgePaint(),
+            bootstrapEdgePaint(this.store.directed),
             edge as AdHocData,
             opts,
         );
         this.registerEdge(e, edgeIndex);
+        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
@@ -1718,6 +2116,51 @@ export class DataManager implements Manager {
     getEdge(edgeId: string): Edge | undefined {
         return this.edges.get(edgeId);
     }
+
+    /**
+     * Where an edge is drawn among every edge joining the same two nodes, in either direction (a
+     * self-loop among the loops on its node): its place, how many there are, and the bundle's
+     * first edge, whose direction the fan is measured from. Worked out over the whole edge set
+     * once per change to it, so a frame's worth of edges costs one pass, not a walk of each
+     * endpoint's edges per edge.
+     * @param edge - The edge.
+     * @returns Its bundle; a lone edge is a bundle of one.
+     */
+    drawnBundle(edge: Edge): EdgeBundle {
+        if (this.bundles?.version !== this.edgeVersion) {
+            const byEdge = new Map<Edge, EdgeBundle>();
+            const pairs = new Map<Node, Map<Node, Edge[]>>();
+            for (const each of this.edgeMap.values()) {
+                const { srcNode: a, dstNode: b } = each;
+                let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
+                if (group === undefined) {
+                    group = [];
+                    const inner = pairs.get(a) ?? new Map<Node, Edge[]>();
+                    inner.set(b, group);
+                    pairs.set(a, inner);
+                }
+
+                group.push(each);
+            }
+
+            for (const inner of pairs.values()) {
+                for (const group of inner.values()) {
+                    if (group.length > 1) {
+                        group.forEach((each, rank) => {
+                            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+                        });
+                    }
+                }
+            }
+
+            this.bundles = { version: this.edgeVersion, byEdge };
+        }
+
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+    }
+
+    /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */
+    private bundles: { version: number; byEdge: Map<Edge, EdgeBundle> } | null = null;
 
     /**
      * Every edge running from one node to another.

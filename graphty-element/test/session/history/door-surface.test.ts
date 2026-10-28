@@ -3,131 +3,39 @@
  * `src/session/commands/doors.ts` has a row, every row names a public member, and every type a
  * public member hands back that has methods is itself a root.
  *
- * It reads declared types with the TypeScript compiler rather than walking objects at run time:
- * at run time a TypeScript `private` method cannot be told from a public one, and a public
- * instance field (`Graph.styles`) is not on the prototype at all. `getPropertiesOfType` yields
- * methods, accessors and fields, inherited ones included. Members that are `private` or
- * `protected` in every declaration, or `#`-named, are dropped, and so are members declared only
- * outside `src/` (the `HTMLElement` and `LitElement` surface).
+ * The declared types are read with the TypeScript compiler by `door-surface-scan.mjs`, in a child
+ * process: in this worker under `--coverage` every block of the compiler would be counted, which
+ * made building the program about five times slower (see that file). The scan runs once while the
+ * file is collected, which has no timeout, as in test/packaging/node-safe-entries.test.ts (#491):
+ * it is a fixed amount of compiler work whose wall time grows with how busy the machine is, and
+ * in a hook it failed the 10 s hook limit on a machine running several pre-push gates at once.
  */
 
-import { readdirSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
-import ts from "typescript";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { DOOR_ROOTS, type DoorRoot } from "../../../src/session/commands/doors";
 
-const PACKAGE_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
-const SRC = join(PACKAGE_ROOT, "src") + sep;
+const SCAN = fileURLToPath(new URL("door-surface-scan.mjs", import.meta.url));
 
-/** Building the program over the element's sources takes a few seconds under coverage. */
-const PROGRAM_TIMEOUT_MS = 120_000;
-
-let program: ts.Program;
-let checker: ts.TypeChecker;
-
-/**
- * The declaration of a class or interface named `name` at the top level of `file`.
- * @param file - Relative to the package root.
- * @param name - The declared name.
- * @returns The declaration, or undefined.
- */
-function declarationOf(file: string, name: string): ts.ClassDeclaration | ts.InterfaceDeclaration | undefined {
-    const source = program.getSourceFile(resolve(PACKAGE_ROOT, file));
-    let found: ts.ClassDeclaration | ts.InterfaceDeclaration | undefined;
-    if (source !== undefined) {
-        ts.forEachChild(source, (node) => {
-            if ((ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && node.name?.text === name) {
-                found = node;
-            }
-        });
-    }
-
-    return found;
+/** What `door-surface-scan.mjs` prints. */
+interface Scan {
+    /** By `file:Name`: whether it is declared, its public members, and the handles each hands back. */
+    roots: Record<string, { declared: boolean; members: string[]; handles: Record<string, string[]> }>;
+    /** Every exported class under `src/managers/`, as `file:Name`. */
+    managers: string[];
 }
 
-/**
- * The public members of a declared type, as doors.
- * @param declaration - The class or interface.
- * @returns Its public member symbols.
- */
-function publicMembers(declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): ts.Symbol[] {
-    const symbol = checker.getSymbolAtLocation(declaration.name ?? declaration);
-    assert.isDefined(symbol);
-    const type = checker.getDeclaredTypeOfSymbol(symbol);
-
-    return checker.getPropertiesOfType(type).filter((member) => {
-        const declarations = member.declarations ?? [];
-        if (member.name.startsWith("#") || member.name.startsWith("__@")) {
-            return false;
-        }
-
-        // Hidden only when every declaration is: a public getter with a private setter is still
-        // read from outside.
-        if (
-            declarations.length > 0 &&
-            declarations.every(
-                (each) =>
-                    (ts.getCombinedModifierFlags(each) & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !== 0,
-            )
-        ) {
-            return false;
-        }
-
-        return declarations.length === 0 || declarations.some((each) => each.getSourceFile().fileName.startsWith(SRC));
-    });
-}
+const { stdout } = await promisify(execFile)(process.execPath, [SCAN, ...DOOR_ROOTS.map(keyOf)], {
+    maxBuffer: 64 * 1024 * 1024,
+});
+const scan = JSON.parse(stdout) as Scan;
 
 /**
- * The class and interface types under `src/` that have methods, reachable from a type through
- * unions, intersections and promises.
- * @param type - A member's type, or a method's return type.
- * @param out - Collects `file:Name` keys.
- */
-function handleTypes(type: ts.Type, out: Set<string>): void {
-    if (type.isUnionOrIntersection()) {
-        for (const each of type.types) {
-            handleTypes(each, out);
-        }
-
-        return;
-    }
-
-    const symbol = type.getSymbol();
-    if (symbol === undefined) {
-        return;
-    }
-
-    if (symbol.name === "Promise" || symbol.name === "PromiseLike") {
-        for (const argument of checker.getTypeArguments(type as ts.TypeReference)) {
-            handleTypes(argument, out);
-        }
-
-        return;
-    }
-
-    const declaration = (symbol.declarations ?? []).find(
-        (each) =>
-            (ts.isClassDeclaration(each) || ts.isInterfaceDeclaration(each)) &&
-            each.getSourceFile().fileName.startsWith(SRC),
-    );
-    if (declaration === undefined) {
-        return;
-    }
-
-    const hasMethods = checker
-        .getPropertiesOfType(type)
-        .some((member) => checker.getTypeOfSymbol(member).getCallSignatures().length > 0);
-    if (hasMethods) {
-        out.add(`${relative(PACKAGE_ROOT, declaration.getSourceFile().fileName).split(sep).join("/")}:${symbol.name}`);
-    }
-}
-
-/**
- * A root's key, as `handleTypes` spells one.
+ * A root's key, as `door-surface-scan.mjs` spells one.
  * @param root - The root.
  * @returns `file:Name`.
  */
@@ -135,32 +43,24 @@ function keyOf(root: DoorRoot): string {
     return `${root.file}:${root.name}`;
 }
 
-describe("the door list is complete", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building the TypeScript program over the element's sources takes about 2.5 s locally and about 14 s on CI, more than a third of the 10 s hook budget; tracked in #1636
-    beforeAll(() => {
-        const config = ts.getParsedCommandLineOfConfigFile(
-            join(PACKAGE_ROOT, "tsconfig.json"),
-            {},
-            {
-                ...ts.sys,
-                onUnRecoverableConfigFileDiagnostic: () => undefined,
-            },
-        );
-        assert.isDefined(config);
-        program = ts.createProgram(
-            DOOR_ROOTS.map((root) => resolve(PACKAGE_ROOT, root.file)),
-            { ...config.options, noEmit: true },
-        );
-        checker = program.getTypeChecker();
-    }, PROGRAM_TIMEOUT_MS);
+/**
+ * The scanned declaration of a root, which must exist.
+ * @param root - The root.
+ * @returns Its public members and their handle types.
+ */
+function scanned(root: DoorRoot): Scan["roots"][string] {
+    const found = scan.roots[keyOf(root)];
+    assert.isTrue(found?.declared, `${root.file} declares no class or interface ${root.name}`);
 
+    return found;
+}
+
+describe("the door list is complete", () => {
     it("classifies every public member of every root, and names no member that is not one", () => {
         const unclassified: string[] = [];
         const stale: string[] = [];
         for (const root of DOOR_ROOTS) {
-            const declaration = declarationOf(root.file, root.name);
-            assert.isDefined(declaration, `${root.file} declares no class or interface ${root.name}`);
-            const names = publicMembers(declaration).map((member) => member.name);
+            const names = scanned(root).members;
             assert.isTrue(
                 (root.doors === undefined) !== (root.whole === undefined),
                 `${root.name} must have exactly one of doors and whole`,
@@ -187,23 +87,10 @@ describe("the door list is complete", () => {
         const roots = new Set(DOOR_ROOTS.map(keyOf));
         const escaped = new Map<string, string>();
         for (const root of DOOR_ROOTS) {
-            const declaration = declarationOf(root.file, root.name);
-            assert.isDefined(declaration);
-            for (const member of publicMembers(declaration)) {
-                const type = checker.getTypeOfSymbol(member);
-                const found = new Set<string>();
-                const signatures = type.getCallSignatures();
-                if (signatures.length > 0) {
-                    for (const signature of signatures) {
-                        handleTypes(signature.getReturnType(), found);
-                    }
-                } else {
-                    handleTypes(type, found);
-                }
-
-                for (const handle of found) {
+            for (const [member, handles] of Object.entries(scanned(root).handles)) {
+                for (const handle of handles) {
                     if (!roots.has(handle) && !escaped.has(handle)) {
-                        escaped.set(handle, `${root.name}.${member.name}`);
+                        escaped.set(handle, `${root.name}.${member}`);
                     }
                 }
             }
@@ -218,29 +105,9 @@ describe("the door list is complete", () => {
 
     it("makes every manager class a root", () => {
         const roots = new Set(DOOR_ROOTS.map(keyOf));
-        const managers = readdirSync(join(SRC, "managers"))
-            .filter((file) => file.endsWith(".ts"))
-            .flatMap((file) => {
-                const path = `src/managers/${file}`;
-                const source = program.getSourceFile(resolve(PACKAGE_ROOT, path));
-                const classes: string[] = [];
-                if (source !== undefined) {
-                    ts.forEachChild(source, (node) => {
-                        if (ts.isClassDeclaration(node) && node.name !== undefined) {
-                            const exported = ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export;
-                            if (exported !== 0) {
-                                classes.push(`${path}:${node.name.text}`);
-                            }
-                        }
-                    });
-                }
-
-                return classes;
-            });
-
-        assert.isNotEmpty(managers);
+        assert.isNotEmpty(scan.managers);
         assert.deepEqual(
-            managers.filter((key) => !roots.has(key)),
+            scan.managers.filter((key) => !roots.has(key)),
             [],
         );
     });

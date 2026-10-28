@@ -82,6 +82,32 @@ export function isDeprecated(...symbols) {
 }
 
 /**
+ * One export of algorithms or layout, if it is legacy.
+ * @param checker - the type checker
+ * @param pkg - the package name
+ * @param srcDir - the package's src directory
+ * @param exported - the exported symbol
+ * @returns the entry (positional, graphClass), or undefined when the export is not legacy
+ */
+function legacyEntry(checker, pkg, srcDir, exported) {
+    const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+    const decl = symbol.declarations?.[0];
+    if (decl === undefined) {
+        return undefined;
+    }
+    const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
+    const deprecated = isDeprecated(exported, symbol);
+    const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
+    if (!legacy && !deprecated) {
+        return undefined;
+    }
+    return {
+        positional: pkg === LAYOUT && path.startsWith("layouts/"),
+        graphClass: pkg === ALGORITHMS && path === "core/graph.ts" && (symbol.flags & ts.SymbolFlags.Class) !== 0,
+    };
+}
+
+/**
  * The legacy exports of algorithms and layout, read from their src/index.ts.
  * @param rootDir - the workspace root
  * @returns package name -> export name -> { positional, graphClass }
@@ -105,20 +131,9 @@ function legacyExports(rootDir) {
         const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(join(srcDir, "index.ts")));
         const names = new Map();
         for (const exported of checker.getExportsOfModule(moduleSymbol)) {
-            const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
-            const decl = symbol.declarations?.[0];
-            if (decl === undefined) {
-                continue;
-            }
-            const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
-            const deprecated = isDeprecated(exported, symbol);
-            const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
-            if (legacy || deprecated) {
-                names.set(exported.name, {
-                    positional: pkg === LAYOUT && path.startsWith("layouts/"),
-                    graphClass:
-                        pkg === ALGORITHMS && path === "core/graph.ts" && (symbol.flags & ts.SymbolFlags.Class) !== 0,
-                });
+            const entry = legacyEntry(checker, pkg, srcDir, exported);
+            if (entry !== undefined) {
+                names.set(exported.name, entry);
             }
         }
         result.set(pkg, names);
@@ -244,11 +259,12 @@ function checkFile(file, text, legacy) {
             const name = calleeName(node.expression);
             // `ns.circularLayout()` on `import * as ns from "@graphty/layout"`
             const target = node.expression;
-            const info = !ts.isPropertyAccessExpression(target)
-                ? locals.get(name)
-                : ts.isIdentifier(target.expression)
-                  ? namespaces.get(target.expression.text)?.get(name)
-                  : undefined;
+            let info;
+            if (!ts.isPropertyAccessExpression(target)) {
+                info = locals.get(name);
+            } else if (ts.isIdentifier(target.expression)) {
+                info = namespaces.get(target.expression.text)?.get(name);
+            }
             if (ts.isCallExpression(node) && BRIDGE_CALLS.has(name)) {
                 report("legacy-graph-bridge", name);
             } else if (ts.isCallExpression(node) && info?.positional) {
@@ -258,11 +274,12 @@ function checkFile(file, text, legacy) {
             }
         }
         // `ns.dijkstra` or the type `ns.Graph` on a namespace import of a legacy package
-        const member = ts.isPropertyAccessExpression(node)
-            ? [node.expression, node.name]
-            : ts.isQualifiedName(node)
-              ? [node.left, node.right]
-              : undefined;
+        let member;
+        if (ts.isPropertyAccessExpression(node)) {
+            member = [node.expression, node.name];
+        } else if (ts.isQualifiedName(node)) {
+            member = [node.left, node.right];
+        }
         if (member !== undefined && ts.isIdentifier(member[0]) && namespaces.get(member[0].text)?.has(member[1].text)) {
             report("legacy-import", member[1].text);
         }

@@ -24,17 +24,22 @@ file and the workflow are what the next launch reads.
 ## Where things live
 
 All studio work happens in the studio worktree (today `.worktrees/design-studio-tier1`, branch
-`design/studio-tier1`), never in the main checkout. Inside it, `design/ui/studio/` holds:
+`design/studio-tier1`), never in the main checkout. The studio reads earlier rounds' screenshots, so create
+its worktree with `./tools/worktree-new.sh <branch> <base> --full-images ...`; an ordinary worktree has the
+`design/**` images only as Git LFS pointer files (fix one with `git lfs pull --include "design/**"`). Inside
+it, `design/ui/studio/` holds:
 
-| Path                              | What it is                                                                                                                                                           |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tool/real.mjs`, `tool/README.md` | The study tool: drives the real app in a headless browser one step at a time and saves a screenshot after every step. Read the README before writing tasks or setups |
-| `tool/with-browser.sh`            | The machine-wide browser gate (4 slots). `real.mjs` takes a slot at `--start` and frees it at `--end`                                                                |
-| `notes/<role>.md`                 | Each designer's memory: "Top of mind", priorities, criteria, dated decisions with reasons, what worked and what did not                                              |
-| `owner-decisions.md`              | Additive API changes the team decided ("decided by the team") and BREAKING ones waiting on the owner ("for the owner")                                               |
-| `personas/`                       | Persona files (composites from public sources; no real person)                                                                                                       |
-| `report.md`                       | The tier 1 report                                                                                                                                                    |
-| `tier<N>/`                        | One tier: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `rounds/`, `report.md`                                                                               |
+| Path                              | What it is                                                                                                                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tool/real.mjs`, `tool/README.md` | The study tool: drives the real app in a headless, GPU-drawn browser one step at a time and saves a screenshot after every step; every walk saves its route (`route.jsonl`), which `--replay` and `--rewalk` run again with no model. Read the README before writing tasks or setups |
+| `tool/with-browser.sh`            | The machine-wide browser gate (8 slots for GPU-drawn study browsers, of which 1 to 4 are shared with the pre-push gate). `real.mjs` takes a slot at `--start` (or takes over a warm browser that already holds one) and frees it at `--end`                                          |
+| `notes/<role>.md`                 | Each designer's memory: "Top of mind", priorities, criteria, dated decisions with reasons, what worked and what did not                                                                                                                                                              |
+| `owner-decisions.md`              | Additive API changes the team decided ("decided by the team") and BREAKING ones waiting on the owner ("for the owner")                                                                                                                                                               |
+| `personas/`                       | Persona files (composites from public sources; no real person)                                                                                                                                                                                                                       |
+| `report.md`                       | The tier 1 report                                                                                                                                                                                                                                                                    |
+| `tier<N>/`                        | One tier: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `rounds/`, `report.md`                                                                                                                                                                                               |
+| `tier<N>/decided.md`              | The tier's binding decisions: each settled behavior (what a key does on a control, a Tab stop, a count) with its date, reason and evidence; every triage cites it                                                                                                                    |
+| `tier<N>/backlog.md`              | Defects below the session-ready bar (friction, wording, cosmetic, keyboard or screen-reader only), fixed between rounds by the decide-and-fix loop                                                                                                                                   |
 
 Frozen builds are copied to `<repo>/.study-builds/tier<N>-<round>-<sha>/` and never changed.
 
@@ -95,14 +100,15 @@ Read the preflight's problems, fix them, then launch for real with the same args
 | `safetyRounds`              | `6`                                                                | Hard cap on rounds                                                                            |
 | `startRound`, `skipPrepare` | `1`, `false`                                                       | Continue at a later round in a fresh run (see below)                                          |
 | `maxSessions`               | `56`                                                               | Sessions per round                                                                            |
-| `browserSlots`              | `4`                                                                | Browser-driving agents alive at once; values above 4 are cut to 4                             |
-| `dryRunPasses`              | `4`                                                                | Fix-and-re-pilot passes before each round                                                     |
+| `browserSlots`              | `8`                                                                | Browser-driving agents alive at once; values above 16 are cut to 16                           |
+| `dryRunPasses`              | `2`                                                                | Most fix-and-re-pilot passes before each round; still not session-ready after them, it stops  |
 | `maxDecisions`              | `15`                                                               | Changes the director may decide per round                                                     |
 | `team`, `teamRemove`        | the eleven roles                                                   | Add or rename roles (`{ steward: "Ontology Steward" }`) or drop optional ones                 |
 | `experts`                   | Figma, visual, accessibility walkthroughs and the screenshot audit | `[[role, what]]` pairs, one expert agent each per round                                       |
 | `dryRunExtra`               | none                                                               | Extra instruction for the first dry-run triage (e.g. "also read these discarded transcripts") |
 | `serverName`                | `design-studio-tier<N>`                                            | servherd name of the served build                                                             |
-| `land`, `prNumber`          | `true`, none                                                       | Whether to land the branch on master at the end                                               |
+| `land`                      | `true`                                                             | Whether to make the branch ready to land at the end (see "Landing" below)                     |
+| `landEachPass`              | `true`                                                             | Whether every fix pass is made ready to land, and the studio waits for it to land             |
 
 To **continue** a stopped tier, launch a fresh run with `startRound: <next round>, skipPrepare:
 true` rather than resuming the old one (see the lessons below).
@@ -113,26 +119,57 @@ true` rather than resuming the old one (see the lessons below).
    that the starting round's session folder is empty, and the browser count. It returns before
    anything costly if one fails.
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
-   criteria once; the director applies the reviews and **freezes** them; a build is frozen and
-   served; every task is piloted three ways (the success path, its commonest detours, and by
-   keyboard); the **dry run** fixes what the pilots trip over.
-3. **Rounds** -- the researcher plans sessions and writes each participant's briefing folder; the
+   criteria once; the director applies the reviews and **freezes** them; origin/master is merged
+   into the studio branch and a build is frozen and served; every task is piloted three ways (the
+   success path, its commonest detours, and by keyboard), and a pilot that skipped a route is run
+   again; the **dry run** triages what the pilots found against `decided.md` and the
+   session-ready bar (see the lessons), fixes only crashes, blocked tasks and grading-spoiling
+   results, sends everything else to `backlog.md`, re-walks the routes each fix group touched and
+   reverts a group that regresses, lands the pass, freezes a new build, and re-pilots only the
+   success paths and the touched routes -- by replaying the earlier pass's routes with no model
+   (`real.mjs --rewalk`): a task whose every route still matches keeps its earlier result, and a
+   pilot agent walks only the routes that diverged, from where they diverged. It exits as soon as the bar holds, and after
+   `dryRunPasses` (2) fix passes that still leave blockers it stops for the owner with the list.
+3. **Rounds** -- the researcher plans sessions (`real.mjs --brief` writes each participant's
+   briefing in a folder outside the studio's files, and a session that read anything else is
+   void); the
    **tool dry run** checks the study tool and every bar's script, and the round stops if it fails
    twice; participants run through the browser semaphore, get their follow-up question, and a void
    session is re-run once as `<id>b`; each is graded only from the final screen and saved files; the expert walkthroughs and the
    screenshot audit run beside them; the researcher scores; two skeptics try to refute every
    finding; verified insights go to the owner; a verdict decides whether to stop. If not: every
    role proposes, the red team attacks, the director decides (with a generality check), engineers
-   fix in the owning package with tests, a new build is frozen and served, the dry run runs again,
+   fix in the owning package with tests (the round's decisions plus backlog items, grouped by
+   shared component; the accessibility expert also checks the backlog's accessibility items), the
+   fixes land, origin/master is merged in, a new build is frozen and served, the dry run runs again,
    every designer updates their notes, and the documents are committed.
-4. **Report** -- the director writes `tier<N>/report.md`; the branch lands on master through one
-   pull request.
+4. **Report** -- the director writes `tier<N>/report.md`; the branch is made ready to land.
+
+## Landing
+
+Studio fixes reach master like every other change, through their own pull request (`CLAUDE.md`,
+"Shipping a change"). Workflow agents never push, so at every landing point the
+workflow merges origin/master into the studio branch, builds, lints, commits, and logs one line:
+`ready to land: <branch> at <sha> (<pass>)`. The session that launched the workflow answers that
+line by running `tools/pr-open.sh --proof <file>` in the branch's worktree and fixing the branch if
+its pull request goes red; the line also names any breaking commit, which merges only with the
+owner's go. The workflow then waits until the commit is on `origin/master` (the pull request merged)
+before it goes on. Pass
+`landEachPass: false` only for a run whose fixes must not reach master.
 
 Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/` with screenshots,
-`transcript.md` and `grade.md`, `briefings/<id>/` (the only files a participant reads),
-`tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
+`transcript.md`, `grade.md` and `leaks.json`, copied back from the participant's own folder under
+`tmp/studio-sessions/`, `tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
 `report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
-`tier<N>/dry-run-r<r>-<pass>.md`.
+`tier<N>/dry-run-r<r>-<pass>.md`; fix groups the re-walk rejected in `tier<N>/rejected-fixes.md`.
+The pilot reports and triage are committed after every pass. The walks' screenshots and step files
+(pilot, dry-run, readiness and tool-check walks) are never committed: they go under the main
+checkout's `tmp/design-studio/tier<N>/<round or pass>/`, which git ignores, and a report names them
+by that path as plain text. `real.mjs` refuses a walk folder inside the studio's files, and
+`.gitignore` keeps everything but `.md` out of `rounds/r*/`.
+Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): `.husky/pre-push` and CI
+refuses more than 20 new images or 20 MB outside the image folders (`tools/check-committed-images.mjs`);
+an `Images-Approved: <reason>` trailer passes a deliberate few, such as mockups.
 
 ## Keeping the owner informed
 
@@ -148,13 +185,21 @@ owner decision, and only once per item.
 
 Each rule below exists because breaking it cost a run.
 
-- **Dry run before every round's sessions.** Pilot every task on the frozen build, triage what the
-  pilots find into implementation or polish defects versus open design questions, fix the first
-  kind, freeze again and re-pilot until clean (at most 4 passes). The first tier 2 launch used the
-  pilots only to correct the answer key; 120 pilot defects (clipped text, typing landing in the
-  wrong field, filters hiding their own settings, missing units) went straight to participants,
-  and the round was stopped after five sessions. Participants exist to answer design questions,
-  not to rediscover bugs.
+- **Dry run before every round's sessions, to the session-ready bar and no further.** A build is
+  ready for sessions when it has no crash and no blocked task or grading-spoiling wrong result on
+  any task's success path or listed detours, re-walked after fixing. The dry run fixes only those;
+  friction, wording, cosmetic and keyboard or screen-reader-only problems go to `backlog.md`
+  (accessibility items also to the accessibility expert's walkthrough) and are fixed between
+  rounds by the decide-and-fix loop. At most 2 fix passes; a re-pilot after a fix pass walks only
+  the success paths and the routes the fixes touched; if the bar still fails after 2, stop for the
+  owner with the remaining blockers. Tier 3 ran five full passes over about three days with no
+  session: of fix-now lists of 344, 217, 151, 129 and 124 rows only 2 were crashes, 76-88% were
+  friction, wording or cosmetic, and round 1 could have started after pass 2 or 3. The opposite
+  failure is real too: the first tier 2 launch used the pilots only to correct the answer key, and
+  defects that blocked or misled participants stopped the round after five sessions.
+- **Merge origin/master before every freeze of a round's build.** Before a tier's first build and
+  before each round's build, origin/master is merged into the studio branch, so the study never
+  runs on a stale app.
 - **A dry run that passes on the answer key's route is necessary but not sufficient; it also walks
   each task's commonest detours.** Tier 2 round 1's dry run walked every success path on four
   builds and no participant met a broken control there -- but participants who took common detours
@@ -191,12 +236,24 @@ Each rule below exists because breaking it cost a run.
 - **Freeze the criteria before any session, and the build under each round.** Bars written after
   seeing results drift toward what was measured. Changing the build mid-round makes sessions
   incomparable. Fix between rounds and freeze a new build.
-- **At most 4 browser-driving agents alive at once, through one semaphore in the script.** On
-  2026-10-01 eight review agents each ran their own parallel crawls: 23 headless Chromium, 49 GB,
-  swap full, an alert to the owner. In tier 1, participants queued 17 to 50 minutes for a browser
-  slot while their clock ran, and those sessions were voided. The semaphore starts a participant
-  only when a slot is free, and every other browser-driving agent shares it (see the tool dry run
-  lesson above).
+- **At most 8 browser-driving agents alive at once, through one semaphore in the script, and
+  every study browser draws on the GPU.** On 2026-10-01 eight review agents each ran their own
+  parallel crawls: 23 headless Chromium, 49 GB, swap full, an alert to the owner. In tier 1,
+  participants queued 17 to 50 minutes for a browser slot while their clock ran, and those sessions
+  were voided. The semaphore starts a participant only when a slot is free, and every other
+  browser-driving agent shares it (see the tool dry run lesson above). The cap was 4 while
+  browsers drew in software (SwiftShader: 550 to 690% CPU per idle graphty page, load above 47 with
+  four); on the GPU an idle page costs 27 to 51% and eight sessions used 6.8 GB and about 110% of
+  one core, so the cap is 8 (`browserSlots`, and the gate's `BROWSER_SLOTS`). A session that cannot
+  reach the GPU fails its start loudly; never run study browsers in software to get past it.
+- **Replay, do not re-walk.** Tier 3's 574 dry-run walks spent about a quarter of their time on the
+  model, 30% starting browsers (a median of 82 s per walk, most of it waiting for one of four slots)
+  and 29% on 6 to 11 s steps, and every re-pilot walked by hand routes an earlier pass had already
+  walked. Every walk now saves its route (`route.jsonl`); a re-walk replays it with
+  `real.mjs --replay` / `--rewalk`, which needs no model until a step's screen differs, and a pilot
+  carries on by hand only from there. Warm browsers make a start about 2 s instead of 7 to 11, and a
+  stretch a walker is sure of goes in one `--step` with one screenshot. Participants are never
+  replayed: they drive every step.
 - **Always `--end` a session, including after a failed attempt.** A stopped agent that never ended
   its session kept its browser slot until the idle timeout.
 - **Step notes are one or two sentences, in character.** Full think-aloud in long, screenshot-heavy
@@ -256,8 +313,34 @@ Each rule below exists because breaking it cost a run.
 - **Do not trust an image model's yes/no.** When an agent checks a screenshot with the image model,
   it asks for a transcription on an ordinary aspect ratio crop and compares the text itself; the
   model agrees with leading questions and invents text on narrow strips.
-- **Land with the fewest pull requests.** Every pull request costs a screenshot review, a CI run and
-  queue time; the studio branch lands as one.
+- **Binding decisions: one `tier<N>/decided.md` every triage reads and cites.** Tier 3's triages
+  flip-flopped three behaviors (a disabled "+" as a Tab stop, Escape in the inspector, an
+  unfinished condition card's count), so each pass undid the last. A reversal needs a new entry
+  with its reason and evidence, and a pilot complaint against a decided behavior is classed (n),
+  no change, by rule.
+- **Fix shared parts, not screens.** In tier 3, 50 to 60% of each pass's "fix now" list was a fix
+  failure: a regression of the previous pass's fix, the same problem again, or another screen
+  showing the same shared part's defect. A defect seen on two screens or in two passes is fixed
+  once in the shared component (compact-mantine or the shared app part), with a test there, and
+  the fix unit names that component.
+- **Re-walk what each fix group touched before freezing.** Regressions caused by the previous
+  pass's fixes grew from 28% to 33% to 41% of tier 3's lists because the next full pass was the
+  only check. After each fix group, the routes its diff touches are walked again (Enter, Escape
+  and Tab on every changed control included), and a group that regresses is reverted and handed
+  to the next triage.
+- **A pass is not complete while any task or keyboard route was skipped.** Tier 3 pilots skipped
+  tasks when no browser slot was free, and a skipped route reads as a clean one. No slot is a
+  reason to wait, never to skip; a pilot that skipped is run again, and a targeted re-pilot walks
+  each touched route exactly as the first pass did.
+- **Land every pass.** 526 product fix commits on the tier 3 branch never reached master, so no
+  CI, SonarQube or screenshot review saw them and no consumer got them, and pass 2's work was
+  committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
+  reproduces is invalid), merge origin/master into the studio branch every pass, open its pull
+  request with `tools/pr-open.sh` (see "Landing"), and commit the pilot reports and triage.
+- **Never commit walk screenshots.** Study screenshots filled the repository with 83k LFS files (9.9 GB) on
+  2026-10-21, almost all of them pilot and dry-run walk images. Walks write under the main
+  checkout's `tmp/design-studio/`; only reports, scored round sessions and the images a report or
+  insight file cites go in git.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
   copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
   `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing

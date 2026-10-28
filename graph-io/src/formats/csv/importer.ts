@@ -385,6 +385,13 @@ interface AdjacencyPlan {
 }
 
 /** Everything one import call shares between its tables. */
+/** A row read before the plan exists, kept to be pushed once it does. */
+interface PendingRow {
+    readonly row: string[];
+    readonly quoted: readonly boolean[];
+    readonly line: number;
+}
+
 interface ImportState {
     readonly sink: GraphSink;
     readonly report: ImportReportBuilder;
@@ -455,6 +462,43 @@ function isPadded(text: string, quoted: boolean | undefined): boolean {
  */
 function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | undefined): ResolvedCsvOptions {
     const o: CsvImportOptions = options ?? {};
+    checkDialectOptions(o);
+    for (const name of ["sourceColumn", "targetColumn", "idColumn", "labelColumn"] as const) {
+        checkColumnRef(name, o[name]);
+    }
+    if (o.typeColumn !== null) {
+        checkColumnRef("typeColumn", o.typeColumn);
+    }
+    if (o.table === "adjacency") {
+        checkAdjacencyOptions(o);
+    }
+    if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: expected a boolean", {
+            option: "rowNumberIds",
+            found: o.rowNumberIds,
+        });
+    }
+    return {
+        delimiter: o.delimiter ?? null,
+        decimalComma: o.decimal === ",",
+        header: o.header ?? "auto",
+        table: o.table ?? "auto",
+        sourceColumn: o.sourceColumn ?? null,
+        targetColumn: o.targetColumn ?? null,
+        typeColumn: o.typeColumn,
+        idColumn: o.idColumn ?? null,
+        labelColumn: o.labelColumn ?? null,
+        nodes: nodesInput(o.nodes),
+        rowNumberIds: o.rowNumberIds ?? false,
+        explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
+    };
+}
+
+/**
+ * Check the dialect and table options: delimiter, decimal, header and table.
+ * @param o - the caller's CSV options
+ */
+function checkDialectOptions(o: CsvImportOptions): void {
     if (o.delimiter !== undefined && (typeof o.delimiter !== "string" || o.delimiter.length === 0)) {
         throw new GraphFormatError("E_UNSUPPORTED", "option delimiter: expected a non-empty string", {
             option: "delimiter",
@@ -489,48 +533,27 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.table,
         });
     }
-    for (const name of ["sourceColumn", "targetColumn", "idColumn", "labelColumn"] as const) {
-        checkColumnRef(name, o[name]);
-    }
-    if (o.typeColumn !== null) {
-        checkColumnRef("typeColumn", o.typeColumn);
-    }
-    if (o.table === "adjacency") {
-        for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn", "labelColumn"] as const) {
-            if (o[name] !== undefined) {
-                throw new GraphFormatError("E_UNSUPPORTED", `option ${name}: an adjacency table has no columns`, {
-                    option: name,
-                    found: o[name],
-                });
-            }
-        }
-        if (o.rowNumberIds === true) {
-            throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: an adjacency table names its nodes", {
-                option: "rowNumberIds",
-                found: o.rowNumberIds,
+}
+
+/**
+ * Check the options an adjacency table has no use for: column options and rowNumberIds.
+ * @param o - the caller's CSV options
+ */
+function checkAdjacencyOptions(o: CsvImportOptions): void {
+    for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn", "labelColumn"] as const) {
+        if (o[name] !== undefined) {
+            throw new GraphFormatError("E_UNSUPPORTED", `option ${name}: an adjacency table has no columns`, {
+                option: name,
+                found: o[name],
             });
         }
     }
-    if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {
-        throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: expected a boolean", {
+    if (o.rowNumberIds === true) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: an adjacency table names its nodes", {
             option: "rowNumberIds",
             found: o.rowNumberIds,
         });
     }
-    return {
-        delimiter: o.delimiter ?? null,
-        decimalComma: o.decimal === ",",
-        header: o.header ?? "auto",
-        table: o.table ?? "auto",
-        sourceColumn: o.sourceColumn ?? null,
-        targetColumn: o.targetColumn ?? null,
-        typeColumn: o.typeColumn,
-        idColumn: o.idColumn ?? null,
-        labelColumn: o.labelColumn ?? null,
-        nodes: nodesInput(o.nodes),
-        rowNumberIds: o.rowNumberIds ?? false,
-        explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
-    };
 }
 
 /**
@@ -573,6 +596,22 @@ function isBlank(text: string): boolean {
  */
 function isUnset(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && isBlank(text);
+}
+
+/**
+ * The number of set neighbor cells of an adjacency row (every cell after the first).
+ * @param row - the cells
+ * @param quoted - whether each cell was quoted
+ * @returns the set neighbor cells
+ */
+function setNeighborCells(row: readonly string[], quoted: readonly boolean[]): number {
+    let neighbors = 0;
+    for (let k = 1; k < row.length; k++) {
+        if (!isUnset(row[k], quoted[k])) {
+            neighbors++;
+        }
+    }
+    return neighbors;
 }
 
 /** Rows between two checks of the cancellation signal on an in-memory input. */
@@ -807,43 +846,12 @@ class TableReader {
             : first.value;
         const firstLine = this.reader.line;
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
-        const pending: { row: string[]; quoted: readonly boolean[]; line: number }[] = [];
-        let header: boolean;
-        // an adjacency table has no header unless the caller says so: its rows vary in width; a
-        // table numbered by rowNumberIds has one, since a headerless table takes its ids from column 0
-        let mode = this.state.csv.header;
-        if (mode === "auto" && this.kind === "adjacency") {
-            mode = false;
-        } else if (mode === "auto" && this.rowNumbers) {
-            mode = true;
-        }
-        if (mode === "auto") {
-            const second = await iterator.next();
-            const secondRow: string[] | null = second.done ? null : second.value;
-            const secondLine = this.reader.line;
-            const secondQuoted = this.reader.quoted.slice(0, secondRow?.length ?? 0);
-            // a column option naming a cell of the first row makes that row the header
-            header = looksLikeHeader(firstRow, secondRow) || this.namesExplicitColumn(firstRow);
-            if (!header) {
-                pending.push({ row: firstRow, quoted: firstQuoted, line: firstLine });
-            }
-            if (secondRow !== null) {
-                pending.push({ row: secondRow, quoted: secondQuoted, line: secondLine });
-            }
-        } else {
-            header = mode;
-            if (!header) {
-                pending.push({ row: firstRow, quoted: firstQuoted, line: firstLine });
-            }
-        }
-        if (this.rowNumbers && !header) {
-            report.warning(
-                "unsupported",
-                OPTION_IGNORED_CODE,
-                "option rowNumberIds ignored: a headerless node table takes its ids from column 0",
-                { line: firstLine, element: "rowNumberIds" },
-            );
-        }
+        const pending: PendingRow[] = [];
+        const header = await this.decideHeader(
+            iterator,
+            { row: firstRow, quoted: firstQuoted, line: firstLine },
+            pending,
+        );
         const names = header ? uniqueNames(headerNames(firstRow), report, firstLine) : positionalNames(firstRow.length);
         const last = firstRow.length - 1;
         const optionalLast = header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
@@ -873,6 +881,80 @@ class TableReader {
         for (const { row, quoted, line } of pending) {
             this.processRow(row, quoted, line);
         }
+        await this.readRemainingRows(iterator);
+        if (this.dataRows === 0 && header) {
+            report.warning("missing-value", NO_DATA_ROWS_CODE, "the table has a header and no data rows", {
+                line: firstLine,
+            });
+        }
+        this.reportReaderFindings();
+    }
+
+    /**
+     * Decide whether the first row is the header, reading the second row when the header option is
+     * "auto", and queue the rows read so far that are data.
+     * @param iterator - the record iterator, past the first row
+     * @param first - the first row
+     * @param pending - receives the data rows read so far, in order
+     * @returns whether the first row is the header
+     */
+    private async decideHeader(
+        iterator: AsyncGenerator<string[], void, undefined>,
+        first: PendingRow,
+        pending: PendingRow[],
+    ): Promise<boolean> {
+        const mode = this.headerMode();
+        let second: PendingRow | null = null;
+        let header: boolean;
+        if (mode === "auto") {
+            const next = await iterator.next();
+            second = next.done
+                ? null
+                : { row: next.value, quoted: this.reader.quoted.slice(0, next.value.length), line: this.reader.line };
+            // a column option naming a cell of the first row makes that row the header
+            header = looksLikeHeader(first.row, second?.row ?? null) || this.namesExplicitColumn(first.row);
+        } else {
+            header = mode;
+        }
+        if (!header) {
+            pending.push(first);
+        }
+        if (second !== null) {
+            pending.push(second);
+        }
+        if (this.rowNumbers && !header) {
+            this.state.report.warning(
+                "unsupported",
+                OPTION_IGNORED_CODE,
+                "option rowNumberIds ignored: a headerless node table takes its ids from column 0",
+                { line: first.line, element: "rowNumberIds" },
+            );
+        }
+        return header;
+    }
+
+    /**
+     * The header option as this table reads it: an adjacency table has no header unless the caller
+     * says so (its rows vary in width); a table numbered by rowNumberIds has one, since a headerless
+     * table takes its ids from column 0.
+     * @returns true, false or "auto"
+     */
+    private headerMode(): boolean | "auto" {
+        const mode = this.state.csv.header;
+        if (mode === "auto" && this.kind === "adjacency") {
+            return false;
+        }
+        if (mode === "auto" && this.rowNumbers) {
+            return true;
+        }
+        return mode;
+    }
+
+    /**
+     * Push every row after the header and the rows read to decide it, then finish the column writers.
+     * @param iterator - the record iterator
+     */
+    private async readRemainingRows(iterator: AsyncGenerator<string[], void, undefined>): Promise<void> {
         const { signal } = this.state.common;
         let sinceCheck = 0;
         for (;;) {
@@ -889,12 +971,6 @@ class TableReader {
         for (const writer of this.writers) {
             writer?.finish();
         }
-        if (this.dataRows === 0 && header) {
-            report.warning("missing-value", NO_DATA_ROWS_CODE, "the table has a header and no data rows", {
-                line: firstLine,
-            });
-        }
-        this.reportReaderFindings();
     }
 
     /**
@@ -1520,12 +1596,7 @@ class TableReader {
         const { where } = this;
         where.line = line;
         where.element = null;
-        let neighbors = 0;
-        for (let k = 1; k < row.length; k++) {
-            if (!isUnset(row[k], quoted[k])) {
-                neighbors++;
-            }
-        }
+        const neighbors = setNeighborCells(row, quoted);
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;

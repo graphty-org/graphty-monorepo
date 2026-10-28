@@ -137,6 +137,38 @@ describe("the shape of the graph", () => {
         harness.session.dispose();
     });
 
+    it("bins in-degree and out-degree apart on a directed graph, and not on an undirected one", () => {
+        const harness = makeSession({ directed: true });
+        // A star pointing out of its hub: out-degrees 5 and 0 x5, in-degrees 0 and 1 x5.
+        const { nodes, edges } = graph(6, [
+            [0, 1],
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [0, 5],
+        ]);
+        harness.add(nodes, edges);
+
+        const { inDegreeHistogram, outDegreeHistogram } = harness.session.data.statistics();
+        const bars = (histogram: typeof inDegreeHistogram): number[][] =>
+            (histogram?.bins ?? []).map((bin) => [bin.from, bin.count]);
+        assert.deepStrictEqual(bars(outDegreeHistogram), [
+            [0, 5],
+            [5, 1],
+        ]);
+        assert.deepStrictEqual(bars(inDegreeHistogram), [
+            [0, 1],
+            [1, 5],
+        ]);
+        harness.session.dispose();
+
+        const undirected = makeSession({ directed: false });
+        undirected.add(nodes, edges);
+        assert.isUndefined(undirected.session.data.statistics().inDegreeHistogram);
+        assert.isUndefined(undirected.session.data.statistics().outDegreeHistogram);
+        undirected.session.dispose();
+    });
+
     it("bands the degree on a graph with many distinct degrees, still adding up to the node count", () => {
         const harness = makeSession({ directed: false });
         // Hub h has h + 1 leaves of its own: 60 distinct hub degrees.

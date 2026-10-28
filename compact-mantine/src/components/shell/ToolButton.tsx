@@ -17,7 +17,13 @@ export function TipLabel({
     return (
         <>
             {label}
-            {shortcut ? <span className="cm-tip-shortcut">{shortcut}</span> : null}
+            {/* A real space before the key, so the tooltip's text reads "Table Shift+T", not "TableShift+T". */}
+            {shortcut ? (
+                <>
+                    {" "}
+                    <span className="cm-tip-shortcut">{shortcut}</span>
+                </>
+            ) : null}
         </>
     );
 }

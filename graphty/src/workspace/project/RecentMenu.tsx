@@ -8,12 +8,16 @@ import { sizeWords } from "./words";
 
 /**
  * Opens a recent project from the menu; a file the browser can no longer read puts up a notice
- * with Locate...
+ * with Locate..., and a project no longer kept in this browser says so.
  * @param workspace - the workspace.
  * @param entry - the recent project.
  */
 async function openFromMenu(workspace: WorkspaceValue, entry: RecentProject): Promise<void> {
     if ((await openRecent(workspace, entry)) !== "missing") {
+        return;
+    }
+    if (entry.stored === true) {
+        workspace.store.set({ notice: { message: `${entry.name} is no longer kept in this browser.`, error: true } });
         return;
     }
     workspace.store.set({

@@ -1,0 +1,16 @@
+{
+ "checked": "2026-10-21T14:00:54.077Z",
+ "briefing": "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/tmp/studio-sessions/tier3/rounds/round-1/sessions/r1-s16/briefing.md",
+ "transcripts": [
+  "/home/apowers/.claude/projects/-home-apowers-Projects-graphty-monorepo/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_0c22561a-148/agent-a8e1796a1e1ba7bb4.jsonl"
+ ],
+ "calls": 33,
+ "leaks": [
+  {
+   "transcript": "/home/apowers/.claude/projects/-home-apowers-Projects-graphty-monorepo/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_0c22561a-148/agent-a8e1796a1e1ba7bb4.jsonl",
+   "tool": "Bash",
+   "why": "a path up out of its folder",
+   "what": ".."
+  }
+ ]
+}

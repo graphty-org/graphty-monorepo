@@ -1,5 +1,5 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { OrbitCameraController, OrbitConfig } from "../../src/cameras/OrbitCameraController";
 
@@ -24,9 +24,8 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
     const defaultConfig: OrbitConfig = {
         trackballRotationSpeed: 0.01,
         keyboardRotationSpeed: 0.05,
-        keyboardZoomSpeed: 5,
+        keyboardZoomSpeed: 0.015,
         keyboardYawSpeed: 0.05,
-        pinchZoomSensitivity: 0.01,
         twistYawSensitivity: 0.01,
         minZoomDistance: 1,
         maxZoomDistance: 10000,
@@ -40,6 +39,10 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
         canvas.width = 800;
         canvas.height = 600;
         controller = new OrbitCameraController(canvas, scene, defaultConfig);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("2D scenes (Z=0)", () => {

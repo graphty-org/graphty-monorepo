@@ -1,5 +1,6 @@
 import {
     type AdjacencyView,
+    detHypot,
     type GraphSnapshot,
     type NumericVector,
     renumberPartition,
@@ -205,6 +206,30 @@ function jacobi(a: Float64Array, p: number): { values: Float64Array; vectors: Fl
 }
 
 /**
+ * The p x p matrix of dot products `block[i] . image[j]`, filled from its upper triangle so it is
+ * exactly symmetric.
+ * @param block - p vectors of length n
+ * @param image - The operator applied to each vector of `block`
+ * @param n - Vector length
+ * @returns The matrix, row-major
+ */
+function projection(block: Float64Array[], image: Float64Array[], n: number): Float64Array {
+    const p = block.length;
+    const h = new Float64Array(p * p);
+    for (let i = 0; i < p; i++) {
+        for (let j = i; j < p; j++) {
+            let dot = 0;
+            for (let r = 0; r < n; r++) {
+                dot += block[i][r] * image[j][r];
+            }
+            h[i * p + j] = dot;
+            h[j * p + i] = dot;
+        }
+    }
+    return h;
+}
+
+/**
  * The k smallest eigenpairs of a symmetric Laplacian, by subspace iteration on `shift * I - L` (whose
  * largest eigenpairs they are) with a Rayleigh-Ritz step, over a block a few vectors wider than k.
  * @param apply - Writes `L x` into `out`
@@ -238,18 +263,7 @@ function smallestEigenpairs(
     for (let round = 0; round < MAX_SUBSPACE_ROUNDS; round++) {
         const image = block.map(shifted);
         // Rayleigh-Ritz: the block's projection of the shifted operator, diagonalised.
-        const h = new Float64Array(p * p);
-        for (let i = 0; i < p; i++) {
-            for (let j = i; j < p; j++) {
-                let dot = 0;
-                for (let r = 0; r < n; r++) {
-                    dot += block[i][r] * image[j][r];
-                }
-                h[i * p + j] = dot;
-                h[j * p + i] = dot;
-            }
-        }
-        const eig = jacobi(h, p);
+        const eig = jacobi(projection(block, image, n), p);
         ({ values: ritz, vectors } = eig);
         order = Array.from({ length: p }, (_, i) => i).sort((a, b) => ritz[b] - ritz[a]);
         // Converged when every wanted Ritz pair (y = X q, theta) has a residual |B y - theta y|
@@ -313,7 +327,8 @@ function inertiaOf(points: Float64Array, assign: Uint32Array, n: number, d: numb
     for (let i = 0; i < n; i++) {
         const c = assign[i];
         for (let t = 0; t < d; t++) {
-            total += (points[i * d + t] - sums[c * d + t] / sizes[c]) ** 2;
+            const delta = points[i * d + t] - sums[c * d + t] / sizes[c];
+            total += delta * delta;
         }
     }
     return total;
@@ -404,7 +419,8 @@ function kMeans(
             let moved = 0;
             for (let t = 0; t < d; t++) {
                 const next = sums[c * d + t] / sizes[c];
-                moved += (next - centres[c * d + t]) ** 2;
+                const delta = next - centres[c * d + t];
+                moved += delta * delta;
                 centres[c * d + t] = next;
             }
             shift = Math.max(shift, Math.sqrt(moved));
@@ -518,7 +534,7 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
     if (type === "normalized") {
         for (let i = 0; i < n; i++) {
             const row = points.subarray(i * k, i * k + k);
-            const norm = Math.hypot(...row);
+            const norm = detHypot(...row);
             if (norm > 0) {
                 row.forEach((x, c) => (row[c] = x / norm));
             }

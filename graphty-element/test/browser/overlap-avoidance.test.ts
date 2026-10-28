@@ -92,12 +92,46 @@ function overlappingPairs(g: Graph, front = false): string[] {
     return pairs;
 }
 
-async function sizeEveryNode(g: Graph, size: number): Promise<void> {
+/**
+ * Every pair of nodes whose drawn bounding boxes overlap, read from each mesh's own box and
+ * scaling: the shape a box node actually has, which its largest half-extent as a radius misses
+ * at the corners.
+ * @param g - The graph.
+ * @returns The overlapping pairs, as "a-b".
+ */
+function overlappingBoxes(g: Graph): string[] {
+    const engine = g.getLayoutManager().layoutEngine;
+    assert.isDefined(engine);
+    const nodes = [...g.getDataManager().nodes.values()].map((node) => {
+        const { x, y, z } = engine.getNodePosition(node);
+        const { extendSize } = node.mesh.getBoundingInfo().boundingBox;
+        const { scaling } = node.mesh;
+        const half = new Vector3(extendSize.x * scaling.x, extendSize.y * scaling.y, extendSize.z * scaling.z);
+        return { id: String(node.id), at: new Vector3(x, y, z ?? 0), half };
+    });
+    const pairs: string[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i];
+            const b = nodes[j];
+            const apart = (["x", "y", "z"] as const).some(
+                (k) => Math.abs(a.at[k] - b.at[k]) >= (a.half[k] + b.half[k]) * 0.999,
+            );
+            if (!apart) {
+                pairs.push(`${a.id}-${b.id}`);
+            }
+        }
+    }
+
+    return pairs;
+}
+
+async function sizeEveryNode(g: Graph, size: number, shape?: string): Promise<void> {
     await g.getSession().styles.add({
         name: "big",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.size": size },
+        set: shape === undefined ? { "node.size": size } : { "node.size": size, "node.shape": shape },
     });
     await operationQueueOf(g).waitForCompletion();
     // The style is painted on a frame: draw until every node has its new size.
@@ -160,6 +194,18 @@ describe("ngraph's nodeGap keeps drawn nodes apart", () => {
         await settle(g);
 
         assert.deepEqual(overlappingPairs(g, true), []);
+    });
+
+    it("keeps box nodes apart at their corners, which their largest half-extent as a radius does not", async () => {
+        const g = await mount();
+        const { nodes, edges } = star();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, 12, "box");
+        await g.setLayout("ngraph", { seed: 7, dim: 2, nodeGap: 1 });
+        await settle(g);
+
+        assert.deepEqual(overlappingBoxes(g), []);
     });
 
     it("moves nodes apart again when a style makes them larger after the layout came to rest", async () => {
@@ -307,6 +353,120 @@ async function drawStacked(behavior: { declutter?: boolean; avoidNodesAndEdges?:
     g.scene.render();
     return g;
 }
+
+/**
+ * A node on screen as its drawn box: the eight corners of its world bounding box, projected.
+ * @param g - The graph.
+ * @param id - The node.
+ * @returns The rectangle.
+ */
+function boxOf(g: Graph, id: string): Rect {
+    const camera = g.scene.activeCamera;
+    assert.isNotNull(camera);
+    const viewport = camera.viewport.toGlobal(g.engine.getRenderWidth(), g.engine.getRenderHeight());
+    const mesh = g.getNode(id)?.mesh;
+    assert.isOk(mesh);
+    mesh.computeWorldMatrix(true);
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        const p = Vector3.Project(corner, Matrix.Identity(), g.scene.getTransformMatrix(), viewport);
+        xs.push(p.x);
+        ys.push(p.y);
+    }
+
+    return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+}
+
+function meetsRect(a: Rect, b: Rect): boolean {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * Draw "a", labelled, and a box node "corner" at a position, with the label setting given.
+ * @param corner - Where the box is.
+ * @param behavior - The label behavior.
+ * @returns The graph.
+ */
+async function drawWithBox(
+    corner: { x: number; y: number; z: number },
+    behavior: { avoidNodesAndEdges?: boolean },
+): Promise<Graph> {
+    const g = await mount();
+    g.setLayoutBehavior({ labels: behavior });
+    await g.addNodes([
+        { id: "a", position: { x: 0, y: 0, z: 0 } },
+        { id: "corner", position: corner },
+    ]);
+    await g.setLayout("fixed", { dim: 3 });
+    await operationQueueOf(g).waitForCompletion();
+    await g.getSession().styles.add({
+        name: "label a",
+        target: "node",
+        selector: { match: "ids", nodes: ["a"] },
+        set: { "node.label": "a label" },
+    });
+    await g.getSession().styles.add({
+        name: "box",
+        target: "node",
+        selector: { match: "ids", nodes: ["corner"] },
+        set: { "node.shape": "box" },
+    });
+    await operationQueueOf(g).waitForCompletion();
+    for (let frame = 0; frame < 100 && g.getNode("corner")?.shapeType !== "box"; frame++) {
+        g.scene.render();
+        await nextFrame();
+    }
+
+    assert.strictEqual(g.getNode("corner")?.shapeType, "box", "the box style was painted");
+    await g.setCameraState(VIEW);
+    g.scene.render();
+    g.scene.render();
+    return g;
+}
+
+describe("labels.avoidNodesAndEdges sees a box node's corners", () => {
+    it("moves a label off the corner of a box, which the box's largest half-extent as a circle misses", async () => {
+        // Measure first, with the box out of the way: where the label is drawn, how big the box
+        // is on screen, and where world x and y go on screen at the nodes' depth.
+        const probe = await drawWithBox({ x: 0, y: -40, z: 0 }, {});
+        const words = wordsOf(probe, "a");
+        assert.isNotNull(words);
+        const box = boxOf(probe, "corner");
+        const half = Math.min(box.right - box.left, box.bottom - box.top) / 2;
+        const camera = probe.scene.activeCamera;
+        assert.isNotNull(camera);
+        const viewport = camera.viewport.toGlobal(probe.engine.getRenderWidth(), probe.engine.getRenderHeight());
+        const project = (x: number, y: number): Vector3 =>
+            Vector3.Project(new Vector3(x, y, 0), Matrix.Identity(), probe.scene.getTransformMatrix(), viewport);
+        const o = project(0, 0);
+        const ux = project(1, 0).x - o.x;
+        const uy = project(0, 1).y - o.y;
+        probe.dispose();
+        container?.remove();
+        graph = undefined;
+
+        // The box diagonally off the label's top-right corner: its own corner pokes 0.15 of its
+        // half-size into the label, while its circle -- the half-size as a radius -- stops short.
+        const d = 0.85 * half;
+        const at = { x: words.right + d, y: words.top - d };
+        const corner = { x: (at.x - o.x) / ux, y: (at.y - o.y) / uy, z: 0 };
+
+        const off = await drawWithBox(corner, {});
+        const home = wordsOf(off, "a");
+        assert.isNotNull(home);
+        assert.isTrue(meetsRect(home, boxOf(off, "corner")), "the setup must put the box's corner over the label");
+        assert.isFalse(meetsCircle(home, circleOf(off, "corner")), "and keep its circle off the label");
+        off.dispose();
+        container?.remove();
+        graph = undefined;
+
+        const on = await drawWithBox(corner, { avoidNodesAndEdges: true });
+        const moved = wordsOf(on, "a");
+        assert.isNotNull(moved);
+        assert.isFalse(meetsRect(moved, boxOf(on, "corner")), "the label still covers the box's corner");
+    });
+});
 
 describe("labels.avoidNodesAndEdges moves a label off the nodes and edges it covers", () => {
     it("leaves a label over the node above it when the setting is off, which is the default", async () => {

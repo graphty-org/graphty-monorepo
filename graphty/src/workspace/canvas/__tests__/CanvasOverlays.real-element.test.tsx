@@ -12,8 +12,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -57,6 +57,12 @@ async function newProject(): Promise<GraphSession> {
     return session;
 }
 
+// The workspace's design width. In the runner's 414 px frame the side panels overlap the canvas,
+// so a real click on a notice's action lands on the panel drawn over it.
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
+
 describe("the canvas on the real element", () => {
     it("shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)", async () => {
         const session = await newProject();
@@ -81,7 +87,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` });
+        await within(legend).findByRole("group", { name: "Color: PageRank" });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -106,7 +112,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -123,8 +129,13 @@ describe("the canvas on the real element", () => {
         assert.equal(outcome.outcome, "suppressed");
         assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
 
-        await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByRole("group", { name: `Color: ${run.label}` }));
+        // The toast; the workspace's status line speaks the same words.
+        await screen.findByText(
+            "Hidden by your layer My gray",
+            { selector: ".cm-toast-message" },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isNull(screen.queryByRole("group", { name: "Color: Louvain" }));
         await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
 
         await waitFor(
@@ -134,6 +145,6 @@ describe("the canvas on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
     });
 });

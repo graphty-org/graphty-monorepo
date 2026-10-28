@@ -29,6 +29,7 @@ import {
     Tabs,
     Textarea,
     TextInput,
+    UnstyledButton,
 } from "@mantine/core";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -87,6 +88,12 @@ const CONTROLS: [string, ReactElement][] = [
             <span>x</span>
         </ActionIcon>,
     ],
+    [
+        "ActionIcon (aria-disabled, still focusable)",
+        <ActionIcon key="c" aria-label="Reset" aria-disabled data-disabled>
+            <span>x</span>
+        </ActionIcon>,
+    ],
     ["CloseButton", <CloseButton key="c" aria-label="Close" />],
     ["Checkbox", <Checkbox key="c" label="Visible" />],
     ["Switch", <Switch key="c" label="Enabled" />],
@@ -111,6 +118,12 @@ const CONTROLS: [string, ReactElement][] = [
     ["NavLink", <NavLink key="c" href="#x" label="Page" />],
     ["Pagination", <Pagination key="c" total={3} />],
     ["Burger", <Burger key="c" aria-label="Menu" />],
+    [
+        "UnstyledButton (a consumer's own class)",
+        <UnstyledButton key="c" className="app-entry">
+            Open
+        </UnstyledButton>,
+    ],
 ];
 
 describe.each(["light", "dark"] as const)("keyboard focus draws the 1px ring (%s)", (scheme) => {
@@ -124,11 +137,15 @@ describe.each(["light", "dark"] as const)("keyboard focus draws the 1px ring (%s
 });
 
 describe("a pointer click on a button draws no ring (fields ring on any focus)", () => {
-    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton)/.test(n)))("%s", async (_name, ui) => {
-        const { container } = await renderThemed(ui);
-        const button = container.querySelector("button");
-        expect(button).not.toBeNull();
-        await userEvent.click(button as HTMLElement);
-        expect(ring(button as Element)).toBeNull();
-    });
+    // A disabled control takes no click, so only the enabled ones are clicked.
+    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton|UnstyledButton)/.test(n) && !/disabled/.test(n)))(
+        "%s",
+        async (_name, ui) => {
+            const { container } = await renderThemed(ui);
+            const button = container.querySelector("button");
+            expect(button).not.toBeNull();
+            await userEvent.click(button as HTMLElement);
+            expect(ring(button as Element)).toBeNull();
+        },
+    );
 });

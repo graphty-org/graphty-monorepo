@@ -49,13 +49,15 @@ interface CommandDoor {
     readonly command: Command;
     /** Why it cannot run now, or null. */
     readonly disabledReason: string | null;
+    /** The tooltip's name: the command's `tooltip`, else its label. */
+    readonly tip: string;
     /** Runs it. */
     readonly run: () => void;
 }
 
 /**
- * One built command for a door, or null when it is a stub or not registered (so the door is not
- * drawn).
+ * One built command for a door, or null when it is a stub, not registered or not shown now (so the
+ * door is not drawn).
  * @param id - the command id.
  * @returns the door's view, re-read on each render.
  */
@@ -64,12 +66,13 @@ export function useCommand(id: string): CommandDoor | null {
     // Re-render on chrome changes, which is what most `disabled` checks read.
     useStoreValue(workspace.store, (state) => state);
     const command = workspace.registry.built(id);
-    if (command === undefined) {
+    if (command === undefined || command.shown?.(workspace) === false) {
         return null;
     }
     return {
         command,
         disabledReason: command.disabled?.(workspace) ?? null,
+        tip: command.tooltip?.(workspace) ?? command.label,
         run: () => {
             workspace.run(id);
         },
@@ -98,7 +101,11 @@ export function makeWorkspaceValue(
         workspace: store,
         run: (id) => {
             const command = registry.built(id);
-            if (command === undefined || (command.disabled?.(value) ?? null) !== null) {
+            if (
+                command === undefined ||
+                command.shown?.(value) === false ||
+                (command.disabled?.(value) ?? null) !== null
+            ) {
                 return;
             }
             const outcome = command.run(value);

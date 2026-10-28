@@ -602,7 +602,8 @@ digraph ComprehensiveTest {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for DOT with ngraph
     },
     play: async ({ canvasElement }) => {
-        await imported(canvasElement, "DOT", 9, 12);
+        // 9 nodes and the 2 cluster subgraphs, each drawn as a node of its own as Graphviz draws it
+        await imported(canvasElement, "DOT", 11, 12);
     },
 };
 
@@ -1025,11 +1026,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Top node at (0, 3, 0) -->
+    <!-- Top node: yEd's y grows downward, so y -3 is above the middle -->
     <node id="n3">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="0.0" y="3.0" width="1.0" height="1.0"/>
+          <y:Geometry x="0.0" y="-3.0" width="1.0" height="1.0"/>
           <y:Fill color="#96CEB4" transparent="false"/>
           <y:BorderStyle color="#2F9E44" type="line" width="1.0"/>
           <y:NodeLabel>Top</y:NodeLabel>
@@ -1039,11 +1040,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Bottom node at (0, -3, 0) -->
+    <!-- Bottom node at y 3 -->
     <node id="n4">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="0.0" y="-3.0" width="1.0" height="1.0"/>
+          <y:Geometry x="0.0" y="3.0" width="1.0" height="1.0"/>
           <y:Fill color="#FFEAA7" transparent="false"/>
           <y:BorderStyle color="#E67700" type="line" width="1.0"/>
           <y:NodeLabel>Bottom</y:NodeLabel>
@@ -1053,11 +1054,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Top-Right node at (2, 2, 0) -->
+    <!-- Top-Right node at (2, -2) -->
     <node id="n5">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="2.0" y="2.0" width="1.0" height="1.0"/>
+          <y:Geometry x="2.0" y="-2.0" width="1.0" height="1.0"/>
           <y:Fill color="#A29BFE" transparent="false"/>
           <y:BorderStyle color="#6C5CE7" type="line" width="1.0"/>
           <y:NodeLabel>TR</y:NodeLabel>
@@ -1067,11 +1068,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Bottom-Left node at (-2, -2, 0) -->
+    <!-- Bottom-Left node at (-2, 2) -->
     <node id="n6">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="-2.0" y="-2.0" width="1.0" height="1.0"/>
+          <y:Geometry x="-2.0" y="2.0" width="1.0" height="1.0"/>
           <y:Fill color="#FD79A8" transparent="false"/>
           <y:BorderStyle color="#E84393" type="line" width="1.0"/>
           <y:NodeLabel>BL</y:NodeLabel>

@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.6.50",
+    "version": "0.6.61",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -127,7 +127,7 @@
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.71.1",
-        "vite": "^7.0.5",
+        "vite": "^7.3.7",
         "vitest": "catalog:",
         "webgpu": "0.6.1"
     }

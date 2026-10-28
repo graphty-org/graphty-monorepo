@@ -69,20 +69,32 @@ function pairwiseDistances(s: GraphSnapshot, useGraphDistance: boolean, d: Float
     d.fill(Infinity);
     const queue = new Uint32Array(n);
     for (let source = 0; source < n; source++) {
-        const row = source * n;
-        d[row + source] = 0;
-        queue[0] = source;
-        let head = 0;
-        let tail = 1;
-        while (head < tail) {
-            const u = queue[head++];
-            const next = d[row + u] + 1;
-            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
-                const v = s.colIdx[a];
-                if (d[row + v] === Infinity) {
-                    d[row + v] = next;
-                    queue[tail++] = v;
-                }
+        hopCountsFrom(s, source, d, queue);
+    }
+}
+
+/**
+ * BFS hop counts along out-arcs from `source` into row `source` of the distance matrix, whose
+ * unreached entries must be Infinity.
+ * @param s - The snapshot
+ * @param source - The node to count from
+ * @param d - The n x n matrix, row-major
+ * @param queue - Scratch, n long
+ */
+function hopCountsFrom(s: GraphSnapshot, source: number, d: Float64Array, queue: Uint32Array): void {
+    const row = source * s.nodeCount;
+    d[row + source] = 0;
+    queue[0] = source;
+    let head = 0;
+    let tail = 1;
+    while (head < tail) {
+        const u = queue[head++];
+        const next = d[row + u] + 1;
+        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+            const v = s.colIdx[a];
+            if (d[row + v] === Infinity) {
+                d[row + v] = next;
+                queue[tail++] = v;
             }
         }
     }

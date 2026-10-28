@@ -1,11 +1,35 @@
-/* The legend card, top left of the canvas (tier1-design.md section 2.4). */
+/* The legend card, top left of the canvas (tier1-design.md section 2.4). At most 40% of the
+   canvas's height, scrolling beyond. It floats over the drawing and never changes its framing. */
 .ws-legend-card {
     position: absolute;
     top: 12px;
     left: 12px;
-    width: 240px;
-    max-height: calc(100% - 96px);
+    /* Never wider than the canvas, so at 200% zoom it stays clear of the panels beside it. */
+    width: min(240px, calc(100% - 24px));
+    max-height: min(calc(100% - 96px), 40%);
     overflow: auto;
+}
+
+/* A key that scrolls takes focus: its ring, as every other focusable box draws it. */
+.ws-legend-card:focus-visible {
+    outline: 2px solid var(--mantine-primary-color-filled);
+    outline-offset: 1px;
+}
+
+/* A key chit's ring, so a black chit on the dark card or a white one on the light card still
+   shows its edge (WCAG 1.4.11, 3:1 against the card). */
+.ws-legend-chit {
+    outline: 1px solid var(--cm-icon-secondary);
+}
+
+/* How many entries a scrolling key holds below what it shows: kept at the card's foot. */
+.ws-legend-more {
+    position: sticky;
+    bottom: calc(-1 * var(--mantine-spacing-xs));
+    margin: 0 calc(-1 * var(--mantine-spacing-xs)) calc(-1 * var(--mantine-spacing-xs));
+    padding: 4px var(--mantine-spacing-xs);
+    background: inherit;
+    border-top: 1px solid var(--cm-border);
 }
 
 /* A legend section is a native group (fieldset) drawn as a plain block. */
@@ -33,4 +57,13 @@
 .ws-state-card-icon {
     display: flex;
     color: var(--mantine-color-dimmed);
+}
+
+/* The graph under the overlays. A touch-and-hold opens the canvas menu, so iOS must not show its
+   own callout or start a text selection during the hold. */
+.ws-canvas-surface {
+    height: 100%;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }

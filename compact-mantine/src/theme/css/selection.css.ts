@@ -87,6 +87,31 @@ const css = `
     outline: 1px solid var(--cm-border-selected);
     outline-offset: 1px;
 }
+/* The extra-small box is drawn 12 px but takes clicks over 24 x 24 (WCAG 2.5.8): the input grows
+   6 px past the drawn box on every side (the negative margin keeps the layout) and paints nothing
+   itself; ::before draws the 12 px face from the input's own state colors. A row drawn after it
+   (a positioned row, as Tree's are) keeps its own clicks where the two overlap. */
+.cm-checkbox[data-size="xs"] .cm-checkbox-input {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    margin: -6px;
+    padding: 12px;
+    border-style: none;
+    background-clip: content-box;
+    outline-offset: -5px;
+}
+.cm-checkbox[data-size="xs"] .cm-checkbox-input::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    box-sizing: border-box;
+    border: 1px solid;
+    border-color: inherit;
+    border-radius: inherit;
+    background-color: inherit;
+    pointer-events: none;
+}
 /* The blue (filled, default) variant. */
 .cm-checkbox:not([data-variant="neutral"]) .cm-checkbox-input:is(:checked, [data-indeterminate]) {
     background-color: var(--cm-bg-brand);
@@ -230,7 +255,7 @@ const css = `
     height: var(--switch-thumb-size);
     inset-inline-start: calc(var(--switch-height) / 4 - 1px);
     border-radius: 9999px;
-    background-color: var(--cm-text-onbrand);
+    background-color: var(--cm-text-onsolid);
     box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline);
     transition: inset-inline-start var(--cm-duration-sm) var(--cm-ease-out);
 }
@@ -249,6 +274,8 @@ const css = `
     background-color: var(--cm-icon-disabled);
     box-shadow: none;
 }
+/* On the accent fill the knob takes the accent's label ink (dark on the graphty lime). */
+.cm-switch-input:is(:checked, [data-indeterminate]):not(:disabled) + * > .cm-switch-thumb { background-color: var(--cm-text-onbrand); }
 .cm-switch-input:disabled:is(:checked, [data-indeterminate]) + * > .cm-switch-thumb { box-shadow: none; }
 
 /* ---------------------------------------------------------------- SegmentedControl (5.2, 5.3) */
@@ -264,6 +291,13 @@ const css = `
 }
 .cm-sc-indicator { display: none; }
 .cm-sc-control { flex: 1 1 0; min-width: 0; }
+/* A track that is not fullWidth gives every option an equal share, as Figma does, each as wide as
+   the widest label with its padding, so no label is cut ("Leave out" beside "Add"). */
+.cm-sc:not([data-full-width], [data-content-width]) {
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+}
 .cm-sc[data-content-width] .cm-sc-control { flex: 1 1 auto; min-width: 24px; }
 .cm-sc[data-content-width] .cm-sc-label { padding-inline: 0; }
 .cm-sc .cm-sc-label {
@@ -276,6 +310,7 @@ const css = `
     border-radius: 5px;
     ${cmFont("body")}
     font-size: var(--sc-font-size);
+    /* Figma's unchosen label: the secondary ink (bc/popover-advanced-stroke). */
     color: var(--cm-text-secondary);
     background-color: transparent;
     outline: 1px solid transparent;
@@ -285,6 +320,8 @@ const css = `
 }
 .cm-sc .cm-sc-label[data-active] {
     color: var(--cm-text);
+    /* Figma's 450; the AA option sets 600, so which side is chosen reads at 11px. */
+    font-weight: var(--cm-segment-chosen-weight);
     background-color: var(--cm-bg);
     box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
@@ -372,6 +409,9 @@ const css = `
     color: var(--cm-text);
     background-color: var(--cm-bg-secondary);
     font-weight: 550;
+    /* No edge in Figma; the AA option draws a 3:1 one (WCAG 1.4.11), so the selected pill is not
+       told by its fill alone. */
+    box-shadow: inset 0 0 0 1px var(--cm-tab-edge);
 }
 .cm-tabs[data-variant="pills"] .cm-tab:focus-visible {
     outline: 1px solid var(--cm-border-selected);
@@ -379,6 +419,9 @@ const css = `
 }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tabs-list { gap: 0; }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab { width: 100%; justify-content: flex-start; }
+/* Mantine's label grows to fill the tab and centres its text, and the bold-width reserve centres
+   its column, so both are put back to the start for a row tab. */
+.cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab-label { align-items: flex-start; text-align: start; }
 /* The underline tabs (variant="default"), kept on the tokens. */
 .cm-tabs[data-variant="default"] .cm-tab { padding: 6px 10px; color: var(--cm-text-secondary); }
 .cm-tabs[data-variant="default"] .cm-tab[data-active] { color: var(--cm-text); }
@@ -407,16 +450,31 @@ const css = `
 .cm-slider-bar { background-color: var(--cm-bg-brand); }
 .cm-slider .cm-slider-thumb {
     box-sizing: border-box;
-    border: 2px solid var(--cm-text-onbrand);
-    color: var(--cm-text-onbrand);
-    background-color: var(--cm-text-onbrand);
-    box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
+    border: 2px solid var(--cm-text-onsolid);
+    color: var(--cm-text-onsolid);
+    background-color: var(--cm-text-onsolid);
+    /* The ring in the secondary icon ink, 3:1 or more against the panel. */
+    box-shadow: 0 0 0 1px var(--cm-icon-secondary), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
     outline: 1px solid transparent;
     outline-offset: -2px;
     transition: none;
     cursor: default;
 }
 .cm-slider .cm-slider-thumb[data-dragging] { transform: translate(-50%, -50%); }
+/* A finger needs more than a 12px thumb: under a coarse pointer the thumb draws at 20px and an
+   invisible ::after grows its hit target to 44 x 44 (the touch guideline) without moving anything. */
+@media (pointer: coarse) {
+    .cm-slider { --slider-thumb-size: 20px !important; }
+    .cm-slider .cm-slider-thumb::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
 .cm-slider .cm-slider-thumb:focus-visible {
     outline: 1px solid var(--cm-border-selected);
     outline-offset: -2px;
@@ -441,6 +499,10 @@ const css = `
     position: relative;
     isolation: isolate;
     ${cmFont("body")}
+    /* The size prop's type, so a link in an xs caption is the caption's size (sm, the default, is
+       the body role). The caption's weight and tracking come from the Text rule in shell.css. */
+    font-size: var(--text-fz, var(--mantine-font-size-sm));
+    line-height: var(--text-lh, var(--mantine-line-height-sm));
     color: var(--cm-text-brand);
     text-decoration: none;
     border-radius: 2px;

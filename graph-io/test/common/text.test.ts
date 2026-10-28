@@ -5,7 +5,8 @@ import {
     inferTextDtype as coreInferTextDtype,
     parseText as coreParseText,
 } from "../../../graph-format/src/columns/infer.js";
-import { inferTextDtype, isNumericText, parseTextCell } from "../../src/common/text.js";
+import { ImportReportBuilder } from "../../src/common/report.js";
+import { inferTextDtype, isNumericText, parseTextCell, TextCellWriter } from "../../src/common/text.js";
 
 const CELLS = [
     "true",
@@ -128,5 +129,26 @@ describe("text grammar of design 5.1", () => {
         expect(w.dtype).toBe("i32");
         expect([0, 1].map((r) => w.value(r))).toEqual([1, 0]);
         expect(report.widened.map((x) => `${x.column}:${x.from}->${x.to}`)).toContain("v:f64->string");
+    });
+});
+
+describe("TextCellWriter precision warning", () => {
+    it("warns once per column for an integer beyond 2^53 and never for one a double holds exactly", () => {
+        const b = new GraphBuilder({ directed: true });
+        const report = new ImportReportBuilder("test", 100);
+        const w = new TextCellWriter("big", "node", b, report);
+        w.write(b.addNode("a"), "9007199254740992");
+        w.write(b.addNode("b"), "-12");
+        expect(report.issues).toEqual([]);
+        w.write(b.addNode("c"), "9007199254740993");
+        w.write(b.addNode("d"), "9007199254740995");
+        expect(report.issues.map((i) => [i.code, i.message, i.element])).toEqual([
+            [
+                "W_PRECISION",
+                'node column "big": integers beyond 2^53 are stored as the nearest double (first: 9007199254740993)',
+                "big",
+            ],
+        ]);
+        expect(b.freeze().nodes.require("big").value(2)).toBe(9007199254740992);
     });
 });

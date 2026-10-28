@@ -5,6 +5,13 @@ import type { StorybookConfig } from "@storybook/html-vite";
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.ts"],
     addons: ["@storybook/addon-docs"],
+    staticDirs: [
+        // the brand logo and favicon (manager.ts)
+        { from: "./brand", to: "/" },
+        // the sample datasets, from graph-samples' build (the files graphty.app publishes), so the stories and their
+        // visual capture load them with no internet (stories/demo.ts, datasetOptions)
+        { from: "../../graph-samples/dist/data/v1", to: "/graph-samples-data/v1" },
+    ],
     framework: {
         name: "@storybook/html-vite",
         options: {},

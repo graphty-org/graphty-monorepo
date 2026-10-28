@@ -248,13 +248,16 @@ function elementLocal(filter: RuleTree): boolean {
     switch (filter.kind) {
         case "expression":
         case "edges":
-        case "range":
-        case "categories":
         case "degree":
         case "isolated":
         case "self-loop":
         case "item":
             return true;
+        case "range":
+        case "categories":
+        case "text":
+            // "ends" reads every edge at the element, not the element alone.
+            return filter.nodes !== "ends";
         case "threshold":
             return filter.top === undefined;
         case "all":
@@ -487,13 +490,11 @@ export function createOffering(sources: OfferSources): Offering {
                 const edges = counts.pass === undefined ? undefined : (passed?.edges ?? 0);
                 const name = spec.name(value);
                 const title = name.charAt(0).toUpperCase() + name.slice(1);
+                const noun = nodes === 1 ? "node" : "nodes";
 
                 return Object.freeze({
                     item,
-                    label:
-                        nodes === undefined
-                            ? title
-                            : `${title} (${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"})`,
+                    label: nodes === undefined ? title : `${title} (${nodes.toLocaleString("en-US")} ${noun})`,
                     ...(nodes === undefined ? {} : { nodes }),
                     ...(edges === undefined ? {} : { edges }),
                     reading,
@@ -652,6 +653,11 @@ function ruleHolds(
             return ends();
         case "listed":
             return halves.edge?.(index) ?? false;
+        case "incident":
+            return (
+                (halves.edge === null || halves.edge(index)) &&
+                (nodeIn(snapshot.edgeSource(index)) || nodeIn(snapshot.edgeTarget(index)))
+            );
         default:
             return (halves.edge === null || halves.edge(index)) && ends();
     }

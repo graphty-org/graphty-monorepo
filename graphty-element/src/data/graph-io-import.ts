@@ -11,16 +11,19 @@ import {
     type CommonImportOptions,
     formatF32,
     type GraphImporter,
-    headBytes,
     ImportError,
+    type ImportGraphResult,
     type ImportInput,
     type ImportReport,
     INPUT_ISSUE,
+    registry,
 } from "@graphty/graph-io";
+import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
 import type { ErrorAggregator } from "./ErrorAggregator.js";
+import { applyFilePositions, filePositionsOf } from "./filePositions.js";
 
 /** How the scratch builder treats what the importer pushes, beyond what graph-format does itself. */
 interface ScratchPolicy {
@@ -113,8 +116,29 @@ class DeclaringBuilder extends GraphBuilder {
 export interface ImportedGraph {
     readonly snapshot: GraphSnapshot;
     readonly report: ImportReport;
+    /** The importer that read it, which says how the file spells its node positions. */
+    readonly importer: GraphImporter;
     /** The ids of the nodes the file declared, as opposed to those an edge created. */
     readonly declared: ReadonlySet<NodeId>;
+}
+
+/** A graph read by a network source: no importer when the source returned records rather than a file. */
+export type SourceGraph = Omit<ImportedGraph, "importer"> & { readonly importer?: GraphImporter };
+
+/**
+ * A network source's load as an import: every node declared, and the importer of the format a
+ * file source resolved to, so the file's stored positions are read as a file load reads them.
+ * @param loaded - what `loadFromSource` or `expandFromSource` returned
+ * @returns the graph
+ */
+export function sourceGraph(loaded: ImportGraphResult): SourceGraph {
+    const { format, snapshot, report } = loaded;
+    return {
+        snapshot,
+        report,
+        declared: new Set(snapshot.ids),
+        ...(registry.hasImporter(format) ? { importer: registry.importer(format) } : {}),
+    };
 }
 
 /**
@@ -124,16 +148,13 @@ export interface ImportedGraph {
  * no attribute columns, so a data source reads the file here and rebuilds its records from the
  * columns afterwards (see {@link toRecords}).
  *
- * A document that is recognisably this format but breaks off (a tag left open, a stray end tag)
- * keeps what was read before the break: the importer's fatal error becomes one more error in the
- * report rather than a thrown one. A document the importer does not recognise at all, or one whose
- * report holds one of the `fatal` codes, still throws -- with `fatal` "any", every failure does: a
- * `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose `cause` is the
- * importer's `ImportError`.
+ * A document the importer gave up on -- a tag left open, a file cut short, a stray end tag --
+ * is refused whole: a `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose
+ * `cause` is the importer's `ImportError`. Nothing read before the break is kept, because a graph
+ * built from part of a file looks like a whole one and a reader cannot tell it is wrong.
  * @param importer - the graph-io importer for the format
  * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options; `ids` defaults to "string", so ids stay the text the file wrote
- * @param fatal - issue codes that make even a recognisable document unreadable, or "any"
  * @param policy - how the scratch builder treats what the importer pushes
  * @returns the snapshot, the report and the declared node ids
  */
@@ -141,7 +162,6 @@ export async function importDocument<Opts>(
     importer: GraphImporter<Opts>,
     text: string | Uint8Array,
     options: Opts & CommonImportOptions,
-    fatal: readonly string[] | "any" = [],
     policy: ScratchPolicy = {},
 ): Promise<ImportedGraph> {
     const builder = new DeclaringBuilder(policy);
@@ -149,19 +169,10 @@ export async function importDocument<Opts>(
     try {
         report = await importer.import(text, builder, { ids: "string", ...options });
     } catch (error) {
-        if (!(error instanceof ImportError)) {
-            throw error;
-        }
-
-        const recognised = importer.sniff?.(headBytes(text)) ?? 0;
-        if (fatal === "any" || recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
-            throw parseFailed(importer, error);
-        }
-
-        ({ report } = error);
+        throw error instanceof ImportError ? parseFailed(importer, error) : error;
     }
 
-    return { snapshot: builder.freeze(), report, declared: builder.declared };
+    return { snapshot: builder.freeze(), report, importer, declared: builder.declared };
 }
 
 /**
@@ -200,10 +211,11 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
     }
 
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
+    const where = line === null ? "" : ` at line ${line}`;
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",
         source: "data",
-        message: `Failed to read the ${importer.format} file${line === null ? "" : ` at line ${line}`}: ${error.message}`,
+        message: `Failed to read the ${importer.format} file${where}: ${error.message}`,
         details: { format: importer.format, line, errors: error.report.errorCount },
     });
 }
@@ -231,7 +243,7 @@ export async function importWhole<Opts>(
 ): Promise<ImportedGraph> {
     let imported: ImportedGraph;
     try {
-        imported = await importDocument(importer, text, options, "any", policy);
+        imported = await importDocument(importer, text, options, policy);
     } catch (error) {
         if (error instanceof GraphtyError && error.cause instanceof ImportError) {
             aggregateErrors(error.cause.report, errors);
@@ -516,15 +528,155 @@ export interface RecordMapping {
     node(row: number, record: Record<string, unknown>): void;
     /** Write an edge's keys onto its record, which already holds `source`, `target` and any `weight`. */
     edge(row: number, record: Record<string, unknown>): void;
+    /**
+     * The record path (a key, or dotted keys into a nested object) a column's value lands under
+     * unchanged, or null when the reader leaves the column out or changes its value on the way.
+     * Left out, every column lands under its own name, as {@link copyColumns} writes it.
+     */
+    readonly path?: (kind: "node" | "edge", column: Column) => string | null;
 }
 
 /** The prefix graph-format reserves for the columns that carry structure rather than data. */
 const RESERVED_PREFIX = "graphty.";
 
+/** The record keys that identify a node or an edge, which no attribute may take. */
+const IDENTITY_KEYS = { node: ["id"], edge: ["source", "target"] } as const;
+
+/**
+ * The record key an attribute goes under: its title, or `<title>#<id>` when the title is a key
+ * that identifies the record (a node's `id`, an edge's `source` or `target`), so an attribute the
+ * file titled `id` never takes the place of the node's id.
+ * @param kind - node or edge
+ * @param title - the attribute's title
+ * @param id - the attribute's id in the file
+ * @returns the key
+ */
+export function attributeKey(kind: "node" | "edge", title: string, id: string): string {
+    return (IDENTITY_KEYS[kind] as readonly string[]).includes(title) ? `${title}#${id}` : title;
+}
+
+/**
+ * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
+ * `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`) and one
+ * named like a key that identifies the record, which it leaves out.
+ * @param kind - node or edge
+ * @param column - the column
+ * @returns the key, or null
+ */
+export function copiedPath(kind: "node" | "edge", column: Column): string | null {
+    const { name } = column.meta;
+    return name.startsWith(RESERVED_PREFIX) ||
+        column.meta.role === "position" ||
+        (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ||
+        (kind === "edge" && name === EDGE_ID_KEY)
+        ? null
+        : name;
+}
+
+/** The record key the element writes its own edge id under, over any `id` the file gave. */
+const EDGE_ID_KEY = "id";
+
+/**
+ * Whether a column reads a default the file declared on rows that set no value (a CX2 attribute
+ * declaration's `v`, a GraphML key's `<default>`). The records leave those rows out, so a layer
+ * reading the record key would see nothing where the column holds the default.
+ * @param column - the column
+ * @param rows - how many rows the table has
+ * @returns true when some row reads the default without holding a value
+ */
+function readsUnsetDefault(column: Column, rows: number): boolean {
+    if (column.meta.default === null || column.meta.default === undefined) {
+        return false;
+    }
+
+    for (let row = 0; row < rows; row++) {
+        if (!column.isSet(row)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** The graph-io import a reader built its records from, and where each column landed on them. */
+export interface ReaderImport {
+    /** The import: the importer, its snapshot and its report. */
+    readonly imported: ImportedGraph;
+    /**
+     * Where a column's value arrives on the records, unchanged: the record key, or the keys down
+     * into a nested object (a graphology attribute is `["attributes", name]`). Null when the reader
+     * leaves the column out or changes its value on the way (a yFiles shape the element renames, a
+     * GEXF date it writes as text), and for a column the snapshot does not hold.
+     * @param kind - node or edge
+     * @param column - the column's name in the snapshot
+     * @returns the keys, or null
+     */
+    path(kind: "node" | "edge", column: string): readonly string[] | null;
+}
+
+/** The import each reader's last load came from, read on demand. */
+const READER_IMPORTS = new WeakMap<object, () => Promise<ReaderImport>>();
+
+/**
+ * Remember the import a reader's records came from, so what the element builds on the records
+ * (the file's styles) can read the same snapshot and reach each column through the reader's own keys.
+ * @param reader - the data source
+ * @param read - gives the import; called at most once, when it is first asked for
+ */
+export function rememberImport(reader: object, read: () => Promise<ReaderImport> | ReaderImport): void {
+    let memo: Promise<ReaderImport> | null = null;
+    READER_IMPORTS.set(reader, () => (memo ??= Promise.resolve(read())));
+}
+
+/**
+ * The import a reader's last load came from, with its column paths.
+ * @param reader - the data source
+ * @returns the import, or null when the reader read no graph-io import
+ */
+export function readerImport(reader: object): Promise<ReaderImport> | null {
+    return READER_IMPORTS.get(reader)?.() ?? null;
+}
+
+/**
+ * Pair an import with a mapping's column paths.
+ * @param imported - the import
+ * @param path - where the reader put each column
+ * @returns the reader import
+ */
+function readerImportOf(
+    imported: ImportedGraph,
+    path: (kind: "node" | "edge", column: Column) => string | null,
+): ReaderImport {
+    const { snapshot } = imported;
+    const defaulted = new Map<Column, boolean>();
+    return {
+        imported,
+        path: (kind, name) => {
+            const table = kind === "node" ? snapshot.nodes : snapshot.edges;
+            const column = table.get(name);
+            if (column === null || column === undefined) {
+                return null;
+            }
+
+            const key = path(kind, column);
+            if (key === null || (kind === "edge" && key === EDGE_ID_KEY)) {
+                return null;
+            }
+
+            if (!defaulted.has(column)) {
+                defaulted.set(column, readsUnsetDefault(column, table.rowCount));
+            }
+
+            return defaulted.get(column) === true ? null : [key];
+        },
+    };
+}
+
 /**
  * Copy every set cell of one row onto a record: each attribute column under its own name, a
  * multi-component cell as an array, an f32 cell widened as {@link cell} does. graph-format's
- * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is a key the
+ * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is the stored
+ * node position, which {@link toRecords} writes in one spelling for every format; nor is a key the
  * record already holds, so a column named `id`, `source` or `target` cannot take their place.
  * @param table - the node or edge table
  * @param row - the row
@@ -533,7 +685,8 @@ const RESERVED_PREFIX = "graphty.";
 export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>): void {
     for (const column of table) {
         const { name } = column.meta;
-        if (name.startsWith(RESERVED_PREFIX) || Object.hasOwn(record, name) || !column.isSet(row)) {
+        const skipped = name.startsWith(RESERVED_PREFIX) || column.meta.role === "position";
+        if (skipped || Object.hasOwn(record, name) || !column.isSet(row)) {
             continue;
         }
 
@@ -547,12 +700,23 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
  * two halves to hold a mixed-direction file, the mirror half (the one whose `pair` points at a
  * lower row) is skipped. An edge carries `weight` only when the file gave it one, at the precision
- * the importer read it with.
+ * the importer read it with. A node the file placed carries `position: { x, y, z }`: its center, y up,
+ * in the file's own unit, read by graph-io's `extractPositions` whatever the format's spelling.
  * @param imported - the import
  * @param mapping - the format's mapping from rows to record keys
+ * @param reader - the data source the records are for, which remembers the import (see {@link readerImport})
  * @returns the records, in file order
  */
-export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { nodes: AdHocData[]; edges: AdHocData[] } {
+export function toRecords(
+    imported: SourceGraph,
+    mapping: RecordMapping,
+    reader?: object,
+): { nodes: AdHocData[]; edges: AdHocData[] } {
+    const { importer } = imported;
+    if (reader !== undefined && importer !== undefined) {
+        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    }
+
     const { snapshot, declared } = imported;
     const { ids } = snapshot;
 
@@ -564,6 +728,10 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
         mapping.node(ids.indexOf(id), record);
         nodes.push(record);
     }
+
+    applyFilePositions(nodes, importer === undefined ? null : filePositionsOf({ ...imported, importer }), (record) =>
+        ids.indexOf(record.id as NodeId),
+    );
 
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");
@@ -594,12 +762,49 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
 }
 
 /**
+ * A mapping that leaves a format's own style slots off the records, for a load that draws the
+ * file's styles as layers: the layers carry them, and an export with styles writes them again
+ * from the layers, so a record copy would be written twice.
+ * @param snapshot - the imported graph
+ * @param mapping - the reader's mapping
+ * @returns the mapping without the style slots
+ */
+export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
+    const slots = {
+        node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
+        edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
+    };
+    if (slots.node.length === 0 && slots.edge.length === 0) {
+        return mapping;
+    }
+
+    const drop = (keys: readonly string[], record: Record<string, unknown>): void => {
+        for (const key of keys) {
+            Reflect.deleteProperty(record, key);
+        }
+    };
+    const path = mapping.path ?? copiedPath;
+    return {
+        node: (row, record) => {
+            mapping.node(row, record);
+            drop(slots.node, record);
+        },
+        edge: (row, record) => {
+            mapping.edge(row, record);
+            drop(slots.edge, record);
+        },
+        path: (kind, column) => (isStyleSlotColumn(column.meta) ? null : path(kind, column)),
+    };
+}
+
+/**
  * The mapping that keeps every attribute under its own name and adds nothing (see {@link copyColumns}).
  * @param snapshot - the imported graph
  * @returns the mapping
  */
 export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
     return {
+        path: copiedPath,
         node: (row, record) => {
             copyColumns(snapshot.nodes, row, record);
         },
@@ -607,4 +812,21 @@ export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
             copyColumns(snapshot.edges, row, record);
         },
     };
+}
+
+/**
+ * The graph-level values an import read: the file's own graph attributes (DOT's `rankdir`,
+ * `layout`, ...), without graph-format's reserved `graphty.*` columns.
+ * @param snapshot - the imported graph
+ * @returns the values by name
+ */
+export function graphValuesOf(snapshot: GraphSnapshot): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of snapshot.graph.names()) {
+        if (!name.startsWith(RESERVED_PREFIX) && snapshot.graph.isSet(name, 0)) {
+            out[name] = snapshot.graph.value(name, 0);
+        }
+    }
+
+    return out;
 }

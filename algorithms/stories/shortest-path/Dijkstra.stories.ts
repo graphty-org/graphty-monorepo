@@ -25,6 +25,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -465,7 +466,7 @@ export const Dijkstra: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * 5 + 10) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * 5 + 10) * args.animationSpeed),
         );
     },
 };

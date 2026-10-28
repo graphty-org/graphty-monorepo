@@ -1,0 +1,424 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-sizes-opacity"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 152,
+                "y": 771.5
+            }
+        },
+        {
+            "key": "size-1",
+            "attributes": {
+                "x": 376,
+                "y": 771.5,
+                "size": 1,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-3",
+            "attributes": {
+                "x": 600,
+                "y": 771.5,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-6",
+            "attributes": {
+                "x": 824,
+                "y": 771.5,
+                "size": 6,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-10",
+            "attributes": {
+                "x": 1048,
+                "y": 771.5,
+                "size": 10,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-18",
+            "attributes": {
+                "x": 152,
+                "y": 566.5,
+                "size": 18,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-25",
+            "attributes": {
+                "x": 376,
+                "y": 566.5,
+                "size": 25,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-32",
+            "attributes": {
+                "x": 600,
+                "y": 566.5,
+                "size": 32,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-0",
+            "attributes": {
+                "x": 824,
+                "y": 566.5,
+                "size": 0,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-0-5",
+            "attributes": {
+                "x": 1048,
+                "y": 566.5,
+                "size": 0.5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-negative",
+            "attributes": {
+                "x": 152,
+                "y": 361.5,
+                "size": -10,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "size-string",
+            "attributes": {
+                "x": 376,
+                "y": 361.5,
+                "size": "24",
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "color-alpha-half",
+            "attributes": {
+                "x": 600,
+                "y": 361.5,
+                "size": 18,
+                "color": "rgba(0,0,255,0.5)"
+            }
+        },
+        {
+            "key": "hidden-true",
+            "attributes": {
+                "x": 824,
+                "y": 361.5,
+                "size": 18,
+                "color": "#c8c8c8",
+                "hidden": true
+            }
+        },
+        {
+            "key": "hidden-false",
+            "attributes": {
+                "x": 1048,
+                "y": 361.5,
+                "size": 18,
+                "color": "#c8c8c8",
+                "hidden": false
+            }
+        },
+        {
+            "key": "highlighted-true",
+            "attributes": {
+                "x": 152,
+                "y": 156.5,
+                "size": 18,
+                "color": "#c8c8c8",
+                "highlighted": true
+            }
+        },
+        {
+            "key": "visibility-hidden",
+            "attributes": {
+                "x": 376,
+                "y": 156.5,
+                "size": 18,
+                "color": "#c8c8c8",
+                "visibility": "hidden"
+            }
+        },
+        {
+            "key": "opacity-0-3",
+            "attributes": {
+                "x": 600,
+                "y": 156.5,
+                "size": 18,
+                "color": "#c8c8c8",
+                "opacity": 0.3
+            }
+        },
+        {
+            "key": "zindex-10",
+            "attributes": {
+                "x": 816,
+                "y": 156.5,
+                "size": 18,
+                "color": "#d62728",
+                "zIndex": 10
+            }
+        },
+        {
+            "key": "zindex-0",
+            "attributes": {
+                "x": 832,
+                "y": 156.5,
+                "size": 18,
+                "color": "#1f77b4",
+                "zIndex": 0
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 77.6,
+                "y": 731.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-size-1",
+            "attributes": {
+                "x": 348.6,
+                "y": 731.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=1"
+            }
+        },
+        {
+            "key": "cap-size-3",
+            "attributes": {
+                "x": 572.6,
+                "y": 731.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=3"
+            }
+        },
+        {
+            "key": "cap-size-6",
+            "attributes": {
+                "x": 796.6,
+                "y": 731.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=6"
+            }
+        },
+        {
+            "key": "cap-size-10",
+            "attributes": {
+                "x": 987.2,
+                "y": 731.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=10"
+            }
+        },
+        {
+            "key": "cap-size-18",
+            "attributes": {
+                "x": 61.19999999999999,
+                "y": 526.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=18"
+            }
+        },
+        {
+            "key": "cap-size-25",
+            "attributes": {
+                "x": 285.2,
+                "y": 526.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=25"
+            }
+        },
+        {
+            "key": "cap-size-32",
+            "attributes": {
+                "x": 569.2,
+                "y": 526.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=32"
+            }
+        },
+        {
+            "key": "cap-size-0",
+            "attributes": {
+                "x": 796.6,
+                "y": 526.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=0"
+            }
+        },
+        {
+            "key": "cap-size-0-5",
+            "attributes": {
+                "x": 1013.8,
+                "y": 526.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=0.5"
+            }
+        },
+        {
+            "key": "cap-size-negative",
+            "attributes": {
+                "x": 117.8,
+                "y": 321.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=-10"
+            }
+        },
+        {
+            "key": "cap-size-string",
+            "attributes": {
+                "x": 278.4,
+                "y": 321.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=\"24\""
+            }
+        },
+        {
+            "key": "cap-color-alpha-half",
+            "attributes": {
+                "x": 514.8,
+                "y": 321.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgba(0,0,255,0.5)"
+            }
+        },
+        {
+            "key": "cap-hidden-true",
+            "attributes": {
+                "x": 779.6,
+                "y": 321.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "hidden=true"
+            }
+        },
+        {
+            "key": "cap-hidden-false",
+            "attributes": {
+                "x": 1000.2,
+                "y": 321.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "hidden=false"
+            }
+        },
+        {
+            "key": "cap-highlighted-true",
+            "attributes": {
+                "x": 60.599999999999994,
+                "y": 116.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "highlighted=true"
+            }
+        },
+        {
+            "key": "cap-visibility-hidden",
+            "attributes": {
+                "x": 281.2,
+                "y": 116.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "visibility=hidden"
+            }
+        },
+        {
+            "key": "cap-opacity-0-3",
+            "attributes": {
+                "x": 555.6,
+                "y": 116.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "opacity=0.3"
+            }
+        },
+        {
+            "key": "cap-zindex",
+            "attributes": {
+                "x": 745.6,
+                "y": 116.5,
+                "size": 7,
+                "color": "transparent",
+                "label": "zIndex=10 red, 0 blue"
+            }
+        }
+    ],
+    "edges": []
+}

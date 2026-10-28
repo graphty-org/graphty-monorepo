@@ -7,6 +7,7 @@ import {
     useRef,
     useState,
 } from "react";
+import { flushSync } from "react-dom";
 
 import { clamp, evaluateExpression, tidy } from "./expression";
 import { SCRUB_UNITS_PER_PX, type ScrubCallbacks } from "./useScrub";
@@ -41,7 +42,7 @@ interface NumberFieldOptions {
 /** The props the field's `<input>` takes. */
 interface NumberFieldInputProps {
     value: string;
-    role: "spinbutton";
+    role: "spinbutton" | undefined;
     inputMode: "decimal";
     "aria-valuenow"?: number;
     "aria-valuemin"?: number;
@@ -60,6 +61,8 @@ interface NumberField {
     scrub: ScrubCallbacks;
     /** true while a draft (typed or scrubbed) differs from the committed display */
     editing: boolean;
+    /** true from an Escape that took back typing until the next edit, commit or blur */
+    discarded: boolean;
 }
 
 /**
@@ -67,7 +70,9 @@ interface NumberField {
  *
  * - typing applies nothing until Enter, Tab or blur; the text may be an expression (`40*2`);
  *   anything that does not evaluate silently reverts;
- * - Enter commits and keeps focus (the whole value is re-selected); Escape reverts and blurs;
+ * - Enter commits and keeps focus (the whole value is re-selected), then submits the field's form
+ *   when it has an enabled submit button; Escape reverts and keeps
+ *   focus (the whole value selected), and with nothing typed is left to what holds the field;
  * - ArrowUp / ArrowDown step at once (Shift: ten steps);
  * - a click selects the whole value;
  * - a scrub moves the value live at 0.5 per px and commits once on release.
@@ -78,14 +83,16 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
     const { value, display, onCommit, parse, suffix, min, max, step = 1, decimalScale, locked = false } = options;
     const format = options.format ?? String;
     const [draft, setDraftState] = useState<string | null>(null);
-    // Mirrored in a ref: Escape clears the draft and blurs in one handler, and the blur's commit
-    // must see the cleared draft, not the render's.
+    // Mirrored in a ref: a handler that clears the draft and then commits (a blur in the same
+    // handler) must see the cleared draft, not the render's.
     const draftRef = useRef<string | null>(null);
     const setDraft = (next: string | null): void => {
         draftRef.current = next;
         setDraftState(next);
     };
     const justFocused = useRef(false);
+    // Escape took back what was typed: the owner says so until the reader edits or leaves.
+    const [discarded, setDiscarded] = useState(false);
     const scrubBase = useRef(0);
     const scrubValue = useRef<number | null>(null);
 
@@ -117,14 +124,20 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
 
     const inputProps: NumberFieldInputProps = {
         value: draft ?? display,
-        role: "spinbutton",
+        // A spinbutton always has a value: Chromium reads one with no aria-valuenow as 0. An
+        // empty field (not set, Mixed) is a plain text box until it holds a number, so a screen
+        // reader hears its words and no number nobody set.
+        role: value === null ? undefined : "spinbutton",
         inputMode: "decimal",
         "aria-valuenow": value ?? undefined,
         "aria-valuemin": min,
         "aria-valuemax": max,
         onChange: (event) => {
+            const text = event.currentTarget.value;
+            // A letter is taken as typed and reverts on commit, as in Figma.
             if (!locked) {
-                setDraft(event.currentTarget.value);
+                setDiscarded(false);
+                setDraft(text);
             }
         },
         onKeyDown: (event) => {
@@ -134,23 +147,41 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             }
             if (event.key === "Enter") {
                 event.preventDefault();
+                setDiscarded(false);
                 commit(event);
                 const input = event.currentTarget;
+                // Enter in a form's field submits it, as in any text box: the field's own Enter
+                // is held back so the commit lands first, and the form is submitted a frame later
+                // with the committed value, through its submit button unless that is disabled.
+                const submit = input.form?.querySelector<HTMLButtonElement | HTMLInputElement>(
+                    'button[type="submit"], input[type="submit"]',
+                );
                 requestAnimationFrame(() => {
                     input.select();
+                    if (submit?.disabled === false && submit.isConnected) {
+                        input.form?.requestSubmit(submit);
+                    }
                 });
             } else if (event.key === "Escape") {
+                // Takes back what was typed and keeps focus, the whole value selected, so focus
+                // never falls to the page. With nothing typed the key goes on to what holds the
+                // field (a pop-out closes, a panel steps back).
                 if (draftRef.current !== null) {
                     event.preventDefault();
-                    setDraft(null);
+                    event.stopPropagation();
+                    flushSync(() => {
+                        setDraft(null);
+                        setDiscarded(true);
+                    });
+                    event.currentTarget.select();
                 }
-                event.currentTarget.blur();
             } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.preventDefault();
                 const base = (draftRef.current !== null ? read(draftRef.current) : null) ?? value ?? min ?? 0;
                 const delta = (event.key === "ArrowUp" ? step : -step) * (event.shiftKey ? 10 : 1);
                 const next = settle(base + delta);
                 setDraft(null);
+                setDiscarded(false);
                 if (next !== value) {
                     onCommit(next, event);
                 }
@@ -158,10 +189,14 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         },
         onFocus: (event) => {
             justFocused.current = true;
+            // However focus arrives (a click, Tab, or a control handing it over), the value is
+            // selected, so what is typed replaces it rather than joining it ("8" + "24" is never 824).
+            event.currentTarget.select();
             options.onFocus?.(event);
         },
         onBlur: (event) => {
             justFocused.current = false;
+            setDiscarded(false);
             commit(event);
             options.onBlur?.(event);
         },
@@ -195,5 +230,5 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         },
     };
 
-    return { inputProps, scrub, editing: draft !== null };
+    return { inputProps, scrub, editing: draft !== null, discarded };
 }

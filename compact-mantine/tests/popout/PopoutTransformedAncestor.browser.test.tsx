@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
@@ -8,7 +8,7 @@ import { CompactColorInput } from "../../src/components/CompactColorInput";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { Popout, PopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
-import { waitForSettledLayout } from "../../stories/helpers/settled";
+import { untilPasses, waitForSettledLayout } from "../../stories/helpers/settled";
 
 // A transformed ancestor becomes the containing block of every position: fixed descendant, so
 // a panel that writes viewport coordinates into left/top lands offset by the ancestor's own
@@ -55,8 +55,8 @@ function renderIn(ui: React.ReactElement, transform: string): void {
 async function measure(kind: Kind, transform: string): Promise<Offset> {
     renderIn(kind.ui, transform);
     const { panel, trigger } = await kind.open();
-    // The panel is hidden until it is first positioned.
-    await waitFor(() => {
+    // The panel is hidden until it is first positioned, on a later frame (#2719).
+    await untilPasses(() => {
         expect(getComputedStyle(panel).visibility).toBe("visible");
     });
     // Wait until no reposition is queued and the panel has stopped moving.
@@ -123,7 +123,7 @@ const KINDS: Kind[] = [
     {
         name: "the color input's picker",
         ui: <CompactColorInput color="#336699" defaultColor="#336699" label="Fill" />,
-        open: () => clickTrigger(/^Pick Fill color$/),
+        open: () => clickTrigger(/^Pick fill color$/),
     },
     {
         name: "an info circle's bubble",

@@ -15,11 +15,11 @@ the expectation today; the reference points into
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 1 |
 | cys | 53 | 53 | 0 | 40 | 0 |
-| dot | 196 | 189 | 7 | 171 | 2 |
-| gexf | 110 | 104 | 6 | 101 | 1 |
+| dot | 196 | 191 | 5 | 173 | 2 |
+| gexf | 110 | 107 | 3 | 104 | 1 |
 | gml | 109 | 100 | 9 | 90 | 4 |
-| graphml | 148 | 143 | 5 | 129 | 5 |
-| json | 427 | 398 | 29 | 80 | 0 |
+| graphml | 148 | 145 | 3 | 131 | 5 |
+| json | 427 | 420 | 7 | 102 | 0 |
 | neo4j | 45 | 26 | 19 | 25 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
@@ -38,7 +38,7 @@ expectation follows the specification and the entry says why.
 | gexf | 30 | 30 | 0 | 0 |
 | gml | 30 | 30 | 0 | 0 |
 | graphml | 60 | 60 | 0 | 8 |
-| json | 60 | 38 | 22 | 30 |
+| json | 60 | 60 | 0 | 30 |
 | pajek | 30 | 30 | 0 | 0 |
 
 Where networkx is overruled:
@@ -195,7 +195,7 @@ No known failures.
 
 ### round trip: the CX2 exporter writes the specification's integer node ids, so it refuses string ids without sanitizeIds "mangle" (declared loss E_ID_CHARSET) (1)
 
-- `authored/mangled-ids.cx2`: threw: GraphFormatError: 2 node id(s) cannot be written as CX2 integers (first: "GO:0008150" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `authored/mangled-ids.cx2`: threw: GraphFormatError: 2 node ids cannot be written as CX2 integers (first: "GO:0008150" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## cys
@@ -206,14 +206,9 @@ No known failures.
 
 ### a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (3)
 
-- `graphviz-issues/1408.dot`: failed: E_SYNTAX: line 6: unexpected character "#"
-- `authored/hash-indented.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
+- `graphviz-issues/1408.dot`: failed: E_SYNTAX: "1408.dot" could not be read as dot: line 6: unexpected character "#"
+- `authored/hash-indented.gv`: failed: E_SYNTAX: "hash-indented.gv" could not be read as dot: line 2: unexpected character "#"
 - `authored/hash-midline.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
-
-### a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4) (2)
-
-- `ts-graphviz/issue1147.dot`: failed: E_SYNTAX: line 18: unexpected "," at the start of a statement
-- `authored/comma-node-list.gv`: failed: E_SYNTAX: line 2: unexpected "," at the start of a statement
 
 ### an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (2)
 
@@ -222,7 +217,7 @@ No known failures.
 
 ### round trip: a mixed-direction graph is refused by the DOT exporter under the default onMixedDirection "error" (1)
 
-- `authored/edge-op-mismatch.gv`: threw: GraphFormatError: 1 undirected edge(s) in a directed graph; DOT has no mixed direction and onMixedDirection is "error"
+- `authored/edge-op-mismatch.gv`: threw: GraphFormatError: 1 undirected edge in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"
 
 ### round trip: the DOT export writes subgraph members before the other nodes, so node order changes on re-import (1)
 
@@ -238,18 +233,6 @@ No known failures.
 ### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (1)
 
 - `graphology/v1_3.gexf`: node "Suzy" single: expected ["a","'b'","c"], got ["a","\\b\\''","c"]
-
-### 8-digit #RRGGBBAA viz colour rejected (sources.md 1.4 viz) (1)
-
-- `authored/rgba-hex-1.3.gexf`: node "a" role:color: expected [1,0,0,0.5019607843137255], got undefined
-
-### GEXF 1.0 attvalue id= not accepted as for= (sources.md 1.4 Root and versions) (1)
-
-- `authored/attvalue-id-1.0.gexf`: node 1 kind: expected "disease", got undefined; node 2 kind: expected "gene", got undefined
-
-### pid naming a missing node is an error, not a warning (sources.md 1.4 Hierarchy) (1)
-
-- `gephi-datasets/diseasome.gexf`: failed: E_UNKNOWN_PARENT: error limit of 100 exceeded: line 1209: pid "0" names a node the document does not declare
 
 ### round trip: dynamic attribute values shift by one element on GEXF re-export (1)
 
@@ -271,10 +254,10 @@ No known failures.
 
 ### string and bare-word node ids are rejected (sources.md 4.4) (4)
 
-- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: expected a value for key "source" at line 12, found "fooBar"
-- `gephi/label.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
-- `gephi/emojis.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
-- `authored/bareword-ids.gml`: failed: E_SYNTAX: expected a value for key "id" at line 2, found "a"
+- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: "invalid_invalid-integer.gml" could not be read as gml: expected a value for key "source" at line 12, found "fooBar"
+- `gephi/label.gml`: failed: E_SYNTAX: "label.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
+- `gephi/emojis.gml`: failed: E_SYNTAX: "emojis.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
+- `authored/bareword-ids.gml`: failed: E_SYNTAX: "bareword-ids.gml" could not be read as gml: expected a value for key "id" at line 2, found "a"
 
 ### round trip: exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (3)
 
@@ -288,23 +271,18 @@ No known failures.
 
 ### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (1)
 
-- `authored/string-ids.gml`: threw: GraphFormatError: 2 node id(s) are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `authored/string-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## graphml
 
 ### round trip: a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds "mangle" (sources.md 2.1) (5)
 
-- `boost/graphml_test.xml`: threw: GraphFormatError: 1 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "not a canonical node" at index 2); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
-### key for="graphml" is rejected as an error (sources.md 2.4, 10) (2)
-
-- `authored/for-graphml-key.graphml`: issue E_GRAPHML_KEY_FOR_INVALID present; issue W_GRAPHML_KEY_DOMAIN present
-- `authored/yed-classic.graphml`: issue E_GRAPHML_KEY_FOR_INVALID present
+- `boost/graphml_test.xml`: threw: GraphFormatError: 1 node id is not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "not a canonical node" at index 2); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-string-ids-0.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 ### <data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (1)
 
@@ -321,31 +299,6 @@ No known failures.
 
 ## json
 
-### json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared "0", "1" (every node doubled) (22)
-
-- `networkx-generated/cytoscape-path-0.json`: nodes: expected 6, got 12; edge "0"->"1" missing
-- `networkx-generated/cytoscape-path-1.json`: nodes: expected 6, got 12; edge "0"->"1" missing
-- `networkx-generated/cytoscape-cycle-directed-0.json`: nodes: expected 7, got 14; edge "0"->"1" missing
-- `networkx-generated/cytoscape-cycle-directed-1.json`: nodes: expected 7, got 14; edge "0"->"1" missing
-- `networkx-generated/cytoscape-star-0.json`: nodes: expected 9, got 18; edge "0"->"1" missing
-- `networkx-generated/cytoscape-star-1.json`: nodes: expected 9, got 18; edge "0"->"1" missing
-- `networkx-generated/cytoscape-complete-0.json`: nodes: expected 5, got 10; edge "0"->"1" missing
-- `networkx-generated/cytoscape-complete-1.json`: nodes: expected 5, got 10; edge "0"->"1" missing
-- `networkx-generated/cytoscape-gnm-0.json`: nodes: expected 12, got 24; edge "0"->"4" missing
-- `networkx-generated/cytoscape-gnm-1.json`: nodes: expected 12, got 24; edge "0"->"4" missing
-- `networkx-generated/cytoscape-gnm-directed-0.json`: nodes: expected 10, got 20; edge "0"->"1" missing
-- `networkx-generated/cytoscape-gnm-directed-1.json`: nodes: expected 10, got 20; edge "0"->"1" missing
-- `networkx-generated/cytoscape-barabasi-albert-0.json`: nodes: expected 15, got 30; edge "0"->"1" missing
-- `networkx-generated/cytoscape-barabasi-albert-1.json`: nodes: expected 15, got 30; edge "0"->"1" missing
-- `networkx-generated/cytoscape-watts-strogatz-0.json`: nodes: expected 12, got 24; edge "0"->"11" missing
-- `networkx-generated/cytoscape-watts-strogatz-1.json`: nodes: expected 12, got 24; edge "0"->"11" missing
-- `networkx-generated/cytoscape-karate-0.json`: nodes: expected 34, got 68; edge "0"->"1" missing
-- `networkx-generated/cytoscape-karate-1.json`: nodes: expected 34, got 68; edge "0"->"1" missing
-- `networkx-generated/cytoscape-multigraph-0.json`: nodes: expected 5, got 10; edge "1"->"2" missing
-- `networkx-generated/cytoscape-multigraph-1.json`: nodes: expected 5, got 10; edge "1"->"2" missing
-- `networkx-generated/cytoscape-multidigraph-0.json`: nodes: expected 6, got 12; edge "0"->"5" missing
-- `networkx-generated/cytoscape-multidigraph-1.json`: nodes: expected 6, got 12; edge "0"->"5" missing
-
 ### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (2)
 
 - `cytoscape/abcde.json`: edges: expected 7, got 0; node "a" missing
@@ -357,7 +310,7 @@ No known failures.
 
 ### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (1)
 
-- `sigma/clique3.json`: node "6" label: no such column; node "9" label: no such column
+- `sigma/clique3.json`: node "6" role:position: no such column; node "9" role:position: no such column
 
 ### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (1)
 
@@ -365,7 +318,7 @@ No known failures.
 
 ### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (1)
 
-- `networkx/karate.cytoscape.json`: nodes: expected 34, got 68; directed: expected false, got true
+- `networkx/karate.cytoscape.json`: directed: expected false, got true
 
 ### vis x / y not mapped to position (sources.md 8.4 other dialects) (1)
 
@@ -376,24 +329,24 @@ No known failures.
 
 ### APOC JSON exports are not read (sources.md 9.4) (12)
 
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: "all_fields.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: "all_id_as_keys.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: "all_withoutNodeProps_withoutRelProps.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: "multiLabels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: "nodes_without_labels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: "relationship_type_injection.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: "importPointValues.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: "query_nodes.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
 
 ### APOC CSV exports are not read (sources.md 9.4) (3)
 
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
+- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
+- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
+- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
 
 ### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
 
@@ -405,7 +358,7 @@ No known failures.
 
 ### several :ID columns (composite key) rejected (sources.md 9.4) (1)
 
-- `admin/manual-composite-id.csv`: failed: E_NEO4J_HEADER: line 1: a node header has more than one :ID column
+- `admin/manual-composite-id.csv`: failed: E_NEO4J_HEADER: "manual-composite-id.csv" could not be read as neo4j: line 1: a node header has more than one :ID column
 
 ### vector{...} property type not parsed as a list of numbers (sources.md 9.4) (1)
 

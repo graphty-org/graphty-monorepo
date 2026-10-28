@@ -3,8 +3,10 @@
  *
  * `inboxOf` sorts the review server's pull requests into what is waiting for the owner ("ready":
  * images to decide, or decisions not yet finished), what cannot be reviewed ("notReady": a capture
- * that failed, or a capture with a story that failed, with its reason) and two counts (capturing, nothing to decide). The server answers
- * it on GET /api/inbox and keeps it in `<workDir>/state/inbox.json`.
+ * that failed, or a capture with a story that failed, with its reason) and three counts (capturing, nothing to decide,
+ * drafts: a draft pull request is still being worked on, so it is never offered, unless the owner
+ * already Finished part of it). The server answers it on GET /api/inbox and keeps it in
+ * `<workDir>/state/inbox.json`.
  *
  * `coupledGroups` finds the pull requests that change the same baseline files: they conflict when
  * the first of them merges, so the inbox shows them as one group, oldest first, with
@@ -25,8 +27,10 @@ import { promisify } from "node:util";
 
 import { NOT_AFFECTED } from "./results.mjs";
 
+/** A project a local preview of the head is still capturing: not loaded yet, never "nothing to decide". */
+export const PREVIEW_CAPTURING = "local preview still capturing";
 // A project still being captured or downloaded, rather than one whose capture failed.
-const CAPTURING = /^(waiting for CI|CI still running)/;
+const CAPTURING = new RegExp(`^(waiting for CI|CI still running|${PREVIEW_CAPTURING})`);
 // A project the run did not capture at all (no job ran for it, or the pull request does not affect
 // it): nothing to decide.
 const NONE = new Set(["no capture", NOT_AFFECTED]);
@@ -53,22 +57,67 @@ function sourceOf(previews, loaded) {
 }
 
 /**
+ * The "notReady" entry of a pull request whose capture failed, or that has a story whose capture
+ * failed; null when neither.
+ * @param {object} about the pull request's id, number, title, url and head
+ * @param {any} failed the project whose capture failed, if any
+ * @param {any} failedStory the loaded project with a failed story, if any
+ * @returns {object | null} the entry
+ */
+function notReadyEntry(about, failed, failedStory) {
+    if (failed) {
+        return {
+            ...about,
+            project: failed.project,
+            reason: failed.problem.replace(RETRY, ""),
+            retry: RETRY.test(failed.problem),
+            logUrl: failed.logUrl ?? null,
+        };
+    }
+    if (!failedStory) {
+        return null;
+    }
+    const [first, ...more] = failedStory.failed;
+    const story = first.mode ? `${first.id} (${first.mode})` : first.id;
+    return {
+        ...about,
+        project: failedStory.project,
+        story: first.id,
+        reason:
+            `capture failed: ${story}: ${first.reason ?? "no reason given"}` +
+            (more.length > 0 ? ` (and ${more.length} more)` : ""),
+        retry: false,
+        logUrl: failedStory.logUrl ?? null,
+    };
+}
+
+/**
  * Sorts the pull requests the server lists into the inbox.
  * @param {object[]} targets the server's target summaries (GET /api/prs)
  * @param {{ now: number, since?: Map<string, number>, coupling?: Map<string, { paths: string[],
  *     images: string[], packages: string[] | null }> }} at the time, when each ready entry (by
  *     readyKey) entered the ready list before, and what each pull request changes (coupledGroups)
- * @returns {{ ready: object[], notReady: object[], capturing: number, done: number,
+ * @returns {{ ready: object[], notReady: object[], capturing: number, done: number, rejected: number,
+ *     drafts: number,
  *     groups: (ReturnType<typeof coupledGroups>[number] & { states: string[] })[] }} the inbox;
  *     `ready` complete ones first, then fewest undecided images, then longest waiting; `groups`
  *     those with a member listed, with each member's state ("ready", "notReady", "capturing",
- *     "done" or "unknown") in `ids` order
+ *     "done", "rejected", "draft" or "unknown") in `ids` order; `rejected` counts those with nothing
+ *     to decide but rejects an earlier Finish posted, waiting for a fix
  */
 export function inboxOf(targets, { now, since = new Map(), coupling = new Map() }) {
-    const inbox = { ready: [], notReady: [], capturing: 0, done: 0, groups: [] };
+    const inbox = { ready: [], notReady: [], capturing: 0, done: 0, rejected: 0, drafts: 0, groups: [] };
     const state = new Map();
     for (const t of targets) {
         if (t.pr === null || t.local) {
+            continue;
+        }
+        // A draft is still being worked on: nothing in it is ready for the owner, even a capture
+        // CI made before it went back to draft. One the owner already Finished part of (a cut
+        // reviewed on a local preview) still waits for the rest.
+        if (t.draft && !t.projects.some((p) => p.finished > 0)) {
+            state.set(t.id, "draft");
+            inbox.drafts++;
             continue;
         }
         const failed = t.projects.find(
@@ -79,34 +128,17 @@ export function inboxOf(targets, { now, since = new Map(), coupling = new Map() 
         // A story whose capture failed: never sent for review until it is fixed, whatever else waits.
         const failedStory = loaded.find((p) => p.failed?.length > 0);
         const about = { id: t.id, pr: t.pr, title: t.title, url: t.url, headSha: t.headSha };
-        state.set(t.id, failed || failedStory ? "notReady" : "ready");
-        if (failed) {
-            inbox.notReady.push({
-                ...about,
-                project: failed.project,
-                reason: failed.problem.replace(RETRY, ""),
-                retry: RETRY.test(failed.problem),
-                logUrl: failed.logUrl ?? null,
-            });
-        } else if (failedStory) {
-            const [first, ...more] = failedStory.failed;
-            const story = first.mode ? `${first.id} (${first.mode})` : first.id;
-            inbox.notReady.push({
-                ...about,
-                project: failedStory.project,
-                story: first.id,
-                reason:
-                    `capture failed: ${story}: ${first.reason ?? "no reason given"}` +
-                    (more.length > 0 ? ` (and ${more.length} more)` : ""),
-                retry: false,
-                logUrl: failedStory.logUrl ?? null,
-            });
+        const notReady = notReadyEntry(about, failed, failedStory);
+        state.set(t.id, notReady ? "notReady" : "ready");
+        if (notReady) {
+            inbox.notReady.push(notReady);
         } else if (undecided > 0 || t.unpublished > 0) {
             const previews = loaded.filter((p) => p.preview).length;
             const key = readyKey({ pr: t.pr, headSha: t.headSha });
             inbox.ready.push({
                 ...about,
                 undecided,
+                decided: loaded.reduce((n, p) => n + (p.decided ?? 0), 0),
                 unpublished: t.unpublished,
                 loaded: loaded.length,
                 total: t.projects.length,
@@ -117,6 +149,9 @@ export function inboxOf(targets, { now, since = new Map(), coupling = new Map() 
         } else if (loaded.length < t.projects.length) {
             state.set(t.id, "capturing");
             inbox.capturing++;
+        } else if (loaded.some((p) => p.rejected > 0)) {
+            state.set(t.id, "rejected");
+            inbox.rejected++;
         } else {
             state.set(t.id, "done");
             inbox.done++;

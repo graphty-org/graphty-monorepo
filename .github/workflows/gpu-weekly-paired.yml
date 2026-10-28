@@ -29,6 +29,18 @@ jobs:
         # On-demand, like gpu.yml's default (owner decision, 2026-10-08): reclaimed spot runners interrupted T4 jobs,
         # and a paired run cut short throws away its whole hour of ABBA rounds.
         runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
+        # The job runs in an ubuntu:24.04 container, exactly like gpu.yml's T4 job and for the same reason: the
+        # machine.dev host is Ubuntu 22.04, whose libstdc++ lacks the GLIBCXX_3.4.32 that the `webgpu` 0.6.x
+        # dawn.node needs, so on the bare host Dawn does not load and the adapter report fails with E_NO_WEBGPU
+        # (issue #2313, runs 37340409927 and 38281344619). gpu.yml's comments give why each option is load-bearing;
+        # --privileged and --ipc=host are kept so the two T4 jobs run in the same environment.
+        container:
+            image: ubuntu:24.04
+            options: --gpus all --ipc=host --privileged
+            env:
+                NVIDIA_VISIBLE_DEVICES: all
+                NVIDIA_DRIVER_CAPABILITIES: all
+                DEBIAN_FRONTEND: noninteractive
         timeout-minutes: 100 # setup about 5 + the paired step's 85
         env:
             GRAPHTY_GPU_REQUIRE: nvidia
@@ -36,12 +48,29 @@ jobs:
             XDG_RUNTIME_DIR: /tmp
         defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
         steps:
-            - uses: actions/checkout@v4
+            # Before checkout: a bare ubuntu:24.04 has no git. The packages are gpu.yml's bootstrap (see its comment
+            # for each one) plus gh, which the regression-issue step below calls.
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm, gh)
+              working-directory: /
+              run: |
+                  apt-get update
+                  apt-get install -y --no-install-recommends \
+                      ca-certificates curl git gnupg sudo xz-utils gh \
+                      libvulkan1 libegl1 libgl1 libatomic1
+            - uses: actions/checkout@v7
               with: { ref: master, fetch-depth: 0 } # every tag, and the release commit bench-ab.js checks out
-            - name: Driver up
-              run: sudo modprobe nvidia nvidia_uvm || true; nvidia-smi
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - name: Let git use the checkout inside the container
+              working-directory: .
+              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            # No modprobe: a container cannot load host kernel modules, and --gpus all already failed the job at
+            # container creation if the driver were not up.
+            - name: Driver passthrough (fails loudly without the NVIDIA Vulkan ICD)
+              run: |
+                  nvidia-smi
+                  test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
+                    || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               working-directory: .

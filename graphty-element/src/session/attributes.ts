@@ -19,6 +19,8 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
+import { toColorValue } from "./styles/channels";
+import { isNumericText, readInstant } from "./time/parse";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
 /** What one attribute looked like as the walk accumulated it. */
@@ -35,15 +37,48 @@ interface Accumulator {
     max: number;
     /** The first few values, for a form that shows what it is about to filter on. */
     readonly samples: unknown[];
+    /** Whether every value seen so far is text the element reads as a color. */
+    colors: boolean;
+    /** Whether every value seen so far spells the node id of its record (nodes only). */
+    ids: boolean;
+    /** How many values were text that is plainly a date (see {@link isPlainDate}). */
+    dates: number;
+}
+
+/** A month's name or its three-letter abbreviation, as a whole word. */
+const MONTH_NAME = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/i;
+/** A four-digit year, as a whole word. */
+const FOUR_DIGIT_YEAR = /\b\d{4}\b/;
+/** Of a column's values, at least this share must be plain dates for it to measure time. */
+const DATE_SHARE = 0.95;
+
+/**
+ * Whether text is plainly a date, from the text alone: ISO 8601 (a year and month at least, such
+ * as `2026-01`, `2026-01-31` or `2026-01-31T09:30Z`), or a month's name with a four-digit year
+ * that the platform reads (`Mar 9, 2025`, `9 March 2025`). A bare number is never a date: `1995`
+ * could as well be a count, and `1.10` a version.
+ * @param text - the value
+ * @returns true for a date
+ */
+function isPlainDate(text: string): boolean {
+    const trimmed = text.trim();
+    if (trimmed.length < 7 || isNumericText(trimmed)) {
+        return false;
+    }
+
+    if (readInstant(trimmed, "ms").how === "strict") {
+        return true;
+    }
+
+    return MONTH_NAME.test(trimmed) && FOUR_DIGIT_YEAR.test(trimmed) && !Number.isNaN(Date.parse(trimmed));
 }
 
 /**
  * The attribute type of one value.
  *
- * `"time"` is not inferred from a string here. Deciding that "2026-01" is a date and "1.10" is
- * not is a guess, and a guess that turns a version number into a timestamp is worse than no
- * answer at all; the time role arrives from the import plan, which is where a person can correct
- * it.
+ * `"time"` is not a value type: a column of text dates stays text here, and its MEASUREMENT reads
+ * time when nearly all of its values are plain dates (see {@link isPlainDate}), which a bare number
+ * or a version such as "1.10" never is.
  * @param value - the value to classify
  * @returns its attribute type, or null when the value carries no information
  */
@@ -68,15 +103,21 @@ function classify(value: unknown): AttributeType | null {
  * Fold one value into its attribute's accumulator.
  * @param accumulator - the accumulator for this attribute
  * @param value - the value one record carried
+ * @param id - the record's node id, for a node record
  */
-function accumulate(accumulator: Accumulator, value: unknown): void {
+function accumulate(accumulator: Accumulator, value: unknown, id?: string | number): void {
     const type = classify(value);
     if (type === null) {
         return;
     }
 
+    accumulator.ids &&= id !== undefined && String(value) === String(id);
+
     accumulator.present++;
     accumulator.types.add(type);
+    if (typeof value === "string" && isPlainDate(value)) {
+        accumulator.dates++;
+    }
 
     if (typeof value === "number") {
         accumulator.min = Math.min(accumulator.min, value);
@@ -85,6 +126,11 @@ function accumulate(accumulator: Accumulator, value: unknown): void {
 
     if (accumulator.samples.length < ATTRIBUTE_SAMPLE_CAP) {
         accumulator.samples.push(value);
+    }
+
+    // Each distinct value is read as a color once, while the set still holds them all.
+    if (accumulator.colors && !accumulator.unique?.has(value)) {
+        accumulator.colors = typeof value === "string" && toColorValue(value) !== null;
     }
 
     if (accumulator.unique !== null) {
@@ -138,14 +184,22 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
 }
 
 /**
- * What a column's values measure, read from their type alone.
+ * What a column's values measure, read from their type, and for text from whether its values
+ * are plain dates.
  *
  * Never from how many distinct values there are: the same column must not change meaning when
  * next month's file has more rows. Numbers are amounts until someone declares them codes.
  * @param type - the settled type
+ * @param accumulator - what the walk saw, for text that reads as dates
  * @returns the measurement
  */
-function inferMeasurement(type: AttributeType): Measurement {
+function inferMeasurement(type: AttributeType, accumulator?: Accumulator): Measurement {
+    // Text whose values are nearly all plain dates measures time: read from the values, never from
+    // the column's name.
+    if (type === "string" && accumulator !== undefined && accumulator.dates >= DATE_SHARE * accumulator.present) {
+        return "time";
+    }
+
     switch (type) {
         case "number":
         case "integer":
@@ -155,6 +209,18 @@ function inferMeasurement(type: AttributeType): Measurement {
         default:
             return "categorical";
     }
+}
+
+/**
+ * Whether a column reads as years: whole numbers from 1000 to 2999, spanning 500 or less.
+ * ponytail: a range heuristic; a column of amounts from 1200 to 1450 reads as years too.
+ * @param type - the settled type
+ * @param accumulator - what the walk saw
+ * @returns true for a column of years
+ */
+function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
+    const { min, max } = accumulator;
+    return type === "integer" && accumulator.present > 0 && min >= 1000 && max <= 2999 && max - min <= 500;
 }
 
 /**
@@ -180,12 +246,17 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         type,
         ...(accumulator.present === 0
             ? {}
-            : { measurement: inferMeasurement(settled), measurementSource: "inferred" as const }),
+            : { measurement: inferMeasurement(settled, accumulator), measurementSource: "inferred" as const }),
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
+        ...(isYearLike(settled, accumulator) ? { yearLike: true as const } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
+        ...(accumulator.colors && accumulator.present > 0 ? { valuesAreColors: true as const } : {}),
+        ...(kind === "node" && accumulator.ids && total > 0 && accumulator.present === total
+            ? { holdsNodeIds: true as const }
+            : {}),
     } satisfies AttributeDescriptor);
 }
 
@@ -201,6 +272,9 @@ function newAccumulator(): Accumulator {
         min: Number.POSITIVE_INFINITY,
         max: Number.NEGATIVE_INFINITY,
         samples: [],
+        colors: true,
+        ids: true,
+        dates: 0,
     };
 }
 
@@ -226,11 +300,13 @@ export function describeRows(
  * Walk one kind of element and accumulate every attribute its records carry.
  * @param total - how many rows there are
  * @param read - the attribute bag of one row, by index
+ * @param idOf - the node id of one row, by index, when the rows are nodes
  * @returns the accumulators, in the order the keys were first seen
  */
 function walk(
     total: number,
     read: (index: number) => Readonly<Record<string, unknown>> | undefined,
+    idOf?: (index: number) => string | number,
 ): Map<string, Accumulator> {
     const found = new Map<string, Accumulator>();
 
@@ -247,7 +323,7 @@ function walk(
                 found.set(key, accumulator);
             }
 
-            accumulate(accumulator, record[key]);
+            accumulate(accumulator, record[key], idOf?.(index));
         }
     }
 
@@ -273,7 +349,11 @@ export function describeAttributes(
         return Object.freeze([]);
     }
 
-    const nodes = walk(snapshot.nodeCount, (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)));
+    const nodes = walk(
+        snapshot.nodeCount,
+        (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)),
+        (index) => snapshot.ids.idOf(index),
+    );
     const edges = walk(snapshot.edgeCount, (index) => records.edgeAttributes(index));
 
     const described: AttributeDescriptor[] = [];

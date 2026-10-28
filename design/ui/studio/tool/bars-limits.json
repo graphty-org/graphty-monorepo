@@ -1,0 +1,25 @@
+{
+    "about": "Bar 9 (b): the app's words on tier 2's screens, counted by bars.mjs on round 1's frozen build with the data's names (sources, files, tables, columns, nodes) left out; a later build's count may not rise above these",
+    "build": "946256efb876 graphty@0.8.56",
+    "measured": "2026-10-10",
+    "words": {
+        "returning rest screen": 49,
+        "a path run's inspector": 63,
+        "the neighbor list with Hops and Follow": 33,
+        "an edge's inspector": 27
+    },
+    "tier3": {
+        "about": "Bar 9 for tier 3: the app's words at rest on tier 3's screens, counted by bars.mjs --tier 3 --record-limits; a later build's count may not rise above these",
+        "build": "758b8e8081dc graphty@0.8.91",
+        "measured": "2026-10-21",
+        "words": {
+            "a sample just opened": 50,
+            "Everything, Node tab": 47,
+            "a layer with a condition, at rest": 39,
+            "a folder of groups": 56,
+            "two layers picked together": 69,
+            "a layer with four conditions, at rest": 42,
+            "a run's folder, its picker open, a card added to every layer": 99
+        }
+    }
+}

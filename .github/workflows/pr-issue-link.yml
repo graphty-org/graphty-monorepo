@@ -22,17 +22,17 @@ jobs:
         if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
-            # The description goes through an environment variable, never into the script text: it is
-            # attacker-controlled on a fork's pull request.
+            # The description never goes into the script text (it is attacker-controlled on a fork's
+            # pull request) nor into an environment variable (one over 128 KiB stops the runner from
+            # starting the step): the script reads it from the event file, GITHUB_EVENT_PATH.
             - name: Check the description names an issue
               env:
-                  PR_BODY: ${{ github.event.pull_request.body }}
                   PR_AUTHOR: ${{ github.event.pull_request.user.login }}
               run: node tools/pr-issue-link.mjs

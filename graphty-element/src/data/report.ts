@@ -10,6 +10,8 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
+import type { EdgeId } from "../catalog/types";
+import type { LoadStyleReport } from "../session/styles/fileStyles/apply";
 import type { EndpointSpelling } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
 
@@ -88,8 +90,8 @@ export interface ImportReport {
 /**
  * One problem a load met, as facts rather than words: a reader words it from `code` and `params`.
  *
- * `code` is the kind of problem. A reader's own codes are `"parse-error"` (the file breaks off or
- * is not well formed here; what came before is kept), `"validation-error"`, `"missing-value"`,
+ * `code` is the kind of problem. A reader's own codes are `"parse-error"` (a part of the file the
+ * reader could not read and skipped), `"validation-error"`, `"missing-value"`,
  * `"unsupported"`, `"precision"`, `"coercion"` and `"merged"`; `"refused-row"` is a record the
  * graph would not store (no usable node id, or edge endpoints it cannot hold). Codes may be added
  * in a minor release.
@@ -141,12 +143,25 @@ export interface LoadReport extends ImportReport {
     readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
     /**
      * Every problem the load met, in the order met, at most the source's `errorLimit` of them:
-     * the source's own (a GraphML or GEXF file that breaks off, a CSV row it could not read),
-     * then the records the graph refused. Empty for a clean load. A recognisable graph file that
-     * breaks off keeps what was read before the break, and its `"parse-error"` entry carries the
-     * `line` it broke on.
+     * the source's own (a CSV row it could not read, a GML vertex line it skipped), then the
+     * records the graph refused. Empty for a clean load. A GraphML or GEXF file that breaks off is
+     * not here: the load is refused with `E_PARSE_FAILED` and the `line` it broke on.
      */
     readonly errors: readonly LoadError[];
+    /**
+     * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
+     * the layers they made, bottom first, and what reading and translating them met, as codes and
+     * facts. Absent when the load was not asked to read styles.
+     */
+    readonly styles?: LoadStyleReport;
+    /**
+     * The kinds of node the load gave, when its mapping named any (a node table's `kind` column,
+     * an edge table's `sourceKind` or `targetKind`). `sharedIds` is how many id values appear under
+     * two or more kinds -- one node each under `LoadChoices.kindIds` `"shared"`, one per kind under
+     * `"scoped"` -- and `byKind` how many distinct id values each kind holds, the same under either
+     * choice. Absent when the mapping names no kind.
+     */
+    readonly kinds?: { readonly sharedIds: number; readonly byKind: Readonly<Record<string, number>> };
 }
 
 /**
@@ -194,6 +209,12 @@ export interface ImportTally {
     readonly errors: LoadError[];
     /** How many of them the report keeps: the source's error limit. */
     errorLimit: number;
+    /** The id each edge record became, in record order; null for a record that made no edge of its own. */
+    readonly edgeIds: (EdgeId | null)[];
+    /** The node rows a repeated id kept out, with the id, for `session.data.issues()`. */
+    readonly droppedRows: { readonly id: string | number; readonly record: Readonly<Record<string, unknown>> }[];
+    /** The rows refused for an id or an end the store would not take, for `session.data.issues()`. */
+    readonly refusedRows: { readonly rowsAre: "nodes" | "edges"; readonly record: Readonly<Record<string, unknown>> }[];
 }
 
 /** The error limit a data source has when none is configured, and so of a load with no source. */
@@ -224,6 +245,9 @@ export function newImportTally(): ImportTally {
         duplicateIds: new Set(),
         errors: [],
         errorLimit: DEFAULT_ERROR_LIMIT,
+        edgeIds: [],
+        droppedRows: [],
+        refusedRows: [],
     };
 }
 

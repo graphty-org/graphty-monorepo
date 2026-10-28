@@ -131,7 +131,7 @@ describe("text is drawn over the edges of the graph", () => {
      */
     async function redAcrossLabel(
         label: () => RichTextLabel | undefined,
-    ): Promise<{ inside: number; outside: number }> {
+    ): Promise<{ inside: number; outside: number; band: { inside: number; outside: number } }> {
         const pixels = await readFrame();
         const mesh = label()?.labelMesh;
         assert.isOk(mesh, "the text under test was drawn");
@@ -155,23 +155,31 @@ describe("text is drawn over the edges of the graph", () => {
 
         let inside = 0;
         let outside = 0;
+        const band = { inside: 0, outside: 0 };
         for (let y = row - BAND; y <= row + BAND; y++) {
             for (let x = 0; x < width; x++) {
                 const at = (y * width + x) * 4;
                 const red = pixels[at] > 150 && pixels[at + 1] < 90 && pixels[at + 2] < 90;
-                if (!red) {
-                    continue;
-                }
-
-                if (x >= left && x <= right) {
-                    inside++;
-                } else {
-                    outside++;
+                // The default selection colour, #0077BB: blue well above red.
+                const blue = pixels[at + 2] > 130 && pixels[at + 2] > pixels[at + 1] + 40 && pixels[at] < 60;
+                const within = x >= left && x <= right;
+                if (red) {
+                    if (within) {
+                        inside++;
+                    } else {
+                        outside++;
+                    }
+                } else if (blue) {
+                    if (within) {
+                        band.inside++;
+                    } else {
+                        band.outside++;
+                    }
                 }
             }
         }
 
-        return { inside, outside };
+        return { inside, outside, band };
     }
 
     // A label is part of the scene and sorts by depth like a node or an edge: an edge nearer the
@@ -187,6 +195,116 @@ describe("text is drawn over the edges of the graph", () => {
         const { inside, outside } = await redAcrossLabel(() => graph.getNode("alpha")?.label);
         assert.isAbove(outside, 20, "the edge is drawn on this row beside the label");
         assert.isAbove(inside, 20, `only ${String(inside)} pixels of the nearer edge cross the label`);
+    });
+
+    // A reader who wants every name whole asks for it: `onTop` lifts a label over the graph the
+    // way a tooltip is lifted, and the default above stays depth sorted.
+    it("draws a node's label over an edge in front of it when its style sets onTop", async () => {
+        await graph.getSession().styles.add({
+            name: "a label on top",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.label": WORDS, "node.labelStyle": { ...LABEL_STYLE, onTop: true } },
+        });
+
+        const { inside, outside } = await redAcrossLabel(() => graph.getNode("alpha")?.label);
+        assert.isAbove(outside, 20, "the edge is drawn on this row beside the label");
+        assert.strictEqual(inside, 0, `${String(inside)} pixels of the edge were drawn over the label's words`);
+    });
+
+    // A selected edge wears a band in the selection colour on both sides of its line. The band is
+    // part of the graph, so a label set on top is drawn over it too.
+    it("draws a node's label set on top over a selected edge's band", async () => {
+        await graph.getSession().styles.add({
+            name: "a label on top",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.label": WORDS, "node.labelStyle": { ...LABEL_STYLE, onTop: true } },
+        });
+        const edge = [...graph.getDataManager().edges.values()][0];
+        await graph.select({ edges: [edge.id] });
+
+        const { inside, outside, band } = await redAcrossLabel(() => graph.getNode("alpha")?.label);
+        assert.isAbove(outside, 20, "the edge is drawn on this row beside the label");
+        assert.isAbove(band.outside, 20, "the selection band is drawn on this row beside the label");
+        assert.strictEqual(inside, 0, `${String(inside)} pixels of the edge were drawn over the label's words`);
+        assert.strictEqual(band.inside, 0, `${String(band.inside)} pixels of the band were drawn over the label`);
+    });
+
+    // A selected node wears a gold ring just outside its silhouette, drawn after the graph. A label
+    // is drawn after that ring, so the ring never cuts across a name -- set on top or not.
+    for (const onTop of [false, true]) {
+        it(`draws a selected node's label over its selection ring${onTop ? " when set on top" : ""}`, async () => {
+            await graph.getSession().styles.add({
+                name: "a label over its node",
+                selector: { match: "ids", nodes: ["alpha"] },
+                // One letter, not WORDS: a label keeps clear of its node's ring (e0bf7c63eb), so a
+                // centred label hangs nearer the camera and is drawn larger, and three letters
+                // covered the whole ring. One leaves the ring showing on both sides of it.
+                set: { "node.label": "W", "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
+            });
+            await graph.select({ nodes: ["alpha"] });
+
+            const pixels = await readFrame();
+            const mesh = graph.getNode("alpha")?.label?.labelMesh;
+            assert.isOk(mesh, "the label was drawn");
+            mesh.computeWorldMatrix(true);
+            const box = mesh.getBoundingInfo().boundingBox;
+            const a = projected(box.minimumWorld);
+            const b = projected(box.maximumWorld);
+            const width = graph.engine.getRenderWidth();
+            // The ring is the selection halo, gold at the halo's opacity (0.4 by default) over the
+            // background: 249, 233, 147 on whitesmoke, and solid gold when the halo is opaque.
+            // Neither the label's green and white nor the red edge passes.
+            const isGold = (at: number): boolean =>
+                pixels[at] > 180 &&
+                pixels[at + 1] > 140 &&
+                pixels[at] - pixels[at + 2] > 60 &&
+                pixels[at + 1] - pixels[at + 2] > 40;
+
+            const node = projected(new Vector3(0, -2, 0));
+            let ring = 0;
+            for (let x = node.x - 80; x <= node.x + 80; x++) {
+                ring += isGold((node.y * width + x) * 4) ? 1 : 0;
+            }
+            assert.isAbove(ring, 0, "the selected node wears its ring on this row");
+
+            let inside = 0;
+            for (let y = Math.min(a.y, b.y) + INSET; y <= Math.max(a.y, b.y) - INSET; y++) {
+                for (let x = Math.min(a.x, b.x) + INSET; x <= Math.max(a.x, b.x) - INSET; x++) {
+                    inside += isGold((y * width + x) * 4) ? 1 : 0;
+                }
+            }
+            assert.strictEqual(inside, 0, `${String(inside)} pixels of the selection ring were drawn over the label`);
+        });
+    }
+
+    it("lifts an edge's label over the graph only when its style sets onTop", async () => {
+        const session = graph.getSession();
+        await session.styles.add({
+            name: "edge words",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.label": "E" },
+        });
+        await graph.waitForStableFrame();
+        const edge = [...graph.getDataManager().edges.values()][0];
+        assert.strictEqual(
+            edge.label?.labelMesh?.renderingGroupId,
+            1,
+            "an edge label is drawn after the graph's outlines, depth sorted, by default",
+        );
+
+        await session.styles.add({
+            name: "edge words on top",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.labelStyle": { onTop: true } },
+        });
+        await graph.waitForStableFrame();
+        assert.strictEqual(
+            edge.label?.labelMesh?.renderingGroupId,
+            2,
+            "onTop draws the edge label in the group over the graph",
+        );
     });
 
     it("draws a node's tooltip over an edge that passes in front of it", async () => {

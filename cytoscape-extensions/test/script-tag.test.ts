@@ -40,7 +40,7 @@ function load(withCytoscape: boolean): unknown {
 }
 
 describe("the script-tag bundle", () => {
-    it("is one file that loads only the file formats and the datasets later, from dist/cdn/", () => {
+    it("is one file that loads only the file formats later, from dist/cdn/", () => {
         expect(code).not.toMatch(/\bimport\s*\(\s*["'`]|^\s*import\s|^\s*export\s/m);
         // its one dynamic import is the loader, which resolves against the script's own URL
         expect(code.match(/\bimport\(/g)).toHaveLength(1);
@@ -77,8 +77,15 @@ describe("the script-tag bundle", () => {
         // the test above registered the bundle onto cytoscape (a second registration only warns)
         const cy = cytoscape({ headless: true });
         // Node has no document.currentScript, as a bundle loaded by eval or a module loader has none
-        await expect(cy.graphtyDataset("karate")).rejects.toThrow(/dist\/cdn\/cytoscape-extensions\.js/);
+        await expect(cy.graphtyImport("a,b\n", "csv")).rejects.toThrow(/dist\/cdn\/cytoscape-extensions\.js/);
         await expect(cy.graphtyExport("graphml")).rejects.toThrow(/not loaded by a <script src> tag/);
+    });
+
+    it("downloads a dataset without dist/cdn/", async () => {
+        // test/setup/local-datasets.mjs answers graphty.app's dataset URLs from graph-samples' build
+        const cy = cytoscape({ headless: true });
+        await cy.graphtyDataset("karate");
+        expect(cy.nodes()).toHaveLength(34);
     });
 
     it("leaves registration to the page when Cytoscape is not loaded yet", () => {

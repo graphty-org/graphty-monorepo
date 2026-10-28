@@ -1,0 +1,1314 @@
+{
+  "version": 2,
+  "pr": 2108,
+  "subject": {
+    "builtMerge": "daaa270878f825dc10c727950628ae9d42b860da",
+    "head": "eb35f8fc27ad9c6710c90b956cca0396990e1adb",
+    "runId": 38203876816,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "daaa270878f825dc10c727950628ae9d42b860da"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--centrality.png",
+      "from": "f06dbe864d1e1bca851d103f6117c26cf529216dfb63f7e164b1f89a4251b5be",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--communities.png",
+      "from": "45f1e8becf950eceec9acc1ee9babb7a01e103803d54141d62d4581676c29093",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--flows-and-cuts.png",
+      "from": "b3065c8ad8b7e5d598f7dd64c1f45db3265342656035e02b0c0d3573319c1367",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--link-prediction.png",
+      "from": "fb961e3458c697e58be9db9759b847d31350a4018e08a6ca032c6bf4b0381158",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--paths-and-trees-2000-nodes.png",
+      "from": "6a0396404de2441cface51d1602f5bd2d42046fcc61d72bcdc82d1db9ce574c2",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--paths-and-trees.png",
+      "from": "ed6b8f3dd3f9621822247dfff288c29fd6a20b16d857eb3553231e7268c39268",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--structure.png",
+      "from": "a5716a900188764d4901f5c5f4a7a3072d327c3320e955e9bb5ff012fed15ccf",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--dataset-football.png",
+      "from": "4f3563fb0a4e83c7d9ddb82fbfdcd1e19519e78c43b6ba2666f1b16ee66970ab",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--dataset.png",
+      "from": "6583969f62e8f494eff202d1c612b9f37bea09dad1da6543b82c70fec9670ed9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--export-and-import-gexf.png",
+      "from": "e99fbfba2ad7d4efbe0c6ea1088852553d111bc060dbc2aee55ff7ebf9b88506",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--export-and-import.png",
+      "from": "ea31f33cb24766ef7d9d8b2abff251ccc97bf7f716edbe9f28e1618ac169af3f",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--generate.png",
+      "from": "22e17898118e638fdfe806850fe934cedc135d485233454f2995f789425c3da9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--circular-watts-strogatz-2000-nodes.png",
+      "from": "410162ff96335743b04bec1443480cd67e6848bcbc8ed149f6e2d82ed4848c28",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--force-atlas-2-at-2000-nodes.png",
+      "from": "9ba5885596847231eedba4ebc0a9cd780ba029f39ab77b0db4218f8aa35cb7ed",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--force-simulations.png",
+      "from": "faa26ddfe7e1f2eb7f8c54aff91d4a8697b27da1408c49467a14f24a7ae5c22f",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--fruchterman-reingold.png",
+      "from": "04f3ef68c3995c1337ada3e830bd92862144e9b4a3ca14a3c07d5a0639c2edd0",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--static-layouts.png",
+      "from": "8daa9a47d199d267922c53a4b4d3e127f1337d7d85d5b6a3f8f952d707e258fc",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--centrality.png",
+      "from": "d4fdde99431c830a565d65bc8d545df6931aae340a8e9e669beab176aee75c7e",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--communities.png",
+      "from": "e9ed9b846d2d618c52e20b74aeac8ee2f9d80d68ef7615f0bb90958f8bbb3ee1",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--datasets.png",
+      "from": "ea8e49ba5dbc0534bf6e5f2f1982ea6cdd8ee5ec62d6bd12e1d07139675629f2",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--flows-and-cuts.png",
+      "from": "18002f4a71c1f5440e73289843e1bf59d3a248e4778d5ac351e3b2f0f712b3a9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--formats.png",
+      "from": "805c7c8e8de0213861c360770dd052c5945ee029666aa19219f4138946239f29",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--generators.png",
+      "from": "8b00f59d960c2775d15b6029d1a52f57c9897d63ea34ebd655ddd6a2f696e59d",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--layouts.png",
+      "from": "f30e16f13108370e9b966cd7e7b70e6742a51356f45a0e452a26c17be5e93fab",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--link-prediction.png",
+      "from": "372cb2860c48ac38846928d7ddc5c71e932e946d4a25bb7d1ab8ff1355aa28e6",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--paths-and-trees.png",
+      "from": "7d06fbc9070c3280b27b18fe0c25f66dd1f3f24742585100dc11f4bcf5d224f6",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--structure.png",
+      "from": "c27daa3f7c5dff6cfc6232432717439e8a73cd29905a5fe50b00b2eef7eaa7be",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--betweenness-centrality.png",
+      "from": null,
+      "to": "7c3e343d4979ec14d9d6f5555225707d585c9a94aa51193700ad3f96521d9135",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--closeness-centrality.png",
+      "from": null,
+      "to": "e0168c7d34f44d959f4b8f6235b4d2085fdc2320f88b4cce8c86f8e492d173ec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degree-centrality.png",
+      "from": null,
+      "to": "5471b19b429723404a1c29ca9c53f3d18af960d8ac7a878c9fa5ae94329fef09",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degrees.png",
+      "from": null,
+      "to": "57971b66d2581ed058d20dcd6084b3f5d8e8c7b1bde9f7a9d88bedc9180b4030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--delta-page-rank.png",
+      "from": null,
+      "to": "fc18d36d0d4d76c3c9b7c0e1686aa152e2b6d825d370193ef81faca2908d0948",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--edge-betweenness-centrality.png",
+      "from": null,
+      "to": "120d5487efebad167a945c7b513fa7fb1e519960ca42c1907a48178539644cfb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--eigenvector-centrality.png",
+      "from": null,
+      "to": "14cddde525e4cf3f5120b3e648a630ffcdd4585893f95b0efe27ba76477f4657",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--hits.png",
+      "from": null,
+      "to": "98c523462bb8993ffb467867d7d2ba169cb9cc67b0bec5526e31f125dec02917",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--k-core-decomposition.png",
+      "from": null,
+      "to": "c289cf22289008d0180be7dc8ce4769cb977c650baac2cad4dc0943d57cc3e87",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--katz-centrality.png",
+      "from": null,
+      "to": "99757c979caee24877a7ddc1561150f81507c253a66585eb6d892845b2b2fa5c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--node-closeness-centrality.png",
+      "from": null,
+      "to": "78463b71dfe5bf594008bc6e0b54364b2b754f98a580216a458b80d95805c8f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--overview.png",
+      "from": null,
+      "to": "addecfba58a885f94cf0b7c965ebd680e95230a16908c38e4f0d014cbb901961",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--page-rank.png",
+      "from": null,
+      "to": "e23b7ceba9eb18e3c2fedbe0198e1700ec5abafbe125319c34adeb3fd27ccea6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--personalized-page-rank.png",
+      "from": null,
+      "to": "26fd57871e68d6d73664cb2f4fa00c4b5ce00dd2eb60f335a59e41c18ca7674b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--triangle-count.png",
+      "from": null,
+      "to": "49d6925b2b08b285db68dc820a38338b7efa523085198eee087c8c698446d8b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--connected-components.png",
+      "from": null,
+      "to": "dc1f181816ab6bf7bbaf0b745ea3f0676f9d8da232fe87fccda79b1927194f75",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--girvan-newman.png",
+      "from": null,
+      "to": "f5e4b10a1c01f812f443656159b6f1f1252666b9394f6ed510673dfc2b9bf6b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--grsbm.png",
+      "from": null,
+      "to": "fd8483fa8bc903164f33ffcdf9394ad178d0507fcd48ccefda2e3506a80b7b9c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--hierarchical-clustering.png",
+      "from": null,
+      "to": "3b00e54bbdbda1d3fbcd851dc2ee541947a2412ee7593bed447526b5cfb64df7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-semi-supervised.png",
+      "from": null,
+      "to": "9336072eb8f8c09635f6dd9fc7487729a3a773a62fa45fe42cf3182e64adb099",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-synchronous.png",
+      "from": null,
+      "to": "04574dc93785dcc87ca68c7c7a24175a34a955c524beb504249d1ae5479fd777",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation.png",
+      "from": null,
+      "to": "43b2269020367519728e5ddf6c74e009d4ab558c5a073ea1408d5369f784543e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--leiden.png",
+      "from": null,
+      "to": "ac53b10bdca5a3b68cb77e5e097928b9dca045e04de1b8d8e346cd201b192671",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--louvain.png",
+      "from": null,
+      "to": "419f90aa5cc150c38fee508c8beba05179d85c54e32d3aafdd947ccaad833229",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--markov-clustering.png",
+      "from": null,
+      "to": "322fbd66a80d9ba477a94e556bcd2353856c1dfd7f8f1b16ccf3f3f8facf9d34",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--modularity.png",
+      "from": null,
+      "to": "f9da94cd51b886a2ffdd8b52f86dd5966bb138968b7ea8f42bc94950efd8e825",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--overview.png",
+      "from": null,
+      "to": "1c044c498f2df68d8989d9e10fe453573faba60982ee444e7258e7a059d1af50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--spectral-clustering.png",
+      "from": null,
+      "to": "1f78cbf6b9edfd3bf962f660a16562555008db075c469395c5617a4d034fa2bc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--sync-clustering.png",
+      "from": null,
+      "to": "6b32c61ec3ee019a5938ed4fd417772bc8485eb19908db07269cbfe2f3d5c458",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--tera-hac.png",
+      "from": null,
+      "to": "605a07c122e4b7a0735b66181d0643af1e4e93463d9535d2233a51ce9b2bbf92",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--celegans-neural.png",
+      "from": null,
+      "to": "284d63f7faa31788153445fa6f4edb7f1071752a76d9eb9ef8e8939e898a009c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--contiguous-usa.png",
+      "from": null,
+      "to": "c6af3e8021b8a4a0966d73834ac09bdc562e9d2261e13935a4a0966dd871ecc3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--davis-southern-women.png",
+      "from": null,
+      "to": "4fd101b2d5964de956f5b515d73f6891d52ffc1d44d6c4404ab971377319ccbc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--dolphins.png",
+      "from": null,
+      "to": "3381670b33cfdba2ca2fdb681a83613d4d8625d46eed6dc632cd53ab00d273f8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--florentine-families.png",
+      "from": null,
+      "to": "732eac76b52987d348986a954c3dbbd85f4a8975fe724f23dc838291f0381d97",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--football.png",
+      "from": null,
+      "to": "367397cb3b8862c7a24e9aaf182868b29b76c59b31ec37b27c876a1806afadd8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--go-slim-generic.png",
+      "from": null,
+      "to": "6ccbfe8ea521736ddbc09f05853a3f73efb348b561630ba39ef59cc52ea82968",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--karate.png",
+      "from": null,
+      "to": "1d1a2164c0864d45a3c8a307c8ad306c9091d6755b62d0ac75b76efb3e3bc066",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--knuth-miles.png",
+      "from": null,
+      "to": "dbda34419606a20a09f43668d24346649d7f8ef1e5cb85b476d7f593ba4c6488",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--les-miserables.png",
+      "from": null,
+      "to": "7c18311b26accb7a0c6f126299c517df71ae1c4aa3b2879b6f9667b8d60af6f4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--openflights.png",
+      "from": null,
+      "to": "a97106b769e891dad3235127abb20484905ccbf8c02ccbd299aa27473b3af335",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--overview.png",
+      "from": null,
+      "to": "a6dd8e478276e737c4ec0262d308ec85851b2c008d9d9db54b74a22f969ad768",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-blogs.png",
+      "from": null,
+      "to": "0d0862adf0289ede5b0240e4faa477c573a38436f9aba8748bef46848ec2cce5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-books.png",
+      "from": null,
+      "to": "f4e7358548d0b55d5957068e743652463ad9c72f06c3ecad2305e0b65732febf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--stelzl-interactome.png",
+      "from": null,
+      "to": "5ccdcdc9941ef60e57a0c8d68608ec66963888261817b010a0289f6185ee53ad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--wikipathways-senescence-autophagy.png",
+      "from": null,
+      "to": "c2c3e1684ce1370d7524c6f09259a1ba6fd978a3241741b5efd2f798d08e25df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--yeast-perturbation.png",
+      "from": null,
+      "to": "b4f6b5856693976c6c31418cd57a88687e04b9aa4c2f1c49ed3e2775e96098c0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--karger-min-cut.png",
+      "from": null,
+      "to": "7eb5ebd7174ebabfa460a06fc628f919f4858836477f97afb47fdcfbf5c93527",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--max-flow.png",
+      "from": null,
+      "to": "4a246415d719830e4b6960ad1115e9d5892a67de67c439479e9c8fd01af9528d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--min-st-cut.png",
+      "from": null,
+      "to": "72b76af474564aec7d6551d8bebc10579fc0cdf66467153b962cbe926293bdc9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--overview.png",
+      "from": null,
+      "to": "5d9749092b3907448aee34530caa916eabad56f2b3309d2ed24839f950488549",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--stoer-wagner.png",
+      "from": null,
+      "to": "0e2f305781df73ec66fc93a642027e2099070a9878a03696a111db5aacc2ff0d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--auto.png",
+      "from": null,
+      "to": "d7f5eb4cfe9a0e99ff010fa414c277057eca245894bed65b0d13252d72a5a83a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--csv.png",
+      "from": null,
+      "to": "fcfd89e3d155705162da211824792ac6b7faa6c8d3cf5e6cb1aaf2ec84af4fdb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx-2.png",
+      "from": null,
+      "to": "41913aff4f046a38b8879c561ce70dbde29ebabcefd530e788fc3fd0a899b31b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx.png",
+      "from": null,
+      "to": "2a64515343f9ea4bd3cb71b1bcf1af72ce8b5b97d1220a7b17e4cfcb680817f9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cys.png",
+      "from": null,
+      "to": "cf177615085df8fcdccf3843b8a293de4d61e0a98efb5432730e38c1b4f08dba",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--dot.png",
+      "from": null,
+      "to": "f0031d164f65a649b08a88e691a859f596bfcc1e58f731e7e57c1c39f8a06443",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--export.png",
+      "from": null,
+      "to": "b3e268388bb16c8e531457cfcc41b8234cefc9e895116dbbcb60266f26346d6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gexf.png",
+      "from": null,
+      "to": "b6cb97a86d085b6ff36138adc4866a3f49705bb6a9d2b0af082f929c97a45e80",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gml.png",
+      "from": null,
+      "to": "9e44505487b80f0e8710cf41f8d0d206f92f207a0e4b03256d99610d9fd42b71",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--graphml.png",
+      "from": null,
+      "to": "97ea67631e0d67fa4938aec07de953c5bcb9d45384e0d9eb4c47a2e5012fc78e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--json.png",
+      "from": null,
+      "to": "574f2a7eaf984c25fae1f809a0cdc18030931c2092979b780e3a3c96d6695b72",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--neo-4-j.png",
+      "from": null,
+      "to": "0d8845658e958f555f19c6282726c19802b7327d8b9b4528e6912493916cf465",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--obo.png",
+      "from": null,
+      "to": "db98641c8a3e0e4be3788f8bf3f5a49097efd26889d8c23379e1263c56f9942e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--overview.png",
+      "from": null,
+      "to": "72721eedbc9dba2fa1ca8de77a826ec530f946bc00c608d37928f436613a48df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--pajek.png",
+      "from": null,
+      "to": "69d2bb0561882b0f6bbbf06426423714dcef113a7a4e0346f6a86ad8c5cfdd6a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--xgmml.png",
+      "from": null,
+      "to": "55dcbefc578214777e6f9f1013d4c2760426905022235950fafd1133399945ac",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ak.png",
+      "from": null,
+      "to": "7d5233d7953492570409698f517d7c843dd045e140538cf1b23de04475dbf72c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--balanced-tree.png",
+      "from": null,
+      "to": "cfed0f11183c389c1ffd2dcc91802b5c79718837e48970492d9da71f7538774a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barabasi-albert.png",
+      "from": null,
+      "to": "745ae674a3d9a5e262f670a4b6e05f8ce5aa05dc9576da3e68d39fa307f455a5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barbell.png",
+      "from": null,
+      "to": "8371016b1610a86ae00ac46c8bd6fbca2aeadd006d9514672a70c482d0cfe4b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bianconi-barabasi.png",
+      "from": null,
+      "to": "cdfe8d3a9f1dda3b91bb550ad2f6c1af7b3aad0f5c6e7ca953e9035c4f4e8a8e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bipartite-configuration-model.png",
+      "from": null,
+      "to": "dea9854c39cc54fe96d34cc3b9eaeaeffb91dfad0fdc76547ce63b3cabc167d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--caveman.png",
+      "from": null,
+      "to": "06c8a702b4302298e08a88033d3a90560efb7de46fe4c4ed06e13ef663a8eb81",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--chung-lu.png",
+      "from": null,
+      "to": "3a470a6c80887391f1b843e6ff5ef08765701cf5dbd91a3a115a9392c1b6efaa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--circular-ladder.png",
+      "from": null,
+      "to": "96316cc131d9c3acbb6ea0a4ecbba394e45340f0be45d26f9a8d58e5fdbf1bee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-bipartite.png",
+      "from": null,
+      "to": "199b25858eccd0f9e32a83cca2f7df7ac54e8501be9e5349fc831b8e7ad15f30",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-multipartite.png",
+      "from": null,
+      "to": "7d967d91981254b2cac5b5a58559b879f8014c64f756e559193c9b2f043f8740",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete.png",
+      "from": null,
+      "to": "0b98a08d0d2d1e0c83dde1b7c109dd977fd0cc025ee863f9772c270127aef6d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--configuration-model.png",
+      "from": null,
+      "to": "4a4737a5a2378c9c9c9151b334f7f8676440d8fe54644faac9bbf373352b88bd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--connected-caveman.png",
+      "from": null,
+      "to": "a07efe1485b444972e4cfdc3e74768e8f14afeaa7045bc1ce1dccc8a7907551f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--cycle.png",
+      "from": null,
+      "to": "56a401955a941fed4376f01a9a573e92da888987a839d8cbcdaec64d41370cd7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--degree-corrected-sbm.png",
+      "from": null,
+      "to": "c25b29c81cdb5c81615053fc6027abb5cc1472f6bbdd82c9532dd75fcbe44642",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--directed-configuration-model.png",
+      "from": null,
+      "to": "e398c4d368e38417327219e9f9efe8d0746890031c429c52e5c9f8cd9adb1087",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--duplication-divergence.png",
+      "from": null,
+      "to": "9fa2f63f795ccb01c77f1569ec82bedcfcf53518d0318c0838a4ced127a12e39",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--empty.png",
+      "from": null,
+      "to": "0cf7920cfaf35304a2d4dc76419d57669ca8000d3de8da63d12d41f3ec68c2c1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi-gnm.png",
+      "from": null,
+      "to": "8bb81b900b1451f5b3a73118063bb96b960270219c5dc4fafb86e0b4e938cec1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi.png",
+      "from": null,
+      "to": "e245a21ce85dfb5a7ec603a71f5a425ead35e2681ad6ba132f89f9f97ed47719",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--forest-fire.png",
+      "from": null,
+      "to": "95684396462ce2be0161980ea2fe0e99614e7c321d4462775eb46ef6b13457b9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--genrmf.png",
+      "from": null,
+      "to": "4f7a3768904bec046865d46e64de2e24417420d797085f2c72fbea1233459ff0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-3-d.png",
+      "from": null,
+      "to": "44182379f84230b18a49fb2837d35c36840f07d866eeac822dd4af96eb0daf37",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-flow-network.png",
+      "from": null,
+      "to": "7a4124eaece9c609625d3fe0f5a92c3ddb97bdd23eaa7d9cc11a5ccf4fbeb838",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid.png",
+      "from": null,
+      "to": "f9feae1ff8dab3f1f60933dda75546043cdb9745f43d4ab51c7df1e7f1e94334",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hexagonal-lattice.png",
+      "from": null,
+      "to": "62677d96b5798afaa245b65c42865f1c9266901074af55fc4c1b0f547d7eac46",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hyperbolic.png",
+      "from": null,
+      "to": "bcd38fa92887385acfb20d4f51360395df8f2e13fb02bca2a5384b99e57284e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hypercube.png",
+      "from": null,
+      "to": "e121b58c5ad5cbbc6a467a2861d6470d0ef9de3dfde3096b6f3f43778d6fff32",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--knn.png",
+      "from": null,
+      "to": "da4c80fc7e8f5d4c18d0e2ff4ee3bee4b890924ebf2a96be67ec4b3927f4d9f8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--kronecker.png",
+      "from": null,
+      "to": "d53c843a3ae310957165d93018de536279b432a6ef65fa25e160b318b15d8089",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ladder.png",
+      "from": null,
+      "to": "4b00d85cf1a113a7b59a93b7b473895fd6725297751e82a98caff656f188302d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--layered-flow-network.png",
+      "from": null,
+      "to": "b8cbe4d1380c8ca5e1abb147677f450248310305ba807754e1e8dfeb1e581670",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lfr.png",
+      "from": null,
+      "to": "38bce97e42c8dc0c6622082135ff30ce89cf8475741acfa76a92f7f45b52f1c5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lollipop.png",
+      "from": null,
+      "to": "bb9d08a4333fa279a399710070f7a8177387a95b8ba22f591d90f9be2d1a8660",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--mobius-ladder.png",
+      "from": null,
+      "to": "d48566ac21067821174bf15643794ecd39b365982a6fa0d80280335a50882c58",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--named.png",
+      "from": null,
+      "to": "652b7d54f573032514c8af94b299a20a53a655803b4bf48897fb83fc600ca34c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--newman-watts.png",
+      "from": null,
+      "to": "8890a7253e4da45c560f75f262940eff96a440b9ead70968d89dd2b8d2337185",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--overview.png",
+      "from": null,
+      "to": "fdfbd36fc17616c084f2cd7f60ce8ca590251e331fe48f3a5edcc586af5112fe",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--path.png",
+      "from": null,
+      "to": "d0216e848649b4f38db48e61a747315bb8ed93d5f01fe41fdbba436f55c5a398",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--petersen.png",
+      "from": null,
+      "to": "dd149854d2143ba80a9c3bb30f39c7ea5a44f3309a406a03b0e0c6585654ef05",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--planted-partition.png",
+      "from": null,
+      "to": "d047c7cbbcc2062fb4359a975e3bba1b6d4ee2b1694247773630a75827da8f17",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--price.png",
+      "from": null,
+      "to": "53c335616fbda74afa7bf904312e60070d2e0de2ce92013fa718249ed4262589",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-apollonian.png",
+      "from": null,
+      "to": "c1eab89f9032f7807ae4ca29de25fe52e9a12d1bcfc21316abf87a5b0b2ec8c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-bipartite.png",
+      "from": null,
+      "to": "b23f5953177910cf193360c53e66aa4ad5a2dd43430e9d381b2d0a7de61ba88c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-dag.png",
+      "from": null,
+      "to": "b7e34fb42c1d04f0bee8b366b2d53f8b8294aed75cfe951bcb17e77b50516355",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-geometric.png",
+      "from": null,
+      "to": "3bac4d3b52584cdd2e5b4d68f067e67c4df3d35a44a075268e7e34823fac25dd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-order-dag.png",
+      "from": null,
+      "to": "9ec03257907b27082512a335529c0fe84ab8cd3ea2f54ec26280b1100e301a7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-recursive-tree.png",
+      "from": null,
+      "to": "3302d2d2054edd0768d578116775954722ca8c378cb5be2f00bdc9d85818d36a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-regular.png",
+      "from": null,
+      "to": "01214959c6ea0cad4836dfc3e303005bcca4d186bcd2c9f693eea82875c51ff5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-tree.png",
+      "from": null,
+      "to": "040a7849cfd608640da4800b037dc1b73156ad1fbf5e4c317965ed33df9c21d2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ring-of-cliques.png",
+      "from": null,
+      "to": "fb0fc07f763489aef7a182f36ce18ba57f761e692296e39df1e8db645dbbef03",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--rmat.png",
+      "from": null,
+      "to": "7ef4de1a68314c809c7a606cbe605894936291d2da9b4afb3f6540c1ea25b72a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--star.png",
+      "from": null,
+      "to": "ffb9fd9cd6f67406a863a7d97121ccef97038adbf3586fcfe2fb55ed1820c220",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--stochastic-block-model.png",
+      "from": null,
+      "to": "190dba3187cd6beafdeb44e643d9959fbd8f2c1d94b992071a2db6b97c1e6886",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--triangular-lattice.png",
+      "from": null,
+      "to": "41eefc62b51b60e12b415406a29a5973a34e42946ba8ae6772ba2a56313f7a3b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--watts-strogatz.png",
+      "from": null,
+      "to": "734a7bbd07b35701c65bb68af7c43a45b066b418944a223a909c1e66c1f8e789",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--waxman.png",
+      "from": null,
+      "to": "6804bc233c4af6f67e39dd4841c980c6418edecd7f8a059febb77b62101d05ea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wheel.png",
+      "from": null,
+      "to": "6ae45cac715f5768051bcc37d2884d75566a7094a0d4a036cfc994e493918eb1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wilson-maze.png",
+      "from": null,
+      "to": "aeabf2df39e0381efc7ae626f89cc1c1de846a2cc2ebe7e1086d88d89ecdf7c9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--arf.png",
+      "from": null,
+      "to": "0e536ac5fa8d66547d367e160d7d1f0c7eddbbe9cfaa55d4538ee64b28275185",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bfs.png",
+      "from": null,
+      "to": "4799628aca7d4ea33e07e16d9e06e048fca1adaf34e8536f24cbb7d1370df741",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bipartite.png",
+      "from": null,
+      "to": "a8ad14bf1d80e8f221fae1fa03ff7cef299c0fbb6e96c452c408f11e4ab4569a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--circular.png",
+      "from": null,
+      "to": "1577e2706f0ad62ce6d9a81540906b8414bdf1410748e7c85cb43decbbfa7a7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--force-atlas-2.png",
+      "from": null,
+      "to": "5f5025e81f4320add6c932b121eb39b99635eec63ca9f33bbd12b616736f1093",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--fruchterman-reingold.png",
+      "from": null,
+      "to": "23fd0f744d27c8379a25176f0ebae76817275c96699b107fa1706de61aa53863",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--grid.png",
+      "from": null,
+      "to": "a21bcf6d18d1e1aa2bab4161d7eb9b6dc42772f712a83c5cc315fca71604aa0f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--kamada-kawai.png",
+      "from": null,
+      "to": "f26ae39ed9e684471f610cb9a1350bb52938db4a6ab25e68e87cc7c8ec7207d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--multipartite.png",
+      "from": null,
+      "to": "f6a97bed87ede112decd41647df84e73c20cc6dfd13d2c81416a6b92405ca096",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--overview.png",
+      "from": null,
+      "to": "841e289f71d0733265fe83c851ddee97a918851b644b4b95637732f6afe3293b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--planar.png",
+      "from": null,
+      "to": "d3acd6e381f71d96edd9fa3c6318bda52d4e8ae23bb435e7eee3455e176f059b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--radial.png",
+      "from": null,
+      "to": "788833ed1b23900d79a78aa562bab6e81c0f4c8524ee954bde98dae35415f771",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--random.png",
+      "from": null,
+      "to": "fba56188ed6098a55511a4ef10998f5f99dd465a37cb6e60752cb80f7398d19b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--shell.png",
+      "from": null,
+      "to": "4ab562cbaf919458c807dfc34b2d76af458fbb277f743befd45779b1df89360a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spectral.png",
+      "from": null,
+      "to": "6aa3fcd3902be44bf7ab45cc04db57f0f22c67ac99a29a608164ff1845ff6935",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spiral.png",
+      "from": null,
+      "to": "8c6edc4df404687bfaaeffc3a48c5ddfcee4bded09fea11bacd17bd7746b7136",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spring-electrical.png",
+      "from": null,
+      "to": "2c8db52360e23d8c926e8472a1bd5944a1554dece746d62a131b8aa8d82ebc3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-for-pairs.png",
+      "from": null,
+      "to": "f251ea0de836adfd9a68f12e3eee8cb52443dc8fd707d67ca633ea9938af764c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-prediction.png",
+      "from": null,
+      "to": "ca4753b69e9fe81b71423697342a865b149d6c93e5bcba968197f64ec8dfbbd2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-score.png",
+      "from": null,
+      "to": "93342a821e9ad438e4568273b72d37f785e44ec5999ba2050c0b6d36a3d3372c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-for-pairs.png",
+      "from": null,
+      "to": "bd24cd1792496b144484b04ca058e039cd463462bc3d6c81c1c4d760b320b1b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-prediction.png",
+      "from": null,
+      "to": "f0fea08c442e517e111738821e6a68322aeb08ffea0a613a30396c76181a4707",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-score.png",
+      "from": null,
+      "to": "a4dab2e31ce88d39df040613cdbb35bb0d01a1706d7b32b2bf048e2fcca96da3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--compare-adamic-adar-with-common-neighbors.png",
+      "from": null,
+      "to": "7f76d37b859aa6d6a71bda11357065b904c7724020ca257eac844ab13601222b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-adamic-adar.png",
+      "from": null,
+      "to": "f1667cc15fdf6bda5a0426e228dadb991925bec7a2905d3c08b34c3dcb7e6e78",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-common-neighbors.png",
+      "from": null,
+      "to": "c7c94fcd8484e54b87cc52ba6409dc0c07d88d01175f31de790fdd6832fd6577",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--overview.png",
+      "from": null,
+      "to": "6043332f2f6497358e17daa877b5fdd0232effd7f846754eb17a4d99510af7d0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-adamic-adar-candidates-for-node.png",
+      "from": null,
+      "to": "8051edc2316a463e18429b3cff035017cd99a5fef552262e0df3aa7e2122eab4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-candidates-for-node.png",
+      "from": null,
+      "to": "26420f2bd57a2d729859e754aa8de7b90681a87fd194440806f75591d0a2b379",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--a-star.png",
+      "from": null,
+      "to": "be5624308a49ff2f335bd129b72e63467182ec26be495641b0ef1dd23a97993c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--all-pairs-shortest-path.png",
+      "from": null,
+      "to": "e0f73c9e2fc862a62f93e3ed114ac2d5c3190296fb2f0557cb2c1b52524fa22b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--bellman-ford.png",
+      "from": null,
+      "to": "1ad6835775650ded7f4b5cac5e67bcf5cc23b69d28c2e1d34398208f19ed803d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--bidirectional-dijkstra.png",
+      "from": null,
+      "to": "249d7ccf2286b93f97a5a4d10d9724eb890c1d50deae11bdea5ab2e7d3e95e7c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--dijkstra.png",
+      "from": null,
+      "to": "ff5b0cb66d15af800b5fdd0ec4f0aab44186eb08729a73fa528c149ae93ca173",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--kruskal-mst.png",
+      "from": null,
+      "to": "ec998563f40c08a15f7b3731b6c9f22a652c7836c8890cf8e5b6fa469c672116",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--overview.png",
+      "from": null,
+      "to": "8925335a69b5799020b687e0fd99ecfabecf5a51058375a22f0f90c7fd2063af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--prim-mst.png",
+      "from": null,
+      "to": "fddffa4983ab64bb080ca497f9224a999050d4cbb4919ae5a119b699293860f9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--condensation.png",
+      "from": null,
+      "to": "773aa67873c87920abe1c668702d8e69baa437191509699b62d0168eacc86bea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--find-all-isomorphisms.png",
+      "from": null,
+      "to": "6379802503f0c57f7ce3c91f38626b7feff2d9d07c7dc4899f90d7bd853474b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--greedy-bipartite-matching.png",
+      "from": null,
+      "to": "473598cd0879457e23ab360dbd492bdb8079667bf9f0b33d52a1b1defe4b2486",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--has-cycle.png",
+      "from": null,
+      "to": "df468827c2724f2fdcf2de537585639d1c2d95ee09422948332ecf21e1bb9816",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-bipartite.png",
+      "from": null,
+      "to": "470622778c9a84ebd560bf42ede9b0eae1e3458b2c4b9043935de92859df8056",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-graph-isomorphic.png",
+      "from": null,
+      "to": "aa246d35c04fb672ead8ac4e1d6ec89a960b6daed782409cdc7e7e01340ea566",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--maximum-bipartite-matching.png",
+      "from": null,
+      "to": "1e517bf5c308c162940e837760d992453ee293fe9706743587c21ec1eb9f672f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--overview.png",
+      "from": null,
+      "to": "8fc4dad61f5a1a1074c9565b1ebd8875052e054822535dce07561e8928b20d0f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--strongly-connected-components.png",
+      "from": null,
+      "to": "f5b22a47d7b79b558d67bf3e9dc09c3e471984355475e9efe54abc6f5b1e218f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--topological-sort.png",
+      "from": null,
+      "to": "ebc00de5d5a69b0e2100205ca2c89cb8b3dffa2cb98b4b8ae0ba7497e3e001c8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--weakly-connected-components.png",
+      "from": null,
+      "to": "0f53bc903416b6e447acbb9faad8281f9eae3c5f0542eb395f4d728c65377d53",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--breadth-first-search.png",
+      "from": null,
+      "to": "ce7856cd79ac46f3faf03405915a998fdb6f005ef2ee7bb4b89bfe84aed683be",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--depth-first-search.png",
+      "from": null,
+      "to": "df7dd1cbde141a73afd12ca935a88f11de61f676ea700279029da3a0a7927285",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--direction-optimized-bfs.png",
+      "from": null,
+      "to": "6083b97c7771ff3044eb753fe65e5e4ace27c27f41186c528fb49d4cfa1d69e2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--overview.png",
+      "from": null,
+      "to": "4882c34c065fa9a31de7d76b3774d0db957c3bb01aa3ca0234a52520a3ccc5b6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--planar.png",
+      "from": "5692404ea893f45b548e971c4574858fcbb46a1e5d3f34c1b15f268d2e1a9f5c",
+      "to": "be283b8ac1c1dd14ef0ca6600f4691f8ab8500d8b5e66add53d3070d1d92c6d9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 1682,
+        "commit": "6e800cdf687c65874b627e4de49c8c17eb67868a",
+        "record": "visual-baselines/reviews/20261012T014636Z-pr1682.json",
+        "reviewedAt": "2026-10-12T01:46:36.519Z"
+      }
+    },
+    {
+      "path": "visual-baselines/layout/layout2d--arf.png",
+      "from": "42bb371857761457fcea476d94c57be97077ab32a92f2a5b96c011ce1dfed567",
+      "to": "846dc9d5f8113f76ebda1482659e461eb3136aaf695bb250ed68e8c745a599f8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 1682,
+        "commit": "6e800cdf687c65874b627e4de49c8c17eb67868a",
+        "record": "visual-baselines/reviews/20261012T014636Z-pr1682.json",
+        "reviewedAt": "2026-10-12T01:46:36.519Z"
+      }
+    },
+    {
+      "path": "visual-baselines/layout/layout2d--planar.png",
+      "from": "27f01a9730415d0f35e0aded8d317f70dfb2e214142f11e9a8c3579699cfd517",
+      "to": "b699cbdf60ac135dd1f69ae74e58c828e4893776e637bb86df7b072c184629a0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 1682,
+        "commit": "6e800cdf687c65874b627e4de49c8c17eb67868a",
+        "record": "visual-baselines/reviews/20261012T014636Z-pr1682.json",
+        "reviewedAt": "2026-10-12T01:46:36.519Z"
+      }
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--arf.png",
+      "capture": "8d667a3ab358e7f011782a19c9505b264579948ccfc37b9ca4f646c37cdcb103",
+      "reason": "nodes and edges are too small to be seen"
+    }
+  ],
+  "reviewedAt": "2026-10-12T05:51:20.095Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidWF1SlI0VmpjQWg3RUR0NktOOHh2R2dLektyTmluX0ZuaTZHRVQ4RXRaZyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQCUkaT7HF_moB9ROLYvdY4AW9STk0LHYNAk9RCk25Ae1wIgO409k5_qtq7oadNqxWWxLeofxdRe2q7bICn5Z8SkUFQ"
+  }
+}

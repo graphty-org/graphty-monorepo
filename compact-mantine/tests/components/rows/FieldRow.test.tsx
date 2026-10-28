@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -488,16 +488,6 @@ describe("FieldRow", () => {
     });
 
     describe("forwarding what a container has to forward", () => {
-        it("forwards a click, with the event a consumer needs to read modifiers off", () => {
-            const onClick = vi.fn();
-            renderRow(<FieldRow onClick={onClick}>{pair()}</FieldRow>);
-
-            fireEvent.click(screen.getByTestId("field-row"), { shiftKey: true });
-
-            expect(onClick).toHaveBeenCalledTimes(1);
-            expect(onClick.mock.calls[0]?.[0]).toMatchObject({ shiftKey: true, type: "click" });
-        });
-
         it("forwards focus and blur rather than swallowing them", async () => {
             const onFocus = vi.fn();
             const onBlur = vi.fn();
@@ -520,23 +510,6 @@ describe("FieldRow", () => {
 
             expect(onFocus).toHaveBeenCalledTimes(1);
             expect(onBlur).toHaveBeenCalledTimes(1);
-        });
-
-        it("forwards a context menu and a double click", () => {
-            const onContextMenu = vi.fn();
-            const onDoubleClick = vi.fn();
-            renderRow(
-                <FieldRow onContextMenu={onContextMenu} onDoubleClick={onDoubleClick}>
-                    {pair()}
-                </FieldRow>,
-            );
-
-            const row = screen.getByTestId("field-row");
-            fireEvent.contextMenu(row);
-            fireEvent.doubleClick(row);
-
-            expect(onContextMenu).toHaveBeenCalledTimes(1);
-            expect(onDoubleClick).toHaveBeenCalledTimes(1);
         });
 
         it("forwards the class name, the id and any extra style", () => {

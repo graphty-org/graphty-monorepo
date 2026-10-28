@@ -1,10 +1,12 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, userEvent, waitFor, within } from "@storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 
 import { ToggleIconButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
+import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A 24 x 24 icon button that stays on or off: lock aspect ratio, use as mask, show or hide.
@@ -157,14 +159,27 @@ export const Column: Story = {
 /** It flips on pointer down, before release, and the click that ends the press does not flip it back; Space toggles it from the keyboard. */
 export const Keyboard: Story = {
     args: { label: "Lock aspect ratio", icon: <UiGlyph name="unlock" />, checkedIcon: lock },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const button = within(canvasElement).getByRole("button", { name: "Lock aspect ratio" });
         await expect(button).toHaveAttribute("aria-pressed", "false");
+        const real = realInput(parameters);
+        if (real) {
+            // As a test: the browser's own press. The button flips while it is still held down.
+            await real.userEvent.hover(button);
+            await real.commands.mouseDown();
+            await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"), storyWaitOptions(1000));
+            // The click that ends the same press is swallowed: after its commit the toggle is still on.
+            await real.commands.mouseUp();
+            await expect(button).toHaveAttribute("aria-pressed", "true");
+            await real.userEvent.keyboard(" ");
+            await expect(button).toHaveAttribute("aria-pressed", "false");
+            return;
+        }
+        // In Storybook's own UI a page script cannot make trusted input, so the press is replayed.
         // React commits a state update from a native pointer event in a microtask, after
         // fireEvent returns, so wait for the commit before reading the attribute.
         fireEvent.pointerDown(button, { button: 0 });
-        await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
-        // The click that ends the same press is swallowed: after its commit the toggle is still on.
+        await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"), storyWaitOptions(1000));
         fireEvent.click(button, { detail: 1 });
         await new Promise((resolve) => setTimeout(resolve, 0));
         await expect(button).toHaveAttribute("aria-pressed", "true");

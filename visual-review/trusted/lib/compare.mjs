@@ -60,13 +60,14 @@ export async function readBaseline(path) {
  *     whether anti-aliased pixels count as changed
  * @returns {{ status: "unchanged" | "changed", baseline: string, capture: string,
  *     size: number[] | null, baselineSize: number[] | null, changedPixels: number,
- *     bbox: number[] | null }} sizes are [width, height]
+ *     bbox: number[] | null, exact: boolean }} sizes are [width, height]; `exact` is whether every
+ *     RGBA byte of the capture is the baseline's, which equal bytes imply and the threshold ignores
  */
 export function compareImages(baseline, capture, { threshold, includeAA }) {
     const hashes = { baseline: sha256(baseline), capture: sha256(capture) };
     if (hashes.baseline === hashes.capture) {
         const size = pngSize(capture);
-        return { status: "unchanged", ...hashes, size, baselineSize: size, changedPixels: 0, bbox: null };
+        return { status: "unchanged", ...hashes, size, baselineSize: size, changedPixels: 0, bbox: null, exact: true };
     }
     const a = PNG.sync.read(baseline);
     const b = PNG.sync.read(capture);
@@ -78,6 +79,7 @@ export function compareImages(baseline, capture, { threshold, includeAA }) {
         baselineSize: [a.width, a.height],
         changedPixels,
         bbox,
+        exact: a.width === b.width && a.height === b.height && a.data.equals(b.data),
     };
 }
 
@@ -176,7 +178,11 @@ export function classify({ baseline, first, second = null, reference = null, thr
     const agree = () => second === null || compareImages(first, second, options).status === "unchanged";
     if (baseline === null) {
         const same = reference !== null && compareImages(reference, first, options).status === "unchanged";
-        const status = same ? "unseeded" : agree() ? "new" : "unstable";
+        /** @type {"unseeded" | "new" | "unstable"} */
+        let status = "unseeded";
+        if (!same) {
+            status = agree() ? "new" : "unstable";
+        }
         return { status, ...none, baseline: null, capture: sha256(first), size: pngSize(first) };
     }
     const vsFirst = compareImages(baseline, first, options);

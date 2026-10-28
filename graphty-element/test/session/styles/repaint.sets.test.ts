@@ -300,8 +300,9 @@ describe("a layer naming a set repaints only what moved", () => {
         await drain();
         // The re-run keeps the result it replaces while it computes (the result is project state,
         // in the runs slice), so the members never leave. Its end publishes the same values under
-        // a new token, and the layers reading the run are repainted once, whole.
-        assert.deepStrictEqual(seen.log, [{ nodes: 5, edges: 4 }]);
+        // a new token, and the layer reading the run (through its set) is repainted once: the
+        // three members it paints, and none of the element-default layers' nodes and edges.
+        assert.deepStrictEqual(seen.log, [{ nodes: 3, edges: 0 }]);
         assert.deepStrictEqual(red(h), ["b", "c", "d"]);
     });
 
@@ -394,5 +395,54 @@ describe("a layer naming a set repaints only what moved", () => {
             [itemKeyOf(key)]: { nodes: ["c", "d", "e"] },
         });
         assert.deepStrictEqual(red(h), ["c", "d", "e"], "the earlier members, not the new group 1 (a)");
+    });
+});
+
+describe("a finished run repaints only the layers that read it", () => {
+    it("leaves the layers reading no changed run alone, however many elements they match", async () => {
+        const measure = (ids: readonly string[]): Published => ({
+            shape: "node-metric",
+            nodes: new Map(ids.map((id) => [id, { value: 1 }])),
+        });
+        const h = path({
+            execute: publishing(
+                new Map([
+                    ["pr", measure(["b", "c", "d"])],
+                    ["other", measure(["a", "e"])],
+                ]),
+            ),
+        });
+        const pr = h.session.runs.start("degree", undefined, { as: "pr", scope: "graph", style: false });
+        await pr;
+        await h.session.runs.start("degree", undefined, { as: "other", scope: "graph", style: false });
+        await h.session.styles.add({
+            name: "Every edge",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": RED },
+        });
+        await h.session.styles.add({
+            name: "Other's nodes",
+            selector: { match: "has", path: "results.other.value" },
+            set: { "node.size": 2 },
+        });
+        await h.session.styles.add({
+            name: "Pr's nodes",
+            selector: { match: "has", path: "results.pr.value" },
+            set: { "node.color": RED },
+        });
+        await paintAll(h);
+        const seen = passes(h);
+
+        await pr.rerun();
+        while (seen.log.length < 1) {
+            await seen.next();
+        }
+
+        await drain();
+        // pr's three nodes, and not the two nodes of the layer reading `other`, nor any edge of
+        // the layer matching every edge.
+        assert.deepStrictEqual(seen.log, [{ nodes: 3, edges: 0 }]);
+        assert.deepStrictEqual(red(h), ["b", "c", "d"]);
     });
 });

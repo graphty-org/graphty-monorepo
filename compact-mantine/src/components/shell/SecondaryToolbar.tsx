@@ -123,7 +123,7 @@ const SecondaryToolbarButton = forwardRef<HTMLButtonElement, SecondaryToolbarBut
  * @returns The divider
  */
 function SecondaryToolbarDivider(): React.JSX.Element {
-    return <div className="cm-secondary-divider" role="separator" aria-orientation="vertical" />;
+    return <hr className="cm-secondary-divider" aria-orientation="vertical" />;
 }
 
 /** The contextual secondary bar, with `SecondaryToolbar.Button` and `SecondaryToolbar.Divider`. */

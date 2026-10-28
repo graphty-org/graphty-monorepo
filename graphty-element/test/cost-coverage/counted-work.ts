@@ -6,268 +6,70 @@
  * of the graph fails it. New ones use `assertScalesLinearly` from `test/helpers/cost.ts`. Each
  * file named here must be a gating test (`*.test.ts`, not `*.bench.test.ts`).
  *
- * Registration is a static table rather than a call inside each test so that `cost-coverage.test.ts`
- * can read it in the default project without running the browser tests it names.
+ * Each test registers itself in a sibling module, `<name>.counted-work.ts` next to `<name>.test.ts`,
+ * whose default export names the test file and the methods it covers:
+ *
+ * ```ts
+ * import type { CountedWork } from "../cost-coverage/counted-work";
+ *
+ * export default {
+ *     file: "test/browser/data-path-scaling.test.ts",
+ *     methods: ["Graph.addNodes", "Graph.removeNodes"],
+ * } satisfies CountedWork;
+ * ```
+ *
+ * A registration is a plain module rather than a call inside the test so that `cost-coverage.test.ts`
+ * can read it in the default project without running the browser tests it names; it imports
+ * nothing but this type. One module per test means two pull requests that cover different methods
+ * in different tests never edit the same file. To add a method to a test whose module another
+ * open pull request is also editing, a second module (`<name>.<topic>.counted-work.ts`) naming the
+ * same file works too.
+ *
+ * A mutating method nobody has covered yet has a file of its own in `not-yet-covered/`, named
+ * `<Owner.method>.txt` and holding the reason. The pull request that covers it deletes that one file.
  */
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-/** Method (`Owner.method`, as `method-classes.ts` spells it) to the test files that count its work. */
-export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
-    "DataManager.removeEdge": ["test/data/graph-store.test.ts"],
-    "Graph.addEdge": ["test/browser/load-scaling.test.ts"],
-    "Graph.setData": ["test/browser/load-scaling.test.ts"],
-    "GraphSession.undo": ["test/session/history/scale.test.ts"],
-    "LayoutEngine.removeEdge": ["test/layout/engine-removal.test.ts"],
-    "LayoutEngine.removeNode": ["test/layout/engine-removal.test.ts"],
-    "NotesApi.add": ["test/session/notes/write.test.ts"],
-    "NotesApi.mergeDocument": ["test/session/mutation-scaling.test.ts"],
-    "NotesApi.remove": ["test/session/notes/scaling.test.ts"],
-    "NotesApi.update": ["test/session/notes/scaling.test.ts"],
-    "RunsApi.start": ["test/session/results/lazy-ranking.test.ts", "test/session/results/column-median.test.ts"],
-    "ScopeApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "ScopeApi.save": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.apply": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.clear": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.promote": ["test/session/mutation-scaling.test.ts"],
-    "SessionConfig.set": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.addEdges": ["test/session/history/graph-paint.test.ts"],
-    "SessionDataApi.addNodes": ["test/session/history/graph-paint.test.ts"],
-    "SessionDataApi.clear": ["test/browser/bulk-teardown.test.ts"],
-    "SessionDataApi.declare": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.removeEdges": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.removeNodes": ["test/browser/bulk-teardown.test.ts"],
-    "SessionDataApi.updateEdges": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.updateNodes": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.addMembers": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.combine": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.create": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.createFrom": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.createPath": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.redefine": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.removeMembers": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.rename": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.restore": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.add": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.applyTemplate": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.encode": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.move": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.removeBySource": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.resolveToStatic": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.setValueHidden": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.update": ["test/session/mutation-scaling.test.ts"],
-    "VisibilityApi.set": ["test/session/mutation-scaling.test.ts"],
-    "VisibilityApi.setWindow": ["test/session/mutation-scaling.test.ts"],
-};
+/** A counted-work test and the methods (`Owner.method`, as `method-classes.ts` spells them) it covers. */
+export interface CountedWork {
+    /** The test file, relative to the package, such as `test/browser/data-path-scaling.test.ts`. */
+    readonly file: string;
+    readonly methods: readonly string[];
+}
+
+/** Every registration module under `test/`, by its path. */
+export const REGISTRATIONS: Readonly<Record<string, CountedWork>> = Object.fromEntries(
+    Object.entries(import.meta.glob<{ default: CountedWork }>("../**/*.counted-work.ts", { eager: true })).map(
+        ([module, { default: registration }]) => [module, registration],
+    ),
+);
+
+/** Method to the test files that count its work, collected from every registration module. */
+export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = (() => {
+    const tests: Record<string, string[]> = {};
+    for (const { file, methods } of Object.values(REGISTRATIONS)) {
+        for (const method of methods) {
+            tests[method] = [...new Set([...(tests[method] ?? []), file])];
+        }
+    }
+
+    return tests;
+})();
 
 /** The GitHub issue tracking the methods below. */
 export const NOT_YET_COVERED_ISSUE = 1643;
 
+/** The directory holding one `<Owner.method>.txt` file per mutating method with no counted-work test yet. */
+export const NOT_YET_COVERED_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "not-yet-covered");
+
 /**
- * Mutating methods with no counted-work test yet (issue #1643). This list only shrinks: write the
- * test, register it above, and delete the method here. `cost-coverage.test.ts` fails on a method
- * that is both here and registered, and on one that is no longer a mutating method in the reports.
+ * Mutating methods with no counted-work test yet (issue #1643), one file each in `not-yet-covered/`.
+ * The list only shrinks: write the test, register it, and delete the method's file.
+ * `cost-coverage.test.ts` fails on a method that is both here and registered, and on one that is no
+ * longer a mutating method in the reports.
  */
-export const NOT_YET_COVERED: readonly string[] = [
-    "AiController.execute",
-    "AiController.answerQuestion",
-    "AiController.resolveAiApproval",
-    "AiManager.execute",
-    "AiManager.answerQuestion",
-    "AiManager.resolveAiApproval",
-    "AiManager.retry",
-    "Algorithm.publishResult",
-    "Algorithm.run",
-    "AlgorithmManager.dispose",
-    "AlgorithmManager.init",
-    "AlgorithmManager.runAlgorithm",
-    "AlgorithmManager.runAlgorithmsFromTemplate",
-    "DataManager.addDataFromSource",
-    "DataManager.addEdge",
-    "DataManager.addEdges",
-    "DataManager.addNode",
-    "DataManager.addNodes",
-    "DataManager.bindSession",
-    "DataManager.clear",
-    "DataManager.dispose",
-    "DataManager.init",
-    "DataManager.reconcile",
-    "DataManager.removeNodeAndIncidentEdges",
-    "DataManager.setEdges",
-    "DataManager.setGraphContext",
-    "DataManager.setLayoutEngine",
-    "DataManager.setNodes",
-    "DataManager.startLabelAnimations",
-    "DataManager.updateStyles",
-    "DeclaredAlgorithm.publishResult",
-    "DeclaredAlgorithm.run",
-    "Edge.applySessionPaint",
-    "Edge.dispose",
-    "Edge.invalidatePositionCache",
-    "Edge.setRenderVisible",
-    "Edge.setSelected",
-    "Edge.transformArrowCap",
-    "Edge.transformEdgeMesh",
-    "Edge.update",
-    "Edge.updateRays",
-    "Edge.updateStyle",
-    "Graph.addDataFromSource",
-    "Graph.addEdges",
-    "Graph.addNode",
-    "Graph.addNodes",
-    "Graph.aiCommand",
-    "Graph.applySuggestedStyles",
-    "Graph.batchOperations",
-    "Graph.clearData",
-    "Graph.deselectNode",
-    "Graph.dispose",
-    "Graph.importCameraPresets",
-    "Graph.init",
-    "Graph.loadFromFile",
-    "Graph.loadFromUrl",
-    "Graph.removeCameraPreset",
-    "Graph.removeEdges",
-    "Graph.removeNodes",
-    "Graph.render",
-    "Graph.answerAiQuestion",
-    "Graph.resolveAiApproval",
-    "Graph.retryLastAiCommand",
-    "Graph.run",
-    "Graph.runAlgorithm",
-    "Graph.runAlgorithmsFromTemplate",
-    "Graph.saveCameraPreset",
-    "Graph.select",
-    "Graph.selectNode",
-    "Graph.setBackground",
-    "Graph.setEdges",
-    "Graph.setLayout",
-    "Graph.setLayoutBehavior",
-    "Graph.setLayoutScope",
-    "Graph.setNodes",
-    "Graph.setSelectionStyle",
-    "Graph.setViewMode",
-    "Graph.shutdown",
-    "Graph.update",
-    "Graph.updateEdges",
-    "Graph.updateNodes",
-    "GraphCommand.execute",
-    "GraphSession.dispose",
-    "GraphSession.execute",
-    "GraphSession.redo",
-    "GraphSession.run",
-    "Graphty.addDataFromSource",
-    "Graphty.addEdge",
-    "Graphty.addEdges",
-    "Graphty.addNode",
-    "Graphty.addNodes",
-    "Graphty.aiCommand",
-    "Graphty.applySuggestedStyles",
-    "Graphty.asyncFirstUpdated",
-    "Graphty.batchOperations",
-    "Graphty.clearData",
-    "Graphty.connectedCallback",
-    "Graphty.deselectNode",
-    "Graphty.disconnectedCallback",
-    "Graphty.firstUpdated",
-    "Graphty.importCameraPresets",
-    "Graphty.loadFromFile",
-    "Graphty.loadFromUrl",
-    "Graphty.pin",
-    "Graphty.removeCameraPreset",
-    "Graphty.removeEdges",
-    "Graphty.removeNodes",
-    "Graphty.render",
-    "Graphty.answerAiQuestion",
-    "Graphty.resolveAiApproval",
-    "Graphty.retryLastAiCommand",
-    "Graphty.run",
-    "Graphty.runAlgorithm",
-    "Graphty.saveCameraPreset",
-    "Graphty.select",
-    "Graphty.selectNode",
-    "Graphty.setData",
-    "Graphty.setLayout",
-    "Graphty.setViewMode",
-    "Graphty.shutdown",
-    "Graphty.unpin",
-    "Graphty.updateEdges",
-    "Graphty.updateNodes",
-    "LayoutEngine.addEdge",
-    "LayoutEngine.addEdges",
-    "LayoutEngine.addNode",
-    "LayoutEngine.addNodes",
-    "LayoutEngine.attachPositions",
-    "LayoutEngine.dispose",
-    "LayoutEngine.init",
-    "LayoutEngine.loadArrangement",
-    "LayoutEngine.pin",
-    "LayoutEngine.publishPositions",
-    "LayoutEngine.setHoldMask",
-    "LayoutEngine.setNodePosition",
-    "LayoutEngine.step",
-    "LayoutEngine.unpin",
-    "LayoutEngine.updatePositions",
-    "LayoutEngine.writeNodePosition",
-    "LayoutManager.dispose",
-    "LayoutManager.init",
-    "LayoutManager.loadArrangement",
-    "LayoutManager.setGraphContext",
-    "LayoutManager.step",
-    "LayoutManager.stepBatch",
-    "LayoutManager.updatePositions",
-    "LayoutManager.updateStyles",
-    "LoadDraft.load",
-    "Manager.dispose",
-    "Manager.init",
-    "Node.applySessionPaint",
-    "Node.dispose",
-    "Node.pin",
-    "Node.refreshSelectionOverlay",
-    "Node.setRenderState",
-    "Node.setSelected",
-    "Node.unpin",
-    "Node.update",
-    "Node.updateStyle",
-    "ProjectApi.open",
-    "ProjectApi.rename",
-    "RenderManager.dispose",
-    "RenderManager.init",
-    "Run.rerun",
-    "RunsApi.batch",
-    "RunsApi.remove",
-    "SelectionManager.bindSelection",
-    "SelectionManager.deselect",
-    "SelectionManager.dispose",
-    "SelectionManager.init",
-    "SelectionManager.onEdgesRemoved",
-    "SelectionManager.onNodeRemoved",
-    "SelectionManager.select",
-    "SelectionManager.selectById",
-    "SelectionManager.setDataManager",
-    "SessionDataApi.import",
-    "SessionDataApi.renameSource",
-    "SessionHistory.clear",
-    "SessionHistory.restoreTo",
-    "SessionLayout.set",
-    "SessionLayout.setDimension",
-    "SessionPositions.pin",
-    "SessionPositions.set",
-    "SessionPositions.unpin",
-    "SessionViews.remove",
-    "SessionViews.save",
-    "StylesApi.highlight",
-    "UpdateManager.bindViewMasks",
-    "UpdateManager.dispose",
-    "UpdateManager.forceEdgeWalk",
-    "UpdateManager.init",
-    "UpdateManager.invalidateViewMasks",
-    "UpdateManager.meshesAdded",
-    "UpdateManager.rebindScene",
-    "UpdateManager.redrawArrangement",
-    "UpdateManager.renderFrames",
-    "UpdateManager.stepFrames",
-    "UpdateManager.syncStyles",
-    "UpdateManager.syncViewMasks",
-    "UpdateManager.update",
-    "UpdateManager.updateConfig",
-];
+export const NOT_YET_COVERED: readonly string[] = readdirSync(NOT_YET_COVERED_DIR)
+    .map((name) => name.replace(/\.txt$/, ""))
+    .sort();

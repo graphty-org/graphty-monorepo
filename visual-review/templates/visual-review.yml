@@ -19,6 +19,10 @@ on:
 permissions:
     contents: read
 
+env:
+    # Chromium 143 can crash at launch (SIGSEGV in getenv) unless this is preset; see chromiumEnv in capture.mjs.
+    FC_FONTATIONS: "1"
+
 jobs:
     # The projects of visual-review.config.json, as the capture job's matrix.
     plan:
@@ -27,7 +31,7 @@ jobs:
         outputs:
             projects: ${{ steps.plan.outputs.projects }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   sparse-checkout: visual-review.config.json
                   sparse-checkout-cone-mode: false
@@ -56,7 +60,7 @@ jobs:
             matrix:
                 include: ${{ fromJSON(needs.plan.outputs.projects) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             # Baseline PNGs are Git LFS objects. They are cached by the pointer files' hash, so a run
             # downloads from LFS only the images accepted since the cache was saved.
@@ -100,7 +104,7 @@ jobs:
             # Kept even when capture crashed, so the reviewer sees the partial results.json.
             - name: Upload captures
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/visual/
@@ -123,25 +127,27 @@ jobs:
 
     # Fails while a project of the base branch's or the pull request's config, or with baselines on
     # the base branch (seeded or not), holds anything but unchanged or excluded items in its newest
-    # capture, or a baseline file changed without a review record. Once visual-review/passkeys.json
-    # on the base branch holds a key, every review record the pull request adds must carry a passkey
-    # approval for this pull request (--pr) by one of the base branch's keys.
+    # capture, or baselines whose git tree differs from the base branch's without the owner's
+    # approval of exactly that tree, made at a commit in the pull request's history. Once
+    # visual-review/passkeys.json on the base branch holds a key, that approval must carry a passkey
+    # signature by one of the base branch's keys.
     # It runs the published gate at a pinned version, so a pull request's own dependencies cannot
-    # change it. Depth 2: HEAD^1, the merge commit's first parent, is the base branch tip.
+    # change it. Full history (fetch-depth 0, blobs on demand): the approval's commit must be an
+    # ancestor of the merge commit, and HEAD^1, the merge commit's first parent, is the base branch tip.
     visual-gate:
         name: Visual gate
         needs: visual
         if: always() && github.event_name == 'pull_request'
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
-                  fetch-depth: 2
+                  fetch-depth: 0
                   filter: blob:none
 
             - name: Download visual captures
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual

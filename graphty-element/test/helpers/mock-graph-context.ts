@@ -9,8 +9,10 @@
  * @module test/helpers/mock-graph-context
  */
 
+import { makeMask, maskSet } from "@graphty/graph-format";
+
 import { isCameraViewName } from "../../src/camera/resolve";
-import type { Path } from "../../src/catalog/types";
+import type { Path, RuleTree, Scope } from "../../src/catalog/types";
 import type { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
@@ -235,9 +237,66 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         );
     }
 
+    const edgeList = [...mockEdges.values()];
+
+    /**
+     * The nodes one rule picks, for the rules the AI commands write: an expression over nodes, an
+     * `edges` leaf (which the commands only write inside a rule read `listed`, so it stands for
+     * the matching edges' endpoints), a member of another scope, and `all` of those.
+     * @param tree - The rule.
+     * @returns The node ids.
+     */
+    function nodesOfRule(tree: RuleTree): Set<string> {
+        switch (tree.kind) {
+            case "expression": {
+                const { test } = compileExpressionPredicate(tree.where, columnsFor(selectorSource, "node"));
+                return new Set(nodeRows.flatMap((row, index) => (test(index) ? [String(row["data.id"])] : [])));
+            }
+            case "edges": {
+                const { test } = compileExpressionPredicate(tree.where, columnsFor(selectorSource, "edge"));
+                return new Set(edgeList.flatMap((edge, index) => (test(index) ? [edge.srcId, edge.dstId] : [])));
+            }
+            case "member":
+                return nodesOfScope(tree.of);
+            case "all": {
+                const [first, ...rest] = tree.of.map(nodesOfRule);
+                return new Set([...(first ?? [])].filter((id) => rest.every((nodes) => nodes.has(id))));
+            }
+            default:
+                throw new Error(`the mock graph does not resolve a "${tree.kind}" rule`);
+        }
+    }
+
+    /**
+     * The nodes a `{ where }` scope or an inline rule set picks.
+     * @param scope - The scope.
+     * @returns The node ids.
+     */
+    function nodesOfScope(scope: Scope): Set<string> {
+        if (typeof scope === "object" && "where" in scope) {
+            return nodesOfRule({ kind: "expression", where: scope.where });
+        }
+
+        if (typeof scope === "object" && "define" in scope && scope.define.kind === "rule") {
+            const { where } = scope.define;
+            return nodesOfRule(typeof where === "string" ? { kind: "expression", where } : where);
+        }
+
+        throw new Error(`the mock graph does not resolve the scope ${JSON.stringify(scope)}`);
+    }
+
     const selectorSource: SelectorSource = {
         nodeValue: (index, path) => nodeRows[index]?.[path],
         edgeValue: (index, path) => edgeRows[index]?.[path],
+        // Resolved once, when the layer is added: the mock's data never changes under a layer.
+        scope: (scope) => {
+            const members = nodesOfScope(scope);
+            const bits = makeMask(nodeRows.length);
+            nodeRows.forEach((row, index) => {
+                maskSet(bits, index, members.has(String(row["data.id"])));
+            });
+            return { bits: (target) => (target === "node" ? bits : null), problem: () => undefined };
+        },
     };
 
     const repaintEngine = createLayerRepaint({
@@ -264,14 +323,10 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
-        // A `{ where }` scope, read by the same expression compiler a style layer uses, so a
-        // command that selects nodes reads the same selector language a layer does.
+        // A `{ where }` scope or an inline rule set, read by the same expression compiler a style
+        // layer uses, so a command that selects nodes reads the same selector language a layer does.
         scope: {
-            resolve: (spec: { where: string }) =>
-                Promise.resolve().then(() => {
-                    const { test } = compileExpressionPredicate(spec.where, columnsFor(selectorSource, "node"));
-                    return { nodes: new Set(nodeRows.flatMap((row, index) => (test(index) ? [row["data.id"]] : []))) };
-                }),
+            resolve: (spec: Scope) => Promise.resolve().then(() => ({ nodes: nodesOfScope(spec) })),
         },
         layout: {
             get id() {

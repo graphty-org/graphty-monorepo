@@ -58,6 +58,7 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
+import { click, hover } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
 
@@ -65,6 +66,19 @@ import { operationQueueOf } from "../src/Graph";
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Whether the story test also takes the story's screenshot (vitest.setup.visual.ts marks the page as
+// a capture before this file runs): the picture must then be the built Storybook's, so the story runs
+// as it does there.
+const capture = /[?&]chromatic=true/.test(location.search);
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`. Not in a
+// capture: the built Storybook draws every frame, and a play that watches frames go by (a label's
+// animation, switched off for the capture) waits for frames a resting graph never draws.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = !capture;
+// The test project brings its own timeout, so the play functions' waits set none of their own
+// (`isUnderRunner` in stories/helpers.ts).
+(globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
 afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
@@ -74,9 +88,9 @@ afterEach(() => {
 Logger.LogLevels = Logger.ErrorLogLevel;
 
 // Suppress Lit dev mode warnings
-if (typeof window !== "undefined") {
+if (globalThis.window !== undefined) {
     // @ts-expect-error - Global window modification for test environment
-    window.litIssuedWarnings = new Set(); // Prevent duplicate warnings
+    globalThis.litIssuedWarnings = new Set(); // Prevent duplicate warnings
     // Suppress console warnings from Lit during tests
     const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -91,15 +105,6 @@ if (typeof window !== "undefined") {
         originalWarn.apply(console, args);
     };
 }
-
-/**
- * How long the whole check may take, in milliseconds.
- *
- * One budget shared by every step rather than a timeout each, so the hook cannot outlive the
- * project's own thirty-second test timeout however the time is spent. A story whose play function
- * already waited for the graph to settle arrives here with everything done and spends none of it.
- */
-const CHECK_BUDGET_MS = 12000;
 
 /** How often to look again while waiting for the data to arrive. */
 const POLL_MS = 50;
@@ -168,70 +173,27 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
         return null;
     }
 
-    assert.isTrue(
-        typeof declared.exempt === "string" && declared.exempt.trim() !== "",
-        `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
-            "no reason is a silent skip.",
-    );
-
-    return String(declared.exempt);
-}
-
-/**
- * Wait for something to become true, failing when the budget runs out.
- * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp.
- * @param complaint - What to say when it never happened.
- */
-async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
-    while (!done()) {
-        if (Date.now() > deadline) {
-            assert.fail(complaint);
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    }
-}
-
-/**
- * Wait for something to become true, and give up quietly when it does not.
- *
- * For a condition an assertion is about to report on anyway: the assertion writes the sentence,
- * and this only stops the check racing the renderer, which is a frame behind the model by design.
- * @param done - What is being waited for.
- * @param deadline - When to stop waiting, as a timestamp.
- */
-async function settleQuietly(done: () => boolean, deadline: number): Promise<void> {
-    while (!done() && Date.now() <= deadline) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    }
-}
-
-/**
- * Give a promise a deadline, so a queue that never drains fails with a sentence rather than by
- * running the test out of time.
- * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp.
- * @param complaint - What to say when it never finished.
- */
-async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(
-            () => {
-                resolve("expired");
-            },
-            Math.max(0, deadline - Date.now()),
+    if (typeof declared.exempt !== "string" || declared.exempt.trim() === "") {
+        assert.fail(
+            `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
+                "no reason is a silent skip.",
         );
-    });
-
-    const outcome = await Promise.race([work.then(() => "done" as const), expired]);
-
-    if (timer !== undefined) {
-        clearTimeout(timer);
     }
 
-    assert.strictEqual(outcome, "done", complaint);
+    return declared.exempt;
+}
+
+/**
+ * Wait for something to become true.
+ *
+ * NO DEADLINE OF ITS OWN. The test project's timeout is the backstop: a wall-clock budget here
+ * failed a stalled machine whose story still finished inside the test's time.
+ * @param done - What is being waited for.
+ */
+async function until(done: () => boolean): Promise<void> {
+    while (!done()) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    }
 }
 
 /**
@@ -270,33 +232,23 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
         return;
     }
 
-    const deadline = Date.now() + CHECK_BUDGET_MS;
     const { graph, session } = element;
 
-    await until(
-        () => session.status.counts.nodes > 0,
-        deadline,
-        `${story}: no graph ever arrived. Every wait helper in stories/helpers.ts resolves on timeout instead ` +
-            "of failing, so a story whose data never loaded renders an empty canvas and passes. This one did.",
-    );
+    // A story whose data never loaded would otherwise render an empty canvas and pass; here it
+    // waits for the graph, and one that never arrives runs the test out of time.
+    await until(() => session.status.counts.nodes > 0);
 
-    await within(
-        operationQueueOf(graph).waitForCompletion(),
-        deadline,
-        `${story}: the element's operation queue never drained.`,
-    );
+    // The element's operation queue has drained.
+    await operationQueueOf(graph).waitForCompletion();
 
-    await within(
-        session.styles.settled(),
-        deadline,
-        `${story}: the element says it still has painting of its own in flight. That is styles.settled(), the ` +
-            "door the element publishes so a consumer need not count turns.",
-    );
+    // The element has no painting of its own in flight. That is styles.settled(), the door the
+    // element publishes so a consumer need not count turns.
+    await session.styles.settled();
 
     // The renderer is a frame behind the style model: a pass marks an element dirty and the
     // render loop hands the new paint to it on its next tick. Twenty-nine of these stories have no
     // play function at all, so the check arrives the instant the story mounts.
-    await settleQuietly(() => strandedOnBootstrap(graph).length === 0, deadline);
+    await until(() => strandedOnBootstrap(graph).length === 0);
 
     assertEveryElementPainted(graph, story);
 
@@ -340,4 +292,15 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
 //
 // The hook below is a PROJECT-LEVEL afterEach, which `prepareStory` merges with the meta's and the
 // story's own.
-setProjectAnnotations([projectAnnotations, { afterEach: assertStoryDrewWhatItAskedFor }]);
+// Real input for the play functions (stories/helpers.ts, realInput): the browser's own pointer, so a
+// hover or a click is a trusted event with hit testing, as a reader's is. Not when the story test also
+// takes the story's screenshot (vitest.setup.visual.ts, which marks the page as a capture first): the
+// picture must be the built Storybook's, where a play replays its input and no real pointer exists,
+// and the pointer the harness parks before each shot would leave the node a real hover is over.
+setProjectAnnotations([
+    projectAnnotations,
+    {
+        afterEach: assertStoryDrewWhatItAskedFor,
+        parameters: capture ? {} : { realInput: { click, hover } },
+    },
+]);

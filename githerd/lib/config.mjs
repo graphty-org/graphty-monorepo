@@ -84,6 +84,10 @@ export const DEFAULTS = Object.freeze({
     },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
+    // Removing finished worktrees (worktree-cleanup.mjs): true removes them while githerd acts (a
+    // local write, so in dry-run each is a would-do line), "dry-run" only reports them, false skips
+    // the step. At most `removePerPoll` a poll: each removal deletes a whole install and build.
+    worktrees: { cleanup: true, removePerPoll: 25 },
 });
 
 /**
@@ -141,6 +145,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   backlog: { agingDays: number, issueTypes: string[], notWork: string[], bundle: boolean, bundleMax: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
+ *   worktrees: { cleanup: boolean | "dry-run", removePerPoll: number },
  * }} Config
  */
 
@@ -388,6 +393,25 @@ function backlog(raw) {
 }
 
 /**
+ * The finished-worktree removal settings (worktree-cleanup.mjs).
+ * @param {unknown} raw the `worktrees` object, if any
+ * @returns {Config["worktrees"]} the settings
+ */
+function worktrees(raw) {
+    const d = DEFAULTS.worktrees;
+    if (raw === undefined) return { ...d };
+    const w = /** @type {any} */ (object(raw, "worktrees"));
+    onlyKeys(w, Object.keys(d), "worktrees.");
+    const cleanup = w.cleanup ?? d.cleanup;
+    if (![true, false, "dry-run"].includes(cleanup)) fail('worktrees.cleanup must be true, false or "dry-run"');
+    const removePerPoll =
+        w.removePerPoll === undefined
+            ? d.removePerPoll
+            : number(w.removePerPoll, "worktrees.removePerPoll", { min: 1, max: 500 });
+    return { cleanup, removePerPoll };
+}
+
+/**
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {Config} the settings
@@ -479,6 +503,7 @@ export function normalizeConfig(input) {
                     ? null
                     : number(digestRaw.issue, "digest.issue", { min: 1, max: 10_000_000 }),
         },
+        worktrees: worktrees(raw.worktrees),
     };
 }
 

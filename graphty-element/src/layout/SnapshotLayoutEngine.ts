@@ -5,6 +5,7 @@ import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { ElementPositions } from "../data/positions";
 import { readSeedPosition } from "../data/seedPosition";
 import { GraphtyError } from "../errors";
+import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
 import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
 
@@ -62,7 +63,8 @@ export interface SnapshotLayoutInput {
     readonly added: NodeMask | null;
     /**
      * The values of the node attribute an option names, one per row, `undefined` where a node has
-     * none. The option's value is a path into the node's data, dot separated (`"geo.lat"`).
+     * none. The option's value is a path into the node's data, dot separated (`"geo.lat"`), an
+     * attribute as `data.<key>`, or a run's result field as `results.<run>.<field>`.
      * @param optionName - the option naming the attribute
      * @returns the values, or null when the option is not set to a path
      */
@@ -73,10 +75,36 @@ export interface SnapshotLayoutInput {
      * @returns the coordinates
      */
     dataPositions(): F32;
+    /**
+     * How wide the element draws each node, in scene units: the largest extent of its mesh. NaN
+     * for a row no node answers. A layout that keeps nodes from overlapping reads it.
+     * @returns one size per row
+     * @since 3.29.0
+     */
+    nodeSizes?(): F32;
+    /**
+     * How wide and how tall the element draws each node, in scene units: its mesh's extent along
+     * x and along y, two per row. NaN for a row no node answers. A layout that spaces nodes by
+     * their boxes rather than by one size reads it.
+     * @returns two sizes per row
+     * @since 3.30.0
+     */
+    nodeExtents?(): F32;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
     report(progress: SnapshotLayoutProgress): void;
+    /**
+     * Tell the consumer the data kept the layout from placing every node as asked, as a code and
+     * its parameters; the element emits it as `layout-warning`.
+     */
+    warn(warning: SnapshotLayoutWarning): void;
+}
+
+/** What a layout reports through `warn`: a warning code and its parameters, never a sentence. */
+export interface SnapshotLayoutWarning {
+    readonly code: GraphtyWarningCode;
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -100,10 +128,18 @@ export interface SnapshotLayoutRegistration {
 /** Where a snapshot layout's progress and asynchronous failures go: the element's layout manager. */
 interface SnapshotLayoutHost {
     progress(progress: SnapshotLayoutProgress): void;
+    warn(warning: SnapshotLayoutWarning): void;
     /** The answer failed after the call that started it had returned. */
     fail(error: unknown): void;
     /** An asynchronous answer has arrived and wants a frame to be published in. */
     arrived(): void;
+    /**
+     * The values at a `data.<key>` or `results.<run>.<field>` path, by row of `graph`.
+     * @returns the values, or null when nothing carries the path
+     */
+    column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
+    drawPaint(): void;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -267,10 +303,14 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     #resultOf(positions: F32, graph: GraphSnapshot): LayoutResult {
         const expected = this.dimensions * graph.nodeCount;
         if (!(positions instanceof Float32Array) || positions.length !== expected) {
+            const answered =
+                positions instanceof Float32Array
+                    ? `${positions.length} numbers`
+                    : "something other than a Float32Array";
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message:
-                    `the layout "${this.type}" answered with ${positions instanceof Float32Array ? `${positions.length} numbers` : "something other than a Float32Array"}; ` +
+                    `the layout "${this.type}" answered with ${answered}; ` +
                     `it must answer with a Float32Array of ${expected} (${this.dimensions} per node)`,
                 source: "layout",
                 details: { layout: this.type, expected },
@@ -294,7 +334,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const initial = positions === null ? new Float32Array(dim * n).fill(Number.NaN) : this.#current(positions, n);
 
         const kept = simpleLayoutInternals.kept(this);
-        const held = this.holdMask !== null;
+        // A scope's hold, or a group that follows its members: either way the row is not arranged.
+        const held = this.holdsAny;
         const scope = held ? makeMask(n) : null;
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);
@@ -332,9 +373,20 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             added,
             column: (optionName) => {
                 const path = options[optionName];
-                return typeof path === "string" && path !== ""
-                    ? nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)))
-                    : null;
+                if (typeof path !== "string" || path === "") {
+                    return null;
+                }
+
+                // A run's result, or an attribute named the way an algorithm's option names one,
+                // is read through the session; a bare path is read from each node's own data.
+                if (path.startsWith("results.") || path.startsWith("data.")) {
+                    const read = this.#host?.column?.(graph, path);
+                    if (read !== undefined) {
+                        return read;
+                    }
+                }
+
+                return nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)));
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
@@ -349,10 +401,34 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
+            // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
+            // ponytail: a style pass still running is not waited for; its sizes are read as drawn
+            // now. Wait for it here if a layout is ever seen starting mid-pass.
+            nodeSizes: () => {
+                this.#host?.drawPaint();
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+            },
+            nodeExtents: () => {
+                this.#host?.drawPaint();
+                const out = new Float32Array(2 * n).fill(Number.NaN);
+                nodes.forEach((node, row) => {
+                    if (node !== undefined) {
+                        const { x, y } = node.drawnHalfExtents;
+                        out[2 * row] = 2 * x;
+                        out[2 * row + 1] = 2 * y;
+                    }
+                });
+                return out;
+            },
             signal: controller.signal,
             report: (progress) => {
                 if (!controller.signal.aborted) {
                     this.#host?.progress(progress);
+                }
+            },
+            warn: (warning) => {
+                if (!controller.signal.aborted) {
+                    this.#host?.warn(warning);
                 }
             },
         };

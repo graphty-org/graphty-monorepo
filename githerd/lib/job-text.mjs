@@ -100,10 +100,10 @@ const DONE = /** @type {Record<string, string>} */ ({
         "every required check is green on the pull request's current head, its base is master and it is not a draft; " +
         "or all that is left waits only on the owner (a visual review or an open owner item).",
     issue:
-        "a pull request that references the issue, based on master and not a draft, whose head on GitHub is the commit you pushed, " +
+        "a pull request that references the issue and each issue whose job joined this one, based on master and not a draft, whose head on GitHub is the commit you pushed, " +
         "has every required check green (or waits only on the owner), and githerd/merge is not pending for a reason you can fix. " +
         "Or the issue needs no change (outcome not-needed, with evidence; it is closed only after the owner had a chance to object), " +
-        "or it is split into new issues you filed (outcome split, with their numbers), " +
+        "or it is split into new issues you filed (outcome split, with their numbers; leave the issue itself open: once every one of them is closed, githerd proposes closing it, and the owner has a chance to object), " +
         "or it cannot be acted on now, such as a proposal the owner declined (outcome deferred, with the reason; nothing is closed, and the issue comes back once it changes). " +
         "A standing issue that is no work (labelled tracking, release-status or another backlog.notWork label) is never closed: report it deferred.",
     triage:
@@ -229,6 +229,15 @@ const UPDATE_RULE =
     "(a fix that landed for a red master; githerd's own update does that for a failure inherited from master). Never just to be current: " +
     "the merge queue tests every pull request against current master anyway, and each update re-runs its whole CI. When one applies, merge master (never rebase) and push with githerd_push.";
 
+/**
+ * A pull request being reworked is a draft (issue 2727): a ready one is captured by CI, offered to the
+ * owner on the review page and counted by githerd as waiting on him, and Mergify may queue it.
+ */
+const REWORK_RULE =
+    "Rework an open pull request as a draft: before you change one that is ready (to answer an owner reject, a redesign or a fix), " +
+    "mark it draft (gh pr ready <n> --undo), so it is not offered to the owner for visual review or merged while you work. " +
+    "Mark it ready (gh pr ready <n>) once the rework is pushed and complete, before you wait on its checks: a draft runs no CI, and githerd_done refuses a draft.";
+
 /** Where a change takes effect decides how it ships (owner rule 2026-10-11). */
 const LIVE_RULE =
     "Ask where each change takes effect. On this machine (githerd, the visual-review server, the push queue and pre-push scripts, " +
@@ -238,19 +247,30 @@ const LIVE_RULE =
     "first (the workflow run on its branch, scripts replayed). Shared code another branch needs: open its pull request, and merge the " +
     "fix branch (or master once it lands) into the blocked branch now instead of waiting.";
 
+/**
+ * How to wait without spending model turns. A turn that comes more than five minutes after the last
+ * one finds the prompt cache expired and re-reads the whole context, so a sleep or until loop, or a
+ * check repeated turn after turn, pays for the whole context at every check.
+ */
+const WAIT_RULE =
+    "Never wait in a model turn: no sleep or until loop, and no re-checking a push, a test run or CI turn after turn. Each turn more than five minutes after the last re-reads this whole conversation, because its prompt cache has expired. " +
+    "Start a long step as one background command (run_in_background) and end your turn: its exit notice wakes you. Declare a wait with githerd_wait and end your turn: githerd rings you when it settles. " +
+    'One long wait costs one re-read; many short ones cost one each. If a background command must loop, loop inside it on a PID (while kill -0 $PID) or a push\'s line in tmp/push-log.jsonl, never on pgrep -f "<text>", which matches the loop itself. Stop your own background shells before you hand back.';
+
 /** The rules every worker follows (design 7.1 step 6, 7.3 and 10.1). */
 export const RULES = Object.freeze([
     "Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.",
     "Never write ACTION NEEDED. Skills that ask the user a question are answered by you.",
     "When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.",
     'Judge overlap when you claim, against the githerd_next snapshot: independent; join (your target becomes part of the other job); or wait. Claim wait when your job cannot go on until another job or issue lands first (you need its change, or it rewrites what you would change): githerd_claim overlap {decision: "wait", with: "#736", reason} names the issue (or with: a job id). githerd blocks your job until that one ends, makes the issue\'s job if none exists, and rings you then. Do not claim independent and sit idle, and do not do the work of an issue someone else already owns (an open job or claim) inside yours.',
-    "Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
+    "Push only through githerd_push, then end your turn instead of watching the push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
     "Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.",
     "Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.",
-    'Wait on a background task by its PID (while kill -0 $PID) or its own exit notice, and on a push by its line in tmp/push-log.jsonl; never with pgrep -f "<text>", which matches the waiting loop itself. Stop your own background shells before you hand back.',
+    WAIT_RULE,
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
     "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
     UPDATE_RULE,
+    REWORK_RULE,
     LIVE_RULE,
     "Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.",
     "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines, unless your job is about that area (then follow the githerd fix handoff below for githerd).",

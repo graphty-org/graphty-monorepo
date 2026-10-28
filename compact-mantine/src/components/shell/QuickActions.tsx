@@ -43,7 +43,10 @@ export interface QuickAction {
     section?: string;
     /** Extra words the default filter matches. */
     keywords?: readonly string[];
-    /** Shown, but cannot be run or highlighted. */
+    /**
+     * Shown, but cannot be run. The arrow keys still reach it, so its `description` (why it
+     * cannot be run) is read; it is never the first highlight.
+     */
     disabled?: boolean;
     /**
      * A second, dimmed line under the name: why a disabled action cannot be run ("Holds
@@ -52,6 +55,10 @@ export interface QuickAction {
      * headings).
      */
     description?: string;
+    /** `"component"` draws the name in the component tone (`--cm-text-component`, weight 600). */
+    tone?: "component";
+    /** The option's accessible name, when it is not `label` (a label set off by marks a reader should not hear). */
+    "aria-label"?: string;
 }
 
 /**
@@ -90,6 +97,12 @@ export interface QuickActionsProps {
     listId?: string;
     /** Accessible name of the dialog. Defaults to the "Quick actions" label. */
     "aria-label"?: string;
+    /**
+     * The panel's role. `"dialog"` (the default) for a palette that stands alone; `"group"` for one
+     * placed inside a pop-out, which is already the dialog and names it by its title.
+     * @default "dialog"
+     */
+    role?: "dialog" | "group";
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
     placeholder?: string;
     /**
@@ -98,6 +111,34 @@ export interface QuickActionsProps {
      * the end. A middle-cut name carries the full name as its tooltip.
      */
     truncate?: "end" | "middle";
+    /**
+     * Where each action's `description` goes: `"below"` (the default) on a dimmed second line
+     * under the name, `"end"` dimmed at the end of the name's line, so every row stays one line
+     * tall (a fact such as "1 to 36" beside a value's name).
+     * @default "below"
+     */
+    descriptions?: "below" | "end";
+    /**
+     * What the list says when there is nothing to list before any search: why it is empty and
+     * where to go instead. Defaults to the "No results" label, which a search with no match
+     * always says.
+     */
+    emptyText?: string;
+    /**
+     * The action highlighted when the list opens, before anything is searched: the value in force,
+     * so Enter keeps it and the arrows start from it. Defaults to the first action that can run.
+     * It is the one row read as "selected": the highlight that moves with the arrows is the active
+     * row (`aria-activedescendant`), never a choice already made.
+     */
+    highlight?: string;
+    /**
+     * Which row is active when the list opens with no `highlight`, and again whenever the search is
+     * emptied: `"first"` (the default) the first action that can run, as Figma's palette does;
+     * `"none"` no row, as a combobox opens, so Enter runs nothing until the reader types or arrows.
+     * Typing always makes the first action that can run active, never a disabled one.
+     * @default "first"
+     */
+    activeOnOpen?: "first" | "none";
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
@@ -149,11 +190,16 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.searchAction - A trailing action at the right end of the search field
  * @param props.listId - The id of the result list, for a header control to name in `aria-controls`
  * @param props.truncate - Cut a long name at the end or in the middle
+ * @param props.descriptions - Each description under the name or at the end of its line
+ * @param props.emptyText - What an empty list says before any search
+ * @param props.highlight - The action highlighted when the list opens
+ * @param props.activeOnOpen - Whether the first action or no row is active before a search
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
  * @param props.className - Extra class on the panel
  * @param props.style - Extra style on the panel
+ * @param props.role - The panel's role: a dialog alone, a group inside a pop-out
  * @returns The palette
  */
 export function QuickActions({
@@ -167,11 +213,16 @@ export function QuickActions({
     searchAction,
     listId: listIdProp,
     truncate = "end",
+    descriptions = "below",
+    emptyText,
+    highlight,
+    activeOnOpen = "first",
     placeholder,
     width = 529,
     height = 354,
     className,
     style,
+    role = "dialog",
     ...others
 }: QuickActionsProps): React.JSX.Element {
     useShellStyles();
@@ -199,13 +250,16 @@ export function QuickActions({
         }
         return [...bySection.entries()];
     }, [actions, filter, search]);
-    const enabled = sections.flatMap(([, list]) => list).filter((a) => !a.disabled);
+    const listed = sections.flatMap(([, list]) => list);
+    const emptyWords = search.trim() === "" && emptyText !== undefined ? emptyText : labels.noResults;
+    const enabled = listed.filter((a) => !a.disabled);
 
     // The highlight belongs to the search it was made in, so a new search highlights its first
     // result again.
-    const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "" });
-    const current =
-        marked.search === search && enabled.some((a) => a.value === marked.value) ? marked.value : enabled[0]?.value;
+    const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "", value: highlight });
+    const untouched = search.trim() === "" && activeOnOpen === "none";
+    const fallback = untouched ? undefined : enabled[0]?.value;
+    const current = marked.search === search && listed.some((a) => a.value === marked.value) ? marked.value : fallback;
     const setHighlight = (value: string): void => {
         setMarked({ search, value });
     };
@@ -215,19 +269,30 @@ export function QuickActions({
     }, []);
 
     const optionId = (value: string): string => `${id}-option-${value}`;
+    const inName = (action: QuickAction): boolean =>
+        Boolean(action.description) && (descriptions === "end" || action.disabled === true);
+    const nameOf = (action: QuickAction): string | undefined => {
+        if (inName(action)) {
+            return `${action.label}, ${String(action.description)}`;
+        }
+        return action.description || truncate === "middle" ? action.label : undefined;
+    };
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-        const index = enabled.findIndex((a) => a.value === current);
+        // A disabled row is reached too, so the reason it cannot run is heard; Enter skips it.
+        const index = listed.findIndex((a) => a.value === current);
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            if (enabled.length === 0) {
+            if (listed.length === 0) {
                 return;
             }
             const step = event.key === "ArrowDown" ? 1 : -1;
-            const next = enabled[(index + step + enabled.length) % enabled.length];
+            // From no active row, ArrowDown goes to the first and ArrowUp to the last.
+            const next =
+                listed[index < 0 && step < 0 ? listed.length - 1 : (index + step + listed.length) % listed.length];
             setHighlight(next.value);
             document.getElementById(optionId(next.value))?.scrollIntoView?.({ block: "nearest" });
-        } else if (event.key === "Enter" && current !== undefined) {
+        } else if (event.key === "Enter" && current !== undefined && enabled.some((a) => a.value === current)) {
             event.preventDefault();
             onRun(current);
         } else if (event.key === "Escape" && onClose) {
@@ -239,8 +304,8 @@ export function QuickActions({
 
     const name = others["aria-label"] ?? labels.quickActions;
     return (
-        <div
-            role="dialog"
+        <div // NOSONAR(S6819): an inline panel the host places in its own popover; a native dialog adds its own top layer, box and Escape handling
+            role={role}
             aria-label={name}
             className={className ? `cm-quick-actions ${className}` : "cm-quick-actions"}
             style={{ width, height, ...style }}
@@ -251,6 +316,9 @@ export function QuickActions({
                 </span>
                 <input
                     ref={input}
+                    // Inside a Popout, the panel's own focus on open lands here rather than on
+                    // the panel, so typing filters at once.
+                    data-autofocus
                     className="cm-qa-input"
                     type="text"
                     role="combobox"
@@ -286,8 +354,11 @@ export function QuickActions({
                 ) : null}
             </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
-            {/* Above the listbox, not in it: a listbox may hold only options and groups. */}
-            {sections.length === 0 ? <output className="cm-qa-empty">{labels.noResults}</output> : null}
+            {/* Above the listbox, not in it: a listbox may hold only options and groups. Always
+                mounted, so a search that empties the list is spoken when its words appear. */}
+            <output className="cm-qa-empty" aria-live="polite">
+                {sections.length === 0 ? emptyWords : null}
+            </output>
             <div // NOSONAR(S6819): the popup of an ARIA combobox with grouped rows; a native select cannot be one
                 className="cm-qa-list"
                 id={listId}
@@ -295,33 +366,44 @@ export function QuickActions({
                 aria-label={name}
             >
                 {sections.map(([section, list]) => (
-                    <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>
+                    <div // NOSONAR(S6819): a group of options inside an ARIA listbox; optgroup works only inside a native select
+                        className="cm-qa-group"
+                        role="group"
+                        aria-label={section || undefined}
+                        key={section}
+                    >
                         {section ? (
                             <div className="cm-qa-group-title" aria-hidden="true">
                                 {section}
                             </div>
                         ) : null}
                         {list.map((action) => (
-                            <div
+                            <div // NOSONAR(S6819): an option of an ARIA combobox popup with rich rows; a native option holds text only
                                 key={action.value}
                                 id={optionId(action.value)}
                                 role="option"
-                                aria-selected={action.value === current}
+                                // Selected is the value in force, not the row the arrows are on.
+                                aria-selected={highlight !== undefined && action.value === highlight}
                                 aria-disabled={action.disabled || undefined}
-                                // Named by the label alone: not by the second line, and not by
-                                // the two halves of a middle cut, which accname would join with a space.
-                                aria-label={action.description || truncate === "middle" ? action.label : undefined}
+                                // A fact at the line's end (a count, a range) and the reason a row
+                                // cannot run are part of what the row is, so they join its name:
+                                // "degree, 1 to 36". A second line below stays its description.
+                                // Never the two halves of a middle cut, which accname would join with a space.
+                                aria-label={action["aria-label"] ?? nameOf(action)}
                                 aria-describedby={
-                                    action.description ? `${optionId(action.value)}-description` : undefined
+                                    action.description && !inName(action)
+                                        ? `${optionId(action.value)}-description`
+                                        : undefined
                                 }
                                 title={truncate === "middle" ? action.label : undefined}
-                                data-two-line={action.description ? "" : undefined}
+                                // A reason a row cannot run goes under its name whole, never cut at the line's end.
+                                data-two-line={
+                                    action.description && (descriptions === "below" || action.disabled) ? "" : undefined
+                                }
                                 className="cm-qa-row"
                                 data-highlighted={action.value === current || undefined}
                                 onMouseMove={() => {
-                                    if (!action.disabled) {
-                                        setHighlight(action.value);
-                                    }
+                                    setHighlight(action.value);
                                 }}
                                 onMouseDown={(event) => {
                                     event.preventDefault();
@@ -344,8 +426,11 @@ export function QuickActions({
                                 <span className="cm-qa-row-icon" aria-hidden="true">
                                     {action.icon}
                                 </span>
-                                <span className="cm-qa-row-text">
-                                    <span className="cm-qa-row-label" data-truncate={truncate}>
+                                <span
+                                    className="cm-qa-row-text"
+                                    data-descriptions={action.disabled ? "below" : descriptions}
+                                >
+                                    <span className="cm-qa-row-label" data-truncate={truncate} data-tone={action.tone}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>
                                     {action.description ? (

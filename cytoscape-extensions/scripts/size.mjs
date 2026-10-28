@@ -6,17 +6,23 @@
  * Builds small pages with Vite (minified, as an application's production build would be) against dist/, the files a
  * consumer installs, and measures each part minified and gzipped (level 9):
  *   - the main entry: what `import graphtyCytoscape from "@graphty/cytoscape-extensions"` downloads up front,
- *   - each part it loads on first use: the WebGPU code, the generators, each bundled dataset, the file formats,
+ *   - each part it loads on first use: the WebGPU code, the generators, the file formats,
  *   - everything together, and the script-tag bundle (dist/cytoscape-extensions.bundle.js), which leaves out the
- *     file formats and the datasets and loads them from dist/cdn/ on first use,
+ *     file formats and loads them from dist/cdn/ on first use,
  *   - for comparison, one layout and one algorithm imported straight from @graphty/layout and @graphty/algorithms
  *     (the least a package holding only that layout or algorithm could weigh), and each graph-io format alone.
- * Cytoscape itself is left out: the page already has it.
+ * Cytoscape itself is left out: the page already has it. So is neo4j-driver, graph-io's optional peer for its Bolt
+ * transport, which an application installs only to use it. No dataset is measured: no dataset's data is in the
+ * package; graphtyDataset downloads it from graphty.app.
  *
  * Usage (build the package first):
  *   node scripts/size.mjs            check every part against size-budgets.json; exit 1 when one is over its
  *                                    budget, has none, or the file names a part that no longer exists
  *   node scripts/size.mjs --update   rewrite the budgets from this build (say why in the commit message)
+ *   node scripts/size.mjs --update <part>
+ *                                    rewrite only that part's budget and the total's (the total holds every part, so
+ *                                    raising a part alone would eat the total's headroom unseen); <part> is a name or
+ *                                    the start of one, such as "file formats"
  *   node scripts/size.mjs --compare  also measure cytoscape-fcose, cytoscape-cola and cytoscape-graphml the same
  *                                    way (npm pack, npm install, Vite build); needs the network; prints Markdown
  */
@@ -29,6 +35,8 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 import { build } from "vite";
+
+import { matchParts, rebaseline, totalWarning } from "./size-budgets.mjs";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const budgetFile = join(pkg, "size-budgets.json");
@@ -66,7 +74,9 @@ async function bundle(root, code) {
             build: {
                 write: false,
                 minify: true,
-                rollupOptions: { input: entry, external: ["cytoscape", "jquery"] },
+                // neo4j-driver is graph-io's optional peer for the Bolt transport: an application installs
+                // it only to use Bolt, so it is no part of what this package weighs
+                rollupOptions: { input: entry, external: ["cytoscape", "jquery", "neo4j-driver"] },
             },
         });
         return (Array.isArray(out) ? out[0] : out).output.filter((o) => o.type === "chunk");
@@ -99,8 +109,12 @@ function upFront(chunks) {
  * @returns {string} the name
  */
 function lazyPartName(chunk) {
-    // the generators chunk has no facade when Rollup merges graph-samples' dataset metadata into it
-    const id = chunk.facadeModuleId ?? chunk.moduleIds.find((m) => /dist\/samples\.js$/.test(m)) ?? chunk.fileName;
+    // the generators chunk has no facade when Rollup merges graph-samples' dataset metadata into it, and the file
+    // formats chunk none when it holds the graph-io modules the network sources share
+    const id =
+        chunk.facadeModuleId ??
+        chunk.moduleIds.find((m) => /cytoscape-extensions\/dist\/(samples|io)\.js$/.test(m)) ??
+        chunk.fileName;
     if (/gpu-platform/.test(id)) {
         return "WebGPU code (on the first GPU-eligible call)";
     }
@@ -110,8 +124,10 @@ function lazyPartName(chunk) {
     if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
-    const dataset = /datasets\/([^/.]+)/.exec(id);
-    return dataset ? `dataset ${dataset[1]}` : `other lazy chunk ${chunk.fileName}`;
+    if (/graph-io\/dist\/(sources-|chunks\/sigv4-)/.test(id)) {
+        return "network sources, all of them (on the first load from a server)";
+    }
+    return `other lazy chunk ${chunk.fileName}`;
 }
 
 /**
@@ -142,24 +158,27 @@ async function measurePackage(compare) {
         for (const c of chunks) {
             for (const f of c.dynamicImports) {
                 const target = byName.get(f);
-                const name = lazyPartName(target);
-                if (!lazy.has(name)) {
-                    // what is loaded when c imports it: the page and c with its static imports (a dataset loads
-                    // after the generators chunk that imports it)
-                    const loaded = new Set(initial);
-                    closure(c, loaded, initial);
-                    const group = new Set();
-                    closure(target, group, loaded);
-                    lazy.set(name, group);
+                if (target === undefined) {
+                    // an external module (neo4j-driver), which the page does not hold
+                    continue;
                 }
+                const name = lazyPartName(target);
+                // what is loaded when c imports it: the page and c with its static imports; a part of several
+                // chunks (the network sources) adds each of them to its group
+                const loaded = new Set(initial);
+                closure(c, loaded, initial);
+                const group = lazy.get(name) ?? new Set();
+                closure(target, group, loaded);
+                lazy.set(name, group);
             }
         }
         for (const [name, group] of [...lazy].sort(([a], [b]) => a.localeCompare(b))) {
             parts[name] = sizeOf([...group].map((c) => c.code));
         }
         parts["everything (every chunk of the build)"] = sizeOf(chunks.map((c) => c.code));
-        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)"] =
-            sizeOf([readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8")]);
+        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)"] = sizeOf([
+            readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8"),
+        ]);
         if (!compare) {
             return parts;
         }
@@ -243,16 +262,23 @@ if (compare) {
 }
 
 const budgets = JSON.parse(readFileSync(budgetFile, "utf8"));
-if (process.argv.includes("--update")) {
-    const factor = 1 + budgets.headroomPercent / 100;
-    budgets.parts = Object.fromEntries(
-        Object.entries(parts).map(([k, { gz }]) => [
-            k,
-            Math.ceil(Math.max(gz * factor, gz + budgets.minimumHeadroomBytes)),
-        ]),
-    );
+const updateAt = process.argv.indexOf("--update");
+if (updateAt !== -1) {
+    const arg = process.argv[updateAt + 1];
+    let only;
+    if (arg !== undefined) {
+        const found = matchParts(Object.keys(parts), arg);
+        if (found.length !== 1) {
+            console.error(`--update ${JSON.stringify(arg)} names ${found.length} parts; name one of:`);
+            Object.keys(parts).forEach((n) => console.error(`  ${n}`));
+            process.exit(1);
+        }
+        only = found[0];
+    }
+    budgets.parts = rebaseline(budgets, parts, only);
     writeFileSync(budgetFile, `${JSON.stringify(budgets, null, 4)}\n`);
-    console.log(`Rewrote size-budgets.json with ${budgets.headroomPercent}% headroom.`);
+    const what = only === undefined ? "every budget" : 'the budgets of "' + only + '" and the total';
+    console.log(`Rewrote ${what} in size-budgets.json with ${budgets.headroomPercent}% headroom.`);
     process.exit(0);
 }
 
@@ -266,7 +292,7 @@ for (const [name, { min, gz }] of Object.entries(parts)) {
         failed++;
         console.error(`${name}: ${kb(gz)} gzip is ${kb(gz - budget)} over its budget of ${kb(budget)}`);
     } else {
-        console.log(`${name}: ${kb(min)} minified, ${kb(gz)} gzip, budget ${kb(budget)}`);
+        console.log(`${name}: ${kb(min)} minified, ${kb(gz)} gzip, budget ${kb(budget)} (${kb(budget - gz)} left)`);
     }
 }
 for (const name of Object.keys(budgets.parts)) {
@@ -275,10 +301,17 @@ for (const name of Object.keys(budgets.parts)) {
         console.error(`${name}: size-budgets.json has a budget for a part this build no longer has`);
     }
 }
+const warning = totalWarning(budgets, parts);
+if (warning !== undefined) {
+    console.warn(
+        process.env.GITHUB_ACTIONS ? `::warning title=Bundle size (cytoscape-extensions)::${warning}` : warning,
+    );
+}
 if (failed > 0) {
     console.error(
-        `\n${failed} size problem(s). If the growth is intended, run \`node scripts/size.mjs --update\` in ` +
-            "cytoscape-extensions/ and commit size-budgets.json, saying why in the commit message.",
+        `\n${failed} size problem(s). If the growth is intended, run \`node scripts/size.mjs --update <part>\` in ` +
+            "cytoscape-extensions/ (it raises the total with that part; --update alone rewrites every budget) and " +
+            "commit size-budgets.json, saying why in the commit message.",
     );
     process.exit(1);
 }

@@ -85,10 +85,85 @@ export interface CostEstimate {
     readonly cancellable: boolean;
     /** Whether it can run on this graph at all. */
     readonly available: boolean;
-    /** Why it cannot, in a sentence a person can read. Present only when `available` is false. */
+    /**
+     * Why it cannot, in an English sentence. Present only when `available` is false.
+     * @deprecated Read {@link CostEstimate.refusal} and word it in the application: this sentence
+     * names internal ids and option keys. Removed at the next major release.
+     */
     readonly reason?: string;
+    /**
+     * Why it cannot, as a code and the values it is about, with no words. Present exactly when
+     * `available` is false. See {@link EstimateRefusalCode} for each code's parameters.
+     * @since 3.17.0
+     */
+    readonly refusal?: CodedFact<EstimateRefusalCode>;
     /** Where the number came from, in a sentence: the sizes, the work term and the provenance. */
     readonly basis: string;
+}
+
+/**
+ * Why a command cannot run, as {@link CostEstimate.refusal} reports it. Each code's parameters:
+ *
+ * - `algorithm.unknown` -- `algorithm`: the key no algorithm is registered under.
+ * - `algorithm.needs-directed`, `algorithm.needs-undirected`, `algorithm.needs-weighted`,
+ *   `algorithm.needs-accelerator` -- `algorithm`: the algorithm's key.
+ * - `algorithm.needs-connected` -- `algorithm`; `pieces`: how many connected pieces the graph has.
+ * - `estimate.not-costed` -- `op`: the command's op; only an algorithm run and a layout choice
+ *   are costed.
+ * - `estimate.scope-unresolved` -- `error`: the error code resolving the run's scope threw, or null.
+ * - `layout.unknown` -- `layout`: the id no layout is registered under.
+ * - `layout.needs-accelerator` -- `layout`; `engine`: the engine that needs one.
+ * - `layout.not-planar` -- `layout`: the graph cannot be drawn without crossings.
+ * - `layout.needs-node` -- `layout`; `option`: the option that must name the node to start from.
+ * - `layout.node-missing` -- `layout`; `option`; `node`: the named node, which the graph lacks.
+ * - `layout.needs-grouping` -- `layout`; `option`: the option that must name a node attribute.
+ * - `layout.grouping-absent` -- `layout`; `option`; `attribute`: the path no node carries;
+ *   `run`: the run whose field the path is, or null for a data attribute.
+ * - `layout.needs-two-groups` -- `layout`; `option`; `attribute`; `run`; `groups`: how many
+ *   groups the attribute names.
+ * - `layout.needs-location` -- `layout`; `missing`: the role nothing fills (`location`, or the
+ *   `latitude` or `longitude` half of a pair); `attributes`: the node attributes the layout looked
+ *   at. The location map layout found no column to read locations from (since 3.31.0).
+ *
+ * New codes may be added in a minor release: treat an unknown one as "cannot run".
+ * @since 3.17.0
+ */
+export type EstimateRefusalCode =
+    | "algorithm.unknown"
+    | "algorithm.needs-directed"
+    | "algorithm.needs-undirected"
+    | "algorithm.needs-weighted"
+    | "algorithm.needs-connected"
+    | "algorithm.needs-accelerator"
+    | "estimate.not-costed"
+    | "estimate.scope-unresolved"
+    | "layout.unknown"
+    | "layout.needs-accelerator"
+    | "layout.not-planar"
+    | "layout.needs-node"
+    | "layout.node-missing"
+    | "layout.needs-grouping"
+    | "layout.grouping-absent"
+    | "layout.needs-two-groups"
+    | "layout.needs-location";
+
+/** A refusal: the deprecated sentence and the coded fact, made together so they never disagree. */
+export interface EstimateRefusal {
+    /** The English sentence, for the deprecated `reason`. */
+    readonly reason: string;
+    /** The coded fact. */
+    readonly refusal: CodedFact<EstimateRefusalCode>;
+}
+
+/**
+ * Pair a sentence with its code.
+ * @param reason - The English sentence.
+ * @param code - The code.
+ * @param params - The code's parameters.
+ * @returns The refusal, frozen.
+ */
+export function refused(reason: string, code: EstimateRefusalCode, params: CodedFact["params"] = {}): EstimateRefusal {
+    return Object.freeze({ reason, refusal: Object.freeze({ code, params: Object.freeze({ ...params }) }) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -456,36 +531,47 @@ function withDefaults(
  * @param descriptor - The algorithm's descriptor.
  * @param statistics - The graph's shape.
  * @param acceleratorAvailable - Whether an accelerator is attached.
- * @returns The sentence, or undefined when the algorithm can run.
+ * @returns The refusal, or undefined when the algorithm can run.
  */
 function unavailableReason(
     descriptor: AlgorithmDescriptor,
     statistics: GraphStatistics,
     acceleratorAvailable: boolean,
-): string | undefined {
+): EstimateRefusal | undefined {
     const { requires } = descriptor;
     if (requires === undefined) {
         return undefined;
     }
 
+    const algorithm = descriptor.key;
     if (requires.directed === true && statistics.directedness === "undirected") {
-        return "Needs a directed graph; this graph is undirected.";
+        return refused("Needs a directed graph; this graph is undirected.", "algorithm.needs-directed", { algorithm });
     }
 
     if (requires.directed === false && statistics.directedness === "directed") {
-        return "Needs an undirected graph; this graph is directed.";
+        return refused("Needs an undirected graph; this graph is directed.", "algorithm.needs-undirected", {
+            algorithm,
+        });
     }
 
     if (requires.weighted === true && !statistics.weighted) {
-        return "Needs edge weights; every edge in this graph weighs 1.";
+        return refused("Needs edge weights; every edge in this graph weighs 1.", "algorithm.needs-weighted", {
+            algorithm,
+        });
     }
 
     if (requires.connected === true && statistics.components.count > 1) {
-        return `Needs one connected piece; this graph is in ${group(statistics.components.count)} pieces.`;
+        return refused(
+            `Needs one connected piece; this graph is in ${group(statistics.components.count)} pieces.`,
+            "algorithm.needs-connected",
+            { algorithm, pieces: statistics.components.count },
+        );
     }
 
     if (requires.accelerator === true && !acceleratorAvailable) {
-        return "Needs hardware acceleration, and no accelerator is attached.";
+        return refused("Needs hardware acceleration, and no accelerator is attached.", "algorithm.needs-accelerator", {
+            algorithm,
+        });
     }
 
     return undefined;
@@ -737,9 +823,16 @@ function termFor(costClass: CostClass, iterations: number): string {
  * @param reason - Why no number could be produced, in a sentence a person can read.
  * @param available - Whether the algorithm could run at all, which is a separate question from
  * whether its cost is knowable.
+ * @param refusal - Why it cannot run, when `available` is false.
  * @returns The estimate.
  */
-function unknownEstimate(costClass: CostClass, chunked: boolean, reason: string, available: boolean): CostEstimate {
+function unknownEstimate(
+    costClass: CostClass,
+    chunked: boolean,
+    reason: string,
+    available: boolean,
+    refusal?: EstimateRefusal,
+): CostEstimate {
     const estimate: CostEstimate = {
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
@@ -750,7 +843,7 @@ function unknownEstimate(costClass: CostClass, chunked: boolean, reason: string,
         basis: reason,
     };
 
-    return Object.freeze(available ? estimate : { ...estimate, reason });
+    return Object.freeze(available ? estimate : { ...estimate, reason, refusal: refusal?.refusal });
 }
 
 /** The seconds and the provenance one rate model produced. */
@@ -826,11 +919,14 @@ function fromMeasurement(
  * @returns The estimate.
  */
 export function estimateCost(input: CostInput): CostEstimate {
-    const { descriptor, statistics, scope, calibration, measurements } = input;
+    const { descriptor, statistics, scope } = input;
     const chunked = input.chunked ?? false;
 
     if (descriptor === undefined) {
-        return unknownEstimate("unbounded", chunked, `No algorithm is registered under "${input.algorithm}".`, false);
+        const unknown = refused(`No algorithm is registered under "${input.algorithm}".`, "algorithm.unknown", {
+            algorithm: input.algorithm,
+        });
+        return unknownEstimate("unbounded", chunked, unknown.reason, false, unknown);
     }
 
     const { costClass } = descriptor;
@@ -846,10 +942,11 @@ export function estimateCost(input: CostInput): CostEstimate {
         );
     }
 
-    const reason = unavailableReason(descriptor, statistics, input.acceleratorAvailable ?? false);
+    const unavailable = unavailableReason(descriptor, statistics, input.acceleratorAvailable ?? false);
     const sizes = `n=${group(nodes)} m=${group(edges)}`;
 
-    if (reason !== undefined) {
+    if (unavailable !== undefined) {
+        const { reason, refusal } = unavailable;
         return Object.freeze({
             seconds: Number.POSITIVE_INFINITY,
             confidence: "unknown" as const,
@@ -858,6 +955,7 @@ export function estimateCost(input: CostInput): CostEstimate {
             cancellable: chunked,
             available: false,
             reason,
+            refusal,
             basis: `${sizes}; ${reason}`,
         });
     }
@@ -871,6 +969,49 @@ export function estimateCost(input: CostInput): CostEstimate {
         );
     }
 
+    return availableEstimate(input, descriptor, { nodes, edges, sizes, chunked });
+}
+
+/** The size of a run that can be estimated, and how it is described. */
+interface SizedRun {
+    /** Nodes in scope. */
+    readonly nodes: number;
+    /** Edges in scope. */
+    readonly edges: number;
+    /** The "n=... m=..." line that opens the basis. */
+    readonly sizes: string;
+    /** Whether the run yields to the render loop between chunks. */
+    readonly chunked: boolean;
+}
+
+/** The work a run would do, in the units its cost is modelled in. */
+interface RunWork {
+    /** The iteration bound the run would use. */
+    readonly iterations: number;
+    /** The sample size, when the run is sampled. */
+    readonly sample: number | undefined;
+    /** The share of the graph a sampled run would cover, or 1. */
+    readonly sampleFactor: number;
+    /** The plugin's own work units, when it declares them. */
+    readonly ownUnits: number | undefined;
+    /** Whether no iteration bound is declared and one is assumed. */
+    readonly iterationsAreGuessed: boolean;
+    /** The work units of this run. */
+    readonly units: number;
+    /** The work units of a run at a given size. */
+    readonly unitsOf: (nodes: number, edges: number, iterations: number) => number;
+}
+
+/**
+ * The work a run would do: its iteration bound, its sample and its work units.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @returns The run's work.
+ */
+function runWork(input: CostInput, descriptor: AlgorithmDescriptor, nodes: number, edges: number): RunWork {
+    const { costClass } = descriptor;
     const declared = declaredIterationBound(descriptor, input.params);
     const iterations = declared ?? ASSUMED_ITERATION_BOUND;
 
@@ -891,48 +1032,42 @@ export function estimateCost(input: CostInput): CostEstimate {
             ? (n: number, m: number): number => costUnits(n, m, optionValues)
             : (n: number, m: number, i: number): number => workUnits(costClass, n, m, i);
 
-    const measurement = measurements?.get(input.algorithm);
-    const scaled =
-        measurement === undefined
-            ? undefined
-            : fromMeasurement(measurement, unitsOf, units, iterations, calibration?.machine);
+    return { iterations, sample, sampleFactor, ownUnits, iterationsAreGuessed, units, unitsOf };
+}
 
-    const modelled =
-        scaled ??
-        modelFromRates(
-            descriptor,
-            costClass,
-            nodes,
-            edges,
-            units,
-            iterations,
-            sampleFactor,
-            calibration,
-            ownUnits !== undefined,
-            statistics,
-        );
-    const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+/**
+ * The basis line's notes for a run that can be estimated.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param run - The run's size.
+ * @param work - The run's work.
+ * @param provenance - Where the seconds came from.
+ * @returns The notes, in order.
+ */
+function basisNotes(
+    input: CostInput,
+    descriptor: AlgorithmDescriptor,
+    run: SizedRun,
+    work: RunWork,
+    provenance: string,
+): string[] {
+    const { iterations, sample } = work;
     const derivation = input.derivationSeconds ?? 0;
-    const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
-            ? modelled.seconds + derivation
-            : Number.POSITIVE_INFINITY;
-
     const notes = [
-        sizes,
-        ownUnits === undefined
-            ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations))
+        run.sizes,
+        work.ownUnits === undefined
+            ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(descriptor.costClass, iterations))
             : "the algorithm's own work units",
     ];
     if (sample !== undefined) {
-        notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
+        notes.push(`sampled at ${group(sample)} of ${group(run.nodes)} nodes`);
     }
 
-    if (scope?.exact === false) {
+    if (input.scope?.exact === false) {
         notes.push("sizes scaled from the whole graph rather than counted");
     }
 
-    if (iterationsAreGuessed) {
+    if (work.iterationsAreGuessed) {
         notes.push(`no iteration bound is declared, so ${group(ASSUMED_ITERATION_BOUND)} is assumed`);
     }
 
@@ -940,7 +1075,47 @@ export function estimateCost(input: CostInput): CostEstimate {
         notes.push(`plus about ${String(Math.round(derivation * 1000))} ms to derive the scope's subgraph`);
     }
 
-    notes.push(modelled.provenance);
+    notes.push(provenance);
+    return notes;
+}
+
+/**
+ * The estimate of a run whose size is known and whose cost class can be bounded.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param run - The run's size.
+ * @returns The estimate.
+ */
+function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, run: SizedRun): CostEstimate {
+    const { calibration, measurements, statistics } = input;
+    const { costClass } = descriptor;
+    const { nodes, edges, chunked } = run;
+    const work = runWork(input, descriptor, nodes, edges);
+    const { units, iterations, sampleFactor, ownUnits } = work;
+
+    const measurement = measurements?.get(input.algorithm);
+    const scaled =
+        measurement === undefined
+            ? undefined
+            : fromMeasurement(measurement, work.unitsOf, units, iterations, calibration?.machine);
+
+    const modelled =
+        scaled ??
+        modelFromRates(
+            descriptor,
+            costClass,
+            { nodes, edges, units, iterations, sampleFactor },
+            calibration,
+            ownUnits !== undefined,
+            statistics,
+        );
+    const confidence =
+        work.iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const derivation = input.derivationSeconds ?? 0;
+    const seconds =
+        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
+            ? modelled.seconds + derivation
+            : Number.POSITIVE_INFINITY;
 
     return Object.freeze({
         seconds,
@@ -949,7 +1124,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         blocksFrame: !chunked && seconds > FRAME_BUDGET_SECONDS,
         cancellable: chunked,
         available: true,
-        basis: notes.join("; "),
+        basis: basisNotes(input, descriptor, run, work, modelled.provenance).join("; "),
     });
 }
 
@@ -962,11 +1137,12 @@ export function estimateCost(input: CostInput): CostEstimate {
  * one is calibrated.
  * @param descriptor - The algorithm's descriptor.
  * @param costClass - The class it declares.
- * @param nodes - Nodes in scope.
- * @param edges - Edges in scope.
- * @param units - The work term already computed.
- * @param iterations - The iteration bound the run would use.
- * @param sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
+ * @param work - The size of the run.
+ * @param work.nodes - Nodes in scope.
+ * @param work.edges - Edges in scope.
+ * @param work.units - The work term already computed.
+ * @param work.iterations - The iteration bound the run would use.
+ * @param work.sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
  * @param calibration - This machine's calibration, when it has one.
  * @param ownUnits - Whether `units` came from the plugin's `static costUnits`, which supersedes a
  *   seconds model.
@@ -976,15 +1152,18 @@ export function estimateCost(input: CostInput): CostEstimate {
 function modelFromRates(
     descriptor: AlgorithmDescriptor,
     costClass: CostClass,
-    nodes: number,
-    edges: number,
-    units: number,
-    iterations: number,
-    sampleFactor: number,
+    work: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly units: number;
+        readonly iterations: number;
+        readonly sampleFactor: number;
+    },
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
     statistics: GraphStatistics,
 ): ModelledSeconds {
+    const { nodes, edges, units, iterations, sampleFactor } = work;
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
        `postMessage` -- so the model lives beside the class reference in the registry, read from
@@ -1414,7 +1593,9 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
 
     const exactEstimate = estimateCost({ ...input, sample: undefined });
     if (!exactEstimate.available) {
-        const reason = exactEstimate.reason ?? "This algorithm cannot run on this graph.";
+        const reason =
+            unavailableReason(descriptor, statistics, input.acceleratorAvailable ?? false)?.reason ??
+            "This algorithm cannot run on this graph.";
         const code = descriptor.requires?.accelerator === true ? "E_NO_ACCELERATOR" : "E_UNSUPPORTED";
 
         return refuse(code, reason, { algorithm: input.algorithm, reason, graph: { nodes, edges } });

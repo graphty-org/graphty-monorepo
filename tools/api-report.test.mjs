@@ -4,13 +4,15 @@
 //
 //   node --test tools/api-report.test.mjs
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import {
     apiReport,
+    checkPlainStrings,
     entryPoints,
     FRAMEWORK_PACKAGES,
     frameworkImports,
@@ -23,6 +25,7 @@ import {
     plainStringAdditions,
     plainStringProperties,
 } from "./api-report.mjs";
+import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
 describe("entryPoints", () => {
     it("names each typed export, the root as index", () => {
@@ -179,6 +182,19 @@ export interface AlgorithmDescriptor {
         );
     });
 
+    it("passes any plain string on a type of column names, and only there", () => {
+        const head = report({ run: "\n    readonly kind: string;" })
+            .replace("get(id: string): RunRecord;", "get(id: string): RunRecord;\n    mapping(): TableMapping;")
+            .replace(
+                "// @public\nexport type RunState",
+                "// @public\nexport interface TableMapping {\n    readonly kind?: string | null;\n}\n\n// @public\nexport type RunState",
+            );
+        assert.deepEqual(
+            plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
+            ["RunRecord.kind"],
+        );
+    });
+
     it("passes a plain string that is not on a result type, or only in an input", () => {
         const head = report().replace("    text?: string;", "    text?: string;\n    scope?: string;");
         assert.deepEqual(plainStringAdditions([report()], [head]), []);
@@ -197,6 +213,58 @@ export interface AlgorithmDescriptor {
             plainStringAdditions([before], [after]).map((m) => m.split(" ")[0]),
             ["CostEstimate.reason"],
         );
+    });
+
+    // master -> feat/parent (adds CostEstimate.reason: string) -> child (adds a code union field), so
+    // only the parent branch adds a plain string (#2588).
+    describe("on a branch stacked on another pull request's branch", () => {
+        const scratch = mkdtempSync(join(tmpdir(), "api-report-stacked-"));
+        after(() => rmSync(scratch, { recursive: true, force: true }));
+        // without the base overrides CI's own environment sets (GITHUB_BASE_REF=master on a pull request)
+        const env = isolatedGitEnv();
+        delete env.GITHUB_BASE_REF;
+        delete env.API_REPORT_BASE;
+        const git = (...args) => execFileSync("git", args, { cwd: scratch, env, encoding: "utf8" }).trim();
+        const commit = (text, branch) => {
+            writeFileSync(join(scratch, "pkg", "api", "index.api.md"), text);
+            git("add", ".");
+            git("commit", "-q", "-m", branch);
+            git("update-ref", `refs/remotes/origin/${branch}`, "HEAD");
+        };
+        mkdirSync(join(scratch, "pkg", "api"), { recursive: true });
+        git("init", "-q", "-b", "master");
+        git("remote", "add", "origin", join(scratch, "no-such-remote"));
+        commit(report(), "master");
+        git("switch", "-q", "-c", "feat/parent");
+        commit(report({ cost: "\n    readonly reason: string;" }), "feat/parent");
+        git("switch", "-q", "-c", "child");
+        commit(report({ cost: "\n    readonly reason: string;", run: "\n    readonly next: RunState;" }), "child");
+        const pkg = join(scratch, "pkg");
+
+        it("is measured from the branch its pull request merges into, not master", () => {
+            git("config", "branch.child.prBase", "feat/parent");
+            try {
+                assert.deepEqual(checkPlainStrings(pkg, env), []);
+            } finally {
+                git("config", "--unset", "branch.child.prBase");
+            }
+        });
+
+        it("is measured from the pull request's base in CI (GITHUB_BASE_REF)", () => {
+            assert.deepEqual(checkPlainStrings(pkg, { ...env, GITHUB_BASE_REF: "feat/parent" }), []);
+        });
+
+        it("still counts the parent's additions with no base recorded, and API_REPORT_BASE overrides", () => {
+            assert.deepEqual(
+                checkPlainStrings(pkg, env).map((m) => m.split(" ")[0]),
+                ["CostEstimate.reason"],
+            );
+            const vsMaster = { ...env, GITHUB_BASE_REF: "feat/parent", API_REPORT_BASE: "origin/master" };
+            assert.deepEqual(
+                checkPlainStrings(pkg, vsMaster).map((m) => m.split(" ")[0]),
+                ["CostEstimate.reason"],
+            );
+        });
     });
 });
 

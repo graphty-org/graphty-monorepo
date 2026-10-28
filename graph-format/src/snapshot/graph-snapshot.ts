@@ -976,20 +976,10 @@ export class GraphSnapshot implements GraphSnapshotContract {
             bytes += this.arcToEdge.byteLength + this.edgeToArc.byteLength;
         }
         if (options.views === true) {
-            const { views } = this.state;
-            for (const name of VIEW_NAMES) {
-                const value = views[name];
-                if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
-                    bytes += viewByteLength(this, name, value);
-                }
-            }
+            bytes += cachedViewsByteLength(this, this.state.views);
         }
         if (options.columns === true) {
-            for (const table of [this.nodes, this.edges, this.graph, ...this.extensions.values()]) {
-                for (const column of table) {
-                    bytes += column.byteLength;
-                }
-            }
+            bytes += columnsByteLength(this);
         }
         if (options.ids === true) {
             bytes += this.ids.byteLength();
@@ -1439,6 +1429,39 @@ export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean {
         }
     }
     return true;
+}
+
+/**
+ * Resident bytes of the materialised views (reverseDegreeOrder counts zero when it shares
+ * degreeOrder's array).
+ * @param snapshot - the snapshot
+ * @param views - its view cache
+ * @returns the byte count
+ */
+function cachedViewsByteLength(snapshot: GraphSnapshot, views: ViewCache): number {
+    let bytes = 0;
+    for (const name of VIEW_NAMES) {
+        const value = views[name];
+        if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
+            bytes += viewByteLength(snapshot, name, value);
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Resident bytes of every attribute column: node, edge, graph and extension tables.
+ * @param snapshot - the snapshot
+ * @returns the byte count
+ */
+function columnsByteLength(snapshot: GraphSnapshot): number {
+    let bytes = 0;
+    for (const table of [snapshot.nodes, snapshot.edges, snapshot.graph, ...snapshot.extensions.values()]) {
+        for (const column of table) {
+            bytes += column.byteLength;
+        }
+    }
+    return bytes;
 }
 
 /**

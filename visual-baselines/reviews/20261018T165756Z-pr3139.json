@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "pr": 3139,
+  "subject": {
+    "builtMerge": "f3b81d488ab3d2d3d927ec960dc22af991afed79",
+    "head": "b5a25b4599674ccc8038598a072ce7a101555bb3",
+    "runId": 39114722677,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "f3b81d488ab3d2d3d927ec960dc22af991afed79"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.dark.png",
+      "from": "9e9f9c181b3fb60bc1f08cdd95cc9f3afaf8ed38548be75e51b36cb2152be42d",
+      "to": "fe93c876ee49919ccfeb29b5cc8cd5851e25e3c7f3eacbb5f69eecd2447f6b57",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.light.png",
+      "from": "06dc6948eda10e098cff138021c9ef1412e859b9652c5e1edf6357b490e1d029",
+      "to": "8ded27a75fed8b0601cf130b0eb3faa7a23ea1936e22c659ce17236aba045edd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.dark.png",
+      "from": "03cf991bf345698f8a7deb697ad8f248e2c58576f7585ee1bb0f5848d2862131",
+      "to": "adffba8452d9d0840197b04df868cf57acb0304b3d1dc66c359f468c372e26b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.light.png",
+      "from": "2a4e1ada8002598f8fe686f9f3321fe966bb0f2c461a8a1da7fb35eb23f288a9",
+      "to": "c744129ac14bcae0b79c2ea9a30331dd3b5b94eaa09d26a4b7b56aa3fcd504af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "521eedd46ed25815a4f0ffc94d8eab423bf7258b546d15fa71d9c7a4e3779286",
+      "to": "3d9e0e362aee1db2596c4ab27ca6205f224fadb50343f4ebf2d9c6d656eba24f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "bf391cf6eab6d674e9ee184d5d83b1cbf6aab894176c42435c8523d0e953c1b2",
+      "to": "6a83e265aa78c273e9d7121d96db3500378351c12e1ddf971c51058265e8837a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.dark.png",
+      "from": "f76607a3e468cf9a8dc499ee05f21bc2b08ad5addd3a7f352c0f9a65fe3fa66a",
+      "to": "01c1c53cff42d8e81c82bffd157aa3602f6685d9b9c34e9fef98b23417b62e68",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.light.png",
+      "from": "1f0f7a8014e951cb235f07184a1fd3d02ec5ab9d9c411bebae235c993175efae",
+      "to": "d6df3b56f0c9144bc68b5b615bb856720b5e77933cbf1f5b2131d395d3cb8023",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.dark.png",
+      "from": "804c790f5d9591c03b66eb328e7b643cfb0acf7caa21bb2c782520b0884fa78d",
+      "to": "12824f0af28935673f022abba1dcf5732bb353c77c05fe638c3765b3fa056cc1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.light.png",
+      "from": "3b0c42e048b792c3c80c655cf18735cec90edbc2a1b2409c0b25dfa9b1cdb847",
+      "to": "6a24f5d92199b89642297f2b26c1084cb8478999570b8512c28f4b13a9f831db",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-18T16:57:56.797Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiN29VRHJab19aQ2dIamdvcklUWEt0X3ZJRTNyeGZMbmFld0ZSSU51UEx1RSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQD_eghmTGjcfSqFJr6uVujnq3StpefxuIFnHliFdSwkugIgBzhlhzqNuKdBMzaOs5rECNGuRS7ovR9hhiwz9vuH4Ng"
+  }
+}

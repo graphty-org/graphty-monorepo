@@ -2,7 +2,12 @@ import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { OrbitCameraController, type OrbitConfig } from "../../src/cameras/OrbitCameraController";
+import {
+    type FramingSpot,
+    OrbitCameraController,
+    type OrbitConfig,
+    turningFitDistance,
+} from "../../src/cameras/OrbitCameraController";
 
 /**
  * Mock canvas element for NullEngine testing.
@@ -35,9 +40,8 @@ function getDefaultConfig(): OrbitConfig {
     return {
         trackballRotationSpeed: 0.01,
         keyboardRotationSpeed: 0.02,
-        keyboardZoomSpeed: 0.5,
+        keyboardZoomSpeed: 0.015,
         keyboardYawSpeed: 0.03,
-        pinchZoomSensitivity: 0.01,
         twistYawSensitivity: 1.0,
         minZoomDistance: 1,
         maxZoomDistance: 100,
@@ -230,6 +234,80 @@ describe("OrbitCameraController", () => {
             assert.approximately(controller.camera.rotation.x, 0, 0.0001);
             assert.approximately(controller.camera.rotation.y, 0, 0.0001);
             assert.approximately(controller.camera.rotation.z, 0, 0.0001);
+        });
+    });
+
+    describe("fitBounds turning", () => {
+        // A graph shaped like most: a few nodes spread out sideways, the top and bottom near the
+        // vertical axis. The box around it has eight empty corners.
+        const spots: FramingSpot[] = [
+            { pos: new Vector3(10, 0, 0), half: 0.5 },
+            { pos: new Vector3(-10, 0, 0), half: 0.5 },
+            { pos: new Vector3(0, 0, 10), half: 0.5 },
+            { pos: new Vector3(0, 0, -10), half: 0.5 },
+            { pos: new Vector3(0, 8, 0), half: 0.5 },
+            { pos: new Vector3(0, -8, 0), half: 0.5 },
+        ];
+        const min = new Vector3(-10.5, -8.5, -10.5);
+        const max = new Vector3(10.5, 8.5, 10.5);
+
+        test("stands closer than the box fit, so the graph is drawn bigger", () => {
+            controller.zoomToBoundingBox(min, max, spots);
+            const boxFit = controller.cameraDistance;
+
+            controller.fitBounds = "turning";
+            controller.zoomToBoundingBox(min, max, spots);
+
+            assert.isBelow(controller.cameraDistance, boxFit * 0.85);
+        });
+
+        test("keeps every node in view at every angle the view turns to", () => {
+            controller.fitBounds = "turning";
+            controller.zoomToBoundingBox(min, max, spots);
+            const markers = spots.map(({ pos }, index) => {
+                const marker = MeshBuilder.CreateSphere(`spot-${String(index)}`, { diameter: 1 }, scene);
+                marker.position.copyFrom(pos);
+                return marker;
+            });
+
+            for (let step = 0; step < 24; step++) {
+                controller.pivot.rotation.y = (step / 24) * Math.PI * 2;
+                controller.pivot.computeWorldMatrix(true);
+                controller.camera.computeWorldMatrix();
+                controller.camera.getViewMatrix(true);
+                controller.camera.getProjectionMatrix(true);
+                for (const marker of markers) {
+                    marker.computeWorldMatrix(true);
+                    assert.isTrue(
+                        controller.camera.isCompletelyInFrustum(marker),
+                        `${marker.name} left the frame at step ${String(step)}`,
+                    );
+                }
+            }
+        });
+
+        test("without the nodes, falls back to the box", () => {
+            controller.zoomToBoundingBox(min, max);
+            const boxFit = controller.cameraDistance;
+            controller.fitBounds = "turning";
+            controller.zoomToBoundingBox(min, max);
+
+            assert.approximately(controller.cameraDistance, boxFit, 1e-9);
+        });
+
+        test("a spot on the axis asks only for its height; one off it, for its reach at every turn", () => {
+            const center = Vector3.Zero();
+            const tan = Math.tan(0.4);
+            assert.approximately(
+                turningFitDistance(center, [{ pos: new Vector3(0, 4, 0), half: 0 }], tan, tan),
+                4 / tan,
+                1e-9,
+            );
+            assert.approximately(
+                turningFitDistance(center, [{ pos: new Vector3(3, 0, 4), half: 0 }], tan, tan),
+                5 * Math.sqrt(1 + 1 / (tan * tan)),
+                1e-9,
+            );
         });
     });
 

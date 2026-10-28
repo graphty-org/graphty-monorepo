@@ -6,10 +6,13 @@
  * a little every frame. The pass's own time is measured separately by wrapping its `run`.
  *
  * Frame time here is the CPU cost of one synchronous `scene.render()`; it does not include the
- * GPU finishing the frame, which the pass does not touch. The frames are drawn faster than a
- * software GPU finishes them, so after each block the test waits for the GPU to catch up: the
- * hundreds of frames left queued otherwise blocked the NEXT graph's first texture upload for as
- * long as they took to draw, more than the 30 s its stable-frame wait allows (issue #1947).
+ * GPU finishing the frame, which the pass does not touch. So the measured frames are drawn with
+ * rasterization switched off: every draw call is still issued, and nothing is filled in. A
+ * software GPU took about 0.6 s to fill in one 1000-label frame, so the 350 frames of that test
+ * kept it busy for about 230 s of its 300 s budget, and the test timed out whenever the GPU was
+ * any slower than that (issue #2582). The renderer also waited on that backlog inside
+ * `scene.render()`, which inflated the frame times. After each block the test still waits for the
+ * GPU to catch up, so no queued frame blocks the NEXT graph's first texture upload (issue #1947).
  *
  * It asserts nothing about speed, only that the pass ran exactly when it had to. The numbers go
  * to the console, one line per scenario.
@@ -144,6 +147,11 @@ describe("label declutter performance", () => {
             }
         };
 
+        // The frames' draw calls are what is timed; filling in their pixels is not.
+        assert.instanceOf(g.engine, Engine, "the graph draws with WebGL");
+        const { engine } = g;
+        engine.setRasterizerState(false);
+
         for (let at = 0; at < WARMUP_FRAMES; at++) {
             turn();
             g.scene.render();
@@ -161,6 +169,7 @@ describe("label declutter performance", () => {
         const frameMs = (performance.now() - start) / FRAMES;
         const passRuns = pass.passes - passesBefore;
         pass.run = original;
+        engine.setRasterizerState(true);
         await untilGpuCaughtUp(g);
 
         let shown = 0;
@@ -193,7 +202,7 @@ describe("label declutter performance", () => {
     }
 
     for (const count of SIZES) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building 1000 labels and timing about 300 frames over them takes 11 to 28 s locally and about 39 s on CI, plus the time a software GPU needs to draw those frames (about 85 s on a loaded workstation; it was charged to the next test file before #1947), more than a third of the 15 s budget (5000 labels, run by hand, take about two minutes); tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building 1000 labels and timing about 300 frames over them takes 11 to 28 s locally and about 39 s on CI (the frames are not rasterized, see the file comment), more than a third of the 15 s budget (5000 labels, run by hand, take about two minutes); tracked in #1636
         it(`${String(count)} labelled nodes`, { timeout: 300_000 }, async () => {
             const g = await draw(count);
             const lines: string[] = [];

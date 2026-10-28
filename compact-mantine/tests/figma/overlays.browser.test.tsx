@@ -11,7 +11,7 @@
  * from the elevation tokens, and the order of equal-color outer shadows does not change the
  * picture.
  */
-import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, Tooltip } from "@mantine/core";
+import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, TextInput, Tooltip } from "@mantine/core";
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
@@ -19,6 +19,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
+import { MenuItemDescription } from "../../src/components/overlays/MenuItemDescription";
 import { ModalFooter } from "../../src/components/overlays/ModalFooter";
 import { installOverlayBehavior } from "../../src/components/overlays/overlayBehavior";
 import { Toast } from "../../src/components/overlays/Toast";
@@ -157,13 +158,15 @@ const isVisible = (el: Element): boolean => el.isConnected && computed(el).visib
 
 const available = await figmaAvailable();
 
-// ------------------------------------------------------------------ 8.1 dark menu
+// ------------------------------------------------------------------ 8.1 inverse (Figma) menu
+// Figma's menus are dark in both themes: variant="inverse". A plain menu follows the page's scheme
+// (tests/theme/menu-scheme.browser.test.tsx).
 
 const MENU = "index-and-inventory/menu-v2-item-hover";
 
 function OpenMenu(): React.JSX.Element {
     return (
-        <Menu opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
+        <Menu variant="inverse" opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
             <Menu.Target>
                 <Button>Menu</Button>
             </Menu.Target>
@@ -201,7 +204,7 @@ function row(container: ParentNode, text: string): HTMLElement {
     return found;
 }
 
-describe.skipIf(!available)("8.1 dark menu", () => {
+describe.skipIf(!available)("8.1 inverse menu", () => {
     for (const scheme of SCHEMES) {
         describe(scheme, () => {
             it("surface: #1e1e1e, radius 13, padding 8 0, shadow from the page's scheme", async () => {
@@ -263,7 +266,7 @@ describe.skipIf(!available)("8.1 dark menu", () => {
 
             it("keyboard highlight moves with the arrow keys and is the same pill", async () => {
                 const { container } = await renderFigma(
-                    <Menu>
+                    <Menu variant="inverse">
                         <Menu.Target>
                             <Button>Menu</Button>
                         </Menu.Target>
@@ -276,10 +279,12 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 );
                 await drive(part(container, "button"), "open");
                 await waitFor(() => document.querySelector(".mantine-Menu-dropdown"));
-                // The theme drops Mantine's focus placeholder, so opening focuses the first row
-                // (the WAI-ARIA menu pattern); down and back up puts the keyboard highlight on it.
+                // Opened by a click, the menu itself takes focus and no row is highlighted (Figma);
+                // the first ArrowDown reaches the first row, and down and back up returns to it.
                 const first = row(document, "First");
-                await waitFor(() => document.activeElement === first);
+                await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
+                await userEvent.keyboard("{ArrowDown}");
+                await waitFor(() => expect(first).toHaveFocus());
                 await userEvent.keyboard("{ArrowDown}");
                 await waitFor(() => document.activeElement === row(document, "Second"));
                 await userEvent.keyboard("{ArrowUp}");
@@ -389,7 +394,7 @@ describe.skipIf(!available)("8.1 dark menu", () => {
     }
 });
 
-describe("8.1 dark menu keyboard and scroll", () => {
+describe("8.1 menu keyboard and scroll", () => {
     it("type-ahead moves focus to the next enabled row starting with the key, and wraps", async () => {
         const { getByRole } = await renderFigma(
             <Menu>
@@ -407,8 +412,8 @@ describe("8.1 dark menu keyboard and scroll", () => {
         );
         await userEvent.click(getByRole("button", { name: "Main menu" }));
         await waitFor(() => document.querySelector(".cm-menu"));
-        // Opening focuses the first row: the theme drops Mantine's focus placeholder.
-        await waitFor(() => (document.activeElement?.textContent?.startsWith("Actions") ? true : null));
+        // Opened by a click, the menu itself has focus; type-ahead starts from before the first row.
+        await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
         const focused = (): string => document.activeElement?.textContent ?? "";
         await userEvent.keyboard("l");
         expect(focused()).toBe("Libraries");
@@ -417,6 +422,32 @@ describe("8.1 dark menu keyboard and scroll", () => {
         await userEvent.keyboard("v");
         expect(focused()).toBe("View");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("a row with a second line grows to hold both lines (38), neither cut off", async () => {
+        await renderFigma(
+            <Menu opened trapFocus={false} closeOnClickOutside={false}>
+                <Menu.Target>
+                    <Button>View</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item>Fit</Menu.Item>
+                    <MenuCheckItem radio checked={false} aria-disabled data-disabled>
+                        VR / AR
+                        <MenuItemDescription>This browser has no VR or AR</MenuItemDescription>
+                    </MenuCheckItem>
+                </Menu.Dropdown>
+            </Menu>,
+        );
+        const two = await waitFor(() =>
+            document.querySelector<HTMLElement>(".cm-menu-item:has(.cm-menu-item-description)"),
+        );
+        expect(box(two).height).toBe(38);
+        const line = part(two, ".cm-menu-item-description");
+        expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
+        expect(box(line).bottom).toBeLessThanOrEqual(box(two).bottom);
+        // A one-line row keeps Figma's 24.
+        expect(box(row(document, "Fit")).height).toBe(24);
     });
 
     it("a clamped menu shows 24px chevron rows at the ends it can scroll to; hovering one scrolls", async () => {
@@ -472,17 +503,24 @@ describe.skipIf(!available)("8.2 context menu", () => {
         );
     }
 
-    it("opens at the pointer, 3px right and 5px up, first enabled row highlighted", async () => {
+    it("opens at the pointer, 3px right and 5px up, with no row highlighted until ArrowDown", async () => {
         const { getByTestId } = await renderFigma(<Ctx />);
         const area = getByTestId("area");
         const r = box(area);
         await userEvent.click(area, { button: "right", position: { x: 50, y: 60 } });
         const dropdown = await waitFor(() => document.querySelector<HTMLElement>(".mantine-Menu-dropdown"));
+        await waitFor(() => document.activeElement === dropdown);
         const copy = row(document, "Copy");
-        await waitFor(() => document.activeElement === copy);
         expect(box(dropdown).left).toBeCloseTo(r.left + 50 + 3, 0);
         expect(box(dropdown).top).toBeCloseTo(r.top + 60 - 5, 0);
-        expectMeasured(copy, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        // The pointer has no keyboard position yet: no row wears the highlight.
+        for (const item of document.querySelectorAll("[data-menu-item]")) {
+            expect(computed(item as HTMLElement, "::before").backgroundColor).toBe("rgba(0, 0, 0, 0)");
+        }
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => document.activeElement === copy);
+        // the page-themed menu's highlight in the light app: Figma's brand fill
+        expectMeasured(copy, { backgroundColor: "#0d99ff" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));
         expect(area.textContent).toBe("Copy");
@@ -675,6 +713,226 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(visibleTip()).toBeNull();
     });
 
+    /** A toggle whose tooltip says what it does now, as a filter's on and off states do. */
+    function Toggle(): React.JSX.Element {
+        const [on, setOn] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                <Tooltip label={on ? "Showing only these" : "Show only these"}>
+                    <button type="button" aria-pressed={on} onClick={() => setOn(!on)}>
+                        Filter
+                    </button>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    it("a click keeps the trigger's tooltip closed until the pointer leaves, even one that mounts later", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        const filter = getByRole("button", { name: "Filter" });
+        // Clicked before the open delay ran out: the tooltip mounts afterwards, under the resting
+        // pointer, already showing the new label.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(filter);
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(isVisible(tip)).toBe(false);
+        // Left and hovered again, it opens as usual.
+        await commands.mouseAway();
+        await waitFor(() => (tip.isConnected ? null : true));
+        const again = tooltipMount("Showing only these");
+        await userEvent.hover(filter);
+        const next = await again;
+        await waitFor(() => isVisible(next));
+    });
+
+    /**
+     * How many Escape keydowns reach the window, where a page shortcut listens, while `run` runs.
+     * @param run - what presses the keys
+     * @returns the count
+     */
+    async function escapesAtWindow(run: () => Promise<void>): Promise<number> {
+        let heard = 0;
+        const hear = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                heard++;
+            }
+        };
+        globalThis.addEventListener("keydown", hear);
+        try {
+            await run();
+        } finally {
+            globalThis.removeEventListener("keydown", hear);
+        }
+        return heard;
+    }
+
+    it("a tooltip kept hidden under a resting pointer does not take the page's Escape", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        // The click's tooltip mounts later under the still pointer, open to floating-ui but hidden.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(getByRole("button", { name: "Filter" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(1);
+    });
+
+    it("a visible tooltip still takes the Escape that closes it", async () => {
+        const { getByRole } = await renderFigma(<Tips />);
+        await userEvent.hover(getByRole("button", { name: "1" }));
+        await waitFor(visibleTip);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(0);
+        await waitFor(hiddenTip);
+    });
+
+    /** A tree row whose caret toggles it open, its tooltip saying what the next click does. */
+    function CaretRow(): React.JSX.Element {
+        const [open, setOpen] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                {/* As the library's Tree does: the row takes the click, the caret is where it lands. */}
+                <div
+                    role="treeitem"
+                    aria-selected={false}
+                    aria-expanded={open}
+                    tabIndex={0}
+                    onClick={() => {
+                        setOpen(!open);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            setOpen(!open);
+                        }
+                    }}
+                >
+                    <Tooltip label={open ? "Collapse Group" : "Expand Group"}>
+                        <span data-testid="caret" style={{ display: "inline-block", width: 24, height: 24 }} />
+                    </Tooltip>
+                    Group
+                </div>
+            </div>
+        );
+    }
+
+    it("a click on a caret inside a row keeps its new tooltip closed while the pointer rests", async () => {
+        const { getByTestId } = await renderFigma(<CaretRow />);
+        const mounted = tooltipMount("Collapse Group");
+        await userEvent.click(getByTestId("caret"));
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(isVisible(tip)).toBe(false);
+    });
+
+    /** An action whose click turns it off, its tooltip then saying why it is off. */
+    function UndoOnce(): React.JSX.Element {
+        const [done, setDone] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                <Tooltip label={done ? "Nothing to undo" : "Undo"}>
+                    <button
+                        type="button"
+                        aria-disabled={done || undefined}
+                        onClick={() => {
+                            setDone(true);
+                        }}
+                    >
+                        Undo
+                    </button>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    it("a click that turns its trigger off lets the tooltip say why it is off", async () => {
+        const { getByRole } = await renderFigma(<UndoOnce />);
+        const mounted = tooltipMount("Nothing to undo");
+        await userEvent.click(getByRole("button", { name: "Undo" }));
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+    });
+
+    it.each(["pointer", "keyboard"])(
+        "a shown tooltip whose trigger the press turns off says why it is off (%s)",
+        async (how) => {
+            const { getByRole } = await renderFigma(<UndoOnce />);
+            const button = getByRole("button", { name: "Undo" });
+            const mounted = tooltipMount("Undo");
+            if (how === "pointer") {
+                await userEvent.hover(button);
+            } else {
+                await userEvent.tab();
+            }
+            const tip = await mounted;
+            await waitFor(() => (isVisible(tip) ? true : null), 2000);
+            if (how === "pointer") {
+                await userEvent.click(button);
+            } else {
+                await userEvent.keyboard("{Enter}");
+            }
+            // The same tooltip element, its words changed: it shows the reason, not stays dismissed.
+            await waitFor(() => (tip.textContent === "Nothing to undo" && isVisible(tip) ? true : null), 2000);
+            // Pressed again, the off control does nothing: its reason stays.
+            if (how === "pointer") {
+                await userEvent.click(button, { force: true });
+            } else {
+                await userEvent.keyboard("{Enter}");
+            }
+            await frames();
+            expect(isVisible(tip)).toBe(true);
+        },
+    );
+
+    /** A button with another control right under it, and room above and beside. */
+    function Crowded(): React.JSX.Element {
+        return (
+            <div style={{ padding: 120 }}>
+                <Tooltip label="Add a layer or a folder">
+                    <button type="button" style={{ display: "block", width: 24, height: 24 }}>
+                        +
+                    </button>
+                </Tooltip>
+                <button type="button" style={{ display: "block", width: 240, height: 24, marginTop: 2 }}>
+                    Next row
+                </button>
+            </div>
+        );
+    }
+
+    it("opens 6px below its trigger, as Figma places it, even over the control under it", async () => {
+        const { getByRole } = await renderFigma(<Crowded />);
+        const mounted = tooltipMount("Add a layer or a folder");
+        const trigger = getByRole("button", { name: "+" });
+        await userEvent.hover(trigger);
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        const box = tip.getBoundingClientRect();
+        const anchor = trigger.getBoundingClientRect();
+        expect(Math.round(box.top - anchor.bottom)).toBe(6);
+        expect(Math.round(box.left + box.width / 2)).toBe(Math.round(anchor.left + anchor.width / 2));
+    });
+
+    it("flips above only when below would run off the window", async () => {
+        const { getByRole } = await renderFigma(
+            <div style={{ position: "fixed", bottom: 4, left: 200 }}>
+                <Tooltip label="At the bottom edge">
+                    <button type="button" style={{ display: "block", width: 24, height: 24 }}>
+                        B
+                    </button>
+                </Tooltip>
+            </div>,
+        );
+        const mounted = tooltipMount("At the bottom edge");
+        const trigger = getByRole("button", { name: "B" });
+        await userEvent.hover(trigger);
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        expect(Math.round(trigger.getBoundingClientRect().top - tip.getBoundingClientRect().bottom)).toBe(6);
+    });
+
     it("hides at once on a key press but not on a modifier", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await userEvent.hover(getByRole("button", { name: "1" }));
@@ -690,7 +948,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const one = getByRole("button", { name: "1" });
         await userEvent.hover(one);
         await waitFor(visibleTip);
-        one.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+        await userEvent.wheel(one, { delta: { y: 10 } });
         await waitFor(hiddenTip, 50);
     });
 
@@ -702,7 +960,9 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         );
         await waitFor(visibleTip);
         await userEvent.keyboard("a");
-        document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        // A press away from the tooltip; the afterEach releases it.
+        await commands.mouseAway();
+        await commands.mouseDown();
         expect(visibleTip()).not.toBeNull();
     });
 
@@ -739,11 +999,14 @@ describe("8.3 tooltip dismiss and focus delay", () => {
     });
 
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {
-        const { getByRole } = await renderFigma(<Tips />);
+        await renderFigma(<Tips />);
         await commands.mouseAway();
         fakeTooltipTimers();
         const mountedOne = tooltipMount("One");
-        getByRole("button", { name: "1" }).focus();
+        // Tab reaches "1": a tooltip shows for focus a key moved, not for focus a script put back.
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("1");
         const one = await mountedOne;
         vi.advanceTimersByTime(1000);
         await waitFor(() => isVisible(one));
@@ -759,6 +1022,17 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const two = await mountedTwo;
         expect(two.hasAttribute("data-cm-held")).toBe(false);
         await waitFor(() => isVisible(two));
+    });
+
+    it("a tooltip does not show when a script puts focus back on its trigger", async () => {
+        const { getByRole } = await renderFigma(<Tips />);
+        await commands.mouseAway();
+        // An Escape that closes something hands focus back by script: no bubble over the next control.
+        const mounted = tooltipMount("One");
+        await userEvent.keyboard("{Escape}");
+        getByRole("button", { name: "1" }).focus();
+        const one = await mounted;
+        expect(one.hasAttribute("data-cm-dismissed")).toBe(true);
     });
 
     it("a key press does not warm the tooltip of a trigger that was already focused", async () => {
@@ -781,8 +1055,11 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         // Past any warm window an earlier test left (the previous test's tooltip was visible when
         // its pointer left the window), so the only window is the one this test's key opens.
         jumpClock(10_000);
-        // "2" holds focus (its tooltip is disabled, so none shows) while "One" shows on hover.
-        getByRole("button", { name: "2" }).focus();
+        // "2" holds focus, reached by Tab (its tooltip is disabled, so none shows) while "One"
+        // shows on hover.
+        getByRole("button", { name: "1" }).focus();
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("2");
         await userEvent.hover(getByRole("button", { name: "1" }));
         const one = await waitFor(visibleTip);
         // A key press while "One" is visible opens a warm window and enables "Two"'s tooltip,
@@ -795,6 +1072,101 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(one.hasAttribute("data-cm-dismissed")).toBe(true);
         expect(document.activeElement?.textContent).toBe("2");
         expect(two.hasAttribute("data-cm-held")).toBe(true);
+    });
+
+    /** A Load button that, clicked, is replaced by a button with a tooltip at the same place. */
+    function Swap(): React.JSX.Element {
+        const [loaded, setLoaded] = useState(false);
+        const size = { width: 120, height: 40 };
+        return (
+            <div style={{ padding: 40 }}>
+                {loaded ? (
+                    <Tooltip label="Reset" openDelay={0}>
+                        <button type="button" style={size}>
+                            R
+                        </button>
+                    </Tooltip>
+                ) : (
+                    <button type="button" style={size} onClick={() => setLoaded(true)}>
+                        Load
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    it("a trigger that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        // Chromium's hover update after the layout change opens the tooltip with the pointer still.
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(tip.hasAttribute("data-cm-still")).toBe(true);
+        expect(isVisible(tip)).toBe(false);
+        // The reader moves the pointer on the button: it shows after the usual delay.
+        await userEvent.hover(getByRole("button", { name: "R" }), { position: { x: 10, y: 10 } });
+        expect(isVisible(tip)).toBe(false);
+        await waitFor(() => isVisible(tip));
+    });
+
+    it("keyboard focus still shows the tooltip of a trigger under a resting pointer", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("R");
+        await waitFor(() => isVisible(tip));
+    });
+
+    /**
+     * A text field with a tooltip that, after a click on the box above it, moves under the resting
+     * pointer (an Undo that brings a line back does this). A text input writes its own
+     * aria-describedby, so the tooltip's link to it is lost.
+     */
+    function FieldSwap(): React.JSX.Element {
+        const [shown, setShown] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                {shown && (
+                    <Tooltip label="Tags you can use">
+                        <TextInput aria-label="Words" style={{ width: 200 }} />
+                    </Tooltip>
+                )}
+                <input type="checkbox" aria-label="Show more" onChange={() => setShown(true)} />
+            </div>
+        );
+    }
+
+    it("a text field that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
+        const { getByRole } = await renderFigma(<FieldSwap />);
+        const mounted = tooltipMount("Tags you can use");
+        await userEvent.click(getByRole("checkbox", { name: "Show more" }));
+        // The field took the checkbox's place under the pointer; Chromium's hover update opens it.
+        const tip = await mounted;
+        expect(tip.hasAttribute("data-cm-still")).toBe(true);
+        await frames();
+        expect(isVisible(tip)).toBe(false);
+    });
+
+    it("a tooltip stays shut while its trigger's own pop-up is open", async () => {
+        const { getByRole } = await renderFigma(
+            <div style={{ padding: 120 }}>
+                <InfoCircle label="Degree">How many edges touch a node.</InfoCircle>
+            </div>,
+        );
+        const about = getByRole("button", { name: /Degree/ });
+        const mounted = tooltipMount(about.getAttribute("aria-label") ?? "");
+        // Hovering opens the explanation at once; the tooltip mounts after its delay, over it.
+        await userEvent.hover(about);
+        await waitFor(() => (about.getAttribute("aria-expanded") === "true" ? true : null));
+        const tip = await mounted;
+        expect(tip.hasAttribute("data-cm-dismissed")).toBe(true);
+        await frames();
+        expect(isVisible(tip)).toBe(false);
     });
 });
 
@@ -1054,6 +1426,7 @@ describe.skipIf(!available)("8.5 modal", () => {
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
+            // Figma's footer: 40 tall, padding 0 8 0 16, its divider.
             expectMeasured(bottom, {
                 ...figmaSpec(footer, [
                     "height",
@@ -1067,8 +1440,10 @@ describe.skipIf(!available)("8.5 modal", () => {
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
             expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
-            // centered, no backdrop by default, focus in the first field
-            expect(document.querySelector(".mantine-Modal-overlay")).toBeNull();
+            // centered, a transparent overlay that blocks the page by default, focus in the first field
+            const overlay = document.querySelector(".mantine-Modal-overlay");
+            expect(overlay).not.toBeNull();
+            expect(getComputedStyle(overlay as Element).backgroundColor).toBe("rgba(0, 0, 0, 0)");
             await waitFor(() => (document.activeElement?.getAttribute("aria-label") === "Title" ? true : null));
         });
     }

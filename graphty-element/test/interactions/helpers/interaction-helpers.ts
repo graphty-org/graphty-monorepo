@@ -10,7 +10,7 @@ import { vi } from "vitest";
 
 import { Graph } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
+import { click, drag, nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
 
@@ -180,63 +180,19 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
 }
 
 /**
- * Perform a drag operation on a node.
- * Simulates mouse down, move, and up events to drag a node.
+ * Drag a node with the real mouse: press on its centre, move in steps, release.
  *
  * @param graph - The graph instance
  * @param nodeId - The ID of the node to drag
- * @param delta - The delta to move the node by (in screen pixels)
+ * @param delta - How far to move the pointer, in CSS pixels
  */
 export async function dragNode(graph: Graph, nodeId: string | number, delta: DragDelta): Promise<void> {
-    const screenPos = getNodeScreenPosition(graph, nodeId);
-    if (!screenPos) {
+    const at = graph.nodeScreenPosition(nodeId);
+    if (!at) {
         throw new Error(`Node ${nodeId} not found`);
     }
 
-    const { scene } = graph;
-    const { PointerEventTypes } = await import("@babylonjs/core");
-
-    // Simulate pointer down on the node
-    scene.onPointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERDOWN,
-        event: {
-            clientX: screenPos.x,
-            clientY: screenPos.y,
-            buttons: 1,
-            button: 0,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
-
-    // Observers run synchronously; let a frame render between the steps, as a real drag would
-    await nextFrame();
-
-    // Simulate pointer move
-    const steps = 5;
-    for (let i = 1; i <= steps; i++) {
-        const progress = i / steps;
-        scene.onPointerObservable.notifyObservers({
-            type: PointerEventTypes.POINTERMOVE,
-            event: {
-                clientX: screenPos.x + delta.dx * progress,
-                clientY: screenPos.y + delta.dy * progress,
-                buttons: 1,
-                button: 0,
-            } as PointerEvent,
-        } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
-
-        await nextFrame();
-    }
-
-    // Simulate pointer up
-    scene.onPointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERUP,
-        event: {
-            clientX: screenPos.x + delta.dx,
-            clientY: screenPos.y + delta.dy,
-            buttons: 0,
-            button: 0,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
+    await drag(graph.canvas, at, { x: at.x + delta.dx, y: at.y + delta.dy }, 5);
 
     // Wait for whatever the drag queued to run, and a frame to show it
     await graph.waitForSettled();
@@ -351,107 +307,49 @@ export const DEFAULT_TEST_EDGES = [
     { src: "node3", dst: "node1" },
 ];
 
-/** How long the simulated button is held: a quick click, well under the element's long-press limit. */
-const CLICK_PRESS_MS = 16;
-
 /**
- * Simulate a click (pointer down + up with no movement) on a specific screen position.
- *
- * The two events carry time stamps `CLICK_PRESS_MS` apart, the way a browser stamps a real quick
- * click, so the element reads a click however long this page takes to get from one to the other.
+ * Click the real mouse at a point on the canvas.
  *
  * @param graph - The graph instance
- * @param position - Screen position to click at
+ * @param position - Where, in CSS pixels from the canvas's top-left corner
  */
 export async function clickAtPosition(graph: Graph, position: ScreenPosition): Promise<void> {
-    const { scene } = graph;
-    const { PointerEventTypes } = await import("@babylonjs/core");
+    await click(graph.canvas, position);
 
-    // Set pointer position on scene - this is what scene.pick() uses
-    scene.pointerX = position.x;
-    scene.pointerY = position.y;
-
-    const pressedAt = performance.now();
-
-    // Notify Babylon's PrePointerObservable (used by NodeBehavior)
-    // The scene.pick() inside the handler will use scene.pointerX/Y
-    scene.onPrePointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERDOWN,
-        event: {
-            clientX: position.x,
-            clientY: position.y,
-            buttons: 1,
-            button: 0,
-            timeStamp: pressedAt,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-
-    // Pointer up to complete the click
-    scene.onPrePointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERUP,
-        event: {
-            clientX: position.x,
-            clientY: position.y,
-            buttons: 0,
-            button: 0,
-            timeStamp: pressedAt + CLICK_PRESS_MS,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-
-    // The click was handled synchronously; wait for the selection styling it queued to land
+    // Wait for the selection styling the click queued to land
     await graph.waitForSettled();
 }
 
 /**
- * Simulate a click on a node.
+ * Click a node with the real mouse, at its centre on screen.
  *
  * @param graph - The graph instance
  * @param nodeId - The ID of the node to click
  * @returns True if the click was performed, false if node not found
  */
 export async function clickOnNode(graph: Graph, nodeId: string | number): Promise<boolean> {
-    const node = graph.getNode(String(nodeId));
-    if (!node) {
+    if (!graph.getNode(String(nodeId))) {
         return false;
     }
 
-    // Manually apply layout positions to nodes
-    // (In tests, the render loop might not automatically call node.update)
-    for (const n of graph.getNodes()) {
-        n.update();
-        // Force world matrix computation to update absolutePosition
-        n.mesh.computeWorldMatrix(true);
-    }
-
-    // Trigger a few render frames to ensure everything is synchronized
-    for (let i = 0; i < 3; i++) {
-        graph.scene.render();
-        await nextFrame();
-    }
-
-    const screenPos = getNodeScreenPosition(graph, nodeId);
-    if (!screenPos) {
+    // Read the node where the last frame drew it
+    await graph.waitForStableFrame();
+    const at = graph.nodeScreenPosition(nodeId);
+    if (!at?.visible) {
         return false;
     }
 
-    await clickAtPosition(graph, screenPos);
+    await clickAtPosition(graph, at);
     return true;
 }
 
 /**
- * Simulate a click on the background (not on any node).
+ * Click the real mouse on the background (not on any node).
  *
  * @param graph - The graph instance
  */
 export async function clickOnBackground(graph: Graph): Promise<void> {
-    // Click at the corner of the canvas where there's unlikely to be a node
-    const { engine } = graph;
-    const width = engine.getRenderWidth();
-    const height = engine.getRenderHeight();
-
-    // Use corner position (should be background)
-    await clickAtPosition(graph, {
-        x: width - 10,
-        y: height - 10,
-    });
+    // Near the bottom-right corner of the canvas, where there's unlikely to be a node
+    const { clientWidth, clientHeight } = graph.canvas;
+    await clickAtPosition(graph, { x: clientWidth - 10, y: clientHeight - 10 });
 }

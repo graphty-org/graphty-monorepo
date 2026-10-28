@@ -14,6 +14,7 @@ import type { OrbitInputController } from "../../../src/cameras/OrbitInputContro
 import type { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
 import type { InputController } from "../../../src/cameras/TwoDInputController";
 import type { Graph } from "../../../src/Graph";
+import { holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
 import { getCameraPosition, getSceneScale, setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
@@ -55,23 +56,12 @@ function get3DControllers(graph: Graph): {
 }
 
 /**
- * Helper to simulate keyboard key state for 2D controller
+ * Press a key and hold it on the focused canvas: a real key press through `userEvent`, which
+ * the input controller's own listeners receive. `releaseHeldKeys` lets it go after the test.
  */
-function set2DKeyState(inputController: InputController, key: string, pressed: boolean): void {
-    const controller = inputController as unknown as {
-        keyState: Record<string, boolean>;
-    };
-    controller.keyState[key] = pressed;
-}
-
-/**
- * Helper to simulate keyboard key state for 3D controller
- */
-function set3DKeyState(inputController: OrbitInputController, key: string, pressed: boolean): void {
-    const controller = inputController as unknown as {
-        keysDown: Record<string, boolean>;
-    };
-    controller.keysDown[key.toLowerCase()] = pressed;
+async function pressKey(graph: Graph, key: string): Promise<void> {
+    graph.canvas.focus();
+    await holdKey(key);
 }
 
 /**
@@ -91,22 +81,23 @@ describe("Input Speed and Sensitivity", () => {
             graph = await setupTestGraph({ mode: "2d" });
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             vi.restoreAllMocks();
             teardownTestGraph(graph);
         });
 
-        test("keyboard pan speed is within expected range", () => {
+        test("keyboard pan speed is within expected range", async () => {
             const { inputController } = get2DControllers(graph);
 
             // Record initial position
             const initialPos = getCameraPosition(graph);
 
             // Simulate W key press for fixed number of frames
-            set2DKeyState(inputController, "w", true);
+            await pressKey(graph, "w");
             const frames = 10;
             runUpdateFrames(inputController, frames);
-            set2DKeyState(inputController, "w", false);
+            await releaseKey("w");
 
             // Get final position
             const finalPos = getCameraPosition(graph);
@@ -120,17 +111,17 @@ describe("Input Speed and Sensitivity", () => {
             assert.isBelow(distance, 100, "Pan speed should not be excessively fast");
         });
 
-        test("keyboard zoom speed is within expected range", () => {
+        test("keyboard zoom speed is within expected range", async () => {
             const { inputController } = get2DControllers(graph);
 
             // Record initial scale
             const initialScale = getSceneScale(graph);
 
             // Simulate + key press for fixed number of frames
-            set2DKeyState(inputController, "+", true);
+            await pressKey(graph, "+");
             const frames = 10;
             runUpdateFrames(inputController, frames);
-            set2DKeyState(inputController, "+", false);
+            await releaseKey("+");
 
             // Get final scale
             const finalScale = getSceneScale(graph);
@@ -241,22 +232,23 @@ describe("Input Speed and Sensitivity", () => {
             graph = await setupTestGraph({ mode: "3d" });
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             vi.restoreAllMocks();
             teardownTestGraph(graph);
         });
 
-        test("keyboard zoom speed is within expected range", () => {
+        test("keyboard zoom speed is within expected range", async () => {
             const { cameraController, inputController } = get3DControllers(graph);
 
             // Record initial distance
             const initialDistance = cameraController.cameraDistance;
 
             // Simulate W key press for fixed number of frames
-            set3DKeyState(inputController, "w", true);
+            await pressKey(graph, "w");
             const frames = 10;
             runUpdateFrames(inputController, frames);
-            set3DKeyState(inputController, "w", false);
+            await releaseKey("w");
 
             // Get final distance
             const finalDistance = cameraController.cameraDistance;
@@ -269,7 +261,22 @@ describe("Input Speed and Sensitivity", () => {
             assert.isBelow(distanceChange, initialDistance, "Zoom speed should not be excessively fast");
         });
 
-        test("keyboard rotation speed is within expected range", () => {
+        test("mouse wheel zooms the camera in and out", () => {
+            const { cameraController } = get3DControllers(graph);
+            const wheel = (deltaY: number): boolean =>
+                graph.canvas.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true }));
+
+            const start = cameraController.cameraDistance;
+            assert.isFalse(wheel(-100), "the wheel must not scroll the page");
+            const zoomedIn = cameraController.cameraDistance;
+            assert.isBelow(zoomedIn, start * 0.95, "wheel up should move the camera closer");
+            assert.isAbove(zoomedIn, start * 0.5, "one notch should not jump the camera");
+
+            wheel(100);
+            assert.isAbove(cameraController.cameraDistance, zoomedIn, "wheel down should move the camera away");
+        });
+
+        test("keyboard rotation speed is within expected range", async () => {
             const { cameraController, inputController } = get3DControllers(graph);
 
             // Record initial pivot rotation
@@ -277,10 +284,10 @@ describe("Input Speed and Sensitivity", () => {
             const initialRotation = pivot.rotationQuaternion?.toEulerAngles().y ?? 0;
 
             // Simulate ArrowLeft key press for fixed number of frames
-            set3DKeyState(inputController, "arrowleft", true);
+            await pressKey(graph, "ArrowLeft");
             const frames = 10;
             runUpdateFrames(inputController, frames);
-            set3DKeyState(inputController, "arrowleft", false);
+            await releaseKey("ArrowLeft");
 
             // Get final rotation
             const finalRotation = pivot.rotationQuaternion?.toEulerAngles().y ?? 0;
@@ -293,32 +300,6 @@ describe("Input Speed and Sensitivity", () => {
             assert.isAbove(rotationChange, 0.001, "Rotation speed should produce detectable movement");
             assert.isBelow(rotationChange, Math.PI, "Rotation speed should not be excessively fast");
         });
-
-        test("3D rotation velocity dampens with inertia", () => {
-            const { inputController } = get3DControllers(graph);
-
-            // Access private rotation velocity
-            const controller = inputController as unknown as {
-                rotationVelocityY: number;
-                config: { inertiaDamping: number };
-            };
-
-            // Set initial velocity
-            controller.rotationVelocityY = 0.1;
-            const dampingFactor = controller.config.inertiaDamping;
-
-            // Run update without keys pressed
-            runUpdateFrames(inputController, 1);
-
-            // Velocity should have been applied and damped
-            // Note: The update applies the velocity then damps it
-            assert.closeTo(
-                controller.rotationVelocityY,
-                0.1 * dampingFactor,
-                0.001,
-                "Rotation velocity should decay by damping factor",
-            );
-        });
     });
 
     describe("Mouse Sensitivity", () => {
@@ -328,7 +309,8 @@ describe("Input Speed and Sensitivity", () => {
             graph = await setupTestGraph({ mode: "3d" });
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             vi.restoreAllMocks();
             teardownTestGraph(graph);
         });

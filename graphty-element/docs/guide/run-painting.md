@@ -1,7 +1,7 @@
 # What a Run Painted
 
 When an algorithm run finishes, graphty-element draws its result for you: a ranking colors the
-nodes, communities get one color each, a route is highlighted. Each of these is a _suggestion_
+nodes, communities get one color each, a route is marked in its own color. Each of these is a _suggestion_
 the run makes, and the element decides once, when the run first completes, whether to add it to
 the style stack.
 
@@ -22,12 +22,15 @@ for (const s of session.runs.painting(run.id)?.suggestions ?? []) {
         console.log("added", s.suggestion.channels);
     } else if (s.outcome === "suppressed") {
         console.log("hidden by layer", session.styles.get(s.byLayerId)?.name);
-        // Paint it anyway, on top of that layer
         if (s.suggestion.as === "encoding") await session.styles.encode(s.suggestion.spec);
+        else if (s.suggestion.as === "mark") await session.styles.mark(s.suggestion.spec);
         else await session.styles.highlight(s.suggestion.spec);
     } else console.log(s.outcome); // "superseded", "refused", or one added later
 }
 ```
+
+A suppressed suggestion can still be painted on top of the layer that hid it, by passing its
+`spec` to the verb its `as` names, as the example does.
 
 The decision is ready as soon as `await run` returns. Pass the run's `id`; the value `await run`
 resolves to carries the same id as `runId`.
@@ -45,15 +48,21 @@ Every suggestion the run made gets one entry in `suggestions`, with an `outcome`
 
 Every entry also carries `suggestion`, the suggestion itself:
 
-- `suggestion.as` is `"encoding"` or `"highlight"`: which of `session.styles.encode()` or
-  `session.styles.highlight()` applies it.
+- `suggestion.as` is `"encoding"`, `"mark"` or `"highlight"`: which of `session.styles.encode()`,
+  `session.styles.mark()` or `session.styles.highlight()` applies it. A run that measured every
+  element suggests an encoding; a run that chose some elements (a route, a spanning tree, a cut, a
+  matching) suggests a mark. The element never suggests a highlight itself; the value is there
+  for a suggestion your app builds.
 - `suggestion.spec` is what that method takes, already bound to the run (its `run` is the run's
   id), so passing it back applies the suggestion yourself.
 - `suggestion.channels` is an array of `Channel` values (the type is exported from
-  `@graphty/graphty-element/catalog`), such as `["node.color"]`. A route
-  highlight names two, `"node.color"` and `"edge.color"`.
+  `@graphty/graphty-element/catalog`), such as `["node.color"]`. A route's
+  mark names two, `"node.color"` and `"edge.color"`. A mark's `spec.set` holds the values it
+  paints: `#D55E00` on a chosen node or edge, and `edge.width` three times the default on a chosen
+  edge. They are the mark's own values, so changing the element's highlight color does not change
+  them.
 
-`layerIds` lists every layer the suggestion added: one for an encoding, two for a highlight that
+`layerIds` lists every layer the suggestion added: one for an encoding, two for a mark that
 paints nodes and edges. Each id works with `session.styles.get(id)`, which returns the layer (or
 `undefined` once it is removed), and with every other `session.styles` method that takes a layer
 id.
@@ -100,7 +109,39 @@ sets the same channel:
   suggestion is suppressed. Your layer would hide it anyway.
 - If your layer sets it on some elements, the suggestion is placed directly beneath your layer.
 
-Layers that came from earlier runs never hold a later run back.
+Layers that came from earlier runs never hold a later run back. Marks from two runs both stay in
+the stack, the later one on top, so it wins only on the elements both runs chose.
+
+## A run's layers in the style tree
+
+A run's layers are ordinary layers: rename, hide, move, edit and delete them as you would your
+own. A route paints nodes and edges, so it adds two layers, but they share one row of
+`session.styles.tree()` and one name, the way a row made with `target: "both"` does (see
+[One Row for Nodes & Edges](./style-rows-both-kinds)).
+
+To edit what a run's layer selects, read its selector as a rule with `selectorRule(layer.selector)`
+(from `@graphty/graphty-element/session`). It comes back as a condition on the run's value, such as
+"has a degree value" or "on the route", that matches the same elements, so the layer opens in a
+rule editor like any other (see [Rules & Text Matching](./style-rules)).
+
+Where a new run's layers land is the `runPlacement` setting (see
+[Everything, Selected & Hovered](./starting-rows)). With `"top"`, each run's layers land on top of the
+unpinned rows (beneath a row pinned to the top, such as Selected), so a later run sits above an
+earlier one.
+
+## Choosing the color of a route
+
+A route or a chosen set of nodes is painted in graphty-element's own highlight color, ultramarine
+`#0000AA`, which stands apart from every color of the default group palette, and a highlighted edge
+is drawn three times as wide. To use your own color for every highlight a run paints, and for every
+`session.styles.highlight()` you call without `set`, set it once:
+
+```ts
+session.styles.setHighlightColor("#000000");
+```
+
+`setHighlightColor(undefined)` goes back to indigo. It affects highlights painted after the call,
+not layers already in the stack, and it is not saved with the styles.
 
 ## What the decision does not tell you
 
@@ -122,4 +163,4 @@ session.on("run:changed", (change) => {
 
 All of these types are exported from `@graphty/graphty-element` and
 `@graphty/graphty-element/session`: `RunPainting`, `SuggestionOutcome`, `StyleSuggestion`,
-`EncodingSuggestion` and `HighlightSuggestion`.
+`EncodingSuggestion`, `MarkSuggestion` and `HighlightSuggestion`.

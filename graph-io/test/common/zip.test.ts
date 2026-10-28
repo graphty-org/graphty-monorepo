@@ -128,6 +128,14 @@ describe("zip reader", () => {
         const fake = zip.slice();
         new DataView(fake.buffer).setUint16(fake.byteLength - 22 + 10, 0xffff, true);
         expect(zipError(() => readZipDirectory(fake)).kind).toBe("corrupt");
+        expect(zipError(() => readZipDirectory(fake)).message).toBe(
+            "the end record needs a zip64 record the archive does not have",
+        );
+        // a split archive that also lacks its zip64 record reports the missing record first
+        new DataView(fake.buffer).setUint16(fake.byteLength - 22 + 4, 1, true);
+        expect(zipError(() => readZipDirectory(fake)).message).toBe(
+            "the end record needs a zip64 record the archive does not have",
+        );
     });
 
     it("refuses encryption and unknown methods by name", async () => {

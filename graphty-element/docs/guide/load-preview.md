@@ -52,6 +52,7 @@ await element.session.data.import({ config: { file } }, { mapping: { source: "fr
 | `type`             | The format that read the file (`"csv"`, `"graphml"`, ...)                      |
 | `tables`           | The file's tables: an `id`, the file `name`, `rowCount`, `fixed` and `columns` |
 | `mapping`          | The element's own reading of every table's roles                               |
+| `styles`           | Whether the file carries styles, and how many rules; null when it holds none   |
 | `resolve(choices)` | Every table's roles as a load with those choices reads them                    |
 | `missing(choices)` | The roles each table still needs under those choices                           |
 | `report(choices)`  | What `load(choices)` would do to the graph as it is now                        |
@@ -96,6 +97,12 @@ DOT, Pajek or JSON file says which fields are node ids and edge endpoints, so a 
 tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` field is its label
 column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
 `data.knownFields.nodeLabelPath` names another column already.
+
+For a graph file, `draft.load()` loads what `session.data.import` of the same source loads -- the
+same nodes, edges, columns and graph values -- except that the draft also sets
+`data.knownFields.nodeLabelPath` to the file's `label` field, as above, where `import` leaves it
+unset. A CSV table is read from its cells as written, so the reader can map them, and its ids
+keep the type the cells hold, where `import` reads them as text.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
@@ -194,7 +201,34 @@ Other choices `report`, `load` and `import` take:
   keeps the first row's node; `"merge"` also writes the later row's values onto it, later rows
   winning; `"refuse"` refuses the load with `E_DUPLICATE_ID`, whose `details.id` names the id.
 - `directed`: writes `data.directed` in the same undoable step as the load.
+- `styles`: `"file"` also draws the file's own styles as style layers, in the same step; `"none"`
+  (the default) loads the data alone. `styleOptions` shapes how. See
+  [Styles in the file](#styles-in-the-file).
 - `layout`: `"recommended"` also picks a layout for what was loaded.
+
+## Styles in the file
+
+`draft.styles` says, before anything loads, whether the file carries styles a load with
+`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
+and otherwise `{ declared, summary }`:
+
+- `declared`: true when reading the file's styles found rules to draw;
+- `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
+- `summary.tool`: the program that wrote the file, whose defaults fill in what the file leaves
+  unset (`"cytoscape"`, `"gephi"`, `"graphviz"`, `"yed"`, ...), or null when it is not known.
+
+So a reader can be asked before the load:
+
+```ts
+const draft = await element.session.data.prepare({ config: { file } });
+const useStyles = draft.styles !== null && confirm("Use the colors and shapes saved in this file?");
+await draft.load({ styles: useStyles ? "file" : "none" });
+console.log(element.session.data.lastImport()?.styles?.notes);
+```
+
+After such a load, `lastImport().styles` lists the layers the file made and the notes, as
+`{ code, params }`, about what could not be drawn as the file draws it. See
+[Styles from Files](./file-styles).
 
 ## The report
 
@@ -224,8 +258,8 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   edges to nodes the file never declared, and the nodes they would have created. Call `report()`
   again with them; if nothing fits, `dispose()` the draft.
 - `errors`: every problem the load met, as `{ code, params, line?, field? }` entries with no
-  words in them -- a GraphML or GEXF file that breaks off (`"parse-error"`, with the `line`), a
-  row the format's reader could not use, and each rejected row (`"refused-row"`). Empty for a
+  words in them -- a row the format's reader could not use (with its `line`), and each rejected
+  row (`"refused-row"`). A file that breaks off is refused with `E_PARSE_FAILED` instead. Empty for a
   clean file. See [Reading the errors of a load](./data-sources#reading-the-errors-of-a-load).
 
 `draft.rows(id, { offset, limit, only, choices })` pages through a table as
@@ -253,6 +287,47 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
 reader refused is not one, and is in `errors` instead.
 
+## Joining onto the graph
+
+A second file often describes the graph already loaded: an expression table with one row per
+gene, or a shipments table whose rows are edges between suppliers the graph holds. Prepare it
+with `{ onto: "graph" }` and the draft can join it instead of loading it on its own.
+
+```ts
+const draft = await session.data.prepare({ config: { file } }, { onto: "graph" });
+const { shape, keys, confident } = draft.suggestJoin();
+// shape "node-values", keys [{ file: "symbol", graph: "id" }]
+const report = draft.joinReport({ keys });
+// { matched: 52, notInGraph: 10, withoutValue: 8, repeatedKeys: 1, extraIgnoringCase: 6, ... }
+await draft.load({ join: { keys, ignoreCase: true } });
+```
+
+`suggestJoin()` reads what the rows are -- values for nodes (`"node-values"`), values for edges
+(`"edge-values"`) or edges between nodes (`"edges"`, two keys: source then target) -- and which
+column matches which graph value (`"id"` or `"data.<column>"`). `confident` is false when most
+key values match nothing; ask the reader then.
+
+`joinReport(choices)` counts without changing anything, so a picker can show the counts as the
+reader changes the key or the options:
+
+| Choice         | What it does                                                                          |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `ignoreCase`   | `tp53` matches `TP53`. `extraIgnoringCase` says how many more would match             |
+| `ignoreSpaces` | `"TP53 "` matches `TP53`. `extraIgnoringSpaces` says how many more would match        |
+| `columns`      | The columns to bring; every column but the keys by default                            |
+| `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
+| `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
+| `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
+
+`load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
+`kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The
+join is saved with the project; `data.editJoin(key, choices)` takes it back and joins the table
+again, with new choices or, after the graph changed, with its own (`join.choices`).
+
+A plain merge can update the nodes it names too: `import(source, { mode: "merge", existing:
+"update" })` writes the incoming values onto nodes the graph already holds, where the default,
+`"keep"`, leaves them as they are.
+
 ## Errors
 
 Every failure is a `GraphtyError` with a `code` and a `details` object. `isGraphtyError` narrows a
@@ -275,6 +350,7 @@ try {
 | `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table      |
 | `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target`    |
 | `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`     |
+| `E_PROJECT_FILE_AS_DATA`      | The file is a graphty project or document; open it with `project.open`      |
 | `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)       |
 | `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`           |
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |

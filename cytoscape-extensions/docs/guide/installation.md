@@ -2,8 +2,6 @@
 
 Load @graphty/cytoscape-extensions through npm and a bundler, from a CDN with no build step, with a classic script tag, or with `require()`. TypeScript typings come with the package.
 
-The package has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, which holds only a README, so the imports on this page fail to resolve and its jsDelivr URLs return 404.
-
 ## npm and a bundler
 
 Install Cytoscape.js, the extension and the three graphty packages it expects you to provide:
@@ -21,7 +19,7 @@ import graphtyCytoscape from "@graphty/cytoscape-extensions";
 cytoscape.use(graphtyCytoscape);
 ```
 
-The package is ES modules only; Vite, webpack, esbuild and Rollup load it as written. Your bundler splits off the parts most pages never use and fetches each on first use: the generators and the dataset list on the first `graphtyGenerate()` or `graphtyDataset()`, each sample dataset when you ask for it by name, the file formats on the first `graphtyImport()` or `graphtyExport()`, and the WebGPU code on the first simulation layout or `...Async` algorithm with the default `gpu: "auto"`. The WebGPU chunk loads only in a browser that has `navigator.gpu`, and never with `gpu: "off"`.
+The package is ES modules only; Vite, webpack, esbuild and Rollup load it as written. Your bundler splits off the parts most pages never use and fetches each on first use: the generators and the dataset list on the first `graphtyGenerate()` or `graphtyDataset()`, the file formats on the first `graphtyImport()` or `graphtyExport()`, and the WebGPU code on the first simulation layout or `...Async` algorithm with the default `gpu: "auto"`. The WebGPU chunk loads only in a browser that has `navigator.gpu`, and never with `gpu: "off"`. No sample dataset is in the package: `graphtyDataset()` downloads each from graphty.app when you ask for it by name.
 
 The entry chunk of a Vite build that imports Cytoscape and this package is about 820 KB minified (255 KB gzipped), 434 KB of it Cytoscape. `vite build` then prints "Some chunks are larger than 500 kB after minification"; set `build.chunkSizeWarningLimit: 1000` in `vite.config.js` to silence it.
 
@@ -95,7 +93,7 @@ For a page that does not use modules, `dist/cytoscape-extensions.bundle.js` is o
 
 The script also sets the global `graphtyCytoscape`, the extension function. A classic script cannot import, so the package's named exports are properties of that global: call `graphtyCytoscape.configureWebGpu({ acceptSoftware: true })` where the other pages import `configureWebGpu`, and likewise `toSnapshot`, `writeData`, `LAYOUT_NAMES`, `ALGORITHM_NAMES`, `ASYNC_ALGORITHM_NAMES` and `GPU_SIZE_FLOOR`. A page that loads Cytoscape after the bundle calls `cytoscape.use(graphtyCytoscape)` itself.
 
-The bundle is about 249 KB gzipped and holds every layout, every algorithm, the generators and WebGPU detection. The file formats and the datasets are not in it: the first `graphtyImport()`, `graphtyExport()` or `graphtyDataset()` call fetches them from the `cdn/` folder next to the script, which the bundle finds from its own URL. So load it with `<script src>`, not pasted inline. Loaded from a CDN, as above, it works even in a page opened from `file://`. A copy of the bundle on your own disk must be served over HTTP: from a `file://` script URL those three calls reject with "Failed to fetch dynamically imported module".
+The bundle is about 249 KB gzipped and holds every layout, every algorithm, the generators and WebGPU detection. The file formats are not in it: the first `graphtyImport()` or `graphtyExport()` call fetches them from the `cdn/` folder next to the script, which the bundle finds from its own URL. So load it with `<script src>`, not pasted inline. Loaded from a CDN, as above, it works even in a page opened from `file://`. A copy of the bundle on your own disk must be served over HTTP: from a `file://` script URL those two calls reject with "Failed to fetch dynamically imported module". `graphtyDataset()` downloads from graphty.app, like the other builds.
 
 ## CommonJS
 
@@ -122,7 +120,7 @@ Importing the package adds every `graphty...` method to Cytoscape's `Core` and `
 The package has four entry points:
 
 - `@graphty/cytoscape-extensions`: the extension (default export), `configureWebGpu`, `toSnapshot`, `writeData`, `LAYOUT_NAMES`, `ALGORITHM_NAMES`, `ASYNC_ALGORITHM_NAMES`, `GPU_SIZE_FLOOR` and the types of the methods and options, such as `GraphtyLayoutOptions`, `AlgorithmOptions` and `Backend`.
-- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, the 16 datasets inside the package. The six hosted datasets, `road-ny`, `ogbn-arxiv`, `go-basic`, `disease-ontology`, `bioplex3-hct116` and `com-dblp`, are not in that list.
+- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, deprecated: the 16 small datasets the package used to bundle. Every dataset now downloads from graphty.app; `DATASET_NAMES` of `@graphty/graph-samples` lists them all.
 - `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, and `exportElements`.
 - `@graphty/cytoscape-extensions/bundle`: the script-tag build.
 

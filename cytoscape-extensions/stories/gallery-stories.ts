@@ -1,10 +1,12 @@
 /**
- * The gallery stories: every layout, algorithm, generator, bundled dataset and file format, one small Cytoscape per
+ * The gallery stories: every layout, algorithm, generator, small dataset and file format, one small Cytoscape per
  * tile. Each page of stories/catalog.ts's GALLERY_PAGES is a folder of stories (stories/gallery/, written by
  * test/demo-catalog.test.ts): an Overview with every tile of the page, and one story per tile showing it full size.
  *
  * These are the pictures CI captures and compares, so each is deterministic: seeded graphs, layouts run to a fixed
- * count or until they settle, no animation, no times. Each tile says what its picture shows, and a tile that could run
+ * count or until they settle, no animation, no times. Each tile says in one line what its picture shows, and the
+ * explanation is the story's description (parameters.docs.description), shown on the page's Docs page under the
+ * story; the page's own description is its component description. A tile that could run
  * on the GPU says which backend ran and why. The capture browser has no WebGPU (visual-review removes navigator.gpu),
  * so there those tiles report the CPU and the reason; on a machine with a GPU the simulations and the GPU-capable
  * algorithms may report the GPU instead.
@@ -15,7 +17,7 @@
  */
 
 import { DATASETS } from "@graphty/graph-samples";
-import type { StoryObj } from "@storybook/html-vite";
+import type { Parameters, StoryObj } from "@storybook/html-vite";
 import type { Core } from "cytoscape";
 
 import { configureWebGpu, type ExportFormat, type GeneratorName } from "../src/index.js";
@@ -30,13 +32,20 @@ import {
     presetWithSeed,
     SIMULATION_LAYOUTS,
 } from "./catalog.js";
-import { elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
+import { datasetOptions, elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
 import { EXAMPLES, spread } from "./examples.js";
-import { formatTile } from "./formats.js";
+import { formatAbout, formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
 import { layOutNetwork } from "./layout-story.js";
-import { placeByGroup, placeForAlgorithm, plainReason, roundTrip, runAlgorithm } from "./run.js";
-import { arrangeGenerated, LAYOUT_SHOWCASE, showDataset, showLayout } from "./showcase.js";
+import { ALGORITHM_ABOUT, placeByGroup, placeForAlgorithm, plainReason, roundTrip, runAlgorithm } from "./run.js";
+import {
+    arrangeGenerated,
+    DATASET_ABOUT,
+    generatorAbout,
+    LAYOUT_SHOWCASE,
+    showDataset,
+    showLayout,
+} from "./showcase.js";
 
 /** The backend control: "auto" lets the extension decide, "cpu" passes gpu: "off", "gpu" passes gpu: "require". */
 const GPU_MODE = { auto: "auto", cpu: "off", gpu: "require" } as const;
@@ -230,12 +239,17 @@ const ALGORITHM_CAVEATS: Partial<Record<string, (cy: Core, directed: boolean) =>
 
 /**
  * A gallery page: the line above its tiles (`every` is true on the Overview; `key` names the tile of a one-tile
- * story), the tile for each of its names, and the controls a one-tile story offers, at their defaults.
+ * story), the tile for each of its names, and the controls a one-tile story offers, at their defaults; and, for the
+ * Docs page, what the page shows (`summary`) and what each tile's picture shows (`about`), as Markdown.
  */
 interface Page {
+    summary: string;
+    about(key: string): string;
     intro(every: boolean, key?: string, a?: TileArgs): string;
     tile(key: string, a: TileArgs): Tile;
     controls(key: string): Partial<TileArgs>;
+    /** Whether the page's Overview draws this tile too; every tile when absent. */
+    inOverview?(key: string): boolean;
 }
 
 /**
@@ -248,13 +262,19 @@ const pick = (...keys: (keyof TileArgs)[]): Partial<TileArgs> =>
 
 /** The words a run that could not happen here gives, when spring-electrical (GPU only) finds no GPU. */
 const SPRING_ELECTRICAL_NOT_RUN =
-    "graphty-spring-electrical runs only on a GPU, and WebGPU is not available in this browser. The nodes are drawn by group, each group in its own place: a quick placement, not the layout.";
+    "Not run: graphty-spring-electrical needs a GPU, and this browser has no WebGPU; nodes placed by group instead.";
+
+/** The line a gallery page's description ends with: what a one-tile story's controls change. */
+const CONTROLS =
+    "Each tile is also a story of its own, full size, whose controls pick another network and size, the seed, the backend and more options.";
 
 /**
  * Every layout, each on a graph that shows what it does. Without a GPU, spring-electrical (GPU only) does not run and
  * its tile says so.
  */
 const layouts: Page = {
+    summary: `Every layout, each on a graph that shows what it does: \`cy.layout({ name: "graphty-<name>", seed: 42 }).run()\`. The force simulations (ForceAtlas2, Fruchterman-Reingold, spring-electrical) run until they settle and may run on the GPU where WebGPU is available; their tiles say which backend ran and why. ${CONTROLS}`,
+    about: (layout) => LAYOUT_SHOWCASE[layout].about,
     controls: (layout) =>
         (SIMULATION_LAYOUTS as readonly string[]).includes(layout)
             ? pick(
@@ -330,7 +350,7 @@ const layouts: Page = {
                             ran: "not run",
                             detail: gpuOnly
                                 ? SPRING_ELECTRICAL_NOT_RUN
-                                : `${plainReason(message)}. The nodes are drawn by group, each group in its own place: a quick placement, not the layout.`,
+                                : `${plainReason(message)}; nodes placed by group instead.`,
                         };
                     }
                     throw e;
@@ -356,6 +376,13 @@ function algorithms(group: keyof typeof ALGORITHM_GROUPS): Page {
         directed: EXAMPLES[algorithm]?.directed ?? g.directed,
     });
     return {
+        summary: `${name}: each algorithm on a seeded graph that shows what it does, called as \`cy.elements().graphty<Name>(options)\`. The line under each picture says how to read its colors; an algorithm that can run on the GPU also says which backend ran and why. ${CONTROLS}`,
+        about: (algorithm) => {
+            const method = `graphty${algorithm.charAt(0).toUpperCase()}${algorithm.slice(1)}`;
+            const graph = EXAMPLES[algorithm]?.graph ?? `${g.network}, 100 nodes, seed 42`;
+            const more = EXAMPLES[algorithm]?.about ?? ALGORITHM_ABOUT[algorithm];
+            return [`\`${method}\` on ${graph}.`, more].filter(Boolean).join(" ");
+        },
         controls,
         intro: (every, key, given) => {
             if (every || key === undefined) {
@@ -405,6 +432,9 @@ function algorithms(group: keyof typeof ALGORITHM_GROUPS): Page {
 
 /** Every generator with its preset, laid out and colored to show its model. */
 const generators: Page = {
+    summary: `Every generator of \`cy.graphtyGenerate(name, options)\`, with its preset options and seed 42, laid out and colored to show its model. The line under each picture gives its node and edge counts and what the colors and sizes show. ${CONTROLS.replace("pick another network and size, the seed, the backend and more options", "change the seed and the generator's options")}`,
+    about: (name) =>
+        `\`${generatorCall(name, presetWithSeed(name as GeneratorName, 42))}\`. ${generatorAbout(name as GeneratorName)}`,
     controls: () => pick("seed", "generatorOptions", "roundTrip"),
     intro: (every, _key, a = DEFAULTS) =>
         `${every ? "Every generator of cy.graphtyGenerate, seed 42" : `Seed ${a.seed}`}; each laid out and colored to show its model.`,
@@ -414,33 +444,45 @@ const generators: Page = {
         run: async (cy) => {
             const own = parseJson("generator options", a.generatorOptions);
             const options = { ...presetWithSeed(name as GeneratorName, a.seed), ...own };
-            // the call that made the graph; long option arrays cut short
-            const text = JSON.stringify(options);
-            const call = `cy.graphtyGenerate(${JSON.stringify(name)}, ${text.length > 120 ? `${text.slice(0, 117)}...` : text})`;
             const { directed } = await cy.graphtyGenerate(name as GeneratorName, options as never);
             const shown = await arrangeGenerated(cy, name as GeneratorName, a.seed, directed);
-            const changed =
-                Object.keys(own).length > 0
-                    ? "\nThese options differ from the tile's preset, so the drawing may show less of the generator's model."
-                    : "";
-            return { ran: "", detail: null, note: `${call}\n${shown}${changed}` };
+            const changed = Object.keys(own).length > 0 ? `; options changed: ${generatorCall(name, options)}` : "";
+            return { ran: "", detail: null, note: `${shown}${changed}` };
         },
     }),
 };
 
-/** Every bundled dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
+/** Every small dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
+/** The largest dataset the Datasets Overview draws. */
+const OVERVIEW_MAX_NODES = 1_000;
+
 const datasets: Page = {
+    summary: `Every bundled dataset of \`cy.graphtyDataset(name)\`, laid out and colored to show what it holds. ${CONTROLS.replace("pick another network and size, the seed, the backend and more options", "change the seed of the layout")}`,
+    about: (name) => {
+        const info = DATASETS.find((d) => d.name === name);
+        return [
+            `\`cy.graphtyDataset("${name}")\`: ${info?.title ?? name}.`,
+            DATASET_ABOUT[name],
+            `License: ${info?.license ?? "unknown"}`,
+        ]
+            .filter(Boolean)
+            .join(" ");
+    },
     controls: () => pick("seed", "roundTrip"),
+    // A settled ForceAtlas2 run on the CPU costs O(n^2) per iteration: political-blogs, stelzl-interactome and the
+    // openflights drawing take most of a minute together in a CI browser, past the story test's 30 s wait (#3846).
+    // Each still has its own story.
+    inOverview: (name) => (DATASETS.find((d) => d.name === name)?.nodes ?? 0) <= OVERVIEW_MAX_NODES,
     intro: (every, key) => {
         const info = DATASETS.find((d) => d.name === key);
         return every || info === undefined
-            ? "Every bundled dataset of cy.graphtyDataset, laid out and colored to show what it holds."
-            : `${info.title}; license: ${info.license}`;
+            ? `Every bundled dataset of cy.graphtyDataset up to ${OVERVIEW_MAX_NODES.toLocaleString("en-US")} nodes, laid out and colored to show what it holds; the larger ones have a story each.`
+            : info.title;
     },
     tile: (name, a) => ({
         title: name,
         load: async (cy) => {
-            const { directed } = await cy.graphtyDataset(name);
+            const { directed } = await cy.graphtyDataset(name, datasetOptions());
             markDirected(cy, directed);
         },
         run: async (cy) => ({ ran: "", detail: null, note: await showDataset(cy, name, a.seed) }),
@@ -449,6 +491,9 @@ const datasets: Page = {
 
 /** A real file read in every format graphtyImport takes, and karate written in every format graphtyExport writes. */
 const formats: Page = {
+    summary:
+        "`cy.graphtyImport(file, format)` reading a real file in each format it takes, with the start of the file beside the graph it became, and `cy.graphtyExport(format)` writing Zachary's karate club in each format it writes. The line under each picture says what was read and where the positions came from.",
+    about: formatAbout,
     controls: () => pick("roundTrip"),
     intro: (every) =>
         every
@@ -500,6 +545,27 @@ function withRoundTrip(t: Tile, a: TileArgs): Tile {
 type Story = StoryObj;
 
 /**
+ * A generator call in words; long option arrays cut short.
+ * @param name - the generator
+ * @param options - its options
+ * @returns `cy.graphtyGenerate("ak", {"k":4})`
+ */
+function generatorCall(name: string, options: Record<string, unknown>): string {
+    const text = JSON.stringify(options);
+    return `cy.graphtyGenerate(${JSON.stringify(name)}, ${text.length > 120 ? `${text.slice(0, 117)}...` : text})`;
+}
+
+/**
+ * The parameters of a gallery page's stories: its description on the Docs page, and each story there in a frame of
+ * its own (a story's render retires every other story's Cytoscape, so they cannot share one page).
+ * @param page - the page
+ * @returns the parameters
+ */
+export function galleryParameters(page: GalleryPage): Parameters {
+    return { docs: { description: { component: PAGES[page].summary }, story: { inline: false, height: "640px" } } };
+}
+
+/**
  * Every tile of a page, four to a row.
  * @param page - the page
  * @returns the story
@@ -510,7 +576,9 @@ export function overview(page: GalleryPage): Story {
         render: () =>
             renderGallery(
                 p.intro(true),
-                GALLERY_PAGES[page].map((key) => p.tile(key, { ...DEFAULTS, ...p.controls(key) })),
+                GALLERY_PAGES[page]
+                    .filter((key) => p.inOverview?.(key) ?? true)
+                    .map((key) => p.tile(key, { ...DEFAULTS, ...p.controls(key) })),
             ),
     };
 }
@@ -526,6 +594,7 @@ export function tile(page: GalleryPage, key: string): Story {
     const args = p.controls(key);
     return {
         args,
+        parameters: { docs: { description: { story: p.about(key) } } },
         argTypes: Object.fromEntries(
             (Object.keys(ARG_TYPES) as (keyof TileArgs)[]).filter((k) => k in args).map((k) => [k, ARG_TYPES[k]]),
         ),

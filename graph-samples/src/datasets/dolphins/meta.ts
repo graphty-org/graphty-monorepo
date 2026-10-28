@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the dolphins dataset is, where it came from and under which terms. */
 export const dolphinsMeta: DatasetMeta = {
@@ -18,4 +19,6 @@ export const dolphinsMeta: DatasetMeta = {
     attributes: { label: "string: the dolphin's name" },
     groundTruth: null,
     showcases: ["community detection", "betweenness (the dolphins that bridge the two groups)", "spring layout"],
+    hosting: "remote",
+    ...PACKED.dolphins,
 };

@@ -356,38 +356,55 @@ function skeletonOf(text: string): unknown {
     }
     const root: Record<string, unknown> = {};
     for (const key of rootKeys) {
-        switch (key) {
-            case "graph":
-            case "options":
-                root[key] = objectOf(keys.get(key));
-                break;
-            case "graphs": {
-                // the keys of any node or edge of the first graph: OBO Graphs or JGF (design 1.6)
-                const nodes = keys.get("graphs[0].nodes[]");
-                const edges = keys.get("graphs[0].edges[]");
-                const graph: Record<string, unknown> = {};
-                if (nodes !== undefined) {
-                    graph.nodes = [objectOf(nodes)];
-                }
-                if (edges !== undefined) {
-                    graph.edges = [objectOf(edges)];
-                }
-                root[key] = nodes === undefined && edges === undefined ? [] : [graph];
-                break;
-            }
-            case "nodes":
-            case "edges":
-            case "links": {
-                const first = keys.get(`${key}[0]`);
-                root[key] = first === undefined ? [] : [objectOf(first)];
-                break;
-            }
-            default:
-                root[key] = true;
-                break;
-        }
+        root[key] = placeholderOf(key, keys);
     }
     return root;
+}
+
+/**
+ * The placeholder value of a root key: the shape the dialect rule tests that key for.
+ * @param key - the root key
+ * @param keys - the key sets by path
+ * @returns the placeholder
+ */
+function placeholderOf(key: string, keys: ReadonlyMap<KeyPath, Set<string>>): unknown {
+    switch (key) {
+        case "graph":
+        case "options":
+            return objectOf(keys.get(key));
+        case "graphs":
+            return graphsPlaceholder(keys);
+        case "nodes":
+        case "edges":
+        case "links": {
+            const first = keys.get(`${key}[0]`);
+            return first === undefined ? [] : [objectOf(first)];
+        }
+        default:
+            return true;
+    }
+}
+
+/**
+ * The placeholder of `graphs`: the keys of any node or edge of the first graph, which tell OBO
+ * Graphs from JGF (design 1.6).
+ * @param keys - the key sets by path
+ * @returns `[]` when neither was seen, else one graph holding them
+ */
+function graphsPlaceholder(keys: ReadonlyMap<KeyPath, Set<string>>): unknown[] {
+    const nodes = keys.get("graphs[0].nodes[]");
+    const edges = keys.get("graphs[0].edges[]");
+    if (nodes === undefined && edges === undefined) {
+        return [];
+    }
+    const graph: Record<string, unknown> = {};
+    if (nodes !== undefined) {
+        graph.nodes = [objectOf(nodes)];
+    }
+    if (edges !== undefined) {
+        graph.edges = [objectOf(edges)];
+    }
+    return [graph];
 }
 
 /**
@@ -424,34 +441,6 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
     const counts: number[] = [];
     let pendingKey: string | null = null;
     let expectingKey = false;
-    const pathOf = (): KeyPath | null => {
-        const depth = kinds.length;
-        if (depth === 1) {
-            return kinds[0] === "object" ? "" : null;
-        }
-        if (depth === 2 && kinds[0] === "array" && kinds[1] === "object" && labels[1] === "0") {
-            return "nodes[0]";
-        }
-        if (depth === 2 && kinds[0] === "object" && kinds[1] === "object") {
-            return labels[1] === "graph" || labels[1] === "options" ? labels[1] : null;
-        }
-        if (
-            depth === 5 &&
-            kinds.join() === "object,array,object,array,object" &&
-            labels[1] === "graphs" &&
-            labels[2] === "0" &&
-            (labels[3] === "nodes" || labels[3] === "edges")
-        ) {
-            return labels[3] === "nodes" ? "graphs[0].nodes[]" : "graphs[0].edges[]";
-        }
-        if (depth === 3 && kinds[0] === "object" && kinds[1] === "array" && kinds[2] === "object") {
-            const section = labels[1];
-            if ((section === "nodes" || section === "edges" || section === "links") && labels[2] === "0") {
-                return `${section}[0]`;
-            }
-        }
-        return null;
-    };
     let i = 0;
     const n = text.length;
     while (i < n) {
@@ -487,7 +476,7 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
             pendingKey = null;
         } else if (ch === ":") {
             if (pendingKey !== null) {
-                const path = pathOf();
+                const path = keyPathOf(kinds, labels);
                 if (path !== null) {
                     let set = found.get(path);
                     if (set === undefined) {
@@ -508,6 +497,73 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
         i++;
     }
     return found;
+}
+
+/**
+ * The watched path of the innermost open object, from the container stack.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null when keys there are not watched
+ */
+function keyPathOf(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    switch (kinds.length) {
+        case 1:
+            return kinds[0] === "object" ? "" : null;
+        case 2:
+            return nestedObjectPath(kinds, labels);
+        case 3:
+            return sectionElementPath(kinds, labels);
+        case 5:
+            return graphsMemberPath(kinds, labels);
+        default:
+            return null;
+    }
+}
+
+/**
+ * At depth 2: the first element of a top-level array, or the `graph` / `options` object.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function nestedObjectPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds[0] === "array" && kinds[1] === "object" && labels[1] === "0") {
+        return "nodes[0]";
+    }
+    if (kinds[0] === "object" && kinds[1] === "object") {
+        return labels[1] === "graph" || labels[1] === "options" ? labels[1] : null;
+    }
+    return null;
+}
+
+/**
+ * At depth 3: the first element of the root's `nodes`, `edges` or `links` array.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function sectionElementPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds[0] !== "object" || kinds[1] !== "array" || kinds[2] !== "object" || labels[2] !== "0") {
+        return null;
+    }
+    const section = labels[1];
+    return section === "nodes" || section === "edges" || section === "links" ? `${section}[0]` : null;
+}
+
+/**
+ * At depth 5: any node or edge of the first graph of the root's `graphs` array.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function graphsMemberPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds.join() !== "object,array,object,array,object" || labels[1] !== "graphs" || labels[2] !== "0") {
+        return null;
+    }
+    if (labels[3] === "nodes") {
+        return "graphs[0].nodes[]";
+    }
+    return labels[3] === "edges" ? "graphs[0].edges[]" : null;
 }
 
 /**
@@ -557,5 +613,5 @@ function clamp(value: number): number {
     if (!(value > 0)) {
         return 0;
     }
-    return value > 1 ? 1 : value;
+    return Math.min(value, 1);
 }

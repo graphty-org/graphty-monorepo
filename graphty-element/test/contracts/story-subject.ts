@@ -81,8 +81,26 @@ const SUBJECT_TREE = "Styles/";
  * story is about. One word, three subjects, so it picks out none of them. The subjects it used
  * to stand in for are still checked under their own words: an arrow caption story claims
  * "arrow", and `Styles/Label::TextAlign` claims "align".
+ *
+ * "font" joined it with the label field channels for the same reason. In `node.labelFont` it
+ * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
+ * typography at all, so it picks out no one subject. Those stories are still checked under
+ * "size" and "weight".
+ *
+ * "on" came with `labelOnTop`, where it is a preposition joining "label" to "top"; in a story
+ * name -- `OnHover`, `OnOneNodeOnly` -- it is a preposition too, naming when, not what. That
+ * channel's stories are still checked under "top".
+ *
+ * "line" came with `labelLineHeight`, `chartLineWidth` and `shapeLines`, where it is a line of a
+ * label's text, of a chart or drawn over a node; in a story name -- `LineOpacity`, `TwoDAllLines`
+ * -- it is the edge itself. "box" came with `pieFitBox`, a pie's fit to its node's box; in a story
+ * name -- `Box` -- it is a node shape. Neither names one subject.
+ *
+ * "screen" came with `labelMinScreenSize`, the screen size below which a label is hidden; in a
+ * story name -- `ScreenSizedLabels` -- it is the label style's `sizeMode: "screen"`, a value
+ * rather than a channel. The minimum-size stories are still checked under "min" and "size".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on", "line", "box", "screen"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {
@@ -177,6 +195,16 @@ function written(story: StoryDeclaration, fileChannels: readonly string[]): { wo
 
     if (story.writesColour) {
         found.add("color");
+    }
+
+    // A label style's gradient fills the panel behind its words: it is that label's background
+    // (`labelBackground`), so it shows "background" the way a hex in its `background` field does.
+    // `Styles/Label::BackgroundGradient` paints one with no field of that name.
+    if (
+        story.labelFields.some((field) => words(field).includes("gradient")) ||
+        (found.has("gradient") && found.has("label"))
+    ) {
+        found.add("background");
     }
 
     return { words: found, paths };

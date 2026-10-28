@@ -1,9 +1,10 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toast, ToastProvider, UiGlyph, useToast } from "../../../src";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
@@ -151,9 +152,12 @@ export const WithProviderInteractions: Story = {
         const canvas = within(canvasElement);
         const body = within(canvasElement.ownerDocument.body);
         await userEvent.click(canvas.getByRole("button", { name: "Short toast" }));
-        await waitFor(() => expect(body.getByRole("alert")).toHaveTextContent("Zoom to selection"));
+        await waitFor(
+            () => expect(body.getByRole("alert")).toHaveTextContent("Zoom to selection"),
+            storyWaitOptions(1000),
+        );
         await userEvent.click(canvas.getByRole("button", { name: "Toast with action" }));
-        await waitFor(() => expect(body.getAllByRole("alert")).toHaveLength(1));
+        await waitFor(() => expect(body.getAllByRole("alert")).toHaveLength(1), storyWaitOptions(1000));
         await expect(body.getByRole("alert")).toHaveTextContent("Large PNG ready for copy");
     },
 };

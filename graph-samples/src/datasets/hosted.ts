@@ -3,7 +3,7 @@
 import { type DatasetMeta } from "./build.js";
 
 /**
- * The metadata of every hosted dataset: too large to bundle, loaded with `fetchDataset(name)` from
+ * The metadata of every large dataset (over about 5,000 nodes), loaded with `fetchDataset(name)` from
  * https://graphty.app/data/graph-samples/v1/. `sha256` and `bytes` describe the published .gsnp.gz file.
  */
 export const HOSTED_DATASETS: readonly DatasetMeta[] = [
@@ -32,8 +32,9 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "minimum spanning trees and connectivity at scale",
         ],
         hosting: "remote",
-        bytes: 9424353,
-        sha256: "798534c58ca3f1130c1613657cfdb3a50959c0bf1855fa11e3da8071f0c794a3",
+        bytes: 9424348,
+        sha256: "a5703c970f993a33bd623846e0fdf2296fc833443ee1fcd3e301743d1cd7c979",
+        thumbnail: "road-ny.webp",
     },
     {
         name: "ogbn-arxiv",
@@ -59,8 +60,9 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "near-DAG structure: strongly connected components, topological order by year",
         ],
         hosting: "remote",
-        bytes: 10637546,
-        sha256: "f5ede2cb12d45226d47c590dabdd96f1c13ca7f266e18d1083384b84abe658f4",
+        bytes: 10637599,
+        sha256: "9997f61804b66a5f16420b9d48470917bcac9c67f51331f21c59581f3d286ff2",
+        thumbnail: "ogbn-arxiv.webp",
     },
     {
         name: "go-basic",
@@ -87,8 +89,9 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "coloring terms by namespace; hiding obsolete terms",
         ],
         hosting: "remote",
-        bytes: 1372088,
-        sha256: "76daa551a9a9f938f824a082b2c3fae68a4c3fc44287d84b6d82814e7980134e",
+        bytes: 1372076,
+        sha256: "d0c68b4d9d377bee34cf255c39a631dbb5a6aa809762518060fcda9f02f89a39",
+        thumbnail: "go-basic.webp",
     },
     {
         name: "disease-ontology",
@@ -114,8 +117,9 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "search by label",
         ],
         hosting: "remote",
-        bytes: 288401,
-        sha256: "cf866c9b1242f560e3189e34e11acc4ac81d7195d4d024076ab130db523daf88",
+        bytes: 288394,
+        sha256: "c0deb41124eae90e9bb79a46227d9aed7f93b687007d13dff58690dc7c2a36cf",
+        thumbnail: "disease-ontology.webp",
     },
     {
         name: "bioplex3-hct116",
@@ -142,8 +146,9 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "degree and betweenness of interaction hubs",
         ],
         hosting: "remote",
-        bytes: 718362,
-        sha256: "63b0d493be81e763da72e79fa96cae12a19712dc97fc02875f135099e6ee19f3",
+        bytes: 718314,
+        sha256: "f3cec82afec54a53d5c25842dbab2730fd6cb3920dbb10d52f284830b28c8008",
+        thumbnail: "bioplex3-hct116.webp",
     },
     {
         name: "com-dblp",
@@ -167,7 +172,8 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "degree distributions of a real collaboration network",
         ],
         hosting: "remote",
-        bytes: 15625518,
-        sha256: "113105b5ed4838fb994b9b9d6871e91d664151dbacef914caee9176a092f167a",
+        bytes: 15625484,
+        sha256: "fdf4976168e0461f42e651fd0bf4cb9e68dbbe1cfafd6813c93c9bb0097c7367",
+        thumbnail: "com-dblp.webp",
     },
 ];

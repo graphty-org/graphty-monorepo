@@ -91,6 +91,21 @@ describe("Button - All CSS Values (Browser)", () => {
                 expect(style?.letterSpacing).toBe("0.055px");
             });
 
+            it("a full-width button places its label by justify", () => {
+                const { container } = renderWithTheme(
+                    <div style={{ width: 200 }}>
+                        <Button fullWidth justify="flex-start">
+                            Click
+                        </Button>
+                    </div>,
+                );
+                const root = container.querySelector(".mantine-Button-root");
+                const label = container.querySelector(".mantine-Button-label");
+                const left = (label?.getBoundingClientRect().left ?? 0) - (root?.getBoundingClientRect().left ?? 0);
+                // The label's own 8px inset, not centered in the 200px.
+                expect(left).toBe(8);
+            });
+
             it("borderRadius is 5px (from theme radius.sm)", () => {
                 const { container } = renderWithTheme(<Button>Click</Button>);
                 const root = container.querySelector(".mantine-Button-root");

@@ -1,7 +1,20 @@
 ---
+head:
+    - - link
+      - rel: icon
+        href: /docs/brand/algorithms/favicon.ico
+        sizes: 48x48
+    - - link
+      - rel: icon
+        href: /docs/brand/algorithms/favicon.svg
+        type: image/svg+xml
 layout: home
 
 hero:
+    image:
+        light: /brand/graphty-algorithms-lockup-color-on-light.svg
+        dark: /brand/graphty-algorithms-lockup-color-on-dark.svg
+        alt: graphty algorithms
     name: algorithms
     text: Graph Algorithms
     tagline: 60+ algorithms over compact graph snapshots, for TypeScript and browser visualization

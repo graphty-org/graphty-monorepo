@@ -92,10 +92,19 @@ describe("the issues", () => {
         assert.equal(body.match(/```/g).length, 2);
     });
 
-    it("files nothing when more tests fail than a load-sensitive test explains", () => {
-        const many = Array.from({ length: MAX_FILED + 1 }, (_, i) => ({ ...t, id: `x > ${i}` }));
-        assert.throws(() => plan(many, [], CTX), /nothing filed/);
-        assert.equal(plan(many.slice(1), [], CTX).length, MAX_FILED);
+    it("reports a file with more failing tests than a load-sensitive test explains as suite broken", () => {
+        const many = Array.from({ length: MAX_FILED + 2 }, (_, i) => ({
+            ...t,
+            file: "test/b.test.ts",
+            id: `x > ${i}`,
+        }));
+        const actions = plan([...many, t], [], CTX);
+        assert.deepEqual(actions[0], {
+            suiteBroken: { package: "graph-io", file: "test/b.test.ts", count: MAX_FILED + 2 },
+        });
+        assert.equal(actions.length, 2);
+        assert.equal(actions[1].create.title, 'Load-sensitive test: reader > parses "x" (graph-io)');
+        assert.equal(plan(many.slice(2), [], CTX).length, MAX_FILED);
     });
 });
 
@@ -110,15 +119,13 @@ describe("the workflow", () => {
         assert.doesNotMatch(on, /pull_request|push:|merge_group|workflow_call|workflow_run/);
     });
 
-    it("is awaited by nothing: no other workflow and no Mergify rule names it", () => {
+    it("is awaited by nothing: no other workflow names it", () => {
         const name = /^name: (.+)$/m.exec(text)[1];
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const f of readdirSync(dir).filter((x) => x.endsWith(".yml") && x !== "restricted-cpu-stress.yml")) {
             const other = readFileSync(new URL(f, dir), "utf8");
             assert.ok(!other.includes("restricted-cpu-stress") && !other.includes(name), f);
         }
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.ok(!mergify.includes(name) && !mergify.includes("Restricted CPU"));
         // githerd's flaky-test tracker reads "Test (...)" jobs as occurrences; these are not
         assert.doesNotMatch(code, /name: Test \(/);
     });

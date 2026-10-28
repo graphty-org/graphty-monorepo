@@ -137,9 +137,10 @@ export interface SetDirectedOptions {
 }
 
 /**
- * The subset of GraphBuilder that importers may call (design section 8.3). Importers push scalars,
- * never objects; the record methods exist for the transitional element path and JSON. GraphBuilder
- * implements it, and tests can pass a recording sink.
+ * The subset of GraphBuilder that importers may call (design section 8.3). Format importers push
+ * scalars; the record methods (`addNodeRecord`, `addEdgeRecord`) are permanent API too, the path
+ * graph-io's network sources write record objects through (they infer each column's type).
+ * GraphBuilder implements it, and tests can pass a recording sink.
  */
 export interface GraphSink {
     /** The resolved options; `directed` is the current value. */

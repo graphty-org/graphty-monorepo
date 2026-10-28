@@ -1,0 +1,23 @@
+{
+    "sample": "gml-specimen-node-shapes-p7",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p7.gml",
+    "sha256": "a7fed21adc279d0974ddc0ebff85f97d5b12956b78e8b6253c6aa855a1da5307",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" graphviz/<sheet>.gv (the DOT file gv2gml converted to the sheet)",
+    "standIn": false,
+    "source": "graph-io/test/fidelity/specimens/gml/graphviz/specimen-node-shapes-p7.gv",
+    "warnings": [],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 675,
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs gml-specimen-node-shapes-p7 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p7.svg"
+}

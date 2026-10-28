@@ -2602,8 +2602,7 @@
           "C1",
           "C2"
         ]
-      },
-      "knownFailure": "a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4)"
+      }
     },
     {
       "file": "graphlib-dot/anonymous-strict.gv",
@@ -3257,8 +3256,7 @@
           "b",
           "c"
         ]
-      },
-      "knownFailure": "a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4)"
+      }
     },
     {
       "file": "authored/attr-no-value.gv",

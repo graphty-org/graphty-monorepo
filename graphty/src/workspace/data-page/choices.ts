@@ -5,7 +5,17 @@
  * the draft.
  */
 
-import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    type ColumnRole,
+    type DraftTable,
+    LOAD_ROLES,
+    type LoadChoices,
+    type LoadDraft,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
+
+import { fileStylesChoice } from "../settings/preferences";
 
 /** A column's role on the page: one of the element's roles, or "attribute" (no role). */
 export type PageRole = ColumnRole | "attribute";
@@ -16,6 +26,10 @@ interface TableEdits {
     readonly rowsAre?: "nodes" | "edges";
     /** The role the reader gave each column, by column name. */
     readonly roles: Readonly<Record<string, PageRole>>;
+    /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
+    readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
+    /** How a number time column is read, once the reader chose. */
+    readonly timeUnit?: NonNullable<TableMapping["timeUnit"]>;
 }
 
 /** Every choice on the page. */
@@ -25,19 +39,29 @@ export interface PageChoices {
     readonly unmatched: "add" | "leave-out";
     /** Direction: as the file says, or the reader's. */
     readonly directed: boolean | "auto";
+    /** Whether the load draws the file's own styles: the reader's import-styles preference. */
+    readonly styles: "file" | "none";
 }
 
-export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out", directed: "auto" };
+export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out", directed: "auto", styles: "file" };
 
 /**
- * The roles a table of each kind takes, in menu order (the element's own role names).
- * Temporary: the element keeps this list private (`session/draft.ts` ROLES) and does not export
- * it; #926 asks it to. Delete this copy when it does.
+ * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
+ * @returns the choices.
  */
-export const ROLES_BY_KIND: Readonly<Record<"nodes" | "edges", readonly ColumnRole[]>> = {
-    nodes: ["key", "label", "time"],
-    edges: ["source", "target", "weight", "time", "edgeId"],
-};
+export function initialChoices(): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
+}
+
+/**
+ * Whether the draft's file can carry styles, so the page offers the import-styles choice: its
+ * format's catalog entry says so, or the element found styles in this file.
+ * @param draft - the draft.
+ * @returns true when the choice applies.
+ */
+export function offersStyles(draft: LoadDraft): boolean {
+    return draft.styles?.declared === true || formatDescriptor(draft.type)?.styles?.read === true;
+}
 
 /**
  * What each row of a table becomes: the reader's choice, else the element's reading.
@@ -136,6 +160,50 @@ export function setRole(
 }
 
 /**
+ * The column holding a table's Weight role now, if any.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param choices - the page's choices.
+ * @returns the column's name, or undefined.
+ */
+export function weightHolder(draft: LoadDraft, table: DraftTable, choices: PageChoices): string | undefined {
+    return table.columns.find((column) => roleOf(draft, table, column.name, choices) === "weight")?.name;
+}
+
+/**
+ * Says what a table's weight means.
+ * @param table - the table.
+ * @param meaning - the meaning, or undefined to leave it unset.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setWeightMeaning(
+    table: DraftTable,
+    meaning: NonNullable<TableMapping["weightMeaning"]> | undefined,
+    choices: PageChoices,
+): PageChoices {
+    const { weightMeaning: _was, ...rest } = choices.tables[table.id] ?? { roles: {} };
+    const edits: TableEdits = { ...rest, ...(meaning === undefined ? {} : { weightMeaning: meaning }) };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
+}
+
+/**
+ * Says how a table's number time column is read.
+ * @param table - the table.
+ * @param unit - the unit.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setTimeUnit(
+    table: DraftTable,
+    unit: NonNullable<TableMapping["timeUnit"]>,
+    choices: PageChoices,
+): PageChoices {
+    const edits: TableEdits = { ...(choices.tables[table.id] ?? { roles: {} }), timeUnit: unit };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
+}
+
+/**
  * Changes what a table's rows become, dropping its role edits (they were for the other kind).
  * @param draft - the draft.
  * @param table - the table.
@@ -169,7 +237,7 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};
-    for (const role of ROLES_BY_KIND[kind]) {
+    for (const role of LOAD_ROLES[kind].takes) {
         const holder = table.columns.find((column) => roleOf(draft, table, column.name, choices) === role);
         if (holder !== undefined) {
             mapping[role] = holder.name;
@@ -177,8 +245,19 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
             mapping[role] = null;
         }
     }
-    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0;
-    return changed ? { ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }), ...mapping } : undefined;
+    const meaning =
+        edits.weightMeaning !== undefined && kind === "edges" && weightHolder(draft, table, choices) !== undefined;
+    const unit =
+        edits.timeUnit !== undefined && table.columns.some((c) => roleOf(draft, table, c.name, choices) === "time");
+    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning || unit;
+    return changed
+        ? {
+              ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }),
+              ...mapping,
+              ...(meaning ? { weightMeaning: edits.weightMeaning } : {}),
+              ...(unit ? { timeUnit: edits.timeUnit } : {}),
+          }
+        : undefined;
 }
 
 /**
@@ -200,6 +279,7 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
+        styles: choices.styles,
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

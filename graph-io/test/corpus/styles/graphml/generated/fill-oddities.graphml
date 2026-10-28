@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<key for="node" id="d6" yfiles.type="nodegraphics"/>
+<key for="edge" id="d10" yfiles.type="edgegraphics"/>
+<key attr.name="kind" attr.type="string" for="node" id="d0"/>
+<key attr.name="w" attr.type="double" for="node" id="d1"/>
+<graph edgedefault="directed" id="G">
+<node id="n0"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF000080" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n1"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false" color2="#0000FF"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n2"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#00FF00" transparent="true"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n3"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill hasColor="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n4"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#00FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n5"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="red" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n6"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#GGGGGG" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n7"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#ABC" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n8"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n9"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle hasColor="false" type="dashed_dotted" width="0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<node id="n10"><data key="d6"><y:ShapeNode><y:Geometry height="200" width="10" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="star8"/></y:ShapeNode></data></node>
+<node id="n11"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="fatarrow2"/></y:ShapeNode></data></node>
+<node id="n12"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.decision"><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/></y:GenericNode></data></node>
+<node id="n13"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Gateway.withShadow"><y:Geometry height="30" width="30" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/></y:GenericNode></data></node>
+<node id="n14"><data key="d6"><y:ShapeNode><y:Geometry height="-3" width="NaN" x="0" y="0"/><y:Fill color="#FF0000" transparent="false"/><y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="rectangle"/></y:ShapeNode></data></node>
+<edge id="e0" source="n0" target="n1"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#FF000033" type="dashed_dotted" width="NaN"/><y:Arrows source="white_delta" target="crows_foot_many"/></y:PolyLineEdge></data></edge>
+<edge id="e1" source="n1" target="n2"><data key="d10"><y:PolyLineEdge><y:LineStyle color="nope" type="zigzag" width="-2"/><y:Arrows source="t_shape" target="concave"/></y:PolyLineEdge></data></edge>
+<edge id="e2" source="n2" target="n3"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#00FF00" type="line" width="1e9"/><y:Arrows source="none" target="none"/></y:PolyLineEdge></data></edge>
+</graph></graphml>

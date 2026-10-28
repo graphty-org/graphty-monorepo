@@ -129,13 +129,16 @@ export function closedHow(item, fixedByMerge, githerdClosed) {
 }
 
 /**
- * The issues githerd closed through a proposal, from the daemon state.
+ * The issues githerd closed through a proposal, from the daemon state and the ledger's records of
+ * the proposals the daemon dropped from it (`proposal-dropped`, issue #2552).
  * @param {any} state the daemon state (or null)
+ * @param {any[]} [ledger] the ledger, every month of it
  * @returns {Set<number>} the issue numbers
  */
-export function githerdClosedIssues(state) {
+export function githerdClosedIssues(state, ledger = []) {
+    const dropped = ledger.filter((e) => e.kind === "proposal-dropped").map((e) => e.record);
     return new Set(
-        Object.values(state?.proposals ?? {})
+        [...dropped, ...Object.values(state?.proposals ?? {})]
             .filter((p) => p?.status === "closed" && !p.dryRun && String(p.target).startsWith("issue:"))
             .map((p) => Number(String(p.target).slice(6))),
     );

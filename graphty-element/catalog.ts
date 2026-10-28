@@ -86,6 +86,8 @@ export type {
     CatalogKind,
 } from "./src/catalog/assistant";
 export { AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "./src/catalog/assistant";
+export type { BasemapSourceDescriptor } from "./src/catalog/basemaps";
+export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -109,8 +111,26 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
+export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
+export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
+export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
+
+// The sample datasets `session.data.loadDataset` downloads and the graph generators
+// `session.data.generate` runs, the same lists `session.catalog.datasets()` and
+// `session.catalog.generators()` return, for a page that lists them before any graph exists.
+// `DEFAULT_DATASET_BASE_URL` is where a dataset's file and its `thumbnail` picture are read from
+// when `loadDataset` is given no `baseUrl`.
+export type { DatasetMeta, GeneratorDescriptor, GeneratorParamDescriptor } from "@graphty/graph-samples";
+export {
+    DATASETS as DATASET_DESCRIPTORS,
+    DEFAULT_DATASET_BASE_URL,
+    GENERATOR_CATALOG as GENERATOR_DESCRIPTORS,
+} from "@graphty/graph-samples";
+export type { GeneratorParams } from "@graphty/graph-samples/generators";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value
 // each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether
@@ -118,7 +138,12 @@ export type { GraphListing } from "@graphty/graph-io";
 // instead of copying the facts into the application where they drift the first time a channel's
 // bounds or values change. `CHANNEL_DESCRIPTORS` is defined beside the channel value types in
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
-export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
+export type {
+    ChannelCaveatCode,
+    ChannelDescriptor,
+    ChannelGroup,
+    ChannelValueKind,
+} from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
 // The one color reader a channel uses: a hex string, any CSS color the element understands, or
 // Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
@@ -137,6 +162,7 @@ export { toColorValue } from "./src/session/styles/channels";
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeLeafNodes,
     EdgeMember,
     EdgeReading,
     EdgeRef,
@@ -144,6 +170,7 @@ export type {
     PathKind,
     ResultId,
     ResultItem,
+    RuleSide,
     RuleTree,
     Scope,
     ScopeId,
@@ -155,6 +182,9 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    SourceKey,
+    TextMatchMode,
+    TopTies,
 } from "./src/catalog/types";
 
 /**

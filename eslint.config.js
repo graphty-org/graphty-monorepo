@@ -11,6 +11,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -148,7 +149,8 @@ export default tseslint.config(
             // Keep non-null assertion as error (important for safety)
             "@typescript-eslint/no-non-null-assertion": "error",
             // TODO: Re-enable these rules and fix issues incrementally
-            // These rules have many violations from strictTypeChecked
+            // These rules have many violations from strictTypeChecked. They are turned back on
+            // package by package below ("STRICT TYPE RULES, PACKAGE BY PACKAGE", issue #2345).
             "@typescript-eslint/no-unnecessary-condition": "off",
             "@typescript-eslint/no-unsafe-argument": "off",
             "@typescript-eslint/no-unsafe-assignment": "off",
@@ -204,6 +206,66 @@ export default tseslint.config(
             "simple-import-sort/exports": "error",
         },
     },
+
+    // ============================================
+    // STRICT TYPE RULES, PACKAGE BY PACKAGE (#2345)
+    // ============================================
+    // The six rules switched off above, back on for each package that has no violation of them,
+    // so a new one cannot creep in. Add a rule to a package's list once its violations are fixed;
+    // when every package lists a rule, delete it here and its "off" line above. A package with its
+    // own eslint.config.js lists its rules there, because these globs are relative to the repo
+    // root (webgpu-graph-algorithms/eslint.config.js). This block sits before the blocks that
+    // switch type information off (stories, scripts, configs), so those files stay exempt.
+    ...Object.entries({
+        "graph-format": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "graph-io": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "graph-samples": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "babylonjs-map": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "cytoscape-extensions": {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        layout: {
+            "@typescript-eslint/no-unsafe-call": "error",
+        },
+        "remote-logger": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "compact-mantine": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    }).map(([pkg, rules]) => ({ files: [`${pkg}/**/*.ts`, `${pkg}/**/*.tsx`], rules })),
 
     // ============================================
     // ACCESSIBILITY RULES FOR compact-mantine JSX
@@ -299,12 +361,38 @@ export default tseslint.config(
     // ============================================
     // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
     // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
-    // Benchmarks are where a timing check that must exist belongs, so they are left out.
+    // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
+    // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
+    // and a desktop program that offers no event to wait on is polled.
     {
         files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
-        ignores: ["**/*.bench.test.ts", "**/*.bench-browser.ts", "**/benchmarks/**", "**/bench/**"],
+        ignores: [
+            "**/*.bench.test.ts",
+            "**/*.bench-browser.ts",
+            "**/benchmarks/**",
+            "**/bench/**",
+            "graph-io/test/fidelity/oracles/tools/**",
+            "graph-io/test/fidelity/generators/specimens/**",
+        ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
+    },
+    // Tests that still wait a counted number of animation frames, exempt from that one check until
+    // each is rewritten to wait on what it needs (#2535). graphty-element's are in its own config.
+    // Remove a file once it is fixed; never add one.
+    {
+        files: [
+            "compact-mantine/tests/figma/inputs.browser.test.tsx",
+            "compact-mantine/tests/figma/overlays.browser.test.tsx",
+        ],
+        rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
+    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
+    // of its own under a test runner (#2930). graphty's stories are in its own config.
+    {
+        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
+        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
+        rules: { "local-stories/story-wait-options": "error" },
     },
 
     // ============================================
@@ -421,6 +509,10 @@ export default tseslint.config(
             "**/vite-plugin-*.js",
             "**/scripts/**/*.{js,mjs,cjs,ts}",
             "**/benchmarks/**/*.{js,mjs,cjs,ts}",
+            // the programs' oracle drawings are made by these Node scripts (graph-io/test/fidelity/TOOLS.md)
+            "graph-io/test/fidelity/oracles/tools/**/*.{js,mjs}",
+            // and the specimen sheets are built inside those programs by these (generators/specimens/)
+            "graph-io/test/fidelity/generators/specimens/**/*.{js,mjs}",
         ],
         languageOptions: {
             parserOptions: {

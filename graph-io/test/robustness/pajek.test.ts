@@ -281,12 +281,13 @@ describe("Pajek robustness: sections and networks", () => {
         expect(snapshot.nodes.names()).toEqual([]);
     });
 
-    it("refuses an interval with a bound beyond the number range, and * alone", async () => {
+    it("refuses an interval with a bound beyond the number range, and * alone, keeping the rest of the line", async () => {
         const { snapshot, report } = await pajek('*Vertices 2\n1 "a" [1e999-*]\n2 "b" [*]\n*Edges\n');
         expect(codes(report)).toEqual(["E_PAJEK_INTERVAL", "E_PAJEK_INTERVAL"]);
         expect(issue(report, "E_PAJEK_INTERVAL").message).toContain("beyond the number range");
         expect(report.issues[1].message).toContain('"*" alone is not a time point');
-        expect(snapshot.nodes.names()).toEqual([]);
+        // no spells column: neither interval was read; the labels were
+        expect(snapshot.nodes.names()).toEqual(["label"]);
     });
 });
 

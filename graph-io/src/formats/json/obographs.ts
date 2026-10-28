@@ -503,21 +503,7 @@ function writeMeta(
     element: string,
 ): void {
     const path = `${element}.meta`;
-    const { definition } = meta;
-    if (isJsonObject(definition)) {
-        const xrefs = strings(ctx, definition.xrefs, `${path}.definition.xrefs`);
-        if (typeof definition.val === "string") {
-            columns.node("def", row, definition.val);
-            columns.node("def.xrefs", row, xrefs);
-        } else {
-            badValue(ctx, `${path}.definition has no string val; it is dropped`, `${path}.definition.val`);
-        }
-        if (definition.meta !== undefined) {
-            unrecognized["meta.definition.meta"] = definition.meta;
-        }
-    } else if (definition !== undefined && definition !== null) {
-        badValue(ctx, `${path}.definition must be an object with a val; it is dropped`, `${path}.definition`);
-    }
+    writeDefinition(ctx, columns, meta.definition, row, unrecognized, path);
     const comments = strings(ctx, meta.comments, `${path}.comments`);
     if (comments.length > 0) {
         columns.node("comment", row, comments.join("\n"));
@@ -544,6 +530,40 @@ function writeMeta(
         if (!META_KEYS.has(key)) {
             unrecognized[`meta.${key}`] = meta[key];
         }
+    }
+}
+
+/**
+ * Write a node's `meta.definition`: the text and its xrefs; a nested `meta` is kept in
+ * `obo.unrecognized`.
+ * @param ctx - the context
+ * @param columns - the column writer
+ * @param definition - the `definition` field
+ * @param row - the node index
+ * @param unrecognized - where keys without a column go
+ * @param path - the meta path in messages
+ */
+function writeDefinition(
+    ctx: ImportContext,
+    columns: ColumnWriter,
+    definition: unknown,
+    row: number,
+    unrecognized: JsonRecord,
+    path: string,
+): void {
+    if (isJsonObject(definition)) {
+        const xrefs = strings(ctx, definition.xrefs, `${path}.definition.xrefs`);
+        if (typeof definition.val === "string") {
+            columns.node("def", row, definition.val);
+            columns.node("def.xrefs", row, xrefs);
+        } else {
+            badValue(ctx, `${path}.definition has no string val; it is dropped`, `${path}.definition.val`);
+        }
+        if (definition.meta !== undefined) {
+            unrecognized["meta.definition.meta"] = definition.meta;
+        }
+    } else if (definition !== undefined && definition !== null) {
+        badValue(ctx, `${path}.definition must be an object with a val; it is dropped`, `${path}.definition`);
     }
 }
 

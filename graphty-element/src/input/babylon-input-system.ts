@@ -2,6 +2,7 @@ import { KeyboardEventTypes, PointerEventTypes, PointerInfo as BabylonPointerInf
 import { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Observable } from "@babylonjs/core/Misc/observable";
 
+import { firstSight } from "./first-sight";
 import { DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "./types";
 
 /**
@@ -24,6 +25,7 @@ export class BabylonInputSystem {
     private readonly pointerPosition = new Vector2(0, 0);
     private readonly pointerStates = new Map<MouseButton, boolean>();
     private readonly activeTouches = new Map<number, TouchPoint>();
+    private readonly newWheel = firstSight();
 
     /**
      * Creates a new BabylonInputSystem instance
@@ -54,6 +56,10 @@ export class BabylonInputSystem {
                     break;
                 case PointerEventTypes.POINTERWHEEL: {
                     const wheelInfo = pointerInfo.event as WheelEvent;
+                    if (!this.newWheel(wheelInfo)) {
+                        break;
+                    }
+
                     this.onWheel.notifyObservers({
                         deltaX: wheelInfo.deltaX,
                         deltaY: wheelInfo.deltaY,

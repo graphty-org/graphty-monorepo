@@ -1,7 +1,7 @@
 /**
  * `@graphty/cytoscape-extensions/samples`: the seeded generators and the sample datasets of @graphty/graph-samples
- * as Cytoscape elements. cy.graphtyGenerate() and cy.graphtyDataset() load this module on their first call, and
- * each bundled dataset is a module of its own, loaded only when it is asked for.
+ * as Cytoscape elements. cy.graphtyGenerate() and cy.graphtyDataset() load this module on their first call; every
+ * dataset downloads from graphty.app when it is asked for (no dataset's data ships in the package).
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
@@ -94,35 +94,28 @@ export { NAMED_GRAPH_NAMES } from "@graphty/graph-samples/generators";
 /** The options of a generator. */
 export type GeneratorOptions<N extends GeneratorName> = Parameters<(typeof GENERATORS)[N]>[0];
 
-// One static specifier per dataset, so a bundler splits each into a chunk of its own.
-const BUNDLED: Record<string, () => Promise<SampleGraph>> = {
-    karate: () => import("@graphty/graph-samples/datasets/karate").then((m) => m.karate()),
-    "florentine-families": () =>
-        import("@graphty/graph-samples/datasets/florentine-families").then((m) => m.florentineFamilies()),
-    "davis-southern-women": () =>
-        import("@graphty/graph-samples/datasets/davis-southern-women").then((m) => m.davisSouthernWomen()),
-    "les-miserables": () => import("@graphty/graph-samples/datasets/les-miserables").then((m) => m.lesMiserables()),
-    football: () => import("@graphty/graph-samples/datasets/football").then((m) => m.football()),
-    "political-books": () => import("@graphty/graph-samples/datasets/political-books").then((m) => m.politicalBooks()),
-    dolphins: () => import("@graphty/graph-samples/datasets/dolphins").then((m) => m.dolphins()),
-    "contiguous-usa": () => import("@graphty/graph-samples/datasets/contiguous-usa").then((m) => m.contiguousUsa()),
-    "knuth-miles": () => import("@graphty/graph-samples/datasets/knuth-miles").then((m) => m.knuthMiles()),
-    "celegans-neural": () => import("@graphty/graph-samples/datasets/celegans-neural").then((m) => m.celegansNeural()),
-    "political-blogs": () => import("@graphty/graph-samples/datasets/political-blogs").then((m) => m.politicalBlogs()),
-    openflights: () => import("@graphty/graph-samples/datasets/openflights").then((m) => m.openflights()),
-    "yeast-perturbation": () =>
-        import("@graphty/graph-samples/datasets/yeast-perturbation").then((m) => m.yeastPerturbation()),
-    "stelzl-interactome": () =>
-        import("@graphty/graph-samples/datasets/stelzl-interactome").then((m) => m.stelzlInteractome()),
-    "wikipathways-senescence-autophagy": () =>
-        import("@graphty/graph-samples/datasets/wikipathways-senescence-autophagy").then((m) =>
-            m.wikipathwaysSenescenceAutophagy(),
-        ),
-    "go-slim-generic": () => import("@graphty/graph-samples/datasets/go-slim-generic").then((m) => m.goSlimGeneric()),
-};
-
-/** The datasets that ship inside @graphty/graph-samples; the hosted ones (graph-samples' DATASETS) are fetched. */
-export const BUNDLED_DATASET_NAMES: readonly string[] = Object.keys(BUNDLED);
+/**
+ * The small datasets, which the package used to bundle. Every dataset now downloads from graphty.app like the rest.
+ * @deprecated every dataset is downloaded; graph-samples' `DATASET_NAMES` lists them all
+ */
+export const BUNDLED_DATASET_NAMES: readonly string[] = [
+    "karate",
+    "florentine-families",
+    "davis-southern-women",
+    "les-miserables",
+    "football",
+    "political-books",
+    "dolphins",
+    "contiguous-usa",
+    "knuth-miles",
+    "celegans-neural",
+    "political-blogs",
+    "openflights",
+    "yeast-perturbation",
+    "stelzl-interactome",
+    "wikipathways-senescence-autophagy",
+    "go-slim-generic",
+];
 
 /**
  * The number of single-character edits that turn one string into the other.
@@ -240,24 +233,22 @@ export function generateElements<N extends GeneratorName>(name: N, options: Gene
 }
 
 /**
- * Loads a sample dataset: a bundled one from its own module, any other from graphty.app (see graph-samples'
- * `DATASETS` for the list, with each one's source, citation and license). A drawn dataset's saved `x` and `y` become
- * node positions, placed where Cytoscape drew them.
+ * Loads a sample dataset from graphty.app (see graph-samples' `DATASETS` for the list, with each one's source,
+ * citation and license). A drawn dataset's saved `x` and `y` become node positions, placed where Cytoscape drew them.
  * @param name - the dataset name, e.g. "karate"
- * @param options - for a hosted dataset: the base URL and fetch implementation; for any dataset, an abort signal
+ * @param options - the base URL (a mirror of your own), the fetch implementation and an abort signal
  * @returns the elements and the direction
  * @throws the signal's reason (an AbortError) when it is aborted before the dataset is decoded
  * @throws RangeError for a name that is not a known dataset, unless `baseUrl` is given
  */
 export async function datasetElements(name: string, options: FetchDatasetOptions = {}): Promise<SampleElements> {
-    // checked here too, not only by fetch: a bundled dataset is not fetched, and a custom fetch may ignore the signal
+    // checked here too, not only by fetch: a custom fetch may ignore the signal
     options.signal?.throwIfAborted();
-    const load = BUNDLED[name];
     // only graphty.app's own list is checked: a custom baseUrl may serve any name
-    if (load === undefined && options.baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+    if (options.baseUrl === undefined && !DATASET_NAMES.includes(name)) {
         throw unknownName("dataset", name, DATASET_NAMES);
     }
-    const graph = load === undefined ? await fetchDataset(name, options) : await load();
+    const graph = await fetchDataset(name, options);
     options.signal?.throwIfAborted();
     const r = fromSample(graph);
     // a drawn dataset's saved x and y (y growing upward) become the position Cytoscape drew (y growing downward)

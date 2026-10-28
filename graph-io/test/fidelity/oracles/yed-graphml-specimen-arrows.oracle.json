@@ -1,0 +1,21 @@
+{
+    "sample": "yed-graphml-specimen-arrows",
+    "file": "graph-io/test/fidelity/specimens/yed-graphml/specimen-arrows.graphml",
+    "sha256": "0ca8c66a4f8078177ce0ffadc5ee56eb8697249ca9079cb54e7006b2b1d5f0ac",
+    "program": "draw.io (jgraph/drawio)",
+    "version": "32.4.1",
+    "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
+    "standIn": true,
+    "standInFor": "yEd",
+    "standInReason": "yEd, whose format this specimen sheet is written in, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process' (yEd Live's terms are treated the same), and neither has an SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the sheet (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own; it stands in until the owner exports the sheet from yEd by hand (File > Export > SVG, 1200 x 900).",
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (draw.io's --width 1200 --height 900: one scale, aspect kept)",
+        "widthPx": 1201,
+        "heightPx": 893
+    },
+    "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
+    "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs yed-graphml-specimen-arrows && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg"
+}

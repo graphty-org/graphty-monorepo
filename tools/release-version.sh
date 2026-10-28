@@ -7,7 +7,8 @@
 #
 # Nothing is pushed, tagged or published: nx.json's tag, push and GitHub-release settings are switched off in
 # this checkout first. The packages in release-hold.json are left out (tools/release-hold.mjs); with
-# <packages> (comma separated nx project names) every other project is left out too.
+# <packages> (comma separated nx project names) every other project is left out too. RELEASE_HOLD_ALSO (comma
+# separated nx project names, read by tools/release-hold.mjs) leaves those out as well, for this run only.
 #
 # Usage: tools/release-version.sh [packages]
 # Needs: pnpm install done, git user.name and user.email set, GITHUB_TOKEN for the changelog's author handles.

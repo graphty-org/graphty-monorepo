@@ -1,0 +1,212 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g />
+	<g>
+		<rect x="674.94439999999997" y="742.83330000000001" width="99" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="724.44439999999997" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=warning</text>
+	</g>
+	<g>
+		<rect x="706.44439999999997" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="724.44439999999997" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="547.5" y="742.83330000000001" width="105" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="600" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=question</text>
+	</g>
+	<g>
+		<rect x="582" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="600" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="420.05560000000003" y="742.83330000000001" width="111" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="475.55560000000003" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=questhead</text>
+	</g>
+	<g>
+		<rect x="457.55560000000003" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="475.55560000000003" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="311.11110000000002" y="742.83330000000001" width="80" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="351.11110000000002" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=info</text>
+	</g>
+	<g>
+		<rect x="333.11110000000002" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="351.11110000000002" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="171.16669999999999" y="742.83330000000001" width="111" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="226.66669999999999" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=hourglass</text>
+	</g>
+	<g>
+		<rect x="208.66669999999999" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="226.66669999999999" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="55.722200000000001" y="742.83330000000001" width="93" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="102.2222" y="749.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=gray12</text>
+	</g>
+	<g>
+		<rect x="84.222200000000001" y="691.33330000000001" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="102.2222" y="709.33330000000001" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1051.2778000000001" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="1097.7778000000001" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=gray25</text>
+	</g>
+	<g>
+		<rect x="1079.7778000000001" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="1097.7778000000001" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="926.83330000000001" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="973.33330000000001" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=gray50</text>
+	</g>
+	<g>
+		<rect x="955.33330000000001" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="973.33330000000001" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="802.38890000000004" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="848.88890000000004" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=gray75</text>
+	</g>
+	<g>
+		<rect x="830.88890000000004" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="848.88890000000004" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="680.94439999999997" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="724.44439999999997" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=error</text>
+	</g>
+	<g>
+		<rect x="706.44439999999997" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="none" />
+		<text x="724.44439999999997" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="575.5" y="469.5" width="49" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">width=6</text>
+	</g>
+	<g>
+		<rect x="582" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="451.05560000000003" y="469.5" width="49" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="475.55560000000003" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">width=4</text>
+	</g>
+	<g>
+		<rect x="457.55560000000003" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="475.55560000000003" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="326.61110000000002" y="469.5" width="49" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="351.11110000000002" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">width=2</text>
+	</g>
+	<g>
+		<rect x="333.11110000000002" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="351.11110000000002" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="202.16669999999999" y="469.5" width="49" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="226.66669999999999" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">width=0</text>
+	</g>
+	<g>
+		<rect x="208.66669999999999" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="226.66669999999999" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="65.222200000000001" y="469.5" width="74" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="102.2222" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">outline=red</text>
+	</g>
+	<g>
+		<rect x="84.222200000000001" y="418" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#000000" />
+		<text x="102.2222" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1048.2778000000001" y="196.16669999999999" width="99" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="1097.7778000000001" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">outline=#0000FF</text>
+	</g>
+	<g>
+		<rect x="1079.7778000000001" y="144.66669999999999" width="36" height="36" fill="#C8C8C8" stroke-width="1.000000px" stroke="#0000FF" />
+		<text x="1097.7778000000001" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="936.33330000000001" y="196.16669999999999" width="74" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="973.33330000000001" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=ORANGE</text>
+	</g>
+	<g>
+		<rect x="955.33330000000001" y="144.66669999999999" width="36" height="36" fill="#000000" stroke-width="1.000000px" stroke="#505050" />
+		<text x="973.33330000000001" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="799.38890000000004" y="196.16669999999999" width="99" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="848.88890000000004" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=light blue</text>
+	</g>
+	<g>
+		<rect x="830.88890000000004" y="144.66669999999999" width="36" height="36" fill="#000000" stroke-width="1.000000px" stroke="#505050" />
+		<text x="848.88890000000004" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="687.44439999999997" y="196.16669999999999" width="74" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="724.44439999999997" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=orange</text>
+	</g>
+	<g>
+		<rect x="706.44439999999997" y="144.66669999999999" width="36" height="36" fill="#000000" stroke-width="1.000000px" stroke="#505050" />
+		<text x="724.44439999999997" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="541" y="196.16669999999999" width="118" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="600" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#FFFF88880000</text>
+	</g>
+	<g>
+		<rect x="582" y="144.66669999999999" width="36" height="36" fill="#000000" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="426.05560000000003" y="196.16669999999999" width="99" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="475.55560000000003" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#FFF888000</text>
+	</g>
+	<g>
+		<rect x="457.55560000000003" y="144.66669999999999" width="36" height="36" fill="#000000" stroke-width="1.000000px" stroke="#505050" />
+		<text x="475.55560000000003" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="311.11110000000002" y="196.16669999999999" width="80" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="351.11110000000002" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#FF8800</text>
+	</g>
+	<g>
+		<rect x="333.11110000000002" y="144.66669999999999" width="36" height="36" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="351.11110000000002" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="195.66669999999999" y="196.16669999999999" width="62" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="226.66669999999999" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#F80</text>
+	</g>
+	<g>
+		<rect x="208.66669999999999" y="144.66669999999999" width="36" height="36" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="226.66669999999999" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="58.722200000000001" y="196.16669999999999" width="87" height="13" fill="#FFFFFF" stroke-width="1.000000px" stroke="#FFFFFF" />
+		<text x="102.2222" y="202.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<rect x="92.222200000000001" y="152.66669999999999" width="20" height="20" fill="#FFFFFF" stroke-width="1.000000px" stroke="#000000" />
+		<text x="102.2222" y="162.66669999999999" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+</svg>

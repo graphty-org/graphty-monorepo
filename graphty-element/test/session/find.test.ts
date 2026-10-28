@@ -5,6 +5,10 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * A small cast: nodes carry a name and a group, edges a kind and, like the nodes, a group.
@@ -121,6 +125,21 @@ describe("finding without selecting", () => {
         session.dispose();
     });
 
+    it("finds an edge by its name, its ends' names joined by the caller's text, when asked", async () => {
+        const session = await cast();
+        const edges = (text: string): string[] =>
+            session
+                .find(text, { kinds: ["edge"], edgeNameJoiner: " -> " })
+                .records.map((hit) => `${String(hit.match.value)} @ ${hit.match.path}`);
+
+        assert.deepEqual(edges("Valjean -> Javert"), ["Valjean -> Javert @ ends"]);
+        assert.deepEqual(edges("javert"), ["Valjean -> Javert @ ends"], "either end's name lists the edge");
+        assert.deepEqual(edges("cosette"), ["Valjean -> Cosette @ ends"]);
+        assert.deepEqual(edges("enem"), ["enemies @ data.kind"], "its own values still match");
+        assert.deepEqual(edges("kind:valjean"), [], "an attribute prefix reads only that column");
+        session.dispose();
+    });
+
     it("lists at most three value rows, commonest first, each target selecting exactly its count of one kind", async () => {
         const session = await cast();
 
@@ -140,6 +159,43 @@ describe("finding without selecting", () => {
         await session.selection.apply(values[1].target);
         assert.lengthOf(session.selection.edges, 1);
         assert.lengthOf(session.selection.nodes, 0);
+        session.dispose();
+    });
+
+    it("offers a number's row an 'or more' rule whose count is what the rule selects; text has none", async () => {
+        // The column the app's Les Miserables sample writes its edge weights under.
+        const WEIGHT = "shared_chapters";
+        const sample = LES_MISERABLES;
+        const ids = sample.ids ?? [];
+        const session = createGraphSession();
+        await session.data.addNodes(ids.map((id) => ({ id })));
+        await session.data.addEdges(
+            [...sample.src].map((src, e) => ({
+                source: ids[src],
+                target: ids[sample.dst[e]],
+                [WEIGHT]: sample.weights?.[e],
+            })),
+        );
+
+        const row = session.find("10").values.find((value) => value.path === "data.shared_chapters");
+        assert.isDefined(row);
+        assert.isDefined(row?.atLeast);
+        assert.deepStrictEqual(
+            row?.atLeast?.target,
+            { text: "=shared_chapters >= `10`" },
+            "the column by its bare name",
+        );
+        const counted = await session.selection.count(row?.atLeast?.target ?? { invert: true });
+        assert.strictEqual(row?.atLeast?.count, counted.edges + counted.nodes);
+        assert.isAbove(row?.atLeast?.count ?? 0, row?.count ?? 0, "ties above 10 come too");
+        session.dispose();
+    });
+
+    it("gives text value rows no 'or more' rule", async () => {
+        const session = await cast();
+        const [family] = session.find("family").values;
+        assert.strictEqual(family.value, "family");
+        assert.isUndefined(family.atLeast);
         session.dispose();
     });
 
@@ -166,6 +222,22 @@ describe("finding without selecting", () => {
         assert.deepEqual(session.find("valjean", { scope: { nodes: ["n5"] } }).records.map(row), [
             ["node", "n5", "data.name"],
         ]);
+        session.dispose();
+    });
+
+    it("counts the hits of each kind in all, past the window", async () => {
+        const session = await cast();
+
+        const found = session.find("valjean", { limit: 1, edgeNameJoiner: " -- " });
+
+        assert.lengthOf(found.records, 1);
+        assert.deepEqual(found.totals, { node: 2, edge: 2 });
+        assert.strictEqual(found.total, 4);
+        assert.deepEqual(session.find("valjean", { kinds: ["node"], edgeNameJoiner: " -- " }).totals, {
+            node: 2,
+            edge: 0,
+        });
+        assert.deepEqual(session.find("  ").totals, { node: 0, edge: 0 });
         session.dispose();
     });
 
@@ -266,6 +338,55 @@ describe("finding without selecting", () => {
             codeOf(() => session.find("v", { kinds: ["value" as "node"] })),
             "E_OPTION_RANGE",
         );
+        session.dispose();
+    });
+});
+
+describe("a typed number inside a number column's range", () => {
+    /**
+     * The studio's bus-stops.csv: links between stops and the minutes each takes. No link
+     * takes exactly 10 minutes; three take 10 or more.
+     * @returns The session, loaded.
+     */
+    async function busStops(): Promise<GraphSession> {
+        const csv = `Depot,Market,4|Market,Library,6|Library,Harbor,5|Depot,School,9|School,Harbor,12|Market,Park,3
+            |Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5
+            |Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4`;
+        const links = csv.split("|").map((line) => line.trim().split(","));
+        const session = createGraphSession();
+        await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
+        await session.data.addEdges(
+            links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),
+        );
+        return session;
+    }
+
+    it("offers one 'or more' row for a number no value equals, counted as its target selects", async () => {
+        const session = await busStops();
+        const { atLeast } = session.find("10");
+        assert.deepStrictEqual(
+            atLeast?.map(({ kind, path, value }) => ({ kind, path, value })),
+            [{ kind: "edge", path: "data.minutes", value: 10 }],
+        );
+        const counted = await session.selection.count(atLeast?.[0].target ?? { invert: true });
+        assert.strictEqual(atLeast?.[0].count, counted.nodes + counted.edges);
+        assert.strictEqual(atLeast?.[0].count, 3);
+        session.dispose();
+    });
+
+    it("offers none for a value the column holds, which keeps its value row's own 'or more'", async () => {
+        const session = await busStops();
+        const found = session.find("4");
+        assert.isUndefined(found.atLeast);
+        assert.isDefined(found.values.find((row) => row.path === "data.minutes")?.atLeast);
+        session.dispose();
+    });
+
+    it("offers none outside the column's range or for text that is not a whole number", async () => {
+        const session = await busStops();
+        for (const text of ["99", "1", "10 min", "minutes:10"]) {
+            assert.isUndefined(session.find(text).atLeast, text);
+        }
         session.dispose();
     });
 });

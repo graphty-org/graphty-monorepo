@@ -120,9 +120,9 @@ Select how nodes are positioned:
 Available layouts include:
 
 - `ngraph` - Force-directed (default, works in 2D and 3D)
-- `d3-force` - D3's force simulation (2D)
+- `d3` - D3's force simulation (2D/3D)
 - `circular` - Nodes in a circle
-- `hierarchical` - Tree-like structure
+- `hierarchical` - Tree-like structure, grown from the node `layout-config` names as `start`
 - `grid` - Regular grid pattern
 
 ### Step 5: Apply Styling

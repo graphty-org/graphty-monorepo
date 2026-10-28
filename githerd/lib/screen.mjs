@@ -22,8 +22,15 @@ const RULE = "\u2500";
 /** The dashed rule around a permission dialog's command, U+254C. */
 const DASHED = "\u254C";
 
-/** Lines that mean the usage-limit screen (Claude Code 2.1.289 strings; platform facts 7.6). */
-const USAGE = /You've hit your|Stop and wait for limit to reset|continue automatically when the limit resets/;
+/**
+ * Lines that mean the usage-limit screen: the Claude Code 2.1.289 strings (platform facts 7.6), and
+ * the newer one-line status "Usage limit reached \u00B7 continuing automatically at 1:30am \u00B7 esc to
+ * cancel" (seen in transcripts from 2026-09-25).
+ */
+const USAGE =
+    /You've hit your|Stop and wait for limit to reset|continue automatically when the limit resets|Usage limit reached/;
+/** The reset time in either wording: "resets 3pm (America/Los_Angeles)" or "continuing automatically at 1:30am". */
+const RESET = /(?:resets|[Cc]ontinuing automatically at) ([^\u00B7]+)/;
 /** A line that says paid extra usage is in use. */
 const EXTRA_USAGE = /You're now using extra usage|Now using extra usage/;
 
@@ -49,7 +56,7 @@ export function readScreen(capture, name) {
     const lines = capture.split("\n").map((l) => l.trimEnd());
     const trimmed = lines.map((l) => l.trim());
     if (lines.some((l) => USAGE.test(l))) {
-        const reset = lines.map((l) => /resets ([^\u00B7]+)/.exec(l)).find(Boolean);
+        const reset = lines.map((l) => RESET.exec(l)).find(Boolean);
         return {
             kind: "usage-limit",
             resets: reset ? reset[1].trim() : null,

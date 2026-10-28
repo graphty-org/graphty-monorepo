@@ -9,6 +9,11 @@
  * - Scenarios: camera rotation and zoom
  *
  * Outputs a markdown report to tmp/edge-performance-report.md
+ *
+ * A REPORT, NOT A GATE ON TIME. Frame rates, frame times, jank and load times are measured and
+ * printed, and never asserted: a stopwatch on a busy machine measures the machine. What each test
+ * asserts is counted: the scenario drew exactly the frames it steps through, with the camera moved
+ * once per drawn frame, and the load built every edge it was handed.
  */
 
 import * as fs from "fs";
@@ -23,9 +28,9 @@ import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 // ============================================================================
 
 const CONFIG = {
-    // Test duration per scenario (ms)
+    // Frames drawn per scenario: as many as a 60fps display shows in half a second
     // Significantly reduced to prevent p-queue stack overflow in vitest browser mode
-    TEST_DURATION_MS: 500,
+    FRAMES_PER_SCENARIO: 31,
 
     // Edge counts to test
     // Minimized to work within vitest browser mode limits
@@ -78,7 +83,10 @@ interface TestResult {
     p95FrameTimeMs: number;
     jankFrameCount: number;
     jankPercent: number;
+    /** Frames the scenario stepped the camera through, one per drawn frame. */
     totalFrames: number;
+    /** Frames the scene drew while the scenario ran, counted by the scene itself. */
+    framesDrawn: number;
     drawCalls: number;
     passesTarget: boolean;
 }
@@ -175,79 +183,67 @@ async function nextRenderedFrame(graph: Graph): Promise<void> {
 // CAMERA ANIMATION
 // ============================================================================
 
-async function animateRotation(graph: Graph, durationMs: number): Promise<number[]> {
+/**
+ * Step the camera once per drawn frame, through a whole scenario, and time each frame.
+ *
+ * The camera is moved by frame, not by elapsed time, so every run draws the same frames from the
+ * same camera positions however fast the machine is; only the recorded frame times differ.
+ * @param graph - The graph whose scene is rendering.
+ * @param step - Moves the camera to where it is at a fraction of the scenario, 0 to 1.
+ * @returns How long each drawn frame took, one entry per frame.
+ */
+async function animate(graph: Graph, step: (progress: number) => void): Promise<number[]> {
     const frameTimes: number[] = [];
-    const startTime = performance.now();
-
-    // Access camera through graph - using unknown intermediate for proper type narrowing
-    const graphUnknown = graph as unknown;
-    const graphWithCamera = graphUnknown as { camera?: { alpha: number; beta: number } };
-    const { camera } = graphWithCamera;
-    if (!camera) {
-        throw new Error("Could not access camera");
-    }
-
-    const startAlpha = camera.alpha;
-
-    // A fixed number of drawn frames: as many as a 60fps display shows in the duration
-    const frameIntervalMs = 16;
-    const frameCount = Math.floor(durationMs / frameIntervalMs);
-    let lastFrameTime = startTime;
+    const frameCount = CONFIG.FRAMES_PER_SCENARIO;
+    let lastFrameTime = performance.now();
 
     for (let i = 0; i < frameCount; i++) {
         await nextRenderedFrame(graph);
 
         const now = performance.now();
-        const elapsed = now - startTime;
-
-        // Record frame time
-        const frameTime = now - lastFrameTime;
-        frameTimes.push(frameTime);
+        frameTimes.push(now - lastFrameTime);
         lastFrameTime = now;
 
-        // Rotate camera (full 360° over duration)
-        const progress = elapsed / durationMs;
-        camera.alpha = startAlpha + progress * Math.PI * 2;
+        step((i + 1) / frameCount);
     }
 
     return frameTimes;
 }
 
-async function animateZoom(graph: Graph, durationMs: number): Promise<number[]> {
-    const frameTimes: number[] = [];
-    const startTime = performance.now();
-
+/**
+ * The graph's camera, reached through the graph.
+ * @param graph - The graph.
+ * @returns The camera's orbit.
+ */
+function orbitOf(graph: Graph): { alpha: number; radius: number } {
     // Access camera through graph - using unknown intermediate for proper type narrowing
     const graphUnknown = graph as unknown;
-    const graphWithCamera = graphUnknown as { camera?: { radius: number } };
-    const { camera } = graphWithCamera;
+    const { camera } = graphUnknown as { camera?: { alpha: number; radius: number } };
     if (!camera) {
         throw new Error("Could not access camera");
     }
 
+    return camera;
+}
+
+async function animateRotation(graph: Graph): Promise<number[]> {
+    const camera = orbitOf(graph);
+    const startAlpha = camera.alpha;
+
+    // Rotate camera (full 360° over the scenario)
+    return animate(graph, (progress) => {
+        camera.alpha = startAlpha + progress * Math.PI * 2;
+    });
+}
+
+async function animateZoom(graph: Graph): Promise<number[]> {
+    const camera = orbitOf(graph);
     const startRadius = camera.radius;
 
-    // A fixed number of drawn frames: as many as a 60fps display shows in the duration
-    const frameIntervalMs = 16;
-    const frameCount = Math.floor(durationMs / frameIntervalMs);
-    let lastFrameTime = startTime;
-
-    for (let i = 0; i < frameCount; i++) {
-        await nextRenderedFrame(graph);
-
-        const now = performance.now();
-        const elapsed = now - startTime;
-
-        // Record frame time
-        const frameTime = now - lastFrameTime;
-        frameTimes.push(frameTime);
-        lastFrameTime = now;
-
-        // Zoom in and out (2x → 0.5x → 2x)
-        const progress = elapsed / durationMs;
-        const zoomFactor = 1 + Math.sin(progress * Math.PI * 2) * 0.75;
-        camera.radius = startRadius * zoomFactor;
-    }
+    // Zoom in and out (2x → 0.5x → 2x)
+    const frameTimes = await animate(graph, (progress) => {
+        camera.radius = startRadius * (1 + Math.sin(progress * Math.PI * 2) * 0.75);
+    });
 
     camera.radius = startRadius; // Reset
     return frameTimes;
@@ -333,11 +329,16 @@ async function runBenchmark(config: TestConfig): Promise<TestResult> {
     const { drawCalls } = perfSummary;
 
     // Run animation and collect frame times
+    // Count the frames the scene draws while the scenario runs, independently of the stepping
+    let framesDrawn = 0;
+    const drawn = graph.scene.onAfterRenderObservable.add(() => {
+        framesDrawn++;
+    });
     let frameTimes: number[];
-    if (config.scenario === "rotation") {
-        frameTimes = await animateRotation(graph, CONFIG.TEST_DURATION_MS);
-    } else {
-        frameTimes = await animateZoom(graph, CONFIG.TEST_DURATION_MS);
+    try {
+        frameTimes = config.scenario === "rotation" ? await animateRotation(graph) : await animateZoom(graph);
+    } finally {
+        graph.scene.onAfterRenderObservable.remove(drawn);
     }
 
     // Calculate metrics
@@ -363,10 +364,22 @@ async function runBenchmark(config: TestConfig): Promise<TestResult> {
         p95FrameTimeMs,
         jankFrameCount,
         jankPercent,
-        totalFrames: validFrameTimes.length,
+        totalFrames: frameTimes.length,
+        framesDrawn,
         drawCalls,
         passesTarget: avgFps >= CONFIG.TARGET_FPS && jankPercent < 10,
     };
+}
+
+/**
+ * Assert, by count, that a scenario drew the frames it measured: one camera step per drawn frame,
+ * every step taken, with draw calls issued. The frame times themselves go in the report only.
+ * @param result - The scenario's result.
+ */
+function assertDrewEveryFrame(result: TestResult): void {
+    assert.strictEqual(result.totalFrames, CONFIG.FRAMES_PER_SCENARIO, "one camera step per drawn frame");
+    assert.strictEqual(result.framesDrawn, CONFIG.FRAMES_PER_SCENARIO, "the scene drew every stepped frame");
+    assert.isAbove(result.drawCalls, 0, "the graph issued draw calls");
 }
 
 // ============================================================================
@@ -384,7 +397,7 @@ Generated: ${timestamp}
 
 - **Target FPS:** ${CONFIG.TARGET_FPS}
 - **Jank Threshold:** ${CONFIG.JANK_THRESHOLD_MS}ms (below ${Math.round(1000 / CONFIG.JANK_THRESHOLD_MS)}fps)
-- **Test Duration:** ${CONFIG.TEST_DURATION_MS / 1000}s per test
+- **Frames per scenario:** ${CONFIG.FRAMES_PER_SCENARIO}
 - **Node Density:** 1 node per ${CONFIG.EDGE_TO_NODE_RATIO} edges
 
 ## Executive Summary
@@ -612,7 +625,7 @@ describe("Edge Performance Report", () => {
                         `[${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS, ${result.jankPercent.toFixed(1)}% jank`,
                     );
 
-                    assert.isAbove(result.totalFrames, 10, "Should capture enough frames");
+                    assertDrewEveryFrame(result);
                 });
             }
         }
@@ -649,7 +662,7 @@ describe("Edge Performance Report", () => {
 
                     console.log(`[ZOOM ${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS`);
 
-                    assert.isAbove(result.totalFrames, 10);
+                    assertDrewEveryFrame(result);
                 });
             }
         }
@@ -686,7 +699,7 @@ describe("Edge Performance Report", () => {
 
                     console.log(`[2D ${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS`);
 
-                    assert.isAbove(result.totalFrames, 10);
+                    assertDrewEveryFrame(result);
                 });
             }
         }
@@ -719,7 +732,7 @@ describe("Edge Performance Report", () => {
                     `[EXTREME] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS, ${result.jankPercent.toFixed(1)}% jank`,
                 );
 
-                assert.isAbove(result.totalFrames, 10);
+                assertDrewEveryFrame(result);
             });
         }
     });
@@ -754,7 +767,7 @@ describe("Edge Performance Report", () => {
 
                 console.log(`[VAR ${lineStyle}/none] 1000 edges: ${result.avgFps.toFixed(1)} FPS`);
 
-                assert.isAbove(result.totalFrames, 10);
+                assertDrewEveryFrame(result);
             });
         }
 
@@ -772,7 +785,7 @@ describe("Edge Performance Report", () => {
 
                 console.log(`[VAR solid/${arrowType}] 1000 edges: ${result.avgFps.toFixed(1)} FPS`);
 
-                assert.isAbove(result.totalFrames, 10);
+                assertDrewEveryFrame(result);
             });
         }
     });

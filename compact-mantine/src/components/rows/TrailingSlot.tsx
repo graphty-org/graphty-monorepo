@@ -1,7 +1,7 @@
-import { ActionIcon, Box } from "@mantine/core";
+import { ActionIcon, Box, Tooltip } from "@mantine/core";
 import React, { forwardRef } from "react";
 
-import { PANEL_GRID } from "../../constants/panel";
+import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import type { ActivationHandler } from "../../types/events";
@@ -255,6 +255,85 @@ export const AdvancedButton = forwardRef<HTMLButtonElement, AdvancedButtonProps>
             >
                 {icon ?? <UiGlyph name="settings" size={PANEL_GRID.GLYPH} />}
             </ActionIcon>
+        );
+    },
+);
+
+/**
+ * Props for the reset button.
+ */
+export interface ResetButtonProps extends Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    "color" | "onClick" | "type"
+> {
+    /**
+     * The name of the control the button resets, such as `"Size"`.
+     *
+     * The button's accessible name and tooltip are built from it -- "Reset
+     * Size to default" in English, and whatever `LabelsProvider` was given
+     * otherwise.
+     */
+    label: string;
+    /** Called when the button is activated, by a click or from the keyboard, with that event. */
+    onClick?: ActivationHandler;
+    /**
+     * Whether the button cannot be used.
+     * @default false
+     */
+    disabled?: boolean;
+}
+
+// Accessibility: the APG "Button" pattern -- Mantine's ActionIcon renders a real
+// <button>. The visible content is a glyph, so the name comes from aria-label.
+// 24x24 is the WCAG 2.2 (2.5.8) target-size minimum.
+
+/**
+ * A small button that gives a row's value back to its default.
+ *
+ * Put it in the row's trailing slot, and draw it only once the reader has set a
+ * value of their own, so a panel of untouched rows stays quiet and a row with a
+ * reset reads as "changed here" (design/figma-spec.md 6.1: the reset sits in the
+ * trailing slot, never inside the field).
+ * @param props - Component props
+ * @param props.label - The name of the control the button resets
+ * @param props.onClick - Called when the button is activated
+ * @param props.disabled - Whether the button cannot be used
+ * @returns The reset button
+ * @example
+ * ```tsx
+ * const [size, setSize] = useState<number | undefined>(undefined);
+ *
+ * <FieldRow trailing={size !== undefined && <ResetButton label="Size" onClick={() => { setSize(undefined); }} />}>
+ *     <PanelField label="Size" kind="number" value={size ?? 10} onChange={(next) => { setSize(Number(next)); }} />
+ * </FieldRow>
+ * ```
+ */
+export const ResetButton = forwardRef<HTMLButtonElement, ResetButtonProps>(
+    function ResetButton(props, ref): React.JSX.Element {
+        const { label, onClick, disabled = false, style, ...rest } = props;
+        const labels = useLabels();
+        const name = labels.resetToDefault(label);
+
+        // An icon-only button says what it does on hover, not only to a screen reader, with the
+        // same tooltip as the color field's reset (a native title is no tooltip a reader can rely on).
+        return (
+            <Tooltip label={name}>
+                <ActionIcon
+                    {...rest}
+                    ref={ref}
+                    type="button"
+                    variant="subtle"
+                    size={PANEL_GRID.TRAIL}
+                    c={PANEL_INK.CHROME}
+                    aria-label={name}
+                    disabled={disabled}
+                    data-testid="reset-button"
+                    onClick={onClick}
+                    style={{ flex: "0 0 auto", ...style }}
+                >
+                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                </ActionIcon>
+            </Tooltip>
         );
     },
 );

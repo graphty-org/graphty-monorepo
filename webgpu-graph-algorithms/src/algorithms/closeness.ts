@@ -250,9 +250,10 @@ async function allPairsRoute(
  * @param ctx - the context
  * @param s - the snapshot
  * @param scores - the destination
- * @param sources - a sampled run's sources, or null for every node
- * @param harmonic - sum reciprocal distances (exact runs only)
- * @param levelsPerSubmit - the submit cadence
+ * @param run - what the run sums
+ * @param run.sources - a sampled run's sources, or null for every node
+ * @param run.harmonic - sum reciprocal distances (exact runs only)
+ * @param run.levelsPerSubmit - the submit cadence
  * @param options - the run options
  * @param tuning - the knobs
  * @returns the result
@@ -261,12 +262,11 @@ async function levelRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     scores: F32,
-    sources: readonly number[] | null,
-    harmonic: boolean,
-    levelsPerSubmit: number,
+    run: { readonly sources: readonly number[] | null; readonly harmonic: boolean; readonly levelsPerSubmit: number },
     options: GpuRunOptions | undefined,
     tuning: ClosenessTuning,
 ): Promise<GpuClosenessResult> {
+    const { sources, harmonic, levelsPerSubmit } = run;
     const n = s.nodeCount;
     const seedCount = sources?.length ?? n;
     if (seedCount === 0) {
@@ -357,7 +357,9 @@ async function levelRoute(
             const sums = new Float64Array(count);
             const reciprocal = new Float64Array(count);
             const reached = new Uint32Array(count);
-            for (let firstLevel = 0, done = false; !done; firstLevel += levelsPerSubmit) {
+            let done = false;
+            let firstLevel = 0;
+            while (!done) {
                 if (firstLevel > n + 1) {
                     // a batch claims at most n - 1 levels deep, then one level claims nothing
                     throw new WebGpuGraphError(
@@ -420,6 +422,7 @@ async function levelRoute(
                         totals[v] += sum;
                     });
                 }
+                firstLevel += levelsPerSubmit;
             }
             if (sources === null) {
                 for (let lane = 0; lane < count; lane++) {
@@ -553,7 +556,7 @@ export async function closenessWithTuning(
     if (route === "per-source") {
         return perSourceRoute(ctx, s, scores, sources, harmonic, options);
     }
-    return levelRoute(ctx, s, scores, sources, harmonic, levelsPerSubmit, options, tuning);
+    return levelRoute(ctx, s, scores, { sources, harmonic, levelsPerSubmit }, options, tuning);
 }
 
 /**

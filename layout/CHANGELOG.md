@@ -1,3 +1,103 @@
+## 2.5.10 (2026-10-21)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.39
+- Updated graph-format to 1.4.7
+- Updated algorithms to 3.4.14
+
+## 2.5.9 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.38
+- Updated graph-format to 1.4.6
+- Updated algorithms to 3.4.13
+
+## 2.5.8 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+
+## 2.5.7 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+
+## 2.5.6 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+
+## 2.5.5 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+
+## 2.5.4 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+
+## 2.5.3 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+
+## 2.5.2 (2026-10-14)
+
+### 🩹 Fixes
+
+- **layout:** use graph-format's engine-independent math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+- **layout:** draw seeded layouts with engine-independent log, sin, cos and acos ([#2430](https://github.com/graphty-org/graphty-monorepo/issues/2430))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.5.1 (2026-10-13)
+
+### 🩹 Fixes
+
+- **layout:** give every input refusal of the layouts a code and params ([#2335](https://github.com/graphty-org/graphty-monorepo/issues/2335))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.5.0 (2026-10-13)
+
+### 🚀 Features
+
+- **layout:** give the planar and bfs refusals a code ([#2275](https://github.com/graphty-org/graphty-monorepo/issues/2275))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.5 (2026-10-13)
 
 ### 🩹 Fixes

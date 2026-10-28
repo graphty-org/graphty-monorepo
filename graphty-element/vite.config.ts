@@ -38,6 +38,7 @@ const entries = {
     react: "./react.ts",
     webgpu: "./webgpu.ts",
     ai: "./ai.ts",
+    credentials: "./credentials.ts",
 };
 
 /**
@@ -209,14 +210,50 @@ export function thirdPartyLicenses(): Plugin {
     };
 }
 
+/**
+ * Leave the Graphviz Worker for the consumer's bundler.
+ *
+ * Vite builds the Worker (`src/layout/graphviz/worker.ts`) into its own file with the optional
+ * Graphviz package left as an import, and writes the reference to it in a shape no other bundler
+ * recognises. Rewritten to the plain `new Worker(new URL("<file>", import.meta.url), ...)` form,
+ * the consumer's Vite, webpack or Parcel bundles the Worker again and resolves the package from
+ * the consumer's own install.
+ * @returns the plugin
+ */
+function plainWorkerUrls(): Plugin {
+    return {
+        name: "graphty-plain-worker-urls",
+        // After Vite has written its own worker references, which it does as chunks are rendered.
+        generateBundle(_options, bundle) {
+            for (const output of Object.values(bundle)) {
+                if (output.type === "chunk") {
+                    output.code = output.code.replaceAll(
+                        /new URL\(\s*\/\* @vite-ignore \*\/\s*"" \+ new URL\(("[^"]+"), import\.meta\.url\)\.href,\s*import\.meta\.url\s*\)/g,
+                        "new URL($1, import.meta.url)",
+                    );
+                }
+            }
+        },
+    };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
     // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const monorepoRoot = resolve(__dirname, "..");
     const env = loadEnv(mode, monorepoRoot, "");
     const config: UserConfig = {
+        // Relative in the build, so the Graphviz Worker's file is found next to the chunk that
+        // starts it. The dev server and the test runners keep the root.
+        ...(command === "build" ? { base: "./" } : {}),
+        worker: {
+            format: "es",
+            plugins: () => [],
+            rollupOptions: { external: externalDependencies() },
+        },
         plugins: [
+            plainWorkerUrls(),
             // eslint(),
             VitePluginCustomElementsManifest({
                 files: ["./src/graphty-element.ts"],
@@ -230,6 +267,10 @@ export default defineConfig(({ mode }) => {
         define: {
             // Disable Lit dev mode warning
             "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "production" : mode),
+            // The version a project file's `generator` names (src/session/runs/engine.ts).
+            __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+                (JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string }).version,
+            ),
         },
         build: {
             lib: {

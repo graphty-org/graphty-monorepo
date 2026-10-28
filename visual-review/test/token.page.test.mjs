@@ -49,10 +49,14 @@ beforeEach(async () => {
     );
     // A new context each test: its own storage, as a home-screen web app has.
     page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    // No limit of Playwright's 30 s on its waits: the test's ends them.
+    page.setDefaultTimeout(0);
 });
 afterEach(async () => {
     await page?.close();
-    server?.close();
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
 });
 
 const field = () => page.getByLabel(LABEL);

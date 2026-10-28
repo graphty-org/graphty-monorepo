@@ -71,6 +71,11 @@ const VIZ_ORIGIN = { format: GEXF_FORMAT, namespace: VIZ_NAMESPACE };
 /**
  * The fixed node column names the importer owns (design section 5.6): a declared attribute with
  * one of these titles is renamed `<title>#<id>` so the XML-derived column keeps its name and role.
+ *
+ * Deprecated, unchanged until the next major version: the viz role columns (`color`, `size`,
+ * `shape`, `shape.uri`, and on edges `color`, `thickness`, `shape`) and the rename of an attribute
+ * titled like one. The GEXF style reader (styles.ts) is the only code that turns them into
+ * drawing; in the next major they leave the import result.
  * @category Plugin helpers
  */
 export const NODE_COLUMNS = Object.freeze({
@@ -190,7 +195,8 @@ export const NODE_DECLS: Readonly<Record<keyof typeof NODE_COLUMNS, ColumnDecl>>
         mutable: true,
         nullable: true,
         origin: VIZ_ORIGIN,
-        extra: { units: "file" },
+        // Gephi puts a node with no viz:position at the origin (gexf-specimen-node-sizes-opacity: position-none)
+        extra: { units: "file", originUnplaced: true },
     },
     color: {
         name: NODE_COLUMNS.color,

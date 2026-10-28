@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <!-- Volunteers of a food bank. A tie: two people who worked a shift together this quarter. hours: hours this quarter; trained: finished food-safety training; phone: left out where nobody has one on file. -->
+  <key id="name" for="node" attr.name="name" attr.type="string"/>
+  <key id="role" for="node" attr.name="role" attr.type="string"/>
+  <key id="hours" for="node" attr.name="hours" attr.type="int"/>
+  <key id="trained" for="node" attr.name="trained" attr.type="boolean"/>
+  <key id="phone" for="node" attr.name="phone" attr.type="string"/>
+  <graph id="G" edgedefault="undirected">
+    <node id="v01">
+      <data key="name">Maria Lopez</data>
+      <data key="role">board</data>
+      <data key="hours">12</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0101</data>
+    </node>
+    <node id="v02">
+      <data key="name">James Carter</data>
+      <data key="role">staff</data>
+      <data key="hours">48</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0102</data>
+    </node>
+    <node id="v03">
+      <data key="name">Aisha Bello</data>
+      <data key="role">volunteer</data>
+      <data key="hours">22</data>
+      <data key="trained">true</data>
+    </node>
+    <node id="v04">
+      <data key="name">Tobias Becker</data>
+      <data key="role">volunteer</data>
+      <data key="hours">6</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0104</data>
+    </node>
+    <node id="v05">
+      <data key="name">Priya Nair</data>
+      <data key="role">volunteer</data>
+      <data key="hours">31</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0105</data>
+    </node>
+    <node id="v06">
+      <data key="name">Leo Novak</data>
+      <data key="role">volunteer</data>
+      <data key="hours">3</data>
+      <data key="trained">false</data>
+    </node>
+    <node id="v07">
+      <data key="name">Gina Kim</data>
+      <data key="role">volunteer</data>
+      <data key="hours">18</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0107</data>
+    </node>
+    <node id="v08">
+      <data key="name">Omar Haddad</data>
+      <data key="role">volunteer</data>
+      <data key="hours">9</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0108</data>
+    </node>
+    <node id="v09">
+      <data key="name">Hannah Weiss</data>
+      <data key="role">staff</data>
+      <data key="hours">52</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0109</data>
+    </node>
+    <node id="v10">
+      <data key="name">Diego Ruiz</data>
+      <data key="role">volunteer</data>
+      <data key="hours">27</data>
+      <data key="trained">true</data>
+    </node>
+    <node id="v11">
+      <data key="name">Chen Wei</data>
+      <data key="role">volunteer</data>
+      <data key="hours">14</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0111</data>
+    </node>
+    <node id="v12">
+      <data key="name">Fatima Diallo</data>
+      <data key="role">volunteer</data>
+      <data key="hours">4</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0112</data>
+    </node>
+    <node id="v13">
+      <data key="name">Seun Okoro</data>
+      <data key="role">board</data>
+      <data key="hours">8</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0113</data>
+    </node>
+    <node id="v14">
+      <data key="name">Nora Lindqvist</data>
+      <data key="role">volunteer</data>
+      <data key="hours">20</data>
+      <data key="trained">true</data>
+    </node>
+    <node id="v15">
+      <data key="name">Ivan Petrov</data>
+      <data key="role">volunteer</data>
+      <data key="hours">11</data>
+      <data key="trained">false</data>
+    </node>
+    <node id="v16">
+      <data key="name">Lucy Grant</data>
+      <data key="role">volunteer</data>
+      <data key="hours">35</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0116</data>
+    </node>
+    <node id="v17">
+      <data key="name">Ken Ito</data>
+      <data key="role">staff</data>
+      <data key="hours">44</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0117</data>
+    </node>
+    <node id="v18">
+      <data key="name">Rosa Mendes</data>
+      <data key="role">volunteer</data>
+      <data key="hours">16</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0118</data>
+    </node>
+    <node id="v19">
+      <data key="name">Ahmed Saleh</data>
+      <data key="role">volunteer</data>
+      <data key="hours">2</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0119</data>
+    </node>
+    <node id="v20">
+      <data key="name">Julia Rossi</data>
+      <data key="role">volunteer</data>
+      <data key="hours">25</data>
+      <data key="trained">true</data>
+    </node>
+    <node id="v21">
+      <data key="name">Ben Adler</data>
+      <data key="role">staff</data>
+      <data key="hours">40</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0121</data>
+    </node>
+    <node id="v22">
+      <data key="name">Mei Tanaka</data>
+      <data key="role">volunteer</data>
+      <data key="hours">7</data>
+      <data key="trained">false</data>
+      <data key="phone">555-0122</data>
+    </node>
+    <node id="v23">
+      <data key="name">Paul Dubois</data>
+      <data key="role">board</data>
+      <data key="hours">5</data>
+      <data key="trained">true</data>
+      <data key="phone">555-0123</data>
+    </node>
+    <node id="v24">
+      <data key="name">Zara Ahmed</data>
+      <data key="role">staff</data>
+      <data key="hours">38</data>
+      <data key="trained">false</data>
+    </node>
+    <edge id="e0" source="v01" target="v02"/>
+    <edge id="e1" source="v01" target="v03"/>
+    <edge id="e2" source="v01" target="v05"/>
+    <edge id="e3" source="v01" target="v06"/>
+    <edge id="e4" source="v01" target="v07"/>
+    <edge id="e5" source="v01" target="v08"/>
+    <edge id="e6" source="v02" target="v03"/>
+    <edge id="e7" source="v02" target="v04"/>
+    <edge id="e8" source="v02" target="v05"/>
+    <edge id="e9" source="v02" target="v06"/>
+    <edge id="e10" source="v02" target="v07"/>
+    <edge id="e11" source="v02" target="v08"/>
+    <edge id="e12" source="v02" target="v09"/>
+    <edge id="e13" source="v03" target="v04"/>
+    <edge id="e14" source="v03" target="v05"/>
+    <edge id="e15" source="v03" target="v06"/>
+    <edge id="e16" source="v04" target="v05"/>
+    <edge id="e17" source="v04" target="v06"/>
+    <edge id="e18" source="v04" target="v08"/>
+    <edge id="e19" source="v05" target="v06"/>
+    <edge id="e20" source="v05" target="v07"/>
+    <edge id="e21" source="v05" target="v08"/>
+    <edge id="e22" source="v05" target="v21"/>
+    <edge id="e23" source="v06" target="v07"/>
+    <edge id="e24" source="v06" target="v08"/>
+    <edge id="e25" source="v07" target="v08"/>
+    <edge id="e26" source="v09" target="v10"/>
+    <edge id="e27" source="v09" target="v13"/>
+    <edge id="e28" source="v09" target="v14"/>
+    <edge id="e29" source="v09" target="v15"/>
+    <edge id="e30" source="v09" target="v16"/>
+    <edge id="e31" source="v09" target="v17"/>
+    <edge id="e32" source="v10" target="v11"/>
+    <edge id="e33" source="v10" target="v13"/>
+    <edge id="e34" source="v10" target="v14"/>
+    <edge id="e35" source="v10" target="v16"/>
+    <edge id="e36" source="v11" target="v12"/>
+    <edge id="e37" source="v11" target="v15"/>
+    <edge id="e38" source="v12" target="v13"/>
+    <edge id="e39" source="v12" target="v16"/>
+    <edge id="e40" source="v13" target="v14"/>
+    <edge id="e41" source="v13" target="v15"/>
+    <edge id="e42" source="v13" target="v16"/>
+    <edge id="e43" source="v13" target="v23"/>
+    <edge id="e44" source="v14" target="v15"/>
+    <edge id="e45" source="v14" target="v16"/>
+    <edge id="e46" source="v15" target="v16"/>
+    <edge id="e47" source="v17" target="v18"/>
+    <edge id="e48" source="v17" target="v23"/>
+    <edge id="e49" source="v18" target="v19"/>
+    <edge id="e50" source="v18" target="v21"/>
+    <edge id="e51" source="v18" target="v24"/>
+    <edge id="e52" source="v19" target="v20"/>
+    <edge id="e53" source="v19" target="v21"/>
+    <edge id="e54" source="v20" target="v21"/>
+    <edge id="e55" source="v20" target="v22"/>
+    <edge id="e56" source="v20" target="v23"/>
+    <edge id="e57" source="v21" target="v22"/>
+    <edge id="e58" source="v21" target="v23"/>
+    <edge id="e59" source="v21" target="v24"/>
+    <edge id="e60" source="v22" target="v23"/>
+    <edge id="e61" source="v22" target="v24"/>
+    <edge id="e62" source="v23" target="v24"/>
+  </graph>
+</graphml>

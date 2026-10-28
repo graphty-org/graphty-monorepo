@@ -166,6 +166,10 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+            "connectedBy": {
+                "description": "Optional. An expression matching edges, in the same language: only nodes at an end of a matching edge are selected, so data.weight > `0.7` picks the nodes with heavy connections. Combined with selector, a node must match both; with an empty selector, every such node.",
+                "type": "string"
+            },
             "layerName": {
                 "description": "Name for this style layer (for later removal)",
                 "type": "string"
@@ -191,7 +195,7 @@
                         "type": "string"
                     },
                     "glowStrength": {
-                        "description": "Glow effect strength. It scales a glow color and draws nothing without one",
+                        "description": "Glow effect strength (default 1), per style. It scales a glow color and draws nothing without one",
                         "exclusiveMinimum": 0,
                         "type": "number"
                     },
@@ -227,6 +231,10 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
+            "connectedBy": {
+                "description": "Optional. An expression matching edges, in the same language: only nodes at an end of a matching edge are selected, so data.weight > `0.7` picks the nodes with heavy connections. Combined with selector, a node must match both; with an empty selector, every such node.",
+                "type": "string"
+            },
             "limit": {
                 "description": "Maximum number of node IDs to return (default 50)",
                 "type": "number"
@@ -470,6 +478,10 @@
             "animate": {
                 "description": "Whether to animate the zoom (default: true)",
                 "type": "boolean"
+            },
+            "connectedBy": {
+                "description": "Optional. An expression matching edges, in the same language: only nodes at an end of a matching edge are selected, so data.weight > `0.7` picks the nodes with heavy connections. Combined with selector, a node must match both; with an empty selector, every such node.",
+                "type": "string"
             },
             "padding": {
                 "description": "Extra padding around nodes (default: 1.2 = 20% padding)",

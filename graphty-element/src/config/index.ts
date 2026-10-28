@@ -1,14 +1,30 @@
+export type { BasemapConfig, BasemapSourceId, BasemapStatus, LocationSourceFact, MapFrameFact } from "./Basemap";
+export { Basemap } from "./Basemap";
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
-export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeStyle } from "./EdgeStyle";
-export type { FetchEdgesFn, FetchNodesFn, GraphBehaviorConfig } from "./GraphBehavior";
+export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes, EdgeStyle } from "./EdgeStyle";
+export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
 export type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "./GraphStyle";
-export { DEFAULT_SELECTION_STYLE, GraphBackground, GraphSelectionStyleOpts } from "./GraphStyle";
+export {
+    DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_SELECTION_STYLE,
+    GraphBackground,
+    GraphSelectionStyleOpts,
+} from "./GraphStyle";
+export type { Lighting } from "./Lighting";
+export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
 export type { NodeStyleConfig } from "./NodeStyle";
-export { defaultNodeStyle, NodeShapes, NodeStyle } from "./NodeStyle";
+export {
+    defaultNodeStyle,
+    FLAT_NODE_SHAPES,
+    NodeBorderPositions,
+    NodeBorderStyles,
+    NodeShapes,
+    NodeStyle,
+} from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
 export type { StyleSchemaV1 } from "./StyleTemplate";

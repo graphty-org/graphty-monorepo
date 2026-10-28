@@ -48,14 +48,12 @@ const T975 = [
 ];
 
 /**
- * Compares the rounds of a paired run, row by row.
+ * The per-round minimum of each row, per side, keyed by group/name in first-seen order.
  * @param {readonly import("./bench-ab.js").AbRound[]} rounds - the samples of every round
- * @param {{ threshold?: number }} [options] - threshold: the lower-bound factor of a regression
- * @returns {import("./bench-ab.js").AbRow[]} one row per group/name, base order first, then rows new in the candidate
+ * @returns {Map<string, { base: number[], candidate: number[] }>} the minima
  */
-export function compareRounds(rounds, options = {}) {
-    const threshold = options.threshold ?? DEFAULT_THRESHOLD;
-    /** @type {Map<string, { base: number[], candidate: number[] }>} the per-round minimum of each row, per side */
+function roundMinima(rounds) {
+    /** @type {Map<string, { base: number[], candidate: number[] }>} */
     const rows = new Map();
     for (const round of rounds) {
         for (const side of /** @type {const} */ (["base", "candidate"])) {
@@ -67,6 +65,18 @@ export function compareRounds(rounds, options = {}) {
             }
         }
     }
+    return rows;
+}
+
+/**
+ * Compares the rounds of a paired run, row by row.
+ * @param {readonly import("./bench-ab.js").AbRound[]} rounds - the samples of every round
+ * @param {{ threshold?: number }} [options] - threshold: the lower-bound factor of a regression
+ * @returns {import("./bench-ab.js").AbRow[]} one row per group/name, base order first, then rows new in the candidate
+ */
+export function compareRounds(rounds, options = {}) {
+    const threshold = options.threshold ?? DEFAULT_THRESHOLD;
+    const rows = roundMinima(rounds);
     const out = [];
     for (const [key, { base, candidate }] of rows) {
         if (candidate.length === 0 || base.length === 0) {

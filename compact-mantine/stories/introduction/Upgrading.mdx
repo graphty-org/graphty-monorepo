@@ -1,4 +1,4 @@
-import { Meta } from "@storybook/blocks";
+import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Introduction/Upgrading to 0.9" />
 
@@ -77,6 +77,51 @@ A list the reader selects, renames or reorders is a [`Tree`](?path=/docs/compone
 [`PageList`](?path=/docs/components-lists-and-trees-pagelist--docs); both have roving focus,
 multiple selection, F2 and double-click rename, and a context menu. A find result is a
 `ResultRow`.
+
+### `ControlSubGroup`, `StyleNumberInput` and `StyleSelect` are removed
+
+They duplicated the Figma components, and with them go `ControlSubGroupProps`,
+`StyleNumberInputProps`, `StyleSelectProps` and `StyleSelectOption`.
+
+- **`ControlSubGroup`**: Figma never folds settings away inside a panel. Draw the rows plainly, or
+  put the rare ones behind an [`AdvancedButton`](?path=/docs/components-actions-advancedbutton--docs)
+  that opens a `Popout`.
+- **`StyleNumberInput` and `StyleSelect`**: a `PanelField` (`kind="number"`, or `kind="select"` with
+  `data`) in a `FieldRow`. Show the default in the field while nothing is set, and put a
+  `ResetButton` in the row's `trailing` slot once the reader sets a value of their own. `suffix`
+  is `unit`; `decimalScale` and `disabledReason` keep their names. To draw the field's word as a
+  caption above it, wrap the row in `PanelLabelsProvider showLabels`.
+
+```tsx
+import { FieldRow, PanelField, PanelLabelsProvider, ResetButton } from "@graphty/compact-mantine";
+
+const [size, setSize] = useState<number | undefined>(undefined);
+
+<PanelLabelsProvider showLabels>
+    <FieldRow
+        trailing={
+            size !== undefined && (
+                <ResetButton
+                    label="Size"
+                    onClick={() => {
+                        setSize(undefined);
+                    }}
+                />
+            )
+        }
+    >
+        <PanelField
+            label="Size"
+            kind="number"
+            value={size ?? 10}
+            min={1}
+            onChange={(next) => {
+                setSize(Number(next));
+            }}
+        />
+    </FieldRow>
+</PanelLabelsProvider>;
+```
 
 ## Behavior changes
 

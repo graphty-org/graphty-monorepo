@@ -1,11 +1,12 @@
 import { Box, Button, Group, Modal, type ModalProps, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ModalFooter } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
@@ -39,7 +40,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * ```
  *
  * Put `ModalFooter` last inside the Modal, with the secondary action (Cancel) first and the
- * primary or danger action last. The theme draws no backdrop unless you pass `withOverlay`.
+ * primary or danger action last. The page behind is blocked while the Modal is open (a click on it
+ * closes the Modal), behind a transparent overlay; pass `overlayProps={{ backgroundOpacity: 0.5 }}`
+ * to dim it.
  *
  * ## Keyboard and accessibility
  *
@@ -132,7 +135,7 @@ export const States: Story = {
                     <Button disabled>Save</Button>
                 </ModalFooter>
             </ContainedModal>
-            <ContainedModal title="Delete comment" size="sm" withOverlay height={200}>
+            <ContainedModal title="Delete comment" size="sm" overlayProps={{ backgroundOpacity: 0.5 }} height={200}>
                 <Text size="sm">Delete this comment thread? This cannot be undone.</Text>
                 <ModalFooter>
                     <Button variant="default">Cancel</Button>
@@ -193,12 +196,12 @@ export const OpenAndCloseInteractions: Story = {
         const canvas = within(canvasElement);
         const body = within(canvasElement.ownerDocument.body);
         await userEvent.click(canvas.getByRole("button", { name: /Save to version history/ }));
-        const title = await body.findByRole("textbox", { name: "Version title" });
-        await waitFor(() => expect(title).toHaveFocus());
+        const title = await body.findByRole("textbox", { name: "Version title" }, storyWaitOptions(1000));
+        await waitFor(() => expect(title).toHaveFocus(), storyWaitOptions(1000));
         await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
         await userEvent.keyboard("v");
         await expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
         await userEvent.keyboard("{Escape}");
-        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull(), storyWaitOptions(1000));
     },
 };

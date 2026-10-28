@@ -1,6 +1,7 @@
 import { Color3, Mesh, Scene, StandardMaterial } from "@babylonjs/core";
 
 import { type FilledArrowOptions, FilledArrowRenderer } from "./FilledArrowRenderer";
+import { setUpQuietly } from "./LabelBatch";
 
 /**
  * Utility for applying 2D vs 3D materials to meshes
@@ -29,17 +30,20 @@ export class MaterialHelper {
         // Convert hex color to Color3
         const colorObj = Color3.FromHexString(color);
 
-        // Use emissiveColor for self-illumination (required when lighting is disabled)
-        material.emissiveColor = colorObj;
-        material.alpha = opacity;
+        // A material no mesh draws yet: its setters mark nothing dirty (issue #2894).
+        setUpQuietly(material, () => {
+            // Use emissiveColor for self-illumination (required when lighting is disabled)
+            material.emissiveColor = colorObj;
+            material.alpha = opacity;
 
-        // Disable lighting for consistent appearance
-        material.disableLighting = true;
+            // Disable lighting for consistent appearance
+            material.disableLighting = true;
 
-        // Disable backface culling for 2D mode
-        // In 2D, meshes are rotated 90° to XY plane and viewed from fixed camera angle
-        // Backface culling doesn't work reliably with this setup, so render both sides
-        material.backFaceCulling = false;
+            // Disable backface culling for 2D mode
+            // In 2D, meshes are rotated 90° to XY plane and viewed from fixed camera angle
+            // Backface culling doesn't work reliably with this setup, so render both sides
+            material.backFaceCulling = false;
+        });
 
         // Apply material
         mesh.material = material;

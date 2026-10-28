@@ -55,8 +55,58 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/s
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
 
-/** The one edge, which every edge channel is measured on. */
-const EDGES = [{ src: "alpha", dst: "omega" }];
+/**
+ * The edge every edge channel is measured on, and a second one beside it: a bundle's spacing is
+ * drawn only between two edges. Straight, the two lie on one line and draw as one.
+ */
+const EDGES = [
+    { src: "alpha", dst: "omega" },
+    { src: "alpha", dst: "omega" },
+];
+
+/**
+ * What a channel needs written before it has anything to change, in a layer of its own around its
+ * measurement: a bundle fans apart only when its edges are curved.
+ */
+const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
+    "edge.fanSpacing": { "edge.curvature": true },
+    "edge.fanned": { "edge.curvature": true },
+    // An arc radius bends only a curved edge that does not fan out of its bundle, and a bend curve only a
+    // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
+    "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
+    "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
+    // An arc height raises only a raised route; every other layout draws edges straight.
+    "edge.arcHeight": { "edge.route": "arc" },
+    // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
+    "node.gradientDirection": { "node.gradientColor": "#00ff00" },
+    "node.gradientKind": { "node.gradientColor": "#00ff00" },
+    // Stops place colours, three of them so the middle one has somewhere to move.
+    "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
+    // A wrap option changes only a label wider than its wrap width; the blank count only one with blanks.
+    "node.labelWrapEllipsis": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapAnywhere": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapSpaceCount": { "node.label": "a b c d e f g h", "node.labelWrapWidth": 3 },
+    "edge.labelWrapEllipsis": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapAnywhere": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapSpaceCount": { "edge.label": "a b c d e f g h", "edge.labelWrapWidth": 3 },
+    // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
+    // are, at this canvas and zoom, under the probe's 4 px.
+    "node.labelMinScreenSize": { "node.labelSize": 1 },
+    "edge.labelMinScreenSize": { "edge.labelSize": 1 },
+    // A wave's own swing and period shape only a sine-wave or zigzag line or border, and a period only
+    // a wave that has a swing of its own.
+    "edge.waveAmplitude": { "edge.style": "sinewave" },
+    "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
+    "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
+    "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
+    // Where runs of different sizes meet changes only a line holding runs of different sizes.
+    "node.labelRunAlign": { "node.label": "a<size='300%'>M</size>" },
+    "edge.labelRunAlign": { "edge.label": "a<size='300%'>M</size>" },
+    // A node's further parts are outlined, and its lines drawn, in its border; a line's own width needs a line.
+    "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+};
 
 /** How wide the canvas is. */
 const WIDTH = 480;
@@ -104,9 +154,37 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            if (descriptor.channel === "edge.bends") {
+                return "0.5,0.5";
+            }
+            // So is a port: the middle of the node's top, where an unported line never ends.
+            if (descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort") {
+                return "0,1";
+            }
+            // A gradient's colors and stops are lists of their own.
+            if (descriptor.channel === "node.gradientColors") {
+                return "#ff0000 #00ff00 #0000ff";
+            }
+            if (descriptor.channel === "node.gradientStops") {
+                return "0 0.1 1";
+            }
+            // A node's further parts are polygons beside it, and its lines polylines across it.
+            if (descriptor.channel === "node.shapeParts") {
+                return "1,-1 3,-1 2,1";
+            }
+            if (descriptor.channel === "node.shapeLines") {
+                return "-1,-1 1,1; -1,1 1,-1";
+            }
+            // and its further texts a JSON list of points and words
+            if (descriptor.channel === "node.shapeTexts") {
+                return '[[0, 0, "CHANNEL PROBE WORDS"]]';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
-            return true;
+            // The other state from the default: a switch that is on by default (`node.visible`)
+            // changes the picture only when it is turned off, and a bundle fans unless told not to.
+            return descriptor.default !== true && descriptor.channel !== "edge.fanned";
         case "enum": {
             const values = descriptor.values ?? [];
 
@@ -131,6 +209,8 @@ function describeMesh(mesh: Record<string, unknown>): string {
         String(mesh.name),
         String(mesh.isVisible),
         String(mesh.visibility),
+        // Which pass draws it: a label drawn over the whole graph is in a group of its own.
+        String(mesh.renderingGroupId),
         String(mesh.scaling),
         String(mesh.renderOutline),
         String(mesh.outlineWidth),
@@ -218,7 +298,10 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    // No halo: any halo channel switches the halo on alone, so one drawn here
+                    // would leave node.halo nothing to change.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",
@@ -240,6 +323,8 @@ describe("every channel the table says is renderable", () => {
                         // still has something to move.
                         "edge.arrowHeadText": "HEAD",
                         "edge.arrowTailText": "TAIL",
+                        // A band's width and opacity, likewise, need a color that draws one.
+                        "edge.bandColor": "#0077BB",
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();
@@ -297,6 +382,16 @@ describe("every channel the table says is renderable", () => {
                             `channel nothing can write is a channel nothing can test.`,
                     );
 
+                    const needs = PREREQUISITES[descriptor.channel];
+                    const prerequisite =
+                        needs === undefined
+                            ? null
+                            : await session.styles.add({
+                                  name: `probe prerequisites ${descriptor.channel}`,
+                                  target,
+                                  selector: { match: "everything" },
+                                  set: needs,
+                              });
                     const before = await read();
                     const layer: LayerSpec = {
                         name: `probe ${descriptor.channel}`,
@@ -310,6 +405,10 @@ describe("every channel the table says is renderable", () => {
                     await session.styles.remove(added.id);
 
                     const restored = await read();
+                    if (prerequisite !== null) {
+                        await session.styles.remove(prerequisite.id);
+                    }
+
                     const movedByWriting = pixelsMoved(before, after);
                     const painted = after.structure !== before.structure || movedByWriting > PIXEL_CHANGE;
                     const waiver = waived.get(descriptor.channel);

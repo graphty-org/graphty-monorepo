@@ -62,6 +62,7 @@ export {
     createRegistry,
     downloadGraph,
     type DownloadGraphOptions,
+    expandFromSource,
     exportGraph,
     type ExportGraphOptions,
     exportGraphToBlob,
@@ -70,18 +71,25 @@ export {
     type FormatInfo,
     FormatRegistry,
     importAllGraphs,
+    importFromSource,
     importGraph,
     type ImportGraphOptions,
     type ImportGraphResult,
     listFormats,
+    listFromSource,
     listGraphs,
+    listSources,
     loadFromFile,
+    loadFromSource,
     loadFromUrl,
     type LoadFromUrlOptions,
+    probeSource,
+    registerSource,
     registry,
     sniff,
     SNIFF_FAILED_CODE,
     UNKNOWN_FORMAT_CODE,
+    validateSource,
 } from "./registry.js";
 export {
     extensionOf,
@@ -97,6 +105,91 @@ export {
     sniffJsonDialectHead,
     type SniffResult,
 } from "./sniff.js";
+
+// ============================================================ network sources (experimental)
+// The contract, the load functions and credentials; each built-in source's code is its own subpath
+// (@graphty/graph-io/sources/ndex, /cypher, /rest, /sparql), loaded on first use.
+export {
+    SOURCE_ISSUE,
+    type SourceBlockedCause,
+    type SourceIssueCode,
+    type SourceIssueParams,
+} from "./sources/codes.js";
+export {
+    type AwsSigV4Options,
+    type CredentialBind,
+    credentials,
+    fromStorableCredential,
+    type StorableCredential,
+    storableCredential,
+} from "./sources/credentials.js";
+export { defineSource } from "./sources/define.js";
+export {
+    CYPHER_SOURCE_ID,
+    NDEX_SOURCE_ID,
+    NEO4J_SOURCE_ID,
+    NEPTUNE_SOURCE_ID,
+    OPENALEX_SOURCE_ID,
+    REST_SOURCE_ID,
+    SOURCE_ATTR_PREFIX,
+    SOURCE_DEGREE_ATTR,
+    SOURCE_ENTITY_ATTR,
+    SOURCE_FORMAT_PREFIX,
+    SOURCE_STUB_ATTR,
+    SPARQL_SOURCE_ID,
+} from "./sources/ids.js";
+export { type SourceParamsMap } from "./sources/params.js";
+export { sha256Hex } from "./sources/sigv4.js";
+export {
+    type Recording,
+    recordingFrom,
+    type ReplayCall,
+    type ReplayFetch,
+    replayFetch,
+    type ReplayOptions,
+} from "./sources/testing.js";
+export {
+    type AwsCredentials,
+    type Credential,
+    type CredentialKind,
+    type EdgeRecord,
+    type ExpandRequest,
+    type FileFn,
+    type GraphSource,
+    type ImportFn,
+    type LazySource,
+    type LoadFromSourceOptions,
+    type NodeRecord,
+    type QueryLanguage,
+    type RecordBatch,
+    type RecordsFn,
+    type RetryOptions,
+    type SourceBase,
+    type SourceContext,
+    type SourceCursor,
+    type SourceDescriptor,
+    type SourceFeature,
+    type SourceFile,
+    type SourceFinish,
+    type SourceFreshness,
+    type SourceInfo,
+    type SourceKind,
+    type SourceLimitOptions,
+    type SourceLimits,
+    type SourceListing,
+    type SourceListItem,
+    type SourceListQuery,
+    type SourceParamDescriptor,
+    type SourceParamType,
+    type SourceProbe,
+    type SourceReportInfo,
+    type SourceRequestInit,
+    type SourceRuntime,
+    type SourceRuntimeReason,
+    type SourceSample,
+    type SourceTotal,
+    type SourceValidators,
+} from "./sources/types.js";
 
 // ============================================================ formats (8.4, 8.5)
 export {
@@ -139,6 +232,8 @@ export {
 export {
     DOT_ISSUE,
     DOT_LOSS,
+    DOT_STYLE_BLOCK_ATTRIBUTE,
+    DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
     dotImporter,
@@ -148,15 +243,19 @@ export {
     GEXF_1_2_CAPABILITIES,
     GEXF_ISSUE,
     GEXF_LOSS,
+    GEXF_STYLE_CAPABILITIES,
     gexfExporter,
     type GexfExportOptions,
     gexfImporter,
     type GexfImportOptions,
     type GexfVersion,
+    GRAPHTY_XML_NAMESPACE,
 } from "./formats/gexf/index.js";
 export {
     GML_ISSUE,
     GML_LOSS,
+    GML_STYLE_BLOCK_KEY,
+    GML_STYLE_CAPABILITIES,
     gmlExporter,
     type GmlExportOptions,
     gmlImporter,
@@ -165,6 +264,7 @@ export {
 export {
     GRAPHML_ISSUE,
     GRAPHML_LOSS,
+    GRAPHML_STYLE_CAPABILITIES,
     graphmlExporter,
     type GraphmlExportOptions,
     graphmlImporter,
@@ -184,6 +284,7 @@ export {
     type JsonImportOptions,
     type JsonShapeMeta,
     jsonShapeOf,
+    sniffJsonDialect,
 } from "./formats/json/index.js";
 export {
     exportNeo4jFiles,
@@ -212,6 +313,8 @@ export {
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,
+    PAJEK_STYLE_CAPABILITIES,
+    PAJEK_STYLE_COMMENT,
     pajekExporter,
     type PajekExportOptions,
     pajekImporter,
@@ -304,6 +407,7 @@ export {
     ImportReportBuilder,
     isAbortError,
     type IssueLocation,
+    keptForStyles,
     type MutableCounts,
     PARSE_ERROR_CODE,
 } from "./common/report.js";
@@ -333,10 +437,16 @@ export {
 } from "./common/writer.js";
 export {
     hasIllegalXmlChar,
+    MAX_XML_DEPTH,
     tokenizeXml,
     type XmlHandler,
     xmlIllegalTextNotes,
+    XmlNestingError,
     type XmlRepairs,
     XmlSyntaxError,
     XmlTokenizer,
 } from "./common/xml.js";
+
+// ============================================================ styles through the importer and exporter contracts
+export type { StyleImportOptions } from "./styles/io/generic.js";
+export type { ExporterStyleInput, ExporterStyleOptions } from "./styles/io/writer.js";

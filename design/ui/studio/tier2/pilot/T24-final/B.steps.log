@@ -1,0 +1,18 @@
+== T24B start setup:/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/bus-stops-names.txt
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B/01.png
+exit 0
+== T24B step: --click-at 750,172
+at 750,172: edge with id "15"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B/02.png
+exit 0
+== T24B step: --click "Edge actions"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B/03.png
+exit 0
+== T24B step: --click "Select endpoints"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B/04.png
+exit 0
+== T24B step: --click "Find nodes, edges, values" --type Stadium
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B/05.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T24-final/B

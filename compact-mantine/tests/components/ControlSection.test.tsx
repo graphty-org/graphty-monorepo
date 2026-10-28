@@ -517,6 +517,33 @@ describe("ControlSection", () => {
     });
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern.
+    describe("heading level", () => {
+        it("exposes its name as a heading of the level asked for", () => {
+            renderSection(
+                <ControlSection label="Nodes" headingLevel={3}>
+                    <div>row</div>
+                </ControlSection>,
+            );
+            const heading = screen.getByRole("heading", { level: 3, name: "Nodes" });
+            // The heading holds the expand button, as the APG accordion does.
+            expect(heading).toContainElement(screen.getByRole("button", { name: "Collapse Nodes" }));
+        });
+
+        it("exposes an empty section's name as a heading too", () => {
+            renderSection(<ControlSection label="Edges" headingLevel={2} empty onAdd={vi.fn()} />);
+            expect(screen.getByRole("heading", { level: 2, name: "Edges" })).toBeInTheDocument();
+        });
+
+        it("is no heading without a level", () => {
+            renderSection(
+                <ControlSection label="Nodes">
+                    <div>row</div>
+                </ControlSection>,
+            );
+            expect(screen.queryByRole("heading")).toBeNull();
+        });
+    });
+
     describe("accessible names and states", () => {
         it("names the group from the section's own visible name", () => {
             renderSection(

@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-graph-io-lockup-color-on-light-800w.png" alt="graphty graph-io" width="352">
+
 # @graphty/graph-io
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)

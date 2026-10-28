@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
@@ -51,7 +52,7 @@ async function loadAndRun(canvasElement: HTMLElement): Promise<GraphtyElement> {
  * @param name - its name.
  */
 async function press(canvasElement: HTMLElement, role: string, name: string | RegExp): Promise<void> {
-    await userEvent.click(await within(canvasElement).findByRole(role, { name }));
+    await userEvent.click(await within(canvasElement).findByRole(role, { name }, storyWaitOptions(1000)));
 }
 
 /**
@@ -60,7 +61,7 @@ async function press(canvasElement: HTMLElement, role: string, name: string | Re
  * @returns queries inside the dock.
  */
 const dock = async (canvasElement: HTMLElement): Promise<ReturnType<typeof within>> =>
-    within(await within(canvasElement).findByRole("region", { name: "Table" }));
+    within(await within(canvasElement).findByRole("region", { name: "Table" }, storyWaitOptions(1000)));
 
 /** The body, where menus render. */
 const body = (): ReturnType<typeof within> => within(document.body);
@@ -80,20 +81,24 @@ export const Nodes: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         const table = await dock(canvasElement);
-        await expect(await table.findByText("12 nodes")).toBeVisible();
+        await expect(await table.findByText("12 nodes", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(table.getByText("In the order loaded")).toBeVisible();
-        await expect(await table.findByRole("button", { name: /^Influence/ })).toBeVisible();
+        await expect(
+            await table.findByRole("button", { name: /^number, computed PageRank/ }, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };
 
-/** Sorted by PageRank (the element names the run "Influence"), highest first; the caption follows the sort. */
+/** Sorted by PageRank, highest first; the caption follows the sort. */
 export const SortedByResult: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "button", /^Influence/);
+        await press(canvasElement, "button", /^number, computed PageRank/);
         const table = await dock(canvasElement);
-        await expect(await table.findByText("Sorted by Influence, highest first")).toBeVisible();
+        await expect(
+            await table.findByText("Sorted by PageRank, highest first", {}, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };
 
@@ -104,19 +109,19 @@ export const Edges: Story = {
         await loadAndRun(canvasElement);
         await press(canvasElement, "tab", "Edges");
         const table = await dock(canvasElement);
-        await expect(await table.findByText(`${String(EDGES.length)} edges`)).toBeVisible();
+        await expect(await table.findByText(`${String(EDGES.length)} edges`, {}, storyWaitOptions(1000))).toBeVisible();
         await expect(table.getByRole("grid", { name: "Edges" })).toBeVisible();
     },
 };
 
-/** The Louvain run's item tab ("Communities"): one row per group with its size (`#/table-dock/communities`). */
+/** The Louvain run's item tab: one row per group with its size (`#/table-dock/communities`). */
 export const Communities: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "tab", "Communities");
+        await press(canvasElement, "tab", "Louvain");
         const table = await dock(canvasElement);
-        await expect(await table.findByText("2 groups")).toBeVisible();
+        await expect(await table.findByText("2 groups", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(table.getByText("Largest group first")).toBeVisible();
     },
 };
@@ -126,12 +131,14 @@ export const MembersOfRow: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "tab", "Communities");
+        await press(canvasElement, "tab", "Louvain");
         await press(canvasElement, "button", "Group 1 options");
-        await userEvent.click(await body().findByRole("menuitem", { name: "Show members in table" }));
+        await userEvent.click(
+            await body().findByRole("menuitem", { name: "Show members in table" }, storyWaitOptions(1000)),
+        );
         const table = await dock(canvasElement);
-        await expect(await table.findByText("Communities: Group 1")).toBeVisible();
-        await expect(await table.findByText("6 nodes")).toBeVisible();
+        await expect(await table.findByText("Louvain: Group 1", {}, storyWaitOptions(1000))).toBeVisible();
+        await expect(await table.findByText("6 nodes", {}, storyWaitOptions(1000))).toBeVisible();
     },
 };
 
@@ -143,7 +150,9 @@ export const Columns: Story = {
         await press(canvasElement, "button", /^Columns:/);
         const table = await dock(canvasElement);
         await expect(table.getByRole("button", { name: /^Columns: (\d+) of \1$/ })).toBeVisible();
-        await expect(await body().findByRole("menuitemcheckbox", { name: "Influence" })).toBeVisible();
+        await expect(
+            await body().findByRole("menuitemcheckbox", { name: "PageRank" }, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };
 
@@ -153,7 +162,7 @@ export const TableOptions: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "button", "Table options");
-        await expect(await body().findByRole("menuitem", { name: "Export..." })).toBeVisible();
+        await expect(await body().findByRole("menuitem", { name: "Export..." }, storyWaitOptions(1000))).toBeVisible();
     },
 };
 

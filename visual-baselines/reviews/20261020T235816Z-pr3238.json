@@ -1,0 +1,68 @@
+{
+  "version": 3,
+  "pr": 3238,
+  "subject": {
+    "builtMerge": "3c610006482a74bf36f3b3f0bf0b7eff26377af7",
+    "head": "eeed4cb5cc7fb43b294e89f47471e94304ecec4a",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "3c610006482a74bf36f3b3f0bf0b7eff26377af7"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty-element",
+        "merge": "3c610006482a74bf36f3b3f0bf0b7eff26377af7",
+        "host": "dev.ato.ms",
+        "tool": "3c610006482a74bf36f3b3f0bf0b7eff26377af7"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/layout-graphviz--patchwork.png",
+      "from": null,
+      "to": "fd3582644bec51c6f40f5a74765ea8ff1f337195696869f752bf271c5c2fb1e0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-graphviz--twopi.png",
+      "from": null,
+      "to": "0de4a039a6ea0c024af611287033b4eff15cdfc7e48af93d9f3a359b11b07b29",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/selection--mode-2-d.png",
+      "from": "a5355c0abaaa7c7798b09ea7638e2ab410653ba439836ff6b9f41242bcfea375",
+      "to": "c0a2121cd42e021e8f61d67315a33823f00fb602265d548f098bd67abebf3019",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/selection--mode-3-d.png",
+      "from": "79f54cf37c898a863e8f1115beee200d7b1330ceae30c868df757fb9a90e7f6a",
+      "to": "d8018ee3aa9dc34e1e90a39834d7e5605ddf1638537b664ae3966108196288a7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/selection--mode-ar.png",
+      "from": "31e46a27448dad96addc02b800a78b389ccd121daf774378314c98eb803f5135",
+      "to": "10c3acaa413a84027cfde5c1d61b29ac1e2e3f6ab0c8e484745960251d05abc9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/selection--mode-vr.png",
+      "from": "ba42ba1977d11b2d028eb1d98c05aac0396a03716f58521e6e6bd6cb06388c4f",
+      "to": "97f0ac691a9a4f1efe39826ce879d50e2d717fbf3ae102280273b54024b3956a",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-20T23:58:16.986Z"
+}

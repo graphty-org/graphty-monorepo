@@ -41,8 +41,10 @@ The Web Component exposes these properties for declarative configuration:
 | `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                                      |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off                 |
 | `autoFrame`              | `auto-frame`               | `boolean`                      | Frame the graph after each load and layout change. On by default; `auto-frame="false"` leaves the camera where it is. `zoomToFit()` frames either way |
+| `zoomToPointer`          | `zoom-to-pointer`          | `boolean`                      | The mouse wheel zooms toward the point under the pointer. Off by default (toward the view's center); a view preference, not saved in a project        |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                      | Hide a node label that would overlap another until the reader zooms in. Off by default; a view preference, not saved in a project                     |
 | `renderOnDemand`         | `render-on-demand`         | `boolean`                      | Draw a frame only when the picture can have changed; a still graph is not redrawn. Off by default; a view preference, not saved in a project          |
+| `lighting`               | `lighting`                 | `Lighting`                     | How 3D nodes are lit: `"studio"` (default), `"headlight"`, `"matte"` or `"flat"`. Switchable at runtime; a view preference, not saved in a project    |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](../guide/styling).
@@ -130,9 +132,10 @@ The Web Component provides these methods for imperative control:
 
 ### Export
 
-| Method                          | Parameters                       | Returns                 | Description                                                                                               |
-| ------------------------------- | -------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `exportGraph(format, options?)` | `FormatId`, `ExportGraphOptions` | `Promise<ExportResult>` | Write the graph in a format with `canExport: true`; the result holds the loss notes, `text()` and `bytes` |
+| Method                            | Parameters                                       | Returns                 | Description                                                                                                                         |
+| --------------------------------- | ------------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `exportGraph(format, options?)`   | `FormatId`, `ExportGraphOptions`                 | `Promise<ExportResult>` | Write the graph in a format with `canExport: true`; the result holds the loss notes, `text()` and `bytes`                           |
+| `downloadGraph(format, options?)` | `FormatId`, `ExportGraphOptions & { fileName? }` | `Promise<ExportResult>` | Export and download the file as `<project name><extension>`; `"graphty"` downloads a project copy and never changes `project.dirty` |
 
 ### Graph Access
 

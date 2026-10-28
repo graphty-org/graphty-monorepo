@@ -43,18 +43,22 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
+    AttributeLeafNodes,
     EdgeId,
     NodeId,
     Path,
     Query,
     ResultItem,
+    RuleSide,
     RuleTree,
     RunId,
     Scope,
     SelectionDirection,
+    SourceKey,
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
@@ -64,6 +68,7 @@ import {
     followsGroup,
     visibilityCycle,
 } from "../sets/dependencies";
+import { normalizeText, textMatcher } from "../text";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -91,8 +96,62 @@ export interface TimeWindow {
     readonly from: number | string;
     /** The first instant past the window, in the same form as `from`. */
     readonly to: number | string;
-    /** How far a caller advancing the window moves it. Carried, not applied. */
+    /** How far a caller advancing the window moves it: what `session.time` steps and plays by. */
     readonly step?: TimeStep;
+    /**
+     * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
+     * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
+     * window ends at it, so nodes follow their edges.
+     */
+    readonly nodes?: "all" | "ends";
+    /**
+     * Whether an element of a kind that carries the attribute, but has no usable value for it, is
+     * kept: `"inside"` (the default) or `"outside"`.
+     */
+    readonly missing?: "inside" | "outside";
+    /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
+    readonly mode?: "sliding" | "cumulative";
+}
+
+/**
+ * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
+ * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
+ * new window. See {@link TimePlayback.results}.
+ */
+export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+/**
+ * How `session.time` moves windows, held with the designated field rather than on one window, so
+ * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
+ * optional; one left out reads its default.
+ */
+export interface TimePlayback {
+    /** What a window move does to finished runs over the visible graph; default `"stale"`. */
+    readonly results?: TimeResultsPolicy;
+    /** Sliding (both ends move) or cumulative (from the start of the data); default `"sliding"`. */
+    readonly mode?: "sliding" | "cumulative";
+    /**
+     * How far a step moves, and how wide a sliding window is. `"auto"` (the default) picks the
+     * calendar step closest to a twentieth of the data's span (a 1-2-5 number for ordinal time).
+     */
+    readonly step?: TimeStep | "auto";
+    /** Whether an element with no usable time is kept in every window; default `"inside"`. */
+    readonly missing?: "inside" | "outside";
+    /**
+     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
+     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
+     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
+     * export includes them.
+     */
+    readonly outside?: "hide" | "ghost";
+}
+
+/** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
+export interface TimeInstants {
+    /** One instant per row; NaN for a row with no usable value. */
+    readonly rows: Float64Array;
+    /** How many rows have one. */
+    readonly timed: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -122,6 +181,13 @@ export interface FilterValueSource {
      * @returns The value, or undefined when the edge carries none.
      */
     edgeValue(index: number, path: Path): unknown;
+    /**
+     * Which halves carry a value for a path, when the source knows without reading every element.
+     * Absent, a `range` or `categories` leaf scans until it finds an element that carries one.
+     * @param path - The attribute path.
+     * @returns Whether any node, and any edge, carries one.
+     */
+    halvesOf?(path: Path): { readonly node: boolean; readonly edge: boolean };
 }
 
 /**
@@ -151,6 +217,15 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
+    /**
+     * The instants of a designated time column, parsed once. Absent, or null for a path or a
+     * kind, a window parses each element's value itself.
+     * @param path - The window's attribute.
+     * @returns Each kind's instants, or null.
+     */
+    readonly instants?: (
+        path: Path,
+    ) => { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
     /**
      * The paths inside a query that nothing in this session answers.
      *
@@ -183,6 +258,15 @@ export interface FilterSources {
      * @returns Its node bitmap when its field lives on nodes, its edge bitmap when on edges.
      */
     readonly captured?: (item: ResultItem) => CapturedHalves | undefined;
+    /**
+     * The nodes and edges any of these loads supplied. Absent refuses a `source` leaf.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids; ones the graph no longer holds are ignored.
+     */
+    readonly supplied?: (keys: readonly SourceKey[]) => {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: ReadonlySet<EdgeId>;
+    };
 }
 
 /** A captured item's members over the snapshot: null for a half the item's field does not live on. */
@@ -268,10 +352,12 @@ const FILTER_KINDS = [
     "isolated",
     "self-loop",
     "repeated-edge",
+    "source",
     "edges",
     "member",
     "item",
     "threshold",
+    "text",
     "all",
     "any",
     "not",
@@ -324,10 +410,21 @@ function outOfRange(message: string, details: Readonly<Record<string, unknown>>)
  */
 function readsItself(through: readonly ChainStep[]): GraphtyError {
     return malformed(
-        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+        `This filter reads ${quoteEach(through, " through ")}, which is what the visibility ` +
             "filter computes, so it would depend on itself. Create a set from the current members instead.",
         { reason: "cycle", through },
     );
+}
+
+/**
+ * Check an attribute leaf's choice of which nodes it keeps.
+ * @param nodes - The choice the leaf carried.
+ * @param kind - The filter kind, for the message.
+ */
+function assertNodesChoice(nodes: unknown, kind: string): void {
+    if (nodes !== undefined && nodes !== "all" && nodes !== "ends" && nodes !== "none") {
+        throw malformed(`A "${kind}" filter's nodes are "all", "ends" or "none".`, { kind, nodes });
+    }
 }
 
 /**
@@ -369,6 +466,18 @@ function assertBounds(min: number | undefined, max: number | undefined, kind: st
 }
 
 /**
+ * Check a leaf's side is a side.
+ * @param side - The side the leaf carried.
+ * @param kind - The filter kind, for the message.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` when it is neither "nodes" nor "edges".
+ */
+function assertSide(side: unknown, kind: string): void {
+    if (side !== undefined && side !== "nodes" && side !== "edges") {
+        throw malformed(`A "${kind}" filter's side is "nodes" or "edges".`, { kind, side });
+    }
+}
+
+/**
  * Check a query is not empty.
  *
  * An empty query matches EVERY element, which is the same defect an empty style selector has: the
@@ -384,6 +493,51 @@ function assertQuery(where: unknown, kind: string): void {
             message: `A "${kind}" filter needs a query. An empty one matches every element rather than none.`,
             source: "data",
             details: { kind, where },
+        });
+    }
+}
+
+/**
+ * Check a "degree" filter's bounds and direction.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertDegreeFilter(filter: Extract<RuleTree, { kind: "degree" }>): void {
+    assertBounds(filter.min, filter.max, filter.kind);
+
+    if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
+        throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
+            direction: filter.direction,
+        });
+    }
+}
+
+/**
+ * Check a "component" filter names a component number.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when it does not.
+ */
+function assertComponentFilter(filter: Extract<RuleTree, { kind: "component" }>): void {
+    if (!Number.isInteger(filter.id) || filter.id < 0) {
+        throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
+            id: filter.id,
+        });
+    }
+}
+
+/**
+ * Check a "neighborhood" filter's seeds and depth.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertNeighborhoodFilter(filter: Extract<RuleTree, { kind: "neighborhood" }>): void {
+    if (!Array.isArray(filter.seeds)) {
+        throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
+    }
+
+    if (!Number.isInteger(filter.depth) || filter.depth < 0) {
+        throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
+            depth: filter.depth,
         });
     }
 }
@@ -415,10 +569,12 @@ function assertFilter(filter: RuleTree): void {
         case "range":
             assertPath(filter.attribute, filter.kind);
             assertBounds(filter.min, filter.max, filter.kind);
+            assertNodesChoice(filter.nodes, filter.kind);
 
             return;
         case "categories":
             assertPath(filter.attribute, filter.kind);
+            assertNodesChoice(filter.nodes, filter.kind);
 
             if (!Array.isArray(filter.values)) {
                 throw malformed('A "categories" filter needs a list of values.', { values: filter.values });
@@ -426,38 +582,28 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "degree":
-            assertBounds(filter.min, filter.max, filter.kind);
-
-            if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
-                throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
-                    direction: filter.direction,
-                });
-            }
+            assertDegreeFilter(filter);
 
             return;
         case "component":
-            if (!Number.isInteger(filter.id) || filter.id < 0) {
-                throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
-                    id: filter.id,
-                });
-            }
+            assertComponentFilter(filter);
 
             return;
         case "neighborhood":
-            if (!Array.isArray(filter.seeds)) {
-                throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
-            }
-
-            if (!Number.isInteger(filter.depth) || filter.depth < 0) {
-                throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
-                    depth: filter.depth,
-                });
-            }
+            assertNeighborhoodFilter(filter);
 
             return;
         case "isolated":
         case "self-loop":
         case "repeated-edge":
+            return;
+        case "source":
+            if (!Array.isArray(filter.sources) || !filter.sources.every((key) => typeof key === "string")) {
+                throw malformed('A "source" filter needs a list of load keys.', { sources: filter.sources });
+            }
+
+            assertSide(filter.side, filter.kind);
+
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -471,6 +617,7 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "item":
         case "threshold":
+        case "text":
             assertRuleTree(filter);
 
             return;
@@ -568,6 +715,33 @@ function assertTimeWindow(window: TimeWindow): void {
             { step: window.step },
         );
     }
+
+    assertWindowOptions(window);
+}
+
+/** The values each enumerated window option takes. */
+const WINDOW_OPTIONS = {
+    nodes: ["all", "ends"],
+    missing: ["inside", "outside"],
+    mode: ["sliding", "cumulative"],
+} as const;
+
+/**
+ * Check a time window's enumerated options.
+ * @param window - The window.
+ * @throws A `GraphtyError` naming the option and the values it takes.
+ */
+function assertWindowOptions(window: TimeWindow): void {
+    for (const [option, allowed] of Object.entries(WINDOW_OPTIONS)) {
+        const value = (window as unknown as Record<string, unknown>)[option];
+        if (value !== undefined && !(allowed as readonly unknown[]).includes(value)) {
+            throw malformed(`A time window's ${option} is one of ${allowed.join(", ")}.`, {
+                field: option,
+                value,
+                allowed: [...allowed],
+            });
+        }
+    }
 }
 
 /**
@@ -631,7 +805,8 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 return;
             case "range":
             case "categories":
-                if (sources.values === undefined) {
+            case "text":
+                if (sources.values === undefined && !(each.kind === "text" && each.reads === "id")) {
                     throw unsupported(each.kind, "a source of attribute values");
                 }
 
@@ -654,6 +829,12 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
 
                 return;
             }
+            case "source":
+                if (sources.supplied === undefined) {
+                    throw unsupported("source", "a record of what each load supplied");
+                }
+
+                return;
             case "all":
             case "any":
                 each.of.forEach(check);
@@ -829,60 +1010,170 @@ function edgeQueryTest(context: CompileContext, where: Query): ElementTest {
 }
 
 /**
- * A test over a numeric attribute.
+ * The tests over what some loads supplied: a node or an edge passes when one of them supplied it.
  * @param context - The compile context.
- * @param attribute - The attribute path.
- * @param min - The lower bound, inclusive; unbounded when absent.
- * @param max - The upper bound, inclusive; unbounded when absent.
- * @returns The test, which rejects a node carrying no number for the attribute.
+ * @param keys - The loads' keys.
+ * @param side - The one half to speak, or both when absent.
+ * @returns Both halves, or the one `side` names.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session records no provenance.
  */
-function rangeTest(
-    context: CompileContext,
-    attribute: Path,
-    min: number | undefined,
-    max: number | undefined,
-): ElementTest {
-    const values = valuesOf(context, "range");
-    const mark = markFor(context, attribute);
-    const low = min ?? Number.NEGATIVE_INFINITY;
-    const high = max ?? Number.POSITIVE_INFINITY;
+function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: RuleSide | undefined): CompiledHalves {
+    const { supplied } = context.sources;
+    if (supplied === undefined) {
+        throw unsupported("source", "a record of what each load supplied");
+    }
 
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
-
-        return typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
+    const { nodes, edges } = supplied(keys);
+    const { graph } = context;
+    const space = edgeSpaceOf(graph);
+    return {
+        node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
+        edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
     };
 }
 
 /**
- * A test over a categorical attribute.
+ * Whether a value passes a numeric bound, both ends inclusive; anything but a finite number fails.
+ * @param min - The lower bound; unbounded when absent.
+ * @param max - The upper bound; unbounded when absent.
+ * @returns The check.
+ */
+function inRange(min: number | undefined, max: number | undefined): (value: unknown) => boolean {
+    const low = min ?? Number.NEGATIVE_INFINITY;
+    const high = max ?? Number.POSITIVE_INFINITY;
+
+    return (value) => typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
+}
+
+/**
+ * Whether a value is one of the wanted categories.
  *
  * The comparison is on the value's TEXT, so a chip list that hands back "3" still matches a record
  * whose type code arrived as the number 3. That is the opposite of the rule for node ids, where 1
  * and "1" are two different nodes on purpose: an id is an identity, and a category is a label.
- * @param context - The compile context.
- * @param attribute - The attribute path.
  * @param wanted - The categories to keep.
- * @returns The test, which rejects a node carrying no value for the attribute.
+ * @returns The check.
  */
-function categoriesTest(context: CompileContext, attribute: Path, wanted: readonly string[]): ElementTest {
-    const values = valuesOf(context, "categories");
-    const mark = markFor(context, attribute);
+function inCategories(wanted: readonly string[]): (value: unknown) => boolean {
     const allowed = new Set(wanted);
 
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
+    return (value) =>
+        typeof value === "string"
+            ? allowed.has(value)
+            : (typeof value === "number" || typeof value === "boolean") && allowed.has(String(value));
+}
 
-        if (typeof value === "string") {
-            return allowed.has(value);
+/**
+ * Whether any element of a half carries a value for a path; stops at the first one.
+ * @param count - The elements in the half.
+ * @param read - Reads one element's value.
+ * @returns True when one does.
+ */
+function carries(count: number, read: (index: number) => unknown): boolean {
+    for (let index = 0; index < count; index++) {
+        const value = read(index);
+        if (value !== undefined && value !== null) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * A `range` or `categories` leaf. Each half whose elements carry the attribute speaks, so a leaf
+ * on an edge attribute such as `data.weight` narrows the edges and is silent about the nodes,
+ * unless it asks for `nodes: "ends"`: then a node is kept only when it is an end of an edge the
+ * leaf keeps. A path neither half carries speaks nodes and holds none of them, and the pass reports
+ * it unresolved.
+ *
+ * The tests read one element each, so a set question about one element reads that element alone;
+ * only `"ends"` reads every edge, once, at compile time.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileAttribute(
+    context: CompileContext,
+    filter: Extract<RuleTree, { kind: "range" | "categories" }>,
+): CompiledHalves {
+    const accept = filter.kind === "range" ? inRange(filter.min, filter.max) : inCategories(filter.values);
+
+    return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept);
+}
+
+/**
+ * A `text` leaf: the shared text matcher (`textMatcher`, what a selection's text search runs)
+ * over one value, folded the way find folds text unless case counts. On `"id"` it reads the
+ * node's id and speaks nodes; on a value path it speaks as a `range` leaf does.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileText(context: CompileContext, filter: Extract<RuleTree, { kind: "text" }>): CompiledHalves {
+    const matches = textMatcher(filter.text, filter.mode, filter.caseSensitive === true ? null : normalizeText);
+    const accept = (value: unknown): boolean =>
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean") &&
+        matches(String(value));
+
+    if (filter.reads === "id") {
+        const { ids } = context.graph;
+        return { node: (index) => accept(ids.idOf(index)), edge: null };
+    }
+
+    return compileValueLeaf(context, "text", filter.reads, filter.nodes, accept);
+}
+
+/**
+ * A leaf that tests one value per element, on each half that carries it.
+ * @param context - The compile context.
+ * @param kind - The leaf kind, for a refusal.
+ * @param attribute - The value path.
+ * @param nodes - Which nodes the leaf keeps when the value lives on edges.
+ * @param accept - The test of one value.
+ * @returns The halves.
+ */
+function compileValueLeaf(
+    context: CompileContext,
+    kind: string,
+    attribute: Path,
+    nodes: AttributeLeafNodes | undefined,
+    accept: (value: unknown) => boolean,
+): CompiledHalves {
+    const { graph } = context;
+    const values = valuesOf(context, kind);
+    const mark = markFor(context, attribute);
+    const readNode = (index: number): unknown => values.nodeValue(index, attribute);
+    const readEdge = (index: number): unknown => values.edgeValue(index, attribute);
+    const known = values.halvesOf?.(attribute);
+    const onNodes = known?.node ?? carries(graph.nodeCount, readNode);
+    const onEdges = known?.edge ?? carries(graph.edgeCount, readEdge);
+    const test =
+        (read: (index: number) => unknown): ElementTest =>
+        (index) =>
+            accept(readValue(read, index, attribute, mark));
+
+    let node = onNodes || !onEdges ? test(readNode) : null;
+    const edge = onEdges ? test(readEdge) : null;
+
+    if (nodes === "ends" && edge !== null) {
+        const list = graph.edgeList();
+        const ends = new Uint8Array(graph.nodeCount);
+
+        for (let index = 0; index < graph.edgeCount; index++) {
+            if (edge(index)) {
+                ends[list.src[index]] = 1;
+                ends[list.dst[index]] = 1;
+            }
         }
 
-        if (typeof value === "number" || typeof value === "boolean") {
-            return allowed.has(String(value));
-        }
+        const own = node;
+        node = (index) => ends[index] === 1 && (own === null || own(index));
+    } else if (nodes === "none") {
+        node = () => false;
+    }
 
-        return false;
-    };
+    return { node, edge };
 }
 
 /**
@@ -1170,7 +1461,7 @@ function thresholdHalf(
     mark.seen = true;
     const hit = new Uint8Array(count);
     if (filter.top !== undefined) {
-        for (const entry of topOfRanking(rankEntries(population), filter.top).entries) {
+        for (const entry of topOfRanking(rankEntries(population), filter.top, filter.ties).entries) {
             hit[entry.id as number] = 1;
         }
     } else {
@@ -1286,9 +1577,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "expression":
             return { node: expressionTest(context, filter.where), edge: null };
         case "range":
-            return { node: rangeTest(context, filter.attribute, filter.min, filter.max), edge: null };
         case "categories":
-            return { node: categoriesTest(context, filter.attribute, filter.values), edge: null };
+            return compileAttribute(context, filter);
         case "degree":
             return { node: degreeTest(context, filter.min, filter.max, filter.direction), edge: null };
         case "component":
@@ -1303,6 +1593,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
+        case "source":
+            return sourceTests(context, filter.sources, filter.side);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");
@@ -1320,6 +1612,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return compileItem(context, filter.item);
         case "threshold":
             return compileThreshold(context, filter);
+        case "text":
+            return compileText(context, filter);
         case "all":
         case "any": {
             const members = filter.of.map((member) => compileOne(member, context));
@@ -1371,28 +1665,67 @@ export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: F
  */
 function compileWindow(window: TimeWindow, context: CompileContext): CompiledHalves {
     const values = valuesOf(context, "window");
+    const { graph } = context;
     const mark = markFor(context, window.attribute);
     const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
     const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const missingInside = window.missing !== "outside";
+    const indexed = context.sources.instants?.(window.attribute) ?? null;
 
     /**
-     * Whether one element's instant falls inside the half-open window.
-     * @param read - Reads the element's value.
-     * @returns The test.
+     * The test of one kind: whether its instant falls inside the half-open window. An element
+     * with no place on the timeline is kept unless the window says `missing: "outside"`.
+     * @param parsed - The kind's instants when the column is designated, else null.
+     * @param count - How many elements of the kind.
+     * @param read - Reads one element's value, for a column that is not designated.
+     * @returns The test, or null when the kind carries no value: the window says nothing of it.
      */
-    const inside = (read: (index: number, path: Path) => unknown): ElementTest => {
-        return (index) => {
-            const instant = instantOf(readValue(read, index, window.attribute, mark));
+    const half = (
+        parsed: TimeInstants | null,
+        count: number,
+        read: (index: number, path: Path) => unknown,
+    ): ElementTest | null => {
+        const inside = (instant: number | null): boolean =>
+            instant === null ? missingInside : instant >= from && instant < to;
 
-            // No place on the timeline means the window has nothing to say about this element.
-            return instant === null || (instant >= from && instant < to);
-        };
+        if (parsed !== null) {
+            if (parsed.timed === 0) {
+                return null;
+            }
+
+            mark.seen = true;
+            const { rows } = parsed;
+
+            return (index) => inside(Number.isNaN(rows[index]) ? null : rows[index]);
+        }
+
+        if (!missingInside && !carries(count, (index) => read(index, window.attribute))) {
+            return null;
+        }
+
+        return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));
     };
 
-    return {
-        node: inside((index, path) => values.nodeValue(index, path)),
-        edge: inside((index, path) => values.edgeValue(index, path)),
-    };
+    const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
+    let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
+
+    if (window.nodes === "ends" && edge !== null) {
+        // ponytail: counts an edge inside the window, not one that also passes the filter's edge
+        // half, as the `ends` of a range leaf does; the design's rule ANDs both.
+        const list = graph.edgeList();
+        const ends = new Uint8Array(graph.nodeCount);
+        for (let index = 0; index < graph.edgeCount; index++) {
+            if (edge(index)) {
+                ends[list.src[index]] = 1;
+                ends[list.dst[index]] = 1;
+            }
+        }
+
+        const own = node;
+        node = (index) => ends[index] === 1 && (own === null || own(index));
+    }
+
+    return { node, edge };
 }
 
 /**
@@ -1585,14 +1918,14 @@ export async function runPassInSlices(
         });
 
         if (signal.aborted) {
-            throw signal.reason as Error;
+            throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
         deadline = performance.now() + SLICE_MS;
     };
 
     if (signal.aborted) {
-        throw signal.reason as Error;
+        throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
     }
 
     for (let from = 0; from < nodeCount; from += CHUNK) {

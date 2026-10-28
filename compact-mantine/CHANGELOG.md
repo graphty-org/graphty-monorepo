@@ -1,3 +1,91 @@
+## 0.9.33 (2026-10-21)
+
+### 🚀 Features
+
+- **compact-mantine:** menus follow the page theme, with an opt-in inverse variant ([#1](https://github.com/graphty-org/graphty-monorepo/issues/1), [#0768](https://github.com/graphty-org/graphty-monorepo/issues/0768), [#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+- **compact-mantine:** deprecate ControlSubGroup ([077224b5d](https://github.com/graphty-org/graphty-monorepo/commit/077224b5d))
+- **compact-mantine:** add danger and warning text inks to PANEL_INK ([#2981](https://github.com/graphty-org/graphty-monorepo/issues/2981))
+
+### 🩹 Fixes
+
+- **compact-mantine:** a full-width button cuts a long label with an ellipsis ([fc39f7141](https://github.com/graphty-org/graphty-monorepo/commit/fc39f7141))
+- **compact-mantine:** resolve a menu surface in the same scheme as its rows ([#008043](https://github.com/graphty-org/graphty-monorepo/issues/008043), [#79](https://github.com/graphty-org/graphty-monorepo/issues/79), [#3057](https://github.com/graphty-org/graphty-monorepo/issues/3057))
+- **compact-mantine:** read a click as a pointer when it has a click count or a pointer type ([#1515](https://github.com/graphty-org/graphty-monorepo/issues/1515))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.32 (2026-10-20)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.31 (2026-10-18)
+
+### 🚀 Features
+
+- **compact-mantine:** add the graphty brand accent theme option ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97), [#588300](https://github.com/graphty-org/graphty-monorepo/issues/588300), [#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.30 (2026-10-18)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.29 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.28 (2026-10-17)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.27 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.26 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** start a vertical pill tab's label at its leading edge ([#2905](https://github.com/graphty-org/graphty-monorepo/issues/2905))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.25 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.24 (2026-10-15)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.23 (2026-10-14)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.22 (2026-10-13)
 
 ### 🩹 Fixes

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 import type { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
 import type { InputController } from "../../../src/cameras/TwoDInputController";
 import type { Graph } from "../../../src/Graph";
+import { holdKey, releaseHeldKeys } from "../../helpers/real-input";
 import {
     getCameraPosition,
     getSceneRotation,
@@ -40,14 +41,12 @@ function get2DControllers(graph: Graph): {
 }
 
 /**
- * Helper to simulate keyboard key state
+ * Press a key and hold it on the focused canvas: a real key press through `userEvent`, which
+ * the input controller's own listeners receive. `releaseHeldKeys` lets it go after the test.
  */
-function setKeyState(inputController: InputController, key: string, pressed: boolean): void {
-    // Access private keyState via type assertion
-    const controller = inputController as unknown as {
-        keyState: Record<string, boolean>;
-    };
-    controller.keyState[key] = pressed;
+async function pressKey(graph: Graph, key: string): Promise<void> {
+    graph.canvas.focus();
+    await holdKey(key);
 }
 
 /**
@@ -66,19 +65,20 @@ describe("2D Input Direction Verification", () => {
         graph = await setupTestGraph({ mode: "2d" });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await releaseHeldKeys();
         vi.restoreAllMocks();
         teardownTestGraph(graph);
     });
 
-    test("W key pans camera UP (positive Y)", () => {
+    test("W key pans camera UP (positive Y)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate W key press
-        setKeyState(inputController, "w", true);
+        await pressKey(graph, "w");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -90,14 +90,14 @@ describe("2D Input Direction Verification", () => {
         assert.isAbove(finalPos.y, initialPos.y, "W key should pan camera UP (positive Y)");
     });
 
-    test("S key pans camera DOWN (negative Y)", () => {
+    test("S key pans camera DOWN (negative Y)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate S key press
-        setKeyState(inputController, "s", true);
+        await pressKey(graph, "s");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -109,14 +109,14 @@ describe("2D Input Direction Verification", () => {
         assert.isBelow(finalPos.y, initialPos.y, "S key should pan camera DOWN (negative Y)");
     });
 
-    test("A key pans camera LEFT (negative X)", () => {
+    test("A key pans camera LEFT (negative X)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate A key press
-        setKeyState(inputController, "a", true);
+        await pressKey(graph, "a");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -128,14 +128,14 @@ describe("2D Input Direction Verification", () => {
         assert.isBelow(finalPos.x, initialPos.x, "A key should pan camera LEFT (negative X)");
     });
 
-    test("D key pans camera RIGHT (positive X)", () => {
+    test("D key pans camera RIGHT (positive X)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate D key press
-        setKeyState(inputController, "d", true);
+        await pressKey(graph, "d");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -245,14 +245,14 @@ describe("2D Input Direction Verification", () => {
         );
     });
 
-    test("Q key rotates counter-clockwise", () => {
+    test("Q key rotates counter-clockwise", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial rotation
         const initialRotation = getSceneRotation(graph);
 
         // Simulate Q key press
-        setKeyState(inputController, "q", true);
+        await pressKey(graph, "q");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -262,7 +262,7 @@ describe("2D Input Direction Verification", () => {
 
         // Q key should rotate counter-clockwise (positive Z rotation)
         // Looking at TwoDInputController.ts line 250:
-        // if (this.keyState.q) { v.rotate += c.rotateSpeedPerFrame; }
+        // if (this.keyState.q) { v.rotate += rotatePush; }
         // So Q adds positive rotation velocity, which means CCW rotation (positive Z)
         assert.isAbove(
             finalRotation.z,
@@ -271,14 +271,14 @@ describe("2D Input Direction Verification", () => {
         );
     });
 
-    test("E key rotates clockwise", () => {
+    test("E key rotates clockwise", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial rotation
         const initialRotation = getSceneRotation(graph);
 
         // Simulate E key press
-        setKeyState(inputController, "e", true);
+        await pressKey(graph, "e");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -288,20 +288,20 @@ describe("2D Input Direction Verification", () => {
 
         // E key should rotate clockwise (negative Z rotation)
         // Looking at TwoDInputController.ts line 254:
-        // if (this.keyState.e) { v.rotate -= c.rotateSpeedPerFrame; }
+        // if (this.keyState.e) { v.rotate -= rotatePush; }
         // So E subtracts rotation velocity, which means CW rotation (negative Z)
         assert.isBelow(finalRotation.z, initialRotation.z, "E key should rotate clockwise (negative Z rotation)");
     });
 
     // Additional tests from the appendix (Phase 2 Additions)
-    test("+ key zooms IN (smaller ortho range)", () => {
+    test("+ key zooms IN (smaller ortho range)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial scale
         const initialScale = getSceneScale(graph);
 
         // Simulate + key press
-        setKeyState(inputController, "+", true);
+        await pressKey(graph, "+");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -311,19 +311,19 @@ describe("2D Input Direction Verification", () => {
 
         // + key should zoom IN (scale increases)
         // Looking at TwoDInputController.ts line 241-242:
-        // if (this.keyState["+"] || this.keyState["="]) { v.zoom -= c.zoomFactorPerFrame; }
+        // if (this.keyState["+"] || this.keyState["="]) { v.zoom -= zoomPush; }
         // Negative zoom velocity in applyInertia means smaller ortho = zoom in
         assert.isAbove(finalScale, initialScale, "+ key should zoom IN (scale increases)");
     });
 
-    test("- key zooms OUT (larger ortho range)", () => {
+    test("- key zooms OUT (larger ortho range)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial scale
         const initialScale = getSceneScale(graph);
 
         // Simulate - key press
-        setKeyState(inputController, "-", true);
+        await pressKey(graph, "-");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -333,19 +333,19 @@ describe("2D Input Direction Verification", () => {
 
         // - key should zoom OUT (scale decreases)
         // Looking at TwoDInputController.ts line 245-246:
-        // if (this.keyState["-"] || this.keyState._) { v.zoom += c.zoomFactorPerFrame; }
+        // if (this.keyState["-"] || this.keyState._) { v.zoom += zoomPush; }
         // Positive zoom velocity in applyInertia means larger ortho = zoom out
         assert.isBelow(finalScale, initialScale, "- key should zoom OUT (scale decreases)");
     });
 
-    test("ArrowUp key pans camera UP (same as W)", () => {
+    test("ArrowUp key pans camera UP (same as W)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate ArrowUp key press
-        setKeyState(inputController, "ArrowUp", true);
+        await pressKey(graph, "ArrowUp");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -357,14 +357,14 @@ describe("2D Input Direction Verification", () => {
         assert.isAbove(finalPos.y, initialPos.y, "ArrowUp key should pan camera UP (positive Y)");
     });
 
-    test("ArrowDown key pans camera DOWN (same as S)", () => {
+    test("ArrowDown key pans camera DOWN (same as S)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate ArrowDown key press
-        setKeyState(inputController, "ArrowDown", true);
+        await pressKey(graph, "ArrowDown");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -376,14 +376,14 @@ describe("2D Input Direction Verification", () => {
         assert.isBelow(finalPos.y, initialPos.y, "ArrowDown key should pan camera DOWN (negative Y)");
     });
 
-    test("ArrowLeft key pans camera LEFT (same as A)", () => {
+    test("ArrowLeft key pans camera LEFT (same as A)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate ArrowLeft key press
-        setKeyState(inputController, "ArrowLeft", true);
+        await pressKey(graph, "ArrowLeft");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -395,14 +395,14 @@ describe("2D Input Direction Verification", () => {
         assert.isBelow(finalPos.x, initialPos.x, "ArrowLeft key should pan camera LEFT (negative X)");
     });
 
-    test("ArrowRight key pans camera RIGHT (same as D)", () => {
+    test("ArrowRight key pans camera RIGHT (same as D)", async () => {
         const { inputController } = get2DControllers(graph);
 
         // Record initial position
         const initialPos = getCameraPosition(graph);
 
         // Simulate ArrowRight key press
-        setKeyState(inputController, "ArrowRight", true);
+        await pressKey(graph, "ArrowRight");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);

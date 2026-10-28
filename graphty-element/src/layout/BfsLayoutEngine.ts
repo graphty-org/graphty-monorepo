@@ -15,6 +15,7 @@ const bfsLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     start: {

@@ -32,8 +32,11 @@ import { CircularLayout } from "../layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
+import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "../layout/graphviz/engines";
+import { GRAPHVIZ_LAYOUTS } from "../layout/GraphvizLayoutEngine";
 import { GridLayout } from "../layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
+import { LocationMapLayout } from "../layout/LocationMapLayoutEngine";
 import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { PlanarLayout } from "../layout/PlanarLayoutEngine";
@@ -47,7 +50,14 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import type { CodedFact } from "../session/shared";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
-import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
+import type {
+    DEPRECATED_LAYOUT_IDS,
+    KNOWN_LAYOUT_IDS,
+    LayoutDescriptor,
+    LayoutId,
+    LayoutRequirements,
+    OptionDescriptor,
+} from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The shapes this module adds on top of LayoutDescriptor
@@ -62,6 +72,11 @@ export interface LayoutImplementation {
     engine: string;
     plainName: string;
     technicalName: string;
+    /**
+     * What this engine draws, in one sentence: catalog data, like a layout's own description.
+     * @since 3.37.0
+     */
+    description: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
@@ -98,7 +113,7 @@ export interface LayoutImplementation {
      * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
      * drawn by six engines, five of which need nothing.
      */
-    requires?: { accelerator?: boolean };
+    requires?: LayoutRequirements;
 }
 
 /**
@@ -117,6 +132,7 @@ export interface LayoutImplementation {
  * | `implementation.accelerator-only` | The default arrangement's force model computed on hardware; asked for by name it needs an accelerator at any size |
  * | `implementation.distance-faithful` | Drawn distances match graph distances; solves over every pair of nodes, so it suits small graphs |
  * | `implementation.two-dimensional` | The only force engine that is two-dimensional by nature |
+ * | `implementation.graphviz` | Graphviz's own engine, compiled to WebAssembly and run in a Worker; needs the optional package in `requires.package` |
  *
  * New codes may be added in a minor release: word an unknown one generically.
  * @since 3.20.0
@@ -130,7 +146,8 @@ export type LayoutImplementationCode =
     | "implementation.seed-reproducible"
     | "implementation.accelerator-only"
     | "implementation.distance-faithful"
-    | "implementation.two-dimensional";
+    | "implementation.two-dimensional"
+    | "implementation.graphviz";
 
 /**
  * An implementation as it is authored here. Which one is the default is decided by position, and
@@ -178,6 +195,18 @@ const SEED_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     seed: { type: "seed" },
 };
 
+/** A layout's `groupBy` names a node attribute or a run's field whose values partition the nodes. */
+const GROUP_BY_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    groupBy: { type: "partition", on: "node" },
+};
+
+/** The location map's location options name node attributes, as an algorithm's `weight` names an edge one. */
+const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    location: { type: "attribute", on: "node" },
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
+};
+
 /**
  * Emit one engine's options as plain JSON.
  * @param schema - The engine's Zod options schema.
@@ -211,6 +240,7 @@ function entry(
             options: primary.options,
             honoursWeights: primary.honoursWeights,
             scoped: primary.scoped,
+            ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
         implementations: [
             implementation(primary, true),
@@ -229,6 +259,7 @@ const ngraph: LayoutImplementationSpec = {
     technicalName: "ngraph.forcelayout",
     kind: "live",
     maxDimensions: 3,
+    description: "A live Barnes-Hut force simulation: connected nodes pull together, every pair pushes apart.",
     reason:
         "The default, and the processor half of it: a Barnes-Hut simulation that runs live and " +
         "accepts nodes and edges added while it is running. One step costs 2.6 ms at a thousand " +
@@ -246,6 +277,7 @@ const d3: LayoutImplementationSpec = {
     technicalName: "d3-force-3d",
     kind: "live",
     maxDimensions: 3,
+    description: "d3's force simulation, tuned with alpha, alpha decay and velocity decay.",
     reason:
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
@@ -261,6 +293,7 @@ const forceAtlas2: LayoutImplementationSpec = {
     technicalName: "ForceAtlas2 (Gephi)",
     kind: "live",
     maxDimensions: 3,
+    description: "Gephi's force model: hubs push apart strongly, so groups and their hubs stand out.",
     reason:
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It keeps running until the layout settles and reheats on a drag or a pin.",
@@ -276,6 +309,7 @@ const spring: LayoutImplementationSpec = {
     technicalName: "Fruchterman-Reingold",
     kind: "live",
     maxDimensions: 3,
+    description: "Fruchterman-Reingold springs: connected nodes attract, all nodes repel, cooling to a still shape.",
     reason:
         "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
         "the same settled shape.",
@@ -291,6 +325,7 @@ const springElectrical: LayoutImplementationSpec = {
     technicalName: "ngraph.forcelayout (spring-electrical)",
     kind: "live",
     maxDimensions: 3,
+    description: "ngraph's spring-electrical force model, computed on an accelerator.",
     reason:
         "ngraph's own force model computed on hardware, which is what the default arrangement " +
         "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
@@ -308,6 +343,7 @@ const kamadaKawai: LayoutImplementationSpec = {
     technicalName: "Kamada-Kawai stress majorization",
     kind: "batch",
     maxDimensions: 3,
+    description: "Moves nodes until their drawn distances match their graph distances.",
     reason:
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
@@ -323,9 +359,13 @@ const arf: LayoutImplementationSpec = {
     technicalName: "Attractive and Repulsive Forces",
     kind: "batch",
     maxDimensions: 2,
+    description: "Attractive and repulsive forces in two dimensions, spreading nodes evenly over a disc.",
     reason:
         "The only registered force engine that is two-dimensional by nature, so a flat result " +
-        "is what it computes rather than what it is flattened into afterwards.",
+        "is what it computes rather than what it is flattened into afterwards. Every pair of " +
+        "nodes is pulled together and pushed apart, and an edge pulls only slightly harder, so " +
+        "it spreads nodes evenly over a disc and groups show faintly if at all. The deprecated " +
+        "layout name `force-2d` is this engine.",
     code: "implementation.two-dimensional",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ArfLayout.honoursWeights,
@@ -338,6 +378,7 @@ const circular: LayoutImplementationSpec = {
     technicalName: "Circular layout",
     kind: "batch",
     maxDimensions: 3,
+    description: "Places every node on one circle, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(CircularLayout.zodOptionsSchema),
@@ -351,9 +392,10 @@ const shell: LayoutImplementationSpec = {
     technicalName: "Shell layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places each group of nodes on its own ring, around a shared center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(ShellLayout.zodOptionsSchema),
+    options: engineOptions(ShellLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: ShellLayout.honoursWeights,
     scoped: ShellLayout.scoped,
 };
@@ -364,6 +406,7 @@ const radial: LayoutImplementationSpec = {
     technicalName: "Radial layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places a root at the center and every other node on a ring by its distance from it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(RadialLayout.zodOptionsSchema),
@@ -377,6 +420,7 @@ const grid: LayoutImplementationSpec = {
     technicalName: "Grid layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places nodes in evenly spaced rows and columns, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(GridLayout.zodOptionsSchema),
@@ -390,6 +434,7 @@ const spiral: LayoutImplementationSpec = {
     technicalName: "Archimedean spiral layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places nodes one after another along a spiral winding out from the center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(SpiralLayout.zodOptionsSchema),
@@ -403,6 +448,7 @@ const spectral: LayoutImplementationSpec = {
     technicalName: "Laplacian eigenvector layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places nodes by the eigenvectors of the graph's Laplacian, so close-knit groups sit together.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(SpectralLayout.zodOptionsSchema),
@@ -416,6 +462,7 @@ const planar: LayoutImplementationSpec = {
     technicalName: "Planar embedding",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
@@ -429,6 +476,7 @@ const bfs: LayoutImplementationSpec = {
     technicalName: "Breadth-first tree layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places nodes in rows by their breadth-first distance from a root.",
     reason:
         "The only engine that draws this arrangement. It orders each row by breadth-first " +
         "arrival and does not reduce edge crossings between rows.",
@@ -444,9 +492,10 @@ const bipartite: LayoutImplementationSpec = {
     technicalName: "Bipartite layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places the two groups of nodes in two facing columns.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(BipartiteLayout.zodOptionsSchema),
+    options: engineOptions(BipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: BipartiteLayout.honoursWeights,
     scoped: BipartiteLayout.scoped,
 };
@@ -457,9 +506,10 @@ const multipartite: LayoutImplementationSpec = {
     technicalName: "Multipartite layout",
     kind: "batch",
     maxDimensions: 2,
+    description: "Places each group of nodes in its own column, in the order the groups are given.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(MultipartiteLayout.zodOptionsSchema),
+    options: engineOptions(MultipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: MultipartiteLayout.honoursWeights,
     scoped: MultipartiteLayout.scoped,
 };
@@ -470,6 +520,7 @@ const fixed: LayoutImplementationSpec = {
     technicalName: "Fixed layout",
     kind: "batch",
     maxDimensions: 3,
+    description: "Leaves every node exactly where the loaded data placed it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(FixedLayout.zodOptionsSchema),
@@ -483,12 +534,136 @@ const random: LayoutImplementationSpec = {
     technicalName: "Random layout",
     kind: "batch",
     maxDimensions: 3,
+    description: "Places every node at a random point.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
     options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: RandomLayout.honoursWeights,
     scoped: RandomLayout.scoped,
 };
+
+const locationMap: LayoutImplementationSpec = {
+    engine: "location-map",
+    plainName: "Map",
+    technicalName: "Geographic layout",
+    kind: "batch",
+    maxDimensions: 3,
+    description: "Places every node at the place its data names, on a flat map or a globe.",
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    options: engineOptions(LocationMapLayout.zodOptionsSchema, LOCATION_OVERRIDE),
+    honoursWeights: LocationMapLayout.honoursWeights,
+    scoped: LocationMapLayout.scoped,
+};
+
+/** What each Graphviz engine is, as the catalogue describes it. */
+const GRAPHVIZ_ENTRIES: Readonly<
+    Record<
+        GraphvizEngine,
+        {
+            readonly plainName: string;
+            readonly technicalName: string;
+            readonly description: string;
+            readonly family: string;
+            readonly sizeRating: LayoutDescriptor["sizeRating"];
+        }
+    >
+> = {
+    dot: {
+        plainName: "Layered",
+        technicalName: "Graphviz dot (layered)",
+        description:
+            "Puts nodes in ranks so edges point one way, and orders each rank to cross as few edges as it can.",
+        family: "hierarchical",
+        sizeRating: 500,
+    },
+    neato: {
+        plainName: "Stress",
+        technicalName: "Graphviz neato (stress majorization)",
+        description: "Places nodes so their drawn distances match their graph distances.",
+        family: "force",
+        sizeRating: 2000,
+    },
+    fdp: {
+        plainName: "Spring embedder",
+        technicalName: "Graphviz fdp (force-directed)",
+        description: "Pulls connected nodes together and pushes the rest apart, with spring forces.",
+        family: "force",
+        sizeRating: 500,
+    },
+    sfdp: {
+        plainName: "Multilevel spring",
+        technicalName: "Graphviz sfdp (multiscale force-directed)",
+        description: "The force-directed drawing for large graphs, settled from coarse to fine.",
+        family: "force",
+        sizeRating: 10000,
+    },
+    circo: {
+        plainName: "Circles",
+        technicalName: "Graphviz circo (circular)",
+        description: "Puts each tightly connected part of the graph on its own circle.",
+        family: "geometric",
+        sizeRating: 500,
+    },
+    twopi: {
+        plainName: "Rings",
+        technicalName: "Graphviz twopi (radial)",
+        description: "Puts a root at the center and every other node on a ring by its distance from it.",
+        family: "geometric",
+        sizeRating: 10000,
+    },
+    osage: {
+        plainName: "Clusters",
+        technicalName: "Graphviz osage (clustered array)",
+        description: "Packs the nodes into a tight array of rows and columns.",
+        family: "special",
+        sizeRating: 10000,
+    },
+    patchwork: {
+        plainName: "Treemap",
+        technicalName: "Graphviz patchwork (squarified treemap)",
+        description: "Tiles the nodes as squares packed into one rectangle.",
+        family: "special",
+        sizeRating: 10000,
+    },
+};
+
+/**
+ * One Graphviz engine as a catalogue entry: the arrangement and its only engine share the id.
+ * @param engine - the engine
+ * @returns the entry
+ */
+function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
+    const cls = GRAPHVIZ_LAYOUTS[engine];
+    const { plainName, technicalName, description, family, sizeRating } = GRAPHVIZ_ENTRIES[engine];
+    return entry(
+        {
+            id: cls.type,
+            plainName,
+            technicalName,
+            description,
+            family,
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating,
+            structuralInputs: [],
+        },
+        {
+            engine: cls.type,
+            plainName,
+            technicalName,
+            kind: "batch",
+            maxDimensions: 2,
+            reason: "Graphviz's own engine, compiled to WebAssembly and run in a Worker.",
+            code: "implementation.graphviz",
+            options: engineOptions(cls.zodOptionsSchema, SEED_OVERRIDE),
+            honoursWeights: cls.honoursWeights,
+            scoped: cls.scoped,
+            description,
+            requires: { package: GRAPHVIZ_PACKAGE },
+        },
+    );
+}
 
 // ---------------------------------------------------------------------------------------------
 // The catalogue
@@ -503,7 +678,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             technicalName: "Force-directed layout",
             description:
                 "Pulls connected nodes together and pushes unconnected ones apart until the " +
-                "shape stops moving, in three dimensions.",
+                "shape stops moving, in three dimensions or flat.",
             family: "force",
             kind: "live",
             maxDimensions: 3,
@@ -511,21 +686,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         ngraph,
-        [d3, forceAtlas2, spring, kamadaKawai, springElectrical],
-    ),
-    entry(
-        {
-            id: "force-2d",
-            plainName: "Spread Out, Flat",
-            technicalName: "Force-directed layout, two-dimensional",
-            description: "The same pull and push as Spread Out, worked out on a single plane.",
-            family: "force",
-            kind: "batch",
-            maxDimensions: 2,
-            sizeRating: 2000,
-            structuralInputs: [],
-        },
-        arf,
+        [d3, forceAtlas2, spring, kamadaKawai, springElectrical, arf],
     ),
     entry(
         {
@@ -703,6 +864,21 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
         },
         fixed,
     ),
+    entry(
+        {
+            id: "location-map",
+            plainName: "Map",
+            technicalName: "Geographic layout",
+            description: "Puts every node at the place its data names, on a flat map or a globe drawn under the graph.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 3,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        locationMap,
+    ),
+    ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];
 
 /** The descriptors alone, which is what `catalog.layouts()` publishes. */
@@ -715,9 +891,57 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
  */
 export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
 
+/**
+ * What each deprecated layout name now asks for: a layout id and the engine that draws it. See
+ * `DEPRECATED_LAYOUT_IDS`; removed with it at the next major release.
+ */
+const LAYOUT_ALIASES: Readonly<Record<(typeof DEPRECATED_LAYOUT_IDS)[number], { id: LayoutId; engine: string }>> = {
+    "force-2d": { id: "force", engine: "arf" },
+};
+
 // ---------------------------------------------------------------------------------------------
 // Lookups
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * What a deprecated layout name now asks for.
+ * @param id - A layout name.
+ * @returns The layout id and engine it stands for, or undefined when it is not a deprecated name.
+ */
+export function layoutAlias(id: string): { id: LayoutId; engine: string } | undefined {
+    return Object.hasOwn(LAYOUT_ALIASES, id) ? LAYOUT_ALIASES[id as keyof typeof LAYOUT_ALIASES] : undefined;
+}
+
+/**
+ * How many dimensions a layout choice actually places nodes in, which is not the view's
+ * dimension: a 2D view draws every layout flat, a 2D-only engine is flat in a 3D view, and so is
+ * an engine with a `dim` option set to 2.
+ * @param choice - The engine, its options and the view's dimension.
+ * @param choice.engine - The registered engine name.
+ * @param choice.options - The options it was chosen with.
+ * @param choice.dimension - The view's dimension.
+ * @returns "2d" or "3d".
+ */
+export function arrangedDimension(choice: {
+    readonly engine: string;
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly dimension: "2d" | "3d";
+}): "2d" | "3d" {
+    if (choice.dimension === "2d") {
+        return "2d";
+    }
+
+    const implementation = LAYOUT_CATALOG.flatMap((e) => e.implementations).find((i) => i.engine === choice.engine);
+    const maxDimensions =
+        implementation?.maxDimensions ?? registeredLayoutById(choice.engine)?.descriptor.maxDimensions;
+    if (maxDimensions === 2) {
+        return "2d";
+    }
+
+    // An engine with a `dim` option defaults it to the view's dimension, which here is 3.
+    const hasDim = implementation?.options.some((option) => option.name === "dim") === true;
+    return hasDim && Number(choice.options.dim) === 2 ? "2d" : "3d";
+}
 
 /**
  * Find one layout's descriptor by its public name.

@@ -1,23 +1,37 @@
 import "./frame.css";
 
-import { ResizeHandle } from "@graphty/compact-mantine";
+import { Popout, ResizeHandle, StatusBar } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import type React from "react";
+import React, { useEffect, useRef } from "react";
 
+import { AutosaveChip } from "../autosave/AutosaveChip";
+import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
+import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
-import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
+import { JoinScreen } from "../join/JoinScreen";
+import { NotesPlace } from "../notes/NotesPlace";
+import { PrivacyChip } from "../privacy/PrivacyChip";
+import { NodeMenu } from "../server/NodeMenu";
+import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
+import { TimeDock } from "../time/TimeDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
+import { focusIsLost, focusOpenedGraph } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
+import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { WebGpuChip } from "./WebGpuChip";
+
+/** What each rail place draws in the left panel. */
+const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
 
 /** Props for Frame. */
 interface FrameProps {
@@ -28,14 +42,15 @@ interface FrameProps {
 /**
  * The workspace frame (tier1-design.md section 2): the header across the top; under it the rail,
  * the left panel, the canvas with the toolbar floating at its foot, and the inspector; the table
- * dock along the canvas's foot. The Data page takes the area right of the rail while the element
- * stays mounted underneath.
+ * dock along the canvas's foot; and the status bar along the bottom, with the autosave state and the
+ * privacy chip. The Data page takes the area right of the rail while the element stays mounted
+ * underneath.
  * @param props - Component props
  * @param props.onElementReady - Called with the element and its session
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -43,7 +58,39 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
+    const autosave = useWorkspaceState((state) => state.autosave);
     const panels = page === "panels";
+    // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
+    // to the graph's heading, or the open place's list while the inspector shows something else
+    // (focusOpenedGraph), not the page or the drawing's outline.
+    // Closing the table dock hands it to the drawing the table sat under. Not on the first render.
+    const surfaces = useRef<string | null>(null);
+    useEffect(() => {
+        const now = `${String(panels)}:${String(dockOpen)}`;
+        const was = surfaces.current;
+        surfaces.current = now;
+        if (was === null || was === now || !focusIsLost()) {
+            return;
+        }
+        if (panels && was.startsWith("false")) {
+            focusOpenedGraph();
+        } else {
+            element?.focus();
+        }
+    }, [panels, dockOpen, element]);
+    // A row only the Data place shows (a source, an attribute, a filter step) is not left open in
+    // the inspector once another place is showing: nothing on that page is its row.
+    useEffect(() => {
+        const kind = store.get().inspected?.kind;
+        if (place !== "data" && kind !== undefined && DATA_PLACE_KINDS.includes(kind)) {
+            store.set({ inspected: null });
+        }
+    }, [place, store]);
+    // A note being written is about this project's graph: another project drops it.
+    useEffect(() => {
+        store.set({ noteDraft: null });
+    }, [projectId, store]);
 
     return (
         <div className="ws-app">
@@ -59,7 +106,11 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    {place === "graph" ? <GraphPlace /> : <DataPlace />}
+                    <div className="ws-panel-body">
+                        <PanelBoundary key={place} name="Place">
+                            {PLACES[place]}
+                        </PanelBoundary>
+                    </div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"
@@ -72,9 +123,14 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         }}
                     />
                 </aside>
-                <main className="ws-main" aria-label="Graph" hidden={!panels}>
-                    <div className="ws-canvas">
-                        <ElementHost key={projectId} onReady={onElementReady} />
+                <main className="ws-main" hidden={!panels}>
+                    {/* A region named for the drawing, holding it and its key, so a screen reader can
+                        land on it and read it as one place. */}
+                    {/* Under the maximized table, the canvas and its tools take no input or focus. */}
+                    <section className="ws-canvas" aria-label="Graph drawing" inert={dockOpen && dockMaximized}>
+                        <CanvasMenu>
+                            <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
+                        </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">
@@ -82,44 +138,77 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             </div>
                             <NoticeSlot />
                         </div>
-                    </div>
+                    </section>
+                    <TimeDock />
                     {dockOpen ? (
-                        <section className="ws-dock" aria-label="Table" style={{ height: dockHeight }}>
-                            <ResizeHandle
-                                edge="top"
-                                label="Resize table"
-                                value={dockHeight}
-                                defaultValue={240}
-                                min={DOCK_MIN}
-                                max={DOCK_MAX}
-                                onChange={(value) => {
-                                    store.set({ dockHeight: value });
-                                }}
-                            />
+                        // Maximized, the dock covers the canvas area (table.css), so it takes no height
+                        // of its own and has nothing to resize.
+                        <section
+                            className="ws-dock"
+                            aria-label="Table"
+                            data-maximized={dockMaximized ? "" : undefined}
+                            style={dockMaximized ? undefined : { height: dockHeight }}
+                        >
+                            {dockMaximized ? null : (
+                                <ResizeHandle
+                                    edge="top"
+                                    label="Resize table"
+                                    value={dockHeight}
+                                    defaultValue={DOCK_DEFAULT}
+                                    min={DOCK_MIN}
+                                    max={DOCK_MAX}
+                                    onChange={(value) => {
+                                        store.set({ dockHeight: value });
+                                    }}
+                                />
+                            )}
                             <TableDock />
                         </section>
                     ) : null}
+                    <JoinScreen />
+                    <NodeMenu />
                 </main>
-                <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
-                    <Inspector />
-                    <ResizeHandle
-                        edge="start"
-                        label="Resize inspector"
-                        value={rightWidth}
-                        defaultValue={PANEL_MIN}
-                        min={PANEL_MIN}
-                        max={PANEL_MAX}
-                        onChange={(value) => {
-                            store.set({ rightWidth: value });
-                        }}
-                    />
-                </aside>
+                {/* Every pop-out opened in the inspector opens flush with its edge, level with
+                    the row that opened it (Figma's right panel). */}
+                <Popout.Anchor>
+                    <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
+                        <div className="ws-panel-body">
+                            <PanelBoundary name="Inspector">
+                                <Inspector />
+                            </PanelBoundary>
+                        </div>
+                        <ResizeHandle
+                            edge="start"
+                            label="Resize inspector"
+                            value={rightWidth}
+                            defaultValue={PANEL_MIN}
+                            min={PANEL_MIN}
+                            max={PANEL_MAX}
+                            onChange={(value) => {
+                                store.set({ rightWidth: value });
+                            }}
+                        />
+                    </aside>
+                </Popout.Anchor>
                 {panels ? null : (
                     <div className="ws-page">
                         <DataPage />
                     </div>
                 )}
             </div>
+            {/* State the reader reads rather than acts on: the autosave state (with the workspace's
+                polite status region), whether WebGPU is on, and the privacy chip. */}
+            <StatusBar
+                role="contentinfo"
+                aria-label="Status"
+                left={
+                    <>
+                        <AutosaveChip />
+                        <WebGpuChip />
+                    </>
+                }
+                right={<PrivacyChip />}
+            />
         </div>
     );
 }

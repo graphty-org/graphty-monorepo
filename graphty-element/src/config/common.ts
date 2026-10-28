@@ -40,15 +40,18 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         colorType: z.literal("gradient"),
         direction: z.number().min(0).max(360),
         colors: z.array(ColorStyle),
+        /** Where each color sits, 0 to 1; left out, or not one per color, the colors are evenly spaced. */
+        stops: z.array(z.number().min(0).max(1)).optional(),
         opacity: z.number().min(0).max(1).optional(),
     }),
     z.strictObject({
         colorType: z.literal("radial-gradient"),
         colors: z.array(ColorStyle),
+        /** Where each color sits, 0 at the middle to 1; left out, or not one per color, evenly spaced. */
+        stops: z.array(z.number().min(0).max(1)).optional(),
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);
-// const ColorScheme = z.array(ColorStyle);
 
 export const TextLocation = z.enum([
     "top",
@@ -60,6 +63,15 @@ export const TextLocation = z.enum([
     "bottom",
     "bottom-left",
     "bottom-right",
+    // Inside the node against that side or in that corner, as a group's header label.
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
     "automatic",
 ]);
 

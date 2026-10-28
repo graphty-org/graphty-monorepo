@@ -24,6 +24,7 @@ import React, { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef
 import { PANEL_GRID } from "../../constants/panel";
 import { defaultLabels, useCollator, useLocale, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
@@ -83,18 +84,113 @@ const DEFAULT_HEIGHT = 320;
 // not reach the edge of what is drawn.
 const DEFAULT_OVERSCAN = 8;
 
-// Row and header height: Figma's 32px list pitch (layer rows, page rows, property rows, DataRow),
-// not the 40px of its Variables spreadsheet, whose cells hold editable fields. A table of readings
-// in a panel or a drawer reads with the rows around it. Rows and cells are separated by a 1px gap
-// that each cell's 1px outline grid line sits over (design/figma-spec.md 10.6).
-const TABLE_ROW_HEIGHT = PANEL_GRID.ROW_PITCH;
+// Row and header height: Figma's Variables spreadsheet, 40px rows 41 apart (ls/vars-04); a caller
+// that wants the 32px list pitch passes rowHeight and headerHeight. Rows and cells are separated by
+// a 1px gap that each cell's 1px outline grid line sits over (design/figma-spec.md 10.6).
+const TABLE_ROW_HEIGHT = 40;
 const GRID_GAP = 1;
 
 // An empty array that keeps its identity between renders, so that a table given
 // no selection, no sort and no hidden columns does not look like it has been
 // given new ones on every render.
+/** What in a cell takes focus by Tab: the controls a column's own drawing puts there. */
+const CELL_CONTROLS = "a[href], button, input, select, textarea, [tabindex]";
+
 const EMPTY_IDS: readonly string[] = [];
 const EMPTY_SORT: readonly DataTableSort[] = [];
+
+/** The narrowest and widest a column sized to its content is drawn, in pixels. */
+const CONTENT_MIN_WIDTH = 48;
+const CONTENT_MAX_WIDTH = 320;
+
+/**
+ * The fonts a content-sized grid draws in, as the page has them once they have loaded, and the
+ * width the page draws each character at in its cells and in its headers, measured as the
+ * characters come up. The page measures them, not a canvas: a canvas cannot set
+ * `font-variant-numeric`, and under the grid's tabular figures a digit, a minus and a brace are
+ * drawn wider, and without the kerning a canvas would put between them.
+ */
+interface GridFonts {
+    readonly cell: Map<string, number>;
+    readonly header: Map<string, number>;
+}
+
+/**
+ * The fonts a grid's cells and headers are drawn in, as CSS fonts for `document.fonts`.
+ * @param grid - The grid
+ * @returns The cell font and the header font
+ */
+function gridFontNames(grid: HTMLElement): [string, string] {
+    const style = getComputedStyle(grid);
+    const font = `${style.fontSize} ${style.fontFamily}`;
+    return [`${style.fontWeight} ${font}`, `600 ${font}`];
+}
+
+/**
+ * Measures, in the grid itself so they inherit every font property, the characters of the texts
+ * that are not measured yet: cell characters in the grid's own type, header characters at the
+ * header's weight and spacing (see tree.css.ts).
+ * @param grid - The grid
+ * @param fonts - The grid's fonts, whose maps are filled in
+ * @param cellTexts - The texts drawn in cells
+ * @param headerTexts - The texts drawn in headers
+ * @returns Whether every character is measured: not while the grid is not drawn (inside a hidden
+ * panel), where nothing has a width
+ */
+function measureCharacters(grid: HTMLElement, fonts: GridFonts, cellTexts: string[], headerTexts: string[]): boolean {
+    const box = document.createElement("div");
+    box.style.cssText = "position: absolute; top: 0; left: 0; visibility: hidden; white-space: pre;";
+    const probes: [Map<string, number>, string, HTMLElement][] = [];
+    const add = (widths: Map<string, number>, texts: string[], header: boolean): void => {
+        for (const text of texts) {
+            for (const char of text) {
+                if (!widths.has(char)) {
+                    widths.set(char, 0);
+                    const probe = document.createElement("span");
+                    probe.textContent = char;
+                    if (header) {
+                        probe.style.fontWeight = "600";
+                        probe.style.letterSpacing = "normal";
+                    }
+                    box.append(probe);
+                    probes.push([widths, char, probe]);
+                }
+            }
+        }
+    };
+    add(fonts.cell, cellTexts, false);
+    add(fonts.header, headerTexts, true);
+    if (probes.length === 0) {
+        return true;
+    }
+    if (grid.getClientRects().length === 0) {
+        for (const [widths, char] of probes) {
+            widths.delete(char);
+        }
+        return false;
+    }
+    grid.append(box);
+    for (const [widths, char, probe] of probes) {
+        widths.set(char, probe.getBoundingClientRect().width);
+    }
+    box.remove();
+    return true;
+}
+
+/**
+ * How wide a text is drawn: the sum of its characters' widths. Leaving out the kerning between
+ * them can only make it wider, so the text is never cut.
+ * @param text - The text
+ * @param widths - The widths of its characters, measured
+ * @returns The width in pixels
+ */
+function drawnWidth(text: string, widths: Map<string, number>): number {
+    let width = 0;
+    for (const char of text) {
+        width += widths.get(char) ?? 0;
+    }
+    return width;
+}
 
 /**
  * Spells a column's sort state the way `aria-sort` does.
@@ -128,6 +224,51 @@ function withTooltip(label: React.ReactNode, target: React.ReactElement): React.
 }
 
 /**
+ * The room a header keeps beside its text: the cell's padding, and its glyph, its sort caret and
+ * its menu caret.
+ * @param compact - Whether the table is drawn compact
+ * @param sortable - Whether the column sorts
+ * @param hasMenu - Whether the header has a menu
+ * @param hasIcon - Whether the header has a glyph
+ * @returns The padding in pixels
+ */
+function headerPadding(compact: boolean, sortable: boolean, hasMenu: boolean, hasIcon: boolean): number {
+    let pad = compact ? 8 : 32;
+    if (sortable) {
+        pad += 4 + PANEL_GRID.CHEVRON;
+    }
+    if (hasMenu) {
+        pad += 32 - (compact ? 4 : 16);
+    }
+    if (hasIcon) {
+        pad += 20;
+    }
+    return pad;
+}
+
+/**
+ * Whether a key opens a header's menu: Alt+ArrowDown, Shift+F10 or the context-menu key.
+ * @param event - The key press
+ * @returns Whether it opens the menu
+ */
+function opensHeaderMenu(event: React.KeyboardEvent): boolean {
+    return (
+        (event.altKey && event.key === "ArrowDown") ||
+        (event.shiftKey && event.key === "F10") ||
+        event.key === "ContextMenu"
+    );
+}
+
+/**
+ * Whether a node is present: neither undefined nor null.
+ * @param node - The node
+ * @returns Whether it is present
+ */
+function isPresent(node: React.ReactNode): boolean {
+    return node !== undefined && node !== null;
+}
+
+/**
  * A compact, virtualized data table.
  * @param props - Component props
  * @param ref - A handle for the few things a table can be asked to do from outside
@@ -145,6 +286,7 @@ function DataTableInner<TRow extends object>(
         onRangeChange,
         columns,
         getRowId,
+        rowLabel,
         label,
         labelledBy,
         labels: labelOverrides,
@@ -175,6 +317,9 @@ function DataTableInner<TRow extends object>(
         onFocus,
         onBlur,
         empty,
+        density = "default",
+        columnSizing = "fixed",
+        formatNumber,
     } = props;
 
     const labels = useDataTableLabels(labelOverrides);
@@ -187,8 +332,13 @@ function DataTableInner<TRow extends object>(
     const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale), [locale]);
 
     const format = useMemo<ValueFormat>(
-        () => ({ number: numberFormatter, date: dateFormatter, yes: labels.yes, no: labels.no }),
-        [numberFormatter, dateFormatter, labels.yes, labels.no],
+        () => ({
+            number: formatNumber === undefined ? numberFormatter : { format: formatNumber },
+            date: dateFormatter,
+            yes: labels.yes,
+            no: labels.no,
+        }),
+        [numberFormatter, formatNumber, dateFormatter, labels.yes, labels.no],
     );
 
     // Every slice of state is controlled or uncontrolled, the way every
@@ -462,6 +612,34 @@ function DataTableInner<TRow extends object>(
         cell.focus();
     });
 
+    // A control drawn in a cell (a button, a field) is in the tab order only while its cell is the
+    // one the grid would focus, so Tab leaves the grid in one stop instead of walking every row's
+    // controls; the arrows reach the cell, and Tab then reaches what is in it. Done after every
+    // drawing, since rows come and go as the table scrolls.
+    useLayoutEffect(() => {
+        const grid = gridRef.current;
+        if (grid === null) {
+            return;
+        }
+        for (const cell of grid.querySelectorAll<HTMLElement>("td[data-grid-row]")) {
+            const current = cell.tabIndex === 0;
+            for (const control of cell.querySelectorAll<HTMLElement>(CELL_CONTROLS)) {
+                if (!current && control.tabIndex >= 0) {
+                    control.dataset.cmDtParked = control.getAttribute("tabindex") ?? "";
+                    control.tabIndex = -1;
+                } else if (current && control.dataset.cmDtParked !== undefined) {
+                    const was = control.dataset.cmDtParked;
+                    delete control.dataset.cmDtParked;
+                    if (was === "") {
+                        control.removeAttribute("tabindex");
+                    } else {
+                        control.setAttribute("tabindex", was);
+                    }
+                }
+            }
+        }
+    });
+
     /**
      * Reports a selection, unless it is the one that was already there.
      *
@@ -528,7 +706,8 @@ function DataTableInner<TRow extends object>(
      * @param event - The activation
      */
     const handleSort = (column: Column<DataTableFeatures, TRow>, event: ActivationEvent): void => {
-        if (!column.getCanSort()) {
+        // Only the primary button sorts. A click Enter or Space makes reports button 0 too.
+        if (!column.getCanSort() || ("button" in event && event.button !== 0)) {
             return;
         }
 
@@ -553,6 +732,26 @@ function DataTableInner<TRow extends object>(
     };
 
     /**
+     * Answers Space and Enter on a data row: Space selects, Enter opens.
+     * @param event - The key press, Space or Enter
+     */
+    const answerSelectionKey = (event: React.KeyboardEvent): void => {
+        if (event.key === " ") {
+            applyGesture(position.row, { extend: event.shiftKey, toggle: !event.shiftKey }, event);
+            return;
+        }
+        // Enter opens what is selected: on a row that is part of a selection of several
+        // it keeps the selection (as a file list opens every selected file), and on any
+        // other row it selects that row alone first.
+        const focusedId = rowIds[position.row - offset];
+        const inSelection = focusedId !== undefined && selection.includes(focusedId) && selection.length > 1;
+        if (!inSelection) {
+            applyGesture(position.row, { extend: false, toggle: false }, event);
+        }
+        activateRow(position.row, event, { source: "keyboard" });
+    };
+
+    /**
      * Answers the keys the ARIA Authoring Practices give a grid.
      * @param event - The key press, from whichever cell holds focus
      */
@@ -565,13 +764,7 @@ function DataTableInner<TRow extends object>(
 
         // Alt+ArrowDown, Shift+F10 or the context-menu key opens a header's menu.
         const menuColumn = position.row === HEADER_ROW ? visibleColumns[position.column] : undefined;
-        if (
-            menuColumn !== undefined &&
-            columnById.get(menuColumn.id)?.menu !== undefined &&
-            ((event.altKey && event.key === "ArrowDown") ||
-                (event.shiftKey && event.key === "F10") ||
-                event.key === "ContextMenu")
-        ) {
+        if (menuColumn !== undefined && columnById.get(menuColumn.id)?.menu !== undefined && opensHeaderMenu(event)) {
             event.preventDefault();
             // Mantine's Menu closes on a keydown outside it, and this key is outside it: kept
             // from reaching the document, it opens the menu without closing it again.
@@ -593,14 +786,7 @@ function DataTableInner<TRow extends object>(
         // selection keys apply only once focus is in the data.
         if (position.row >= 0 && (event.key === " " || event.key === "Enter")) {
             event.preventDefault();
-
-            if (event.key === " ") {
-                applyGesture(position.row, { extend: event.shiftKey, toggle: !event.shiftKey }, event);
-            } else {
-                applyGesture(position.row, { extend: false, toggle: false }, event);
-                activateRow(position.row, event, { source: "keyboard" });
-            }
-
+            answerSelectionKey(event);
             return;
         }
 
@@ -652,10 +838,328 @@ function DataTableInner<TRow extends object>(
         [table, virtualizer, rowCount, setSelection],
     );
 
-    const totalWidth = visibleColumns.reduce(
-        (sum, column) => sum + (columnById.get(column.id)?.width ?? PANEL_GRID.FIELD),
-        0,
+    // columnSizing "content": the fonts the grid draws in, taken once they have loaded (a width
+    // measured in a fallback family would stick, since a column only grows), and taken afresh
+    // whenever a font finishes loading.
+    const [fonts, setFonts] = useState<GridFonts | null>(null);
+    useLayoutEffect(() => {
+        const grid = gridRef.current;
+        if (columnSizing !== "content" || grid === null) {
+            return undefined;
+        }
+        let live = true;
+        const take = (): void => {
+            if (live) {
+                setFonts({ cell: new Map(), header: new Map() });
+            }
+        };
+        // document.fonts is missing in some test environments; there the fonts are taken at once.
+        const faces = typeof document.fonts === "object" ? document.fonts : undefined;
+        if (faces === undefined) {
+            take();
+            return undefined;
+        }
+        const [cell, header] = gridFontNames(grid);
+        if (faces.check(cell) && faces.check(header)) {
+            take();
+        } else {
+            // A face that fails to load leaves the fallback family, which is then what is drawn.
+            void Promise.all([faces.load(cell), faces.load(header)]).finally(take);
+        }
+        faces.addEventListener("loadingdone", take);
+        return () => {
+            live = false;
+            faces.removeEventListener("loadingdone", take);
+        };
+    }, [columnSizing]);
+    // Each column's width so far, measured in `fonts`. A column only grows, so it holds still
+    // while the reader scrolls; it is measured afresh when the fonts are taken again. Only ever
+    // raised to a width measured from the rows, so writing it while drawing is safe: drawing twice
+    // measures the same widths.
+    const fitted = useRef(new Map<string, number>()).current;
+    /**
+     * Raises each content-sized column to the width its header and its widest value are drawn at.
+     * @param grid - The grid
+     * @param measured - The grid's fonts
+     */
+    const fitColumns = (grid: HTMLElement, measured: GridFonts): void => {
+        const compact = density === "compact";
+        const sized = visibleColumns.flatMap((column, index) => {
+            const config = columnById.get(column.id);
+            return config === undefined || config.width !== undefined
+                ? []
+                : [{ column, config, index, texts: rows.map((row) => cellText(config.value(row.original), format)) }];
+        });
+        const allTexts = sized.flatMap((entry) => entry.texts);
+        if (
+            !measureCharacters(
+                grid,
+                measured,
+                allTexts,
+                sized.map((entry) => entry.config.header),
+            )
+        ) {
+            // Fitted when the grid is next drawn on the page; until then one field per column.
+            return;
+        }
+        for (const { column, config, index, texts } of sized) {
+            // The cell's padding (see tree.css.ts); a header also keeps room for its glyph, its
+            // sort caret and its menu caret.
+            let cellPad = 20;
+            if (compact) {
+                cellPad = 8;
+            } else if (index === 0) {
+                cellPad = 32;
+            }
+            const headerPad = headerPadding(
+                compact,
+                column.getCanSort(),
+                isPresent(config.menu),
+                isPresent(config.icon),
+            );
+            let widest = Math.max(drawnWidth(config.header, measured.header) + headerPad, config.minWidth ?? 0);
+            for (const text of texts) {
+                widest = Math.max(widest, drawnWidth(text, measured.cell) + cellPad);
+            }
+            const width = clamp(Math.ceil(widest), CONTENT_MIN_WIDTH, CONTENT_MAX_WIDTH);
+            if (width > (fitted.get(column.id) ?? 0)) {
+                fitted.set(column.id, width);
+            }
+        }
+    };
+    const fittedFonts = useRef<GridFonts | null>(null);
+    if (fonts !== fittedFonts.current) {
+        fitted.clear();
+        fittedFonts.current = fonts;
+    }
+    if (fonts !== null && gridRef.current !== null) {
+        fitColumns(gridRef.current, fonts);
+    }
+    /**
+     * How wide a column is drawn: its own width, else its content's, else one field.
+     * @param column - The column
+     * @returns The width in pixels
+     */
+    const widthOf = (column: DataTableColumn<TRow> | undefined): number =>
+        column?.width ?? fitted.get(column?.id ?? "") ?? PANEL_GRID.FIELD;
+
+    type HeaderColumn = Column<DataTableFeatures, TRow>;
+    type HeaderConfig = DataTableColumn<TRow> | undefined;
+
+    /**
+     * What a header shows: its glyph, its name, its sort caret and its place in a sort by several
+     * columns.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param sorted - How the column is sorted
+     * @returns The caption
+     */
+    const headerCaption = (
+        column: HeaderColumn,
+        config: HeaderConfig,
+        sorted: false | "asc" | "desc",
+    ): React.JSX.Element => {
+        const priority = sorted === false ? -1 : column.getSortIndex();
+        return (
+            <>
+                {config?.icon !== undefined && config.icon !== null && (
+                    <span
+                        className="cm-dt-header-icon"
+                        data-testid="data-table-header-icon"
+                        {...(config.iconLabel === undefined
+                            ? { "aria-hidden": true }
+                            : { role: "img", "aria-label": config.iconLabel })}
+                    >
+                        {config.icon}
+                    </span>
+                )}
+                <Box
+                    component="span"
+                    data-testid="data-table-header-label"
+                    // The direction is worked out from
+                    // the text itself: a column named in
+                    // Arabic inside a table that runs
+                    // left to right reads correctly, and
+                    // so does the other way round.
+                    dir="auto"
+                    // A header with a tooltip of its own does not also show
+                    // its cut text in one.
+                    data-cut-tip={config?.headerTooltip === undefined ? (config?.header ?? column.id) : undefined}
+                    style={{
+                        flex: "0 1 auto",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {config?.header ?? column.id}
+                </Box>
+
+                {sorted !== false && (
+                    <span
+                        className="cm-sort-caret"
+                        data-testid="data-table-sort-glyph"
+                        data-direction={ariaSortOf(sorted)}
+                        aria-hidden="true"
+                    >
+                        <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
+                    </span>
+                )}
+
+                {sortingState.length > 1 && priority >= 0 && (
+                    // Where this column comes in a sort
+                    // by several columns, drawn for the
+                    // eye only: every column already
+                    // announces its own direction
+                    // through aria-sort.
+                    <Box
+                        component="span"
+                        data-testid="data-table-sort-priority"
+                        aria-hidden="true"
+                        className="cm-dt-sort-priority"
+                    >
+                        {numberFormatter.format(priority + 1)}
+                    </Box>
+                )}
+            </>
+        );
+    };
+
+    /**
+     * A sortable header's button, which holds the column's tab stop.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param index - The column's position
+     * @param rovingTabIndex - The tab index the grid's tab stop gives it
+     * @param hasMenu - Whether the header has a menu
+     * @param hasEnd - Whether the header has content at its end
+     * @param caption - What the header shows
+     * @returns The button
+     */
+    const sortButton = (
+        column: HeaderColumn,
+        config: HeaderConfig,
+        index: number,
+        rovingTabIndex: number,
+        hasMenu: boolean,
+        hasEnd: boolean,
+        caption: React.ReactNode,
+    ): React.JSX.Element => {
+        const sorted = column.getIsSorted();
+        return (
+            <UnstyledButton
+                type="button"
+                data-testid="data-table-sort-button"
+                // The focused header says how it sorts, as
+                // aria-sort tells a reader moving through the
+                // header cells.
+                aria-label={
+                    sorted === false
+                        ? undefined
+                        : `${config?.header ?? column.id}, ${(labels.sortedBy ?? defaultLabels.sortedBy)(sorted === "desc")}`
+                }
+                data-grid-row={HEADER_ROW}
+                data-grid-column={index}
+                tabIndex={rovingTabIndex}
+                onClick={(event) => {
+                    setFocus({ row: HEADER_ROW, column: index });
+                    handleSort(column, event);
+                }}
+                onFocus={() => {
+                    setFocus((previous) =>
+                        samePosition(previous, { row: HEADER_ROW, column: index })
+                            ? previous
+                            : { row: HEADER_ROW, column: index },
+                    );
+                }}
+                className="cm-dt-sort"
+                data-align={config?.align === "end" ? "end" : undefined}
+                data-with-menu={hasMenu ? "" : undefined}
+                data-with-end={hasEnd ? "" : undefined}
+            >
+                {caption}
+            </UnstyledButton>
+        );
+    };
+
+    /**
+     * A header's menu and the caret that opens it.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param index - The column's position
+     * @returns The menu
+     */
+    const headerMenu = (column: HeaderColumn, config: HeaderConfig, index: number): React.JSX.Element => (
+        <Menu
+            opened={menuFor === column.id}
+            onChange={(opened) => {
+                setMenuFor(opened ? column.id : null);
+                // Closed from inside the menu (an item, Escape):
+                // focus goes back to the header. Closed by a
+                // click elsewhere: focus stays where it went.
+                const active = document.activeElement;
+                if (
+                    !opened &&
+                    (active === null || active === document.body || active.closest('[role="menu"]') !== null)
+                ) {
+                    moveFocusTo({ row: HEADER_ROW, column: index });
+                }
+            }}
+            returnFocus={false}
+            position="bottom-end"
+        >
+            <Menu.Target>
+                {/* Named on hover, and drawn as "more", not as an
+                    arrow: beside a sorted column's arrow a second
+                    arrow read as a second sort. */}
+                <Tooltip label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.CONTROL_HEIGHT}
+                        // Out of the tab order: the grid has one tab
+                        // stop, and the header's keys open the menu.
+                        tabIndex={-1}
+                        aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}
+                        data-testid="data-table-header-menu"
+                        className="cm-dt-header-menu"
+                    >
+                        <UiGlyph name="more" />
+                    </ActionIcon>
+                </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
+        </Menu>
     );
+
+    // A value or header the column cuts shows whole in a tooltip while the pointer rests on it.
+    const [cut, setCut] = useState<{ target: HTMLElement; text: string } | null>(null);
+    const cutTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(
+        () => () => {
+            clearTimeout(cutTimer.current);
+        },
+        [],
+    );
+    const hideCut = (): void => {
+        clearTimeout(cutTimer.current);
+        setCut(null);
+    };
+    const showCut = (event: React.PointerEvent): void => {
+        const element = event.target instanceof Element ? event.target.closest("[data-cut-tip]") : null;
+        if (element !== null && element === cut?.target) {
+            return;
+        }
+        hideCut();
+        if (element instanceof HTMLElement && element.scrollWidth > element.clientWidth) {
+            cutTimer.current = setTimeout(() => {
+                // A header names its text; a cell's text is all it holds.
+                setCut({ target: element, text: element.dataset.cutTip || (element.textContent ?? "") });
+            }, TOOLTIP_OPEN_DELAY);
+        }
+    };
+
+    const totalWidth = visibleColumns.reduce((sum, column) => sum + widthOf(columnById.get(column.id)), 0);
 
     // Where each pinned column sticks: after the table's 1px padding and the pinned columns
     // before it.
@@ -667,7 +1171,7 @@ function DataTableInner<TRow extends object>(
                 break;
             }
             pinnedStart.push(edge);
-            edge += (columnById.get(column.id)?.width ?? PANEL_GRID.FIELD) + GRID_GAP;
+            edge += widthOf(columnById.get(column.id)) + GRID_GAP;
         }
     }
 
@@ -682,7 +1186,7 @@ function DataTableInner<TRow extends object>(
      * @returns The style for the cell
      */
     const cellBox = (column: DataTableColumn<TRow> | undefined, index: number): React.CSSProperties => {
-        const width = column?.width ?? PANEL_GRID.FIELD;
+        const width = widthOf(column);
         // A pinned cell sticks at the start edge, after the pinned columns before it, and draws
         // over the cells scrolling under it.
         const pinned: React.CSSProperties =
@@ -698,6 +1202,25 @@ function DataTableInner<TRow extends object>(
     const isSelectable = selectionMode !== "none";
     const allRows = windowRowCount ?? data.length;
     const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(allRows));
+    const statusText =
+        isSelectable && selection.length > 0
+            ? `${shownText}, ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+            : shownText;
+    // The status line is on the page, empty, from the first render, and is written only when
+    // the count or the selection changes after it: a region that arrives already holding its
+    // words is not read by many screen readers, and a table opening is not news. An empty
+    // table (rows still on their way) says nothing.
+    const [spokenStatus, setSpokenStatus] = useState("");
+    const lastStatus = useRef(statusText);
+    useEffect(() => {
+        if (statusText === lastStatus.current) {
+            return;
+        }
+        lastStatus.current = statusText;
+        if (allRows > 0) {
+            setSpokenStatus(statusText);
+        }
+    }, [statusText, allRows]);
 
     /**
      * What to draw in place of the rows when there are none.
@@ -724,7 +1247,7 @@ function DataTableInner<TRow extends object>(
             dir={isRtl(direction) ? "rtl" : undefined}
             onFocus={onFocus}
             onBlur={onBlur}
-            className="cm-dt"
+            className={density === "compact" ? "cm-dt cm-dt-compact" : "cm-dt"}
         >
             {searchable && (
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>
@@ -770,17 +1293,16 @@ function DataTableInner<TRow extends object>(
                 </Box>
             )}
 
-            {/* What arrives after the fact -- a search that changed how many
-                rows there are, a selection made with the keyboard -- is said
-                out loud rather than only drawn. */}
-            <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
-                {shownText}
-                {isSelectable && selection.length > 0
-                    ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}`
-                    : ""}
-            </VisuallyHidden>
-
-            <Box ref={scrollRef} data-testid="data-table-viewport" className="cm-dt-viewport" style={{ height }}>
+            <Box
+                ref={scrollRef}
+                data-testid="data-table-viewport"
+                className="cm-dt-viewport"
+                style={{ height }}
+                onPointerOver={showCut}
+                onPointerLeave={hideCut}
+                onScroll={hideCut}
+            >
+                {cut !== null && <Tooltip label={cut.text} opened target={cut.target} />}
                 {/* ARIA Authoring Practices, Grid pattern. The table reports
                     how many rows and columns it has and numbers the ones it
                     has drawn, which is what lets a screen reader say "row 40
@@ -801,8 +1323,9 @@ function DataTableInner<TRow extends object>(
                     horizontalSpacing={0}
                     verticalSpacing={0}
                     className="cm-dt-table"
-                    // The 1px padding and the 1px gaps between the columns.
-                    style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1) }}
+                    // The 1px padding and the 1px gaps between the columns. A Shift-click extends
+                    // the selection of rows, never a selection of the page's text.
+                    style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1), userSelect: "none" }}
                 >
                     <Table.Thead className="cm-dt-head">
                         <Table.Tr role="row" aria-rowindex={1} className="cm-dt-row" style={{ height: headerHeight }}>
@@ -811,75 +1334,14 @@ function DataTableInner<TRow extends object>(
                                 const sortable = column.getCanSort();
                                 const sorted = column.getIsSorted();
                                 const isFocused = position.row === HEADER_ROW && position.column === index;
-                                const priority = sorted === false ? -1 : column.getSortIndex();
                                 // The tab stop sits on the sort button when
                                 // there is one, and on the header cell itself
                                 // when there is not.
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
-                                const hasMenu = config?.menu !== undefined && config.menu !== null;
-                                const caption = (
-                                    <>
-                                        {config?.icon !== undefined && config.icon !== null && (
-                                            <span
-                                                className="cm-dt-header-icon"
-                                                data-testid="data-table-header-icon"
-                                                aria-hidden="true"
-                                            >
-                                                {config.icon}
-                                            </span>
-                                        )}
-                                        <Box
-                                            component="span"
-                                            data-testid="data-table-header-label"
-                                            // The direction is worked out from
-                                            // the text itself: a column named in
-                                            // Arabic inside a table that runs
-                                            // left to right reads correctly, and
-                                            // so does the other way round.
-                                            dir="auto"
-                                            // A header with a tooltip of its own does not also take
-                                            // the browser's.
-                                            title={config?.headerTooltip === undefined ? config?.header : undefined}
-                                            style={{
-                                                flex: "0 1 auto",
-                                                minWidth: 0,
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
-                                            {config?.header ?? column.id}
-                                        </Box>
-
-                                        {sorted !== false && (
-                                            <span
-                                                className="cm-sort-caret"
-                                                data-testid="data-table-sort-glyph"
-                                                data-direction={ariaSortOf(sorted)}
-                                                aria-hidden="true"
-                                            >
-                                                <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
-                                            </span>
-                                        )}
-
-                                        {sortingState.length > 1 && priority >= 0 && (
-                                            // Where this column comes in a sort
-                                            // by several columns, drawn for the
-                                            // eye only: every column already
-                                            // announces its own direction
-                                            // through aria-sort.
-                                            <Box
-                                                component="span"
-                                                data-testid="data-table-sort-priority"
-                                                aria-hidden="true"
-                                                className="cm-dt-sort-priority"
-                                            >
-                                                {numberFormatter.format(priority + 1)}
-                                            </Box>
-                                        )}
-                                    </>
-                                );
+                                const hasMenu = isPresent(config?.menu);
+                                const hasEnd = isPresent(config?.headerEnd);
+                                const caption = headerCaption(column, config, sorted);
 
                                 const header = (
                                     <Table.Th
@@ -888,13 +1350,30 @@ function DataTableInner<TRow extends object>(
                                         data-testid="data-table-header"
                                         aria-colindex={index + 1}
                                         aria-sort={sortable ? ariaSortOf(sorted) : undefined}
-                                        data-grid-row={sortable ? undefined : HEADER_ROW}
-                                        data-grid-column={sortable ? undefined : index}
-                                        tabIndex={sortable ? undefined : rovingTabIndex}
+                                        // A header that is not a button is a grid cell, and takes
+                                        // the tab stop itself.
+                                        {...(sortable
+                                            ? {}
+                                            : {
+                                                  "data-grid-row": HEADER_ROW,
+                                                  "data-grid-column": index,
+                                                  tabIndex: rovingTabIndex,
+                                              })}
                                         className="cm-dt-cell cm-dt-header"
                                         // A header that is not a button keeps room for the menu
                                         // caret itself; a sort button does it on the button.
                                         data-with-menu={hasMenu && !sortable ? "" : undefined}
+                                        // A right-click on a header opens its menu, as the
+                                        // context-menu key does; it never sorts.
+                                        onContextMenu={
+                                            hasMenu
+                                                ? (event) => {
+                                                      event.preventDefault();
+                                                      setMenuFor(column.id);
+                                                  }
+                                                : undefined
+                                        }
+                                        data-with-end={hasEnd && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -911,76 +1390,27 @@ function DataTableInner<TRow extends object>(
                                         {sortable
                                             ? withTooltip(
                                                   config?.headerTooltip,
-                                                  // A cell holding one control puts
-                                                  // the tab stop on the control, so a
-                                                  // screen reader says "button" and a
-                                                  // reader knows the header does
-                                                  // something.
-                                                  <UnstyledButton
-                                                      type="button"
-                                                      data-testid="data-table-sort-button"
-                                                      data-grid-row={HEADER_ROW}
-                                                      data-grid-column={index}
-                                                      tabIndex={rovingTabIndex}
-                                                      onClick={(event) => {
-                                                          setFocus({ row: HEADER_ROW, column: index });
-                                                          handleSort(column, event);
-                                                      }}
-                                                      onFocus={() => {
-                                                          setFocus((previous) =>
-                                                              samePosition(previous, { row: HEADER_ROW, column: index })
-                                                                  ? previous
-                                                                  : { row: HEADER_ROW, column: index },
-                                                          );
-                                                      }}
-                                                      className="cm-dt-sort"
-                                                      data-align={config?.align === "end" ? "end" : undefined}
-                                                      data-with-menu={hasMenu ? "" : undefined}
-                                                  >
-                                                      {caption}
-                                                  </UnstyledButton>,
+                                                  sortButton(
+                                                      column,
+                                                      config,
+                                                      index,
+                                                      rovingTabIndex,
+                                                      hasMenu,
+                                                      hasEnd,
+                                                      caption,
+                                                  ),
                                               )
                                             : caption}
-                                        {hasMenu && (
-                                            <Menu
-                                                opened={menuFor === column.id}
-                                                onChange={(opened) => {
-                                                    setMenuFor(opened ? column.id : null);
-                                                    // Closed from inside the menu (an item, Escape):
-                                                    // focus goes back to the header. Closed by a
-                                                    // click elsewhere: focus stays where it went.
-                                                    const active = document.activeElement;
-                                                    if (
-                                                        !opened &&
-                                                        (active === null ||
-                                                            active === document.body ||
-                                                            active.closest('[role="menu"]') !== null)
-                                                    ) {
-                                                        moveFocusTo({ row: HEADER_ROW, column: index });
-                                                    }
-                                                }}
-                                                returnFocus={false}
-                                                position="bottom-end"
+                                        {hasEnd && (
+                                            <span
+                                                className="cm-dt-header-end"
+                                                data-testid="data-table-header-end"
+                                                data-with-menu={hasMenu ? "" : undefined}
                                             >
-                                                <Menu.Target>
-                                                    <ActionIcon
-                                                        variant="subtle"
-                                                        size={PANEL_GRID.CONTROL_HEIGHT}
-                                                        // Out of the tab order: the grid has one tab
-                                                        // stop, and the header's keys open the menu.
-                                                        tabIndex={-1}
-                                                        aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(
-                                                            config?.header ?? column.id,
-                                                        )}
-                                                        data-testid="data-table-header-menu"
-                                                        className="cm-dt-header-menu"
-                                                    >
-                                                        <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
-                                                    </ActionIcon>
-                                                </Menu.Target>
-                                                <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
-                                            </Menu>
+                                                {config?.headerEnd}
+                                            </span>
                                         )}
+                                        {hasMenu && headerMenu(column, config, index)}
                                     </Table.Th>
                                 );
 
@@ -1014,6 +1444,7 @@ function DataTableInner<TRow extends object>(
                                     data-index={item.index}
                                     data-selected={isSelected ? "true" : undefined}
                                     aria-rowindex={item.index + 2}
+                                    aria-label={rowLabel?.(row.original)}
                                     aria-selected={isSelectable ? isSelected : undefined}
                                     onDoubleClick={(event) => {
                                         onRowDoubleClick?.(row.original, event);
@@ -1046,8 +1477,15 @@ function DataTableInner<TRow extends object>(
                                         // itself is handed through untouched.
                                         const drawn =
                                             config?.cell === undefined ? (
-                                                <span className="cm-dt-text" dir="auto">
-                                                    {text}
+                                                <span className="cm-dt-text" dir="auto" data-cut-tip="">
+                                                    {text === "" ? (
+                                                        // An empty cell is named, not silent.
+                                                        <VisuallyHidden component="span">
+                                                            {labels.emptyCell ?? defaultLabels.emptyCell}
+                                                        </VisuallyHidden>
+                                                    ) : (
+                                                        text
+                                                    )}
                                                 </span>
                                             ) : (
                                                 config.cell(row.original)
@@ -1056,24 +1494,21 @@ function DataTableInner<TRow extends object>(
                                         return (
                                             <Table.Td
                                                 key={column.id}
-                                                role="gridcell"
+                                                role={config?.rowHeader === true ? "rowheader" : "gridcell"}
+                                                // Said on the cell too: a screen reader moving through
+                                                // the cells reads the cell's state, not its row's.
+                                                aria-selected={isSelectable ? isSelected : undefined}
                                                 data-testid="data-table-cell"
+                                                data-tone={config?.cellTone?.(row.original)}
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}
                                                 tabIndex={isFocused ? 0 : -1}
+                                                // A cell ellipsizes when the column is too narrow
+                                                // for its value; the pointer gets the whole value
+                                                // in a tooltip (showCut), and a screen reader reads
+                                                // all of it, since the ellipsis is only drawn.
                                                 className="cm-dt-cell"
-                                                // A cell ellipsizes when the
-                                                // column is too narrow for its
-                                                // value, so it carries the whole
-                                                // value as a title for a
-                                                // pointer. The ellipsis is a
-                                                // drawing rather than a
-                                                // truncation: the whole value is
-                                                // still the cell's text, so a
-                                                // screen reader reads all of it
-                                                // either way.
-                                                title={config?.cell === undefined ? text : undefined}
                                                 onFocus={() => {
                                                     setFocus((previous) =>
                                                         samePosition(previous, { row: item.index, column: index })
@@ -1111,6 +1546,15 @@ function DataTableInner<TRow extends object>(
                     </Box>
                 )}
             </Box>
+
+            {/* What arrives after the fact -- a search that changed how many
+                rows there are, a selection made with the keyboard -- is said
+                out loud rather than only drawn. It comes after the rows, so a
+                reader reading the page never hears it run on from the text
+                above the table. */}
+            <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
+                {spokenStatus}
+            </VisuallyHidden>
         </Box>
     );
 }

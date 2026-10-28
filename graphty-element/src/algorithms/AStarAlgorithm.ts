@@ -1,5 +1,5 @@
 import { astar } from "@graphty/algorithms";
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { detHypot, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import type { EdgeId } from "../catalog/types";
@@ -71,7 +71,7 @@ function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: n
     return (node, target) => {
         const a = rowOf(node) * 3;
         const b = rowOf(target) * 3;
-        const d = Math.hypot(xyz[a] - xyz[b], xyz[a + 1] - xyz[b + 1], xyz[a + 2] - xyz[b + 2]);
+        const d = detHypot(xyz[a] - xyz[b], xyz[a + 1] - xyz[b + 1], xyz[a + 2] - xyz[b + 2]);
         return Number.isFinite(d) ? d : 0;
     };
 }
@@ -89,6 +89,8 @@ function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: n
 export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
     static readonly namespace = "graphty";
     static readonly type = "astar";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
@@ -182,7 +184,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
             caveats: declaredCaveats({
                 method: heuristic === "none" ? "astar" : "astar-layout-distance",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 exact: heuristic === "none",
                 facts: [
                     caveat(found ? "route.found" : "route.none", { source, target }),

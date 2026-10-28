@@ -54,8 +54,10 @@ const RESERVED = new Set([
 const KEYWORDS = new Set(["visible", "graph", "selection", "largest-component"]);
 
 /** Every edge reading this element knows. */
-export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped"];
+export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped", "incident"];
 const DIRECTIONS = new Set(["in", "out", "all"]);
+/** The modes a `text` leaf compares by. */
+const TEXT_MODES = new Set(["substring", "exact", "starts-with", "ends-with", "regex"]);
 
 /**
  * A refusal.
@@ -311,7 +313,7 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above"]);
+    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties"]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -332,9 +334,16 @@ function checkThreshold(value: Loose, walker: Walker): void {
     if (value.above !== undefined && !isFiniteNumber(value.above)) {
         throw bad('A "threshold" leaf\'s above is a finite number.', { above: value.above });
     }
+
+    if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
+        throw bad('A "threshold" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
+    }
 }
 
-/** The roots a field path may start with. Any other root is reserved for a later release. */
+/**
+ * The roots a field path may start with, beside `graphty.source.` and `graphty.target.` in front
+ * of one of them. Any other root is reserved for a later release.
+ */
 const FIELD_ROOTS = new Set(["data", "results"]);
 
 /**
@@ -346,6 +355,13 @@ const FIELD_ROOTS = new Set(["data", "results"]);
  */
 function checkRoot(path: unknown): void {
     if (typeof path !== "string" || path === "") {
+        return;
+    }
+
+    // A node's value read at an edge's end: its node path is checked as any other.
+    const end = /^graphty\.(?:source|target)\.(.+)$/.exec(path);
+    if (end !== null) {
+        checkRoot(end[1]);
         return;
     }
 
@@ -375,6 +391,66 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
 }
 
 /**
+ * Refuse an attribute leaf's `nodes` that is neither `"all"` nor `"ends"`.
+ * @param value - The leaf.
+ */
+function checkLeafNodes(value: Readonly<Record<string, unknown>>): void {
+    if (value.nodes !== undefined && value.nodes !== "all" && value.nodes !== "ends" && value.nodes !== "none") {
+        throw bad(`A "${String(value.kind)}" leaf's nodes are "all", "ends" or "none".`, { nodes: value.nodes });
+    }
+}
+
+/**
+ * Check a `text` leaf: what it reads (`"id"` or a value path), a known mode, the text (a
+ * regular expression that parses, for `regex`), and the optional flags.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkTextLeaf(value: Loose, walker: Walker): void {
+    if (value.reads !== "id") {
+        checkQuery(value.reads, 'A "text" leaf\'s reads');
+        checkDoorRoot(value.reads, walker);
+    }
+
+    if (!TEXT_MODES.has(value.mode as string)) {
+        walker.unknown(String(value.mode), 'A "text" leaf\'s mode');
+    }
+
+    if (typeof value.text !== "string") {
+        throw bad('A "text" leaf\'s text is a string.', { text: value.text });
+    }
+
+    if (value.caseSensitive !== undefined && typeof value.caseSensitive !== "boolean") {
+        throw bad('A "text" leaf\'s caseSensitive is true or false.', { caseSensitive: value.caseSensitive });
+    }
+
+    checkLeafNodes(value);
+
+    if (value.mode === "regex") {
+        try {
+            new RegExp(value.text);
+        } catch (error) {
+            throw bad(
+                `"${value.text}" is not a regular expression: ${error instanceof Error ? error.message : String(error)}`,
+                {
+                    text: value.text,
+                },
+            );
+        }
+    }
+}
+
+/**
+ * Check a leaf's side, when it has one.
+ * @param value - The leaf.
+ */
+function checkSide(value: Readonly<Record<string, unknown>>): void {
+    if (value.side !== undefined && value.side !== "nodes" && value.side !== "edges") {
+        throw bad(`A "${String(value.kind)}" leaf's side is "nodes" or "edges".`, { side: value.side });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -397,16 +473,18 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "range":
-            known(["attribute", "min", "max"]);
+            known(["attribute", "min", "max", "nodes"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
+            checkLeafNodes(value);
 
             return;
         case "categories":
-            known(["attribute", "values"]);
+            known(["attribute", "values", "nodes"]);
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
+            checkLeafNodes(value);
 
             if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
                 throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });
@@ -445,6 +523,15 @@ function checkTree(value: unknown, walker: Walker): void {
             known([]);
 
             return;
+        case "source":
+            known(["sources", "side"]);
+            checkSide(value);
+
+            if (!Array.isArray(value.sources) || !value.sources.every((key) => typeof key === "string")) {
+                throw bad('A "source" leaf\'s sources are a list of load keys.', { sources: value.sources });
+            }
+
+            return;
         case "member":
             known(["of"]);
             checkScope(value.of, walker);
@@ -457,6 +544,11 @@ function checkTree(value: unknown, walker: Walker): void {
             return;
         case "threshold":
             checkThreshold(value, walker);
+
+            return;
+        case "text":
+            known(["reads", "mode", "text", "caseSensitive", "nodes"]);
+            checkTextLeaf(value, walker);
 
             return;
         case "all":
@@ -533,6 +625,8 @@ export function speaksEdges(
         case "self-loop":
         case "repeated-edge":
             return true;
+        case "source":
+            return node.side !== "nodes";
         case "member":
             return readingOfScope(node.of, referent) !== "induced";
         case "item": {
@@ -619,7 +713,7 @@ function checkScope(value: unknown, walker: Walker): void {
  */
 function checkReading(value: unknown): void {
     if (!(EDGE_READINGS as readonly unknown[]).includes(value)) {
-        throw bad(`A set's reading is "induced", "listed" or "clipped".`, { reading: value });
+        throw bad(`A set's reading is "induced", "listed", "clipped" or "incident".`, { reading: value });
     }
 }
 
@@ -648,79 +742,122 @@ function checkDefinition(value: unknown, walker: Walker): void {
 
     switch (value.kind) {
         case "fixed":
-            walker.fields(value, "fixed", DEFINITION_FIELDS.fixed);
-            checkIds(value.nodes, "A fixed set's nodes");
-            checkReading(value.reading);
-
-            if (value.edges !== undefined) {
-                if (!Array.isArray(value.edges)) {
-                    throw bad("A fixed set's edges are a list of edge members.", { edges: value.edges });
-                }
-
-                for (const member of value.edges) {
-                    checkEdgeMember(member, walker);
-                }
-            }
-
+            checkFixed(value, walker);
             break;
         case "rule":
-            walker.fields(value, "rule", DEFINITION_FIELDS.rule);
-            checkReading(value.reading);
-
-            if (typeof value.where === "string") {
-                checkQuery(value.where, "A rule");
-            } else {
-                checkTree(value.where, walker);
-            }
-
-            // Load mode keeps this form: a stored one reads invalid instead of failing the load.
-            if (walker.mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
-                throw inducedEdgeLeaf();
-            }
-
+            checkRule(value, walker);
             break;
-        case "path": {
-            walker.fields(value, "path", DEFINITION_FIELDS.path);
-            checkIds(value.nodes, "A path's nodes");
-
-            const nodes = value.nodes as readonly unknown[];
-            if (nodes.length === 0) {
-                throw bad("A path has at least one node; one node is a path of length zero.");
-            }
-
-            if (value.directed !== undefined && typeof value.directed !== "boolean") {
-                throw bad("A path's directed is true or false.", { directed: value.directed });
-            }
-
-            if (value.edges !== undefined) {
-                if (!Array.isArray(value.edges) || value.edges.length !== nodes.length - 1) {
-                    throw bad(`A path of ${nodes.length} nodes names ${nodes.length - 1} steps' edges, one per step.`, {
-                        edges: value.edges,
-                    });
-                }
-
-                (value.edges as readonly unknown[]).forEach((step, i) => {
-                    if (step === null) {
-                        return;
-                    }
-
-                    if (Array.isArray(step) && step.length === 0) {
-                        throw bad(
-                            "A path step's edge group names at least one edge; null means every edge of the pair.",
-                        );
-                    }
-
-                    for (const member of Array.isArray(step) ? step : [step]) {
-                        checkEdgeMember(member, walker);
-                        checkStepEnds(member as EdgeMember, nodes[i], nodes[i + 1], i, walker);
-                    }
-                });
-            }
-
+        case "path":
+            checkPath(value, walker);
             break;
-        }
         default:
             walker.unknown(value.kind, "The set definition kind");
+    }
+}
+
+/**
+ * Check a fixed definition.
+ * @param value - The candidate, whose kind is "fixed".
+ * @param walker - The pass.
+ */
+function checkFixed(value: Loose, walker: Walker): void {
+    walker.fields(value, "fixed", DEFINITION_FIELDS.fixed);
+    checkIds(value.nodes, "A fixed set's nodes");
+    checkReading(value.reading);
+    if (value.reading === "incident") {
+        throw bad('"incident" reads a rule\'s node half; a fixed set is read "induced" or "listed".', {
+            reading: value.reading,
+        });
+    }
+
+    if (value.edges === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(value.edges)) {
+        throw bad("A fixed set's edges are a list of edge members.", { edges: value.edges });
+    }
+
+    for (const member of value.edges) {
+        checkEdgeMember(member, walker);
+    }
+}
+
+/**
+ * Check a rule definition.
+ * @param value - The candidate, whose kind is "rule".
+ * @param walker - The pass.
+ */
+function checkRule(value: Loose, walker: Walker): void {
+    walker.fields(value, "rule", DEFINITION_FIELDS.rule);
+    checkReading(value.reading);
+
+    if (typeof value.where === "string") {
+        checkQuery(value.where, "A rule");
+    } else {
+        checkTree(value.where, walker);
+    }
+
+    // Load mode keeps this form: a stored one reads invalid instead of failing the load.
+    if (walker.mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
+        throw inducedEdgeLeaf();
+    }
+}
+
+/**
+ * Check a path definition.
+ * @param value - The candidate, whose kind is "path".
+ * @param walker - The pass.
+ */
+function checkPath(value: Loose, walker: Walker): void {
+    walker.fields(value, "path", DEFINITION_FIELDS.path);
+    checkIds(value.nodes, "A path's nodes");
+
+    const nodes = value.nodes as readonly unknown[];
+    if (nodes.length === 0) {
+        throw bad("A path has at least one node; one node is a path of length zero.");
+    }
+
+    if (value.directed !== undefined && typeof value.directed !== "boolean") {
+        throw bad("A path's directed is true or false.", { directed: value.directed });
+    }
+
+    if (value.edges === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(value.edges) || value.edges.length !== nodes.length - 1) {
+        throw bad(`A path of ${nodes.length} nodes names ${nodes.length - 1} steps' edges, one per step.`, {
+            edges: value.edges,
+        });
+    }
+
+    (value.edges as readonly unknown[]).forEach((step, i) => {
+        checkPathStep(step, nodes[i], nodes[i + 1], i, walker);
+    });
+}
+
+/**
+ * Check one path step's edge group: null, one edge member, or a non-empty list of them, each
+ * joining the step's two nodes.
+ * @param step - The step's edges.
+ * @param from - The step's first node.
+ * @param to - The step's second node.
+ * @param index - The step's index.
+ * @param walker - The pass.
+ */
+function checkPathStep(step: unknown, from: unknown, to: unknown, index: number, walker: Walker): void {
+    if (step === null) {
+        return;
+    }
+
+    if (Array.isArray(step) && step.length === 0) {
+        throw bad("A path step's edge group names at least one edge; null means every edge of the pair.");
+    }
+
+    for (const member of Array.isArray(step) ? step : [step]) {
+        checkEdgeMember(member, walker);
+        checkStepEnds(member as EdgeMember, from, to, index, walker);
     }
 }
 

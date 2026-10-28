@@ -1,3 +1,63 @@
+## 1.4.7 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-io:** network source framework (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([375d33678](https://github.com/graphty-org/graphty-monorepo/commit/375d33678))
+- **graph-format:** reserve staging address space in proportion to use ([89de6ec7d](https://github.com/graphty-org/graphty-monorepo/commit/89de6ec7d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.6 (2026-10-20)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.5 (2026-10-18)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.4 (2026-10-17)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.3 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([bd9e2bf64](https://github.com/graphty-org/graphty-monorepo/commit/bd9e2bf64))
+- **graph-format:** reserve staging address space in proportion to use ([328de8926](https://github.com/graphty-org/graphty-monorepo/commit/328de8926))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.2 (2026-10-15)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.1 (2026-10-14)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-format:** export engine-independent log, exp, sin, cos, acos, hypot and pow ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🩹 Fixes
+
+- **graph-format:** list the engine-independent math in design section 12.2 ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.15 (2026-10-13)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

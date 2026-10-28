@@ -1,4 +1,4 @@
-import { ActionIcon, Box } from "@mantine/core";
+import { ActionIcon, Box, Tooltip } from "@mantine/core";
 import React, { useId } from "react";
 
 import { PANEL_GRID } from "../constants/panel";
@@ -24,7 +24,8 @@ import { PopoutManager } from "./popout/PopoutManager";
 // button with a 12px glyph, the bubble the light popover shell, 240 wide, with
 // 11/16 secondary body text. It is a hover bubble, so it stays out of the
 // one-popover-at-a-time rule: showing an explanation never closes the panel
-// the person is working in.
+// the person is working in. Inside a Popout.Anchor (a side panel) the bubble
+// stays across the panel.
 
 /**
  * The width of the info bubble: Figma's default light popover. A surface this
@@ -71,20 +72,24 @@ function InfoCircleTrigger({ name, bubbleId }: Readonly<InfoCircleTriggerProps>)
     return (
         // Hovering has already opened the bubble by the time a click arrives,
         // so the trigger only ever opens rather than toggling.
+        // Its tooltip is its name, as every icon button's is, below it as Figma places them; it stays
+        // shut while the bubble is open. On hover only: focus already
+        // says the name, and a tooltip open on focus would take the Escape that closes the bubble.
         <Popout.Trigger action="open">
-            <ActionIcon
-                variant="subtle"
-                size="sm"
-                aria-label={name}
-                aria-describedby={isOpen ? bubbleId : undefined}
-                data-testid="info-circle"
-                onMouseEnter={open}
-                onMouseLeave={close}
-                onFocus={open}
-                onBlur={close}
-            >
-                <UiGlyph name="info" size={PANEL_GRID.GLYPH} />
-            </ActionIcon>
+            <Tooltip label={name} events={{ hover: true, focus: false, touch: false }}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={name}
+                    aria-describedby={isOpen ? bubbleId : undefined}
+                    data-testid="info-circle"
+                    onMouseEnter={open}
+                    onMouseLeave={close}
+                    onBlur={close}
+                >
+                    <UiGlyph name="info" size={PANEL_GRID.GLYPH} />
+                </ActionIcon>
+            </Tooltip>
         </Popout.Trigger>
     );
 }
@@ -92,11 +97,11 @@ function InfoCircleTrigger({ name, bubbleId }: Readonly<InfoCircleTriggerProps>)
 // Accessibility: the APG "Disclosure" pattern. The button carries
 // aria-expanded and, while the bubble is open, aria-describedby pointing at it,
 // so the explanation is announced as the description of the button rather than
-// as a stray region. The button is reachable by Tab and opens on focus, so the
-// explanation is available without a pointer.
+// as a stray region. The button is reachable by Tab and opens on Enter or Space,
+// not on focus: Tabbing through a panel never drops a bubble over the rows below.
 
 /**
- * A circled "i" that reveals an explanation on hover, on focus or on tap.
+ * A circled "i" that reveals an explanation on hover, on Enter or Space, or on tap.
  *
  * Use it where an explanation would otherwise become a sentence of its own on a
  * dense panel: put it immediately after the name of the thing it explains. Give
@@ -163,8 +168,11 @@ export function InfoCircle({
                 // A bubble that opens on hover must not take focus away from
                 // whatever the person is doing.
                 manageFocus={false}
+                // In a side panel, the bubble stays over the panel, inset from its edges and narrowed to fit.
+                contained
             >
-                <Box id={bubbleId} w={BUBBLE_WIDTH} className="cm-info-bubble">
+                {/* No width of its own: the panel's, narrowed to fit inside a narrow side panel. */}
+                <Box id={bubbleId} className="cm-info-bubble">
                     {children}
                 </Box>
             </Popout.Panel>

@@ -1,3 +1,83 @@
+## 0.1.39 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-samples:** publish a picture of every large dataset and every generator ([a895fb9b3](https://github.com/graphty-org/graphty-monorepo/commit/a895fb9b3))
+- **graph-samples:** a catalogue of every generator, and generateGraph to run one by name ([b51fa5053](https://github.com/graphty-org/graphty-monorepo/commit/b51fa5053))
+- **graph-samples:** a picture of each small dataset, published beside its file ([cd843173e](https://github.com/graphty-org/graphty-monorepo/commit/cd843173e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.38 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+
+## 0.1.37 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+
+## 0.1.36 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+
+## 0.1.35 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+
+## 0.1.34 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+
+## 0.1.33 (2026-10-15)
+
+### 🚀 Features
+
+- **graph-samples:** load every dataset from graphty.app instead of bundling it ([11d72b864](https://github.com/graphty-org/graphty-monorepo/commit/11d72b864))
+
+### 🩹 Fixes
+
+- **graph-samples:** pack hosted datasets without a commit stamp ([#2709](https://github.com/graphty-org/graphty-monorepo/issues/2709))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.32 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.1
+
+## 0.1.31 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graph-samples:** use graph-format's engine-independent log and exp ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.30 (2026-10-13)
 
 ### 🧱 Updated Dependencies

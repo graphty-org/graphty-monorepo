@@ -17,8 +17,11 @@
  * one `graphIndex` / `graphName` picks, `listGraphs()` lists them. Positions come from the
  * subnetwork's view, y flipped to y-up, `z` into the `z` column; `cyGroups` give `parent` (or
  * `parents`); per-element visual properties are one column per property (origin namespace
- * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx` and not applied
- * (W_STYLES_NOT_IMPORTED, issue #706); provenance aspects become extension tables and list columns.
+ * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx`; asked for styles
+ * (`importGraph(..., { styles: true })`), the importer reads the view's style rules and bypasses
+ * (styles.ts), kept for it through the report, otherwise W_STYLES_NOT_IMPORTED; the `graphty.styles`
+ * aspect of a file graphty wrote becomes the graph attribute of that name; provenance aspects become
+ * extension tables and list columns.
  */
 
 import {
@@ -111,6 +114,7 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -120,6 +124,7 @@ import {
     type ImportReport,
 } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
+import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -773,12 +778,13 @@ function checkNumberVerification(value: unknown, count: number, report: ImportRe
     const raw = isRecord(value) ? value.longNumber : undefined;
     const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
     if (count > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
+        const held = raw === undefined ? null : digits;
         report.warning(
             "validation-error",
             CX_ISSUE.NUMBER_VERIFICATION,
             count > 1
                 ? "a second numberVerification element; ignored"
-                : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
+                : `numberVerification holds ${shown(held)}, not 281474976710655`,
             { line, element: "numberVerification" },
         );
     }
@@ -993,10 +999,12 @@ async function readDocument(
                         break;
                     }
                     countMember(event.block, null);
+                    const what =
+                        keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
                     report.error(
                         "parse-error",
                         BAD_ASPECT_BLOCK_CODE,
-                        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect fragment; skipped`,
+                        `a member of the document is ${what}, not a one-key aspect fragment; skipped`,
                         { line: event.line, element: keys[0] ?? null },
                     );
                     break;
@@ -1078,6 +1086,41 @@ function refId(raw: unknown): NodeId | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * The view a cyVisualProperties entry names.
+ * @param entry - the entry
+ * @returns the view's id, or null when it names none
+ */
+function entryView(entry: Record<string, unknown>): NodeId | null {
+    return entry.view === undefined || entry.view === null ? null : refId(entry.view);
+}
+
+/**
+ * A visual property value as the text of a bypass cell.
+ * @param raw - the value
+ * @returns the string itself, else its JSON
+ */
+function cellText(raw: unknown): string {
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
+
+/** What readVisualProperties() collects from the entries of this graph's view. */
+interface VisualPropertiesRead {
+    /** The per-element values, by property: [row, text] pairs. */
+    readonly columns: {
+        readonly node: Map<string, [number, string][]>;
+        readonly edge: Map<string, [number, string][]>;
+    };
+    /** The network values, by property. */
+    readonly network: Map<string, string>;
+    /** How many default values the entries hold. */
+    defaults: number;
+    /** How many mappings. */
+    mappings: number;
+    /** How many dependencies. */
+    dependencies: number;
 }
 
 /**
@@ -1486,6 +1529,7 @@ class CxReader {
         this.writeAttributes("edge", edgeColumns);
         this.readNetworkAttributes();
         this.readVisualProperties();
+        this.readStyleBlock();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
             report.warning(
@@ -2854,54 +2898,108 @@ class CxReader {
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
-        const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
-        const network = new Map<string, string>();
-        let defaults = 0;
-        let mappings = 0;
-        let dependencies = 0;
+        const ofThisView = (view: NodeId | null): boolean => view === null || views.size === 0 || views.has(view);
+        this.keepVisualPropertiesForStyles(entries, ofThisView);
+        const read: VisualPropertiesRead = {
+            columns: { node: new Map(), edge: new Map() },
+            network: new Map(),
+            defaults: 0,
+            mappings: 0,
+            dependencies: 0,
+        };
         for (const { value } of entries) {
-            if (!isRecord(value)) {
-                continue;
-            }
-            const view = value.view === undefined || value.view === null ? null : refId(value.view);
-            if (view !== null && views.size > 0 && !views.has(view)) {
-                continue;
-            }
-            const properties = isRecord(value.properties) ? value.properties : {};
-            mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
-            dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
-            switch (value.properties_of) {
-                case "nodes":
-                case "edges": {
-                    const domain = value.properties_of === "nodes" ? "node" : "edge";
-                    const target = refId(value.applies_to);
-                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-                    const row = target === null ? undefined : rows.get(target);
-                    if (row === undefined) {
-                        if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
-                            this.dangle(`${domain} visual property entry`);
-                        }
-                        continue;
-                    }
-                    for (const [property, raw] of Object.entries(properties)) {
-                        const list = columns[domain].get(property) ?? [];
-                        list.push([row, typeof raw === "string" ? raw : JSON.stringify(raw)]);
-                        columns[domain].set(property, list);
-                    }
-                    break;
-                }
-                case "network":
-                    for (const [property, raw] of Object.entries(properties)) {
-                        network.set(property, typeof raw === "string" ? raw : JSON.stringify(raw));
-                    }
-                    break;
-                default:
-                    defaults += Object.keys(properties).length;
-                    break;
+            if (isRecord(value) && ofThisView(entryView(value))) {
+                this.collectVisualProperties(value, read);
             }
         }
+        this.writeBypassColumns(read);
+        this.warnStylesNotImported(read, tableStyles);
+    }
+
+    /**
+     * Hand the style reader the entries of this graph's view (and those naming no view).
+     * @param entries - every cyVisualProperties entry
+     * @param ofThisView - whether a view is this graph's
+     */
+    private keepVisualPropertiesForStyles(
+        entries: readonly { value: unknown }[],
+        ofThisView: (view: NodeId | null) => boolean,
+    ): void {
+        const others = new Set<unknown>();
+        const kept = entries
+            .map((h) => h.value)
+            .filter((v) => {
+                const view = isRecord(v) ? entryView(v) : null;
+                if (!ofThisView(view)) {
+                    others.add(view);
+                    return false;
+                }
+                return true;
+            });
+        const { weightFrom } = this.options;
+        const collection = aspect(this.doc, "cySubNetworks").length > 0;
+        const source: CxStyleSource =
+            others.size > 0
+                ? { entries: kept, otherViews: others.size, weightFrom, collection }
+                : { entries: kept, weightFrom, collection };
+        this.report.keepForStyles(source);
+    }
+
+    /**
+     * Collect one cyVisualProperties entry of this graph's view.
+     * @param value - the entry
+     * @param read - what is collected so far
+     */
+    private collectVisualProperties(value: Record<string, unknown>, read: VisualPropertiesRead): void {
+        const properties = isRecord(value.properties) ? value.properties : {};
+        read.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
+        read.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
+        if (value.properties_of === "nodes" || value.properties_of === "edges") {
+            this.collectElementProperties(value, properties, read);
+        } else if (value.properties_of === "network") {
+            for (const [property, raw] of Object.entries(properties)) {
+                read.network.set(property, cellText(raw));
+            }
+        } else {
+            read.defaults += Object.keys(properties).length;
+        }
+    }
+
+    /**
+     * Collect the per-element values of a nodes or edges entry.
+     * @param value - the entry
+     * @param properties - its properties
+     * @param read - what is collected so far
+     */
+    private collectElementProperties(
+        value: Record<string, unknown>,
+        properties: Record<string, unknown>,
+        read: VisualPropertiesRead,
+    ): void {
+        const domain = value.properties_of === "nodes" ? "node" : "edge";
+        const target = refId(value.applies_to);
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined) {
+            if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
+                this.dangle(`${domain} visual property entry`);
+            }
+            return;
+        }
+        for (const [property, raw] of Object.entries(properties)) {
+            const list = read.columns[domain].get(property) ?? [];
+            list.push([row, cellText(raw)]);
+            read.columns[domain].set(property, list);
+        }
+    }
+
+    /**
+     * Write the per-element and network values as string columns in the cx.bypass namespace.
+     * @param read - what was collected
+     */
+    private writeBypassColumns(read: VisualPropertiesRead): void {
         for (const domain of ["node", "edge"] as const) {
-            for (const [property, cells] of columns[domain]) {
+            for (const [property, cells] of read.columns[domain]) {
                 const handle = declareFresh(
                     this.sink,
                     domain,
@@ -2922,7 +3020,7 @@ class CxReader {
                 }
             }
         }
-        for (const [property, text] of network) {
+        for (const [property, text] of read.network) {
             try {
                 this.sink.setGraphValue(property, text, {
                     dtype: "string",
@@ -2932,19 +3030,40 @@ class CxReader {
                 this.report.recordError(err, { element: property });
             }
         }
-        if (defaults + mappings + dependencies + tableStyles > 0) {
-            const parts = [
-                `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
-            ];
-            if (tableStyles > 0) {
-                parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
-            }
-            this.report.warning(
-                "unsupported",
-                STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
-                { element: "cyVisualProperties" },
-            );
+    }
+
+    /**
+     * The warning that the file's style rules are kept and not applied, when it has any.
+     * @param read - what was collected
+     * @param tableStyles - how many table style elements the file holds
+     */
+    private warnStylesNotImported(read: VisualPropertiesRead, tableStyles: number): void {
+        const { defaults, mappings, dependencies } = read;
+        if (defaults + mappings + dependencies + tableStyles === 0) {
+            return;
+        }
+        const parts = [
+            `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
+        ];
+        if (tableStyles > 0) {
+            parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
+        }
+        this.report.warning(
+            "unsupported",
+            STYLES_NOT_IMPORTED_CODE,
+            `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
+            { element: "cyVisualProperties" },
+        );
+    }
+
+    /** The `graphty.styles` aspect of a file graphty wrote, as the graph attribute of that name. */
+    private readStyleBlock(): void {
+        const block = blockOfAspect(this.doc.kept.get(STYLE_BLOCK_NAME));
+        if (block !== null) {
+            this.sink.setGraphValue(STYLE_BLOCK_NAME, block, {
+                dtype: "string",
+                origin: { format: CX_FORMAT, id: null },
+            });
         }
     }
 
@@ -3148,7 +3267,10 @@ class CxReader {
             }
             return found;
         };
-        const extra: Record<string, unknown> = Object.fromEntries(this.doc.kept);
+        // the graphty.styles aspect is read as a graph attribute (readStyleBlock), not kept
+        const extra: Record<string, unknown> = Object.fromEntries(
+            [...this.doc.kept].filter(([name]) => name !== STYLE_BLOCK_NAME),
+        );
         const groups = aspect(this.doc, "cyGroups").map((h) => plainJson(h.value));
         const own: Record<string, unknown> = {};
         if (groups.length > 0) {
@@ -3230,6 +3352,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCxStyles,
 
     /**
      * Confidence that the head is CX version 1: 0.95 when a top-level array starts with an object

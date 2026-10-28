@@ -1,0 +1,329 @@
+{
+    "properties": [
+        {
+            "name": "edge.show",
+            "type": "Boolean",
+            "category": "Edges",
+            "default": "true",
+            "displayName": "Show Edges",
+            "description": ""
+        },
+        {
+            "name": "edge.thickness",
+            "type": "Float",
+            "category": "Edges",
+            "default": "1.0",
+            "displayName": "Thickness",
+            "description": ""
+        },
+        {
+            "name": "edge.use-weight",
+            "type": "Boolean",
+            "category": "Edges",
+            "default": "true",
+            "displayName": "Use weight",
+            "description": "Use edge weight to determine thickness"
+        },
+        {
+            "name": "edge.rescale-weight",
+            "type": "Boolean",
+            "category": "Edges",
+            "default": "false",
+            "displayName": "Rescale weight",
+            "description": "Rescale edge weights to a normalized range"
+        },
+        {
+            "name": "edge.rescale-weight.min",
+            "type": "Float",
+            "category": "Edges",
+            "default": "0.4",
+            "displayName": "Min. rescaled weight",
+            "description": "Minimum allowed weight after rescaling"
+        },
+        {
+            "name": "edge.rescale-weight.max",
+            "type": "Float",
+            "category": "Edges",
+            "default": "8.0",
+            "displayName": "Max. rescaled weight",
+            "description": "Maximum allowed weight after rescaling"
+        },
+        {
+            "name": "edge.color",
+            "type": "EdgeColor",
+            "category": "Edges",
+            "default": "mixed",
+            "displayName": "Color",
+            "description": ""
+        },
+        {
+            "name": "edge.opacity",
+            "type": "Float",
+            "category": "Edges",
+            "default": "100.0",
+            "displayName": "Opacity",
+            "description": ""
+        },
+        {
+            "name": "edge.curved",
+            "type": "Boolean",
+            "category": "Edges",
+            "default": "true",
+            "displayName": "Curved",
+            "description": ""
+        },
+        {
+            "name": "edge.radius",
+            "type": "Float",
+            "category": "Edges",
+            "default": "0.0",
+            "displayName": "Radius",
+            "description": ""
+        },
+        {
+            "name": "arrow.size",
+            "type": "Float",
+            "category": "Edge Arrows",
+            "default": "3.0",
+            "displayName": "Size",
+            "description": ""
+        },
+        {
+            "name": "node.border.fixed",
+            "type": "Boolean",
+            "category": "Nodes",
+            "default": "false",
+            "displayName": "Fixed Border Width",
+            "description": "The border has a fixed size. If false, it scales with the node size like in \"Overview\"."
+        },
+        {
+            "name": "node.border.width",
+            "type": "Float",
+            "category": "Nodes",
+            "default": "1.0",
+            "displayName": "Border Width",
+            "description": ""
+        },
+        {
+            "name": "node.border.color",
+            "type": "DependantColor",
+            "category": "Nodes",
+            "default": "darker",
+            "displayName": "Border Color",
+            "description": ""
+        },
+        {
+            "name": "node.opacity",
+            "type": "Float",
+            "category": "Nodes",
+            "default": "100.0",
+            "displayName": "Opacity",
+            "description": ""
+        },
+        {
+            "name": "node.per.node.opacity",
+            "type": "Boolean",
+            "category": "Nodes",
+            "default": "false",
+            "displayName": "Per-Node Opacity",
+            "description": "Use opacity defined at node level. If true, renderer's opacity property will be ignored."
+        },
+        {
+            "name": "node.label.show",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "false",
+            "displayName": "Show Labels",
+            "description": ""
+        },
+        {
+            "name": "node.label.customFont",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "false",
+            "displayName": "Customize Font",
+            "description": "If not, uses the same font as Overview"
+        },
+        {
+            "name": "node.label.font",
+            "type": "Font",
+            "category": "Node Labels",
+            "default": "Dialog,plain,12",
+            "displayName": "Font",
+            "description": ""
+        },
+        {
+            "name": "node.label.proportinalSize",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "true",
+            "displayName": "Proportional size",
+            "description": ""
+        },
+        {
+            "name": "node.label.color",
+            "type": "DependantOriginalColor",
+            "category": "Node Labels",
+            "default": "#000000",
+            "displayName": "Color",
+            "description": ""
+        },
+        {
+            "name": "node.label.shorten",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "false",
+            "displayName": "Shorten label",
+            "description": ""
+        },
+        {
+            "name": "node.label.avoidOverlap",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "true",
+            "displayName": "Avoid label overlap",
+            "description": "Hide node labels that overlap with labels of larger nodes"
+        },
+        {
+            "name": "node.label.overlapGridSize",
+            "type": "Integer",
+            "category": "Node Labels",
+            "default": "10",
+            "displayName": "Overlap grid size",
+            "description": "Grid cell size (in graph coordinate units) used by the label overlap avoidance algorithm, the smaller the value, the more precise the overlap avoidance is."
+        },
+        {
+            "name": "node.label.max-char",
+            "type": "Integer",
+            "category": "Node Labels",
+            "default": "30",
+            "displayName": "Max characters",
+            "description": ""
+        },
+        {
+            "name": "node.label.outline.size",
+            "type": "Float",
+            "category": "Node Labels",
+            "default": "0.0",
+            "displayName": "Outline size",
+            "description": ""
+        },
+        {
+            "name": "node.label.outline.color",
+            "type": "DependantColor",
+            "category": "Node Labels",
+            "default": "#ffffff",
+            "displayName": "Outline color",
+            "description": ""
+        },
+        {
+            "name": "node.label.outline.opacity",
+            "type": "Float",
+            "category": "Node Labels",
+            "default": "80.0",
+            "displayName": "Outline opacity",
+            "description": ""
+        },
+        {
+            "name": "node.label.box",
+            "type": "Boolean",
+            "category": "Node Labels",
+            "default": "false",
+            "displayName": "Box",
+            "description": ""
+        },
+        {
+            "name": "node.label.box.color",
+            "type": "DependantColor",
+            "category": "Node Labels",
+            "default": "parent",
+            "displayName": "Box color",
+            "description": ""
+        },
+        {
+            "name": "node.label.box.opacity",
+            "type": "Float",
+            "category": "Node Labels",
+            "default": "100.0",
+            "displayName": "Box opacity",
+            "description": ""
+        },
+        {
+            "name": "edge.label.show",
+            "type": "Boolean",
+            "category": "Edge Labels",
+            "default": "false",
+            "displayName": "Show Labels",
+            "description": ""
+        },
+        {
+            "name": "edge.label.customFont",
+            "type": "Boolean",
+            "category": "Edge Labels",
+            "default": "false",
+            "displayName": "Customize Font",
+            "description": "If not, uses the same font as Overview"
+        },
+        {
+            "name": "edge.label.font",
+            "type": "Font",
+            "category": "Edge Labels",
+            "default": "Dialog,plain,10",
+            "displayName": "Font",
+            "description": ""
+        },
+        {
+            "name": "edge.label.color",
+            "type": "DependantOriginalColor",
+            "category": "Edge Labels",
+            "default": "original",
+            "displayName": "Color",
+            "description": ""
+        },
+        {
+            "name": "edge.label.shorten",
+            "type": "Boolean",
+            "category": "Edge Labels",
+            "default": "false",
+            "displayName": "Shorten label",
+            "description": ""
+        },
+        {
+            "name": "edge.label.max-char",
+            "type": "Integer",
+            "category": "Edge Labels",
+            "default": "30",
+            "displayName": "Max characters",
+            "description": ""
+        },
+        {
+            "name": "edge.label.outline.size",
+            "type": "Float",
+            "category": "Edge Labels",
+            "default": "0.0",
+            "displayName": "Outline size",
+            "description": ""
+        },
+        {
+            "name": "edge.label.outline.color",
+            "type": "DependantColor",
+            "category": "Edge Labels",
+            "default": "#ffffff",
+            "displayName": "Outline color",
+            "description": ""
+        },
+        {
+            "name": "edge.label.outline.opacity",
+            "type": "Float",
+            "category": "Edge Labels",
+            "default": "80.0",
+            "displayName": "Outline opacity",
+            "description": ""
+        }
+    ],
+    "enums": {
+        "EdgeColor": "[SOURCE, TARGET, MIXED, CUSTOM, ORIGINAL]",
+        "DependantColor": "[PARENT, CUSTOM, DARKER, LIGHTER]",
+        "DependantOriginalColor": "[PARENT, CUSTOM, ORIGINAL]"
+    }
+}

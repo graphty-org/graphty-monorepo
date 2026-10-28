@@ -2,6 +2,8 @@
 import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
 import Hammer from "hammerjs";
 
+import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
+import { firstSight } from "../input/first-sight";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -25,7 +27,12 @@ interface GestureSession {
  * Processes mouse, touch, and keyboard input for 2D camera manipulation.
  */
 export class InputController {
-    private keyState: Record<string, boolean> = {};
+    /** The camera actions whose keys are held down now. */
+    private readonly held = new Set<CanvasKeyAction>();
+    /** The actions whose key went down since the last frame, so a tap between two frames acts. */
+    private readonly tapped = new Set<CanvasKeyAction>();
+    /** Whether the wheel zooms toward the point under the pointer; see `Graph.setZoomToPointer`. */
+    public zoomToPointer = false;
     private gestureSession: GestureSession | null = null;
     private hammer: HammerManager | null = null;
     private enabled = false;
@@ -39,11 +46,32 @@ export class InputController {
     };
 
     private readonly keyDownHandler = (e: KeyboardEvent): void => {
-        this.keyState[e.key] = true;
+        // A modified key is a shortcut, not a pan; see OrbitInputController
+        const action = canvasKeyAction("2d", e);
+        if (action !== null) {
+            this.held.add(action);
+            this.tapped.add(action);
+        }
+    };
+
+    // The canvas never sees the keyup of a key released after it lost focus
+    private readonly releaseKeys = (): void => {
+        this.held.clear();
+        this.tapped.clear();
     };
 
     private readonly keyUpHandler = (e: KeyboardEvent): void => {
-        this.keyState[e.key] = false;
+        // Released whatever modifiers are down by then.
+        const action = canvasKeyAction("2d", {
+            key: e.key,
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+            shiftKey: false,
+        });
+        if (action !== null) {
+            this.held.delete(action);
+        }
     };
 
     /**
@@ -88,8 +116,12 @@ export class InputController {
                         const orthoLeft = this.cam.camera.orthoLeft ?? 1;
                         const orthoTop = this.cam.camera.orthoTop ?? 1;
                         const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-                        const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-                        const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+                        const scaleX =
+                            (orthoRight - orthoLeft) /
+                            (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+                        const scaleY =
+                            (orthoTop - orthoBottom) /
+                            (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
                         const dx = e.clientX - lastX;
                         const dy = e.clientY - lastY;
@@ -107,11 +139,21 @@ export class InputController {
             }
         });
 
+        const newWheel = firstSight();
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
-            if (pi.type === PointerEventTypes.POINTERWHEEL) {
+            if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
                 const delta = e.deltaY > 0 ? this.config.mouseWheelZoomSpeed : 1 / this.config.mouseWheelZoomSpeed;
-                this.cam.zoom(delta);
+                if (this.zoomToPointer) {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.cam.zoomAt(
+                        delta,
+                        (e.clientX - rect.left) / Math.max(1, rect.width),
+                        (e.clientY - rect.top) / Math.max(1, rect.height),
+                    );
+                } else {
+                    this.cam.zoom(delta);
+                }
                 e.preventDefault();
             }
         }, PointerEventTypes.POINTERWHEEL);
@@ -154,8 +196,12 @@ export class InputController {
             const orthoLeft = this.cam.camera.orthoLeft ?? 1;
             const orthoTop = this.cam.camera.orthoTop ?? 1;
             const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-            const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-            const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+            const scaleX =
+                (orthoRight - orthoLeft) /
+                (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+            const scaleY =
+                (orthoTop - orthoBottom) /
+                (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
             const dx = ev.center.x - this.gestureSession.panX;
             const dy = ev.center.y - this.gestureSession.panY;
@@ -171,6 +217,7 @@ export class InputController {
 
             const rotRad = (-(ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
             this.cam.parent.rotation.z = this.gestureSession.rotation + rotRad;
+            this.cam.onReaderMove?.();
         });
 
         this.hammer.on("panend pinchend rotateend", () => {
@@ -191,6 +238,8 @@ export class InputController {
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
+        this.canvas.addEventListener("blur", this.releaseKeys);
+        document.addEventListener("visibilitychange", this.releaseKeys);
 
         // Setup mouse and touch handlers (these are removed in disable())
         this.setupMouse();
@@ -210,6 +259,9 @@ export class InputController {
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
+        this.canvas.removeEventListener("blur", this.releaseKeys);
+        document.removeEventListener("visibilitychange", this.releaseKeys);
+        this.releaseKeys();
 
         // Remove scene observable subscriptions
         if (this.pointerObserverHandle !== null) {
@@ -243,37 +295,50 @@ export class InputController {
 
         const v = this.cam.velocity;
         const c = this.config;
+        const before = v.x + v.y + v.zoom + v.rotate;
+        const on = (action: CanvasKeyAction): boolean => this.held.has(action) || this.tapped.has(action);
+        // The velocity is damped every frame, so a held key settles at push / (1 - damping).
+        // Scaling the push by (1 - damping) makes a held key zoom and turn by the configured
+        // amount per frame, rather than many times it.
+        const zoomPush = c.zoomFactorPerFrame * (1 - c.zoomDamping);
+        const rotatePush = c.rotateSpeedPerFrame * (1 - c.rotateDamping);
 
-        if (this.keyState.w || this.keyState.ArrowUp) {
+        if (on("pan-up")) {
             v.y += c.panAcceleration;
         }
 
-        if (this.keyState.s || this.keyState.ArrowDown) {
+        if (on("pan-down")) {
             v.y -= c.panAcceleration;
         }
 
-        if (this.keyState.a || this.keyState.ArrowLeft) {
+        if (on("pan-left")) {
             v.x -= c.panAcceleration;
         }
 
-        if (this.keyState.d || this.keyState.ArrowRight) {
+        if (on("pan-right")) {
             v.x += c.panAcceleration;
         }
 
-        if (this.keyState["+"] || this.keyState["="]) {
-            v.zoom -= c.zoomFactorPerFrame;
+        if (on("zoom-in")) {
+            v.zoom -= zoomPush;
         }
 
-        if (this.keyState["-"] || this.keyState._) {
-            v.zoom += c.zoomFactorPerFrame;
+        if (on("zoom-out")) {
+            v.zoom += zoomPush;
         }
 
-        if (this.keyState.q) {
-            v.rotate += c.rotateSpeedPerFrame;
+        if (on("roll-left")) {
+            v.rotate += rotatePush;
         }
 
-        if (this.keyState.e) {
-            v.rotate -= c.rotateSpeedPerFrame;
+        if (on("roll-right")) {
+            v.rotate -= rotatePush;
+        }
+
+        this.tapped.clear();
+
+        if (v.x + v.y + v.zoom + v.rotate !== before) {
+            this.cam.onReaderMove?.();
         }
     }
 

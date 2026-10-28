@@ -26,7 +26,7 @@ import { Color3, InstancedMesh, Mesh, StandardMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import type { z } from "zod";
 
-import { NodeShapes } from "../../src/config/NodeStyle";
+import { FLAT_NODE_SHAPES, NodeShapes } from "../../src/config/NodeStyle";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
@@ -68,7 +68,15 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
     goldberg: "goldberg",
     icosphere: "icosphere",
     geodesic: "geodesic",
+    // A flat shape's slab is named after the shape it draws.
+    ...Object.fromEntries(FLAT_NODE_SHAPES.map((name) => [name, name])),
 };
+
+/**
+ * The two shapes that once ignored the requested size (a capsule and a torus stayed at Babylon's
+ * default dimensions at every size): each now scales with the size like every other shape.
+ */
+const ONCE_SIZE_IGNORING_SHAPES = new Set(["capsule", "torus"]);
 
 /**
  * Hyphenated spellings `NodeMesh` registers for backward compatibility that the `NodeShapes`
@@ -204,7 +212,14 @@ describe("Node Golden Masters", () => {
             assert.equal(result.mesh.scaling.x, 1);
             assert.equal(result.mesh.scaling.y, 1);
             assert.equal(result.mesh.scaling.z, 1);
+            // Under the default sizeMode a sphere of size 5 is 5 across, as it always was.
             assert.closeTo(boundingExtent("sphere", 5), 5, 1e-6);
+        });
+
+        ONCE_SIZE_IGNORING_SHAPES.forEach((shape) => {
+            test(`${shape} scales with the requested size`, () => {
+                assert.closeTo(boundingExtent(shape as ShapeName, 5), 5 * boundingExtent(shape as ShapeName, 1), 1e-6);
+            });
         });
     });
 
@@ -324,7 +339,7 @@ describe("Node Golden Masters", () => {
             assert.isNotNull(result.material.diffuseTexture);
         });
 
-        test("2D gradients light the emissive channel as well as the diffuse one", () => {
+        test("2D gradients light the emissive channel alone, so the ramp is not drawn squared", () => {
             const result = createNode({
                 shape: "sphere",
                 is2D: true,
@@ -332,6 +347,7 @@ describe("Node Golden Masters", () => {
             });
 
             assert.isNotNull(result.material.emissiveTexture);
+            assert.isNull(result.material.diffuseTexture);
             assert.isTrue(result.material.disableLighting);
         });
 

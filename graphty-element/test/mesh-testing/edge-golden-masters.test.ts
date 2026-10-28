@@ -196,23 +196,28 @@ describe("Edge Golden Masters", () => {
             const mesh = makeEdge({ style: { line: { type: "solid" } } }) as Mesh;
 
             assert.notInstanceOf(mesh, InstancedMesh);
-            assert.instanceOf(mesh.material, StandardMaterial);
+            // The joined line shader, its width in world units so the line zooms with the graph.
+            assert.instanceOf(mesh.material, ShaderMaterial);
+            assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
             assert.isTrue(mesh.metadata.is2DLine, "Edge.update reads this to decide how to move the line");
             assert.equal(ctx.cache.size(), 0, "2D lines are per-edge, so nothing is cached");
         });
 
-        test("2D lines are unlit and coloured through the emissive channel", () => {
+        test("2D lines are unlit: the shader writes the colour as it is", () => {
             const mesh = makeEdge({ style: { line: { type: "solid" } }, color: "#00FF00" }) as Mesh;
-            const material = mesh.material as StandardMaterial;
+            const { vectors3 } = (mesh.material as ShaderMaterial).serialize() as {
+                vectors3: Record<string, number[]>;
+            };
 
-            assert.isTrue(material.disableLighting);
-            assert.deepEqual([material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b], [0, 1, 0]);
+            assert.deepEqual(vectors3.color, [0, 1, 0]);
         });
 
-        test("2D line opacity lands on the material's alpha", () => {
+        test("2D line opacity puts the line in the transparent pass at that opacity", () => {
             const mesh = makeEdge({ style: { line: { type: "solid", opacity: 0.4 } } }) as Mesh;
+            const { floats } = (mesh.material as ShaderMaterial).serialize() as { floats: Record<string, number> };
 
-            assert.equal((mesh.material as StandardMaterial).alpha, 0.4);
+            assert.equal(floats.opacity, 0.4);
+            assert.equal(mesh.visibility, 0.4);
         });
 
         test("the requested width reaches the 2D line's geometry", () => {
@@ -248,21 +253,19 @@ describe("Edge Golden Masters", () => {
             assert.strictEqual(curve, straight);
         });
 
-        test("bezier silently wins over a line pattern", () => {
-            // REPORTED, NOT FIXED. `EdgeMesh.lineBatch` tests `style.line.bezier` before it looks at
-            // the line type, so `{type: "dash", bezier: true}` -- a style the schema accepts in
-            // full -- draws a SOLID curve and the dashes are gone. Nothing warns. This is the same
-            // shape of defect as the gradient node colours that rendered flat white: the schema
-            // says yes, the renderer quietly does something else, and the caller pays the interning
-            // cost for a style they do not get.
-            //
-            // This asserts what happens today so the behaviour is at least recorded. It fails the
-            // moment patterned beziers work, which is the right prompt to update it.
+        test("a dashed curve is a dashed joined line, not the solid curve", () => {
+            // A curve is a run of joined pieces, so its dashes are measured along the whole curve
+            // in the line's shader (design/edges/sharp-corners.md). It used to draw a SOLID curve:
+            // the line type was ignored once the style asked for a curve.
             const mesh = makeEdge({ style: { line: { type: "dash", bezier: true } }, styleId: "dashed-curve" });
             const solid = makeEdge({ style: { line: { type: "solid", bezier: true } }, styleId: "dashed-curve" });
 
             assert.notInstanceOf(mesh, PatternedLineMesh);
-            assert.strictEqual(mesh, solid, "drawn from the solid curve's batch");
+            assert.notStrictEqual(mesh, solid, "not drawn from the solid curve's batch");
+            const { vectors3 } = ((mesh as Mesh).material as ShaderMaterial).serialize() as {
+                vectors3: Record<string, number[]>;
+            };
+            assert.equal(vectors3.pattern[1], 1, "the shader draws dashes");
         });
 
         test("bezier opacity reaches the mesh", () => {

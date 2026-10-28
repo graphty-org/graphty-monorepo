@@ -24,6 +24,7 @@
 
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import type { LayoutDescriptor, LayoutId } from "../catalog/types";
+import { GRAPHVIZ_NODE_BUDGETS, graphvizLayoutId, isGraphvizEngine } from "../layout/graphviz/engines";
 import { DEFAULT_LIMITS } from "./limits";
 import type { CodedFact } from "./shared";
 import type { GraphStatistics } from "./types";
@@ -50,6 +51,12 @@ export interface LayoutRecommendation {
      * @since 3.20.0
      */
     readonly fact: CodedFact<LayoutRecommendationCode>;
+    /**
+     * The options to pass with the layout, when the rule read them from the file: for a Graphviz
+     * file, its graph attributes as `{ attributes }`. Absent when the layout's defaults apply.
+     * @since 3.29.0
+     */
+    readonly options?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -61,16 +68,26 @@ export interface LayoutRecommendation {
  * | Code | Why |
  * | --- | --- |
  * | `recommend.fixed` | Every node already carries a coordinate, so the arrangement the data arrived with is kept |
+ * | `recommend.location-map` | The nodes carry geographic locations (`locations` was true), so they are drawn on a map (since 3.31.0) |
  * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered from a seed instead of settling a force simulation |
  * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
  * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
  * | `recommend.first-servable` | No rule named an arrangement the catalogue can serve, so this is the first one that can place a graph this size |
+ * | `recommend.graphviz-file` | The file is a Graphviz file with no coordinates, so it is drawn by the engine it names (its `layout` attribute, or dot); `params.engine` names it |
+ * | `recommend.graphviz-unavailable` | The file asked for a Graphviz engine but `@hpcc-js/wasm-graphviz` is not installed, so the arrangement the next rule chose is used; `params.engine` names the engine it asked for |
  *
  * New codes may be added in a minor release: word an unknown one generically.
  * @since 3.20.0
  */
 export type LayoutRecommendationCode =
-    "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
+    | "recommend.fixed"
+    | "recommend.location-map"
+    | "recommend.random"
+    | "recommend.circular"
+    | "recommend.force"
+    | "recommend.first-servable"
+    | "recommend.graphviz-file"
+    | "recommend.graphviz-unavailable";
 
 /** What {@link recommendLayout} may be told beyond the graph's shape. */
 export interface LayoutRecommendationOptions {
@@ -97,7 +114,63 @@ export interface LayoutRecommendationOptions {
      * moves with the host rather than with a constant.
      */
     readonly largeGraphThreshold?: number;
+    /**
+     * What the loaded file said about the whole graph: its format (`"dot"`) and its graph-level
+     * attributes (`layout`, `rankdir`, ...). A Graphviz file without coordinates is drawn by the
+     * Graphviz engine it names. Omitted, nothing is known about the file.
+     * @since 3.29.0
+     */
+    readonly file?: { readonly format?: string; readonly attributes?: Readonly<Record<string, unknown>> };
+    /**
+     * Whether the Graphviz layouts can run here (`graphvizAvailability()`). Omitted counts as not
+     * available.
+     * @since 3.29.0
+     */
+    readonly graphvizAvailable?: boolean;
+    /**
+     * Whether the nodes carry geographic locations the location map layout can read (its cost
+     * estimate is available). `GraphSession.recommendLayout()` answers this itself. Omitted counts
+     * as no.
+     * @since 3.31.0
+     */
+    readonly locations?: boolean;
 }
+
+/** The graph attributes a Graphviz file passes on to the engine that draws it. */
+const GRAPHVIZ_FILE_ATTRIBUTES = [
+    "rankdir",
+    "nodesep",
+    "ranksep",
+    "splines",
+    "overlap",
+    "sep",
+    "esep",
+    "start",
+    "mode",
+    "model",
+    "K",
+    "root",
+    "mindist",
+    "newrank",
+    "ordering",
+    "ratio",
+    "pack",
+    "packmode",
+    "concentrate",
+    "maxiter",
+    "epsilon",
+    "defaultdist",
+    "searchsize",
+    "mclimit",
+    "nslimit",
+    "remincross",
+    "levelsgap",
+    "repulsiveforce",
+    "smoothing",
+    "quadtree",
+    "beautify",
+    "center",
+] as const;
 
 /** One rule of the table: the arrangement it names, when it fires, and what it would say. */
 interface LayoutRule {
@@ -123,6 +196,8 @@ interface RuleInput {
     readonly placedNodes: number;
     /** The node count above which this graph counts as large. */
     readonly largeGraphThreshold: number;
+    /** Whether the nodes carry geographic locations. */
+    readonly locations: boolean;
 }
 
 /**
@@ -140,6 +215,12 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
         reason:
             "Every node already carries a coordinate, so this keeps the arrangement the data " +
             "arrived with instead of computing a new one over the top of it.",
+    },
+    {
+        id: "location-map",
+        code: "recommend.location-map",
+        fires: ({ statistics, locations }) => statistics.nodeCount > 0 && locations,
+        reason: "The nodes carry geographic locations, so they are drawn where they are, on a map.",
     },
     {
         id: "random",
@@ -180,7 +261,8 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
  * @returns True when it can be recommended as it stands.
  */
 function servable(descriptor: LayoutDescriptor, nodeCount: number): boolean {
-    if (descriptor.structuralInputs.length > 0) {
+    // An engine that needs an optional package is recommended only by the rule that checked it is there.
+    if (descriptor.structuralInputs.length > 0 || descriptor.requires?.package !== undefined) {
         return false;
     }
 
@@ -235,7 +317,75 @@ export function recommendLayout(
         statistics,
         placedNodes: options.placedNodes ?? 0,
         largeGraphThreshold: options.largeGraphThreshold ?? DEFAULT_LIMITS.largeGraphThreshold,
+        locations: options.locations === true,
     };
+    const placesAll = statistics.nodeCount > 0 && input.placedNodes >= statistics.nodeCount;
+    const engine = placesAll ? null : graphvizEngineFor(options.file);
+    if (engine !== null) {
+        const params = { ...factOf("recommend.graphviz-file", input).params, engine };
+        const descriptor = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === graphvizLayoutId(engine));
+        if (options.graphvizAvailable !== true) {
+            const next = recommendByRules(input);
+            return next === undefined
+                ? undefined
+                : Object.freeze({ ...next, fact: { code: "recommend.graphviz-unavailable" as const, params } });
+        }
+
+        if (descriptor !== undefined && statistics.nodeCount <= GRAPHVIZ_NODE_BUDGETS[engine]) {
+            const attributes = fileAttributes(options.file?.attributes);
+            return Object.freeze({
+                layout: descriptor,
+                reason: "The file is a Graphviz file with no coordinates, so it is drawn by the engine it names.",
+                fact: { code: "recommend.graphviz-file" as const, params },
+                ...(Object.keys(attributes).length === 0 ? {} : { options: Object.freeze({ attributes }) }),
+            });
+        }
+    }
+
+    return recommendByRules(input);
+}
+
+/**
+ * The Graphviz engine a file asks for: its `layout` attribute, or dot for a DOT file that names none.
+ * @param file - what the file said about the graph
+ * @returns the engine, or null when the file is not a Graphviz file
+ */
+export function graphvizEngineFor(file: LayoutRecommendationOptions["file"]): GraphvizEngineName | null {
+    const named = file?.attributes?.layout;
+    if (isGraphvizEngine(named)) {
+        return named;
+    }
+
+    return file?.format === "dot" ? "dot" : null;
+}
+
+/** The engine names `graphvizEngineFor` answers. */
+type GraphvizEngineName = Parameters<typeof graphvizLayoutId>[0];
+
+/**
+ * The file's graph attributes a Graphviz engine reads, as Graphviz text.
+ * @param attributes - the file's graph attributes
+ * @returns the ones passed on
+ */
+function fileAttributes(attributes: Readonly<Record<string, unknown>> | undefined): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const name of GRAPHVIZ_FILE_ATTRIBUTES) {
+        const value = attributes?.[name];
+        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+            out[name] = String(value);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The rule table's recommendation.
+ * @param input - the shape the rules read
+ * @returns the recommendation, or undefined when nothing can be served
+ */
+function recommendByRules(input: RuleInput): LayoutRecommendation | undefined {
+    const { statistics } = input;
 
     for (const rule of LAYOUT_RULES) {
         if (!rule.fires(input)) {

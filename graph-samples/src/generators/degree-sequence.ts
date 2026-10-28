@@ -164,12 +164,12 @@ function degreeSum(name: string, degrees: ArrayLike<number>): number {
 /**
  * The option value of a keep / erase policy, checked.
  * @param name - the option name
- * @param value - the value (default "erase")
+ * @param value - the value (default "erase"), checked, since a JavaScript caller may pass any string
  * @returns true for keep
  */
-function keeps(name: string, value: EdgePolicy | undefined): boolean {
+function keeps(name: string, value: string | undefined): boolean {
     if (value !== undefined && value !== "keep" && value !== "erase") {
-        throw new RangeError(`${name} must be "keep" or "erase", got ${String(value)}`);
+        throw new RangeError(`${name} must be "keep" or "erase", got ${value}`);
     }
     return value === "keep";
 }
@@ -213,22 +213,26 @@ export function shuffle(a: U32, stream: RandomStream): void {
  * @param n - the node count
  * @param src - the sources
  * @param dst - the targets
- * @param directed - whether pairs are ordered
- * @param keepLoops - keep self-loops
- * @param keepMulti - keep repeated pairs
+ * @param rules - what to keep
+ * @param rules.directed - whether pairs are ordered
+ * @param rules.keepLoops - keep self-loops
+ * @param rules.keepMulti - keep repeated pairs
+ * @param rules.group - a node column; edges inside one group are dropped
  * @param out - receives the kept edges
- * @param group - a node column; edges inside one group are dropped
  */
 function eraseEdges(
     n: number,
     src: U32,
     dst: U32,
-    directed: boolean,
-    keepLoops: boolean,
-    keepMulti: boolean,
+    rules: {
+        readonly directed: boolean;
+        readonly keepLoops: boolean;
+        readonly keepMulti: boolean;
+        readonly group?: U32 | undefined;
+    },
     out: EdgeBuffer,
-    group?: U32,
 ): void {
+    const { directed, keepLoops, keepMulti, group } = rules;
     const m = src.length;
     const keep = new Uint8Array(m).fill(1);
     for (let e = 0; e < m; e++) {
@@ -300,7 +304,7 @@ export function pairStubs(
         src[k] = stubs[2 * k];
         dst[k] = stubs[2 * k + 1];
     }
-    eraseEdges(n, src, dst, false, keepLoops, keepMulti, out, group);
+    eraseEdges(n, src, dst, { directed: false, keepLoops, keepMulti, group }, out);
 }
 
 /** Options of {@link configurationModelGraph}. */
@@ -388,7 +392,7 @@ export function directedConfigurationModelGraph(options: DirectedConfigurationMo
     const dst = stubList(inDegrees, inTotal);
     shuffle(dst, new RandomStream(seed, "configuration-directed", 0));
     const out = new EdgeBuffer(outTotal);
-    eraseEdges(n, stubList(outDegrees, outTotal), dst, true, keepLoops, keepMulti, out);
+    eraseEdges(n, stubList(outDegrees, outTotal), dst, { directed: true, keepLoops, keepMulti }, out);
     return applyWeights(toGraph(n, out, true), options);
 }
 
@@ -428,7 +432,7 @@ export function bipartiteConfigurationModelGraph(options: BipartiteConfiguration
     const dst = stubList(rightDegrees, rightTotal, left);
     shuffle(dst, new RandomStream(seed, "bipartite-configuration", 0));
     const out = new EdgeBuffer(leftTotal);
-    eraseEdges(n, stubList(leftDegrees, leftTotal), dst, false, true, keepMulti, out);
+    eraseEdges(n, stubList(leftDegrees, leftTotal), dst, { directed: false, keepLoops: true, keepMulti }, out);
     const side = new Uint8Array(n).fill(1, left);
     return applyWeights(toGraph(n, out, false, { side }), options);
 }
@@ -800,14 +804,25 @@ export function randomRegularGraph(options: RandomRegularOptions): SampleGraph {
                 `randomRegularGraph found no ${d}-regular graph on ${n} nodes in ${REGULAR_ATTEMPTS} attempts`,
             );
         }
-        for (let u = 0; u < n; u++) {
-            const row = adj.subarray(u * d, u * d + d).sort();
-            for (const v of row) {
-                if (v > u) {
-                    out.push(u, v);
-                }
+        pushRegularEdges(n, d, adj, out);
+    }
+    return applyWeights(toGraph(n, out, false), options);
+}
+
+/**
+ * Push the edges (u, v), u < v, of a d-regular adjacency table in lexicographic order.
+ * @param n - the node count
+ * @param d - the degree
+ * @param adj - row u holds u's d neighbours (sorted in place)
+ * @param out - receives the edges
+ */
+function pushRegularEdges(n: number, d: number, adj: Uint32Array, out: EdgeBuffer): void {
+    for (let u = 0; u < n; u++) {
+        const row = adj.subarray(u * d, u * d + d).sort();
+        for (const v of row) {
+            if (v > u) {
+                out.push(u, v);
             }
         }
     }
-    return applyWeights(toGraph(n, out, false), options);
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { move } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { jobText } from "../lib/job-text.mjs";
-import { backfillTriaged, syncJobs } from "../lib/jobs.mjs";
+import { backfillTriaged, finishedJobsToPrune, syncJobs, tombstoneOf } from "../lib/jobs.mjs";
 import { issueRefusal, jobInUse, jobOrder } from "../lib/queue.mjs";
 import { accumulateMerged, commitRefs } from "../lib/merged.mjs";
 
@@ -490,6 +490,18 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-4"].state).toBe("working");
         expect(state.jobs["pr-5"].state).toBe("verifying");
     });
+
+    it("keeps a held pr job while its holder reworks the pull request as a draft (issue 2727)", () => {
+        const state = base();
+        failingPr(state, 4);
+        sync(state);
+        const holder = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder });
+        move(state.jobs["pr-4"], "working", NOW);
+        state.prs[4].draft = true;
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-4"].state).toBe("working");
+    });
 });
 
 describe("syncJobs: titles and the local gate", () => {
@@ -760,6 +772,23 @@ describe("syncJobs: issues", () => {
         expect(run()).toEqual([]);
         state.capacity.b.n = 3;
         expect(run()).toHaveLength(2);
+    });
+
+    it("makes the job for an issue the owner ordered even when the queue has no room", () => {
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a"], maxActive: 2 },
+        });
+        const state = base();
+        for (const n of [11, 12, 13]) issue(state, n, LABELED);
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        expect(run()).toEqual(["issue-11"]);
+        expect(run()).toEqual([]);
+        state.orders = [{ id: "order-1", issues: [13] }];
+        expect(run()).toEqual(["issue-13"]);
+        expect(run()).toEqual([]);
     });
 
     it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
@@ -1092,6 +1121,9 @@ describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
         move(job, "waiting", NOW, { waitingFor: { checks: "abc" } });
         const ended = new Set();
         const gone = (/** @type {string} */ s) => ended.has(s);
+        // Its last activity, which spares a live session the status question, does not keep a gone one's claim.
+        state.sessions = { o1: { calledAt: NOW.toISOString() } };
+        state.transcripts = { o1: { files: {}, pushes: {}, grewAt: NOW.toISOString() } };
         expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([]);
         expect(job.state).toBe("waiting");
         ended.add("o1");
@@ -1263,5 +1295,225 @@ describe("syncJobs: issue bundles (owner decision 2026-10-06)", () => {
         sync(state);
         expect(state.jobs["issue-1"].facts.batch).toEqual([1, 3]);
         expect(state.unbundled).toEqual({ 2: "2026-10-03T00:00:00Z" });
+    });
+});
+
+/**
+ * One prune pass as the daemon applies it: tombstones replace their jobs, dropped jobs go.
+ * @param {any} state the state, changed in place
+ * @param {(id: string) => boolean} [busy] whether a start task runs for a job
+ * @returns {{tombstone: string[], drop: string[]}} what the pass did
+ */
+function prune(state, busy) {
+    const out = finishedJobsToPrune(state, busy);
+    for (const id of out.tombstone) state.jobs[id] = tombstoneOf(state.jobs[id]);
+    for (const id of out.drop) delete state.jobs[id];
+    return out;
+}
+
+/**
+ * Moves a job through a verified finish to done.
+ * @param {any} job the job
+ */
+function finish(job) {
+    for (const s of ["starting", "working", "verifying", "done"]) move(job, s, NOW);
+}
+
+describe("finishedJobsToPrune (issue #2366)", () => {
+    it("a split job's tombstone keeps its children, which the parent's close proposal reads (issue #2557)", () => {
+        expect(
+            tombstoneOf({ id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11] }).children,
+        ).toEqual([11]);
+    });
+
+    it("drops a finished job nothing reads, and leaves every job not finished alone", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        failingPr(state, 9);
+        sync(state);
+        move(state.jobs["pr-9"], "cancelled", NOW, { reason: "#9 closed or merged" });
+        delete state.prs[9];
+        state.jobs["triage-full-3"] = { id: "triage-full-3", kind: "triage", state: "done", stateSince: "x" };
+        state.jobs["incident-x"] = { id: "incident-x", kind: "incident", state: "failed", stateSince: "x" };
+        expect(prune(state)).toEqual({ tombstone: [], drop: ["pr-9", "triage-full-3"] });
+        expect(Object.keys(state.jobs).sort()).toEqual(["incident-x", "issue-1"]);
+    });
+
+    it("keeps a finished job whole while a holder, a worktree, a waiter, a retiring session or a start task names it", () => {
+        const state = base();
+        const done = (/** @type {string} */ id, /** @type {any} */ more = {}) => {
+            state.jobs[id] = { id, kind: "triage", state: "done", stateSince: "x", ...more };
+        };
+        done("triage-new-1", { holder: { session: "s" } });
+        done("triage-new-2", { worktree: "/w" });
+        done("triage-new-3");
+        done("triage-new-4");
+        done("triage-new-5");
+        state.jobs["issue-8"] = { id: "issue-8", kind: "issue", state: "blocked", waitingFor: { job: "triage-new-3" } };
+        state.retiring = [{ job: "triage-new-4" }];
+        expect(prune(state, (id) => id === "triage-new-5")).toEqual({ tombstone: [], drop: [] });
+        // Each ends on its own event.
+        state.jobs["triage-new-1"].holder = null;
+        state.jobs["triage-new-2"].worktree = null;
+        state.jobs["issue-8"].state = "queued";
+        state.jobs["issue-8"].waitingFor = null;
+        state.retiring = [];
+        expect(prune(state).drop.sort()).toEqual([
+            "triage-new-1",
+            "triage-new-2",
+            "triage-new-3",
+            "triage-new-4",
+            "triage-new-5",
+        ]);
+    });
+
+    it("keeps a done issue job as a tombstone while its issue is in the state: the issue is not offered again", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        finish(state.jobs["issue-1"]);
+        state.jobs["issue-1"].claim = { session: "s", plan: "a long plan", at: NOW.toISOString() };
+        expect(prune(state)).toEqual({ tombstone: ["issue-1"], drop: [] });
+        expect(state.jobs["issue-1"]).toEqual({
+            id: "issue-1",
+            kind: "issue",
+            target: "#1",
+            state: "done",
+            stateSince: NOW.toISOString(),
+            tombstone: true,
+            facts: {},
+            sessions: [],
+            claim: { session: "s", at: NOW.toISOString() },
+            report: null,
+            news: [],
+        });
+        // The same decision as with the whole job: not offered again.
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual([]);
+        expect(prune(state)).toEqual({ tombstone: [], drop: [] });
+        // The closed-issue prune dropped the issue: nothing reads the tombstone now.
+        delete state.issues.byNumber[1];
+        expect(prune(state)).toEqual({ tombstone: [], drop: ["issue-1"] });
+    });
+
+    it("offers a deferred issue again once it changes, from its tombstone as from the whole job", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        move(state.jobs["issue-1"], "cancelled", NOW, { reason: "deferred: declined" });
+        state.deferred = { 1: { reason: "declined", revision: "2026-10-03T00:00:00Z" } };
+        prune(state);
+        expect(state.jobs["issue-1"].tombstone).toBe(true);
+        expect(sync(state).created).toEqual([]);
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual(["issue-1"]);
+        expect(state.jobs["issue-1"]).toMatchObject({ state: "queued" });
+        expect(state.jobs["issue-1"].tombstone).toBeUndefined();
+    });
+
+    it("makes reviews from a finished maker's tombstone and never reviews the same patch twice", () => {
+        const state = base();
+        issue(state, 3, LABELED);
+        sync(state);
+        state.jobs["issue-3"].pr = 20;
+        failingPr(state, 20, { required: {}, patchId: "p1".padEnd(40, "a") });
+        sync(state);
+        finish(state.jobs["issue-3"]);
+        finish(state.jobs["review-20"]);
+        state.jobs["review-20"].report = { pr: 20, result: { verdict: "pass", notes: "long" }, findings: "x" };
+        expect(prune(state).tombstone.sort()).toEqual(["issue-3", "review-20"]);
+        expect(state.jobs["review-20"]).toMatchObject({
+            facts: { patchId: "p1".padEnd(40, "a"), pr: 20 },
+            report: { pr: 20, result: { verdict: "pass" } },
+        });
+        expect(sync(state).created).toEqual([]);
+        state.prs[20].patchId = "p2".padEnd(40, "b");
+        expect(sync(state).created).toEqual(["review-20"]);
+        // The pull request closed: its jobs' tombstones go.
+        delete state.prs[20];
+        delete state.issues.byNumber[3];
+        sync(state);
+        expect(prune(state).drop.sort()).toEqual(["issue-3", "review-20"]);
+    });
+
+    it("keeps a claim a session's capacity answer still counts, until it answers again", () => {
+        const state = base();
+        state.capacity = { s: { n: 2, at: "2026-10-04T11:00:00Z", held: ["issue-5"] } };
+        const claimed = (/** @type {string} */ id, /** @type {string} */ at) => {
+            state.jobs[id] = { id, kind: "title", state: "cancelled", stateSince: at, claim: { session: "s", at } };
+        };
+        claimed("title-5", "2026-10-04T11:30:00Z");
+        claimed("title-6", "2026-10-04T10:00:00Z");
+        state.jobs["issue-5"] = { id: "issue-5", kind: "issue", target: "#5", state: "done", stateSince: "x" };
+        expect(prune(state)).toEqual({ tombstone: ["title-5", "issue-5"], drop: ["title-6"] });
+        state.capacity.s = { n: 1, at: "2026-10-04T12:00:00Z", held: [] };
+        expect(prune(state).drop.sort()).toEqual(["issue-5", "title-5"]);
+    });
+
+    it("keeps a re-land, a promotion and a release queue job while the rule that would make them again reads them", () => {
+        const state = base();
+        state.incidentActions = { reverts: { 718: 730 } };
+        sync(state);
+        finish(state.jobs["issue-reland-718"]);
+        state.jobs["issue-promote-x"] = {
+            id: "issue-promote-x",
+            kind: "issue",
+            state: "done",
+            stateSince: "x",
+            facts: { scope: "promote", check: "x" },
+        };
+        state.advisory = { entries: [{ id: "x" }] };
+        state.jobs["incident-queue-1-2"] = {
+            id: "incident-queue-1-2",
+            kind: "incident",
+            state: "done",
+            stateSince: "x",
+            facts: { scope: "queue", release: 1 },
+        };
+        state.releaseQueue = { 1: { draft: 2, tests: [] } };
+        expect(prune(state).tombstone.sort()).toEqual(["incident-queue-1-2", "issue-promote-x", "issue-reland-718"]);
+        expect(sync(state).created).toEqual([]);
+        state.incidentActions.reverts = {};
+        state.advisory.entries = [];
+        state.releaseQueue = {};
+        expect(prune(state).drop.sort()).toEqual(["incident-queue-1-2", "issue-promote-x", "issue-reland-718"]);
+    });
+});
+
+describe("syncJobs: a done issue job whose pull request is no longer open (issue #2644)", () => {
+    it("offers the issue again once the pull request closed and the issue is still open", () => {
+        const state = base();
+        issue(state, 7, LABELED);
+        failingPr(state, 50);
+        sync(state);
+        finish(state.jobs["issue-7"]);
+        state.jobs["issue-7"].pr = 50;
+        // While the pull request is open, the done job keeps the issue out of the queue.
+        expect(sync(state).created).toEqual([]);
+        delete state.prs[50];
+        expect(sync(state).created).toEqual(["issue-7"]);
+        expect(state.jobs["issue-7"].state).toBe("queued");
+    });
+
+    it("waits for the old job's worktree to be removed, and never re-offers a done job with no pull request", () => {
+        const state = base();
+        issue(state, 7, LABELED);
+        sync(state);
+        finish(state.jobs["issue-7"]);
+        Object.assign(state.jobs["issue-7"], { pr: 50, worktree: "/w/7" });
+        // A split's parent: no pull request; proposals.mjs proposes its close.
+        issue(state, 8, LABELED);
+        state.jobs["issue-8"] = {
+            id: "issue-8",
+            kind: "issue",
+            target: "#8",
+            state: "done",
+            stateSince: "x",
+            children: [9],
+        };
+        expect(sync(state).created).toEqual([]);
+        delete state.jobs["issue-7"].worktree;
+        expect(sync(state).created).toEqual(["issue-7"]);
     });
 });

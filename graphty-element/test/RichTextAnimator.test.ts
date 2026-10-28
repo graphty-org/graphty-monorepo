@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, type Mock, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { type AnimationOptions, type AnimationType, RichTextAnimator } from "../src/meshes/RichTextAnimator";
 
@@ -19,6 +19,10 @@ describe("RichTextAnimator", () => {
 
         material = new StandardMaterial("testMaterial", scene);
         mockProgressCallback = vi.fn();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Constructor and Basic Setup", () => {
@@ -91,6 +95,7 @@ describe("RichTextAnimator", () => {
             // Multiple dispose calls should not crash
             testAnimator.dispose();
             assert.isTrue(testScene.onBeforeRenderObservable.observers.length <= afterSetupCount);
+            engine.dispose();
         });
 
         test("stores original position and scale", () => {
@@ -132,6 +137,18 @@ describe("RichTextAnimator", () => {
             // Scaling should be different from original (pulsing effect)
             const scalingChanged = mesh.scaling.x !== originalScaleX || mesh.scaling.y !== originalScaleY;
             assert.isTrue(scalingChanged, "Pulse animation should modify mesh scaling");
+        });
+
+        test("pulse swells around the base scale of a label sized on screen", () => {
+            animator = new RichTextAnimator(scene, { animation: "pulse", animationSpeed: 1 });
+            animator.setupAnimation(mesh, material);
+            animator.setBaseScale(4);
+
+            scene.onBeforeRenderObservable.notifyObservers(scene);
+
+            // 4 times 1 +/- 0.1: never the bare 0.9 to 1.1 a pulse draws at base scale 1.
+            assert.approximately(mesh.scaling.x, 4, 0.4);
+            assert.strictEqual(mesh.scaling.y, mesh.scaling.x);
         });
 
         test("pulse animation with different speeds", () => {

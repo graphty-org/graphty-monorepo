@@ -25,16 +25,57 @@ import { Mesh, type Scene, type Vector3, VertexData } from "@babylonjs/core";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { MaterialHelper } from "./MaterialHelper";
-import { PatternedLineMesh } from "./PatternedLineMesh";
+import { PatternedLineMesh, type PatternedLineOptions } from "./PatternedLineMesh";
+import {
+    type RingPiece,
+    sineWavePeriod,
+    type WaveShape,
+    WHOLE_PERIOD,
+    zigzagPeriod,
+    type ZigzagPiece,
+    zigzagPieceKey,
+} from "./shapeOutlines";
 
 // ==========================================
 // PATTERN TYPE DEFINITIONS
 // ==========================================
 
-export type PatternType = "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag";
+export type PatternType =
+    | "dot"
+    | "star"
+    | "box"
+    | "dash"
+    | "diamond"
+    | "dash-dot"
+    | "sinewave"
+    | "zigzag"
+    | "double"
+    | "forward-slash"
+    | "backward-slash"
+    | "vertical-slash"
+    | "separate-arrow"
+    | "contiguous-arrow";
+
+/**
+ * The shapes a pattern element is drawn as. The glyphs (`GLYPHS`) are drawn in units of the
+ * line's width: a slash, an arrow, a chevron on a bar, two parallel bars.
+ */
+export type PatternShapeType =
+    | "circle"
+    | "star"
+    | "box"
+    | "diamond"
+    | "sinewave-segment"
+    | "zigzag-segment"
+    | "forward-slash"
+    | "backward-slash"
+    | "vertical-slash"
+    | "arrow"
+    | "chevron"
+    | "double-bar";
 
 interface ShapeDefinition {
-    type: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment";
+    type: PatternShapeType;
     size?: number; // Base size multiplier (default 1.0)
     aspectRatio?: number; // For elongated shapes (default 1.0)
     points?: number; // For star (default 5)
@@ -102,11 +143,149 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
         spacing: { min: 0, ideal: 0, max: 0 },
         connected: true, // Connected pattern - no gaps between segments
     },
+    // Glyph patterns (Cytoscape desktop's line types). A bar glyph (double, contiguous-arrow) is
+    // longer than the length it is spaced by, so neighbors overlap into one continuous line.
+    double: {
+        shapes: [{ type: "double-bar", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
+        connected: false,
+    },
+    "forward-slash": {
+        shapes: [{ type: "forward-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "backward-slash": {
+        shapes: [{ type: "backward-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "vertical-slash": {
+        shapes: [{ type: "vertical-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "separate-arrow": {
+        shapes: [{ type: "arrow", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "contiguous-arrow": {
+        shapes: [{ type: "chevron", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
+        connected: false,
+    },
 };
+
+/** How a pattern element is drawn, beyond its pattern and line ({@link PatternedLineRenderer.createPatternElement}). */
+export interface PatternElementOptions {
+    /** A specific shape type, for alternating patterns. */
+    readonly shapeType?: PatternShapeType;
+    /** Draw flat in the XY plane with a StandardMaterial rather than billboarded. */
+    readonly is2DMode?: boolean;
+    /** A sinewave's or zigzag's own swing and period, in world units. */
+    readonly wave?: WaveShape;
+    /** How much of its period a zigzag element with a wave of its own draws, and its caps. */
+    readonly piece?: ZigzagPiece;
+}
+
+/** A flat polygon in a glyph's own plane: `[along, across]` points, in units of the line's width. */
+type GlyphPolygon = readonly (readonly [number, number])[];
+
+/**
+ * A thin bar from one point to another.
+ * @param x0 - Where it starts, along the line.
+ * @param z0 - Where it starts, across the line.
+ * @param x1 - Where it ends, along the line.
+ * @param z1 - Where it ends, across the line.
+ * @param thickness - How thick it is.
+ * @returns The bar's four corners.
+ */
+function bar(x0: number, z0: number, x1: number, z1: number, thickness: number): GlyphPolygon {
+    const length = Math.hypot(x1 - x0, z1 - z0) || 1;
+    const [nx, nz] = [(-(z1 - z0) / length) * (thickness / 2), ((x1 - x0) / length) * (thickness / 2)];
+    return [
+        [x0 + nx, z0 + nz],
+        [x1 + nx, z1 + nz],
+        [x1 - nx, z1 - nz],
+        [x0 - nx, z0 - nz],
+    ];
+}
+
+/**
+ * The glyph patterns' elements as polygons, in units of the line's width, centered on the origin
+ * with the line running along +x (toward the target).
+ */
+const GLYPHS: Readonly<Record<string, readonly GlyphPolygon[]>> = {
+    // a stroke two widths across the line, leaning half a width forward, back, or not at all; -z is
+    // the line's left (up on screen for a line drawn left to right), so "/" runs from +z back to -z ahead
+    "forward-slash": [bar(-0.5, 1, 0.5, -1, 0.3)],
+    "backward-slash": [bar(-0.5, -1, 0.5, 1, 0.3)],
+    "vertical-slash": [bar(0, -1, 0, 1, 0.3)],
+    // a shaft and a head, two widths long
+    arrow: [
+        bar(-1, 0, 0.3, 0, 0.3),
+        [
+            [0.3, 0.5],
+            [1, 0],
+            [0.3, -0.5],
+        ],
+    ],
+    // a bar four widths long (it overlaps its neighbors, two widths away, into one line) with a
+    // chevron pointing along it
+    // ponytail: overlapping bars draw darker where they overlap on a translucent line; join them
+    // into one strip if that is ever seen
+    chevron: [bar(-2, 0, 2, 0, 0.5), bar(-0.3, 0.8, 0.5, 0, 0.25), bar(-0.3, -0.8, 0.5, 0, 0.25)],
+    // two thin bars four widths long, a width apart at their outer edges
+    "double-bar": [bar(-2, 0.4, 2, 0.4, 0.2), bar(-2, -0.4, 2, -0.4, 0.2)],
+};
+
+/**
+ * A glyph's polygons as one mesh in the XZ plane (y = 0), each fanned from its first point.
+ * @param polygons - The polygons.
+ * @returns The geometry.
+ */
+function glyphGeometry(polygons: readonly GlyphPolygon[]): VertexData {
+    const positions: number[] = [];
+    const indices: number[] = [];
+
+    for (const polygon of polygons) {
+        const base = positions.length / 3;
+        for (const [x, z] of polygon) {
+            positions.push(x, 0, z);
+        }
+        for (let i = 1; i < polygon.length - 1; i++) {
+            indices.push(base, base + i, base + i + 1);
+        }
+    }
+
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    return vertexData;
+}
 
 // ==========================================
 // RENDERER CLASS
 // ==========================================
+
+/**
+ * The height of a continuous zigzag at one of its four corner phases.
+ * @param phase - The corner, 0 to 3: baseline, peak, baseline, valley.
+ * @param amplitude - The peak height.
+ * @returns The height at that corner.
+ */
+function zigzagZ(phase: number, amplitude: number): number {
+    if (phase === 1) {
+        return amplitude; // Peak
+    }
+
+    if (phase === 3) {
+        return -amplitude; // Valley
+    }
+
+    return 0; // Baseline (phases 0 and 2)
+}
 
 /**
  * Static utility class for creating mesh-based pattern geometries for line visualization
@@ -119,33 +298,26 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line (already adjusted)
      * @param end - Ending point of the line (already adjusted)
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Optional flag to apply 2D materials instead of 3D shader (default false)
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode (2D materials instead of the 3D shader, default
+     *   false) and pattern count (omit to follow the spacing rule)
      * @returns A PatternedLineMesh instance
      */
     static create(
         pattern: PatternType,
         start: Vector3,
         end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
         scene: Scene,
-        is2DMode?: boolean,
-        patternCount?: number,
+        options: PatternedLineOptions,
     ): PatternedLineMesh {
         // For connected patterns (zigzag, sinewave), use zero-spacing discrete meshes
         // This is more efficient than creating one large mesh
         const patternDef = PATTERN_DEFINITIONS[pattern];
         if (patternDef.connected) {
-            return this.createContinuousMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+            return this.createContinuousMesh(pattern, start, end, scene, options);
         }
 
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+        return new PatternedLineMesh(pattern, start, end, scene, options);
     }
 
     /**
@@ -155,28 +327,20 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line
      * @param end - Ending point of the line
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Whether to use 2D mode rendering
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode and pattern count
      * @returns A PatternedLineMesh instance
      */
     static createContinuousMesh(
         pattern: PatternType,
         start: Vector3,
         end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
         scene: Scene,
-        is2DMode?: boolean,
-        patternCount?: number,
+        options: PatternedLineOptions,
     ): PatternedLineMesh {
         // Use PatternedLineMesh approach (multiple small meshes) with zero spacing
         // This is more efficient than creating one large mesh with many vertices
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+        return new PatternedLineMesh(pattern, start, end, scene, options);
     }
 
     /**
@@ -197,8 +361,13 @@ export class PatternedLineRenderer {
      * @param color - Line color
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param shapeType - Optional specific shape type for alternating patterns
-     * @param is2DMode - Draw flat in the XY plane with a StandardMaterial rather than billboarded
+     * @param options - How the element is drawn, beyond its pattern and line:
+     *   `shapeType`, a specific shape type for alternating patterns;
+     *   `is2DMode`, draw flat in the XY plane with a StandardMaterial rather than billboarded;
+     *   `wave`, a sinewave's or zigzag's own swing and period, in world units: given, one element
+     *   is one period of {@link PatternedLineRenderer.waveGeometry}, `width` thick;
+     *   `piece`, how much of its period a zigzag element with a wave of its own draws (the last
+     *   stops at its last turn) and whether it is capped where the line starts or ends
      * @returns The element; place it with `ArrowCap.place`
      */
     static createPatternElement(
@@ -207,9 +376,9 @@ export class PatternedLineRenderer {
         color: string,
         opacity: number,
         scene: Scene,
-        shapeType?: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-        is2DMode?: boolean,
+        options: PatternElementOptions = {},
     ): ArrowCap {
+        const { shapeType, is2DMode, wave, piece = WHOLE_PERIOD } = options;
         const patternDef = PATTERN_DEFINITIONS[pattern];
         const shape = shapeType ?? this.getDefaultShapeType(pattern);
 
@@ -217,8 +386,13 @@ export class PatternedLineRenderer {
         // follow the width, its length does not), so it is drawn at scale 1 and the width is part
         // of its key. A discrete shape is one normalized geometry drawn at a per-slot scale.
         const scale = patternDef.connected ? 1 : width / this.getGeometryDiameter(pattern, shapeType);
-        const builtWidth = patternDef.connected ? String(width) : "";
+        const waved = patternDef.connected && wave !== undefined;
+        const waveKey = waved ? `~${String(wave.amplitude)}~${String(wave.period)}~${zigzagPieceKey(piece)}` : "";
+        const builtWidth = patternDef.connected ? `${String(width)}${waveKey}` : "";
         const geometry = (): VertexData => {
+            if (waved) {
+                return this.waveGeometry(pattern, width, wave, piece);
+            }
             if (patternDef.connected) {
                 return this.createConnectedSegmentGeometry(pattern, width);
             }
@@ -269,6 +443,68 @@ export class PatternedLineRenderer {
     }
 
     /**
+     * One period of a sinewave or zigzag with a swing and period of its own, in the XZ plane (x along
+     * the line, z across it): a sine wave's period centered on its element's place
+     * ({@link sineWavePeriod}), a zigzag's starting there ({@link zigzagPeriod}), so elements a
+     * period apart from the line's start draw the wave Cytoscape desktop draws.
+     * @param pattern - sinewave or zigzag
+     * @param width - The thickness of the waving line, in world units
+     * @param wave - Its swing and period, in world units
+     * @param piece - How much of its period a zigzag's piece draws, and its caps
+     * @returns The geometry
+     */
+    static waveGeometry(
+        pattern: PatternType,
+        width: number,
+        wave: WaveShape,
+        piece: ZigzagPiece = WHOLE_PERIOD,
+    ): VertexData {
+        return this.pieceGeometry(this.wavePiece(pattern, width, wave, piece));
+    }
+
+    /**
+     * One period of a wave with a swing and period of its own, in its own frame (x along the line, y across it).
+     * @param pattern - sinewave or zigzag
+     * @param width - The thickness of the waving line
+     * @param wave - Its swing and period
+     * @param piece - How much of its period a zigzag's piece draws, and its caps
+     * @returns The period, as a band
+     */
+    static wavePiece(
+        pattern: PatternType,
+        width: number,
+        wave: WaveShape,
+        piece: ZigzagPiece = WHOLE_PERIOD,
+    ): RingPiece {
+        return pattern === "sinewave"
+            ? sineWavePeriod(wave.amplitude, wave.period, width)
+            : zigzagPeriod(wave.amplitude, wave.period, width, piece);
+    }
+
+    /**
+     * A band as a quad strip in the XZ plane (y = 0).
+     * @param piece - The band, x along and y across.
+     * @returns The geometry.
+     */
+    private static pieceGeometry(piece: RingPiece): VertexData {
+        const positions: number[] = [];
+        const indices: number[] = [];
+        piece.inner.forEach(([x, y], i) => {
+            const [ox, oy] = piece.outer[i];
+            positions.push(x, 0, y, ox, 0, oy);
+        });
+        for (let i = 0; i + 1 < piece.inner.length; i++) {
+            const base = i * 2;
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        }
+
+        const vertexData = new VertexData();
+        vertexData.positions = positions;
+        vertexData.indices = indices;
+        return vertexData;
+    }
+
+    /**
      * Create geometry for connected patterns (zigzag, sinewave) pre-scaled to width
      * Segment length can be adjusted per edge for exact fit
      * @param pattern - Pattern type (zigzag or sinewave)
@@ -301,6 +537,11 @@ export class PatternedLineRenderer {
      * @returns VertexData for the pattern
      */
     private static getGeometryForPattern(pattern: PatternType): VertexData {
+        const glyph = GLYPHS[this.getDefaultShapeType(pattern)] as readonly GlyphPolygon[] | undefined;
+        if (glyph !== undefined) {
+            return glyphGeometry(glyph);
+        }
+
         switch (pattern) {
             case "dot":
                 return this.createCircleGeometry();
@@ -331,9 +572,12 @@ export class PatternedLineRenderer {
      * @param shapeType - The shape type
      * @returns VertexData for the shape
      */
-    private static getGeometryForShapeType(
-        shapeType: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-    ): VertexData {
+    private static getGeometryForShapeType(shapeType: PatternShapeType): VertexData {
+        const glyph = GLYPHS[shapeType] as readonly GlyphPolygon[] | undefined;
+        if (glyph !== undefined) {
+            return glyphGeometry(glyph);
+        }
+
         switch (shapeType) {
             case "circle":
                 return this.createCircleGeometry();
@@ -608,19 +852,8 @@ export class PatternedLineRenderer {
                 const currPhase = i % 4;
 
                 // Get Z values for previous and current phase
-                let prevZ = 0;
-                if (prevPhase === 1) {
-                    prevZ = amplitude;
-                } else if (prevPhase === 3) {
-                    prevZ = -amplitude;
-                }
-
-                let currZ = 0;
-                if (currPhase === 1) {
-                    currZ = amplitude;
-                } else if (currPhase === 3) {
-                    currZ = -amplitude;
-                }
+                const prevZ = zigzagZ(prevPhase, amplitude);
+                const currZ = zigzagZ(currPhase, amplitude);
 
                 // Interpolate to find Z at exact lineLength
                 const t = (lineLength - prevX) / (x - prevX);
@@ -630,19 +863,7 @@ export class PatternedLineRenderer {
                 break;
             }
 
-            const phase = i % 4;
-            let z = 0;
-            if (phase === 0) {
-                z = 0; // Baseline
-            } else if (phase === 1) {
-                z = amplitude; // Peak
-            } else if (phase === 2) {
-                z = 0; // Baseline
-            } else if (phase === 3) {
-                z = -amplitude; // Valley
-            }
-
-            points.push([x, 0, z]);
+            points.push([x, 0, zigzagZ(i % 4, amplitude)]);
         }
 
         // Create quad strip with thickness
@@ -758,10 +979,7 @@ export class PatternedLineRenderer {
      * @param shapeType - Optional specific shape type (for alternating patterns)
      * @returns The perpendicular diameter of the geometry
      */
-    static getGeometryDiameter(
-        pattern: PatternType,
-        shapeType?: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-    ): number {
+    static getGeometryDiameter(pattern: PatternType, shapeType?: PatternShapeType): number {
         // Get pattern definition to look up aspectRatio
         const patternDef = PATTERN_DEFINITIONS[pattern];
 
@@ -794,6 +1012,7 @@ export class PatternedLineRenderer {
                 // Zigzag with 90-degree corners: amplitude=0.25, diameter=0.5
                 return 0.5;
             default:
+                // the glyphs are drawn in units of the line's width
                 return 1;
         }
     }
@@ -803,9 +1022,7 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type
      * @returns The default shape type for the pattern
      */
-    private static getDefaultShapeType(
-        pattern: PatternType,
-    ): "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment" {
+    private static getDefaultShapeType(pattern: PatternType): PatternShapeType {
         switch (pattern) {
             case "dot":
                 return "circle";
@@ -822,6 +1039,16 @@ export class PatternedLineRenderer {
                 return "sinewave-segment";
             case "zigzag":
                 return "zigzag-segment";
+            case "double":
+                return "double-bar";
+            case "separate-arrow":
+                return "arrow";
+            case "contiguous-arrow":
+                return "chevron";
+            case "forward-slash":
+            case "backward-slash":
+            case "vertical-slash":
+                return pattern;
             default:
                 return "circle";
         }

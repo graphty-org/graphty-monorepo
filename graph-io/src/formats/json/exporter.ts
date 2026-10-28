@@ -29,6 +29,8 @@ import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } 
 import { agree, plural } from "../../common/plural.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CYTOSCAPE_ELEMENT_KEYS,
@@ -43,6 +45,10 @@ import {
     SUFFIX,
 } from "./dialect.js";
 import { OBOGRAPHS_LOSS, OBOGRAPHS_SHARED_LOSS, planObographs } from "./obographs-export.js";
+import { JSON_STYLE_CAPABILITIES, type JsonStyledExport, jsonStyledExport, STYLE_KEY_REPLACED_CODE } from "./styles.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type JsonWriteOptions = JsonExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /**
  * The format-specific options of the JSON exporter.
@@ -212,6 +218,11 @@ export const JSON_LOSS = Object.freeze({
      * back with graph-io's usual type. The values are the same.
      */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
+    /**
+     * Saving with styles: a column named like one of the dialect's style keys (graphology's `color`, `size`, `label`,
+     * vis.js's `color`, `shape`, `font`, ...) is written with what graphty draws, so the values it held differ.
+     */
+    STYLE_KEY_REPLACED: STYLE_KEY_REPLACED_CODE,
 });
 
 /** The roles each dialect has a slot for (every other role column is a plain attribute, reported by checkCapabilities()). */
@@ -284,6 +295,8 @@ interface Resolved {
     readonly weightKey: string;
     readonly shape: JsonShapeMeta;
     readonly ontologyIri: string | null;
+    /** The styles being written, worked out for the dialect; absent without styles. */
+    readonly styled?: JsonStyledExport;
 }
 
 /** Everything write() needs, computed once by plan(). */
@@ -651,6 +664,8 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
         positionDtype: "f64",
+        // Deprecated (next major): role columns are written as plain attributes; styles go through the style writer.
+        vizAsAttributes: true,
     }).filter((n) => n.code !== LOSS.POSITIONS && n.code !== LOSS.EDGE_IDS_DROPPED);
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
@@ -735,7 +750,8 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
             break;
         case "vis":
             node.add(resolved.nodeIdKey ?? "id");
-            edge.add(resolved.sourceKey).add(resolved.targetKey);
+            // an edge key named source or target reads the document as node-link JSON, whose endpoints those are
+            edge.add(resolved.sourceKey).add(resolved.targetKey).add("source").add("target");
             break;
         case "cytoscape":
             node.add("id").add("parent");
@@ -1363,8 +1379,25 @@ function* writeNodeLink(snapshot: GraphSnapshot, p: Plan): Generator<string, voi
         yield w.take();
     }
     w.close("]");
+    writeTopLevelBlock(c, p);
     w.close("}");
     yield w.take();
+}
+
+/**
+ * The `graphty.styles` block as a top-level key, for a dialect that holds it there.
+ * @param c - the cursor
+ * @param p - the plan
+ */
+function writeTopLevelBlock(c: Cursor, p: Plan): void {
+    const groups = p.resolved.styled?.groups ?? null;
+    if (groups !== null) {
+        c.w.member("groups", JSON.stringify(groups));
+    }
+    const block = p.resolved.styled?.topLevelBlock ?? null;
+    if (block !== null) {
+        c.w.member(STYLE_BLOCK_NAME, JSON.stringify(block));
+    }
 }
 
 /**
@@ -1416,6 +1449,7 @@ function* writeVis(snapshot: GraphSnapshot, p: Plan): Generator<string, void, un
         yield w.take();
     }
     w.close("]");
+    writeTopLevelBlock(c, p);
     w.close("}");
     yield w.take();
 }
@@ -1609,7 +1643,6 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
-    const positionSlots: ReadonlySet<Slot> = new Set(["cytoscapePosition"]);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1625,18 +1658,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        for (const item of p.nodes) {
-            if (positionSlots.has(item.slot) && item.column.isSet(i)) {
-                const value = item.column.value(i) as ArrayLike<number>;
-                const f32 = item.column.dtype === "f32";
-                w.key("position");
-                w.open("{");
-                w.member("x", numberText(value[0], f32, c.nonfinite));
-                // stored y-up; Cytoscape's y grows downward
-                w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
-                w.close("}");
-            }
-        }
+        writeCytoscapePosition(c, p, i);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1673,16 +1695,51 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         w.key("data");
         writeGraphObject(c, p);
     }
-    const extra = resolved.shape.cytoscape;
-    if (extra !== undefined) {
-        for (const key of Object.keys(extra)) {
-            if (key !== "elements" && key !== "data") {
-                w.member(key, valueText(extra[key], false, c.nonfinite));
-            }
-        }
-    }
+    writeCytoscapeTopLevel(c, p);
+    writeTopLevelBlock(c, p);
     w.close("}");
     yield w.take();
+}
+
+/**
+ * Write a Cytoscape.js node's position: stored y-up, written with Cytoscape's y growing downward.
+ * @param c - the cursor
+ * @param p - the plan
+ * @param i - the node
+ */
+function writeCytoscapePosition(c: Cursor, p: Plan, i: number): void {
+    const { w } = c;
+    for (const item of p.nodes) {
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
+            const value = item.column.value(i) as ArrayLike<number>;
+            const f32 = item.column.dtype === "f32";
+            w.key("position");
+            w.open("{");
+            w.member("x", numberText(value[0], f32, c.nonfinite));
+            w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
+            w.close("}");
+        }
+    }
+}
+
+/**
+ * Write the top-level keys of a Cytoscape.js document an import kept, and the stylesheet: the styles written replace
+ * the stylesheet the file was read with.
+ * @param c - the cursor
+ * @param p - the plan
+ */
+function writeCytoscapeTopLevel(c: Cursor, p: Plan): void {
+    const { w } = c;
+    const extra = p.resolved.shape.cytoscape ?? {};
+    const stylesheet = p.resolved.styled?.stylesheet ?? null;
+    for (const key of Object.keys(extra)) {
+        if (key !== "elements" && key !== "data" && !(key === "style" && stylesheet !== null)) {
+            w.member(key, valueText(extra[key], false, c.nonfinite));
+        }
+    }
+    if (stylesheet !== null) {
+        w.member("style", valueText(stylesheet, false, c.nonfinite));
+    }
 }
 
 /**
@@ -1725,9 +1782,20 @@ function edgeIdGenerator(snapshot: GraphSnapshot, p: Plan): (e: number) => strin
  * @returns the parts
  */
 function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, void, undefined> {
-    return resolved.dialect === "obographs"
-        ? planObographs(snapshot, resolved).write()
-        : write(snapshot, plan(snapshot, resolved));
+    const s = resolved.styled?.snapshot ?? snapshot;
+    return resolved.dialect === "obographs" ? planObographs(s, resolved).write() : write(s, plan(s, resolved));
+}
+
+/**
+ * Resolve the options and, when styles are written, work them out for the dialect.
+ * @param snapshot - the snapshot
+ * @param options - the caller's options, with the styles graph-io hands an exporter
+ * @returns the resolved options
+ */
+function resolveStyled(snapshot: GraphSnapshot, options: JsonWriteOptions | undefined): Resolved {
+    const resolved = resolve(snapshot, options);
+    const styled = jsonStyledExport(snapshot, resolved.dialect, options?.styles);
+    return styled === null ? resolved : { ...resolved, styled };
 }
 
 /**
@@ -1749,6 +1817,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
         "weightKey",
     ]),
     capabilities: dialectCapabilities("node-link"),
+    styles: Object.freeze({ capabilities: JSON_STYLE_CAPABILITIES }),
 
     /**
      * Pre-flight: every loss of the selected dialect, without writing anything.
@@ -1757,10 +1826,10 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the notes, empty when the export is exact
      */
     check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolve(snapshot, options);
-        const notes =
-            resolved.dialect === "obographs" ? planObographs(snapshot, resolved).notes : plan(snapshot, resolved).notes;
-        return Object.freeze([...notes]);
+        const resolved = resolveStyled(snapshot, options);
+        const s = resolved.styled?.snapshot ?? snapshot;
+        const notes = resolved.dialect === "obographs" ? planObographs(s, resolved).notes : plan(s, resolved).notes;
+        return Object.freeze([...notes, ...(resolved.styled?.notes ?? [])]);
     },
 
     /**
@@ -1770,7 +1839,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the chunks
      */
     export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(parts(snapshot, resolve(snapshot, options)));
+        return encodeChunks(parts(snapshot, resolveStyled(snapshot, options)));
     },
 
     /**
@@ -1780,7 +1849,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the document
      */
     exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(parts(snapshot, resolve(snapshot, options)));
+        return joinText(parts(snapshot, resolveStyled(snapshot, options)));
     },
 });
 

@@ -1,6 +1,24 @@
-import { expect, waitFor } from "@storybook/test";
+import { expect, waitFor } from "storybook/test";
 
 import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
+
+/**
+ * The longest delay `setTimeout` accepts (about 24.8 days): in effect, no deadline.
+ */
+const NO_DEADLINE_MS = 2 ** 31 - 1;
+
+/**
+ * Options for a play function's `waitFor` or `findBy*`: no deadline of their own under a test
+ * runner (the Storybook vitest project, the visual capture), so the runner's own test timeout is
+ * the only backstop; `interactiveMs` in the interactive Storybook, so a hang still shows an error
+ * there. A fixed deadline under a runner fails a story whenever a stalled machine outlasts it,
+ * though the work it waits on still finishes inside the test's own timeout (#2864).
+ * @param interactiveMs - the deadline in the interactive Storybook
+ * @returns the `timeout` option to pass to `waitFor` or `findBy*`
+ */
+export function storyWaitOptions(interactiveMs: number): { timeout: number } {
+    return { timeout: navigator.webdriver ? NO_DEADLINE_MS : interactiveMs };
+}
 
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
@@ -49,9 +67,30 @@ export async function settleFocusTooltip(root: HTMLElement): Promise<void> {
     await waitFor(
         () =>
             expect(root.ownerDocument.querySelector(".cm-tooltip:is([data-cm-held], :not([data-cm-seen]))")).toBeNull(),
-        {
-            timeout: 5000,
-        },
+        storyWaitOptions(5000),
     );
     await waitForSettledLayout(root, ".mantine-Tooltip-tooltip");
+}
+
+/**
+ * Waits until `check` passes, testing it once now and then once per animation frame, with no
+ * deadline of its own: the test's timeout is the backstop. `check` passes when it returns
+ * anything but `false` without throwing, so it can be a boolean test or a block of assertions.
+ *
+ * Use it for state that arrives on a later frame -- a floating-ui placement, a scroll, a measured
+ * box. A `waitFor` with its 1000 ms deadline fails such a check when the main thread stalls past
+ * the deadline, though the state arrives a few frames later (#2705, #2719).
+ * @param check - the condition, as a boolean test or as assertions that throw until it holds
+ */
+export async function untilPasses(check: () => unknown): Promise<void> {
+    const passes = (): boolean => {
+        try {
+            return check() !== false;
+        } catch {
+            return false;
+        }
+    };
+    while (!passes()) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
 }

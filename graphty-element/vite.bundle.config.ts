@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig, type Plugin } from "vite";
@@ -62,10 +63,23 @@ export default defineConfig({
     // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
     // Everything is copied in here, so its license list is the package's whole list.
     plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram()],
+    // Relative, so the Graphviz Worker's file is found beside the bundle wherever it is served.
+    base: "./",
+    // The Graphviz Worker stays a file of its own and imports the optional package by name, which
+    // a page without a bundler cannot resolve: there the Graphviz layouts report
+    // `graphviz.unavailable`, as they do wherever the package is not installed.
+    worker: {
+        format: "es",
+        rollupOptions: { external: ["@hpcc-js/wasm-graphviz"] },
+    },
     define: {
         // A page loading this from a CDN is running the shipped build, never a dev build, and
         // Lit's dev-mode warning would otherwise fire on every load.
         "process.env.NODE_ENV": JSON.stringify("production"),
+        // The version a project file's `generator` names (src/session/runs/engine.ts).
+        __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+            (JSON.parse(readFileSync(`${here}package.json`, "utf8")) as { version: string }).version,
+        ),
     },
     build: {
         // The library build owns dist/. This one adds a file to it rather than replacing it.
@@ -80,13 +94,16 @@ export default defineConfig({
         // One file, so a script tag needs one URL. Without this, Rollup splits the dynamic
         // imports out and the tag fetches a directory's worth of chunks.
         rollupOptions: {
-            // One `external` only. That is the whole point of this file: the one output carries
+            // Almost nothing external. That is the whole point of this file: the one output carries
             // Babylon.js, Lit, the siblings and every other dependency, because the page
             // loading it has no installer to resolve them. The exception is the optional
             // in-browser AI runtime, which would double the file for every page: a page that
             // wants it maps `@mlc-ai/web-llm` in an import map, and without one
             // `enableAiControl({ provider: "webllm" })` rejects with `E_MISSING_PACKAGE`.
-            external: ["@mlc-ai/web-llm"],
+            // neo4j-driver, graph-io's optional peer for Cypher over Bolt, is left out the same
+            // way: a page maps it in an import map, and without one a Bolt load rejects with
+            // `E_SOURCE_RUNTIME` (`reason: "needs-peer-dependency"`). The Query API needs nothing.
+            external: ["@mlc-ai/web-llm", "@hpcc-js/wasm-graphviz", "neo4j-driver"],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,
                 // but that key is not in the Rollup types this workspace resolves, so using it

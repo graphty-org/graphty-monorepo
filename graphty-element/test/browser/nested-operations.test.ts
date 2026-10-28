@@ -626,22 +626,8 @@ describe("Nested Operations", () => {
                 );
             }
 
-            // Should complete in reasonable time without stack overflow
-            const timeoutPromise = new Promise<boolean>((resolve) => {
-                setTimeout(() => {
-                    resolve(false);
-                }, 5000);
-            });
-
-            const completionPromise = operationQueueOf(graph)
-                .waitForCompletion()
-                .then(() => {
-                    return true;
-                });
-
-            const completed = await Promise.race([completionPromise, timeoutPromise]);
-
-            assert.isTrue(completed, "Should complete without infinite recursion");
+            // Completes without stack overflow; infinite recursion throws here or times the test out.
+            await operationQueueOf(graph).waitForCompletion();
         });
     });
 

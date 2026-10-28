@@ -6,8 +6,10 @@
  *
  * Each page keeps its hand-written text; only what sits between a pair of `generated:<section>` markers is replaced.
  * test/reference.test.ts fails when a page differs from what this produces; `npm run docs:reference` rewrites them.
+ * `--json` prints every fact that test checks (`Facts`) as one JSON document; the test runs it in a child process.
  */
 
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { DATASETS } from "@graphty/graph-samples";
@@ -23,7 +25,7 @@ import {
     UNWEIGHTED,
 } from "../src/algorithms.js";
 import { DEFAULTS as LAYOUT_DEFAULTS, LAYOUT_NAMES, SIMULATION_DEFAULTS, SIMULATIONS } from "../src/layouts.js";
-import { BUNDLED_DATASET_NAMES, GENERATORS } from "../src/samples.js";
+import { GENERATORS } from "../src/samples.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
@@ -331,6 +333,12 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     },
     "dot-import.positions": {
         doc: "Read a node's `pos` attribute as its position; `false` keeps `pos` as the text the file wrote.",
+    },
+    "gml-import.keepPositionSource": {
+        doc: "With `positions`, also keep the whole `graphics` record, `x` and `y` included, as the data field `graphics`.",
+    },
+    "dot-import.keepPositionSource": {
+        doc: "With `positions`, also keep `pos` as the text the file wrote.",
     },
     "gml-import.dictionaries": {
         doc: "Store repeated text values compactly while reading; the data you get is the same.",
@@ -1300,11 +1308,12 @@ function generators(src: Source): string[] {
  */
 function datasets(): string[] {
     const out = [
-        "| Name | Nodes | Edges | Directed | Data fields | Where | License | Source |",
+        "| Name | Nodes | Edges | Directed | Data fields | Download | License | Source |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const where = BUNDLED_DATASET_NAMES.includes(d.name) ? "bundled" : "hosted";
+        const bytes = d.bytes ?? 0;
+        const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;
         const nodeFields = Object.keys(d.attributes)
@@ -1316,7 +1325,7 @@ function datasets(): string[] {
             ...(d.weighted ? ["edges: `weight`"] : []),
         ];
         out.push(
-            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${where} | ${cell(d.license)} | <${d.source}> |`,
+            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${download} | ${cell(d.license)} | <${d.source}> |`,
         );
     }
     return out;
@@ -1372,7 +1381,7 @@ const PAGES: Readonly<Record<string, Readonly<Record<string, (src: Source) => st
 };
 
 /** The file names of the reference pages, relative to docs/reference/. */
-export const REFERENCE_PAGES: readonly string[] = Object.keys(PAGES);
+const REFERENCE_PAGES: readonly string[] = Object.keys(PAGES);
 
 let cached: Source | undefined;
 
@@ -1386,14 +1395,14 @@ function source(): Source {
 }
 
 /** The generated module that lists each algorithm's and each generator's options, relative to the package. */
-export const OPTION_NAMES_FILE = "src/algorithm-options.ts";
+const OPTION_NAMES_FILE = "src/algorithm-options.ts";
 
 /**
  * The text of src/algorithm-options.ts: the option names each algorithm method and each generator takes, from the
  * same types the reference tables come from, so an option a caller misspells is refused at run time.
  * @returns the module's text
  */
-export async function optionNamesModule(): Promise<string> {
+async function optionNamesModule(): Promise<string> {
     const src = source();
     const methods = src.typeOf(src.exportsOf("src/index.ts").get("GraphtyAlgorithms") as ts.Symbol);
     const entries = [...ALGORITHM_NAMES].sort(byCodeUnit).map((name) => {
@@ -1442,7 +1451,7 @@ export async function optionNamesModule(): Promise<string> {
  * Every generated section of every page, as one text (what the tests scan for undocumented options).
  * @returns the generated markdown, without the markers
  */
-export function reference(): string {
+function reference(): string {
     return Object.values(PAGES)
         .flatMap((sections) => Object.values(sections))
         .flatMap((make) => make(source()))
@@ -1456,7 +1465,7 @@ export function reference(): string {
  * @param text - the page's current text
  * @returns the new text
  */
-export async function withReference(page: string, text: string): Promise<string> {
+async function withReference(page: string, text: string): Promise<string> {
     const sections = PAGES[page];
     if (sections === undefined) {
         throw new Error(`${page} is not a reference page`);
@@ -1474,4 +1483,53 @@ export async function withReference(page: string, text: string): Promise<string>
     }
     const filepath = `${pkg}docs/reference/${page}`;
     return format(out, { ...(await resolveConfig(filepath)), filepath });
+}
+
+/** A generated file: its text on disk and the text this generator produces. */
+export interface Generated {
+    readonly current: string;
+    readonly expected: string;
+}
+
+/** Everything test/reference.test.ts checks, as `--json` prints it. */
+export interface Facts {
+    /** Each reference page, by its file name relative to docs/reference/. */
+    readonly pages: Readonly<Record<string, Generated>>;
+    /** src/algorithm-options.ts. */
+    readonly optionNames: Generated;
+    /** Every generated section of every page, as `reference()` returns it. */
+    readonly reference: string;
+}
+
+/**
+ * Every fact the reference test checks.
+ * @returns the facts
+ */
+async function facts(): Promise<Facts> {
+    const pages: Record<string, Generated> = {};
+    for (const page of REFERENCE_PAGES) {
+        const current = readFileSync(`${pkg}docs/reference/${page}`, "utf8");
+        pages[page] = { current, expected: await withReference(page, current) };
+    }
+    return {
+        pages,
+        optionNames: {
+            current: readFileSync(`${pkg}${OPTION_NAMES_FILE}`, "utf8"),
+            expected: await optionNamesModule(),
+        },
+        reference: reference(),
+    };
+}
+
+if (
+    process.argv[1] !== undefined &&
+    fileURLToPath(import.meta.url) === process.argv[1] &&
+    process.argv.includes("--json")
+) {
+    try {
+        process.stdout.write(JSON.stringify(await facts()));
+    } catch (e) {
+        console.error(e);
+        process.exitCode = 1;
+    }
 }

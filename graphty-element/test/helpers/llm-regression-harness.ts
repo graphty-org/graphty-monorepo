@@ -150,16 +150,20 @@ export const ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the acc
  */
 export function accountRefusalOf(failure: RequestFailure): string | null {
     const status = failure.params?.status;
-    if (failure.code === "AI_KEY_REJECTED") {
+    // A rejected key, or (Google, HTTP 402) depleted prepayment credits.
+    if (failure.code === "AI_KEY_REJECTED" || (failure.code === "AI_PROVIDER_ERROR" && status === 402)) {
         return `HTTP ${status ?? "?"}`;
     }
 
     // Anthropic answers an empty balance with 400 ("credit balance is too low"), OpenAI with 429
-    // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota.
+    // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota, or 402 when its
+    // prepayment credits are depleted.
     const text = failure.message.toLowerCase();
     if (
         failure.code === "AI_PROVIDER_ERROR" &&
-        /credit balance|insufficient_quota|no credits|billing|exceeded your current quota/.test(text)
+        /credit balance|insufficient_quota|no credits|credits are depleted|billing|exceeded your current quota/.test(
+            text,
+        )
     ) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }

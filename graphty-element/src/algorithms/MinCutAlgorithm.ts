@@ -9,7 +9,7 @@ import type { AcceleratedAlgorithms, MinCutResult } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-format";
 import { z } from "zod";
 
-import type { EdgeId } from "../catalog/types";
+import type { EdgeId, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { caveat, type CaveatCode } from "../session/runs/caveatFacts";
@@ -95,6 +95,8 @@ interface MinCutOptions extends Record<string, unknown> {
 export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
     static namespace = "graphty";
     static type = "min-cut";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Cuts the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -187,44 +189,8 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             return null;
         }
 
-        // Get options from legacy or schema options
-        // Legacy configure() takes precedence for backward compatibility
-        const useGlobalMinCut = this.legacyOptions?.useGlobalMinCut ?? this._schemaOptions.useGlobalMinCut;
-        const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
-        const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
-        const { useKarger, kargerIterations } = this._schemaOptions;
-
-        let work: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<MinCutResult>;
-        let member: "kargerMinCut" | "stoerWagner" | "minSTCut";
-        let method: string;
-        let autoEndNote: CodedFact<CaveatCode> | undefined;
-
-        if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
-            if (useKarger) {
-                method = "karger";
-                member = "kargerMinCut";
-                work = (dispatch, s) => dispatch.kargerMinCut(s, { iterations: kargerIterations });
-            } else {
-                method = "stoer-wagner";
-                member = "stoerWagner";
-                work = (dispatch, s) => dispatch.stoerWagner(s);
-            }
-        } else {
-            method = "min-st-cut";
-            member = "minSTCut";
-            const source =
-                sourceOption === null ? nodeIds[0] : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
-            const sink =
-                sinkOption === null
-                    ? nodeIds[nodeIds.length - 1]
-                    : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
-            requireDistinctEnds("min-cut", source, sink);
-            if (sourceOption === null || sinkOption === null) {
-                autoEndNote = caveat("min-cut.end-chosen", { source, sink });
-            }
-
-            work = (dispatch, s) => dispatch.minSTCut(s, s.ids.indexOf(source), s.ids.indexOf(sink));
-        }
+        const { kargerIterations } = this._schemaOptions;
+        const { work, member, method, autoEndNote } = this.chooseMethod(nodeIds);
 
         // The weights are the element's edge weights, read off the input: a reciprocal pair is one
         // edge and parallel edges are one edge carrying their summed weight, because cutting a
@@ -269,7 +235,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             caveats: declaredCaveats({
                 method,
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,
@@ -280,6 +246,62 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                     ...(autoEndNote === undefined ? [] : [autoEndNote]),
                 ],
             }),
+        };
+    }
+    /**
+     * Which of the three methods answers, from the options: Karger or Stoer-Wagner for the
+     * cheapest cut anywhere, else max flow between the source and the sink (the first and the
+     * last node when one is not named, which a caveat then says).
+     * @param nodeIds - The run's nodes, in order.
+     * @returns The method's name, its dispatcher member, the call that runs it and the caveat
+     * naming the chosen ends, when ends were chosen.
+     */
+    private chooseMethod(nodeIds: readonly NodeId[]): {
+        work: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<MinCutResult>;
+        member: "kargerMinCut" | "stoerWagner" | "minSTCut";
+        method: string;
+        autoEndNote: CodedFact<CaveatCode> | undefined;
+    } {
+        // Get options from legacy or schema options
+        // Legacy configure() takes precedence for backward compatibility
+        const useGlobalMinCut = this.legacyOptions?.useGlobalMinCut ?? this._schemaOptions.useGlobalMinCut;
+        const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
+        const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
+        const { useKarger, kargerIterations } = this._schemaOptions;
+
+        if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
+            if (useKarger) {
+                return {
+                    method: "karger",
+                    member: "kargerMinCut",
+                    work: (dispatch, s) => dispatch.kargerMinCut(s, { iterations: kargerIterations }),
+                    autoEndNote: undefined,
+                };
+            }
+
+            return {
+                method: "stoer-wagner",
+                member: "stoerWagner",
+                work: (dispatch, s) => dispatch.stoerWagner(s),
+                autoEndNote: undefined,
+            };
+        }
+
+        const source =
+            sourceOption === null ? nodeIds[0] : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
+        const sink =
+            sinkOption === null
+                ? (nodeIds.at(-1) ?? nodeIds[0])
+                : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
+        requireDistinctEnds("min-cut", source, sink);
+        const autoEndNote =
+            sourceOption === null || sinkOption === null ? caveat("min-cut.end-chosen", { source, sink }) : undefined;
+
+        return {
+            method: "min-st-cut",
+            member: "minSTCut",
+            work: (dispatch, s) => dispatch.minSTCut(s, s.ids.indexOf(source), s.ids.indexOf(sink)),
+            autoEndNote,
         };
     }
 }

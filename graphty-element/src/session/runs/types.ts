@@ -23,6 +23,7 @@ import type {
     FieldDescriptor,
     LayerId,
     NodeId,
+    PaletteId,
     ResultShape,
     RunId,
     Scope,
@@ -162,14 +163,46 @@ export interface Progress {
     readonly message?: string;
 }
 
+/** Why a finished run went out of date; see {@link StaleNote.reason}. */
+export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
+
+/**
+ * The time window a run over the visible graph was computed in, and what it left visible then.
+ * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
+ */
+export interface RunWindow {
+    /** The attribute the window read. */
+    readonly attribute: string;
+    readonly from: number;
+    readonly to: number;
+    /** How many nodes were visible when the run resolved its scope. */
+    readonly nodes: number;
+    /** How many edges were visible when the run resolved its scope. */
+    readonly edges: number;
+}
+
 /**
  * Why a run's numbers no longer describe what is on screen.
  *
- * This is DERIVED rather than tracked: the element compares the scope digest the run recorded
- * against the current resolution of the same scope specification, so "computed on 200 nodes,
- * now showing 120" is answerable with the consumer tracking nothing.
+ * This is DERIVED rather than tracked: the element compares the data digest and the scope digest
+ * the run recorded against the graph's data and the current resolution of the same scope
+ * specification, so "computed on 200 nodes, now showing 120" is answerable with the consumer
+ * tracking nothing.
  */
 export interface StaleNote {
+    /**
+     * Why the numbers no longer describe the graph: `data-changed` when the data the run read
+     * was replaced or edited (a reload with new weights), `scope-changed` when the same data
+     * resolves to other elements (a filter, the selection or a set changed), `window-moved` when
+     * the run was computed in a time window and the window in force is another one (even when it
+     * leaves the same nodes visible). A data change wins when both happened.
+     */
+    readonly reason: StaleReason;
+    /**
+     * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
+     * params: { from, to, nodes, edges } }`.
+     */
+    readonly window?: CodedFact<"window-moved">;
     /** How many elements the run was computed over. */
     readonly ranOn: number;
     /** How many the same scope resolves to now. */
@@ -192,9 +225,26 @@ export type RunDirection = "directed" | "undirected" | "as-loaded";
 export interface WeightMeaning {
     /** The attribute the weight was read from. */
     readonly attribute: string;
-    /** Whether a larger weight means further apart or more strongly connected. */
-    readonly meaning: "distance" | "strength";
+    /**
+     * Whether a larger weight means further apart, more strongly connected, or more room for flow.
+     *
+     * OPEN UNION: later releases may add meanings.
+     */
+    readonly meaning: "distance" | "strength" | "capacity";
+    /**
+     * True when nobody stated the weight's meaning and the run read it as the meaning its
+     * algorithm reads (a strength reader reads an unstated weight as a strength). Absent when the
+     * meaning was stated, at load or in the run's `weight` option.
+     */
+    readonly assumed?: true;
 }
+
+/**
+ * Why a run left a weight unread. `code` is `"weight.meaning-mismatch"`; `params.attribute` is the
+ * column, `params.meaning` what the weight means (null when nobody said), and `params.reads` the
+ * meaning the algorithm reads.
+ */
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 /**
  * What qualifies a run's numbers.
@@ -225,10 +275,22 @@ export interface Caveats {
     readonly filterScope?: boolean;
     /** Whether a time window narrowed what the run looked at. */
     readonly windowScope?: boolean;
+    /** The time window a run over the visible graph was computed in, and its visible counts. */
+    readonly window?: RunWindow;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
-    /** What the edge weight was taken to mean, or null when the run ignored weights. */
+    /**
+     * The edge weight the run read -- the column and the meaning it was read as -- or null when it
+     * read none. A run reads the weight the graph was loaded with unless its `weight` option says
+     * otherwise.
+     */
     readonly weight?: WeightMeaning | null;
+    /**
+     * Present when a weight was there and the run left it unread, because its meaning is not the
+     * one the algorithm reads (a strength handed to a shortest path, which reads a distance): the
+     * run then counts edges. See {@link WeightSkip}.
+     */
+    readonly weightSkipped?: WeightSkip;
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
     /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
@@ -318,10 +380,21 @@ export interface RunScopeRecord {
     };
     /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
     readonly reading?: EdgeReading;
+    /**
+     * A digest of the graph's data (records, endpoints, weights) when the run resolved its
+     * scope; a different one now means the data changed under the run. Absent when the session
+     * records none.
+     */
+    readonly dataDigest?: string;
+    /**
+     * For a scope over the visible graph: the time window in force when it resolved, or null when
+     * there was none. Absent for every other scope.
+     */
+    readonly window?: RunWindow | null;
 }
 
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {
@@ -418,6 +491,30 @@ export interface StartOptions extends RunOptions {
      * so one undo takes the run and those layers away together.
      */
     readonly applySuggestedStyles?: boolean;
+    /**
+     * Put back the layers this run added when it first completed that are no longer in the stack
+     * (a reader deleted them), as they were suggested, in the same step as the run: one undo takes
+     * them away again. A run that already answers the question is not computed again -- its stored
+     * result paints the layers -- unless its parameters or the data changed, in which case it runs
+     * and the layers come back on the new result. A layer still in the stack is left as it is.
+     * {@link RunsApi.layers} says beforehand whether anything is missing.
+     * @since 3.26.0
+     */
+    readonly restoreLayer?: boolean;
+}
+
+/**
+ * Which of a run's layers the stack holds: what {@link RunsApi.layers} answers.
+ * @since 3.26.0
+ */
+export interface RunLayers {
+    /** The layers reading the run, as {@link RunsApi.bindings} lists them. */
+    readonly present: readonly LayerId[];
+    /**
+     * What the run painted on its first completion that no layer reading the run paints any more:
+     * what `start(..., { restoreLayer: true })` puts back. Empty when nothing is missing.
+     */
+    readonly missing: readonly StyleSuggestion[];
 }
 
 /**
@@ -434,11 +531,65 @@ export interface StartOptions extends RunOptions {
  *   channel's own units. `size: false` or left off adds no size. For any other result shape the
  *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
  *   shape.
+ * - `{ name }`: what to call the layers it adds, in place of the run's label. An application that
+ *   names algorithms in its own words passes the name its reader picked the algorithm by. Combines
+ *   with `size`.
  *
  * Every layer this adds is scoped to the elements carrying the run's value, and is removed with
  * the run.
  */
-export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
+export type RunStyle =
+    | boolean
+    | {
+          readonly size?: boolean | readonly [min: number, max: number];
+          readonly name?: string;
+          /**
+           * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
+           * propagation, connected components) paints each group as a layer of its own instead of one
+           * layer colouring every group: a folder named for the run (`name`, else the run's label)
+           * holding one node layer per group, largest on top, each selecting
+           * `<group path> == <value>` and setting the color the one layer would have painted that group. A re-run
+           * keeps each layer on the group sharing most of its members and adds a layer at the bottom
+           * of the folder for each new group, whether or not the re-run repeats the option (it
+           * keeps the first start's `groupName`); removing the run removes the folder. Ignored for
+           * any other result shape. Left off, the run paints one layer.
+           * @since 3.29.0
+           */
+          readonly groups?: "layers";
+          /**
+           * What to call each group's layer when `groups` is `"layers"`; its value as text when
+           * absent. `rank` is 1 for the largest group; `taken` lists the names the folder's
+           * layers already go by, so a re-run's new group can be given a name no layer has. The
+           * name is also given to the group's value (as `data.setValueLabel` gives one), so the
+           * legend and every value list name the group as its layer is named, and the name
+           * follows the group across a re-run.
+           * @since 3.29.0
+           */
+          readonly groupName?: (group: RunGroup) => string;
+          /**
+           * The palettes the group layers may be colored from when `groups` is `"layers"`, in
+           * order of preference: the first with a color for every group the run finds; when none
+           * has, the first, its colors continued past its end. Absent, the colors are the ones the
+           * run's single layer would have painted. Ignored without `groups`.
+           * @since 3.32.0
+           */
+          readonly groupPalettes?: readonly PaletteId[];
+      };
+
+/**
+ * One group of a run that partitions the nodes, as {@link RunStyle}'s `groupName` is asked about it.
+ * @since 3.29.0
+ */
+export interface RunGroup {
+    /** The group's value, as the run published it. */
+    readonly value: unknown;
+    /** Its place by size, 1 for the largest. */
+    readonly rank: number;
+    /** How many nodes it holds. */
+    readonly size: number;
+    /** The names of the layers already in the run's folder of groups. */
+    readonly taken: readonly string[];
+}
 
 /** One member of a batch: the same thing `start` takes, as data. */
 export interface RunSpec {
@@ -697,14 +848,14 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      *
      * Derived from the run's own shape and the fields it published, never from a block of styling
      * written per algorithm: a measurement suggests a colour over the elements it measured, a
-     * grouping suggests a categorical colour, a route or a chosen set suggests a highlight, and a
+     * grouping suggests a categorical colour, a route or a chosen set suggests a mark, and a
      * table of pairs, a time series or a bare fact suggests nothing at all.
      *
      * The element applies these itself on a run's first completion unless `{ style: false }` was
      * asked for. Reading them is for a consumer that wants to show what WOULD be painted, apply it
      * at another moment, or alter the taste before it lands -- each suggestion is the specification
-     * `styles.encode()` or `styles.highlight()` takes, with its taste left unsaid so the element's
-     * own defaults settle it.
+     * `styles.encode()` or `styles.mark()` takes; an encoding leaves its taste unsaid so the
+     * element's own defaults settle it, and a mark carries the channel values it paints.
      * @returns The suggestions, empty when the result is read rather than painted.
      */
     suggestEncodings(): readonly StyleSuggestion[];
@@ -749,7 +900,7 @@ export type SuggestionOutcome =
           /** The suggestion was added to the style stack. */
           readonly outcome: "added";
           readonly suggestion: StyleSuggestion;
-          /** The layers it added: one for an encoding, one per half for a highlight. */
+          /** The layers it added: one for an encoding, one per half for a mark or a highlight. */
           readonly layerIds: readonly LayerId[];
           /**
            * Set when it was placed directly beneath a hand-written layer that drives one of its
@@ -827,6 +978,26 @@ export interface RunsApi {
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     /**
+     * The finished run `start()` with these arguments would hand back as it is, computing nothing:
+     * the same question, asked with the same parameters and seed, answered over a scope and data
+     * that have not moved since. Undefined when `start()` would compute -- the first time, after
+     * the parameters, the scope or the data changed, or after the run failed -- so a control that
+     * starts a run can tell beforehand whether pressing it would change anything.
+     *
+     * Whether `start()` would put back layers the reader deleted is a separate fact:
+     * {@link RunsApi.layers}.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest, as `start()` takes them.
+     * @returns The run, or undefined.
+     * @since 3.33.0
+     */
+    answered(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run | undefined;
+    /**
      * Start several algorithms as one piece of work, with one progress stream and one cancel.
      * @param specs - What to run.
      * @param options - The batch's label, and the ordinary run options.
@@ -854,6 +1025,22 @@ export interface RunsApi {
      */
     remove(id: RunId): RunRemoval;
     /**
+     * Move every style layer reading a run, as one block and in its own order, to another place
+     * in the stack, as one step.
+     *
+     * `before` reads as it does in `styles.move`: the block sits IMMEDIATELY BELOW that layer,
+     * and `null` means the top of the stack. A run that no layer reads moves nothing.
+     * @param id - The run id.
+     * @param before - The layer to sit below, or null for the top of the stack.
+     * @param options - How the move is dispatched.
+     * @param options.signal - Withdraws the move.
+     * @returns Settles once the block has moved. Rejects with `E_UNKNOWN_RUN` for a run this
+     *     session does not hold, `E_UNKNOWN_LAYER` when `before` is not in the stack,
+     *     `E_PROTECTED` when `before` is an element-owned layer (nothing goes beneath those) and
+     *     `E_BAD_COMMAND` when `before` is one of the run's own layers.
+     */
+    move(id: RunId, before: LayerId | null, options?: { readonly signal?: AbortSignal }): Promise<void>;
+    /**
      * Which style layers read a run.
      *
      * Run-to-layer is many-to-many, so a layer reading two runs survives the removal of one.
@@ -872,6 +1059,15 @@ export interface RunsApi {
      * @returns The decision, or undefined when this session holds no run with that id.
      */
     painting(id: RunId): RunPainting | undefined;
+    /**
+     * Which of a run's layers the stack holds, and which of those it added on its first
+     * completion are gone: what decides between "update the layer" and "add the layer back" before
+     * a reader starts the run again.
+     * @param id - The run id.
+     * @returns The layers, or undefined when this session holds no run with that id.
+     * @since 3.26.0
+     */
+    layers(id: RunId): RunLayers | undefined;
     /** The runs waiting to start, in queue order. */
     readonly queue: readonly QueueEntry[];
 }

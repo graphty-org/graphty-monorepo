@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "pr": 2691,
+  "subject": {
+    "builtMerge": "df00c9d032daea18b9544272e6170be657f17f55",
+    "head": "072b37a541beb109a0f6d30012050e8c4adda6bd",
+    "runId": 38846661519,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "df00c9d032daea18b9544272e6170be657f17f55"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--export.png",
+      "from": "8c8373833da5f44894e1ea1738bd5cd926c4b3f843b064e426328b1110358f64",
+      "to": "027279d2599c1f9fd7d85b26ba7d172016f44e5c3a5a705fba728ad6dc02bd8f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--overview.png",
+      "from": "aeac7d45531655002ffd38a840cd58b4994fe0286bce75d01cacd9369ecf3f88",
+      "to": "68455d3b7aa059ce9fd3083e3b39fb0023f816ae3250ffe1d850eeb722473ca4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-styles-in-and-out--styles-in-and-out.png",
+      "from": null,
+      "to": "466277bfc02e901099a50f4d8aed81130b0d644f35028b1dd10afa8de8641a1d",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-16T04:05:24.187Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoibW0xQU5QbHRuTE0ySHVvWjQ5dTlXX3BZdS1OTFViSnotbnhfaTZVT2thcyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDy5AvlUXVKgYnchgwGwqhR89FgCkd2om7voeGv_CDPeQIhALbBLUo_xFUv1p2YIYzcx3yzmegd0yZfzlElPqiEeaTe"
+  }
+}

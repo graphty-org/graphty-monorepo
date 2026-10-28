@@ -32,79 +32,18 @@ export class PointerRenderer {
         radius: number,
         pointerOptions: PointerOptions,
     ): void {
-        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = contentArea;
-        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, direction, curved } = pointerOptions;
-
-        switch (direction) {
-            case "bottom":
-                this.createBottomPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
-                break;
+        switch (pointerOptions.direction) {
             case "top":
-                this.createTopPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createTopPointer(ctx, contentArea, radius, pointerOptions);
                 break;
             case "left":
-                this.createLeftPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createLeftPointer(ctx, contentArea, radius, pointerOptions);
                 break;
             case "right":
-                this.createRightPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createRightPointer(ctx, contentArea, radius, pointerOptions);
                 break;
-            default:
-                this.createBottomPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+            default: // "bottom"
+                this.createBottomPointer(ctx, contentArea, radius, pointerOptions);
         }
     }
 
@@ -121,123 +60,42 @@ export class PointerRenderer {
         radius: number,
         pointerOptions: PointerOptions,
     ): void {
-        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = contentArea;
-        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, direction, curved } = pointerOptions;
-
-        switch (direction) {
-            case "bottom":
-                this.createBottomPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
-                break;
+        switch (pointerOptions.direction) {
             case "top":
-                this.createTopPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createTopPointerCCW(ctx, contentArea, radius, pointerOptions);
                 break;
             case "left":
-                this.createLeftPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createLeftPointerCCW(ctx, contentArea, radius, pointerOptions);
                 break;
             case "right":
-                this.createRightPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+                this.createRightPointerCCW(ctx, contentArea, radius, pointerOptions);
                 break;
-            default:
-                this.createBottomPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
+            default: // "bottom"
+                this.createBottomPointerCCW(ctx, contentArea, radius, pointerOptions);
         }
     }
 
     private createBottomPointer(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY } = area;
         ctx.moveTo(contentX + radius, contentY);
-        this.drawBottomPointerFromTopEdge(
-            ctx,
-            contentX,
-            contentY,
-            contentWidth,
-            contentHeight,
-            radius,
-            pointerWidth,
-            pointerHeight,
-            pointerOffset,
-            curved,
-        );
+        this.drawBottomPointerFromTopEdge(ctx, area, radius, pointer);
         ctx.lineTo(contentX, contentY + radius);
         ctx.quadraticCurveTo(contentX, contentY, contentX + radius, contentY);
     }
 
     private createTopPointer(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         const centerXTop = contentX + contentWidth / 2 + pointerOffset;
         ctx.moveTo(Math.max(centerXTop - pointerWidth / 2, contentX + radius), contentY);
         if (curved) {
@@ -269,43 +127,23 @@ export class PointerRenderer {
 
     private createLeftPointer(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY } = area;
         ctx.moveTo(contentX + radius, contentY);
-        this.createLeftPointerCCW(
-            ctx,
-            contentX,
-            contentY,
-            contentWidth,
-            contentHeight,
-            radius,
-            pointerWidth,
-            pointerHeight,
-            pointerOffset,
-            curved,
-        );
+        this.createLeftPointerCCW(ctx, area, radius, pointer);
     }
 
     private createRightPointer(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         ctx.moveTo(contentX + radius, contentY);
         ctx.lineTo(contentX + contentWidth - radius, contentY);
         ctx.quadraticCurveTo(contentX + contentWidth, contentY, contentX + contentWidth, contentY + radius);
@@ -342,46 +180,26 @@ export class PointerRenderer {
 
     private createBottomPointerCCW(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY } = area;
         ctx.lineTo(contentX, contentY + radius);
         ctx.quadraticCurveTo(contentX, contentY, contentX + radius, contentY);
-        this.drawBottomPointerFromTopEdge(
-            ctx,
-            contentX,
-            contentY,
-            contentWidth,
-            contentHeight,
-            radius,
-            pointerWidth,
-            pointerHeight,
-            pointerOffset,
-            curved,
-        );
+        this.drawBottomPointerFromTopEdge(ctx, area, radius, pointer);
     }
 
     // The shared middle of both bottom pointers: from the top edge, round the right side, the
     // pointer on the bottom edge and the bottom-left corner.
     private drawBottomPointerFromTopEdge(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         ctx.lineTo(contentX + contentWidth - radius, contentY);
         ctx.quadraticCurveTo(contentX + contentWidth, contentY, contentX + contentWidth, contentY + radius);
         ctx.lineTo(contentX + contentWidth, contentY + contentHeight - radius);
@@ -415,16 +233,12 @@ export class PointerRenderer {
 
     private createTopPointerCCW(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         ctx.lineTo(contentX, contentY + contentHeight - radius);
         ctx.quadraticCurveTo(contentX, contentY + contentHeight, contentX + radius, contentY + contentHeight);
         ctx.lineTo(contentX + contentWidth - radius, contentY + contentHeight);
@@ -457,16 +271,12 @@ export class PointerRenderer {
 
     private createLeftPointerCCW(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         ctx.lineTo(contentX + contentWidth - radius, contentY);
         ctx.quadraticCurveTo(contentX + contentWidth, contentY, contentX + contentWidth, contentY + radius);
         ctx.lineTo(contentX + contentWidth, contentY + contentHeight - radius);
@@ -499,16 +309,12 @@ export class PointerRenderer {
 
     private createRightPointerCCW(
         ctx: CanvasRenderingContext2D,
-        contentX: number,
-        contentY: number,
-        contentWidth: number,
-        contentHeight: number,
+        area: ContentArea,
         radius: number,
-        pointerWidth: number,
-        pointerHeight: number,
-        pointerOffset: number,
-        curved: boolean,
+        pointer: PointerOptions,
     ): void {
+        const { x: contentX, y: contentY, width: contentWidth, height: contentHeight } = area;
+        const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, curved } = pointer;
         ctx.lineTo(contentX + radius, contentY);
         ctx.quadraticCurveTo(contentX, contentY, contentX, contentY + radius);
         ctx.lineTo(contentX, contentY + contentHeight - radius);

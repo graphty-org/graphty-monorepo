@@ -1,0 +1,257 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://graphty.app/schemas/fidelity-scene.json",
+    "title": "Style fidelity scene (keep in step with scene.ts)",
+    "type": "object",
+    "required": ["provenance", "canCarry", "nodes", "edges", "groups", "gaps"],
+    "additionalProperties": false,
+    "definitions": {
+        "color": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+        "num": { "type": "number" },
+        "box": {
+            "type": "object",
+            "required": ["x", "y", "w", "h"],
+            "additionalProperties": false,
+            "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "w": { "type": "number" },
+                "h": { "type": "number" }
+            }
+        },
+        "lineStyle": { "enum": ["solid", "dashed", "dotted", "other"] },
+        "arrow": { "enum": ["none", "filled-triangle", "open-triangle", "diamond", "circle", "tee", "other"] },
+        "property": {
+            "enum": [
+                "position",
+                "size",
+                "shape",
+                "fill",
+                "fillOpacity",
+                "borderColor",
+                "borderWidth",
+                "borderStyle",
+                "labelText",
+                "labelColor",
+                "fontSize",
+                "labelPosition",
+                "visible",
+                "zOrder",
+                "edgeColor",
+                "edgeOpacity",
+                "edgeWidth",
+                "lineStyle",
+                "arrows",
+                "edgePath",
+                "selfLoops",
+                "edgeLabel",
+                "groups",
+                "annotations",
+                "background"
+            ]
+        }
+    },
+    "properties": {
+        "provenance": {
+            "type": "object",
+            "required": ["side", "route", "tool", "version", "command", "sourceSha256", "generatedAt"],
+            "additionalProperties": false,
+            "properties": {
+                "side": { "enum": ["reference", "graphty"] },
+                "route": {
+                    "enum": [
+                        "graphviz-json",
+                        "graphviz-n2",
+                        "gephi-noscale",
+                        "sigma",
+                        "yed-file",
+                        "drawio",
+                        "cytoscape-gml",
+                        "gml2gv",
+                        "pajek-file",
+                        "cytoscape-desktop",
+                        "cyjs-hop",
+                        "cyjs-computed",
+                        "gexf-file",
+                        "vis-network",
+                        "graphty"
+                    ]
+                },
+                "tool": { "type": "string", "minLength": 1 },
+                "version": { "type": "string", "minLength": 1 },
+                "command": { "type": "string", "minLength": 1 },
+                "sourceSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                "generatedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T" }
+            }
+        },
+        "canCarry": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/definitions/property" },
+            "additionalProperties": { "enum": ["yes", "no", "altered"] }
+        },
+        "nodes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "x",
+                    "y",
+                    "w",
+                    "h",
+                    "shape",
+                    "fill",
+                    "fillOpacity",
+                    "border",
+                    "label",
+                    "visible",
+                    "z"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "id": { "type": "string" },
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "w": { "type": "number", "minimum": 0 },
+                    "h": { "type": "number", "minimum": 0 },
+                    "shape": {
+                        "enum": [
+                            "ellipse",
+                            "rect",
+                            "roundrect",
+                            "diamond",
+                            "triangle",
+                            "hexagon",
+                            "octagon",
+                            "star",
+                            "parallelogram",
+                            "image",
+                            "other"
+                        ]
+                    },
+                    "fill": { "anyOf": [{ "$ref": "#/definitions/color" }, { "type": "null" }] },
+                    "fillOpacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "border": {
+                        "type": "object",
+                        "required": ["color", "width", "style"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "color": { "anyOf": [{ "$ref": "#/definitions/color" }, { "type": "null" }] },
+                            "width": { "type": "number", "minimum": 0 },
+                            "style": { "$ref": "#/definitions/lineStyle" }
+                        }
+                    },
+                    "label": {
+                        "anyOf": [
+                            { "type": "null" },
+                            {
+                                "type": "object",
+                                "required": ["text", "fontSize", "color", "position", "visible"],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "text": { "type": "string" },
+                                    "fontSize": { "type": "number", "minimum": 0 },
+                                    "color": { "$ref": "#/definitions/color" },
+                                    "position": { "enum": ["inside", "below", "above", "left", "right", "other"] },
+                                    "visible": { "type": "boolean" }
+                                }
+                            }
+                        ]
+                    },
+                    "visible": { "type": "boolean" },
+                    "z": { "type": "number" },
+                    "requested": { "type": "object" },
+                    "drawn": { "type": "object" }
+                }
+            }
+        },
+        "edges": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "source",
+                    "target",
+                    "points",
+                    "curved",
+                    "color",
+                    "opacity",
+                    "width",
+                    "style",
+                    "arrow",
+                    "label"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "id": { "type": "string" },
+                    "source": { "type": "string" },
+                    "target": { "type": "string" },
+                    "points": {
+                        "type": "array",
+                        "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+                    },
+                    "curved": { "type": "boolean" },
+                    "color": { "$ref": "#/definitions/color" },
+                    "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "width": { "type": "number", "minimum": 0 },
+                    "style": { "$ref": "#/definitions/lineStyle" },
+                    "arrow": {
+                        "type": "object",
+                        "required": ["source", "target"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "source": { "$ref": "#/definitions/arrow" },
+                            "target": { "$ref": "#/definitions/arrow" }
+                        }
+                    },
+                    "label": { "type": ["string", "null"] },
+                    "requested": { "type": "object" },
+                    "drawn": { "type": "object" }
+                }
+            }
+        },
+        "groups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "members", "bbox", "fill", "border", "label"],
+                "additionalProperties": false,
+                "properties": {
+                    "id": { "type": "string" },
+                    "members": { "type": "array", "items": { "type": "string" } },
+                    "bbox": { "$ref": "#/definitions/box" },
+                    "fill": { "anyOf": [{ "$ref": "#/definitions/color" }, { "type": "null" }] },
+                    "border": { "anyOf": [{ "$ref": "#/definitions/color" }, { "type": "null" }] },
+                    "label": { "type": ["string", "null"] }
+                }
+            }
+        },
+        "annotations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["kind", "bbox"],
+                "additionalProperties": false,
+                "properties": {
+                    "kind": { "enum": ["text", "shape", "arrow"] },
+                    "bbox": { "$ref": "#/definitions/box" },
+                    "text": { "type": "string" }
+                }
+            }
+        },
+        "background": { "$ref": "#/definitions/color" },
+        "gaps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["property", "reason"],
+                "additionalProperties": false,
+                "properties": {
+                    "property": { "$ref": "#/definitions/property" },
+                    "reason": { "type": "string", "minLength": 1 }
+                }
+            }
+        }
+    }
+}

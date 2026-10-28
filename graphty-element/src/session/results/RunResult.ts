@@ -442,21 +442,34 @@ function valueAt(table: ElementTable, field: string, position: number): unknown 
 }
 
 /**
+ * Where a table holds an element, trying the id's other spelling when the first finds nothing.
+ * @param table - The table.
+ * @param id - The element's id.
+ * @returns The element's position, or undefined when the table holds no such id.
+ */
+function heldPositionOf(table: ElementTable, id: NodeId): number | undefined {
+    const held = (at: number): boolean => at >= 0 && at < table.length;
+    const position = table.index.indexOf(id);
+    if (held(position)) {
+        return position;
+    }
+
+    // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
+    const other = otherIdSpelling(id);
+    const otherPosition = other === undefined ? -1 : table.index.indexOf(other);
+    return held(otherPosition) ? otherPosition : undefined;
+}
+
+/**
  * One element's fields, built from the columns.
  * @param table - The table.
  * @param id - The element's id.
  * @returns A frozen record, or undefined when the table holds no such id.
  */
 function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unknown>> | undefined {
-    const held = (at: number): boolean => at >= 0 && at < table.length;
-    let position = table.index.indexOf(id);
-    if (!held(position)) {
-        // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
-        const other = otherIdSpelling(id);
-        position = other === undefined ? -1 : table.index.indexOf(other);
-        if (!held(position)) {
-            return undefined;
-        }
+    const position = heldPositionOf(table, id);
+    if (position === undefined) {
+        return undefined;
     }
 
     const pending = table.pendingRanks;
@@ -1345,6 +1358,21 @@ class Result implements RunResult {
     }
 
     /**
+     * The ids of the elements one half publishes values for, in the result's own order.
+     * @param half - Nodes or edges.
+     * @returns The ids.
+     */
+    elementIds(half: "node" | "edge"): NodeId[] {
+        const table = half === "node" ? this.#nodes : this.#edges;
+        const ids: NodeId[] = [];
+        for (let position = 0; position < table.length; position++) {
+            ids.push(table.index.idOf(position));
+        }
+
+        return ids;
+    }
+
+    /**
      * The id indexes this result reads through, for whoever charges for them.
      * @returns One per half that holds elements.
      */
@@ -1517,6 +1545,16 @@ interface RetainedIndex {
  */
 export function retentionOf(result: RunResult): { readonly bytes: number; readonly indexes: readonly RetainedIndex[] } {
     return result instanceof Result ? { bytes: result.byteSize, indexes: result.indexes() } : { bytes: 0, indexes: [] };
+}
+
+/**
+ * The ids of the elements one half of a result publishes values for.
+ * @param result - The result; one this module did not build publishes none it can list.
+ * @param half - Nodes or edges.
+ * @returns The ids.
+ */
+export function elementIdsOf(result: RunResult, half: "node" | "edge"): readonly NodeId[] {
+    return result instanceof Result ? result.elementIds(half) : [];
 }
 
 /**

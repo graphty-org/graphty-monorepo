@@ -95,7 +95,14 @@ describe("pajekImporter: the corpus", () => {
         const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.role).toBe("position");
         expect(position.meta.components).toBe(3);
-        expect(position.meta.extra).toEqual({ sourceDims: 3, units: "file" });
+        expect(position.meta.extra).toEqual({
+            sourceDims: 3,
+            units: "file",
+            pxPerUnit: 500,
+            yAxis: "down",
+            zOrigin: 0.5,
+            zeroUnplaced: true,
+        });
         expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.1, 0.2, 0]);
         expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([0.9, 1, 0]);
         // 3 arcs, then 2 undirected edges expanded into pairs
@@ -255,7 +262,7 @@ describe("pajekImporter: vertex lines", () => {
         expect(spells.isSet(1)).toBe(false);
     });
 
-    it("parses every interval form and refuses malformed ones", async () => {
+    it("parses every interval form, and drops a malformed one but keeps the rest of its line", async () => {
         const text = "*Vertices 4\n1 a [3]\n2 b [*-4,6-7]\n3 c [x-y]\n4 d [5-2]\n*Edges\n";
         const { snapshot, report } = await load(text);
         const spells = snapshot.nodes.requireTyped("spells", "list");
@@ -266,10 +273,39 @@ describe("pajekImporter: vertex lines", () => {
         ]);
         expect(spells.isSet(2)).toBe(false);
         expect(spells.isSet(3)).toBe(false);
-        expect(label(snapshot, 2)).toBeUndefined();
+        expect(label(snapshot, 2)).toBe("c");
+        expect(label(snapshot, 3)).toBe("d");
         expect(codes(report)).toEqual([PAJEK_ISSUE.INTERVAL, PAJEK_ISSUE.INTERVAL]);
         expect(report.issues[0]).toMatchObject({ category: "validation-error", severity: "error", line: 4 });
-        expect(report.counts.skippedNodes).toBe(2);
+        expect(report.counts.skippedNodes).toBe(0);
+    });
+
+    it("reads intervals separated by a slash, as Pajek's own course data writes them", async () => {
+        const { snapshot, report } = await load(
+            "*Vertices 2\n1 a 0.1 0.2 0.5 ic Gray [141-383/669-670]\n2 b [85/97]\n*Edges\n",
+        );
+        const spells = snapshot.nodes.requireTyped("spells", "list");
+        expect([...spells.sliceOf(0)].map((p) => Array.from(p as ArrayLike<number>))).toEqual([
+            [141, 383],
+            [669, 670],
+        ]);
+        expect([...spells.sliceOf(1)].map((p) => Array.from(p as ArrayLike<number>))).toEqual([
+            [85, 85],
+            [97, 97],
+        ]);
+        expect(report.issues).toEqual([]);
+        expect(label(snapshot, 0)).toBe("a");
+    });
+
+    it("reads a color written as three fractions as one value, as written", async () => {
+        const { snapshot, report } = await load(
+            "*Vertices 2\n1 a ic 0.5 0.25 1 x_fact 2\n2 b\n*Edges\n1 2 1 c 0.700 0.700 0.700 w 2\n",
+        );
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodes.requireTyped("ic", "string").value(0)).toBe("0.5 0.25 1");
+        expect(snapshot.nodes.requireTyped("x_fact", "i32").value(0)).toBe(2);
+        expect(snapshot.edges.requireTyped("c", "string").value(0)).toBe("0.700 0.700 0.700");
+        expect(snapshot.edges.has("0.700")).toBe(false);
     });
 
     it("widens a parameter column across lines by the section 5.1 rule", async () => {

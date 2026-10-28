@@ -44,11 +44,13 @@
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
+import { parseFileStylePath } from "./fileStyles/path";
+import type { FileStyleScalar } from "./fileStyles/store";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -92,6 +94,19 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
+    /**
+     * One column of a file's style values, by element id, for the `graphty.style.*` paths. Absent,
+     * or answering undefined, those paths read nothing.
+     * @param namespace - The load's namespace.
+     * @param kind - Nodes or edges.
+     * @param key - The column's key.
+     * @returns The values by element id, or undefined when no load holds that column.
+     */
+    readonly fileStyles?: (
+        namespace: string,
+        kind: SelectorTarget,
+        key: string,
+    ) => ReadonlyMap<NodeId | EdgeId, FileStyleScalar> | undefined;
 }
 
 /**
@@ -154,7 +169,7 @@ export interface SessionSelectorSource extends SelectorSource {
      * @returns The cut, or undefined when nothing is taken or the path names no numeric field of
      *     this kind of element.
      */
-    readonly topCut: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    readonly topCut: (path: Path, target: SelectorTarget, n: number, ties?: TopTies) => number | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -200,12 +215,69 @@ const RESULT_PREFIX = `${RESULT_ROOT}.`;
  */
 const ELEMENT_ROOT = "graphty.";
 
+/**
+ * The node path an edge reads at one end: `graphty.source.<node path>` reads the value its source
+ * node carries at `<node path>`, `graphty.target.<node path>` its target's.
+ * @param path - The path as the selector spelled it.
+ * @returns The end and the node path, or undefined when the path reads no end.
+ */
+export function edgeEndPathOf(path: Path): { readonly end: "source" | "target"; readonly node: Path } | undefined {
+    for (const end of ["source", "target"] as const) {
+        const prefix = `${ELEMENT_ROOT}${end}.`;
+        if (path.startsWith(prefix) && path.length > prefix.length) {
+            return { end, node: path.slice(prefix.length) };
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The structural values every node carries, read from the snapshot rather than from a column or a
+ * run: `graphty.degree` (how many edges touch the node), and on a directed graph
+ * `graphty.inDegree` and `graphty.outDegree`.
+ */
+export const STRUCTURE_PATHS = Object.freeze(["graphty.degree", "graphty.inDegree", "graphty.outDegree"] as const);
+
+/** Each of {@link STRUCTURE_PATHS} with its catalog names, in the same order. */
+export const STRUCTURE_VALUES = Object.freeze([
+    Object.freeze({ path: "graphty.degree", plainName: "Degree", technicalName: "degree" }),
+    Object.freeze({ path: "graphty.inDegree", plainName: "In-degree", technicalName: "inDegree" }),
+    Object.freeze({ path: "graphty.outDegree", plainName: "Out-degree", technicalName: "outDegree" }),
+] as const);
+
+/**
+ * One structural value of every node, by dense index, from the snapshot (which caches it).
+ * @param graph - The snapshot.
+ * @param path - One of {@link STRUCTURE_PATHS}.
+ * @returns The values, or undefined for a path this graph does not answer (in and out degree on an
+ *     undirected graph, or any other path).
+ */
+export function structureValuesOf(graph: GraphSnapshot, path: Path): ArrayLike<number> | undefined {
+    switch (path) {
+        case "graphty.degree":
+            return graph.degree();
+        case "graphty.inDegree":
+            return graph.directed ? graph.inDegree() : undefined;
+        case "graphty.outDegree":
+            return graph.directed ? graph.outDegree() : undefined;
+        default:
+            return undefined;
+    }
+}
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
+    /** A node's value read at one end of an edge, under `graphty.source.` or `graphty.target.`. */
+    | "end"
     /** A key of the record a node or an edge arrived with, or a column of the snapshot. */
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
     | "note"
+    /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
+    | "structure"
+    /** One column of a file's style values, under `graphty.style.`. */
+    | "style"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -215,11 +287,17 @@ type PathKind =
 interface PathEntry {
     /** Which reader answers it. */
     readonly kind: PathKind;
-    /** The column name and record key, for an attribute path; empty otherwise. */
+    /**
+     * The column name and record key, for an attribute path, or the style column's key; the end,
+     * for an end path; empty otherwise.
+     */
     readonly key: string;
-    /** The run, for a result path; empty otherwise. */
+    /** The run, for a result path, or the load's namespace, for a style path; empty otherwise. */
     readonly runId: RunId;
-    /** The field, for a result path, or the note value, for a note path; empty otherwise. */
+    /**
+     * The field, for a result path, the note value, for a note path, the kind of element, for a
+     * style path, the path, for a structure path, or the node path, for an end path; empty otherwise.
+     */
     readonly field: string;
 }
 
@@ -251,10 +329,17 @@ function parsePath(path: Path): PathEntry {
         return { kind: "result", key: "", runId, field };
     }
 
+    const end = edgeEndPathOf(path);
+    if (end !== undefined) {
+        return { kind: "end", key: end.end, runId: "", field: end.node };
+    }
+
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+        return { kind: "structure", key: "", runId: "", field: path };
+    }
+
     if (path.startsWith(ELEMENT_ROOT)) {
-        const note = noteFieldOf(path);
-        // A `graphty.` path this release does not know reads nothing, so a later one is an addition.
-        return note === undefined ? NOTHING : { kind: "note", key: "", runId: "", field: note };
+        return parseElementPath(path);
     }
 
     // The prefix is stripped rather than required, matching the session's filter value source:
@@ -263,6 +348,26 @@ function parsePath(path: Path): PathEntry {
     const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
 
     return key === "" ? NOTHING : { kind: "attribute", key, runId: "", field: "" };
+}
+
+/**
+ * Work out what a `graphty.` path names: a note field or a file style column. The degrees are
+ * {@link STRUCTURE_PATHS}, read before this.
+ * @param path - The path.
+ * @returns What reads it; a `graphty.` path this release does not know reads nothing, so a later one is an addition.
+ */
+function parseElementPath(path: Path): PathEntry {
+    const note = noteFieldOf(path);
+    if (note !== undefined) {
+        return { kind: "note", key: "", runId: "", field: note };
+    }
+
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
+    }
+
+    return NOTHING;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -430,7 +535,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records, notes } = parts;
+    const { snapshot: readSnapshot, records, notes, fileStyles } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -589,6 +694,32 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
+     * One element's file-style value: the column's value under the element's id.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @param entry - The parsed style path.
+     * @returns The value, or undefined when the element holds none.
+     */
+    const styleOf = (target: SelectorTarget, index: number, entry: PathEntry): unknown => {
+        // A node path read by an edge layer, or the reverse, names nothing that element holds.
+        if (entry.field !== target) {
+            return undefined;
+        }
+
+        const column = fileStyles?.(entry.runId, target, entry.key);
+        if (column === undefined) {
+            return undefined;
+        }
+
+        const held = current();
+        if (target === "node") {
+            return index >= 0 && index < held.nodeCount ? column.get(held.graph.ids.idOf(index)) : undefined;
+        }
+
+        return index >= 0 && index < held.edgeCount ? column.get(edgeIdAt(held, index)) : undefined;
+    };
+
+    /**
      * One element's value for a path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
@@ -606,10 +737,30 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return notes?.(target, index)?.[entry.field as keyof NoteFacts];
         }
 
+        if (entry.kind === "style") {
+            return styleOf(target, index, entry);
+        }
+
         const held = current();
+
+        // The node at one end of an edge: nodes have no ends, so they read nothing.
+        if (entry.kind === "end") {
+            if (target !== "edge" || index < 0 || index >= held.edgeCount) {
+                return undefined;
+            }
+
+            const node = entry.key === "source" ? held.graph.edgeSource(index) : held.graph.edgeTarget(index);
+            return valueOf("node", node, entry.field);
+        }
 
         if (entry.kind === "result") {
             return recordOf(held, target, index, entry.runId)?.[entry.field];
+        }
+
+        if (entry.kind === "structure") {
+            return target === "node" && index >= 0 && index < held.nodeCount
+                ? structureValuesOf(held.graph, entry.field)?.[index]
+                : undefined;
         }
 
         return attributeOf(held, target, index, entry.key);
@@ -633,7 +784,15 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return notes?.(target, index) !== undefined;
         }
 
+        if (entry.kind === "style") {
+            return isPresent(styleOf(target, index, entry));
+        }
+
         const held = current();
+
+        if (entry.kind === "end" || entry.kind === "structure") {
+            return isPresent(valueOf(target, index, path));
+        }
 
         if (entry.kind === "result") {
             return isPresent(recordOf(held, target, index, entry.runId)?.[entry.field]);
@@ -734,7 +893,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
             return indices;
         },
-        topCut: (path: Path, target: SelectorTarget, n: number): number | undefined => {
+        topCut: (path: Path, target: SelectorTarget, n: number, ties?: TopTies): number | undefined => {
             const entry = entryFor(path);
             const result = entry.kind === "result" ? readResult?.(entry.runId) : undefined;
             const declared = result?.fields.find((candidate) => candidate.name === entry.field);
@@ -749,7 +908,9 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
                 return undefined;
             }
 
-            return result.top(entry.field, n).entries.at(-1)?.value;
+            const top = result.top(entry.field, n);
+            // Taking ties, the cut is the value of the group the limit fell in.
+            return ties === "all" ? (top.leftOut?.value ?? top.entries.at(-1)?.value) : top.entries.at(-1)?.value;
         },
     };
 }

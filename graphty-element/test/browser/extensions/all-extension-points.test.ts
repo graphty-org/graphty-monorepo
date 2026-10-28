@@ -914,6 +914,8 @@ describe("every registration surface the published entry points carry", () => {
             coveredBy: "acceleration/registry.test.ts",
         },
         "extend.registerSnapshotLayout": { suite: "browser/extensions/layout-extension.test.ts" },
+        // A network source (graph-io's registry, re-exported): a page registers one and names it in `data-source`.
+        "extend.registerSource": { suite: "browser/network-sources.test.ts" },
         "extend.SimpleLayoutConfig": {
             excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
         },

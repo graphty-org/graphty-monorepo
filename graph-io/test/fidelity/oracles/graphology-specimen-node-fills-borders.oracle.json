@@ -1,0 +1,448 @@
+{
+    "sample": "graphology-specimen-node-fills-borders",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-node-fills-borders.json",
+    "fileSha256": "dea81879ae451a5342290b559aa858bf2150fbc68b79ac02526a3b0c7fa1ed77",
+    "svgSha256": "f86f14cc2a768c3c9262155220f8d9a64dd17059fba8819cf0e7127796e49be8",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 46,
+        "edges": 0,
+        "labelsShown": 21
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 119.79309149857224,
+                "r": 9.655172609050382,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "color-name-red",
+                "x": 383.7241370102455,
+                "y": 119.79309149857224,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#ff0000",
+                "alpha": 1
+            },
+            {
+                "id": "color-name-mixed-case",
+                "x": 600,
+                "y": 119.79309149857224,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#6495ed",
+                "alpha": 1
+            },
+            {
+                "id": "color-transparent",
+                "x": 816.2758629897545,
+                "y": 119.79309149857224,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "color-hex3",
+                "x": 1032.551725979509,
+                "y": 119.79309149857224,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#ff8800",
+                "alpha": 1
+            },
+            {
+                "id": "color-hex6",
+                "x": 167.44827402049097,
+                "y": 278.13792481504635,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#2a9d8f",
+                "alpha": 1
+            },
+            {
+                "id": "color-hex6-upper",
+                "x": 383.7241370102455,
+                "y": 278.13792481504635,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#e76f51",
+                "alpha": 1
+            },
+            {
+                "id": "color-hex8-alpha-80",
+                "x": 600,
+                "y": 278.13792481504635,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#1d3557",
+                "alpha": 0.8
+            },
+            {
+                "id": "color-hex8-alpha-33",
+                "x": 816.2758629897545,
+                "y": 278.13792481504635,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#e63946",
+                "alpha": 0.3333333333333333
+            },
+            {
+                "id": "color-rgb",
+                "x": 1032.551725979509,
+                "y": 278.13792481504635,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#6a4c93",
+                "alpha": 1
+            },
+            {
+                "id": "color-rgb-spaces",
+                "x": 167.44827402049097,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "color-rgba-half",
+                "x": 383.7241370102455,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#ff0000",
+                "alpha": 0.5
+            },
+            {
+                "id": "color-rgba-zero",
+                "x": 600,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#008000",
+                "alpha": 0
+            },
+            {
+                "id": "color-hex4",
+                "x": 816.2758629897545,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#f80c00",
+                "alpha": 1
+            },
+            {
+                "id": "color-rgb-percent",
+                "x": 1032.551725979509,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "color-rgb-decimal",
+                "x": 167.44827402049097,
+                "y": 594.8275914479947,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "color-hsl",
+                "x": 383.7241370102455,
+                "y": 594.8275914479947,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "color-unknown-name",
+                "x": 600,
+                "y": 594.8275914479947,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "color-empty",
+                "x": 816.2758629897545,
+                "y": 594.8275914479947,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#000000",
+                "alpha": 1
+            },
+            {
+                "id": "border-color-red",
+                "x": 1032.551725979509,
+                "y": 594.8275914479947,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "border-size-4",
+                "x": 167.44827402049097,
+                "y": 753.1724247644687,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 95.61379095603681,
+                "y": 158.41378255137084,
+                "r": 6.758620826335267,
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-name-red",
+                "x": 289.48965385042385,
+                "y": 158.41378255137084,
+                "r": 6.758620826335267,
+                "label": "color=red",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-name-mixed-case",
+                "x": 527.5862065882519,
+                "y": 158.41378255137084,
+                "r": 6.758620826335267,
+                "label": "color=CornflowerBlue",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-transparent",
+                "x": 753.7103454820042,
+                "y": 158.41378255137084,
+                "r": 6.758620826335267,
+                "label": "color=transparent",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex3",
+                "x": 992.9655189144202,
+                "y": 158.41378255137084,
+                "r": 6.758620826335267,
+                "label": "color=#f80",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex6",
+                "x": 118.01379105140425,
+                "y": 316.75861586784504,
+                "r": 6.758620826335267,
+                "label": "color=#2a9d8f",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex6-upper",
+                "x": 334.2896540411587,
+                "y": 316.75861586784504,
+                "r": 6.758620826335267,
+                "label": "color=#E76F51",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex8-alpha-80",
+                "x": 543.9999997615814,
+                "y": 316.75861586784504,
+                "r": 6.758620826335267,
+                "label": "color=#1d3557cc",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex8-alpha-33",
+                "x": 760.275862751336,
+                "y": 316.75861586784504,
+                "r": 6.758620826335267,
+                "label": "color=#e6394655",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgb",
+                "x": 956.855173933095,
+                "y": 316.75861586784504,
+                "r": 6.758620826335267,
+                "label": "color=rgb(106,76,147)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgb-spaces",
+                "x": 72.05517016608145,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "color=rgb( 25 , 130 , 196 )",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgba-half",
+                "x": 272.49655032980036,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "color=rgba(255,0,0,0.5)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgba-zero",
+                "x": 524.3034479535859,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "color=rgba(0,128,0,0)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hex4",
+                "x": 773.4068972899996,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "color=#f80c",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgb-percent",
+                "x": 953.5724152984291,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "color=rgb(100%,50%,0%)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-rgb-decimal",
+                "x": 75.33792880074732,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "color=rgb(10.5,200.5,90.5)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-hsl",
+                "x": 301.4620676944996,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "color=hsl(120,100%,25%)",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-unknown-name",
+                "x": 543.9999997615814,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "color=notacolor",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-color-empty",
+                "x": 789.8206904633294,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "color=",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-border-color-red",
+                "x": 976.5517257410904,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "borderColor=red",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-border-size-4",
+                "x": 92.33103232137094,
+                "y": 791.7931158172673,
+                "r": 6.758620826335267,
+                "label": "borderSize=4",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

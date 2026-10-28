@@ -1,0 +1,22 @@
+{
+    "sample": "dot-real-happiness",
+    "file": "graph-io/test/corpus/styles/dot/fidelity/real-happiness.gv",
+    "sha256": "08db23b917e4b0ebcd5838e5e7d7576a1a41d96ba39248b18be3c6615b281a22",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "twopi",
+    "command": "dot -Ktwopi -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "engineSource": "the file's own layout=twopi",
+    "standIn": false,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 764,
+        "heightPt": 675,
+        "widthPx": 1019,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-real-happiness && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-real-happiness.svg"
+}

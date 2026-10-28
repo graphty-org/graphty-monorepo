@@ -1,0 +1,477 @@
+{
+    "cytoscape": {
+        "units": "px",
+        "node": {
+            "fill": "#89d0f5",
+            "fillOpacity": 1,
+            "shape": "round-rectangle",
+            "width": 75,
+            "height": 35,
+            "borderColor": "#cccccc",
+            "borderWidth": 0,
+            "borderStyle": "solid",
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelWeight": "normal",
+            "labelItalic": false,
+            "labelSize": 12,
+            "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
+            "labelPosition": "center",
+            "labelPadding": 0,
+            "labelLineHeight": 1,
+            "borderPosition": "inside",
+            "borderWaveAmplitude": 10,
+            "borderWavePeriod": 20
+        },
+        "edge": {
+            "color": "#848484",
+            "width": 2,
+            "lineStyle": "solid",
+            "waveAmplitude": 10,
+            "wavePeriod": 20,
+            "opacity": 1,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "sourceArrowColor": "#000000",
+            "targetArrowColor": "#000000",
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelWeight": "normal",
+            "labelItalic": false,
+            "labelSize": 10,
+            "labelPadding": 0,
+            "labelLineHeight": 1,
+            "curved": false,
+            "bendCurve": "midpoints"
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "labelFromColumn",
+                "column": "name"
+            }
+        ]
+    },
+    "cytoscape-fallbacks": {
+        "units": "px",
+        "node": {
+            "fill": "#c80000",
+            "fillOpacity": 1,
+            "shape": "ellipse",
+            "width": 60,
+            "height": 40,
+            "borderColor": "#000000",
+            "borderWidth": 2,
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelWeight": "normal",
+            "labelItalic": false,
+            "labelSize": 12,
+            "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
+            "labelPosition": "center",
+            "labelPadding": 0,
+            "labelLineHeight": 1,
+            "borderPosition": "inside",
+            "borderWaveAmplitude": 10,
+            "borderWavePeriod": 20
+        },
+        "edge": {
+            "color": "#404040",
+            "width": 1,
+            "lineStyle": "solid",
+            "waveAmplitude": 10,
+            "wavePeriod": 20,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelWeight": "normal",
+            "labelItalic": false,
+            "labelSize": 10,
+            "labelPadding": 0,
+            "labelLineHeight": 1,
+            "bendCurve": "midpoints"
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": []
+    },
+    "cytoscape-js": {
+        "units": "px",
+        "node": {
+            "fill": "#999999",
+            "fillOpacity": 1,
+            "shape": "ellipse",
+            "width": 30,
+            "height": 30,
+            "borderColor": "#000000",
+            "borderWidth": 0,
+            "borderStyle": "solid",
+            "opacity": 1,
+            "labelColor": "#000000",
+            "labelSize": 16,
+            "labelFont": "Helvetica Neue, Helvetica, sans-serif",
+            "labelWeight": "normal",
+            "labelPosition": "top",
+            "labelWrapTrailingSpace": true,
+            "borderPosition": "center",
+            "outerBorderColor": "#999999",
+            "underlayColor": "#000000",
+            "underlayPadding": 10,
+            "underlayShape": "round-rectangle",
+            "overlayColor": "#000000",
+            "overlayPadding": 10,
+            "overlayShape": "round-rectangle"
+        },
+        "edge": {
+            "color": "#999999",
+            "sourceArrowColor": "#999999",
+            "targetArrowColor": "#999999",
+            "outlineColor": "#000000",
+            "gradientKind": "none",
+            "midSourceArrowColor": "#999999",
+            "midTargetArrowColor": "#999999",
+            "labelPosition": "center",
+            "sourceLabelOffset": 0,
+            "targetLabelOffset": 0,
+            "width": 3,
+            "lineStyle": "solid",
+            "opacity": 1,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "arrowSize": 1,
+            "curved": false,
+            "fanSpacing": 20,
+            "labelColor": "#000000",
+            "labelSize": 16,
+            "labelFont": "Helvetica Neue, Helvetica, sans-serif",
+            "labelWeight": "normal",
+            "underlayColor": "#000000",
+            "underlayPadding": 10,
+            "overlayColor": "#000000",
+            "overlayPadding": 10
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": []
+    },
+    "graphviz": {
+        "units": "px",
+        "node": {
+            "fillOpacity": 0,
+            "borderColor": "#000000",
+            "borderWidth": 1,
+            "shape": "ellipse",
+            "width": 54,
+            "height": 36,
+            "labelColor": "#000000",
+            "labelSize": 14,
+            "labelFont": "Times, serif",
+            "labelPosition": "center",
+            "borderPosition": "center"
+        },
+        "edge": {
+            "color": "#000000",
+            "width": 1,
+            "lineStyle": "solid",
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "arrowSize": 1,
+            "labelColor": "#000000",
+            "labelSize": 14,
+            "labelFont": "Times, serif"
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "labelFromId"
+            },
+            {
+                "kind": "targetArrowOnDirected",
+                "arrow": "triangle"
+            }
+        ]
+    },
+    "yed": {
+        "units": "px",
+        "node": {
+            "fill": "#ffcc00",
+            "shape": "rectangle",
+            "borderColor": "#000000",
+            "borderWidth": 1,
+            "borderStyle": "solid",
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelSize": 12,
+            "labelWeight": "normal",
+            "labelPosition": "center",
+            "borderPosition": "center"
+        },
+        "edge": {
+            "color": "#000000",
+            "width": 1,
+            "lineStyle": "solid",
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "labelColor": "#000000",
+            "labelFont": "DejaVu Sans, sans-serif",
+            "labelSize": 12
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": []
+    },
+    "yfiles3": {
+        "units": "px",
+        "node": {
+            "fill": "#ffffff",
+            "borderColor": "#000000",
+            "borderWidth": 1,
+            "shape": "rectangle",
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 12,
+            "labelPosition": "center",
+            "borderPosition": "center"
+        },
+        "edge": {
+            "color": "#000000",
+            "width": 1,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 12
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": []
+    },
+    "gephi": {
+        "units": "relative",
+        "node": {
+            "fill": "#000000",
+            "width": 20,
+            "height": 20,
+            "shape": "ellipse",
+            "borderPosition": "inside",
+            "labelPosition": "center",
+            "labelOnTop": true
+        },
+        "edge": {
+            "curved": true,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "curved": true,
+            "fanned": false,
+            "arcRadius": 0.8333333333333334
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "colorFromEndNodes"
+            },
+            {
+                "kind": "widthFromWeight"
+            },
+            {
+                "kind": "targetArrowOnDirected",
+                "arrow": "triangle"
+            }
+        ]
+    },
+    "vis-network": {
+        "units": "px",
+        "node": {
+            "fill": "#97c2fc",
+            "borderColor": "#2b7ce9",
+            "borderWidth": 1,
+            "borderPosition": "center",
+            "shape": "ellipse",
+            "labelColor": "#343434",
+            "labelSize": 14,
+            "labelFont": "arial",
+            "labelPosition": "center",
+            "labelMinScreenSize": 4
+        },
+        "edge": {
+            "width": 1,
+            "outlineColor": "#6f6f6f",
+            "lineStyle": "solid",
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "labelColor": "#343434",
+            "labelSize": 14,
+            "labelFont": "arial",
+            "labelMinScreenSize": 4,
+            "labelPosition": "center",
+            "labelOutlineColor": "#ffffff",
+            "labelOutlineWidth": 2
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "labelFromColumn",
+                "column": "label"
+            },
+            {
+                "kind": "colorFromSourceNode"
+            }
+        ]
+    },
+    "sigma": {
+        "units": "relative",
+        "node": {
+            "fill": "#666666",
+            "shape": "ellipse",
+            "width": 20,
+            "height": 20,
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 12,
+            "labelWeight": "normal",
+            "labelPosition": "right",
+            "labelGridCellSize": 100,
+            "labelOnTop": true,
+            "labelMinNodeScreenSize": 12
+        },
+        "edge": {
+            "color": "#cccccc",
+            "width": 0.5,
+            "labelColor": "#666666",
+            "labelSize": 12,
+            "labelPosition": "center",
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "minScreenWidth": 0.85
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "labelFromColumn",
+                "column": "label"
+            }
+        ]
+    },
+    "pajek": {
+        "units": "px",
+        "node": {
+            "borderColor": "#660000",
+            "borderWidth": 0.5,
+            "borderPosition": "center",
+            "fill": "#ffd9bc",
+            "height": 20,
+            "labelColor": "#ad0000",
+            "labelFont": "Arial",
+            "labelOffsetX": 5.176380902,
+            "labelOffsetY": 14.121016526,
+            "labelPosition": "center",
+            "labelShiftX": 0.5,
+            "labelSize": 15,
+            "labelWeight": "bold",
+            "opacity": 1,
+            "shape": "ellipse",
+            "width": 20
+        },
+        "edge": {
+            "color": "#007091",
+            "lineStyle": "solid",
+            "opacity": 1,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "width": 2
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": [
+            {
+                "kind": "labelFromColumn",
+                "column": "label"
+            },
+            {
+                "kind": "targetArrowOnDirected",
+                "arrow": "triangle"
+            }
+        ]
+    },
+    "ogdf": {
+        "units": "px",
+        "node": {
+            "fill": "#ffffff",
+            "shape": "rectangle",
+            "width": 20,
+            "height": 20,
+            "borderColor": "#000000",
+            "borderWidth": 1,
+            "borderStyle": "solid",
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 10,
+            "labelPosition": "center"
+        },
+        "edge": {
+            "color": "#000000",
+            "width": 1,
+            "lineStyle": "solid",
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 10,
+            "labelPosition": "center"
+        },
+        "graph": {
+            "background": "#ffffff"
+        },
+        "derived": []
+    },
+    "networkx": {
+        "units": "px",
+        "node": {
+            "fill": "#1f78b4",
+            "fillOpacity": 1,
+            "shape": "ellipse",
+            "width": 17.3205,
+            "height": 17.3205,
+            "labelColor": "#000000",
+            "labelSize": 12,
+            "labelFont": "sans-serif",
+            "labelWeight": "normal",
+            "labelPosition": "center"
+        },
+        "edge": {
+            "color": "#000000",
+            "width": 1,
+            "lineStyle": "solid",
+            "opacity": 1,
+            "sourceArrow": "none",
+            "targetArrow": "none",
+            "labelColor": "#000000",
+            "labelSize": 12,
+            "labelFont": "sans-serif",
+            "labelWeight": "normal"
+        },
+        "graph": {},
+        "derived": [
+            {
+                "kind": "targetArrowOnDirected",
+                "arrow": "triangle"
+            }
+        ]
+    }
+}

@@ -8,6 +8,9 @@ import React from "react";
 import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
+import { loadGraphtyElement } from "../src/elementLoader";
+import { loadFrame } from "../src/workspace/frameLoader";
+import { HeroTurns } from "../src/workspace/start/heroTurns";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
 // Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
@@ -35,13 +38,17 @@ function hasErudaFlag(read: () => string): boolean {
 if (
     !/[?&]chromatic=true/.test(globalThis.location.search) &&
     !navigator.webdriver &&
-    (hasErudaFlag(() => window.location.search) || hasErudaFlag(() => window.parent.location.search))
+    (hasErudaFlag(() => globalThis.location.search) || hasErudaFlag(() => globalThis.parent.location.search))
 ) {
-    void import("eruda").then(({ default: eruda }) => {
-        eruda.init();
-        eruda.show("console");
-        pinErudaTopRight(eruda);
-    });
+    void showEruda(); // NOSONAR(S7785): fire and forget on purpose; awaiting would hold every story until eruda loads
+}
+
+/** Load the eruda console and show it pinned top right, without making the preview wait for it. */
+async function showEruda(): Promise<void> {
+    const { default: eruda } = await import("eruda");
+    eruda.init();
+    eruda.show("console");
+    pinErudaTopRight(eruda);
 }
 
 /**
@@ -104,12 +111,24 @@ const preview: Preview = {
     initialGlobals: {
         theme: "dark",
     },
+    // The project frame and graphty-element load on demand in the app (src/workspace/frameLoader.ts,
+    // src/elementLoader.ts); a story has them from its first render, so the start page's graph is
+    // on the page, and waited for, when the story is captured.
+    loaders: [
+        async () => {
+            await Promise.all([loadFrame(), loadGraphtyElement()]);
+            return {};
+        },
+    ],
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);
             return (
                 <MantineProvider theme={theme} forceColorScheme={colorScheme}>
-                    <Story />
+                    {/* The start page's graph holds still, so two pictures of a story are the same. */}
+                    <HeroTurns.Provider value={false}>
+                        <Story />
+                    </HeroTurns.Provider>
                 </MantineProvider>
             );
         },

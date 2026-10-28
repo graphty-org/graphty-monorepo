@@ -139,8 +139,10 @@ interface LayoutShowcase {
     options?(cy: Core): Record<string, unknown>;
     /** Colors the result, after the layout ran. */
     paint?(cy: Core): void;
-    /** What the picture shows. */
+    /** What the picture shows, in one line under it. */
     caption: string;
+    /** How to read the picture, for the story's description. */
+    about: string;
 }
 
 /**
@@ -154,6 +156,33 @@ const network =
     (cy: Core, seed: number): void => {
         cy.add(elementsOf(GENERATE[network](n, seed)));
     };
+
+/**
+ * Adds a bundled dataset.
+ * @param name - the dataset
+ * @returns the loader
+ */
+const dataset =
+    (name: string) =>
+    async (cy: Core): Promise<void> => {
+        await cy.graphtyDataset(name);
+    };
+
+/**
+ * Adds Les Miserables with its characters in order of how many others each shares a scene with, most first (ties in
+ * the dataset's order): a layout that places nodes in node order then places them by rank.
+ * @param cy - the core
+ */
+async function byRank(cy: Core): Promise<void> {
+    await cy.graphtyDataset("les-miserables");
+    const nodes = cy
+        .nodes()
+        .sort((a, b) => b.degree(false) - a.degree(false))
+        .map((n) => n.json());
+    const edges = cy.edges().map((e) => e.json());
+    cy.elements().remove();
+    cy.add([...nodes, ...edges] as never);
+}
 
 /**
  * Adds a generated graph.
@@ -172,32 +201,46 @@ const generated =
 const groups: LayoutShowcase = {
     load: network("planted-partition", 100),
     paint: (cy) => colorBy(cy, "community"),
-    caption: "100 nodes in 4 planted groups (colors): the forces pull each group together and push the groups apart.",
+    caption: "100 nodes in 4 planted groups (colors).",
+    about: "The forces pull each group together and push the groups apart.",
 };
 
 /** Every layout's tile, by layout name without "graphty-". */
 export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
     forceatlas2: groups,
     "fruchterman-reingold": groups,
-    "spring-electrical": groups,
+    "spring-electrical": {
+        ...groups,
+        about: `${groups.about} graphty-spring-electrical runs only on a GPU: without WebGPU the tile says so and draws each group in its own place instead, a quick placement, not the layout.`,
+    },
     random: {
         load: network("barabasi-albert", 100),
-        caption:
-            "Every node at a seeded random point, whatever its edges: the starting point other layouts improve on.",
+        caption: "100 nodes at seeded random points.",
+        about: "Every node at a seeded random point, whatever its edges: the starting point other layouts improve on.",
     },
     circular: {
         load: network("watts-strogatz", 60),
-        caption:
-            "A 60-node small-world ring placed on a circle in node order: the ring's edges run around the circle, its few rewired shortcuts across it.",
+        caption: "A 60-node small-world ring on a circle, in node order.",
+        about: "The ring's edges run around the circle, and its few rewired shortcuts cut across it.",
     },
     spiral: {
-        load: generated("path", { n: 80 }),
-        caption: "An 80-node path placed along a spiral in node order, so consecutive nodes sit side by side.",
+        load: byRank,
+        options: () => ({ equidistant: true }),
+        paint: (cy) => {
+            byDegree(cy);
+            cy.nodes()
+                .slice(0, 5)
+                .forEach((n) => {
+                    n.data("tag", n.id());
+                });
+        },
+        caption: "Les Miserables' 77 characters ranked by scene partners, the most at the center.",
+        about: "Each character's place on the spiral follows how many others they share a scene with, the most at the center (Valjean, then Gavroche, Marius, Javert, Thenardier). Size and color show the count, so the spiral reads as a ranking from the center out.",
     },
     grid: {
         load: network("grid", 100),
-        caption:
-            "A 10 x 10 grid graph placed on grid points in node order, row by row: each node lands beside its neighbors.",
+        caption: "A 10 x 10 grid graph on grid points, row by row.",
+        about: "The nodes are placed in node order, row by row, so each node lands beside its neighbors.",
     },
     shell: {
         load: network("barabasi-albert", 100),
@@ -221,57 +264,66 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
                 n.data("color", color);
             });
         },
-        caption:
-            "Concentric shells given by nlist: the hubs (degree 8 or more) in the middle, degree 4 to 7 around them, the rest outside.",
+        caption: "Shells by degree: 8 or more in the middle, 4 to 7 around them, the rest outside.",
+        about: "The shells are given by the nlist option, one collection of nodes per shell: the hubs (red) in the middle, the middle degrees (orange) around them, the rest (blue) outside.",
     },
     bipartite: {
         load: generated("random-bipartite", { n1: 12, n2: 16, p: 0.2 }),
         options: () => ({ top: "[side = 0]" }),
         paint: (cy) => colorBy(cy, "side"),
-        caption:
-            "A random bipartite graph: one side per column (top: the side-0 nodes), every edge running between them.",
+        caption: "A random bipartite graph, one side per column.",
+        about: "The top option names the side-0 nodes; every edge runs between the two columns.",
     },
     multipartite: {
         load: generated("random-dag", { layers: [3, 5, 6, 5, 3], p: 0.4 }),
         options: () => ({ subsets: "layer" }),
         paint: (cy) => colorBy(cy, "layer"),
-        caption:
-            "A 5-layer random DAG: one column per layer (subsets: the layer field), each edge running to the next column.",
+        caption: "A 5-layer random DAG, one column per layer.",
+        about: "The subsets option names the layer field; each edge runs to the next column.",
     },
     bfs: {
-        load: generated("grid", { rows: 7, cols: 7 }),
-        options: () => ({ root: "#0" }),
-        paint: (cy) => byHops(cy, "#0"),
-        caption:
-            "A 7 x 7 grid searched breadth-first from a corner: one column per hop count (darker = farther), holding 1, 2, ..., 7, ..., 1 nodes.",
+        load: dataset("les-miserables"),
+        options: () => ({ root: "#Valjean" }),
+        paint: (cy) => {
+            byHops(cy, "#Valjean");
+            // the columns as far apart as the longest is tall, so the names in neighboring columns do not overlap
+            const bb = cy.nodes().boundingBox();
+            const k = bb.h / Math.max(1, bb.w);
+            cy.nodes().forEach((n) => {
+                n.position("x", bb.x1 + (n.position("x") - bb.x1) * k);
+                n.data("tag", n.id());
+            });
+        },
+        caption: "Les Miserables searched breadth-first from Valjean: one column per step (darker = farther).",
+        about: "Characters are joined when they share a scene. 36 characters meet Valjean, 38 more are two steps away, and only Jondrette and Mother Plutarch are three.",
     },
     radial: {
         load: generated("balanced-tree", { branching: 3, height: 4 }),
         options: () => ({ root: "#0" }),
         paint: (cy) => byHops(cy, "#0"),
-        caption:
-            "A balanced tree (3 children per node, 4 levels) in rings around its root, one ring per hop (darker = farther).",
+        caption: "A balanced tree in rings around its root, one per hop (darker = farther).",
+        about: "The tree has 3 children per node and 4 levels; the root option names its root.",
     },
     planar: {
         load: generated("random-apollonian", { n: 20 }),
-        caption:
-            "A 20-node planar triangulation (a random Apollonian network) drawn with no two edges crossing; nodes sit on integer grid points.",
+        caption: "A 20-node planar triangulation, no two edges crossing.",
+        about: "The graph is a random Apollonian network; the layout draws straight edges and puts its nodes on integer grid points, so the spacing is uneven.",
     },
     spectral: {
-        load: network("grid", 100),
-        caption:
-            "A 10 x 10 grid placed by the two smallest nonzero eigenvectors of its Laplacian: the grid's rows and columns come back.",
+        ...groups,
+        caption: "100 nodes in 4 planted groups (colors), placed by Laplacian eigenvectors.",
+        about: "The coordinates are the two smallest nonzero eigenvectors of the graph's Laplacian: nodes that share neighbors get nearby coordinates, so each group gathers in its own corner, with no forces at all.",
     },
     "kamada-kawai": {
         load: network("grid", 100),
-        caption:
-            "A 10 x 10 grid: Kamada-Kawai makes drawn distances match hop distances, so the grid unfolds into a square mesh.",
+        caption: "A 10 x 10 grid unfolded into a square mesh.",
+        about: "Kamada-Kawai makes drawn distances match hop distances, so the grid unfolds into a square mesh.",
     },
     arf: {
         ...groups,
         options: () => ({ a: 5 }),
-        caption:
-            "100 nodes in 4 planted groups (colors): every pair of nodes attracts, neighbors 5 times as strongly (a: 5), and close pairs repel.",
+        caption: "100 nodes in 4 planted groups (colors), a: 5.",
+        about: "Every pair of nodes attracts, neighbors 5 times as strongly (the a option), and close pairs repel.",
     },
 };
 
@@ -286,16 +338,17 @@ interface GeneratorShowcase {
     /** ForceAtlas2 options for "settle". */
     fa2?: Record<string, unknown>;
     paint?(cy: Core): void;
-    caption: string;
+    /** What the generator's model is, for the story's description. */
+    about: string;
 }
 
-const settle = (caption: string, paint?: (cy: Core) => void, fa2?: Record<string, unknown>): GeneratorShowcase => ({
+const settle = (about: string, paint?: (cy: Core) => void, fa2?: Record<string, unknown>): GeneratorShowcase => ({
     layout: "settle",
-    caption,
+    about,
     paint,
     fa2,
 });
-const own = (caption: string, paint?: (cy: Core) => void): GeneratorShowcase => ({ layout: "own", caption, paint });
+const own = (about: string, paint?: (cy: Core) => void): GeneratorShowcase => ({ layout: "own", about, paint });
 const community = (cy: Core): void => colorBy(cy, "community");
 const side = (cy: Core): void => colorBy(cy, "side");
 const fromRoot: GeneratorShowcase["options"] = () => ({ root: "#0" });
@@ -310,7 +363,7 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
         layout: "radial",
         options: fromRoot,
         paint: (cy) => byHops(cy, "#0"),
-        caption: "Every inner node has 3 children, 4 levels deep: drawn in rings around the root.",
+        about: "Every inner node has 3 children, 4 levels deep: drawn in rings around the root.",
     },
     "barabasi-albert": settle(
         "Preferential attachment: each new node links to 2 nodes, likelier the more links they have, so a few hubs (bigger, darker) gather most edges.",
@@ -325,7 +378,7 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
         layout: "bipartite",
         options: () => ({ top: "[side = 0]" }),
         paint: side,
-        caption: "Every edge joins the two sides; each left node has degree 3, each right node degree 2.",
+        about: "Every edge joins the two sides; each left node has degree 3, each right node degree 2.",
     },
     caveman: settle("Six separate 6-node cliques (caves), none joined to another.", community, { strongGravity: true }),
     "chung-lu": settle(
@@ -338,28 +391,27 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
             const n = cy.nodes().length / 2;
             return { nlist: [cy.nodes().filter((_x, i) => i < n), cy.nodes().filter((_x, i) => i >= n)] };
         },
-        caption: "A prism: two 20-node rings joined rung by rung.",
+        about: "A prism: two 20-node rings joined rung by rung.",
     },
-    complete: { layout: "circular", caption: "Every pair of the 12 nodes is joined." },
+    complete: { layout: "circular", about: "Every pair of the 12 nodes is joined." },
     "complete-bipartite": {
         layout: "bipartite",
         options: () => ({ top: "[side = 0]" }),
         paint: side,
-        caption: "Each of the 6 nodes on one side is joined to each of the 8 on the other.",
+        about: "Each of the 6 nodes on one side is joined to each of the 8 on the other.",
     },
     "complete-multipartite": {
         layout: "multipartite",
         options: () => ({ subsets: "part" }),
         paint: (cy) => colorBy(cy, "part"),
-        caption:
-            "Three parts of 3, 4 and 5 nodes: every pair of nodes in different parts is joined, none within a part.",
+        about: "Three parts of 3, 4 and 5 nodes: every pair of nodes in different parts is joined, none within a part.",
     },
     "configuration-model": settle("A random graph in which every node has degree 3."),
     "connected-caveman": settle(
         "8 cliques of 6 (colors), each with one edge rewired to the next clique: a ring of caves.",
         community,
     ),
-    cycle: { layout: "circular", caption: "A ring of 30 nodes." },
+    cycle: { layout: "circular", about: "A ring of 30 nodes." },
     "degree-corrected-sbm": settle(
         "Three planted blocks (colors) whose nodes have uneven expected degrees (bigger = more edges).",
         (cy) => {
@@ -375,7 +427,7 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
         "Grown as genes duplicate: each new node copies a node's edges and keeps each with probability 0.4, so neighborhoods repeat and hubs form.",
         (cy) => byDegree(cy),
     ),
-    empty: { layout: "grid", caption: "20 nodes and no edges." },
+    empty: { layout: "grid", about: "20 nodes and no edges." },
     "erdos-renyi": settle(
         "Each pair of nodes joined with probability 0.04: degrees stay close to the average of 4, with no hubs.",
         (cy) => byDegree(cy),
@@ -409,35 +461,34 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
         "A stochastic Kronecker graph (initiator matrix raised to the 7th power): heavily skewed degrees (bigger, darker = more edges).",
         (cy) => byDegree(cy),
     ),
-    ladder: { layout: "kamada-kawai", caption: "Two 20-node rails joined rung by rung." },
+    ladder: { layout: "kamada-kawai", about: "Two 20-node rails joined rung by rung." },
     "layered-flow-network": {
         layout: "multipartite",
         options: () => ({ subsets: "layer" }),
         paint: (cy) => {
             colorBy(cy, "layer");
         },
-        caption:
-            "A flow network from the source (left) to the sink (right) through 3 inner layers; arcs run only to the next layer.",
+        about: "A flow network from the source (left) to the sink (right) through 3 inner layers; arcs run only to the next layer.",
     },
     lfr: settle(
         "The LFR benchmark: communities (colors) of power-law sizes and degrees, with 10% of each node's edges leaving its community.",
         community,
     ),
-    lollipop: { layout: "kamada-kawai", caption: "An 8-node clique with a 10-node path hanging from it." },
+    lollipop: { layout: "kamada-kawai", about: "An 8-node clique with a 10-node path hanging from it." },
     "mobius-ladder": {
         layout: "circular",
-        caption: "A 40-node cycle with each node joined to the node opposite: a ladder closed with a half twist.",
+        about: "A 40-node cycle with each node joined to the node opposite: a ladder closed with a half twist.",
     },
     named: {
         layout: "kamada-kawai",
-        caption: "The Frucht graph, one of the named graphs: 12 nodes, each of degree 3.",
+        about: "The Frucht graph, one of the named graphs: 12 nodes, each of degree 3.",
     },
     "newman-watts": {
         layout: "circular",
-        caption: "A ring in which each node joins its 4 nearest, plus random shortcuts added across it (none removed).",
+        about: "A ring in which each node joins its 4 nearest, plus random shortcuts added across it (none removed).",
     },
-    path: { layout: "kamada-kawai", caption: "A path of 30 nodes." },
-    petersen: { layout: "kamada-kawai", caption: "The Petersen graph: 10 nodes, each of degree 3." },
+    path: { layout: "kamada-kawai", about: "A path of 30 nodes." },
+    petersen: { layout: "kamada-kawai", about: "The Petersen graph: 10 nodes, each of degree 3." },
     "planted-partition": settle(
         "4 planted groups of 30 (colors): an edge inside a group is 40 times likelier than one between groups.",
         community,
@@ -448,20 +499,19 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
     ),
     "random-apollonian": {
         layout: "planar",
-        caption:
-            "Grown by splitting a random triangle into three: a planar triangulation, drawn with no edges crossing.",
+        about: "Grown by splitting a random triangle into three: a planar triangulation, drawn with no edges crossing.",
     },
     "random-bipartite": {
         layout: "bipartite",
         options: () => ({ top: "[side = 0]" }),
         paint: side,
-        caption: "15 + 20 nodes, each pair across the sides joined with probability 0.15; no edge within a side.",
+        about: "15 + 20 nodes, each pair across the sides joined with probability 0.15; no edge within a side.",
     },
     "random-dag": {
         layout: "multipartite",
         options: () => ({ subsets: "layer", align: "horizontal" }),
         paint: (cy) => colorBy(cy, "layer"),
-        caption: "A random layered DAG: one row per layer (colors); every arc points down to the next layer.",
+        about: "A random layered DAG: one row per layer (colors); every arc points down to the next layer.",
     },
     "random-geometric": own(
         "200 random points in the unit square, joined when closer than 0.1, at the generator's own coordinates.",
@@ -473,14 +523,13 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
             return { subsets: "layer", align: "horizontal" };
         },
         paint: (cy) => colorBy(cy, "layer"),
-        caption:
-            "Nodes in a random order, each pair joined forward with probability 0.08: drawn by longest path in, every arc points down.",
+        about: "Nodes in a random order, each pair joined forward with probability 0.08: drawn by longest path in, every arc points down.",
     },
     "random-recursive-tree": {
         layout: "radial",
         options: fromRoot,
         paint: (cy) => byHops(cy, "#0"),
-        caption: "Each new node attaches to a uniformly random earlier node: rings around the first node.",
+        about: "Each new node attaches to a uniformly random earlier node: rings around the first node.",
     },
     "random-regular": settle("A random graph in which every node has exactly 3 neighbors."),
     "random-tree": settle("A uniformly random tree on 100 nodes: long branches, few hubs."),
@@ -489,7 +538,7 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
         "R-MAT: edges dropped into recursively split quadrants of the adjacency matrix, giving skewed degrees (bigger, darker = more edges).",
         (cy) => byDegree(cy),
     ),
-    star: { layout: "radial", options: fromRoot, caption: "One hub joined to every other node." },
+    star: { layout: "radial", options: fromRoot, about: "One hub joined to every other node." },
     "stochastic-block-model": settle(
         "Three blocks of 40 (colors): edges inside a block are 20 times likelier than between blocks.",
         community,
@@ -497,15 +546,49 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
     "triangular-lattice": own("A triangular lattice of 8 x 10 at the generator's own coordinates (positions: true)."),
     "watts-strogatz": {
         layout: "circular",
-        caption: "A ring in which each node joins its 4 nearest, with 10% of edges rewired into shortcuts across it.",
+        about: "A ring in which each node joins its 4 nearest, with 10% of edges rewired into shortcuts across it.",
     },
     waxman: own(
         "Waxman's model: 200 random points, joined with a probability that falls with distance, so most edges are short.",
     ),
-    wheel: { layout: "radial", options: fromRoot, caption: "A hub joined to every node of a 19-node ring." },
+    wheel: { layout: "radial", options: fromRoot, about: "A hub joined to every node of a 19-node ring." },
     "wilson-maze": own(
         "A random spanning tree of a 12 x 12 grid (Wilson's algorithm): a maze, at its grid coordinates.",
     ),
+};
+
+/** What the colors and sizes of a generator's picture show, for the line under it; none when they show nothing. */
+const GENERATOR_LEGENDS: Partial<Record<GeneratorName, string>> = {
+    ak: "source green, sink red",
+    "balanced-tree": "darker = farther from the root",
+    "barabasi-albert": "bigger, darker = more edges",
+    "bianconi-barabasi": "darker = fitter",
+    "bipartite-configuration-model": "colors: the two sides",
+    caveman: "colors: the caves",
+    "chung-lu": "bigger, darker = more edges",
+    "complete-bipartite": "colors: the two sides",
+    "complete-multipartite": "colors: the parts",
+    "connected-caveman": "colors: the cliques",
+    "degree-corrected-sbm": "colors: the blocks; bigger = more edges",
+    "duplication-divergence": "bigger, darker = more edges",
+    "erdos-renyi": "bigger, darker = more edges",
+    "erdos-renyi-gnm": "bigger, darker = more edges",
+    "forest-fire": "bigger, darker = more links in",
+    genrmf: "colors: the frames",
+    "grid-flow-network": "source green, sink red",
+    hyperbolic: "bigger, darker = more edges",
+    kronecker: "bigger, darker = more edges",
+    "layered-flow-network": "colors: the layers, source left, sink right",
+    lfr: "colors: the communities",
+    "planted-partition": "colors: the groups",
+    price: "bigger, darker = more citations",
+    "random-bipartite": "colors: the two sides",
+    "random-dag": "colors: the layers",
+    "random-order-dag": "colors: the layers",
+    "random-recursive-tree": "darker = farther from the first node",
+    "ring-of-cliques": "colors: the cliques",
+    rmat: "bigger, darker = more edges",
+    "stochastic-block-model": "colors: the blocks",
 };
 
 /**
@@ -514,7 +597,7 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
  * @param name - the generator
  * @param seed - the seed
  * @param directed - whether the graph is directed (drawn with arrows)
- * @returns the caption and the counts
+ * @returns the counts, and what the colors and sizes show
  */
 export async function arrangeGenerated(
     cy: Core,
@@ -532,8 +615,12 @@ export async function arrangeGenerated(
         await place(cy, show.layout, seed, show.options?.(cy));
     }
     show.paint?.(cy);
-    return `${show.caption}\n${counts(cy)}${directed ? ", directed" : ""}`;
+    const legend = GENERATOR_LEGENDS[name];
+    return `${counts(cy)}${directed ? ", directed" : ""}${legend === undefined ? "" : `; ${legend}`}`;
 }
+
+/** What a generator's model is, for the story's description. */
+export const generatorAbout = (name: GeneratorName): string => GENERATOR_SHOWCASE[name].about;
 
 /** Maps longitude and latitude to x and y, north up. */
 const geographic = (n: NodeSingular): { x: number; y: number } => ({
@@ -559,35 +646,39 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             cy.nodes().forEach((n) => {
                 n.data("scale", 0.6 + 2 * Math.sqrt((n.data("population") as number) / 4e7));
             });
-            note = "Each state at its center of population (size: population), joined to the states it borders.";
+            note = "states at their centers of population (size: population)";
             break;
         case "openflights":
             spread(cy, geographic);
-            note = "Airports at their latitude and longitude; the routes between them form a faint haze.";
+            note = "airports at their latitude and longitude";
+            break;
+        case "venice-transit":
+            spread(cy, geographic);
+            colorBy(cy, "mode");
+            note = "stops at their latitude and longitude (color: bus, tram or waterbus)";
             break;
         case "knuth-miles": {
             spread(cy, geographic);
             const tree = cy.elements().graphtyKruskalMST({ weight: "weight" });
             cy.edges().difference(tree.edges()).remove();
             tree.edges().data("color", PALETTE[0]);
-            note = `Cities at their latitude and longitude, with the minimum spanning tree of highway mileage (${tree.edges().length} of 8,128 edges).`;
+            note = `cities on a map, with the minimum spanning tree of highway mileage (${tree.edges().length} of 8,128 edges)`;
             break;
         }
         case "wikipathways-senescence-autophagy":
             spread(cy);
             colorBy(cy, "type");
-            note = "The pathway as published (its saved drawing), colored by element type.";
+            note = "the pathway's saved drawing, colored by element type";
             break;
         case "yeast-perturbation":
             spread(cy);
             colorByExpression(cy, "gal80Rexp");
-            note =
-                "The network as Cytoscape saved it, colored by gal80R expression: blue down, red up, gray unmeasured.";
+            note = "colored by gal80R expression: blue down, red up, gray unmeasured";
             break;
         case "davis-southern-women":
             await place(cy, "bipartite", seed, { top: "[side = 0]" });
             colorBy(cy, "side");
-            note = "18 women (one column) and the 14 social events they attended (the other).";
+            note = "18 women in one column, the 14 social events they attended in the other";
             break;
         case "go-slim-generic": {
             const removed = cy.nodes().filter((n) => n.degree(false) === 0);
@@ -595,11 +686,11 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             // strong gravity keeps the small separate pieces of the hierarchy near the main one
             await placeSettled(cy, seed, { strongGravity: true });
             colorBy(cy, "namespace");
-            note = `GO terms colored by namespace, linked to their parents; the ${removed.length} terms with no parent or child in the slim are left out.`;
+            note = `GO terms colored by namespace, linked to their parents (${removed.length} unlinked terms left out)`;
             break;
         }
         case "stelzl-interactome": {
-            const removed = keepLargestComponent(cy);
+            keepLargestComponent(cy);
             const parts = [...(cy.elements().graphtyLouvain() as unknown as NodeCollection[])].sort(
                 (a, b) => b.length - a.length,
             );
@@ -617,12 +708,14 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
                 });
                 parts.slice(0, PALETTE.length - 1).forEach((p, i) => p.data("color", PALETTE[i]));
             });
-            note = `Human proteins and their interactions in the ${PALETTE.length - 1} largest graphtyLouvain communities (colors; the rest gray), drawn with the edges inside a community pulling 10 times harder; size: number of partners. The largest connected piece: ${(all - removed).toLocaleString()} of ${all.toLocaleString()} nodes.`;
+            note = `the ${PALETTE.length - 1} largest communities in color, the rest gray; size: number of partners`;
             break;
         }
         case "political-blogs":
         case "celegans-neural": {
-            const removed = name === "celegans-neural" ? 0 : keepLargestComponent(cy);
+            if (name === "political-blogs") {
+                keepLargestComponent(cy);
+            }
             // LinLog mode separates the two camps of political-blogs; on celegans-neural it hides the hubs' spokes
             await placeSettled(cy, seed, { linlog: name === "political-blogs" });
             if (info?.groundTruth) {
@@ -630,13 +723,7 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             } else {
                 byDegree(cy);
             }
-            const what = {
-                "political-blogs":
-                    "US political blogs of 2004 colored by lean; the two camps link mostly among themselves.",
-                "celegans-neural":
-                    "The neurons of C. elegans and their synapses; size and color: number of connections.",
-            }[name];
-            note = `${what}${removed > 0 ? ` The largest connected piece: ${(all - removed).toLocaleString()} of ${all.toLocaleString()} nodes.` : ""}`;
+            note = name === "political-blogs" ? "colored by lean" : "size and color: number of connections";
             break;
         }
         default:
@@ -644,11 +731,37 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             // football's eight independent teams are each a "conference" of one: gray, not eight more colors
             colorBy(cy, info?.groundTruth ?? null, name === "football");
             note = info?.groundTruth
-                ? `${info.title}, colored by ${info.groundTruth}${name === "football" ? "; the independent teams are gray" : ""}.`
-                : `${info?.title ?? name}.`;
+                ? `colored by ${info.groundTruth}${name === "football" ? "; the independent teams are gray" : ""}`
+                : "";
     }
-    return `${note}\n${counts(cy)}`;
+    const left = all - cy.nodes().length;
+    const piece =
+        left > 0 && name !== "go-slim-generic" ? `, the largest connected piece of ${all.toLocaleString()}` : "";
+    return [note, `${counts(cy)}${piece}`].filter(Boolean).join("; ");
 }
+
+/** How to read a dataset's picture, beyond the line under it, for the story's description. */
+export const DATASET_ABOUT: Partial<Record<string, string>> = {
+    "contiguous-usa":
+        "Each state is drawn at its center of population, sized by its population, and joined to the states it borders.",
+    openflights: "Each airport is drawn at its latitude and longitude; the routes between them form a faint haze.",
+    "venice-transit":
+        "Each bus, tram and waterbus stop of Venice is drawn at its latitude and longitude, colored by what serves it; the waterbus lines cross the lagoon between the islands.",
+    "knuth-miles":
+        "Each city is drawn at its latitude and longitude. The dataset joins every pair of cities by its highway mileage; the picture keeps only the minimum spanning tree of that mileage (graphtyKruskalMST).",
+    "wikipathways-senescence-autophagy":
+        "The pathway as published, at the positions of its saved drawing, each element colored by its type.",
+    "yeast-perturbation":
+        "The network at the positions Cytoscape saved it with, colored by its gal80R expression values.",
+    "davis-southern-women": "18 women and the 14 social events they attended, laid out by graphty-bipartite.",
+    "go-slim-generic":
+        "Each Gene Ontology term of the generic slim is linked to its parent terms; a term with no parent or child inside the slim is left out of the picture.",
+    "stelzl-interactome":
+        "Human proteins and their interactions, colored by graphtyLouvain community and drawn with the edges inside a community pulling 10 times harder than the edges between, so each community gathers in its own place. Only the largest connected piece is drawn.",
+    "political-blogs":
+        "US political blogs of 2004, colored by their political lean: the two camps link mostly among themselves. Only the largest connected piece is drawn.",
+    "celegans-neural": "The neurons of C. elegans and their synapses.",
+};
 
 /**
  * Colors nodes by a measured value on a blue-white-red scale centered on 0, saturated at the 90th percentile of the

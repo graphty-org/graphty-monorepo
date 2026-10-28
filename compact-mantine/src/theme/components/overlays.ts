@@ -11,7 +11,13 @@ import {
 } from "@mantine/core";
 import { createElement } from "react";
 
-import { installOverlayBehavior } from "../../components/overlays/overlayBehavior";
+import {
+    installOverlayBehavior,
+    openSubmenuOnClick,
+    rememberMenuOpener,
+    returnFocusToMenuOpener,
+} from "../../components/overlays/overlayBehavior";
+import { tooltipFlip } from "../../components/overlays/tooltipPlacement";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -33,9 +39,30 @@ import {
     VIEWPORT_MARGIN,
 } from "../styles/overlays";
 
+// Installed when the theme loads, not only when the first tooltip renders: whether a tooltip
+// may open on hover depends on the pointer moves seen before it (see overlayBehavior.ts).
+installOverlayBehavior();
+
 /**
- * Theme extensions for the overlays (design/figma-spec.md section 8): Figma's dark menu, dark
- * tooltip, light popover, modal, toast and overlay scrollbar.
+ * Menu.Sub.Item's defaults. A click (a tap on a touch screen, which has no hover) opens the
+ * submenu instead of closing the whole menu: a submenu row is never an action. MenuSubItemProps
+ * does not declare the button's onClick (the item is polymorphic), so the defaults are built
+ * outside the extend() literal, where its excess-property check does not reach.
+ */
+const menuSubItemDefaults = {
+    closeMenuOnClick: false,
+    onClick: openSubmenuOnClick,
+    rightSection: createElement(
+        "span",
+        { className: "cm-menu-chevron", "aria-hidden": true },
+        createElement(UiGlyph, { name: "caretRight", size: 10 }),
+    ),
+};
+
+/**
+ * Theme extensions for the overlays (design/figma-spec.md section 8): the menu (it follows the
+ * page's scheme; variant="inverse" keeps it dark), the dark tooltip, light popover, modal, toast
+ * and overlay scrollbar.
  *
  * Each extension hands Mantine `classNames` that point its parts at ../css/overlays.css.ts (and
  * at the foundation's shared cm-menu-surface / cm-menu-row / cm-popover-surface), plus the
@@ -59,10 +86,19 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             offset: 4,
             loop: true,
             trapFocus: true,
+            // Focus goes back to the button at the close, and only from inside the menu, so a
+            // dialog opened from a row keeps its focus (see returnFocusToMenuOpener).
+            returnFocus: false,
+            onOpen: rememberMenuOpener,
+            onClose: returnFocusToMenuOpener,
             transitionProps: NO_TRANSITION,
             middlewares: compactMenuMiddlewares,
         },
-        classNames: compactMenuClassNames,
+        // variant="inverse" keeps Figma's always-dark menu in both schemes (cm-menu-inverse).
+        classNames: (_theme, props) =>
+            props.variant === "inverse"
+                ? { ...compactMenuClassNames, dropdown: `${compactMenuClassNames.dropdown} cm-menu-inverse` }
+                : compactMenuClassNames,
         // vars runs on every render: the first one installs the document-level type-ahead and
         // scroll chevrons (idempotent; see overlayBehavior.ts).
         vars: () => {
@@ -86,15 +122,7 @@ export const overlayComponentExtensions: MantineThemeComponents = {
     }),
 
     // The submenu chevron: a 24 x 24 box holding a 3 x 5 caret (UiGlyph caretRight at 10).
-    MenuSubItem: Menu.Sub.Item.extend({
-        defaultProps: {
-            rightSection: createElement(
-                "span",
-                { className: "cm-menu-chevron", "aria-hidden": true },
-                createElement(UiGlyph, { name: "caretRight", size: 10 }),
-            ),
-        },
-    }),
+    MenuSubItem: Menu.Sub.Item.extend({ defaultProps: menuSubItemDefaults }),
 
     Tooltip: Tooltip.extend({
         defaultProps: {
@@ -107,7 +135,10 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             closeDelay: TOOLTIP_CLOSE_DELAY,
             transitionProps: NO_TRANSITION,
             events: { hover: true, focus: true, touch: false },
-            middlewares: { flip: true, shift: { padding: VIEWPORT_MARGIN } },
+            // flip's options derived per side tried (Mantine passes a non-boolean flip straight
+            // to floating-ui): below by default, the opposite side only when there is no room
+            // (see tooltipPlacement.ts).
+            middlewares: { flip: tooltipFlip as unknown as boolean, shift: { padding: VIEWPORT_MARGIN } },
         },
         classNames: compactTooltipClassNames,
         // vars runs on every render: the first one installs the instant dismiss and the focus
@@ -145,7 +176,11 @@ export const overlayComponentExtensions: MantineThemeComponents = {
     Modal: Modal.extend({
         defaultProps: {
             centered: true,
-            withOverlay: false,
+            // The overlay is always there, so the page behind cannot be clicked while the dialog
+            // is open (a click on it closes the dialog), but it is transparent: Figma's dialogs
+            // draw no backdrop. `overlayProps={{ backgroundOpacity: 0.5 }}` draws one.
+            withOverlay: true,
+            overlayProps: { backgroundOpacity: 0 },
             transitionProps: NO_TRANSITION,
             // Mantine's close button is an icon with no text and no label, so it has no
             // accessible name (axe: button-name). A caller's own closeButtonProps still win.

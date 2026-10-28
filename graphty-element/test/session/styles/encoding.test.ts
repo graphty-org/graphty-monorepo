@@ -414,7 +414,7 @@ describe("the palette's capacity", () => {
 
     it("applies to a channel that carries one of a fixed list, for the same reason", () => {
         assert.strictEqual(
-            codeOf(() => prepare("edge.style", { by: "x", scale: "bins", bins: 10 }, [0, 1])),
+            codeOf(() => prepare("edge.style", { by: "x", scale: "bins", bins: 20 }, [0, 1])),
             "E_CAP_EXCEEDED",
         );
     });
@@ -819,8 +819,8 @@ describe("encode()", () => {
         assert.deepEqual(layer.selector, { match: "has", path: "results.flow.value" });
     });
 
-    it("names the layer after the run and the channel, and takes a name when given one", () => {
-        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness - Node Color");
+    it("names the layer after the run, never the channel, and takes a name when given one", () => {
+        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness");
         assert.strictEqual(plan({ run: "betweenness", channel: "node.color", name: "Hot spots" }).name, "Hot spots");
     });
 
@@ -971,6 +971,38 @@ describe("what encode() refuses", () => {
         assert.strictEqual(
             codeOf(() => plan({ run: "betweenness", channel: "node.sparkle" as Channel })),
             "E_UNKNOWN_CHANNEL",
+        );
+    });
+});
+
+describe("a number written as label text", () => {
+    // Bridging (betweenness) values as a run writes them: full doubles.
+    const BRIDGING = [129.64334674418717, 0.012345678, 1504.5];
+
+    it("is written in full without a format, as before", () => {
+        const prepared = prepare("node.label", { by: "results.betweenness.bridging" }, BRIDGING);
+
+        assert.strictEqual(prepared.paint(BRIDGING[0]), String(BRIDGING[0]));
+        assert.isAbove((prepared.paint(BRIDGING[0]) as string).length, 15);
+    });
+
+    it("is written to 3 significant digits with maximumSignificantDigits: 3", () => {
+        const prepared = prepare(
+            "node.label",
+            { by: "results.betweenness.bridging", format: { maximumSignificantDigits: 3, locale: "en-US" } },
+            BRIDGING,
+        );
+
+        assert.strictEqual(prepared.paint(129.64334674418717), "130");
+        assert.strictEqual(prepared.paint(0.012345678), "0.0123");
+        assert.strictEqual(prepared.paint(1504.5), "1,500");
+        assert.strictEqual(prepared.paint("words"), "words", "text is never reformatted");
+    });
+
+    it("is refused at the layer when Intl.NumberFormat refuses the format", () => {
+        assert.strictEqual(
+            codeOf(() => prepare("node.label", { by: "x", format: { maximumSignificantDigits: 0 } }, [1])),
+            "E_BAD_LAYER",
         );
     });
 });

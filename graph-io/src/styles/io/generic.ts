@@ -1,0 +1,743 @@
+/**
+ * Reading a file's styles after an import: the importer's own `styles()` (the simple path, canonicalized and planned
+ * here, or the advanced path), the generic reader of the style roles (`color`, `size`, `shape`, `thickness`,
+ * `hidden`) for an importer without one, and the `graphty.styles` block when a file graphty wrote carries it as a
+ * graph attribute.
+ */
+
+import type { GraphSnapshot } from "@graphty/graph-format";
+
+import { keptForStyles } from "../../common/report.js";
+import type { GraphImporter, ImportReport } from "../../types.js";
+import { readAnnotations, readImageAnnotations } from "../annotations.js";
+import { StyleBudget } from "../budget.js";
+import { canonColor, colorOpacity } from "../canon/color.js";
+import { canonEnum, type StyleEnumKind } from "../canon/enums.js";
+import {
+    canonBoolean,
+    canonNumber,
+    canonOpacity,
+    canonSigned,
+    DOT_POINTS_PER_INCH,
+    styleLengthUnit,
+} from "../canon/number.js";
+import type { CanonSite } from "../canon/site.js";
+import { canonText } from "../canon/text.js";
+import { STYLE_ISSUE } from "../codes.js";
+import { StyleNotes } from "../notes.js";
+import { featuresOf, styleFingerprint } from "../plan/features.js";
+import { planStyles } from "../plan/plan.js";
+import { plainCell } from "../plan/resolve.js";
+import type {
+    ExtractedStyles,
+    GraphStyle,
+    ImporterStyles,
+    ReaderOutput,
+    StyleColumn,
+    StyleDialect,
+    StyleFingerprint,
+    StyleNote,
+    StyleProperty,
+    StyleTarget,
+    StyleTool,
+    StyleValue,
+} from "../types.js";
+import { STYLE_PROPERTIES } from "../vocabulary.js";
+import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "./block.js";
+
+/**
+ * The `styles` option of `importGraph()` given as an object.
+ * @category Styles
+ */
+export interface StyleImportOptions {
+    /**
+     * Whether a property the file leaves to its writing program's default gets that program's default (Cytoscape's,
+     * Graphviz's, Gephi's ...), so the graph looks as it does there. Defaults to true.
+     */
+    readonly toolDefaults?: boolean;
+}
+
+/**
+ * Options of `extractStyles()`.
+ * @category Styles
+ */
+export interface ExtractStylesOptions extends StyleImportOptions {
+    /** Cancels the extraction. */
+    readonly signal?: AbortSignal | null;
+    /**
+     * The counted work budget to spend (and read back after: `budget.used("node")`); a new one of
+     * `STYLE_WORK_BUDGET` operations per target when absent.
+     * @internal
+     */
+    readonly budget?: StyleBudget;
+}
+
+const TARGETS: readonly StyleTarget[] = ["node", "edge"];
+const ENUM_KINDS: ReadonlySet<string> = new Set([
+    "shape",
+    "borderStyle",
+    "lineStyle",
+    "arrow",
+    "arrowSide",
+    "weight",
+    "position",
+    "labelFit",
+    "borderPosition",
+]);
+
+/** What the readers here produce before planning: canonical values and the data columns they came from. */
+interface StyleTruth {
+    readonly dialect: StyleDialect | null;
+    readonly tool: StyleTool | null;
+    readonly units: "px" | "relative";
+    readonly graph: GraphStyle;
+    readonly node: ReaderOutput;
+    readonly edge: ReaderOutput;
+    readonly raw: { readonly node: readonly string[]; readonly edge: readonly string[] };
+    readonly notes: readonly StyleNote[];
+    /** A `graphty.styles` block the importer found outside the graph attributes, or null. */
+    readonly block?: string | null;
+    /** Whether the format writes an opacity as its color's alpha (see `ImporterStyles`). */
+    readonly opacityInColor?: boolean;
+}
+
+/**
+ * Reads the styles of a file after its import: the reading importer's own `styles()` (with what its `import()` kept
+ * for it), or the columns whose role is a style role when it has none; a `graphty.styles` block carried as a graph
+ * attribute gives the rules, with the importer's values as the truth. Called by `importGraph()` when styles are
+ * requested; a caller that drives an importer itself (into its own builder) calls it with the report `import()`
+ * returned.
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param report - the report its `import()` returned
+ * @param options - tool defaults and a cancel signal
+ * @returns the styles, or null when the file has none
+ * @category Styles
+ */
+export function extractStyles(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    report: ImportReport,
+    options: ExtractStylesOptions = {},
+): ExtractedStyles | null {
+    const signal = options.signal ?? undefined;
+    const notes = new StyleNotes();
+    const budget = options.budget ?? new StyleBudget();
+    // pictures are read by readImageAnnotations()
+    const pictures = readImageAnnotations(snapshot).length > 0;
+    for (const kind of readAnnotations(snapshot).skipped) {
+        if (!(pictures && kind === "ImageAnnotation")) {
+            notes.add(STYLE_ISSUE.ANNOTATION_SKIPPED, "graph", "annotations", { sample: kind });
+        }
+    }
+    const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
+    const fingerprint = styleFingerprint(snapshot);
+    const fromBlock = stylesFromBlock(importer, snapshot, canonical, notes, fingerprint);
+    if (fromBlock !== null) {
+        return fromBlock;
+    }
+    if (canonical === null) {
+        const list = notes.list();
+        return list.length === 0 ? null : emptyStyles(importer.format, list, snapshot, fingerprint);
+    }
+    const raw = { node: new Set(canonical.raw.node), edge: new Set(canonical.raw.edge) };
+    const features = {
+        node: featuresOf(snapshot, "node").filter((f) => !("data" in f.ref && raw.node.has(f.ref.data))),
+        edge: featuresOf(snapshot, "edge").filter((f) => !("data" in f.ref && raw.edge.has(f.ref.data))),
+    };
+    const planned = planStyles(
+        {
+            format: importer.format,
+            dialect: canonical.dialect,
+            tool: canonical.tool,
+            units: canonical.units,
+            graph: canonical.graph,
+            node: canonical.node,
+            edge: canonical.edge,
+            fingerprint,
+        },
+        features,
+        {
+            toolDefaults: options.toolDefaults,
+            budget,
+            notes,
+            rawColumns: { node: canonical.raw.node, edge: canonical.raw.edge },
+            signal,
+        },
+    );
+    if (canonical.notes.length === 0) {
+        return planned;
+    }
+    return { ...planned, styles: { ...planned.styles, notes: [...canonical.notes, ...planned.styles.notes] } };
+}
+
+/**
+ * The styles a file's `graphty.styles` block gives, with the importer's values as the truth; a block that does not
+ * parse or describes another graph is noted as ignored.
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param canonical - what the importer read, or null
+ * @param notes - the notes so far; an ignored block is noted here
+ * @param fingerprint - the graph's style fingerprint
+ * @returns the styles, or null when the file has no usable block
+ */
+function stylesFromBlock(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    canonical: ReturnType<typeof readStyleValues>,
+    notes: StyleNotes,
+    fingerprint: StyleFingerprint,
+): ExtractedStyles | null {
+    const blockText = canonical?.block ?? graphValue(snapshot, STYLE_BLOCK_NAME);
+    if (blockText === undefined) {
+        return null;
+    }
+    const parsed = parseStyleBlock(blockText, fingerprint);
+    if (!parsed.ok) {
+        notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: parsed.reason });
+        return null;
+    }
+    const truth = canonical === null ? {} : { node: canonical.node.values, edge: canonical.edge.values };
+    const fromBlock = blockStyles(
+        parsed.block,
+        snapshot,
+        importer.format,
+        truth,
+        canonical?.notes ?? [],
+        canonical?.tool ?? null,
+        canonical?.opacityInColor === true,
+    );
+    if (fromBlock === null) {
+        notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: "INVALID" });
+        return null;
+    }
+    const skipped = notes.list();
+    return skipped.length === 0
+        ? fromBlock
+        : { ...fromBlock, styles: { ...fromBlock.styles, notes: [...fromBlock.styles.notes, ...skipped] } };
+}
+
+/**
+ * What a file's styles are before planning: each element's canonical value per property, as the importer's own
+ * `styles()` gives them (the simple path canonicalized) or, for an importer without one, as the generic reader reads
+ * the columns with a style role. The truth the planned rules must reproduce; not part of the published entry.
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param report - the report its `import()` returned
+ * @param context - where problems are noted, the work budget and a cancel signal
+ * @param context.notes - where problems are noted
+ * @param context.budget - the work budget
+ * @param context.signal - cancels the work
+ * @returns the canonical values, or null when the file has no styles
+ */
+export function readStyleValues(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    report: ImportReport,
+    context: { readonly notes: StyleNotes; readonly budget: StyleBudget; readonly signal?: AbortSignal | undefined },
+): StyleTruth | null {
+    const { notes, budget, signal } = context;
+    signal?.throwIfAborted();
+    let canonical: StyleTruth | null;
+    if (importer.styles === undefined) {
+        canonical = roleStyles(snapshot, importer.format, notes, budget);
+    } else {
+        const got = importer.styles(snapshot, { signal, budget, kept: keptForStyles(report) });
+        canonical = got === null ? null : canonicalOf(got, snapshot, notes, budget, signal);
+    }
+    signal?.throwIfAborted();
+    return canonical === null ? null : withPairedHalves(canonical, snapshot);
+}
+
+/**
+ * The values with the second half of each undirected edge of a directed graph given its first half's value: the file
+ * holds the edge once, its program draws it once, and the import read the element's values onto the first half.
+ * @param truth - the values read
+ * @param snapshot - the graph
+ * @returns the values
+ */
+function withPairedHalves(truth: StyleTruth, snapshot: GraphSnapshot): StyleTruth {
+    const pair = snapshot.edges.byRole("pair");
+    if (pair === null) {
+        return truth;
+    }
+    const values: Partial<Record<StyleProperty, StyleColumn>> = {};
+    for (const [property, col] of Object.entries(truth.edge.values) as [StyleProperty, StyleColumn | undefined][]) {
+        if (col === undefined) {
+            continue;
+        }
+        const out = [...col];
+        for (let e = 0; e < out.length; e++) {
+            const first = pair.isSet(e) ? (pair.value(e) as number) : e;
+            if (first < e) {
+                out[e] = col[first] ?? null;
+            }
+        }
+        values[property] = out;
+    }
+    return { ...truth, edge: { ...truth.edge, values } };
+}
+
+/**
+ * A graph attribute's value, or undefined.
+ * @param snapshot - the graph
+ * @param name - the attribute
+ * @returns its value
+ */
+function graphValue(snapshot: GraphSnapshot, name: string): unknown {
+    return snapshot.graph.has(name) ? plainCell(snapshot.graph.value(name, 0)) : undefined;
+}
+
+/**
+ * Styles holding nothing but notes.
+ * @param format - the format
+ * @param notes - the notes
+ * @param snapshot - the graph
+ * @param fingerprint - its fingerprint
+ * @returns the styles
+ */
+function emptyStyles(
+    format: string,
+    notes: readonly StyleNote[],
+    snapshot: GraphSnapshot,
+    fingerprint: ExtractedStyles["fingerprint"],
+): ExtractedStyles {
+    return {
+        styles: {
+            version: 1,
+            source: { format, dialect: null, tool: null },
+            units: { length: "px" },
+            graph: {},
+            rules: [],
+            notes,
+        },
+        columns: { node: new Map(), edge: new Map() },
+        features: { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        fingerprint,
+    };
+}
+
+/**
+ * An importer's styles as canonical values: the advanced path as it is, the simple path read and canonicalized.
+ * @param got - what the importer's `styles()` returned
+ * @param snapshot - the graph
+ * @param notes - where problems are noted
+ * @param budget - the work budget
+ * @param signal - cancels the work
+ * @returns the canonical values
+ */
+function canonicalOf(
+    got: ImporterStyles,
+    snapshot: GraphSnapshot,
+    notes: StyleNotes,
+    budget: StyleBudget,
+    signal: AbortSignal | undefined,
+): StyleTruth {
+    if ("canonical" in got) {
+        return {
+            dialect: got.dialect ?? null,
+            tool: got.tool ?? null,
+            units: got.units ?? "px",
+            graph: got.graph ?? {},
+            node: got.node ?? { values: {} },
+            edge: got.edge ?? { values: {} },
+            raw: { node: got.readFrom?.node ?? [], edge: got.readFrom?.edge ?? [] },
+            notes: got.notes ?? [],
+            block: got.block ?? null,
+            opacityInColor: got.opacityInColor === true,
+        };
+    }
+    const { dialect } = got;
+    const raw = { node: [] as string[], edge: [] as string[] };
+    const out = { node: { values: {} } as ReaderOutput, edge: { values: {} } as ReaderOutput };
+    for (const target of TARGETS) {
+        const given = got[target];
+        if (given === undefined) {
+            continue;
+        }
+        const columns = new Map<string, readonly unknown[]>();
+        for (const [property, source] of Object.entries(given)) {
+            signal?.throwIfAborted();
+            const values = rawValues(snapshot, target, property, source, notes, raw[target]);
+            if (values !== null) {
+                columns.set(property, values);
+            }
+        }
+        out[target] = { values: canonicalize(target, columns, dialect, count(snapshot, target), notes, budget) };
+    }
+    return {
+        dialect,
+        tool: null,
+        units: styleLengthUnit(dialect),
+        graph: {},
+        node: out.node,
+        edge: out.edge,
+        raw,
+        notes: [],
+    };
+}
+
+/**
+ * The element count of a target.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @returns the count
+ */
+function count(snapshot: GraphSnapshot, target: StyleTarget): number {
+    return target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+}
+
+/**
+ * The raw values of one property on the simple path: a snapshot column by name, or an array by element index.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param property - the property
+ * @param source - `{ data: "<column>" }` or an array
+ * @param notes - where a missing column is noted
+ * @param raw - collects the names of the columns read
+ * @returns the values, or null
+ */
+function rawValues(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    property: string,
+    source: unknown,
+    notes: StyleNotes,
+    raw: string[],
+): readonly unknown[] | null {
+    if (Array.isArray(source)) {
+        return source as unknown[];
+    }
+    if (source === null || typeof source !== "object" || typeof (source as { data?: unknown }).data !== "string") {
+        notes.add(STYLE_ISSUE.BAD_MAPPING, target, property, { sample: source });
+        return null;
+    }
+    const name = (source as { data: string }).data;
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    if (!table.has(name)) {
+        notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, property, { sample: name });
+        return null;
+    }
+    raw.push(name);
+    const n = count(snapshot, target);
+    const out = new Array<unknown>(n);
+    for (let i = 0; i < n; i++) {
+        out[i] = plainCell(table.value(name, i));
+    }
+    return out;
+}
+
+/**
+ * Canonical values of every property of one target. A list value is read as its first item. A color's alpha moves
+ * into the fill's or the edge's opacity (multiplied with an opacity the file also states) or is dropped with a note.
+ * @param target - nodes or edges
+ * @param columns - the raw values per property
+ * @param dialect - how they are spelled
+ * @param n - the element count
+ * @param notes - where problems are noted
+ * @param budget - the work budget
+ * @returns the canonical values per property
+ */
+function canonicalize(
+    target: StyleTarget,
+    columns: ReadonlyMap<string, readonly unknown[]>,
+    dialect: StyleDialect,
+    n: number,
+    notes: StyleNotes,
+    budget: StyleBudget,
+): Record<string, StyleColumn> {
+    const cx: CanonContext = { target, dialect, n, notes, budget };
+    // keyed by the importer's property names: no prototype, so `__proto__` is a property like any other
+    const out: Record<string, (StyleValue | null)[]> = Object.create(null) as Record<string, (StyleValue | null)[]>;
+    const alphas = new Map<string, (number | null)[]>();
+    for (const [property, raws] of columns) {
+        const { col, alpha } = canonicalColumn(cx, property, raws);
+        out[property] = col;
+        if (alpha !== null) {
+            alphas.set(property, alpha);
+        }
+    }
+    for (const [property, alpha] of alphas) {
+        moveAlpha(cx, out, property, alpha);
+    }
+    return out;
+}
+
+/** What canonicalize() reads one target's values with. */
+interface CanonContext {
+    readonly target: StyleTarget;
+    readonly dialect: StyleDialect;
+    /** The element count. */
+    readonly n: number;
+    readonly notes: StyleNotes;
+    readonly budget: StyleBudget;
+}
+
+/**
+ * Canonical values of one property; a color's alpha below 1 is kept apart.
+ * @param cx - the target being read
+ * @param property - the property
+ * @param raws - its raw values
+ * @returns the values, and the alphas (null when every color is opaque)
+ */
+function canonicalColumn(
+    cx: CanonContext,
+    property: string,
+    raws: readonly unknown[],
+): { col: (StyleValue | null)[]; alpha: (number | null)[] | null } {
+    const { target, dialect, n, notes, budget } = cx;
+    const kind = STYLE_PROPERTIES[target].get(property);
+    const col = new Array<StyleValue | null>(n).fill(null);
+    let alpha: (number | null)[] | null = null;
+    for (let i = 0; i < n && i < raws.length; i++) {
+        const site: CanonSite = { notes, target, property, element: i, budget };
+        const v = firstItem(raws[i], site);
+        if (v === null || v === undefined) {
+            continue;
+        }
+        if (kind !== "color") {
+            col[i] = canonValue(kind, property, v, dialect, site);
+            continue;
+        }
+        const c = canonColor(v, dialect, site, { use: colorUse(target, property) });
+        col[i] = c?.color ?? null;
+        if (c !== null && c.alpha < 1) {
+            alpha ??= new Array<number | null>(n).fill(null);
+            alpha[i] = c.alpha;
+        }
+    }
+    return { col, alpha };
+}
+
+/**
+ * A raw value, a list read as its first item (a longer list noted).
+ * @param v - the raw value
+ * @param site - where it was read
+ * @returns the value
+ */
+function firstItem(v: unknown, site: CanonSite): unknown {
+    if (!Array.isArray(v)) {
+        return v;
+    }
+    if (v.length > 1) {
+        site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, { sample: v, element: site.element });
+    }
+    return v.length === 0 ? null : v[0];
+}
+
+/**
+ * Moves a color property's alphas into its opacity (multiplied with an opacity the file also states), or drops them
+ * with a note where the property has none.
+ * @param cx - the target being read
+ * @param out - the canonical values, changed in place
+ * @param property - the color property
+ * @param alpha - its alphas
+ */
+function moveAlpha(
+    cx: CanonContext,
+    out: Record<string, (StyleValue | null)[]>,
+    property: string,
+    alpha: readonly (number | null)[],
+): void {
+    const { target, n, notes, budget } = cx;
+    const carrier = OPACITY_OF.get(`${target}.${property}`) ?? null;
+    let opacity: (StyleValue | null)[] | null = null;
+    if (carrier !== null) {
+        out[carrier] ??= new Array<StyleValue | null>(n).fill(null);
+        opacity = out[carrier];
+    }
+    for (let i = 0; i < n; i++) {
+        const a = alpha[i];
+        if (a === null) {
+            continue;
+        }
+        const site: CanonSite = { notes, target, property, element: i, budget };
+        const stated = opacity === null ? null : (opacity[i] as number | null);
+        const merged = colorOpacity(
+            { color: out[property][i] as `#${string}`, alpha: a },
+            stated,
+            site,
+            opacity !== null,
+        );
+        if (opacity !== null) {
+            opacity[i] = merged;
+        }
+    }
+}
+
+/** The opacity property that carries a color's alpha: a node's fill and an edge's line. */
+const OPACITY_OF: ReadonlyMap<string, string> = new Map([
+    ["node.fill", "fillOpacity"],
+    ["edge.color", "opacity"],
+]);
+
+/**
+ * How a color is drawn, which decides how a Graphviz color list is read.
+ * @param target - nodes or edges
+ * @param property - the property
+ * @returns the use
+ */
+function colorUse(target: StyleTarget, property: string): "fill" | "edge" | "line" {
+    if (property === "fill") {
+        return "fill";
+    }
+    return target === "edge" && property === "color" ? "edge" : "line";
+}
+
+/**
+ * The canonical value of a property that is not a color.
+ * @param kind - the property's value kind, or undefined for a property outside the vocabulary
+ * @param property - the property
+ * @param raw - the raw value
+ * @param dialect - how it is spelled
+ * @param site - where it was read
+ * @returns the value, or null
+ */
+function canonValue(
+    kind: string | undefined,
+    property: string,
+    raw: unknown,
+    dialect: StyleDialect,
+    site: CanonSite,
+): StyleValue | null {
+    switch (kind) {
+        case "number":
+            return canonNumber(
+                raw,
+                site,
+                dialect === "graphviz" && (property === "width" || property === "height") ? DOT_POINTS_PER_INCH : 1,
+            );
+        case "signed":
+            return canonSigned(raw, site);
+        case "opacity":
+            return canonOpacity(raw, dialect, site);
+        case "boolean":
+            return canonBoolean(raw, site);
+        case "text":
+            return canonText(raw, site);
+        case undefined:
+            // a property only one consumer draws (graphty:<channel>) is carried as it is
+            return typeof raw === "string" ||
+                typeof raw === "boolean" ||
+                (typeof raw === "number" && Number.isFinite(raw))
+                ? raw
+                : null;
+        default:
+            return ENUM_KINDS.has(kind) ? canonEnum(kind as StyleEnumKind, raw, dialect, site) : null;
+    }
+}
+
+/** The style roles and the property each sets, per target; `size` sets a node's width and height. */
+const ROLE_PROPERTIES: Readonly<Record<StyleTarget, readonly (readonly [string, readonly string[]])[]>> = {
+    node: [
+        ["color", ["fill"]],
+        ["size", ["width", "height"]],
+        ["shape", ["shape"]],
+        ["hidden", ["visible"]],
+    ],
+    edge: [
+        ["color", ["color"]],
+        ["thickness", ["width"]],
+        ["shape", ["lineStyle"]],
+        ["hidden", ["visible"]],
+    ],
+};
+
+/**
+ * The generic reader: the styles of the columns whose role is `color`, `size`, `shape`, `thickness` or `hidden`, so a
+ * format that tags its style columns needs no reader of its own. A color column holds CSS text or channel numbers
+ * (0..1 in a float column, 0..255 otherwise, with an optional alpha); a hidden column holds booleans.
+ * @param snapshot - the graph
+ * @param dialect - how text values are spelled (the format's name; CSS for a format with no dialect of its own)
+ * @param notes - where problems are noted
+ * @param budget - the work budget
+ * @returns the canonical values, or null when no column has a style role
+ */
+function roleStyles(
+    snapshot: GraphSnapshot,
+    dialect: StyleDialect,
+    notes: StyleNotes,
+    budget: StyleBudget,
+): StyleTruth | null {
+    const raw = { node: [] as string[], edge: [] as string[] };
+    const out = { node: { values: {} } as ReaderOutput, edge: { values: {} } as ReaderOutput };
+    for (const target of TARGETS) {
+        const table = target === "node" ? snapshot.nodes : snapshot.edges;
+        const n = count(snapshot, target);
+        const columns = new Map<string, readonly unknown[]>();
+        for (const [role, properties] of ROLE_PROPERTIES[target]) {
+            const col = table.byRole(role);
+            if (col === null) {
+                continue;
+            }
+            raw[target].push(col.meta.name);
+            const vals = roleValues(table, col.meta, role, n);
+            for (const p of properties) {
+                columns.set(p, vals);
+            }
+        }
+        out[target] = { values: canonicalize(target, columns, dialect, n, notes, budget) };
+    }
+    if (raw.node.length === 0 && raw.edge.length === 0) {
+        return null;
+    }
+    return {
+        dialect,
+        tool: null,
+        units: styleLengthUnit(dialect),
+        graph: {},
+        node: out.node,
+        edge: out.edge,
+        raw,
+        notes: [],
+    };
+}
+
+/**
+ * A role column's raw values: a color as text, a hidden flag as the visibility it says the opposite of.
+ * @param table - the node or edge table
+ * @param meta - the column's name and dtype
+ * @param meta.name - the column's name
+ * @param meta.dtype - its dtype
+ * @param role - its role
+ * @param n - the element count
+ * @returns the values
+ */
+function roleValues(
+    table: GraphSnapshot["nodes"],
+    meta: { readonly name: string; readonly dtype: string },
+    role: string,
+    n: number,
+): unknown[] {
+    return Array.from({ length: n }, (_, i) => {
+        const v = plainCell(table.value(meta.name, i));
+        if (role === "color") {
+            return channelsColor(v, meta.dtype);
+        }
+        if (role === "hidden") {
+            return typeof v === "boolean" ? !v : null;
+        }
+        return v;
+    });
+}
+
+/**
+ * A color cell as text: channel numbers become `rgba()` (floats 0..1, integers 0..255); text stays as it is.
+ * @param v - the cell
+ * @param dtype - the column's dtype
+ * @returns the color's text, or the cell unchanged
+ */
+function channelsColor(v: unknown, dtype: string): unknown {
+    if (
+        !Array.isArray(v) ||
+        (v.length !== 3 && v.length !== 4) ||
+        !v.every((x) => typeof x === "number" && Number.isFinite(x))
+    ) {
+        return v;
+    }
+    const scale = dtype === "f32" || dtype === "f64" ? 255 : 1;
+    const [r, g, b] = (v as number[]).map((x) => Math.round(x * scale));
+    const alphaScale = scale === 255 ? 1 : 255;
+    const a = v.length === 4 ? (v[3] as number) / alphaScale : 1;
+    return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(a)})`;
+}

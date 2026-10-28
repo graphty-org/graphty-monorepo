@@ -1,0 +1,141 @@
+{
+    "$comment": "Rules tools/test-select.mjs applies for what Vite's import graph cannot see. Every path is repo-relative and every pattern is a JavaScript regular expression. design/ci/fast-pipeline.md section 5 and design/ci/test-selection-replay.md explain each one; a miss found by the replay adds a rule here.",
+    "everything": {
+        "$comment": "A change to one of these runs every shard: the root package.json and patches change installed code; the rest decide how every shard runs. nx.json's sharedGlobals are added at run time. pnpm-lock.yaml is not here: test-select.mjs reads which importers of the lockfile changed and runs those packages as if their package.json changed (nx's projectsAffectedByDependencyUpdates: auto), and runs everything when it cannot tell.",
+        "patterns": [
+            "^package\\.json$",
+            "^patches/",
+            "^nx\\.json$",
+            "^tools/test-slots\\.mjs$",
+            "^tools/run-tests\\.sh$",
+            "^tools/ci-test-matrix\\.mjs$",
+            "^tools/shard-verdict\\.mjs$",
+            "^tools/vitest-time-budget\\.mjs$"
+        ]
+    },
+    "smoke": {
+        "$comment": "A workflow change cannot change what a test computes, but a broken job command must still fail the change that broke it: a change to one of these runs one shard of each kind, a node shard and a browser shard (design/ci/channels-pipeline/merging.md section 4.3). Every other path under .github/ runs no test shard (noTests).",
+        "patterns": ["^\\.github/workflows/ci\\.yml$", "^\\.github/actions/"],
+        "shards": ["graph-format", "algorithms-browser"]
+    },
+    "storySetup": {
+        "$comment": "visual-review files that only the packages' Storybook story setups load (.storybook/vitest.setup.visual.ts, a setup file of the storybook projects only). A change to one changes no dependent package's build, so instead of every shard of every package that depends on visual-review it runs visual-review's own shards and these shards whole: the storybook shards of graphty and graphty-element, and algorithms-browser and layout, because ci.yml's story-tests job runs the stories of algorithms and layout only when those shards are in the matrix. visual-review's other files (story-test.mjs and capture.mjs, which the vitest configs import) keep the dependency-wide answer.",
+        "patterns": ["^visual-review/capture/story-test-setup\\.(mjs|d\\.mts)$"],
+        "shards": [
+            "algorithms-browser",
+            "layout",
+            "graphty-storybook",
+            "graphty-element-storybook-1",
+            "graphty-element-storybook-2",
+            "graphty-element-storybook-3",
+            "graphty-element-storybook-4",
+            "graphty-element-storybook-5"
+        ]
+    },
+    "noBuild": {
+        "$comment": "Packages with no build that their dependents load as source, by relative path, only from their vitest configs, story setups and tests (visual-review: story-test.mjs from the vitest configs, story-test-setup.mjs from the story setups, test/helpers.mjs from githerd's tests). A change to one changes no dependent's build, so it runs only the dependents' tests whose imports, setup files or vitest config reach the changed file, never every shard of every package that depends on it (or on one of those).",
+        "packages": ["visual-review"]
+    },
+    "noTests": {
+        "$comment": "Root paths no test shard reads: the screenshot lane, design notes and agent settings. Asked only after the import graphs and the test-side string literals (test-select.mjs, rootFiles), so a design file a test imports or names still runs that test. A root file that matches none of these and that no import, rule or test accounts for runs everything, except code under tools/.",
+        "patterns": [
+            "^design/",
+            "^\\.github/",
+            "^\\.claude/",
+            "^\\.husky/",
+            "^visual-baselines/",
+            "^visual-review-approvals/",
+            "^visual-fonts/",
+            "^[^/]+\\.md$",
+            "^docs/",
+            "^\\.env\\.example$",
+            "^\\.git-blame-ignore-revs$",
+            "^\\.lycheeignore$",
+            "^lychee\\.toml$",
+            "^\\.mcp\\.json$",
+            "^\\.pt-config\\.json$",
+            "^\\.secretlint(rc\\.json|ignore)$",
+            "^\\.worktree-config\\.json$",
+            "^sonar-project\\.properties$",
+            "^release-hold\\.json$",
+            "^commitlint\\.config\\.js$",
+            "^\\.gitattributes$",
+            "^\\.gitignore$"
+        ]
+    },
+    "wholePackage": {
+        "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run. A code file under the package's src/ is never matched (src/data/ holds data-source code): the import graph judges it. public/ is Vite's publicDir, served by URL (graphty's samples), which no import shows.",
+        "patterns": [
+            "(^|/)(fixtures|__fixtures__|data|recordings|golden|goldens|__snapshots__|snapshots|corpus|conformance|baselines)/",
+            "(^|/)setup/",
+            "^package\\.json$",
+            "^project\\.json$",
+            "^tsconfig[^/]*\\.json$",
+            "^(vite|vitest)[^/]*\\.config\\.[cm]?[jt]s$",
+            "^\\.storybook/",
+            "^public/"
+        ]
+    },
+    "fileLevel": {
+        "$comment": "Packages whose shards may run a list of test files instead of the whole shard, adopted one by one as the replay shows no misses (design/ci/fast-pipeline.md section 5.1, item 2). A shard that runs a browser project still runs whole. Elsewhere the file-level answer is measured and logged, never used.",
+        "packages": [
+            "graph-format",
+            "remote-logger",
+            "compact-mantine",
+            "graphty",
+            "graphty-element",
+            "graph-io",
+            "graph-samples",
+            "layout",
+            "algorithms",
+            "cytoscape-extensions",
+            "visual-review",
+            "githerd"
+        ]
+    },
+    "fileLevelBrowser": {
+        "$comment": "Packages of fileLevel whose shards that run a browser project may also run a list of test files (design/ci/minimal-tests.md section 3). A package joins only after tools/test-select-mutate.mjs finds no miss in its browser projects.",
+        "packages": ["compact-mantine", "graphty", "graphty-element", "graph-io", "algorithms"]
+    },
+    "alsoRun": {
+        "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",
+        "entries": [
+            {
+                "pattern": "^\\.prettier(rc|ignore)$",
+                "packages": ["graph-io", "cytoscape-extensions"],
+                "why": "their reference-page generators format with prettier.resolveConfig, which reads the root .prettierrc, in a child process"
+            }
+        ]
+    },
+    "readAtRunTime": {
+        "$comment": "Data files. One that no test imports (a query-suffix import is an import) can only be read at run time, so a change to it runs the package's tests that read files (opaqueTest) instead of the whole package. A changed code file that no test imports still runs the whole package.",
+        "pattern": "\\.(md|mdx|txt|json|jsonl|html|css|csv|tsv|xml|ya?ml|svg|png|jpe?g|gif|webp|gz|wgsl|glsl|net|gml|graphml|gexf|dot|gv|obo|cx2?|xgmml|cys)$"
+    },
+    "opaqueTest": {
+        "$comment": "A test whose own files (outside src/) read files, list directories or run programs at run time. Such a test runs whenever any file of its package other than another test changes, because what it reads is invisible to the import graph. Any use of child_process or node:fs counts, so a program run through promisify(execFile) is seen; so do ESLint (which loads its config at run time) and fetch() of a served file.",
+        "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\(|promisify\\(|\\bexecFile\\b|\\bspawn\\b|child_process|node:fs|new ESLint\\(|loadESLint|calculateConfigForFile|\\bfetch\\(|page\\.goto"
+    },
+    "stories": {
+        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package). selectProjects: the projects whose stories are selected at all; every other project runs every story on every change. A project joins only after a clean run of node tools/test-select-mutate.mjs --stories <project>, which breaks its files one at a time, captures the whole Storybook and requires every story whose picture or play result changed to have been selected. storyless: CI and tool files no story reads; a change only to these, with no storybook shard selected, runs no story in any project, proven or not. A tools/ file a Storybook or story-test config imports (directly or through another tools/ file) stays out of it (tools/test-select.test.mjs checks that), and so does what defines the Stories job itself: ci.yml, the composite actions, the planners and tools/results/, so a change to the job runs it.",
+        "global": [
+            "^visual-review\\.config\\.json$",
+            "^visual-fonts/",
+            "^visual-review/capture/",
+            "^visual-review/trusted/lib/compare\\.mjs$"
+        ],
+        "storyless": [
+            "^\\.github/(?!workflows/ci\\.yml$|actions/)",
+            "^tools/(?!(features-on|storybook-brand-theme|test-slots|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)"
+        ],
+        "projectGlobal": ["^{dir}/\\.storybook/", "^{dir}/vitest(\\.[\\w-]+)?\\.config\\.[cm]?[jt]s$"],
+        "lockfile": "playwright|chromium|storybook|vitest|font",
+        "theme": {
+            "pattern": "^compact-mantine/src/theme/",
+            "projects": ["graphty", "compact-mantine"]
+        },
+        "selectProjects": [],
+        "drawnBy": {
+            "graph-io-fidelity": ["graph-io", "graphty-element"]
+        }
+    }
+}

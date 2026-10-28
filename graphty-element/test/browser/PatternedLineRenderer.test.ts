@@ -23,15 +23,9 @@ test("a 2D pattern element is a slot drawn with a StandardMaterial, lying in the
     const { scene, cleanup } = createTestScene();
 
     try {
-        const element = PatternedLineRenderer.createPatternElement(
-            "diamond",
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-            undefined,
-            true,
-        );
+        const element = PatternedLineRenderer.createPatternElement("diamond", 0.1, "#ff0000", 1.0, scene, {
+            is2DMode: true,
+        });
         element.place(new Vector3(1, 2, 0), Vector3.Right());
 
         assert(element.batchMesh?.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
@@ -51,15 +45,9 @@ test("a 3D pattern element is a slot drawn by the billboard shader", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const element = PatternedLineRenderer.createPatternElement(
-            "diamond",
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-            undefined,
-            false,
-        );
+        const element = PatternedLineRenderer.createPatternElement("diamond", 0.1, "#ff0000", 1.0, scene, {
+            is2DMode: false,
+        });
 
         assert(element.batchMesh?.material instanceof ShaderMaterial, "Expected ShaderMaterial for 3D mode");
         assert.strictEqual(element.batchMesh.metadata?.is2D, undefined, "Expected no is2D metadata in 3D mode");
@@ -86,15 +74,9 @@ test("every discrete pattern builds a 2D element", () => {
 
     try {
         for (const pattern of ["dot", "star", "diamond", "box", "dash"] as const) {
-            const element = PatternedLineRenderer.createPatternElement(
-                pattern,
-                0.1,
-                "#ff0000",
-                1.0,
-                scene,
-                undefined,
-                true,
-            );
+            const element = PatternedLineRenderer.createPatternElement(pattern, 0.1, "#ff0000", 1.0, scene, {
+                is2DMode: true,
+            });
 
             assert(element.batchMesh?.material instanceof StandardMaterial, `Expected StandardMaterial for ${pattern}`);
             assert.strictEqual(element.batchMesh.metadata?.is2D, true, `Expected is2D metadata for ${pattern}`);
@@ -108,8 +90,14 @@ test("a shape override picks the alternating pattern's other shape", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const dash = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, "box", true);
-        const dot = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, "circle", true);
+        const dash = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, {
+            shapeType: "box",
+            is2DMode: true,
+        });
+        const dot = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, {
+            shapeType: "circle",
+            is2DMode: true,
+        });
 
         assert.notStrictEqual(dash.batchMesh, dot.batchMesh, "the two shapes of a dash-dot line are two batches");
         assert.strictEqual(dot.name, "pattern-dash-dot-circle");
@@ -131,9 +119,13 @@ test("elements of one shape share one batch, and 2D splits it only by what its m
         assert.strictEqual(red.batchMesh, blue.batchMesh, "3D: one batch for every colour and width");
         assert.strictEqual(scene.meshes.length, meshesBefore + 1, "and it is one scene object");
 
-        const red2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#ff0000", 1.0, scene, undefined, true);
-        const wide2D = PatternedLineRenderer.createPatternElement("dot", 0.3, "#ff0000", 1.0, scene, undefined, true);
-        const blue2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#0000ff", 1.0, scene, undefined, true);
+        const red2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#ff0000", 1.0, scene, { is2DMode: true });
+        const wide2D = PatternedLineRenderer.createPatternElement("dot", 0.3, "#ff0000", 1.0, scene, {
+            is2DMode: true,
+        });
+        const blue2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#0000ff", 1.0, scene, {
+            is2DMode: true,
+        });
         assert.strictEqual(red2D.batchMesh, wide2D.batchMesh, "2D: the width is the slot's scale");
         assert.notStrictEqual(red2D.batchMesh, blue2D.batchMesh, "2D: the colour is the material's");
 
@@ -152,16 +144,12 @@ test("only the last segment of a connected pattern is clipped, however its lengt
 
     try {
         for (const pattern of ["zigzag", "sinewave"] as const) {
-            const line = PatternedLineRenderer.create(
-                pattern,
-                Vector3.Zero(),
-                new Vector3(1, 0, 0),
-                0.1,
-                "#ff0000",
-                1.0,
-                scene,
-                false,
-            );
+            const line = PatternedLineRenderer.create(pattern, Vector3.Zero(), new Vector3(1, 0, 0), scene, {
+                width: 0.1,
+                color: "#ff0000",
+                opacity: 1.0,
+                is2DMode: false,
+            });
 
             // Grow and shrink through lengths whose remainders clip the last segment, so a segment
             // clipped while it was last is no longer last on the next length.

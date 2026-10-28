@@ -1,10 +1,10 @@
 import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { TooltipShortcut, UiGlyph } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { waitForSettledLayout } from "../../helpers/settled";
+import { storyWaitOptions, waitForSettledLayout } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
@@ -209,8 +209,11 @@ export const WarmHandOffInteractions: Story = {
         const canvas = within(canvasElement);
         const first = canvas.getByRole("button", { name: "Align left" });
         await userEvent.hover(first);
-        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toBeVisible(), { timeout: 2000 });
+        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toBeVisible(), storyWaitOptions(2000));
         await userEvent.hover(canvas.getByRole("button", { name: "Align right" }));
-        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toHaveTextContent("Align right"));
+        await waitFor(
+            () => expect(within(document.body).getByRole("tooltip")).toHaveTextContent("Align right"),
+            storyWaitOptions(1000),
+        );
     },
 };

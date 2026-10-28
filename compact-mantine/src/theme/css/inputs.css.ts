@@ -1,6 +1,6 @@
 /**
  * The input family's CSS (design/figma-spec.md 6): Mantine's fields on the foundation's
- * `cm-field` / `cm-field-outlined`, the select trigger, the dark listbox on `cm-menu-surface` /
+ * `cm-field` / `cm-field-outlined`, the select trigger, the listbox on `cm-menu-surface` /
  * `cm-menu-row`, pill fields, and the package's own SearchInput, ComboInput and VariablePill.
  *
  * Mantine's field is three boxes: the Input wrapper (`cm-input-wrapper`, which also takes
@@ -12,6 +12,7 @@
  * `--cm-field-shadow` / `--cm-field-border`, which the AA token block switches.
  */
 import { cmFont } from "../tokens";
+import { ROW_UNLIT } from "./00-foundation.css";
 
 const css = `
 /* ---- The field (spec 6, shared rules) ---- */
@@ -58,7 +59,14 @@ const css = `
     color: var(--cm-text-disabled);
     cursor: default;
 }
+/* Disabled by its own prop, by a disabled fieldset around it (its inputs match :disabled), or by
+   aria-disabled on it or around it. */
+.cm-input-wrapper .cm-input:is(:disabled, [data-disabled], [aria-disabled="true"], [aria-disabled="true"] *),
+.cm-input-wrapper .cm-input:is(:disabled, [data-disabled], [aria-disabled="true"], [aria-disabled="true"] *)::placeholder {
+    color: var(--cm-text-disabled);
+}
 .cm-input-wrapper[data-disabled],
+.cm-input-wrapper:is([aria-disabled="true"] *),
 .cm-input-wrapper:has(:disabled) {
     --input-color: var(--cm-text-disabled);
     --input-placeholder-color: var(--cm-text-disabled);
@@ -190,8 +198,14 @@ const css = `
 .cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
     color: var(--cm-text-disabled);
 }
+/* A disabled select keeps its caret, dimmed with its text (Figma, spec 6.4), and draws its edge in
+   the disabled ink like every disabled field. */
+.cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)),
+.cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)):hover:not(:focus-within) {
+    border-color: var(--cm-border-disabled);
+}
 
-/* ---- The dark listbox (spec 6.5) ---- */
+/* ---- The listbox (spec 6.5): the menu surface, following the page's scheme ---- */
 /* The surface restated at two classes: a Combobox dropdown is a Mantine Popover dropdown, so it
    also receives the Popover's theme classes (the light popover), which must not win here. */
 .cm-listbox.cm-menu-surface {
@@ -210,14 +224,14 @@ const css = `
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;
     padding: 0 32px 0 12px;
     border-radius: 0;
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
     white-space: nowrap;
     opacity: 1;
     cursor: default;
@@ -226,7 +240,7 @@ const css = `
 .cm-listbox .cm-listbox-option[data-combobox-selected],
 .cm-listbox .cm-listbox-option[data-checked] {
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
 }
 .cm-listbox .cm-listbox-option[data-combobox-disabled] {
     opacity: 1;
@@ -236,12 +250,22 @@ const css = `
 .cm-listbox .cm-listbox-option[data-combobox-disabled]::before {
     background: transparent;
 }
+.cm-listbox .cm-listbox-option[data-combobox-disabled] { ${ROW_UNLIT} }
 /* Only one row is ever filled: the pointer's row, else the keyboard's, else the selected one. */
-.cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover)::before,
+.cm-listbox:not(.cm-pointer-still):has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover)::before,
 .cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected])::before,
 .cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected])::before {
     background: transparent;
 }
+/* A pointer that has not moved since the list opened is not hovering a choice: the
+   row under it is not filled, and the selected row keeps its fill. The row still takes a press, so
+   a click or a tap that comes with no move lands. */
+.cm-listbox.cm-pointer-still .cm-menu-row:hover:not([data-combobox-selected], [aria-selected="true"])::before {
+    background: transparent;
+}
+.cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover),
+.cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected]),
+.cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected]) { ${ROW_UNLIT} }
 /* The check follows the value (data-checked), not aria-selected: Mantine's store moves
    aria-selected along with the keyboard highlight. */
 .cm-listbox .cm-menu-row .cm-menu-row-check {
@@ -249,6 +273,62 @@ const css = `
 }
 .cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check {
     opacity: 1;
+}
+/* A StyleSelect laid out as a grid (layout="grid"): one cell per option, its glyph over its name.
+   The columns are set inline by the select; the fill keeps 2px from the cell's sides. The value in
+   force carries the list's check, in the cell's top corner, so a grid and a list mark it alike. */
+.cm-listbox .cm-listbox-grid {
+    display: grid;
+    padding: 0 8px;
+}
+.cm-listbox .cm-listbox-grid .cm-listbox-option {
+    position: relative;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 2px;
+    min-width: 64px;
+    min-height: 52px;
+    height: auto;
+    padding: 4px;
+}
+.cm-listbox .cm-listbox-grid .cm-menu-row::before {
+    inset: 0 2px;
+}
+.cm-listbox .cm-listbox-grid .cm-menu-row-check {
+    position: absolute;
+    inset-block-start: 2px;
+    inset-inline-start: 4px;
+}
+/* A name is never cut: it wraps between words, and the columns are as wide as the longest word
+   (the label's min-content). */
+.cm-listbox .cm-listbox-grid .cm-listbox-label {
+    width: min-content;
+    min-width: 100%;
+    font-size: 11px;
+    line-height: 13px;
+    text-align: center;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+.cm-listbox .cm-listbox-option-content {
+    display: contents;
+}
+.cm-listbox .cm-listbox-glyph {
+    display: inline-flex;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+}
+/* Any depth: a caller's glyph may wrap its svg (a catalog's markup in a span), and an svg left at
+   its own size spills over the value's words. */
+.cm-style-select-glyph svg,
+.cm-listbox .cm-listbox-glyph svg {
+    width: 100%;
+    height: 100%;
 }
 .cm-listbox .cm-listbox-label {
     min-width: 0;
@@ -268,8 +348,9 @@ const css = `
 }
 .cm-listbox .cm-listbox-group + .cm-listbox-group,
 .cm-listbox .cm-listbox-separator {
-    margin-top: 8px;
+    margin: 8px 0 0;
     padding-top: 8px;
+    border: 0;
     border-top: 1px solid var(--cm-border-translucent);
 }
 .cm-listbox .cm-listbox-separator {
@@ -463,6 +544,15 @@ const css = `
     gap: 0;
     padding-inline-end: 3px;
 }
+/* A field with no glyph: the pill sits 2px in from the field's edge, as it does from its top. */
+.cm-var-field:not(:has(> .cm-scrub-slot)) {
+    padding-inline-start: 2px;
+}
+/* The pill and Detach ring themselves on keyboard focus, so the field around them does not ring
+   too: one ring, on the control that has focus. The field still rings for its own input. */
+.cm-var-field.cm-field:has(.cm-var-pill:focus-visible, .cm-var-detach:focus-visible) {
+    outline-color: transparent;
+}
 .cm-var-field .cm-var-pill-slot {
     display: flex;
     flex: 1 1 auto;
@@ -569,13 +659,52 @@ const css = `
     width: 14px;
     height: 14px;
     border-radius: 2px;
-    box-shadow: inset 0 0 0 1px var(--cm-border-translucent);
+    box-shadow: inset 0 0 0 1px var(--cm-swatch-ring);
+}
+/* tone="component": the name drawn in the component purple, as the tree's component rows are. */
+.cm-var-name[data-tone="component"],
+.cm-var-pill[data-tone="component"] {
+    color: var(--cm-text-component);
+    font-weight: 600;
 }
 .cm-var-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* ---- FileSource: a URL field, a drop target or a button ---- */
+.cm-file-source {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.cm-file-source[data-variant="row"][data-over] .cm-file-url .cm-input-wrapper,
+.cm-file-source[data-variant="row"][data-over] > .mantine-Button-root {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+.cm-file-drop-target {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    border: 1px dashed var(--cm-border);
+    border-radius: 5px;
+    color: var(--cm-icon-secondary);
+}
+.cm-file-source[data-over] .cm-file-drop-target {
+    border-color: var(--cm-border-selected);
+    background-color: var(--cm-bg-selected);
+}
+.cm-file-source[data-disabled] .cm-file-drop-target {
+    border-color: var(--cm-border-disabled);
+    color: var(--cm-icon-disabled);
+}
+.cm-file-drop-glyph {
+    display: inline-flex;
 }
 `;
 

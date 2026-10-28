@@ -29,6 +29,7 @@ import type {
     ResultShape,
     RunId,
 } from "../../catalog/types";
+import { quoteEach } from "../../utils/quote-each";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
 
@@ -586,7 +587,7 @@ export function checkShapeContract(
                 violations.push({
                     field: name,
                     kind,
-                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${allowed.map((type) => `"${type}"`).join(" or ")}`,
+                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${quoteEach(allowed, " or ")}`,
                 });
             }
         }
@@ -732,6 +733,15 @@ export interface Histogram {
      * measured. A per-value histogram ignores the scale, because it has no bands to space.
      */
     readonly binning: HistogramBinning;
+    /** The lowest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly min?: number;
+    /**
+     * The middle value measured: the lower median, a value the data holds. Absent when nothing
+     * was measured. @since 3.26.0
+     */
+    readonly median?: number;
+    /** The highest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly max?: number;
 }
 
 /** How a histogram is cut. */
@@ -823,8 +833,9 @@ export interface SummaryGroup {
     /**
      * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
      * partitions into groups. The legend of a colour encoding over the same groups carries the
-     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
-     * every surface names a group the same way: word it from the rank ("Group 3").
+     * same `rank` on each swatch, a page column of the group field carries it per cell, and an
+     * export writes it as the group column's value, so every surface and every exported file names
+     * a group the same way: word it from the rank ("Group 3").
      */
     readonly rank?: number;
     /**

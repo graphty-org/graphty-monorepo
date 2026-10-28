@@ -15,10 +15,11 @@
  * Once, for a look: node tools/pr-status-broker.mjs --once
  *
  * The file: { fetchedAt, rateLimit: { remaining, resetAt, cost }, truncated?, error?, pullRequests:
- * [{ number, title, head, base, draft, mergeable, labels: [...], state, checks: { "<check name>":
+ * [{ number, title, author, head, headSha, base, draft, mergeable, labels: [...], state, checks: { "<check name>":
  * "<conclusion or status>" }, checksTruncated? }] }. A head commit can carry several check runs of one
  * name (a re-run, or a draft run and the run that started when it was marked ready); `checks` keeps the
- * newest by start time. `truncated` (more than 100 open pull requests) and `checksTruncated` (more than
+ * newest by start time; `hiddenFailures` names the checks that also have an older failing run, which
+ * Mergify may still read (a rollup `state` of FAILURE with a green summary check is this case). `truncated` (more than 100 open pull requests) and `checksTruncated` (more than
  * 100 checks) say the list is incomplete. `state` is GitHub's rollup (SUCCESS, FAILURE, PENDING, ...). When a fetch fails
  * the last good list stays and `error` says why; a rate limit waits for its reset.
  */
@@ -37,7 +38,7 @@ const QUERY = `{
   rateLimit { remaining resetAt cost }
   repository(owner: "graphty-org", name: "graphty-monorepo") {
     pullRequests(states: OPEN, first: 100) { pageInfo { hasNextPage } nodes {
-      number title headRefName baseRefName isDraft mergeable
+      number title author { login } headRefName headRefOid baseRefName isDraft mergeable
       labels(first: 20) { nodes { name } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state
         contexts(first: 100) { pageInfo { hasNextPage }
@@ -64,10 +65,20 @@ export function summarize(data) {
                 started[c.name] = at;
             }
         }
+        // A failing check run that a newer one of the same name hides here. GitHub and Mergify do not
+        // always read the newest one (a failure in another workflow's or a newer run's check suite
+        // still blocks the queue), so a pull request listed green here can be red to Mergify.
+        const failed = new Set(
+            (rollup?.contexts.nodes ?? []).filter((c) => c.conclusion === "FAILURE").map((c) => c.name),
+        );
+        const hidden = [...failed].filter((name) => checks[name] !== "FAILURE");
         const record = {
             number: pr.number,
             title: pr.title,
+            // who opened it: graphty-agent for tools/pr-open.sh, the owner, dependabot[bot], ...
+            author: pr.author?.login ?? null,
             head: pr.headRefName,
+            headSha: pr.headRefOid,
             base: pr.baseRefName,
             draft: pr.isDraft,
             mergeable: pr.mergeable,
@@ -75,6 +86,9 @@ export function summarize(data) {
             state: rollup?.state ?? null,
             checks,
         };
+        if (hidden.length > 0) {
+            record.hiddenFailures = hidden;
+        }
         if (rollup?.contexts.pageInfo?.hasNextPage) {
             record.checksTruncated = true;
         }

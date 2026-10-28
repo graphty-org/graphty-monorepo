@@ -5,6 +5,11 @@ node_modules/
 dist/
 coverage/
 storybook-static/
+# graph-samples' hosted datasets: written by `npm run datasets:hosted`, ignored by
+# graph-samples/.gitignore, which prettier does not read (it reads only the root .gitignore)
+graph-samples/public-data/
+# pipeline-health's CDK synth output: written by `pnpm run synth`, ignored by tools/pipeline-health/.gitignore
+tools/pipeline-health/cdk.out/
 
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
@@ -17,6 +22,16 @@ graphty-element/jsx.ts
 # graphty-element/test/ai/conversation/formats.test.ts
 graphty-element/src/ai/conversation/formats/*.schema.json
 graphty-element/test/ai/conversation/fixtures/
+# The oracle scorecard's known failures: written by graphty-element/test/fidelity/oracle/run-oracle.ts one line per
+# sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
+graphty-element/test/fidelity/oracle-known-failures.json
+# Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
+# compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
+graphty-element/test/layout/graphviz-fixtures/
+# compact-mantine's Figma fixtures: written by compact-mantine/tests/figma/figma-fixture.mjs (one line per
+# captured element), and checked value for value against the Figma study by the same script
+compact-mantine/tests/figma/figma-fixture.json
+compact-mantine/tests/figma/figma-variables.json
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
@@ -25,6 +40,11 @@ graphty-element/test/ai/conversation/fixtures/
 **/CHANGELOG.md
 *.min.js
 *.bundle.js
+
+# The design studio's round records (design/ui/studio/rounds/, tier2/rounds/): session logs,
+# transcripts and grades its study tool and agents write while a round runs, kept as written.
+design/ui/studio/rounds/
+design/ui/studio/*/rounds/
 
 # Package manager
 pnpm-lock.yaml
@@ -42,6 +62,8 @@ docs/.vitepress/dist/
 
 # Visual-review baselines: PNGs and the JSON records written with them, byte-exact
 visual-baselines/
+# Signed screenshot approvals: their bytes are what the passkey signed, so a formatter must never touch them.
+visual-review-approvals/
 
 # Other
 gh-pages/
@@ -55,6 +77,9 @@ graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
 
+# Network source recordings: live services' answers, one response per line (graph-io/scripts/record-rest.ts)
+graph-io/test/sources/*/recordings/
+
 # githerd's replay data: GitHub's recorded answers, one record per line
 githerd/test/replay/data/
 
@@ -63,6 +88,16 @@ githerd/test/worker-settings/
 
 # Generated benchmark reports
 algorithms/benchmark-results/
+
+# The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
+graph-io/test/corpus/styles/
+
+# Style fidelity references: scenes written by graph-io/test/fidelity/regenerate.sh, and the samples
+# they hash byte for byte
+graph-io/test/fidelity/scenes/
+graph-io/test/fidelity/samples/
+# Gephi JSON specimen sheets: Gson's compact output byte for byte (escapes, key order), which the oracles hash
+graph-io/test/fidelity/specimens/gephi-json/*.json
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/

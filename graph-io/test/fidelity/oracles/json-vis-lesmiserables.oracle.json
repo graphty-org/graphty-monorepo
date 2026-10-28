@@ -1,0 +1,34 @@
+{
+    "sample": "json-vis-lesmiserables",
+    "program": "vis-network",
+    "version": "vis-network 9.1.9 (standalone), svgcanvas 2.6.0",
+    "command": "new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); once(\"stabilizationIterationsDone\"); stopSimulation(); net.renderer._redraw() onto an svgcanvas Context",
+    "how": "vis-network draws with Canvas 2D only. At the snapshot point (observed.snapshotAt), its own CanvasRenderer._redraw ran once with net.canvas.getContext returning an svgcanvas context, so every draw call vis-network made (edges, nodes, arrows, labels) was recorded as SVG at the view vis-network itself chose. The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.",
+    "svgKind": "vector",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/corpus/styles/json/fidelity/vis-lesmiserables.json",
+    "fileSha256": "7b1fbc634d48fb0daead886f27f2383d395c8e1b148d6e59536d7a4f8e0b866b",
+    "svgSha256": "85a6abfa932b4f99c70c95b0102307ec093bd90fd95c5105c0e103a0e7f11a57",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 77,
+        "edges": 254,
+        "physics": true,
+        "snapshotAt": "stabilizationIterationsDone",
+        "scale": 0.4143922515359161,
+        "viewCenter": {
+            "x": -36.72457098530322,
+            "y": 10.577787788319888
+        }
+    },
+    "pageErrors": []
+}

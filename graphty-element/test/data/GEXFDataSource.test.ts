@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { assert, describe, test } from "vitest";
 
 import { GEXFDataSource } from "../../src/data/GEXFDataSource.js";
+import { createGraphSession } from "../../src/session";
 
 describe("GEXFDataSource", () => {
     test("parses basic GEXF", async () => {
@@ -284,21 +288,23 @@ describe("GEXFDataSource", () => {
         assert.strictEqual(edges[2].weight, 16777217);
     });
 
-    test("keeps what a document read before it broke off, and counts the break as an error", async () => {
+    test("refuses a document that broke off, yielding nothing it read before the break", async () => {
         const xml =
             '<?xml version="1.0"?><gexf version="1.3"><graph>' +
             '<nodes><node id="a"/><node id="b"></nodes></graph></gexf>';
         const source = new GEXFDataSource({ data: xml });
         const nodes = [];
-        for await (const chunk of source.getData()) {
-            nodes.push(...chunk.nodes);
+        let thrown: unknown;
+        try {
+            for await (const chunk of source.getData()) {
+                nodes.push(...chunk.nodes);
+            }
+        } catch (error) {
+            thrown = error;
         }
 
-        assert.deepEqual(
-            nodes.map((node) => node.id),
-            ["a", "b"],
-        );
-        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
+        assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_PARSE_FAILED");
+        assert.deepEqual(nodes, []);
     });
 
     describe("dynamic graphs", () => {
@@ -373,6 +379,39 @@ describe("GEXFDataSource", () => {
             ]);
         });
 
+        test("a slice with only one bound loads, keeping just the bound it has", async () => {
+            // gexf.net's dynamics example: attvalues with only end= or only start= in timeformat="date".
+            const data = readFileSync(
+                join(
+                    __dirname,
+                    "..",
+                    "..",
+                    "..",
+                    "graph-io",
+                    "test",
+                    "conformance",
+                    "fixtures",
+                    "gexf",
+                    "gexf.net",
+                    "dynamics.gexf",
+                ),
+                "utf8",
+            );
+            for (const styles of ["none", "file"] as const) {
+                const session = createGraphSession();
+                await session.data.import({ type: "gexf", config: { data } }, { styles });
+                assert.lengthOf([...session.data.nodes()], 4);
+                session.dispose();
+            }
+
+            const { nodes } = await load(data);
+            assert.deepEqual(nodes[1].indegree, [
+                { value: 1, end: "2009-03-01" },
+                { value: 2, start: "2009-03-01", end: "2009-03-10" },
+                { value: 1, start: "2009-03-10" },
+            ]);
+        });
+
         test("a static file gains no time keys", async () => {
             const { nodes, edges } = await load(
                 dynamicXml
@@ -386,5 +425,20 @@ describe("GEXFDataSource", () => {
             }
             assert.equal(nodes[0].score, 2);
         });
+    });
+
+    test("draws a file under the Gephi Preview settings given as gephiPreview", async () => {
+        const xml = `<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed">
+            <nodes><node id="a"/><node id="b"/></nodes><edges><edge id="e" source="a" target="b"/></edges></graph></gexf>`;
+        const edgeStyle = async (config: Record<string, unknown>): Promise<string> => {
+            const session = createGraphSession();
+            await session.data.import({ type: "gexf", config: { data: xml, ...config } }, { styles: "file" });
+            await session.styles.settled();
+            const [edge] = session.data.edges();
+            return JSON.stringify(session.styles.explain({ edge: edge.id }).merged).toLowerCase();
+        };
+        // Gephi's default draws the edge in its end nodes' mixed color (both black); edge.color=#ff0000 draws it red
+        assert.notInclude(await edgeStyle({}), "#ff0000");
+        assert.include(await edgeStyle({ gephiPreview: { "edge.color": "#ff0000" } }), "#ff0000");
     });
 });

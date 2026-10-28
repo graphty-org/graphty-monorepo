@@ -119,6 +119,56 @@ export interface OperationBlockingStats {
     avgBlockingRatioWhenPresent: number;
 }
 
+/** One operation's running totals while a blocking report is built. */
+interface OperationTally {
+    totalCpuTime: number;
+    appearanceCount: number;
+    highBlockingFrames: number;
+    blockingRatiosWhenPresent: number[];
+}
+
+/**
+ * Add one frame's operations to the running totals of a blocking report.
+ * @param frame - The frame.
+ * @param operationStats - The totals, by operation label, created on first sight.
+ */
+function tallyFrame(frame: FrameProfile, operationStats: Map<string, OperationTally>): void {
+    const highBlockingThreshold = 1; // Blocking > 1x CPU time
+    const isHighBlocking = frame.blockingRatio > highBlockingThreshold;
+
+    const opsInFrame = new Set<string>();
+    for (const op of frame.operations) {
+        opsInFrame.add(op.label);
+
+        if (!operationStats.has(op.label)) {
+            operationStats.set(op.label, {
+                totalCpuTime: 0,
+                appearanceCount: 0,
+                highBlockingFrames: 0,
+                blockingRatiosWhenPresent: [],
+            });
+        }
+
+        const stats = operationStats.get(op.label);
+        if (stats) {
+            stats.totalCpuTime += op.duration;
+        }
+    }
+
+    // Track appearances and blocking for each unique operation in frame
+    for (const opLabel of opsInFrame) {
+        const stats = operationStats.get(opLabel);
+        if (stats) {
+            stats.appearanceCount++;
+            if (isHighBlocking) {
+                stats.highBlockingFrames++;
+            }
+
+            stats.blockingRatiosWhenPresent.push(frame.blockingRatio);
+        }
+    }
+}
+
 /**
  * Performance snapshot including CPU, GPU, and scene metrics
  */
@@ -593,52 +643,9 @@ export class StatsManager implements Manager {
             return [];
         }
 
-        const operationStats = new Map<
-            string,
-            {
-                totalCpuTime: number;
-                appearanceCount: number;
-                highBlockingFrames: number;
-                blockingRatiosWhenPresent: number[];
-            }
-        >();
-
-        const highBlockingThreshold = 1; // Blocking > 1x CPU time
-
+        const operationStats = new Map<string, OperationTally>();
         for (const frame of this.frameProfiles) {
-            const isHighBlocking = frame.blockingRatio > highBlockingThreshold;
-
-            const opsInFrame = new Set<string>();
-            for (const op of frame.operations) {
-                opsInFrame.add(op.label);
-
-                if (!operationStats.has(op.label)) {
-                    operationStats.set(op.label, {
-                        totalCpuTime: 0,
-                        appearanceCount: 0,
-                        highBlockingFrames: 0,
-                        blockingRatiosWhenPresent: [],
-                    });
-                }
-
-                const stats = operationStats.get(op.label);
-                if (stats) {
-                    stats.totalCpuTime += op.duration;
-                }
-            }
-
-            // Track appearances and blocking for each unique operation in frame
-            for (const opLabel of opsInFrame) {
-                const stats = operationStats.get(opLabel);
-                if (stats) {
-                    stats.appearanceCount++;
-                    if (isHighBlocking) {
-                        stats.highBlockingFrames++;
-                    }
-
-                    stats.blockingRatiosWhenPresent.push(frame.blockingRatio);
-                }
-            }
+            tallyFrame(frame, operationStats);
         }
 
         return Array.from(operationStats.entries())

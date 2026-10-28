@@ -1,7 +1,7 @@
 /**
  * Tier 1 tasks T1 (first launch) and T2 (pick a sample), from an empty app on the REAL
  * graphty-element: the usage data card is answered, then each of the four samples opens from the
- * start screen through the element's ordinary import, with nothing run and no style layer, and
+ * start screen through the element's ordinary import, with nothing run and only the starting rows, and
  * the element's counts match the sample's source. Every assertion reads what the element reports.
  */
 
@@ -9,8 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
@@ -51,16 +51,24 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * The style layers beyond the element's own locked base layers (node and edge defaults).
+ * The style layers beyond the element's own locked base layers (node and edge defaults), which
+ * every project starts with.
  * @param session - the element's session.
  * @returns the names of the added layers.
  */
 function addedLayers(session: GraphSession): string[] {
-    return session.styles
-        .list()
-        .filter((layer) => layer.kind !== "base")
-        .map((layer) => layer.name);
+    return [
+        ...new Set(
+            session.styles
+                .list()
+                .filter((layer) => layer.kind !== "base")
+                .map((layer) => layer.name),
+        ),
+    ];
 }
+
+/** What the app starts every project it opens with: the four starting rows, and nothing else. */
+const STARTING_ROWS = ["Everything", "Selected", "Pinned", "Hovered"];
 
 afterEach(() => {
     forgetUsageAnswer();
@@ -75,7 +83,9 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         // T1: the card is at the foot of the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
-        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
+        assert.isNotNull(
+            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.
@@ -90,7 +100,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         assert.equal(session.data.statistics().edgeCount, 254);
         assert.equal(session.data.source()?.name, "Les Miserables");
         assert.deepEqual(session.runs.list(), []);
-        assert.deepEqual(addedLayers(session), []);
+        assert.sameMembers(addedLayers(session), STARTING_ROWS);
         assert.isNull(store.get().opening);
         // The privacy chip in the project's header still shows the answer.
         assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
@@ -102,7 +112,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
     });
 
     for (const sample of SAMPLES) {
-        it(`opens ${sample.name} with the source's counts, nothing run and no style layer`, async () => {
+        it(`opens ${sample.name} with the source's counts, nothing run and only the starting rows`, async () => {
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
 
@@ -117,7 +127,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             assert.equal(session.data.statistics().edgeCount, sample.edges);
             assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);
-            assert.deepEqual(addedLayers(session), []);
+            assert.sameMembers(addedLayers(session), STARTING_ROWS);
             assert.isNull(store.get().notice);
             unmount();
         });

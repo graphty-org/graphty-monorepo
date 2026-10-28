@@ -307,6 +307,13 @@ export interface SimulationEngineInit {
     readonly report: (error: GraphtyError) => void;
     /** The data manager the snapshot, its undirected copy and the position array come from. */
     readonly dataManager: DataManager;
+    /**
+     * Start the first load from the seed rather than from the arrangement the element holds: the
+     * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
+     * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
+     * after `init()` as for any build.
+     */
+    readonly fromSeed?: boolean;
 }
 
 /**
@@ -352,6 +359,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    /** See {@link SimulationEngineInit.fromSeed}; cleared by the first load. */
+    #fromSeed: boolean;
 
     /**
      * One reused pair, valid until the next call. `Edge.update()` reads it and drops it, and a
@@ -476,6 +485,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
+        this.#fromSeed = built.fromSeed === true;
         this.#targetCentre = resolveCentre(this.#options.model.center ?? this.#options.center);
 
         // THE FIRST ADOPTION IS THE IDENTITY. Nothing has been published yet, so an arrangement
@@ -604,7 +614,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#syncWork();
         this.#snapshot = snapshot;
         this.#positions = positions;
-        this.#adoptPositions(snapshot.nodeCount, positions);
+        const simPositions = this.#adoptPositions(snapshot.nodeCount, positions);
+        if (this.#fromSeed) {
+            // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
+            this.#fromSeed = false;
+            simPositions.fill(Number.NaN);
+        }
+
         this.#build();
     }
 
@@ -1041,29 +1057,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const store = this.#dataManager[WRITABLE_LANE];
-
-        // MEASURED OVER THE ROWS THIS PUBLISH WILL WRITE, and over no others. A held row's
-        // simulation coordinate is wherever the pointer last put it, divided back out, so a node
-        // dragged outside the envelope would otherwise set the radius every other row is fitted
-        // inside -- and since the held row is not published, the rest of the graph would shrink
-        // under a pointer that stayed where it was. Measured, at 40 nodes and `scalingFactor`
-        // 100: one node dragged to x 400 took the other 39 from a radius of 99.993 to 25.626.
-        const held =
-            this.#fixedRows.size === 0
-                ? null
-                : (row: number): boolean => this.#fixedRows.has(row) && store.isPlaced(row);
-        const measured = measureEnvelope(simPositions, snapshot.nodeCount, this.#options.scalingFactor, held);
-
-        // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
-        // graph every row of which is held publishes nothing, but the next `setNodePosition` still
-        // has to divide a scene-unit coordinate back into the simulation's units, and those units
-        // did not move just because no row was published in them.
-        if (measured.placed > 0) {
-            this.#envelopeScale = measured.scale;
-            this.#simCentre[0] = measured.centre[0];
-            this.#simCentre[1] = measured.centre[1];
-            this.#simCentre[2] = measured.centre[2];
-        }
+        this.#fitEnvelope(snapshot, simPositions);
 
         const scale = this.#envelopeScale;
         const centre = this.#simCentre;
@@ -1091,6 +1085,39 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 (simPositions[3 * row + 2] - centre[2]) * scale + this.#targetCentre[2],
                 placed ? "layout" : "placement",
             );
+        }
+    }
+
+    /**
+     * Measure the envelope over the rows a publish will write, and adopt it as the map from
+     * simulation units to scene units -- unless nothing was left to measure.
+     * @param snapshot - The snapshot being laid out.
+     * @param simPositions - The simulation's coordinates, three per row.
+     */
+    #fitEnvelope(snapshot: GraphSnapshot, simPositions: F32): void {
+        const store = this.#dataManager[WRITABLE_LANE];
+
+        // MEASURED OVER THE ROWS THIS PUBLISH WILL WRITE, and over no others. A held row's
+        // simulation coordinate is wherever the pointer last put it, divided back out, so a node
+        // dragged outside the envelope would otherwise set the radius every other row is fitted
+        // inside -- and since the held row is not published, the rest of the graph would shrink
+        // under a pointer that stayed where it was. Measured, at 40 nodes and `scalingFactor`
+        // 100: one node dragged to x 400 took the other 39 from a radius of 99.993 to 25.626.
+        const held =
+            this.#fixedRows.size === 0
+                ? null
+                : (row: number): boolean => this.#fixedRows.has(row) && store.isPlaced(row);
+        const measured = measureEnvelope(simPositions, snapshot.nodeCount, this.#options.scalingFactor, held);
+
+        // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
+        // graph every row of which is held publishes nothing, but the next `setNodePosition` still
+        // has to divide a scene-unit coordinate back into the simulation's units, and those units
+        // did not move just because no row was published in them.
+        if (measured.placed > 0) {
+            this.#envelopeScale = measured.scale;
+            this.#simCentre[0] = measured.centre[0];
+            this.#simCentre[1] = measured.centre[1];
+            this.#simCentre[2] = measured.centre[2];
         }
     }
 
@@ -1174,8 +1201,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             }
         }
 
-        // The rows a scoped layout holds, which the lane never carries: a hold is not a pin.
-        if (this.holdMask !== null) {
+        // The rows a scoped layout holds, and the groups that follow their members, which the
+        // lane never carries: a hold is not a pin.
+        if (this.holdsAny) {
             for (let i = 0; i < nodeCount; i += 1) {
                 if (this.isHeld(i)) {
                     maskSet(mask, i, true);

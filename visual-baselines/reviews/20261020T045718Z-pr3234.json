@@ -1,0 +1,3558 @@
+{
+  "version": 3,
+  "pr": 3234,
+  "subject": {
+    "builtMerge": "76ebd6f80a6666ca76c99a7e31e2d1edf63d3df4",
+    "head": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+    "runId": 39366413897,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "76ebd6f80a6666ca76c99a7e31e2d1edf63d3df4"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--betweenness-centrality.png",
+      "from": "d359a5dae8c5bc16b53293dd247e8bbcadc8541aff05fce11c782488ce0fa67c",
+      "to": "7c3e343d4979ec14d9d6f5555225707d585c9a94aa51193700ad3f96521d9135",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--closeness-centrality.png",
+      "from": "ff27c8acb4d02bae210bd273eb729580a1e76e611bce2eefda602846fd857331",
+      "to": "e0168c7d34f44d959f4b8f6235b4d2085fdc2320f88b4cce8c86f8e492d173ec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degree-centrality.png",
+      "from": "6a970d0520ccd8f803ea67ba25140f694b799dac05c753cc23b59c0938a0c24d",
+      "to": "5471b19b429723404a1c29ca9c53f3d18af960d8ac7a878c9fa5ae94329fef09",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degrees.png",
+      "from": "44d79412f85cf688a9db61f0686ffcbca640777be3f01ed739491948cd3980be",
+      "to": "57971b66d2581ed058d20dcd6084b3f5d8e8c7b1bde9f7a9d88bedc9180b4030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--delta-page-rank.png",
+      "from": "ec4f0471a0b4ece1f51895f2760b4e2192bed7abe980a76a17cc13b89a4f4933",
+      "to": "fc18d36d0d4d76c3c9b7c0e1686aa152e2b6d825d370193ef81faca2908d0948",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--edge-betweenness-centrality.png",
+      "from": "d5880cfc4a2a7e58c55356ddfca07bf775243d3a833308c0271287a9af638b17",
+      "to": "120d5487efebad167a945c7b513fa7fb1e519960ca42c1907a48178539644cfb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--eigenvector-centrality.png",
+      "from": "696dcba53e9dbe17b6cc9f629fdbcfb8df91cea7b280d0fdf692e4534e4e3dc9",
+      "to": "14cddde525e4cf3f5120b3e648a630ffcdd4585893f95b0efe27ba76477f4657",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--hits.png",
+      "from": "3b3ebf289d825d4d6f8f02a607f3dbcb77e946dc440a35fe2642097e2065b478",
+      "to": "98c523462bb8993ffb467867d7d2ba169cb9cc67b0bec5526e31f125dec02917",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--k-core-decomposition.png",
+      "from": "68009d309e84790a579e8a546e7ce54f0572b8cc21bb0ecffb4256ad45db85af",
+      "to": "c289cf22289008d0180be7dc8ce4769cb977c650baac2cad4dc0943d57cc3e87",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--katz-centrality.png",
+      "from": "1dce8606c4d733c24e44a01560000dc4b0e26c60b31fa3bc37139d2cae9979bd",
+      "to": "99757c979caee24877a7ddc1561150f81507c253a66585eb6d892845b2b2fa5c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--node-closeness-centrality.png",
+      "from": "c750c2fa94e05fdb968ed8f176d59293126d860ab078c26eab98d9763b46c721",
+      "to": "78463b71dfe5bf594008bc6e0b54364b2b754f98a580216a458b80d95805c8f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--overview.png",
+      "from": "ae969e027864f616c5cbfbab5376d9ad0affbf9a67b9498849e6b57db4e7f5e8",
+      "to": "addecfba58a885f94cf0b7c965ebd680e95230a16908c38e4f0d014cbb901961",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--page-rank.png",
+      "from": "f610458e6e9df1bbe56902b6406ef53269db1da1548f3e216defeca21c4e5932",
+      "to": "e23b7ceba9eb18e3c2fedbe0198e1700ec5abafbe125319c34adeb3fd27ccea6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--personalized-page-rank.png",
+      "from": "2e6689ec14631abcac694c780ce9e7ba7983b78028cc3717f24f648755062e6a",
+      "to": "26fd57871e68d6d73664cb2f4fa00c4b5ce00dd2eb60f335a59e41c18ca7674b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--triangle-count.png",
+      "from": "1e58824b8d6a1a077d9dc2c48452c59df01bac55cabece2e9650b333bd788585",
+      "to": "49d6925b2b08b285db68dc820a38338b7efa523085198eee087c8c698446d8b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--connected-components.png",
+      "from": "86b585c0a42040e3cf07d6adaee27f2e9c97f12fbe1ac4f2d2b84c190df10031",
+      "to": "dc1f181816ab6bf7bbaf0b745ea3f0676f9d8da232fe87fccda79b1927194f75",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--girvan-newman.png",
+      "from": "ab38b4a2aa3fcd27afb60a55dd83940af8f2a5f80fb31a2ccd5295b511581cc9",
+      "to": "f5e4b10a1c01f812f443656159b6f1f1252666b9394f6ed510673dfc2b9bf6b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--grsbm.png",
+      "from": "483aad49f7888759f8c61362e7a2fe4ababf1d6ca8028a50f1649ab8088ad864",
+      "to": "fd8483fa8bc903164f33ffcdf9394ad178d0507fcd48ccefda2e3506a80b7b9c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--hierarchical-clustering.png",
+      "from": "539acdd990c9ad237c1bd0b9c308e33f4b7d79d1488604a06f305a6185cab443",
+      "to": "3b00e54bbdbda1d3fbcd851dc2ee541947a2412ee7593bed447526b5cfb64df7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-semi-supervised.png",
+      "from": "f4493a2a246162a45192206362b692a8769189180b903c623d6a55d45f7e3583",
+      "to": "9336072eb8f8c09635f6dd9fc7487729a3a773a62fa45fe42cf3182e64adb099",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-synchronous.png",
+      "from": "9df658bb825fd3ec1c5d42fe4dc5202c79ef7eebb90b49b69d3a7f99d31e1cea",
+      "to": "04574dc93785dcc87ca68c7c7a24175a34a955c524beb504249d1ae5479fd777",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation.png",
+      "from": "c8031ed7276f0b535838aa362b10a085cd040298a874f9ebdf54c830e06a134d",
+      "to": "43b2269020367519728e5ddf6c74e009d4ab558c5a073ea1408d5369f784543e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--leiden.png",
+      "from": "790a224f6ff1ebcaf37bd7949de2136f2e4402f53b648f3827dda562f00e9f3d",
+      "to": "ac53b10bdca5a3b68cb77e5e097928b9dca045e04de1b8d8e346cd201b192671",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--louvain.png",
+      "from": "75ea6bf0f181b2c49a8e7ea31d23c497ddf3cc5368f96fa4e5a570327f145271",
+      "to": "419f90aa5cc150c38fee508c8beba05179d85c54e32d3aafdd947ccaad833229",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--markov-clustering.png",
+      "from": "c5f65d768b7f135586a4d31d4073d2d18addf54d2117b656d650b0fe1bf32eab",
+      "to": "322fbd66a80d9ba477a94e556bcd2353856c1dfd7f8f1b16ccf3f3f8facf9d34",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--modularity.png",
+      "from": "34d111301e16703ea15249a7fc2fc921543765d2d7e5f145aaa33462e2ed4306",
+      "to": "f9da94cd51b886a2ffdd8b52f86dd5966bb138968b7ea8f42bc94950efd8e825",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--overview.png",
+      "from": "2e63ebfd6b7781c861987f366186c8d2e714c010c290b9efc1a39159ba965c72",
+      "to": "1c044c498f2df68d8989d9e10fe453573faba60982ee444e7258e7a059d1af50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--spectral-clustering.png",
+      "from": "422a83d83a177174947babe26c0084b3a52468dfc037aa3455572edd3f06f635",
+      "to": "1f78cbf6b9edfd3bf962f660a16562555008db075c469395c5617a4d034fa2bc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--sync-clustering.png",
+      "from": "06a56f2e6284672195547b37df0d75d93007fd38ad75f7023d532bbab418c9b3",
+      "to": "6b32c61ec3ee019a5938ed4fd417772bc8485eb19908db07269cbfe2f3d5c458",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--tera-hac.png",
+      "from": "4ac3314efec306f2603e4ea47853fe4ae5546fc5e746e109790ed01663e0dad9",
+      "to": "605a07c122e4b7a0735b66181d0643af1e4e93463d9535d2233a51ce9b2bbf92",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--celegans-neural.png",
+      "from": "d23b08f8cc01598b4e78c68bc249e100f8723975b4184658ce5f588a28daaa8f",
+      "to": "284d63f7faa31788153445fa6f4edb7f1071752a76d9eb9ef8e8939e898a009c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--contiguous-usa.png",
+      "from": "bd5ac490339944fc1ec3b8a6e256d3f4a7947ac48ad51da6db9f02f9775bee99",
+      "to": "c6af3e8021b8a4a0966d73834ac09bdc562e9d2261e13935a4a0966dd871ecc3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261013T143754Z-pr2108.json",
+        "reviewedAt": "2026-10-13T14:37:54.438Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--davis-southern-women.png",
+      "from": "0e64e2eeabd030dec5cb2cbc31642c8217a79501bb32a09d7757d4ab1067cba7",
+      "to": "4fd101b2d5964de956f5b515d73f6891d52ffc1d44d6c4404ab971377319ccbc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--dolphins.png",
+      "from": "8811c2e64eda12e74a17f44808f20ed4938d1abb258391f8b14e115101215f37",
+      "to": "3381670b33cfdba2ca2fdb681a83613d4d8625d46eed6dc632cd53ab00d273f8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--florentine-families.png",
+      "from": "a070195143ba263608d8d313199acb0fede66ed7faef74b1a14d6409c46aa4ae",
+      "to": "732eac76b52987d348986a954c3dbbd85f4a8975fe724f23dc838291f0381d97",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--football.png",
+      "from": "c7955a44ce1771e3027ec44909a969419eab18ab0b6ee07bbca322c22aaa06bb",
+      "to": "367397cb3b8862c7a24e9aaf182868b29b76c59b31ec37b27c876a1806afadd8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--go-slim-generic.png",
+      "from": "84f3933033ca2d435bf47c7d35258fb6c130feab350260590c6b16f95466647b",
+      "to": "6ccbfe8ea521736ddbc09f05853a3f73efb348b561630ba39ef59cc52ea82968",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--karate.png",
+      "from": "faa94e0e98754e594cfca8ec9abfc2e1fe8f5e7a49212f1b9b5dd210f58063a3",
+      "to": "1d1a2164c0864d45a3c8a307c8ad306c9091d6755b62d0ac75b76efb3e3bc066",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--knuth-miles.png",
+      "from": "44fe8641f8bde7ee538c070b2a9d43e31b5730f820b764eec02652abe2f412f1",
+      "to": "dbda34419606a20a09f43668d24346649d7f8ef1e5cb85b476d7f593ba4c6488",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--les-miserables.png",
+      "from": "35a1b3e4e434666529aa66f2ac8893b716c8fe8e0f1939df9c282232bc2bc1ef",
+      "to": "7c18311b26accb7a0c6f126299c517df71ae1c4aa3b2879b6f9667b8d60af6f4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--openflights.png",
+      "from": "1c49602faf0b838c3363a8455640e6532f9b33b6f279078dcc1b4b3b45d5161f",
+      "to": "a97106b769e891dad3235127abb20484905ccbf8c02ccbd299aa27473b3af335",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--overview.png",
+      "from": "225b87f14ee6dd62a337c1c8a004dcadee86e2546de08a2587db3d34cdf98767",
+      "to": "a6dd8e478276e737c4ec0262d308ec85851b2c008d9d9db54b74a22f969ad768",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-blogs.png",
+      "from": "55973778f995f50f56ff82a6f15abdd64f20f2128082b7b41b4f445c561f0046",
+      "to": "0d0862adf0289ede5b0240e4faa477c573a38436f9aba8748bef46848ec2cce5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-books.png",
+      "from": "9015414a33952ad249e6d75c87d01b2d5bdfeabaa1d1f9018491f962509a74b0",
+      "to": "f4e7358548d0b55d5957068e743652463ad9c72f06c3ecad2305e0b65732febf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--stelzl-interactome.png",
+      "from": "834e32eb660c243116b8ab610c5d8c9520188d248ff4961bedb86ea944b4b28f",
+      "to": "5ccdcdc9941ef60e57a0c8d68608ec66963888261817b010a0289f6185ee53ad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--wikipathways-senescence-autophagy.png",
+      "from": "a36689657048812ee423f8e79795203d93cad7f88ed73e16c02f1efcec2685b0",
+      "to": "c2c3e1684ce1370d7524c6f09259a1ba6fd978a3241741b5efd2f798d08e25df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--yeast-perturbation.png",
+      "from": "3ec3187afb42e2b706df5fad9fcd51d3e7fb06446ffb82b7d8b54c2b88c65690",
+      "to": "b4f6b5856693976c6c31418cd57a88687e04b9aa4c2f1c49ed3e2775e96098c0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--karger-min-cut.png",
+      "from": "d089ee32caf4e14a511c4d7289c34373019c6b77bedd31ec4acfd09bb566efde",
+      "to": "7eb5ebd7174ebabfa460a06fc628f919f4858836477f97afb47fdcfbf5c93527",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--max-flow.png",
+      "from": "ecbbcb5754136c0d273f8cb51f4f58667ef8de2335a526839ff73d088093e1b6",
+      "to": "4a246415d719830e4b6960ad1115e9d5892a67de67c439479e9c8fd01af9528d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--min-st-cut.png",
+      "from": "e99822d812ace79883917cfecdf96ae6440ab9a81f40237f438c187896919e11",
+      "to": "72b76af474564aec7d6551d8bebc10579fc0cdf66467153b962cbe926293bdc9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--overview.png",
+      "from": "e7e094ea6c2c9e9c3a83a0cc5de99d16ee9025177d0d7f402b1103543ae80606",
+      "to": "5d9749092b3907448aee34530caa916eabad56f2b3309d2ed24839f950488549",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--stoer-wagner.png",
+      "from": "c86b8a59710e83ae3d4600a06a0f9df386d6ffceffd756797c962ee046fb2b46",
+      "to": "0e2f305781df73ec66fc93a642027e2099070a9878a03696a111db5aacc2ff0d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--auto.png",
+      "from": "4dca0d03f1b8573f87e01e99edb09f05e521d6eb3eccf8633998135e887968b5",
+      "to": "2ff0a82295876df9afce113e75e06360b258fffc927f782a71c6f84da9d5064c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--csv.png",
+      "from": "5b560b67be77cfa7299a1c04bd006570e030c750a96c5eabc6ee4a254cb82385",
+      "to": "dff7c9b2ed1a86efb25fdc3e6c4e39031a66de70f3ddf3aaf31ca7457c7a0c08",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx-2.png",
+      "from": "a8d465d30a8cd4fc4093c2bf8d48631e9300f2dcdfcf85f95c9489f090f82af0",
+      "to": "a0c47a113fed633669e23ea5cb809a64d4deecc0c9052a0cdec7d8c2a8bded32",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx.png",
+      "from": "5584808f90b86d34febbc704f030cca2306efa9c7f3d5a9074204773d4d6eca2",
+      "to": "80035db41bd9c1754c2a8e0637307db8400c8b2f66db5f0ff4e36e4c6b236b6a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cys.png",
+      "from": "674a35dc040099215ba70effe818e753699bf438fba06cf11fba833a0b936da8",
+      "to": "ccd5b98db38f85900b8feb7cd30a7573a2dba77644ddd3fc8926ea957cceb5aa",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--dot.png",
+      "from": "319d0603f4bf91c68aecde14613d8f11d19eb2b47e243411bc6097660ecf1b5f",
+      "to": "72950b4db24af2c6984ee56300436835aa57582d708f6538b8878938ec6eb733",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gexf.png",
+      "from": "809bac2d99bf32bc9b543fe3dbaf8f86efc575baf509e991b6bb08b052ed22d2",
+      "to": "af9d09b8e291038d61d30d914634c8d27cc08ade09f44552dd4d727927d420f0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gml.png",
+      "from": "b6f5d675460eed9968884c0d17d24e37b28ef555e61b78342ca3aeaf9da4d1ce",
+      "to": "32e6b36418cae568aae2cc4df58784f4d6e73ba8520df6dec1b75c5f18c217da",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--graphml.png",
+      "from": "0946e893a9b3c693cddd4b4217c59e443e770181dac2a39a51e8d8bb88de6154",
+      "to": "de7c3d9b6b3fd71871d28ab17bb7fba5f28a6504e5bb09500d30f824a0cb6dc7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--json.png",
+      "from": "d0d47162695c51265c38d01cf49b8ecd61100009a7a9a9ccea1740bc7f3b615d",
+      "to": "6f02bd9078d11a506efdfe6c91b80572e04061545bedc0f4359042b88d7d78c6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--neo-4-j.png",
+      "from": "d4a13960a8aa7b49b09c162acb0ca4b89dedbcf474d322c4c8eb345b8016d364",
+      "to": "1ae0938aa039b7485b5706649a0cbfe88b5b4203f7fe3981a66c86846efb140b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--obo.png",
+      "from": "b29c4d1bbfac8d43e3f761df50ca1b5c5dd516af1bf660d97b671b59ca933bd1",
+      "to": "6dfae717ccfa48040a7a34124ae9b8aff1ed8a6a7fce67597c033f6925dffecc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--pajek.png",
+      "from": "2d04158cbb27ced462c68bd88923bf662607caebbaa89c5172cc88ea0ebaeb81",
+      "to": "f4bcdcf61588f21cc12db9d5cd4de17e963abdcaee1f69aa02d02987dbcbc590",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ak.png",
+      "from": "b8e1f3236e63c9a084ab69acc0d9515f1ad8a9649b862406bcab4a7a1bb23546",
+      "to": "7d5233d7953492570409698f517d7c843dd045e140538cf1b23de04475dbf72c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--balanced-tree.png",
+      "from": "3e0a381880c2b52fc839107dc8c43a1b6f4d7efa68c36e544f62beff797ee82e",
+      "to": "cfed0f11183c389c1ffd2dcc91802b5c79718837e48970492d9da71f7538774a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barabasi-albert.png",
+      "from": "6e48022425c159d997fa93dd58307ca87eb373421cd0b48ca8c48ea6dca78ec2",
+      "to": "745ae674a3d9a5e262f670a4b6e05f8ce5aa05dc9576da3e68d39fa307f455a5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barbell.png",
+      "from": "c6801db1795a477191c49c8d76e0f5a846334cc43316afa3559c6ec72f3b57f2",
+      "to": "8371016b1610a86ae00ac46c8bd6fbca2aeadd006d9514672a70c482d0cfe4b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bianconi-barabasi.png",
+      "from": "4d11f610ab779db70fd4b00434c79fdd2bb6eee7ba40c50757614828102b19da",
+      "to": "cdfe8d3a9f1dda3b91bb550ad2f6c1af7b3aad0f5c6e7ca953e9035c4f4e8a8e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bipartite-configuration-model.png",
+      "from": "499e5a7bfe9168ae641eeebd3c16f51fa004833d05477129b5e50808a8757dca",
+      "to": "dea9854c39cc54fe96d34cc3b9eaeaeffb91dfad0fdc76547ce63b3cabc167d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--caveman.png",
+      "from": "2f21fa1b0ca223c58ac0ae5722ea8f6f85e8377ff7b5d3b192eabf38d27a30f6",
+      "to": "06c8a702b4302298e08a88033d3a90560efb7de46fe4c4ed06e13ef663a8eb81",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--chung-lu.png",
+      "from": "8ddbeef6661ae9e892d3dddcd18b11ffaa89a3f044cae73a36129a7fa2aece3b",
+      "to": "3a470a6c80887391f1b843e6ff5ef08765701cf5dbd91a3a115a9392c1b6efaa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--circular-ladder.png",
+      "from": "43ae4575e9b59c6f2ecb77877f1de164625f039789c60e031cd19fc6d5302bb3",
+      "to": "96316cc131d9c3acbb6ea0a4ecbba394e45340f0be45d26f9a8d58e5fdbf1bee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-bipartite.png",
+      "from": "1564847d2c6a053e04409488fcf31deb69a4c96210b8ca52ebdd9d013ca76462",
+      "to": "199b25858eccd0f9e32a83cca2f7df7ac54e8501be9e5349fc831b8e7ad15f30",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-multipartite.png",
+      "from": "a62908278718d1ec5fc1d7d874675ff15ca629c76fc491f8d23077132e4d4c11",
+      "to": "7d967d91981254b2cac5b5a58559b879f8014c64f756e559193c9b2f043f8740",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete.png",
+      "from": "b772dcde9046445043fe394672ad5ed669d4815248d58d0c4804ffb8adbda3ab",
+      "to": "0b98a08d0d2d1e0c83dde1b7c109dd977fd0cc025ee863f9772c270127aef6d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--configuration-model.png",
+      "from": "a5266eefa1eb4154532c6173aab83b077a631d10ddcb81d8de9703627ac221e7",
+      "to": "4a4737a5a2378c9c9c9151b334f7f8676440d8fe54644faac9bbf373352b88bd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--connected-caveman.png",
+      "from": "f2632f3337dc20d0483e4b198d9075cacb9c723ccf2edfaeb80c42eba3ebf8c1",
+      "to": "a07efe1485b444972e4cfdc3e74768e8f14afeaa7045bc1ce1dccc8a7907551f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--cycle.png",
+      "from": "35ed039d0b10708f21127c3d6f0c19be7410136e7b0ec11c711114790e3784a3",
+      "to": "56a401955a941fed4376f01a9a573e92da888987a839d8cbcdaec64d41370cd7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--degree-corrected-sbm.png",
+      "from": "4bdd052f10cb18c8ff1e01d1fd675c5c3012ac415894ba1f8c284c96da21dd4b",
+      "to": "c25b29c81cdb5c81615053fc6027abb5cc1472f6bbdd82c9532dd75fcbe44642",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--directed-configuration-model.png",
+      "from": "7be8244842c8c47633b2120dbbf5a8444c2054ea89b2aa05f54cc56e00c84853",
+      "to": "e398c4d368e38417327219e9f9efe8d0746890031c429c52e5c9f8cd9adb1087",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--duplication-divergence.png",
+      "from": "2efd381c81fc0b8f66bb2a4dfcd292bb0742d8c14a2a9ea4ca54bcc77819a67a",
+      "to": "9fa2f63f795ccb01c77f1569ec82bedcfcf53518d0318c0838a4ced127a12e39",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--empty.png",
+      "from": "bd73f578328fda174a350a21d5aede2c86cbff0ee69310225444e74a016a2d7d",
+      "to": "0cf7920cfaf35304a2d4dc76419d57669ca8000d3de8da63d12d41f3ec68c2c1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi-gnm.png",
+      "from": "8698e03149e44541a3a0974a72b0df4a10d0300a0967585420bcbdb76e3da288",
+      "to": "8bb81b900b1451f5b3a73118063bb96b960270219c5dc4fafb86e0b4e938cec1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi.png",
+      "from": "48960499c934b363e7f484398d582da13e1dc51a90842c4c64a44d89d626375b",
+      "to": "e245a21ce85dfb5a7ec603a71f5a425ead35e2681ad6ba132f89f9f97ed47719",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--forest-fire.png",
+      "from": "a2a736a89513385c50c277433158d799d0e5fb99789205f58edeb96b12b02dcc",
+      "to": "95684396462ce2be0161980ea2fe0e99614e7c321d4462775eb46ef6b13457b9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--genrmf.png",
+      "from": "0fb6aacce739964a20109150aa0dd23187bcaa57e715ab435de6a3fcdd845443",
+      "to": "4f7a3768904bec046865d46e64de2e24417420d797085f2c72fbea1233459ff0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-3-d.png",
+      "from": "5951284c0ecdb8cf4eb63236198c40118fde0eadbc328ed406c2f47c9e0b9706",
+      "to": "44182379f84230b18a49fb2837d35c36840f07d866eeac822dd4af96eb0daf37",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-flow-network.png",
+      "from": "ceac1d7fb964c2e34b4c573c6067a9c136928f54f9ec6f734a56324b18c3c28a",
+      "to": "7a4124eaece9c609625d3fe0f5a92c3ddb97bdd23eaa7d9cc11a5ccf4fbeb838",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid.png",
+      "from": "56d34e05bfa59f041869355576384b5147b4d76dfca1eeaf8cfaab021e91d38a",
+      "to": "f9feae1ff8dab3f1f60933dda75546043cdb9745f43d4ab51c7df1e7f1e94334",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hexagonal-lattice.png",
+      "from": "423fa4f3d313fa3b51fbe057e98ff5e68742d7765495be6ae2070c3f916acfe6",
+      "to": "62677d96b5798afaa245b65c42865f1c9266901074af55fc4c1b0f547d7eac46",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hyperbolic.png",
+      "from": "49f1de9726c3c4f165409a840b4fa334ec464aaedd3866d3e542c03e52c67382",
+      "to": "bcd38fa92887385acfb20d4f51360395df8f2e13fb02bca2a5384b99e57284e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hypercube.png",
+      "from": "35878d887d7f0fd2edca55231ac0905993a148730284dfb7df7dc67afa9fa196",
+      "to": "e121b58c5ad5cbbc6a467a2861d6470d0ef9de3dfde3096b6f3f43778d6fff32",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--knn.png",
+      "from": "8f10f125d147aac683eeb663b887eef807b8310cf3cbbe6744846c7c59328c77",
+      "to": "da4c80fc7e8f5d4c18d0e2ff4ee3bee4b890924ebf2a96be67ec4b3927f4d9f8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--kronecker.png",
+      "from": "c11a4658cb8128f9bfa893000ed03d1e99cd1fd172098af17d05e8894a85a708",
+      "to": "d53c843a3ae310957165d93018de536279b432a6ef65fa25e160b318b15d8089",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--layered-flow-network.png",
+      "from": "9197b7bf3ef08e357fb5e9de27bab805a77fa636996756d1644af0b4b59f3810",
+      "to": "b8cbe4d1380c8ca5e1abb147677f450248310305ba807754e1e8dfeb1e581670",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lfr.png",
+      "from": "939ed7a2ba09669a3cccfbf5ded6966b6049380162871acecd46d6a80bedf406",
+      "to": "38bce97e42c8dc0c6622082135ff30ce89cf8475741acfa76a92f7f45b52f1c5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lollipop.png",
+      "from": "f62afd7e12696a8a2a00feeb3bd62dd7067513938db68adc8bc76e19a1232101",
+      "to": "bb9d08a4333fa279a399710070f7a8177387a95b8ba22f591d90f9be2d1a8660",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--mobius-ladder.png",
+      "from": "073a2c7aa6c40e096d0aff032223228cd44832323bb275a19340f4cbb606ff2a",
+      "to": "d48566ac21067821174bf15643794ecd39b365982a6fa0d80280335a50882c58",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--named.png",
+      "from": "0f1811fd823ac156fcc022fac78dc718b28cf2a54f663e7b211a86a2603064cf",
+      "to": "652b7d54f573032514c8af94b299a20a53a655803b4bf48897fb83fc600ca34c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--newman-watts.png",
+      "from": "615a517a96004a9e98214f231af71a10f9e9dfc53e2b24fda97a689af9b4e0db",
+      "to": "8890a7253e4da45c560f75f262940eff96a440b9ead70968d89dd2b8d2337185",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--path.png",
+      "from": "94ffb1ca439303ffb2b6607e7a389b9dfe624d4a928d550ec55dadc072355c16",
+      "to": "7b76a307581f5b727295b7c3d8840687abb025831549ab3fa0863a67b58e4cec",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--petersen.png",
+      "from": "96802e3aaf049b5d22f28c6896245135a2bd54a5660d6daba641ab0a2c321473",
+      "to": "dd149854d2143ba80a9c3bb30f39c7ea5a44f3309a406a03b0e0c6585654ef05",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--planted-partition.png",
+      "from": "7ea16e6997bbcfe12f52959c423991e145553e8152569bebb4e37e51f28b0393",
+      "to": "d047c7cbbcc2062fb4359a975e3bba1b6d4ee2b1694247773630a75827da8f17",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--price.png",
+      "from": "4ef49deb2308711c60afbc46f5417c06369da1cf17ea9874fe4cbd3e9111fe88",
+      "to": "53c335616fbda74afa7bf904312e60070d2e0de2ce92013fa718249ed4262589",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-apollonian.png",
+      "from": "8a7fd6a055eb880508d34fa394dd31d744ca6d62158f28204c4e6a610ed497a1",
+      "to": "c1eab89f9032f7807ae4ca29de25fe52e9a12d1bcfc21316abf87a5b0b2ec8c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-bipartite.png",
+      "from": "9c4262a54b798c3bee5c9f89df9afee2441eb1cfeeb111a1a9fadbd3145966f2",
+      "to": "b23f5953177910cf193360c53e66aa4ad5a2dd43430e9d381b2d0a7de61ba88c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-dag.png",
+      "from": "88f19b802da2985b98f696f871a6f2d3b479b70df00f4fac01b53d387a76e7e3",
+      "to": "b7e34fb42c1d04f0bee8b366b2d53f8b8294aed75cfe951bcb17e77b50516355",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-geometric.png",
+      "from": "21389120e47cb09db8cdc18c09af6341e3f3a359faf4d311dea6beff1c3b18c7",
+      "to": "3bac4d3b52584cdd2e5b4d68f067e67c4df3d35a44a075268e7e34823fac25dd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-order-dag.png",
+      "from": "5bdb90bac1a38976cdd24205047a421ef7c5aca5638aa5ecc4042ae938b81b07",
+      "to": "9ec03257907b27082512a335529c0fe84ab8cd3ea2f54ec26280b1100e301a7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-recursive-tree.png",
+      "from": "5e9ac8037981acd03abee4750d980895337533899e6d6887b9b9ed0afcb64268",
+      "to": "3302d2d2054edd0768d578116775954722ca8c378cb5be2f00bdc9d85818d36a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-regular.png",
+      "from": "75ff6f0682309379afb179796d1a8369dc06915ebce442f33675c4c00f252344",
+      "to": "01214959c6ea0cad4836dfc3e303005bcca4d186bcd2c9f693eea82875c51ff5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-tree.png",
+      "from": "3a6fd2092ebcc41d29e05477925bf945659cca0d3872ee55ad8b086f6dfac8b0",
+      "to": "040a7849cfd608640da4800b037dc1b73156ad1fbf5e4c317965ed33df9c21d2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ring-of-cliques.png",
+      "from": "9e40795079895eae8773ce3cf2820c90f8bd9500d46a3c9d75c24b405fe396ed",
+      "to": "fb0fc07f763489aef7a182f36ce18ba57f761e692296e39df1e8db645dbbef03",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--rmat.png",
+      "from": "42454d88dec342cb66e504394b6783a4a370536a5af837d612f6a5a9df914217",
+      "to": "7ef4de1a68314c809c7a606cbe605894936291d2da9b4afb3f6540c1ea25b72a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--star.png",
+      "from": "bfd188ebbef38431d8d109e7c5850c7b402d64c845f1b336d559ace0c049ee54",
+      "to": "ffb9fd9cd6f67406a863a7d97121ccef97038adbf3586fcfe2fb55ed1820c220",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--stochastic-block-model.png",
+      "from": "cfa41bab1906bddd1644dc73525dbde3dc207dfe34dff48793f37a732fe4c878",
+      "to": "190dba3187cd6beafdeb44e643d9959fbd8f2c1d94b992071a2db6b97c1e6886",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--triangular-lattice.png",
+      "from": "f601f138c21efae22cd646b9bfb2b2660569c01936953b122b1c963959b77cfc",
+      "to": "41eefc62b51b60e12b415406a29a5973a34e42946ba8ae6772ba2a56313f7a3b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--watts-strogatz.png",
+      "from": "7c85ccecbe087a17c52701c19390c8522f3eb35673a090679ff75839d320f86e",
+      "to": "734a7bbd07b35701c65bb68af7c43a45b066b418944a223a909c1e66c1f8e789",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--waxman.png",
+      "from": "586af6044aaea9d47951a49529ada7384db1167de0d4989c2f099bdc2f0abf5e",
+      "to": "6804bc233c4af6f67e39dd4841c980c6418edecd7f8a059febb77b62101d05ea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wheel.png",
+      "from": "07219d5d1d255cb31de3e9e66894b3f8049b99ea8033bf7720ab788230edc1fb",
+      "to": "6ae45cac715f5768051bcc37d2884d75566a7094a0d4a036cfc994e493918eb1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wilson-maze.png",
+      "from": "58a7e2dfa00b0a75c594121259c92ffa4b2fbbbefc70a7ea555ba269b7e13192",
+      "to": "aeabf2df39e0381efc7ae626f89cc1c1de846a2cc2ebe7e1086d88d89ecdf7c9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--arf.png",
+      "from": "42022cf1d62a8550fcb17c7b33d287f238b0a6d4d49a3bc97f9bb066c1fde1ab",
+      "to": "0e536ac5fa8d66547d367e160d7d1f0c7eddbbe9cfaa55d4538ee64b28275185",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bfs.png",
+      "from": "02dec004578d084c55b53adbfaee7d6352f796f629c380b5c3647bb894999889",
+      "to": "4799628aca7d4ea33e07e16d9e06e048fca1adaf34e8536f24cbb7d1370df741",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bipartite.png",
+      "from": "c275283b5babbcca93f48023fcc93a8d47e965356bdc134c9406f9684f3ee28e",
+      "to": "a8ad14bf1d80e8f221fae1fa03ff7cef299c0fbb6e96c452c408f11e4ab4569a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--circular.png",
+      "from": "e8b0c56d3892233649a05ffbc9e82179e5b625492ab2a39ac34077d057bced3b",
+      "to": "1577e2706f0ad62ce6d9a81540906b8414bdf1410748e7c85cb43decbbfa7a7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--force-atlas-2.png",
+      "from": "6f83bfb6cb053071fc0b5d8725f056c31c89a083a3aa33de28f32c8b16cc928b",
+      "to": "5f5025e81f4320add6c932b121eb39b99635eec63ca9f33bbd12b616736f1093",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--fruchterman-reingold.png",
+      "from": "59ed744d1f47403d4764dc1aae32639f78627c698e1f1114bc5d44af6a0150b5",
+      "to": "23fd0f744d27c8379a25176f0ebae76817275c96699b107fa1706de61aa53863",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--grid.png",
+      "from": "bd0b249acd8e16f010910043911770c07f83ffde6bb974bb7844e67941071f3a",
+      "to": "a21bcf6d18d1e1aa2bab4161d7eb9b6dc42772f712a83c5cc315fca71604aa0f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--kamada-kawai.png",
+      "from": "c4a61dd8bd303b38b787ab0fabf2e0c30f37e6b3c8e2d43853afefc32e8198bb",
+      "to": "932efe61ce2b9c3445fe5adf1d15aad7bb3af8f11625514e138df41005dd9e3b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--multipartite.png",
+      "from": "1b418049afca9c190af0e1902636ea173c297940244b15e0d5562c5b58106f03",
+      "to": "f6a97bed87ede112decd41647df84e73c20cc6dfd13d2c81416a6b92405ca096",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--radial.png",
+      "from": "898801cdb652c7a533a41aae68445445b259046e9f77f3eea388a067ed69629d",
+      "to": "788833ed1b23900d79a78aa562bab6e81c0f4c8524ee954bde98dae35415f771",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--random.png",
+      "from": "0d73496ab6045a8a5d5c62865f07a03ef697900207040f2e0029e12d5e8936fa",
+      "to": "fba56188ed6098a55511a4ef10998f5f99dd465a37cb6e60752cb80f7398d19b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--shell.png",
+      "from": "a7b630bcdf3cb7ae8472528f1f44bdfe836111e0ebc2cb52756cf5bbbbd6f69e",
+      "to": "4ab562cbaf919458c807dfc34b2d76af458fbb277f743befd45779b1df89360a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spring-electrical.png",
+      "from": "93c5725200074e465785763ab36dbe05cc33a02f2d972d9a5f1c5196d020c554",
+      "to": "2c8db52360e23d8c926e8472a1bd5944a1554dece746d62a131b8aa8d82ebc3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-for-pairs.png",
+      "from": "24ec0c243324bee341858acb05d9f74a8780769f56e88d66e605bfca1ce85b80",
+      "to": "f251ea0de836adfd9a68f12e3eee8cb52443dc8fd707d67ca633ea9938af764c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-prediction.png",
+      "from": "45b2d17432b64b95ca176e3ab3059623628c11ad2d1d016332b6b40261fb4af4",
+      "to": "ca4753b69e9fe81b71423697342a865b149d6c93e5bcba968197f64ec8dfbbd2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-score.png",
+      "from": "51f0b39305b8cc0dd4cc37a7b0df668b59f68193fc96728d3b39a11391b734a8",
+      "to": "93342a821e9ad438e4568273b72d37f785e44ec5999ba2050c0b6d36a3d3372c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-for-pairs.png",
+      "from": "deb4c9a48af42fbcf2ff702706ebaaeba44497b99020da46d28f4e17912bc6f3",
+      "to": "bd24cd1792496b144484b04ca058e039cd463462bc3d6c81c1c4d760b320b1b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-prediction.png",
+      "from": "c7e344b93967430c95aba1f656b6cc10121bbb5ee35118c106bf815f5d6d1467",
+      "to": "f0fea08c442e517e111738821e6a68322aeb08ffea0a613a30396c76181a4707",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-score.png",
+      "from": "fda5c9f261775e60ff29835447ca9efd09e745887e9fb775efa7df7592919e03",
+      "to": "a4dab2e31ce88d39df040613cdbb35bb0d01a1706d7b32b2bf048e2fcca96da3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--compare-adamic-adar-with-common-neighbors.png",
+      "from": "97c1c468914c9eb2b1ab85da0a92ea69aa92206fd237d655c8776e5564ca78ee",
+      "to": "7f76d37b859aa6d6a71bda11357065b904c7724020ca257eac844ab13601222b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-adamic-adar.png",
+      "from": "fb96ef3aa713a70a24a9a07d37b6b6da6cfe18e62445cf1f134a31e761b61ad8",
+      "to": "f1667cc15fdf6bda5a0426e228dadb991925bec7a2905d3c08b34c3dcb7e6e78",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-common-neighbors.png",
+      "from": "d343d02e92fb570a0d4778a9d9e30bdbf394d5fa119d387a1e9cc2b2481e4b58",
+      "to": "c7c94fcd8484e54b87cc52ba6409dc0c07d88d01175f31de790fdd6832fd6577",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--overview.png",
+      "from": "8c3cb536985b94e0d4965763d48d4d20573e449280f3eb8a264735b6da3ae46d",
+      "to": "6043332f2f6497358e17daa877b5fdd0232effd7f846754eb17a4d99510af7d0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-adamic-adar-candidates-for-node.png",
+      "from": "11596413972e70eeec1d6f2eab983cc4ddfb56ba4f92930584bd45f27e51059d",
+      "to": "8051edc2316a463e18429b3cff035017cd99a5fef552262e0df3aa7e2122eab4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-candidates-for-node.png",
+      "from": "ddecaa1f402e30eeb7526d0472024595e1dcbd30ba6639c13dc5deebbfab27e7",
+      "to": "26420f2bd57a2d729859e754aa8de7b90681a87fd194440806f75591d0a2b379",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--a-star.png",
+      "from": "96b9428226cf387990d2a3955f99c11e57f44fa472d00e29104cb2d8b04029cc",
+      "to": "be5624308a49ff2f335bd129b72e63467182ec26be495641b0ef1dd23a97993c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--all-pairs-shortest-path.png",
+      "from": "ce5dc345197759239d95660b361cb240ff1a27f3426863c060ac59ba221419f1",
+      "to": "e0f73c9e2fc862a62f93e3ed114ac2d5c3190296fb2f0557cb2c1b52524fa22b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--bidirectional-dijkstra.png",
+      "from": "dacd6179698521145c46b15d6f5b99e8e39352d81dccdf900a66453cb186207e",
+      "to": "249d7ccf2286b93f97a5a4d10d9724eb890c1d50deae11bdea5ab2e7d3e95e7c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--breadth-first-search.png",
+      "from": "20eee9bf37e1489bddde1a3af6721db41f0ae64dd2c386c3f173f6d9e9ebc6fa",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--depth-first-search.png",
+      "from": "1fdee70ac714d600f504fe6a239e354f0fd7ba9443a53915f6ab265da49ecfe6",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--direction-optimized-bfs.png",
+      "from": "76cfe06ff813c9e312435d9ed96f9d2f116d1ed46845c6c7dc3b415f2f859595",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--overview.png",
+      "from": "59f85f1b6a185b6c3acd3d17619e65b0fbafc6b9322f76a5003a000b25cbd320",
+      "to": "53ba62c848e6799f9776ca82c5b5938b3221a5715788ac34a67c307aeae41cf6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T042433Z-pr2108.json",
+        "reviewedAt": "2026-10-16T04:24:33.027Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--condensation.png",
+      "from": "1ac5acf5d8cac326b1b127b6e2c1c3490bb5887aef7d766d252529bea5129c88",
+      "to": "773aa67873c87920abe1c668702d8e69baa437191509699b62d0168eacc86bea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--find-all-isomorphisms.png",
+      "from": "65a8946201f589536412ef1acccc011a8bea8ba06a28e2216fe44ecab367a6c8",
+      "to": "6379802503f0c57f7ce3c91f38626b7feff2d9d07c7dc4899f90d7bd853474b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--greedy-bipartite-matching.png",
+      "from": "ca55f2000f360a936fd711b7b3357fcf9669ad923fe9d8e8c4897a9822b1a8f0",
+      "to": "473598cd0879457e23ab360dbd492bdb8079667bf9f0b33d52a1b1defe4b2486",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-bipartite.png",
+      "from": "8c63803c591135f146582be682f7a362fc201e35a2793e9e1fe4eaa92ebc4d95",
+      "to": "470622778c9a84ebd560bf42ede9b0eae1e3458b2c4b9043935de92859df8056",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-graph-isomorphic.png",
+      "from": "85daa201cf00f09a07c19a12b1d6d602c8f4f785b1bb9b3db0679ca608e34d14",
+      "to": "aa246d35c04fb672ead8ac4e1d6ec89a960b6daed782409cdc7e7e01340ea566",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--maximum-bipartite-matching.png",
+      "from": "a6c4bf195b2928f06a93001f6abe938f22fe14c55e894f8efdf135b4dafeb9c9",
+      "to": "1e517bf5c308c162940e837760d992453ee293fe9706743587c21ec1eb9f672f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--strongly-connected-components.png",
+      "from": "0730f560bb98a0c6f2b0db57974e2761ae770022db15b2fde21ccd9546faad21",
+      "to": "f5b22a47d7b79b558d67bf3e9dc09c3e471984355475e9efe54abc6f5b1e218f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--topological-sort.png",
+      "from": "376b64b4071bb26b2878263068fabe5a6938499117fa3ddebbb3dfcaa7f482df",
+      "to": "ebc00de5d5a69b0e2100205ca2c89cb8b3dffa2cb98b4b8ae0ba7497e3e001c8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--weakly-connected-components.png",
+      "from": "6b2aebb4a4df661eee40de8ab1426c34fffea82e89c9867b393d6cc9c4a068c1",
+      "to": "0f53bc903416b6e447acbb9faad8281f9eae3c5f0542eb395f4d728c65377d53",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--breadth-first-search.png",
+      "from": null,
+      "to": "ce7856cd79ac46f3faf03405915a998fdb6f005ef2ee7bb4b89bfe84aed683be",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261013T143754Z-pr2108.json",
+        "reviewedAt": "2026-10-13T14:37:54.438Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--depth-first-search.png",
+      "from": null,
+      "to": "df7dd1cbde141a73afd12ca935a88f11de61f676ea700279029da3a0a7927285",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261013T143754Z-pr2108.json",
+        "reviewedAt": "2026-10-13T14:37:54.438Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--direction-optimized-bfs.png",
+      "from": null,
+      "to": "6083b97c7771ff3044eb753fe65e5e4ace27c27f41186c528fb49d4cfa1d69e2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261013T143754Z-pr2108.json",
+        "reviewedAt": "2026-10-13T14:37:54.438Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-traversal--overview.png",
+      "from": null,
+      "to": "4882c34c065fa9a31de7d76b3774d0db957c3bb01aa3ca0234a52520a3ccc5b6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261013T143754Z-pr2108.json",
+        "reviewedAt": "2026-10-13T14:37:54.438Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/components-app--default.dark.png",
+      "from": "b74e9e56690f9e31d6d0e2319f8cbc50abdea11cfa17f6850467be0f2398b5be",
+      "to": "f4088895cbf97bde8af8e99bba2dcf1d1b755fdd36697a77de2fc2079d8b511b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/components-app--default.light.png",
+      "from": "f4f7b5bbeaabd4403821d378bde9cddf15857ef410c3663911920e32dc4758ec",
+      "to": "f6d0a94807d18f13862855d85b1f31f3f61f7b90190a44aeb7dfc0670bfbb19e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--array-value.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--array-value.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--boolean-value.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--boolean-value.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--default.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--default.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--extra-small-size.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--extra-small-size.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--large-size.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--large-size.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--number-value.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--number-value.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--object-value.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--object-value.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--with-path.dark.png",
+      "from": "0f06e661db42da77828bdfd6192dce49cbff0bccef8956abcdb5381b9fb2ad20",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--with-path.light.png",
+      "from": "7e17a150bf6b98205120b0d9dec18ba904622956c5c87a8c382344dae721d437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--complex-node-data.dark.png",
+      "from": "1dfb59baec2ac166bff066d056fb6278fe1f23a5b30dcf44d132b3bbb63c11cc",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--complex-node-data.light.png",
+      "from": "4aede91fa870eda782ad0bf19f7b50f429d66b5044db156d0665084763dce60f",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--custom-title.dark.png",
+      "from": "4129dfaadfbff7b8c3f1a8ff79e11b6afb8c79d93f59c2e2cf83d684e3855c58",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--custom-title.light.png",
+      "from": "cdee781e326c1a9e6b48eb9cc28a5aab3effd0677a9b8bf69d7d2f3116ec2d00",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--narrow-width.dark.png",
+      "from": "31a522fdc8032ab01dc7a8873af6aa91f875d2388db9478500a8bbb088608349",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--narrow-width.light.png",
+      "from": "a1bb0e677ddf9d5c8351ac6f298a68865d26073cb470611169766bc9d0a6fee5",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--no-selection.dark.png",
+      "from": "62dcd335f9052d11327b80916c51c130f02a137b8e37e04fbf79c6025e77a33a",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--no-selection.light.png",
+      "from": "5deb3ffbe48268e2d6e3ab617b96b68237f43702320f91215448e980569b4778",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--with-node-data.dark.png",
+      "from": "cd8fa1f08c32dc43a64f080c54d341800b25c6ad1a787ae46f26b1053e8d8bef",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--with-node-data.light.png",
+      "from": "d4553f08fbcd51f90e27b728c4a51b81d9aeaf881b8fd1842bc01ec7d8fb644a",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--array-of-objects.dark.png",
+      "from": "84f9f6397f18cab728bcd1a3758ece677fec5d0df7988fb7fd1334d5f39bafaa",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--array-of-objects.light.png",
+      "from": "ac66fe917625ee92f414bdcbeef5c847dd0a7bc80489a3b0946a49f642f4875e",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--flat-object.dark.png",
+      "from": "96be417857a79cc61a94812a66d476b169dafe083cfb188dc371c310f16967e2",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--flat-object.light.png",
+      "from": "7feda122c07d994b05b0bf93f011bb66c6376764f27540edc06dc276122f9de7",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--large-dataset.dark.png",
+      "from": "c726d703a61271e90855fcfb8fb06e1305bb6dce8f50b3d8c3b88ee596be02df",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--large-dataset.light.png",
+      "from": "6ca7a42016ba0615533f6360a2018f6675eee4cb9b5ac6e59592ae1ec2836f9c",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--nested-object.dark.png",
+      "from": "7ac504a393a2df88d441876440a56bbc9b84308ca1e11fe6b96b37a9bbb8b791",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--nested-object.light.png",
+      "from": "539f036f170c29cf14456b1b5c1a03168d7fc6622016ff64936dc0ed165e0152",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--with-copy-button.dark.png",
+      "from": "d2e4b79cf9553d17d122e4d57add60c8c0325027148fb9066bb2179766c7c03a",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--with-copy-button.light.png",
+      "from": "d99c0a76b34967494ec51c0700c51d2799dc0e8a9b8e24c9128b0c7bf46a6e21",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--with-search.dark.png",
+      "from": "f72c468c397447924111b928c605e788b112fb26d2b21f168d0ecfce253d56a1",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-datagrid--with-search.light.png",
+      "from": "679be84a767a15deb140e90993d033106286d9c8e495242567cb36305797a946",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--default.dark.png",
+      "from": "5a3de9660ae235eb77c8a61985b63040e131ca34d5d62752db9962b72bbd30b0",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--default.light.png",
+      "from": "b0c9090c5ddf3d477fdbb0d1a57cb536f480197899911a72c82cb8a545e88eab",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--large.dark.png",
+      "from": "a15e4666429c4f8575532a2124fc8e5a02430727a0c6bf645396b792a1ae5437",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--large.light.png",
+      "from": "369a39db181d2da43f73d65cd49f074daf96f98c7de7d4cf1d7af78818a8427e",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--small.dark.png",
+      "from": "ef5a98f25e4643ab8051cc19ebd26d7073a66a95b9ac401f500d9251499513f2",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--small.light.png",
+      "from": "c18e9871324e44dbbf3d7b79c96330f26ddec300efc44511e0957cc8ea6a54d9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-as-list.dark.png",
+      "from": "f04f4cff9f9d98c3937f5fa02829cd62e255fbacdb4d6eb375d24a551af8dfc9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-as-list.light.png",
+      "from": "520dc4beef1a39e05adf59809e6c10efb2b9e1d5bc7351b75a5850ac37c9ce5b",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--narrow.dark.png",
+      "from": "7688d52aa6a45701810d2a5f217b35878cee76746868fcfd9dc5a101926e17e7",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--narrow.light.png",
+      "from": "72ded499e23b43eb4d4b605b51363241c58cc67970f999c43aefc60bc9bfbfb0",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--three-d.dark.png",
+      "from": "67d5f4b9ba391b9bcabbdfd2836e3039aef1accff365dd7af167bd08ab09edee",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--three-d.light.png",
+      "from": "38b63f9150af033c66e1c8c301fd74c6db5cbc2197a1c3099c948bf9428044fd",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--two-d.dark.png",
+      "from": "cea9f12cd2f7821d3c0249e8c8f4cdc256eb21dcdac224924de303fd4a34a91b",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--two-d.light.png",
+      "from": "e925bd5f98bddf36e015b3fde8f3a6902377388e947a0854839661e567b95a53",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--views-menu-open.dark.png",
+      "from": "463e8715ab648d2e638d74badb58553082fe00ddaa4298250d0df53d1c71a403",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--views-menu-open.light.png",
+      "from": "16ecba52f0cb7a8e905a74445cdcedf7fcc4c107cccb695d2128740c8479c3ee",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--with-selection.dark.png",
+      "from": "81c1a2df25d6f55fd7be9ddd4790bbec3f5f1da00ad87923e0a532a599eea680",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--with-selection.light.png",
+      "from": "d9724fcc3fd987d530bd59f5afc85fa38c69e11535f915454cc4400bd544a8fa",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--edges.dark.png",
+      "from": "4f36200419daa944bae11d0d45c51a3dddbb25e9d7c3be14e604c346d6dbcc8f",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--edges.light.png",
+      "from": "885024b4d7ba87fc3da1be1daf929407801e227e5372efb962f7ffe80e6575a4",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--nodes.dark.png",
+      "from": "5d3a90b98314c0c377c4e3567103e3aa5a857a7dcd9e7d418f93e54115cc904f",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--nodes.light.png",
+      "from": "635dadcc8df0d3fe86ba100759f3eba9896fd47d7445cb0ba636b5c6adb896d7",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--table.dark.png",
+      "from": "9575f81b0cbf0683948af16fa6b4a5c811950cf2ede909b8984b643aa2ab78d3",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--table.light.png",
+      "from": "f8309f9ee9cad556b6ff60b9cd5c76153282a2c481ab7b9cafac06f1b19c9bdd",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--appearance.dark.png",
+      "from": "3a3870a69921dd2f1b3a7976383ddf5bbf4e8ca96266fcbde3f668f04f0c4752",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--appearance.light.png",
+      "from": "7533202d394f6d60d9d6ee0a8a47c72d01fbd35fdb19a24d88767b291b5ff240",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--device-lost.dark.png",
+      "from": "5a6aeb32c14ca386f51abb3f978b84615986520e9b9903a4214a5681dbe8276c",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--on.dark.png",
+      "from": "ffd8f9f2925feed4b34de4bd14cb14cc0796af80a7b43aea2495d23e6bd4b0b7",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--on.light.png",
+      "from": "e046e22ead5994020e52efd7818e837a47b6e77d9684c2d56496839cd478d918",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--empty.dark.png",
+      "from": "cc879cee41b35ddd54cd5e6174ef7c5668fad5f113a61e33a14ea2312b9ef4e8",
+      "to": "abed4acb5fb4be4ad133fe073ecfeab6a59bbe1613ef5dc94c46ad420117a52f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-canvas--empty.light.png",
+      "from": "bab892cb09ac359b57ba99aad93c7ca2077d2e295cdd955e4b48a48bd939e693",
+      "to": "feedab3e7eee05d44524321e5737e9719bb26f5237dc6cf98bece9254bb3ff22",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--add-to-project.dark.png",
+      "from": "c9264e7c5a12cded539ffdc82002e992e2bc58ec8d910aff1caae4494e59e424",
+      "to": "087fc6fece1d8cf890e0e49a6a64f6485a125a09acd1d1e8269628ebe992879b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--detect-none.dark.png",
+      "from": "1199e1e47743cc85d09e924816593e143d7294c7c06d20c97c233c53fb5a73bc",
+      "to": "19d572d9b913c3576b00464c90c5b6ec718db5be372ca5ae7213918c4c40a68f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--detect-none.light.png",
+      "from": "e98b77b3f48b7604cdaa793212b13d350623006302a1d0c044ad30de1d64a99f",
+      "to": "e5c5e9b193d5954aebad8912a3b9db1a08596f8471202609d7feea3734c0499d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--edge-list.dark.png",
+      "from": "4d8c5b8d516e62fe11441a00e409b4ee3e09748d787fe16b9d6cfceadda3d034",
+      "to": "3c8a8c9f8a5684a3d30168c62025c7143e884d677aa3af2edf0021879983bcd1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--empty.dark.png",
+      "from": "9b0b72db5a2de2f52cf81d8ed61d0d97b5f69551e0535c2161136127cf66da41",
+      "to": "ac64445c01d6931c5082165012c820df221f6b0baf858d2a69914e8055c4c6be",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--empty.light.png",
+      "from": "c38d377559d9fd3dfd98e7bbf2de0248adfa9fcdd642ac49383c6b09d101463c",
+      "to": "51655e39d94a81c971a5ce0f0b2201db303377f7333811b6c9577e101095b785",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--file-settings.dark.png",
+      "from": "b97037fab34111fa619ebb880dcc3ac641176cb6a895ac0a7e590681ef3a8fc2",
+      "to": "94b18a644e94cb588efe7b09f0c624911e3a0b8fc2f87caa8165d21410292978",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-empty.dark.png",
+      "from": "ea8be073e1d4a36b6fd424f72922dfc84b175a2cdf7dbeb20419e9236daa1084",
+      "to": "61e8ada4c4277ab7e01b73c354b6674281fcd4872f8ab17242f213db7fec56df",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-empty.light.png",
+      "from": "048764c31cd65e4f3c12400f62f10b4b0843c49a51f87c84cfb3105ada465f86",
+      "to": "13a21c3baaf25bdeb2acfce61d6c57dc559bb33390266d923c5ca3e11cf3dfe2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-endpoints.dark.png",
+      "from": "e52c70a43682eef748c0e9b0386b53ebfff55e98ecedcff06034c6e536f5132f",
+      "to": "d9733bdf16b33a7674a4cf5da83fc0603ae2307890664d842012b65cf803a42f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-fetch.dark.png",
+      "from": "2fe024c53fc618fd8943b5bca9e27bdf9493b2c85c61f8cb3f940d9c94015ea1",
+      "to": "bfcd569f649e1330d43a593fde53e4330918af052a9f9a28e5d30c0ace0bea65",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-fetch.light.png",
+      "from": "c89dfa929f043b51749d085af401498c1942648720129605c8c4e51bb746d1ea",
+      "to": "575e1e8fb80118e670ff48270e0ff654321919d33c56f55bab2eddb09e62e04c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-parse.dark.png",
+      "from": "45aa1629c8e3b354965090b14685a239429ef61abd51da69fb3192f53ac1a962",
+      "to": "bda37a591e392ebde2d6663ef320628f5b91215e70062e1c44b9588fa9d16d1c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-parse.light.png",
+      "from": "516db01404964f314c923ce743a86d9f8f7cb183015aefdaad63ae4b2b562b14",
+      "to": "074491888f52f53f1b6ed4a739f2b4df9dfaac930cc2ac8f4e48040866d9ceca",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--transfers.dark.png",
+      "from": "8e5c13f50922264d1c0bd9b271bced74fffaf1f8e10f9c2513e1609520a13647",
+      "to": "6c597c54440e21ec105d3eb581f1556a99426010d082cf78c09ab04576b67a59",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--unmatched-rows.dark.png",
+      "from": "f7aeb46d16f65b3715a11201ce975f03a379b8aa1448bf97fbce0001a648f8a0",
+      "to": "df4091a749b3a4aae9534941751e0b7fd8b179e7d270254b4274337273e2cc13",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--url.dark.png",
+      "from": "08728b78879be09f902f3b5a2d32ac694c30a817231404911a6aa53f8ae74906",
+      "to": "7051778c3a1f5b88168e91368304c5205623dfe6205404d35283450e546e7a11",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--url.light.png",
+      "from": "01f72759f3fc9d57b9dbc86c5bc96451646b2dc54a151798e0ffd174280391d7",
+      "to": "a1ee6497b9087fccda9876af4f04465815f3cb2452d93fdec061b47d31df3b24",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--attribute-picked.dark.png",
+      "from": "7ae4d00d332b5517fe3148e587b68b8a7abc0edee612185a043e480f2098f9a5",
+      "to": "f903022c19006256f9ef307ddf0fd2cedc26a99992638530982dc6f3ee66c09c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--attribute-picked.light.png",
+      "from": "135b3c6a4e62f0061524dc543b135bdd8d24e45d53bd84182e1c2d47c2174313",
+      "to": "486aa2e57dc271bdeaee3d3b141485d33d6a322cf5fb547a3afdff463f0446a3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--graph-file.dark.png",
+      "from": "df1c8b6b73d0967b0166716ce8563211138d6cb53dae8433504f7eb32bff5dc1",
+      "to": "ed0fc4d782cc1310904d80bd06b5aea8623be8b1c061098a64b0fc526899bb9f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--graph-file.light.png",
+      "from": "3f1c25deb952047f5e6c9325373f8c587404012b872cb8727b222e511a8cf802",
+      "to": "e708f1639114c2723f8abaf605f3afa76608c69abae2d89423bca9659f8fed33",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--many-attributes.dark.png",
+      "from": "329ae9b6cb5f5a4f606f887753a7d59222247f1cc30e44138d9b6e55b529e08c",
+      "to": "02f7dd5f4279bf3f9a601d6c62d81d51683ec072103d244fd8a0d85cb3b33fd0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--many-attributes.light.png",
+      "from": "b580b8815abf5a796b8ab247cbe1a03cf47bdb77febb18c0b8c6f164d499ae50",
+      "to": "1da76f0522398c7c4755bbc0a7a13b8720bb8a015017f623418d822295b384bc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--nothing-loaded.dark.png",
+      "from": "e9f4a68550589888d101d69d1165499262340f8881af20937f0b170149640fed",
+      "to": "0fbcd520b7230061ed5946d4559f709bb220882992312a4cd45d09ced73992f6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--nothing-loaded.light.png",
+      "from": "3d6d128d8fb47bfff1d689981ec025377458f141e10c01831d96c71dba056c00",
+      "to": "5dc4ba1ae428b8f6e6f64c51136d402be50720efc44c160c519a7f4ef620a010",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--plain-json.dark.png",
+      "from": "e163f2f94f0c1cb752e5dc71641a4d9ad833aba42d87cf21a63f39d9554243e4",
+      "to": "49ad5802c2761d918ae38b9dc732645394a226d3f28984a64ebb4a28826479f6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--plain-json.light.png",
+      "from": "f96c019de1ed33cc89f48a5fb092f82ef11d1dc44ffb84b1fef9099ac0243e5d",
+      "to": "e085ae91f5f781de6e28eee50b3d64e384b4633cf47b5deacb405f013a7199dc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.dark.png",
+      "from": "83e1ca2fe2845f9f05d4d63ea0198a053b6ad0dba3c45dc8d44c1a607c2c6f58",
+      "to": "8f61c94118e420d601989d50a6e3662979946c7910c2b38581714daa79b973e0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.light.png",
+      "from": "a2a0e5209ba9d3e5791f7480a453ab82b6528185875c87438cf6ca914b3e24a0",
+      "to": "3b72868cb85bf2112d8ed16de7447440d1bc61fe8a1684910d3a77e5a48f4583",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--about.dark.png",
+      "from": "e807e4948079d8524a51992b5d5b34ecdd2f36b164e09c1dc3f1207834976cfb",
+      "to": "f6f87183d873b7642b971d49a66add6e5473a2fe45127b977d330a0bc96485e6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--about.light.png",
+      "from": "78feeb8dd20d5c85a5f970e81635e3cf1228ec1027d1fe8d815c20a865201a30",
+      "to": "1d720b892f89591155276ef605c92006be3d0fadb8231545f857cdc42a5a25e9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--at-rest.dark.png",
+      "from": "7f767a61d66fc74f03ac261c98180cf9e6b035b64998b8bd7da64030a44d371e",
+      "to": "b61589263a16c608248d9872695c4d436d4fbc402dc17fced9aa98e1969754c9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--at-rest.light.png",
+      "from": "d729e8e1f4c4e2fa47ae37c3584b1d9040ea4a03eeab095cd09ff1e3e4d69c07",
+      "to": "2bca40f920eff95a0d4cbd24173a5ce5592d2649f8db11302d451018b21ecdd4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-page.dark.png",
+      "from": "efbae742f24752f97359aa088ae40acc3446aec37258ecf43639d6f67135996b",
+      "to": "9a04525abf9191421f0411ef21d99a2eb63da2064d3ce4e796200c27ddcafebd",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-page.light.png",
+      "from": "ad11c81e55f6bbb488e599c5d79a72f5512cdad84d5d8ade14fff999e7b18236",
+      "to": "cafb6c1ea602ef0f50f4067121604bcf4caf2b9bfa0e3189ef7a30ae8747af8a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-place.dark.png",
+      "from": "70b1619ec40ed386408f4cdc2e36784c1612f46b12b950827d6d89393828cf42",
+      "to": "faa921be432f91281ba151e38c67444d7e801047f88c64025f184a59dc3ef109",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--data-place.light.png",
+      "from": "fb491a00ccc3f05a23d7785869f7c017577a12f9cd4f815163b68363f6d8f8fd",
+      "to": "d5e79670cff4f21c34c4709c0d9f749adada42d555922bee3e2e4fafca729c2b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--empty-project.dark.png",
+      "from": "4e24df794d26d8cdedba0e744f9962dd258787f483d4969eed92234c7d936c20",
+      "to": "0af47a1ce909a065318dbc6f6b06efaabac90a662fef5d63c3af284346d5a15b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--empty-project.light.png",
+      "from": "d2094103c1926e7d76d68e4b771ac094803244bf499d7d66e9d00d9abb3dd790",
+      "to": "cffffdd92bb7bbe291d39d55a04a32d96d281682d6d49126fd3f740fe7300a49",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.dark.png",
+      "from": "268ef61e657837593b6000145d7407bdf2d387828fcefd4d54f4e9c4fb1bcd76",
+      "to": "0a35605ceb7aa59130d9abfc71ac78b68fe41a8893e308c0738c8dffd0060185",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.light.png",
+      "from": "262f065ca41abdc724f94a075ddebf964d98d18b8e415f7e38e4311f5488e61f",
+      "to": "269e49de7304461d5527a9e45082311e6e2d949604b768b5b9201dc199bcb317",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--renaming.dark.png",
+      "from": "d221cfa8562ca44fb11798b761e6fc8d597fa5e2b182e54b4aa151ae3dfc88d9",
+      "to": "153fc7d7b5433f9d7decb4bd5056496d5895eb18dd435e39bf3cf72a7952c6c8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--renaming.light.png",
+      "from": "7e3e07d5a8bf4686fcac7807ea9552b70795169cd2f9bb7da7e4cf000a044e2b",
+      "to": "fec5e3d7abe04d2b2e2235533bdef162ec978ccfa12015a130184c6c68b3cf2e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--start-screen.dark.png",
+      "from": "b74e9e56690f9e31d6d0e2319f8cbc50abdea11cfa17f6850467be0f2398b5be",
+      "to": "f4088895cbf97bde8af8e99bba2dcf1d1b755fdd36697a77de2fc2079d8b511b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--start-screen.light.png",
+      "from": "f4f7b5bbeaabd4403821d378bde9cddf15857ef410c3663911920e32dc4758ec",
+      "to": "f6d0a94807d18f13862855d85b1f31f3f61f7b90190a44aeb7dfc0670bfbb19e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--table-open.dark.png",
+      "from": "258831191eeba2dd5ea0b6f8ef508f56424c86ad303d93baa2b37bd6efa92db4",
+      "to": "221fa54dc8d32ee4fe8bb3b55ff12387f26f9192778517173f59694d500e33c6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--table-open.light.png",
+      "from": "41103b55af1f51e25ad62ab7879aa61c5c5762f3f84a70e0187a44e8e5d6f1ab",
+      "to": "991389149723f42c9a04b8b62f44579c3d76e60d6f13aca9604b53126bd30808",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--at-rest.dark.png",
+      "from": "ca8312e22eb32d365dbdfa182541a6881d3c2342914a56f4e78a4c200aa9164f",
+      "to": "6fc5dde0ca01b624d6fb68bd7f0429de73d434becbb5857b695872d13ff931f5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--at-rest.light.png",
+      "from": "b30be16e8ce9e087d31bf86c6f3ff6e3c709366d06835a3b7bca27f8c8f33acd",
+      "to": "d5e06d6283a8a319281af1f47fe6804be3826ad199dc952afd6d1a8e7544c62e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--empty.dark.png",
+      "from": "39a4e68b1f47991708d7b064f43e730e93a18e27ff45873fda76ac5c0d297911",
+      "to": "b10f92c10670002c10c4ed0f8e17b96c2412d28a8728a8372212ee93f13cd78d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--empty.light.png",
+      "from": "c9e47efc78dbcec60775b73c41321cc9594e57227b7621ddeb978faca8058fb5",
+      "to": "dfcfe012bc71a4a8a6b4a585096fb55f86ede7072f6a6b3b6fd6f59659a13d8b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--failed.dark.png",
+      "from": "a62a76bc95572cad249a8d5ce4dc1b4cba8c40e93fdbe59aa0365b80ae2cd88f",
+      "to": "06cb4eeda6adff1b980e0da822341e154fe01ab65b99c954abd8ccf301aea746",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--failed.light.png",
+      "from": "8dcd2a9925b0d057d7d9f30bbc515276360aa03a6e6e016357f2e06c0e5b2b12",
+      "to": "435bda1963546b8ad9f6eb7a0ac3c0eb80dfbc1131d248870860fc07fdc4dc46",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--file-loaded.dark.png",
+      "from": "48cd41911f96c82d6a595e823560cdd38bd5dd9f3f44747ccbb08164c9f01040",
+      "to": "8ab1a1124f4f6f8db5677f690be77ae943093f729cc028188cba0c007bea0e5b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--file-loaded.light.png",
+      "from": "0ef00f808e39345cfa0c4901c16992488604ce6c4bf980ce3245ca672305bf61",
+      "to": "8dab3fd834078be5cdd4d4b4d065b1beb131fc58fd04ef50a211d39c75fda8e0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find-no-match.dark.png",
+      "from": "319d5b58fb25d3a5934f1f6fe148bb87c8b3097f39f9ce1685f6675dedc37be1",
+      "to": "ebb30ee897342541e36f9af13fe5b834f3778c607353f5f53592fb3c7a31ee16",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find-no-match.light.png",
+      "from": "7de1e6d94efcd30d7dfec014e9499c1f34baa763a406dd8dc68df33def3718da",
+      "to": "a68cd2c499653608114e61674aad7627b9abaf4d1bc62138803aed16dd815da4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find.dark.png",
+      "from": "13a137f8dec96984727a1ff1aaef785cdab0712b21a393ff0141f6b75d1cbe0b",
+      "to": "42538b2322d53ca1c41ace6776b335b88e6a0e2ab7738e970ec9cb83689f2a7d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--find.light.png",
+      "from": "b57b84487eb7894934c0f7bc931e6a5d186f5924da4be93b8fa7fcb1f9c4882a",
+      "to": "00dec94c2cc5efb66e7dc8ef3505f9c247d081db234ae266125923c92bbecedb",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--finished.dark.png",
+      "from": "e39d62901644ee96e7465bb6f6c8127d35a2887168b7c16b7eb1f0bc0f5d3a5c",
+      "to": "a53497fc482212a58a647ab375220361c7feaf20665147876fbf9ffb2a5b6925",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--finished.light.png",
+      "from": "c7b5c77709e70273e531a2d6fdfa843a493bc14b07f6eb1abe59e3ccc292af6b",
+      "to": "0e3d7d549a37c1d625997473dbe8bab225f935e0ca8584eae8aee468dfe69648",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--hidden.dark.png",
+      "from": "5ca6614e60ef8a9b8bb61eb27f101ce35b75845726bbb080c20dd37d9b0d2758",
+      "to": "2dca24741926fb7f1a63b5ffba13da69284a870bbc4426c93022a6d7277aed81",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--hidden.light.png",
+      "from": "aa41b701036483e1542c789392b2c90f9c8d5053dfb7f4eea4bb319fbeb1d334",
+      "to": "abe1b9923ee4dbb44bc05337c846de4bae64040fe3b5d91b226c15cba995acaf",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--louvain-open.dark.png",
+      "from": "c6aef9c711a563aca76b15bb475ceeb3b410458a7b62cfe7879c3d5a6e65c60b",
+      "to": "46a05af97ed5b19a04361067e097f20cfe23151d0534b8eaec3ff003f48bf0e3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-graph-place--louvain-open.light.png",
+      "from": "b12fc806a0e802397facec81d073c5162953394e41d4e99ec86342cd31bb45df",
+      "to": "7880555659781dc218ca1e549138473f1ff2100a481dac8c49ef2ffe9c18012e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--attribute-and-filter-step-field.dark.png",
+      "from": "e7d5247c41e5d8b57265a455bd17d76091e92874cd0c9b57e49e3c7b4d8b0ddb",
+      "to": "9918aac0a74444d8ea1e804ca0a50b0ac95293f9843ff06d19038e18cc07fad7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--attribute-and-filter-step-field.light.png",
+      "from": "5d64c57fe9856544a662ca3432ff5c2da4b3495a4e35847588331a77f2fdd99e",
+      "to": "133dbfbeabdd8dad0b6d6e8ff696216a506a503a6b993a4e785c08a13b3d3564",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--edge-data.dark.png",
+      "from": "ae65a0d8429cec11e4e3ffe0de17859a4ad6c5119db368961df29269934f4933",
+      "to": "cc51dcbaef395e841c6f6809efcfbc8d46a0be88d66801e621acf83c2af9d64e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--edge-data.light.png",
+      "from": "16d6200b733359eab2fe069c3d3adf9b561440b2b88a86686793110e0ca8c1d6",
+      "to": "5cbe1ab8d7fe50005917c98a1e5c522680891972baa73e1df3adf6e5b01d2c15",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--group-set-path-row-community.dark.png",
+      "from": "2f8960aaa7f7480dec1ef922bc8f98bf427ac14d36869c64d664a9a540ed8524",
+      "to": "e3db728adab60d6b795e6eb9410aab0a813494c0adb3cdc725cc915dfcb782bf",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--group-set-path-row-community.light.png",
+      "from": "a6161a195a551c34b5b9b809b415f933ae56851c5312a8dab615370846c35129",
+      "to": "49ae6ac09e175b13c27df3fea55bfcd345063706aaf47c13c45a91405ae33885",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.dark.png",
+      "from": "167c174bca375c27b6503004cbb7704c9b82feb4ad41a98825c1f3842dd787fc",
+      "to": "c02ae1592f949fdf223b78c98a03834e29a8d129338a98938225cc76146eae2a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.light.png",
+      "from": "ba5eeaeb9c33efaa8373a50abaa96ccec2ce174234e41fa3e0a7d5b031656e1d",
+      "to": "f8ac7ca447760888befb4fb6c9afe3c0aede15aeb918cf4ffb9da07be7eade5e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-canvas.dark.png",
+      "from": "9f1bbe8f529db7365e507fad0dd9a7aac9e2494e1818045b9a15b9d2997711e8",
+      "to": "7bef2c27b631ba563c8d20179b212344d3f4312969ad6e707c8f0ddee03ab52d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-canvas.light.png",
+      "from": "f98dbced8ddbffe9c57498c2b396638f6b76e39a0f332fa9d4ffdc5a455b14f2",
+      "to": "21c646531645458c98166ae9d1d008c51451d1e08aab7385b003281149d9a21e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-empty-graph.dark.png",
+      "from": "39a4e68b1f47991708d7b064f43e730e93a18e27ff45873fda76ac5c0d297911",
+      "to": "b10f92c10670002c10c4ed0f8e17b96c2412d28a8728a8372212ee93f13cd78d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-empty-graph.light.png",
+      "from": "c9e47efc78dbcec60775b73c41321cc9594e57227b7621ddeb978faca8058fb5",
+      "to": "dfcfe012bc71a4a8a6b4a585096fb55f86ede7072f6a6b3b6fd6f59659a13d8b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-overview.dark.png",
+      "from": "d024648af6ec91c44017989e79b2ab1a9ee2dd3c68521baa1622ba946c375f86",
+      "to": "3e102186383ae14cceea05539cc2b6aaa4ce7c9f7d02bd9f5ff3abf1ecca7c89",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--nothing-selected-overview.light.png",
+      "from": "89c1388d063fd9931629d37f28974c8cf318db56a4d2b129b70674db70cce2e1",
+      "to": "6aed92e7c0144d58c942ee16effc6ddfd2ea4ea592abccbe0dc1aec83bef20d2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-data.dark.png",
+      "from": "30ab66838b09b58a732a369a338fc5ce47d7d3a5afc3ac86069f9c56b7264401",
+      "to": "a982c44e04f39acb2b82470366df156c1ac52df758d47a541f46fbc88393442c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-data.light.png",
+      "from": "c0f38f083050ff7ca0aafb1402589ac75cd23aecf2dd302b3dbd650ec1874fc2",
+      "to": "51aff84080de3511eca0dded3dc925fc0977f1c789551ce31735b9d3a110b23c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.dark.png",
+      "from": "3cc1636b4436feff81a21854a6611c5f6bb61a1d7698d2818bd44a8c27c263ce",
+      "to": "3e2e0468e3241027f053fe4452124bc3c6d84d3cd0cdec8e58e45f7e965a090c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.light.png",
+      "from": "b42457b8fea7e8f7f16ad4c21a4b749e443630aa437d90cc5b5f2eea540983df",
+      "to": "491e2283e126078ea12b348eefac383481fed346fe2bfbc5631fbcd8d0ff25c2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-everything.dark.png",
+      "from": "b309c804cd4c0068bfec9ed4da1f6ccf295510bfac2b478c0f16d8bbe2a377b6",
+      "to": "7bafe0cb6f9b2197375cfc11c6e387d9cda48fd7d28d715022500c35fb031f45",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-everything.light.png",
+      "from": "88f234df1c8a699d42996639437bf0ebb56b086c3cbddb3a76a6fa2da3d47129",
+      "to": "36ca2a5b8bcf521daa079e6cdee57e793924ad20dc5c4bc723ce338c475498c8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-selection.dark.png",
+      "from": "d52567801a6e0f40fe961e6713eaeb3bf85ee0b17bfd6c8d1b3424f288dc1c10",
+      "to": "b631239e5b729319d474ea36f3e4f813b049827c1cde134a0d9af3d5386dc60f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--selection-and-everything-selection.light.png",
+      "from": "ab2a13ddf3a9e27be19461f5a95a9cb6b444f991a1f7aa9619eedcc9b5674de9",
+      "to": "4167cf066c48be42dfc5ee759ec9ffeab3bd5c72a9cfbf795e3557c04d4474ca",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--discard-changes.dark.png",
+      "from": "0ab4c6a7390bd2cea13217aa0d1fec8eb15094b7cccfb2126990c53ea1321aa1",
+      "to": "612f216b3aed35938f35269b7a537ba93110a285add45fbd8851296a1adaba2b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--discard-changes.light.png",
+      "from": "17f33ff2be43a8d54def07062eb4ef5ace93bf7c44330291e2ed1aaf7aec1ca9",
+      "to": "04504a23458137b5e584480e479aaddb17bef931c8d47b6094c70720c17b66b6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-projects.dark.png",
+      "from": "d21ce7a293cf220fbcadb1aa0b3ceb3ba22af75e852f58f1816c95253ecc6989",
+      "to": "99d200d785e34b42b7157998d2014a19d6bf6309e5e4c3d3fe975234718977e1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T043113Z-pr2987.json",
+        "reviewedAt": "2026-10-16T04:31:13.008Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-projects.light.png",
+      "from": "118fd78d8e2a7ec89180f8d35037711c9711d8628eed529ba3c19225e74d59e9",
+      "to": "ca493ec357ef0616c07604bb340abe36eef297f4048ab646bc401f98e774692f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T043113Z-pr2987.json",
+        "reviewedAt": "2026-10-16T04:31:13.008Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--save-as.dark.png",
+      "from": "5003f952da86df7dfd9f1b4cc41291f75bb7bde49a1279d8d9ad83583439b91e",
+      "to": "0468126661cfa587d44be3874157946eae99353a54f08919cbe09b61781feac5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--save-as.light.png",
+      "from": "809feb5973a557a5c8e281624a8024e6895be9d285362b2d24888ba32555669a",
+      "to": "c97d19620466e6a4fdf06599bbd6992c8bf87cb3430ca1a96651eb9e23d3f9c7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--answered.dark.png",
+      "from": "ecf36593afbea000b048c88b0e0d8ba2848ba477c58e905ad929166d255357da",
+      "to": "99de793aad203cbfb9b3108664c19cbbc35a0ae2e38da42e31d350181bf82fdd",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--answered.light.png",
+      "from": "380ccb0e91d66e9bd13cbad70d8a00cdf0a2fc05f34513639aacfee7c8d16942",
+      "to": "6ea37f88351aaebe834b31b005d89cc663214fcf0d03ab9c2f97537ae3e94eb6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--declined.dark.png",
+      "from": "27daa16c3319e87f756ebb83e2998c2c9224091f17dfa9b09927eea97c343fa1",
+      "to": "7c11bfe886bbaed80131578b8597e35912e93069c79726e6f9eb2eece5336d42",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--declined.light.png",
+      "from": "86d2ba7e7a9a1a070f2504e1593ae0317441bcb33a20bfc048e6d87f150b8536",
+      "to": "9d3a196c7b1cf428900eedad4e8eeacd4a26c47d4f046fd12d9a6cd0bf6e2d0c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--disclosure.dark.png",
+      "from": "3ccd29dce83f0dfa0a5fb2e29c163cd2da364a8896774d7e3ef1e1093d5e8201",
+      "to": "a2ca3b77e9af8df377819bf434bc3b9588d3614471ace69b43639524e03a92dc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--disclosure.light.png",
+      "from": "1ee44ba3133baf74aeb1426a0af8da769e0d06ec9d80f1873e62f39aa4da161a",
+      "to": "b6ddd4c6a6bee50b32ba1f2113c957cb08717d5c0bc108868dbc2834b791cf78",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--drop-target.dark.png",
+      "from": "a2a9bc976a818c7e266c102b516685dea1d19b2a8a0a8bf3be7844dc69b7f54c",
+      "to": "89f1c8bd8b66c7f2e6ade7f10676c632113a90f5ecb676fb9f31896b1283f8c3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--drop-target.light.png",
+      "from": "0fa152769d6a49987795bbe250433734a661818c4ea829d3b2d6de06596db504",
+      "to": "264939437f5e41fb90658e4c4194955943f08cc9fe35b4a21dd22a19bcc14065",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--first-run.dark.png",
+      "from": "b74e9e56690f9e31d6d0e2319f8cbc50abdea11cfa17f6850467be0f2398b5be",
+      "to": "f4088895cbf97bde8af8e99bba2dcf1d1b755fdd36697a77de2fc2079d8b511b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--first-run.light.png",
+      "from": "f4f7b5bbeaabd4403821d378bde9cddf15857ef410c3663911920e32dc4758ec",
+      "to": "f6d0a94807d18f13862855d85b1f31f3f61f7b90190a44aeb7dfc0670bfbb19e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning.dark.png",
+      "from": "72661e22bc878d35e0b25a9635d718848fed1fefae504d884875b79b05707bb3",
+      "to": "d0e722e28e4cf9903fac1b0ef27c633ecf6e75f1e99e8923d23bac7648dd45e9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T043113Z-pr2987.json",
+        "reviewedAt": "2026-10-16T04:31:13.008Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--returning.light.png",
+      "from": "5000e343db3ec57d84f4f485340eee5ad9abeef541830af82f2c1c0f57d546eb",
+      "to": "279c3321f16e518b3acf79f13cd75bbffc64db96df570fda90825a1194deafb1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261016T043113Z-pr2987.json",
+        "reviewedAt": "2026-10-16T04:31:13.008Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--bind-size.dark.png",
+      "from": "d0a4ebdf330ca44170d8abedbfb2548d2fdcf5f29cb3753b385f3d8ee1c8356e",
+      "to": "67ebe251a5c0933f3f29e4556aa0b9b682bf8b333249a34ef33d438ab6888887",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--bind-size.light.png",
+      "from": "8040183a0bc44f03334bb451204dd372d436a3ba4905b7f49c9a8ed8616a2fad",
+      "to": "50eaac6f13b3f1749a27d4dfe84e4d3482571e120506fac97cf9859e7c14f8f7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-popover.dark.png",
+      "from": "e5e11771dafaf20d24932b1579cee0f0d09a7b0fc725e885033d11ae8f5992a8",
+      "to": "4c07aeafb9df68a8b58b55e3bece3a8211adeac7e991f4a9583b8e36e4949127",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-popover.light.png",
+      "from": "fefdf6f3d94e89f9901081ab9d8a0ff052b505d68b91d7852c380be07822a33c",
+      "to": "ca871e2b80b098b82dffe5a965b15ee8366b39b1776ab464ded77054bce0ffae",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-unknown-path.dark.png",
+      "from": "bbc1d4c6043bafa7c39dd09f1ef4dff0a6babbe76c3b99481edfe30832cb8b58",
+      "to": "2fd2c25c20b1d52d6abe7b5ce8ca59293ffdf6f771396593f89455f489ac3c50",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--binding-unknown-path.light.png",
+      "from": "763f0ffa6aa5ef3bcf5e1eda62ca32a7f8d2af0474da7dc1bf378eef01a13766",
+      "to": "8dca0cfc760f318b53242d7696fc86bf8bcd5c24a722b89dab6f8b55e9d5df00",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--color-popover.dark.png",
+      "from": "3b14279dfa6901cb9a9a642f78a72341be759fea80c9fd6626a3845e0c316557",
+      "to": "001d81700510107320e8133413134e3049b11196b4f282ef8cf4f46558b2d478",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--color-popover.light.png",
+      "from": "5ebcf8385bfd9bbc7033fdc861e7b7707278ba34078035e89d2ad767055de6cb",
+      "to": "eabf579cf5022d946083604d9618f4f6b5f4049a8f560574cb4854cea4b68ae9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--edges.dark.png",
+      "from": "d9bb7561202fb7a5295866c6bc7531ce5f493092a74d19b61a30e78dfdc7df35",
+      "to": "f9eeebe25796510def32b22e446a6975d87c05e427757cb02ed2e4b489cea661",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--edges.light.png",
+      "from": "a57252d9bd7883955b36de2213b91052288580f93b25db2cd7994b66ec0ced5f",
+      "to": "519308341b784dd0faf03dbc75819fceb3311a87de188898cb435deb8268e973",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--everything.dark.png",
+      "from": "246d4f99e979e1ff7de9c0664ecc5889d9bb4288c98afd0b94e130e67766d804",
+      "to": "bbd6b13a295e1fa50f6684fce844c8bee01009ea62304c5d51aca0ca03d3f0f8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--everything.light.png",
+      "from": "d57ed1f455450ba34c6888ad817e33d4e74c7e9721bbd0e3567f1ba9bc17c121",
+      "to": "7764cd25720c4bd30fcbd1e3ddb727862b941f6f0e1096bfd8d06897c598e4b4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-bound.dark.png",
+      "from": "d8330ccda5fb9bfe0ea3261ab81967b2f786317944a6dfb1c1eae2592f86af0d",
+      "to": "bd95ff41b6cf78a78af517994c6a58fc8d19dff515e98580e10d3fb36eef0f84",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-bound.light.png",
+      "from": "90ca27e567d90f60d29ac74e04ad1dd0b13d6a0e6b63e8a4ebe786038f225ae0",
+      "to": "f03747e8334f788d52b40a39886d176a7599d4d3bb083bea299c98f0b003f68c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-empty.dark.png",
+      "from": "fe463268b9136a5ea69fb40f2058d1b6bc704f8e64f331dd63b7ae9618675a36",
+      "to": "9886bcf32a4114cb64a731e0080df017c6863e4441dbcc33bcccc2a38fa4b8ae",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-empty.light.png",
+      "from": "25dc94a057a1f5c46a1776babfca643f6ad94f286663ed7b17063daca977ff15",
+      "to": "6743aeccdfdf6e301a077c80862897f341a53796060f830732c5bbb76dc45776",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-new-line.dark.png",
+      "from": "f033122892a265132a56fa1054e9beaab9d5b10f8a50ab8179862d24c5d276d3",
+      "to": "45d2125f5b8ab774da9fcf5fe38e22370b3ce18f4f97e0d248d2ce7588d99fb5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--label-new-line.light.png",
+      "from": "b532043606a14c15b6b2ea0e52c0c5ea42da260d9343bb894204ac95da9ec246",
+      "to": "d00184be82fb5b0c92f5ec028ca85d3b2abd3319bc80d61c68c6cbc87b80cf3c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--measure-row.dark.png",
+      "from": "4ef403e6d3a635f3669bce2318d2bd1b146439dbab456d302a09e6be90376478",
+      "to": "55f9651b283bef05eea3e2de42cf2ff9044ceabe5f56cf127be3c45d882ad846",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--measure-row.light.png",
+      "from": "c22179f70edf916eab0ae9e21f52800deb8e30321ba867ee48d7a24e3bbcd5be",
+      "to": "22c1ec930ac1c41d65fb9a4956dd1d98b70bfa4f64892b0318fcf585184aa524",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--shape-popover.dark.png",
+      "from": "a652a978e9a5f8518d3e06244c73061ea5a5f007defdd0b1020dc89cf3214c65",
+      "to": "fd8201cf18b48da92a241100aad822df3477260d5224eb435ca14e05c1945630",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--shape-popover.light.png",
+      "from": "778d3f929434792056157e0b095c403d7e27e66fbb448cd84c6d6ceffff70d59",
+      "to": "85bb13054fe0993358cd48dec8b3f433e44724b6687f0971087f622455e3ebbf",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--closed.dark.png",
+      "from": "ca8312e22eb32d365dbdfa182541a6881d3c2342914a56f4e78a4c200aa9164f",
+      "to": "6fc5dde0ca01b624d6fb68bd7f0429de73d434becbb5857b695872d13ff931f5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--closed.light.png",
+      "from": "b30be16e8ce9e087d31bf86c6f3ff6e3c709366d06835a3b7bca27f8c8f33acd",
+      "to": "d5e06d6283a8a319281af1f47fe6804be3826ad199dc952afd6d1a8e7544c62e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--communities.dark.png",
+      "from": "154f43e52e6ec1e61f4dea45e77f6ca6fc38dcc8d74713cff8a8e8293d41fabd",
+      "to": "7281d6d2d05fc5d7aba524d5cbfcd16414a4e65c6b66de73b7e250efd2bb28a4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--communities.light.png",
+      "from": "d751628ebd865dee1834ee76023cb8e733064536f570791abc86bd0d7c82194d",
+      "to": "015664c9f4af5a70c051dc476283199ccdc2d10dac9ecf68d3e85765c13ba99b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--edges.dark.png",
+      "from": "462ad390bc07dee1f050d324221e7a443b70ca7db49c971253d117463a854397",
+      "to": "5e95d3375387aea16a453fa6b079e9c9c16f3d38a05ca56b93a4ff46d141818e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--edges.light.png",
+      "from": "2dfe29fa2eaff1016af3a2bc49db827c967b3204cc7467cb34295c2ab8b9d50d",
+      "to": "d4ad702897e597fda9bfba8467bd42b9d60f294ee59856eef3d51b8272d4cdac",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.dark.png",
+      "from": "a198e58f89d311758037e9f4fe88b5717e241dc915cb3c5a9be5eb9ca71a1851",
+      "to": "96246dd9c9878df44d0ef3c7211375d0afd770a19cfb25596f000b9c404f9938",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.light.png",
+      "from": "5d51ee00ea04b52a8a5373481aaa3f72a723353b5d7cf1adb7a950092ce94613",
+      "to": "3e8909bf1009b6640bc847223b17732fc6552079cea58d9e268f11890f1c5dd3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.dark.png",
+      "from": "bc2c3a868e2f741989d4e79828dbbb383e2ddf5afca28f44d41439e00f9f7082",
+      "to": "3d4451427eef379c34f5d8513e54c9d9995e985cf597e5e48cc3ca4b26ee5e51",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.light.png",
+      "from": "73f3d296a8e875bf3487a4e2dbeb3bad4e0a52fd2f4048f7e19d24d8e28e63d4",
+      "to": "036908bc7b408544c01bdf3f43c2ab0de11d68fac0ba2acb5dd01f1f4fc00323",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.dark.png",
+      "from": "df11c561f8daf6566d15f269f8e859f00fb06ef0251ce694bd4a7327a8bdd1f0",
+      "to": "25f139eca698f316287d25bf0d582670026864f88244b48338c7286f09d7aaed",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.light.png",
+      "from": "61ede0205bce55f621ff2b6f378d344eaf04641525e963c744ce7d5221726f87",
+      "to": "53f7bfb7fac273f83a341726a587ca681e4c6174640cb059084a6c324c6159f5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--after-louvain.dark.png",
+      "from": "c9ddac595050a1b21bfd869505590e0c24cc6d71b7b0b0482d94cabccf99e96e",
+      "to": "389ec28ed14b498a58d1259c70d2e3786e45936d8f5b4331f34e1c88f943af8f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--after-louvain.light.png",
+      "from": "ad131201207ecbc969de9d7b84e105d35470e8a492ebc8cc07a9158d6b7b7e04",
+      "to": "0792562693e9481a055f1516753fbc34730e3aaf1845a4e0a1068eaacbcbdd48",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-essentials.dark.png",
+      "from": "0752c051df4ce93c4772469df9d8541bbd6b763bee8ecb43ac812bfc831b0f35",
+      "to": "15a8183b9cac55d50f01a0d2c17f75a95c90572200ef156c59e01b4b7cd573de",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-essentials.light.png",
+      "from": "5b306537b26a86e5e54f125cedf3aaa19c09ca840d8aaa5323d5c0d7f0edcc71",
+      "to": "0959467c5a62c1ad6ebd3ab07d80c41aeefc53a9a6c33821fe5b6ef72cb3ff05",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-filtered.dark.png",
+      "from": "ee50fc46e9c03bd6e3843d7ed94fef0ebc7f233851527d59c515e7b35dcd86fe",
+      "to": "f21fd9b0bad79f85de7966321e8777829827e125350a28a4cbf9fdf89a528b49",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-filtered.light.png",
+      "from": "6b17877cd8ad009c961de4bcc1a6c8e9bcb8051cc2c68112620caae5cffb50fd",
+      "to": "0152c2c41b536f9a1566737d677e984dcd1bfd90d3f9ab83c90ed0d32db1e11c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-open.dark.png",
+      "from": "ab33b6b587c93595d2da4df587535e384ac8dbb81ae381b985e4d547f6fe897a",
+      "to": "1c6cf8ec74cd0a854ca082bd144791824c75893c064d58900b504471860a2017",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-open.light.png",
+      "from": "1bda4bb47c96404f91c3515db874dab8c36fa9b8018f59ed2fa14a776f43d663",
+      "to": "8ab7bcdda67df0dbf0a0d9ec8bff1093b8241c5c66824b6a1938f5cefa2e1f62",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-revise.dark.png",
+      "from": "d0e00c12544ed2661fc3571474620117d0566eabfe508bd5ee6b071b3aff552e",
+      "to": "d4909dbff2c7cd685beb514305775ae7e9befc7fdc2e4b0b8b4f89f2452a2562",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--analyze-revise.light.png",
+      "from": "16dd222d708f3f7c9c99d80968792a96d69f7bfca2e408f012ccd33b77f2585e",
+      "to": "148678a2eda852d307f501f8f627dc64d787837cdcb1087432046d234325b3ad",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--at-rest.dark.png",
+      "from": "d213553dc983a67cb574890100ed2f79b5c1da7a7e9e78c53cf3b1441b2976e1",
+      "to": "9c15cdfe36761180eefcf9f167c28bdb72e892cd49c937588633b072e8b60624",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--at-rest.light.png",
+      "from": "cee02fc628febf736a4e4c8a793106d522968c3b4b0fae5d52c3d15e2db7a7ed",
+      "to": "6e8e0902f86bddac73ce2ca7f90ab14da72527bedf5481f0a27f5fb207ac3925",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--layout-open.dark.png",
+      "from": "239ae008f7ca8d7b4ff2c898cb0105d04da1b42236e811b3baed9b46116f8c26",
+      "to": "043212b27d6fa588c0b5542469e638d6b178ad234d7eff97d32f88d14cddc80a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--layout-open.light.png",
+      "from": "e23d8aaa0e122e9e47fb3dd9fd3f6fe59f40e56707e0025eb104818a0417a720",
+      "to": "a697e643620118ffeb07d3373c41fa9848436545cbcd9e3677b52aca296926dd",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--legend-off.dark.png",
+      "from": "bf2878871f70f3c0e3aa8261ff460931ba8a5a94e7069da765a6f2599391eefc",
+      "to": "844b6db7133bc3088ea03bccbe3877c436f5d6a30697658a0dcfea0562a255b2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--legend-off.light.png",
+      "from": "5cef0b7fe3ac75367b6954a73d5af819862e3eab689f1c25934ea3e279e5692b",
+      "to": "7575232ca891f9b7d14333431e2a3cb949e4ca8055cd062f271909b74c6c1309",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--nothing-drawn.dark.png",
+      "from": "39a4e68b1f47991708d7b064f43e730e93a18e27ff45873fda76ac5c0d297911",
+      "to": "b10f92c10670002c10c4ed0f8e17b96c2412d28a8728a8372212ee93f13cd78d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--nothing-drawn.light.png",
+      "from": "c9e47efc78dbcec60775b73c41321cc9594e57227b7621ddeb978faca8058fb5",
+      "to": "dfcfe012bc71a4a8a6b4a585096fb55f86ede7072f6a6b3b6fd6f59659a13d8b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--quick-actions.dark.png",
+      "from": "d57b164560f784018e8af9c2d71b2d1a761a3e33051cf27286225148e3354e81",
+      "to": "848826d0aa816295913fd7965b94b34c5c86e5e07e96508fe5739f697e208beb",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--quick-actions.light.png",
+      "from": "e14bc313fd0d8b180943c16cc24923cd4aac4537b60832cb20184da93ea6d118",
+      "to": "d6a696793f0c4d74b9b38bc21e6513c6f68037925a6344f842b2af6e48f7903f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.dark.png",
+      "from": "af26658f59d30a0d5aeed80f78ed07a97587e2e4c9163a53409cf238f90988d5",
+      "to": "ebb80abb7bab5f2b01028849e9479101479f002c2b0354fa207f7c563af5b5ca",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.light.png",
+      "from": "e67a657170f3f6e9faac986c29a16b000cb804576ecec7510c07d6037a74113d",
+      "to": "93df307f2ad83476f6465e9eb22528ca1bfe62cf05ec188f990adeb395010061",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2987,
+        "commit": "fbc7f7a7581691da1346e8f413d2d71d0f1bafd7",
+        "record": "visual-baselines/reviews/20261018T035630Z-pr2987.json",
+        "reviewedAt": "2026-10-18T03:56:30.669Z"
+      }
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-20T04:57:18.702Z"
+}

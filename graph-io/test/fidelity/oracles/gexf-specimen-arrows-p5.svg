@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+    "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" >
+<svg contentScriptType="text/ecmascript" width="1166.0"
+     xmlns:xlink="http://www.w3.org/1999/xlink" zoomAndPan="magnify"
+     contentStyleType="text/css"
+     viewBox="17.000000 -883.000000 1166.000000 866.000000" height="866.0"
+     preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+     version="1.1">
+    <g id="edges">
+        <path fill="none" stroke-width="1.0"
+              d="M 62.000000,-669.000000 L 127.000000,-669.000000"
+              class="id_default-s id_default-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 174.000000,-669.000000 L 237.500000,-669.000000"
+              class="id_type-directed-s id_type-directed-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 398.000000,-669.000000 L 461.500000,-669.000000"
+              class="id_type-mutual-s id_type-mutual-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 510.000000,-669.000000 L 573.500000,-669.000000"
+              class="id_type-default-s id_type-default-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 622.000000,-669.000000 L 685.500000,-669.000000"
+              class="id_reverse-pair-s id_reverse-pair-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 690.000000,-669.000000 L 626.500000,-669.000000"
+              class="id_reverse-pair-t id_reverse-pair-s" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="0.5"
+              d="M 734.000000,-669.000000 L 800.500000,-669.000000"
+              class="id_weight-0-5-s id_weight-0-5-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="4.0"
+              d="M 846.000000,-669.000000 L 902.000000,-669.000000"
+              class="id_weight-4-s id_weight-4-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 958.000000,-669.000000 L 1013.500000,-669.000000"
+              class="id_target-size-12-s id_target-size-12-t"
+              stroke-opacity="1.0" stroke="#c8c8c8"/>
+        <path stroke-linecap="round" fill="none" class="id_self-loop-s"
+              d="M 1066.031250,-672.048401 A 2.643500,2.643500 0 1,1 1069.048462,-669.031189"
+              stroke="#c8c8c8" stroke-width="1.9499999" stroke-opacity="1.0"/>
+        <path fill="none" stroke-width="1.5"
+              d="M 62.000000,-259.000000 L 125.500000,-259.000000"
+              class="id_color-red-s id_color-red-t" stroke-opacity="1.0"
+              stroke="#c8c8c8"/>
+    </g>
+    <g id="arrows">
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_default-s id_default-t"
+                  points="130.000000,-669.000000 127.000000,-667.500000 127.000000,-670.500000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_type-directed-s id_type-directed-t"
+                  points="242.000000,-669.000000 237.500000,-666.750000 237.500000,-671.250000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_type-mutual-s id_type-mutual-t"
+                  points="466.000000,-669.000000 461.500000,-666.750000 461.500000,-671.250000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_type-default-s id_type-default-t"
+                  points="578.000000,-669.000000 573.500000,-666.750000 573.500000,-671.250000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_reverse-pair-s id_reverse-pair-t"
+                  points="690.000000,-669.000000 685.500000,-666.750000 685.500000,-671.250000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_reverse-pair-t id_reverse-pair-s"
+                  points="622.000000,-669.000000 626.500000,-671.250000 626.500000,-666.750000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_weight-0-5-s id_weight-0-5-t"
+                  points="802.000000,-669.000000 800.500000,-668.250000 800.500000,-669.750000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_weight-4-s id_weight-4-t"
+                  points="914.000000,-669.000000 902.000000,-663.000000 902.000000,-675.000000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_target-size-12-s id_target-size-12-t"
+                  points="1018.000000,-669.000000 1013.500000,-666.750000 1013.500000,-671.250000"
+                  stroke="none"/>
+        <polyline fill="#c8c8c8" fill-opacity="1.0"
+                  class="id_color-red-s id_color-red-t"
+                  points="130.000000,-259.000000 125.500000,-256.750000 125.500000,-261.250000"
+                  stroke="none"/>
+    </g>
+    <g id="nodes">
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="96.0"
+                class="id_cap-default" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="208.0"
+                class="id_cap-type-directed" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="320.0"
+                class="id_cap-type-undirected" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="432.0"
+                class="id_cap-type-mutual" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="544.0"
+                class="id_cap-type-default" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="656.0"
+                class="id_cap-reverse-pair" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="768.0"
+                class="id_cap-weight-0-5" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="880.0"
+                class="id_cap-weight-4" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="992.0"
+                class="id_cap-target-size-12" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1104.0"
+                class="id_cap-self-loop" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="96.0"
+                class="id_cap-color-red" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="1030.0"
+                class="id_target-size-12-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="1.92"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="58.0"
+                class="id_default-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="134.0"
+                class="id_default-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="170.0"
+                class="id_type-directed-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="246.0"
+                class="id_type-directed-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="282.0"
+                class="id_type-undirected-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="358.0"
+                class="id_type-undirected-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="394.0"
+                class="id_type-mutual-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="470.0"
+                class="id_type-mutual-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="506.0"
+                class="id_type-default-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="582.0"
+                class="id_type-default-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="618.0"
+                class="id_reverse-pair-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="694.0"
+                class="id_reverse-pair-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="730.0"
+                class="id_weight-0-5-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="806.0"
+                class="id_weight-0-5-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="842.0"
+                class="id_weight-4-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="918.0"
+                class="id_weight-4-t" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="954.0"
+                class="id_target-size-12-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="1066.0"
+                class="id_self-loop-s" cy="-669.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="58.0"
+                class="id_color-red-s" cy="-259.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="134.0"
+                class="id_color-red-t" cy="-259.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.64"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
+                class="id_anchor-nw" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="1180.0"
+                class="id_anchor-ne" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
+                class="id_anchor-sw" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="1180.0"
+                class="id_anchor-se" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+    </g>
+    <g id="node-labels">
+        <text font-size="8" x="96.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-default">
+            edge=unset
+        </text>
+        <text font-size="8" x="208.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-type-directed">
+            type=directed
+        </text>
+        <text font-size="8" x="320.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-type-undirected">
+            type=undirected
+        </text>
+        <text font-size="8" x="432.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-type-mutual">
+            type=mutual
+        </text>
+        <text font-size="8" x="544.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-type-default">
+            type=default (directed)
+        </text>
+        <text font-size="8" x="656.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-reverse-pair">
+            pair=a-b b-a
+        </text>
+        <text font-size="8" x="768.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-weight-0-5">
+            weight=0.5
+        </text>
+        <text font-size="8" x="880.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-weight-4">
+            weight=4
+        </text>
+        <text font-size="8" x="992.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-target-size-12">
+            target size=12
+        </text>
+        <text font-size="8" x="1104.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-self-loop">
+            loop=self
+        </text>
+        <text font-size="8" x="96.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-red">
+            rgb=255,0,0
+        </text>
+    </g>
+</svg>

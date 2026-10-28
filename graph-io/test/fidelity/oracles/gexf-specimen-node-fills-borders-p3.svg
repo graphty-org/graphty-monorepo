@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+    "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" >
+<svg contentScriptType="text/ecmascript" width="1166.0"
+     xmlns:xlink="http://www.w3.org/1999/xlink" zoomAndPan="magnify"
+     contentStyleType="text/css"
+     viewBox="17.000000 -883.000000 1166.000000 866.000000" height="866.0"
+     preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+     version="1.1">
+    <g id="nodes">
+        <circle fill-opacity="1.0" fill="#ff0000" r="16.0" cx="208.0"
+                class="id_fill-red" cy="-669.0" stroke="#7f0000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#008000" r="16.0" cx="320.0"
+                class="id_fill-green" cy="-669.0" stroke="#004000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#0000ff" r="16.0" cx="432.0"
+                class="id_fill-blue" cy="-669.0" stroke="#00007f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffff00" r="16.0" cx="544.0"
+                class="id_fill-yellow" cy="-669.0" stroke="#7f7f00"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#00ffff" r="16.0" cx="656.0"
+                class="id_fill-cyan" cy="-669.0" stroke="#007f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ff00ff" r="16.0" cx="768.0"
+                class="id_fill-magenta" cy="-669.0" stroke="#7f007f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ff8000" r="16.0" cx="880.0"
+                class="id_fill-orange" cy="-669.0" stroke="#7f4000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#800080" r="16.0" cx="992.0"
+                class="id_fill-purple" cy="-669.0" stroke="#400040"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="16.0" cx="1104.0"
+                class="id_fill-white" cy="-669.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#000000" r="16.0" cx="96.0"
+                class="id_fill-black" cy="-259.0" stroke="#000000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#808080" r="16.0" cx="208.0"
+                class="id_fill-gray" cy="-259.0" stroke="#404040"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#8b4513" r="16.0" cx="320.0"
+                class="id_fill-brown" cy="-259.0" stroke="#452209"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#e41a1c" r="16.0" cx="432.0"
+                class="id_color-hex-lower" cy="-259.0" stroke="#720d0e"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#377eb8" r="16.0" cx="544.0"
+                class="id_color-hex-upper" cy="-259.0" stroke="#1b3f5c"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#000f80" r="16.0" cx="656.0"
+                class="id_color-hex-short" cy="-259.0" stroke="#000740"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#af4a80" r="16.0" cx="768.0"
+                class="id_color-hex-alpha" cy="-259.0" stroke="#572540"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#000000" r="16.0" cx="880.0"
+                class="id_color-hex-nohash" cy="-259.0" stroke="#000000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#0000ff" r="16.0" cx="992.0"
+                class="id_color-rgb-a-1" cy="-259.0" stroke="#00007f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#0000ff" r="16.0" cx="1104.0"
+                class="id_color-hex-and-rgb" cy="-259.0" stroke="#00007f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="96.0"
+                class="id_cap-default" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="208.0"
+                class="id_cap-fill-red" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="320.0"
+                class="id_cap-fill-green" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="432.0"
+                class="id_cap-fill-blue" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="544.0"
+                class="id_cap-fill-yellow" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="656.0"
+                class="id_cap-fill-cyan" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="768.0"
+                class="id_cap-fill-magenta" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="880.0"
+                class="id_cap-fill-orange" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="992.0"
+                class="id_cap-fill-purple" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="1104.0"
+                class="id_cap-fill-white" cy="-629.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="96.0"
+                class="id_cap-fill-black" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="208.0"
+                class="id_cap-fill-gray" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="320.0"
+                class="id_cap-fill-brown" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="432.0"
+                class="id_cap-color-hex-lower" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="544.0"
+                class="id_cap-color-hex-upper" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="656.0"
+                class="id_cap-color-hex-short" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="768.0"
+                class="id_cap-color-hex-alpha" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="880.0"
+                class="id_cap-color-hex-nohash" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="992.0"
+                class="id_cap-color-rgb-a-1" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.0" cx="1104.0"
+                class="id_cap-color-hex-and-rgb" cy="-219.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="1.5" cx="20.0"
+                class="id_anchor-nw" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="3.0"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="1.5" cx="1180.0"
+                class="id_anchor-ne" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="3.0"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="1.5" cx="20.0"
+                class="id_anchor-sw" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="3.0"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="1.5" cx="1180.0"
+                class="id_anchor-se" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="3.0"/>
+        <circle fill-opacity="1.0" fill="#000000" r="8.0" cx="96.0"
+                class="id_default" cy="-669.0" stroke="#000000"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+    </g>
+    <g id="node-labels">
+        <text font-size="8" x="96.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-default">
+            color=unset
+        </text>
+        <text font-size="8" x="208.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-red">
+            rgb=255,0,0
+        </text>
+        <text font-size="8" x="320.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-green">
+            rgb=0,128,0
+        </text>
+        <text font-size="8" x="432.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-blue">
+            rgb=0,0,255
+        </text>
+        <text font-size="8" x="544.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-yellow">
+            rgb=255,255,0
+        </text>
+        <text font-size="8" x="656.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-cyan">
+            rgb=0,255,255
+        </text>
+        <text font-size="8" x="768.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-magenta">
+            rgb=255,0,255
+        </text>
+        <text font-size="8" x="880.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-orange">
+            rgb=255,128,0
+        </text>
+        <text font-size="8" x="992.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-purple">
+            rgb=128,0,128
+        </text>
+        <text font-size="8" x="1104.0" y="-626.0952" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-white">
+            rgb=255,255,255
+        </text>
+        <text font-size="8" x="96.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-black">
+            rgb=0,0,0
+        </text>
+        <text font-size="8" x="208.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-gray">
+            rgb=128,128,128
+        </text>
+        <text font-size="8" x="320.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-fill-brown">
+            rgb=139,69,19
+        </text>
+        <text font-size="8" x="432.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-lower">
+            hex=#e41a1c
+        </text>
+        <text font-size="8" x="544.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-upper">
+            hex=#377EB8
+        </text>
+        <text font-size="8" x="656.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-short">
+            hex=#f80
+        </text>
+        <text font-size="8" x="768.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-alpha">
+            hex=#4daf4a80
+        </text>
+        <text font-size="8" x="880.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-nohash">
+            hex=984ea3
+        </text>
+        <text font-size="8" x="992.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-rgb-a-1">
+            rgba=0,0,255,1
+        </text>
+        <text font-size="8" x="1104.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-and-rgb">
+            rgb+hex=255,0,0+#0000ff
+        </text>
+    </g>
+</svg>

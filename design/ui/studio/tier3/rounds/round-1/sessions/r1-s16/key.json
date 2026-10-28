@@ -1,0 +1,77 @@
+{
+ "key": [
+  {
+   "title": "Shape: Louvain",
+   "text": "Shape: Louvain Box",
+   "rows": [
+    {
+     "text": "Box",
+     "color": null
+    }
+   ]
+  },
+  {
+   "title": "Color: Louvain",
+   "text": "Color: Louvain Group 1 Group 2 Group 3 Group 4 Group 5 Group 6 Group 7 Group 8 Group 9 Group 10",
+   "rows": [
+    {
+     "text": "Group 1",
+     "color": "#f3c300"
+    },
+    {
+     "text": "Group 2",
+     "color": "#875692"
+    },
+    {
+     "text": "Group 3",
+     "color": "#f38400"
+    },
+    {
+     "text": "Group 4",
+     "color": "#a1caf1"
+    },
+    {
+     "text": "Group 5",
+     "color": "#be0032"
+    },
+    {
+     "text": "Group 6",
+     "color": "#c2b280"
+    },
+    {
+     "text": "Group 7",
+     "color": "#008856"
+    },
+    {
+     "text": "Group 8",
+     "color": "#e68fac"
+    },
+    {
+     "text": "Group 9",
+     "color": "#0067a5"
+    },
+    {
+     "text": "Group 10",
+     "color": "#f99379"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#f38400": 14,
+   "#e68fac": 9,
+   "#be0032": 11,
+   "#a1caf1": 12,
+   "#c2b280": 10,
+   "#875692": 15,
+   "#f3c300": 16,
+   "#008856": 10,
+   "#0067a5": 9,
+   "#f99379": 9
+  },
+  "edges": {
+   "#a9a9a9": 613
+  }
+ }
+}

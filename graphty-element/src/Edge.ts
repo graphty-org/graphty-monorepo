@@ -4,17 +4,52 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import type { AdHocData, EdgeStyleConfig, RichTextStyleType } from "./config";
+import {
+    type AdHocData,
+    DEFAULT_SELECTION_STYLE,
+    type EdgeStyleConfig,
+    type GraphSelectionStyleConfig,
+    type RichTextStyleType,
+} from "./config";
+import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
+import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
+import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import { gradientPieceColors } from "./meshes/edgeGradient";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
+import {
+    arcThroughBend,
+    bezierThroughControls,
+    centerArc,
+    crossingOf,
+    curveThroughMidpoints,
+    cutFromEnd,
+    fanArc,
+    fanOffset,
+    fanSlot,
+    fileRoute,
+    greatCircleArc,
+    loopTeardrop,
+    parseBends,
+    parsePort,
+    pointFromEnd,
+    raisedArc,
+    roundCorners,
+    routeEnds,
+    routeOutside,
+    surfaceReach,
+    type Xyz,
+} from "./meshes/edgeRoute";
+import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { isPositive } from "./meshes/shapeOutlines";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 
@@ -53,9 +88,39 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 const ARROW_CAPTION_OFFSET = 0.3;
 
 /**
+ * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of its
+ * length: a quarter over a flat map, a tenth over a globe, where a long route's quarter would rise
+ * higher than the globe is wide.
+ */
+const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
+
+/** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
+/**
+ * How far behind the line, along the 2D camera's view (+z), an edge's outline band is drawn: far
+ * above the depth buffer's resolution there and far below anything a reader could see.
+ */
+const OUTLINE_BEHIND = 0.002;
+
+export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
+
+/**
+ * Points from a flat x, y, z list.
+ * @param flat - The coordinates.
+ * @returns The points.
+ */
+function points(flat: readonly number[]): Vector3[] {
+    return Array.from({ length: flat.length / 3 }, (_, i) => Vector3.FromArray(flat, 3 * i));
+}
+
+/**
+ * How far a selected edge's band is pushed back in depth (a material's `zOffset`, which scales
+ * with the slope, and `zOffsetUnits`, which a band facing the camera needs), so the line it marks
+ * wins every pixel they share and the band shows only beside it, as a casing.
+ */
+const HALO_DEPTH_OFFSET = 2;
+
+/**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
- *
- * TWO WAYS TO GET NOTHING, AND THEY MEAN DIFFERENT THINGS.
  *
  * Words are what switch a caption on, exactly as they switch a label on: `StylePainter` sets a
  * rich-text block's `enabled` whenever a layer writes the words that land in it, so a layer that
@@ -64,16 +129,25 @@ const ARROW_CAPTION_OFFSET = 0.3;
  * same rule `node.labelStyle` follows beside `node.label`, and it is what lets a theme carry a
  * caption's typeface for every edge while only the edges a layer names actually carry a caption.
  *
- * And a caption hangs from the cap at its end: `Edge.update` positions it against that cap's
- * mesh. An end drawn with no arrow has no mesh to hang one from, and a caption built anyway
- * would never be positioned at all -- it would be drawn at the middle of the scene, which is
- * what a reader would see rather than a missing caption.
+ * An end drawn with no arrow still carries its caption, as Graphviz draws a `taillabel` on an
+ * edge with no arrow at its tail: `placeArrowCaptions` hangs it where the line meets the node.
  * @param block - The resolved rich-text block at that end of the edge, if there is one.
- * @param cap - The arrow mesh at that end, which is null when the end is drawn with no arrow.
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
-function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | null): RichTextStyleType | undefined {
-    return cap !== null && block?.enabled === true ? block : undefined;
+function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType | undefined {
+    return drawnText(block);
+}
+
+/**
+ * Whether an edge drawn in this style draws no line: a width of 0 (#2067) with no
+ * `line.minScreenWidth` to draw it at.
+ * @param style - The style, or undefined for one not yet painted.
+ * @returns True when the line is never placed.
+ */
+function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
+    return (
+        (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !isPositive(style?.line?.minScreenWidth ?? 0)
+    );
 }
 
 /**
@@ -83,10 +157,6 @@ function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | nul
  * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
  */
 const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
-
-/** Scratch ends of one curve segment, so placing a curve allocates nothing per segment. */
-const curveFrom = new Vector3();
-const curveTo = new Vector3();
 
 /**
  * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
@@ -141,6 +211,28 @@ let writeRecord: (edge: Edge, record: AdHocData) => void;
  */
 export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
     writeRecord(edge, record);
+}
+
+/**
+ * How far a line through a node's centre runs before it leaves the node's bounding box, in the
+ * node's own (graph-root) space: the exact surface of a box, and a tight bound for any other
+ * built-in shape, all of which are built centred on their origin.
+ * @param mesh - The node's mesh.
+ * @param direction - The line's unit direction.
+ * @returns The distance from the centre to the box's surface along the line.
+ */
+function boxReach(mesh: AbstractMesh, direction: Vector3): number {
+    const { extendSize } = mesh.getBoundingInfo().boundingBox;
+    const { scaling } = mesh;
+    let reach = Infinity;
+    for (const axis of ["x", "y", "z"] as const) {
+        const along = Math.abs(direction[axis]);
+        if (along > 1e-9) {
+            reach = Math.min(reach, Math.abs(extendSize[axis] * scaling[axis]) / along);
+        }
+    }
+
+    return Number.isFinite(reach) ? reach : 0;
 }
 
 /**
@@ -231,6 +323,12 @@ export class Edge {
     /** This edge's tail cap, the same way. */
     arrowTailCap: ArrowCap | null = null;
 
+    /** The cap part-way along this edge's line pointing toward its target (`arrowMiddleHead`), the same way. */
+    arrowMiddleHeadCap: ArrowCap | null = null;
+
+    /** The cap part-way along this edge's line pointing toward its source (`arrowMiddleTail`), the same way. */
+    arrowMiddleTailCap: ArrowCap | null = null;
+
     /**
      * Never set by the element: an arrowhead is a slot in a shared batch now, not a mesh.
      * @deprecated Use {@link Edge.arrowCap}. Will be removed in graphty-element 4.0.
@@ -255,8 +353,77 @@ export class Edge {
      */
     private lineSlots: number[] = [];
 
+    /** The batch this edge's outline (`line.outline`, a band under the line) is drawn from, or null for none. */
+    private outlineBatch: EdgeLineBatch | null = null;
+
+    /** This edge's slots in {@link Edge.outlineBatch}, one per piece of its line. */
+    private outlineSlots: number[] = [];
+
+    /** The bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line, with their slots. */
+    private haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[] = [];
+
+    /**
+     * The pieces a line painted in a gradient (`line.gradient`) is drawn as, source end first:
+     * each a slot in the batch of its color, drawn over the line.
+     */
+    private gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[] = [];
+
+    /** The caption distances (`textDistance`, head then tail) the captions were last placed by. */
+    private drawnCaptionDistances: string | undefined;
+
     /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
     private lineIsCurve = false;
+
+    /** The batch this edge's selection halo is drawn from while it is selected; see `paintHalo`. */
+    private haloBatch: EdgeLineBatch | null = null;
+
+    /** Which slots of {@link Edge.haloBatch} draw the halo, as {@link Edge.lineSlots} do the line. */
+    private haloSlots: number[] = [];
+
+    /** Whether the halo follows a curve. */
+    private haloIsCurve = false;
+
+    /** What the halo was drawn from, or null when none is drawn; see `paintHalo`. */
+    private haloKey: string | null = null;
+
+    /**
+     * Whether this edge is drawn as a self-loop's teardrop or fanned out of a bundle of edges
+     * between the same two nodes: a run of slots, like a curve.
+     */
+    private bundled = false;
+
+    /** The data manager's edge set this edge was last placed against; a new one may regroup its bundle. */
+    private bundleVersion = -1;
+
+    /**
+     * The route the style stores for this edge's line: its bends (`line.bends`, flat pairs) and its
+     * ports (`line.sourcePort`, `line.targetPort`), or null for a line straight from node to node. A
+     * routed line is a run of slots like a curve.
+     */
+    private lineRoute: {
+        bends: number[] | null;
+        srcPort: [number, number] | null;
+        dstPort: [number, number] | null;
+        loop: boolean;
+    } | null = null;
+
+    /** The texts {@link Edge.lineRoute} was read from, joined. See {@link syncContent}. */
+    private drawnBends?: string;
+
+    /** The `line.fanSpacing` the edge's arc was last placed with. See {@link syncContent}. */
+    private drawnFanSpacing?: number;
+
+    /** The `line.fanned` the edge's arc was last placed with. See {@link syncContent}. */
+    private drawnFanned?: boolean;
+
+    /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
+    private drawnArcRadius?: number;
+
+    /** The `line.route` and `line.arcHeight` the edge was last placed with. See {@link syncContent}. */
+    private drawnRoute?: string;
+
+    /** The `line.nodeGap` the edge's ends were last placed with. See {@link syncContent}. */
+    private drawnNodeGap?: number;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -341,11 +508,13 @@ export class Edge {
      */
     private renderVisible = true;
 
+    /** Whether the style stack hid this edge (`edge.visible` false), which only stops drawing it. */
+    private styleHidden = false;
+
     /**
      * Whether this edge is in the session's selection.
      *
-     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected} for what is and
-     * is not drawn from it today.
+     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected}.
      */
     private selected = false;
 
@@ -367,9 +536,9 @@ export class Edge {
      * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
      *
      * Derived on every read from the graph store rather than stored, so a removal cannot leave it
-     * stale. Nothing draws with it yet -- two parallel edges still render as two
-     * coincident lines -- but a style layer can read it, and the geometry work that eventually
-     * separates parallel edges needs exactly this number.
+     * stale. The drawing fans parallel edges out by their place among every edge joining the
+     * same two nodes in EITHER direction (`DataManager.drawnBundle`), which this ordered rank is
+     * not.
      * @returns the rank, or -1 for an edge the store no longer holds
      */
     get parallelRank(): number {
@@ -420,7 +589,8 @@ export class Edge {
     }
 
     /**
-     * The points this edge's curve is drawn through, or null when its line is not a curve.
+     * The points this edge's curve -- or its line through its bends -- is drawn through, or null
+     * when its line is one straight segment.
      *
      * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
      * how far it bows, so the points are read back out of the slots: where each segment starts,
@@ -431,7 +601,7 @@ export class Edge {
         const batch = this.lineBatch;
         const last = this.lineSlots.at(-1);
 
-        if (batch === null || !this.lineIsCurve || last === undefined) {
+        if (batch === null || !(this.lineIsCurve || this.bundled) || last === undefined) {
             return null;
         }
 
@@ -478,10 +648,12 @@ export class Edge {
      * visibility is the opacity the cap is drawn at.
      * @returns One entry per cap this edge draws, head before tail.
      */
-    get drawnCaps(): { end: "arrowHead" | "arrowTail"; name: string; span: number; visibility: number }[] {
-        const caps: { end: "arrowHead" | "arrowTail"; cap: ArrowCap | null }[] = [
+    get drawnCaps(): { end: EdgeCapEnd; name: string; span: number; visibility: number }[] {
+        const caps: { end: EdgeCapEnd; cap: ArrowCap | null }[] = [
             { end: "arrowHead", cap: this.arrowCap },
             { end: "arrowTail", cap: this.arrowTailCap },
+            { end: "arrowMiddleHead", cap: this.arrowMiddleHeadCap },
+            { end: "arrowMiddleTail", cap: this.arrowMiddleTailCap },
         ];
 
         return caps.flatMap(({ end, cap }) =>
@@ -548,14 +720,16 @@ export class Edge {
         this.srcNode = srcNode;
         this.dstNode = dstNode;
 
-        // create ray for direction / intercept finding
-        // Ray constructor expects (origin, direction), not (origin, destination)
-        this.ray = new Ray(this.srcNode.mesh.position, this.dstNode.mesh.position.subtract(this.srcNode.mesh.position));
+        // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
+        // the search writes into them.
+        this.ray = new Ray(
+            this.srcNode.mesh.position.clone(),
+            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+        );
 
         this.meshKey = paint.meshKey;
 
-        // create ngraph link
-        // TODO: Edge is added to layout engine by DataManager, not here
+        // The layout engine gets this edge from DataManager, not from here.
 
         // create mesh
         const { style } = paint;
@@ -570,7 +744,10 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowHead?.size,
+                breadth: style.arrowHead?.width,
+                side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
+                image: style.arrowHead?.image,
             },
             this.context.getScene(),
         );
@@ -584,10 +761,15 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowTail?.size,
+                breadth: style.arrowTail?.width,
+                side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
+                image: style.arrowTail?.image,
             },
             this.context.getScene(),
         );
+
+        this.createMidCaps(paint.meshKey, style);
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
@@ -630,10 +812,11 @@ export class Edge {
      */
     update(): void {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
-        // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
-        // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the style branch below would take a brand new
-        // slot (or build a patterned line) for an edge nobody owns.
+        // LAYOUT ENGINE's edge list every frame. DataManager.clear() takes a dropped dataset's
+        // edges out of the engine before disposing them (#121), but DataManager.dispose() does
+        // not, so this method can still be called on an edge whose dataset is gone. Without this
+        // guard the style branch below would take a brand new slot (or build a patterned line)
+        // for an edge nobody owns.
         if (this.disposed) {
             return;
         }
@@ -642,7 +825,7 @@ export class Edge {
         // below from putting an arrowhead back on screen for an edge the mask has taken off it:
         // placing a cap IS showing it -- the collapsed matrix the mask wrote is overwritten by
         // the placement -- and those branches run on any frame an endpoint moves.
-        if (!this.renderVisible) {
+        if (!this.isRenderVisible()) {
             return;
         }
 
@@ -657,10 +840,14 @@ export class Edge {
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
+        // An edge added beside this one, or taken away, fans this one out or back in.
+        const { edgeVersion } = this.context.getDataManager();
 
-        if (!srcMoved && !dstMoved) {
+        if (!srcMoved && !dstMoved && edgeVersion === this.bundleVersion) {
             return;
         }
+
+        this.bundleVersion = edgeVersion;
 
         this.context.getStatsManager().startMeasurement("Edge.update");
 
@@ -670,45 +857,134 @@ export class Edge {
             return;
         }
 
-        const { srcPoint, dstPoint } = this.transformArrowCap();
-        const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
-        const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
-
-        this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
+        const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
+        const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
+        const bent = this.placeLine(src, dst);
 
         // Update label position if exists
         if (this.label) {
-            const midPoint = new Vector3(
-                (lnk.src.x + lnk.dst.x) / 2,
-                (lnk.src.y + lnk.dst.y) / 2,
-                ((lnk.src.z ?? 0) + (lnk.dst.z ?? 0)) / 2,
-            );
+            const midPoint =
+                (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
-        // Update arrow head caption position if exists
-        if (this.arrowHeadText && this.arrowCap) {
-            this.arrowHeadText.attachTo(
-                this.arrowCap.position,
-                this._arrowHeadTextAttachPosition,
-                this._arrowHeadTextOffset,
-            );
-        }
-
-        // Update arrow tail caption position if exists
-        if (this.arrowTailText && this.arrowTailCap) {
-            this.arrowTailText.attachTo(
-                this.arrowTailCap.position,
-                this._arrowTailTextAttachPosition,
-                this._arrowTailTextOffset,
-            );
-        }
+        this.placeArrowCaptions(src, dst);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
 
         this.context.getStatsManager().endMeasurement("Edge.update");
+    }
+
+    /**
+     * Lay the edge's line between its ends: along its bends, along its bundle's route (a fanned
+     * arc or a self-loop), or straight with its arrow caps.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @returns Whether the line was laid along its bends.
+     */
+    private placeLine(src: Vector3, dst: Vector3): boolean {
+        const drawsLine = this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
+        const bent =
+            drawsLine && this.lineBatch !== null && this.lineRoute !== null && this.placeBent(this.lineBatch, src, dst);
+        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
+        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
+        if (!bent && !this.bundled) {
+            const { srcPoint, dstPoint } = this.transformArrowCap();
+            // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
+            // lays its strokes from the node's outline, so its turns fall where the program's do.
+            const surface =
+                srcPoint === null && this.mesh instanceof PatternedLineMesh && this.mesh.wave !== undefined
+                    ? this.getInterceptPoints()
+                    : null;
+            this.transformEdgeMesh(
+                srcPoint ?? surface?.srcPoint ?? this.groupEnd(this.srcNode, src, dst),
+                dstPoint ?? surface?.dstPoint ?? this.groupEnd(this.dstNode, dst, src),
+            );
+        }
+
+        return bent;
+    }
+
+    /**
+     * Where a line with no cap at an end starts from that end's node: its center, which the opaque
+     * node hides, or, for a group drawn as a region behind its members and edges, the region's
+     * outline, which is where Cytoscape.js and yEd end an edge to a compound node.
+     * @param node - The end's node.
+     * @param centre - Its center.
+     * @param toward - The other end's center.
+     * @returns The point.
+     */
+    private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
+        if (!node.isDrawnAsGroup) {
+            return centre;
+        }
+
+        // The region is a thin plate: the line leaves it through its outline across the view, never through its
+        // face, so the crossing is found in the plane and the line's depth carried along to it.
+        const across = Math.hypot(toward.x - centre.x, toward.y - centre.y);
+        const edge = this.leaveNode(node, centre, new Vector3(toward.x, toward.y, centre.z));
+        const reached = Math.hypot(edge.x - centre.x, edge.y - centre.y);
+        edge.z = across > 0 ? centre.z + ((toward.z - centre.z) * reached) / across : centre.z;
+        return edge;
+    }
+
+    /**
+     * Put each end's caption, if it has one, beside the arrow cap where the cap now sits, or, at an
+     * end drawn with no arrow, where the line leaves the node.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     */
+    private placeArrowCaptions(src: Vector3, dst: Vector3): void {
+        // ponytail: a capless end is found along the straight line between the centers, not along a bent route
+        const style = this.currentStyle;
+        if (this.arrowHeadText) {
+            const along = this.captionOnLine(style.arrowHead, this.dstNode, dst, src);
+            this.arrowHeadText.attachTo(
+                along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
+                along?.attachPosition ?? this._arrowHeadTextAttachPosition,
+                along?.offset ?? this._arrowHeadTextOffset,
+            );
+        }
+
+        if (this.arrowTailText) {
+            const along = this.captionOnLine(style.arrowTail, this.srcNode, src, dst);
+            this.arrowTailText.attachTo(
+                along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
+                along?.attachPosition ?? this._arrowTailTextAttachPosition,
+                along?.offset ?? this._arrowTailTextOffset,
+            );
+        }
+    }
+
+    /**
+     * Where an end's caption sits when its style gives `textDistance`: centered on the line, that far
+     * along it from where it leaves the end's node (Cytoscape.js draws its source and target labels
+     * so). Null without one, for the caption to hang beside the cap as before.
+     * @param arrow - The end's arrow block.
+     * @param node - The end's node.
+     * @param centre - That node's center.
+     * @param other - The other node's center.
+     * @returns The point, where the caption hangs from it and how far, or null.
+     */
+    private captionOnLine(
+        arrow: EdgeStyleConfig["arrowHead"],
+        node: Node,
+        centre: Vector3,
+        other: Vector3,
+    ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {
+        const distance = arrow?.textDistance;
+        if (distance === undefined) {
+            return null;
+        }
+
+        const start = this.leaveNode(node, centre, other);
+        const toward = other.subtract(centre);
+        const length = toward.length();
+        const at = length > 0 ? start.add(toward.scale(distance / length)) : start;
+
+        return { at, attachPosition: "center", offset: 0 };
     }
 
     /**
@@ -727,7 +1003,7 @@ export class Edge {
         const paint = this.currentPaint();
 
         this.sessionPaint = paint;
-        this.paintFrom(paint.meshKey, paint.style);
+        this.paintMarked(paint);
     }
 
     /**
@@ -754,7 +1030,100 @@ export class Edge {
         }
 
         this.sessionPaint = paint;
+        this.paintMarked(paint);
+    }
+
+    /**
+     * Draw a paint, with the selection halo over it when this edge is selected.
+     *
+     * The line keeps its own paint, as a selected node keeps its own: like a node's halo the mark
+     * is drawn from the selection mask, never from a layer (see `GraphSelectionStyle`).
+     * @param paint - The paint the style stack resolved.
+     */
+    private paintMarked(paint: EdgePaint): void {
         this.paintFrom(paint.meshKey, paint.style);
+        this.paintHalo(paint.style);
+
+        const hidden = paint.style.visible === false;
+        if (hidden !== this.styleHidden) {
+            this.styleHidden = hidden;
+            this.applyRenderState();
+        }
+    }
+
+    /**
+     * Draw, move or drop the band of the configured edge selection colour, at the configured
+     * opacity, along this edge's line: the edge's halo.
+     *
+     * THE SELECTION STYLE'S THREE EDGE SETTINGS (`edgeColor`, `edgeScale`, `edgeOpacity`). The
+     * band is `edgeScale` times twice the line's width and is drawn BEHIND the line, pushed back
+     * in depth, so the line keeps its own paint down the middle and the band shows on both sides
+     * as a casing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
+     * beside a one-pixel line, which on a dense drawing could not be told from the grey edges.
+     * Before that it recoloured the line itself, darkened until it stood 3:1 from the canvas: on
+     * a light canvas that turned gold into a dark olive nobody had configured.
+     * @param style - The line's resolved style; the band follows its width and its curve.
+     */
+    private paintHalo(style: EdgeStyleConfig): void {
+        const { graph } = this.context.getStyles().config;
+        // A band a layer painted; else, while selected, the selection settings' band -- unless the
+        // starting rows are on, where the Selected row draws it as a style instead.
+        let selection: Pick<GraphSelectionStyleConfig, "edgeColor" | "edgeScale" | "edgeOpacity"> | null = null;
+        if (style.band?.color !== undefined) {
+            selection = {
+                edgeColor: style.band.color,
+                edgeScale: style.band.scale ?? DEFAULT_SELECTION_STYLE.edgeScale,
+                edgeOpacity: style.band.opacity ?? DEFAULT_SELECTION_STYLE.edgeOpacity,
+            };
+        } else if (this.selected && graph.startingRows !== true) {
+            selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
+        }
+        const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
+        const curve = style.line?.bezier === true;
+        const key =
+            selection === null
+                ? null
+                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(curve)}`;
+        const gone = this.haloBatch?.mesh.isDisposed() ?? true;
+
+        if (key === this.haloKey && (key === null || !gone)) {
+            return;
+        }
+
+        this.releaseHalo();
+        this.haloKey = key;
+
+        if (selection === null || key === null) {
+            return;
+        }
+
+        const { edgeColor: color, edgeOpacity: opacity } = selection;
+        this.haloBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: key, width, color },
+            { line: { type: "solid", color, opacity, width, bezier: curve } },
+            this.context.getScene(),
+        );
+        // Behind the line: the batch is the band's alone, so its material can be pushed back.
+        if (this.haloBatch?.mesh.material) {
+            this.haloBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
+            this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
+        }
+        this.haloSlots = this.haloBatch ? [this.haloBatch.acquire()] : [];
+        this.haloIsCurve = curve;
+        // The band has no place until the next update puts it on the line.
+        this.invalidatePositionCache();
+    }
+
+    /** Hand the halo's slots back to its batch, so a deselected edge draws no band. */
+    private releaseHalo(): void {
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.release(slot);
+        }
+
+        this.haloBatch = null;
+        this.haloSlots = [];
+        this.haloKey = null;
     }
 
     /**
@@ -787,7 +1156,14 @@ export class Edge {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        const sameGeometry = meshKey === this.meshKey || isEqual(style, this.drawnStyle);
+        // The bends are a `content` channel and key no mesh, but a dashed or dotted line that gains
+        // or loses its bends moves between pattern elements and a joined line in a batch
+        // (`EdgeMesh.drawsAsPattern`), which is a different mesh.
+        const wantsPattern =
+            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
+            EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode);
+        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
+        const sameGeometry = sameRoute && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
 
         if (sameGeometry && !meshDisposed) {
             this.meshKey = meshKey;
@@ -821,7 +1197,10 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowHead?.size,
+                breadth: style.arrowHead?.width,
+                side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
+                image: style.arrowHead?.image,
             },
             this.context.getScene(),
         );
@@ -839,10 +1218,15 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowTail?.size,
+                breadth: style.arrowTail?.width,
+                side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
+                image: style.arrowTail?.image,
             },
             this.context.getScene(),
         );
+
+        this.createMidCaps(meshKey, style);
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
@@ -889,12 +1273,20 @@ export class Edge {
         const drawnStyle =
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
-        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, drawnStyle, this.context.getScene());
+        this.lineBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            options,
+            drawnStyle,
+            this.context.getScene(),
+            this.srcNode === this.dstNode,
+        );
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
-            this.lineIsCurve = drawnStyle.line?.bezier === true;
+            this.readRoute(drawnStyle);
             this.lineSlots = [this.lineBatch.acquire()];
+            this.createOutline(meshKey, drawnStyle);
+            this.createGradient(meshKey, drawnStyle);
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
             // is unpickable as a whole, and the back-reference was only ever written and never
@@ -914,6 +1306,29 @@ export class Edge {
      * appearance off the screen with it.
      */
     private releaseLine(): void {
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.release(slot);
+        }
+
+        this.gradientPieces = [];
+
+        if (this.outlineBatch) {
+            for (const slot of this.outlineSlots) {
+                this.outlineBatch.release(slot);
+            }
+
+            this.outlineBatch = null;
+            this.outlineSlots = [];
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            for (const slot of slots) {
+                batch.release(slot);
+            }
+        }
+
+        this.haloBands = [];
+
         if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.release(slot);
@@ -951,7 +1366,7 @@ export class Edge {
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         let rebuilt = false;
 
-        const wantedLabel = style.label?.enabled === true ? style.label : undefined;
+        const wantedLabel = drawnText(style.label);
         const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
 
         if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {
@@ -973,7 +1388,64 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowCap);
+        if (this.syncArrowCaptions(style, rebuild)) {
+            rebuilt = true;
+        }
+
+        if (this.syncBends(style)) {
+            rebuilt = true;
+        }
+
+        // Where a caption sits along the line keys nothing either: a new distance only moves it.
+        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
+        if (distances !== this.drawnCaptionDistances) {
+            this.drawnCaptionDistances = distances;
+            rebuilt = true;
+        }
+
+        // The fan spacing keys no mesh either: a new one only moves the arc.
+        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
+            this.drawnFanSpacing = style.line?.fanSpacing;
+            rebuilt = true;
+        }
+
+        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
+            this.drawnFanned = style.line?.fanned;
+            this.drawnArcRadius = style.line?.arcRadius;
+            rebuilt = true;
+        }
+
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        if (route !== this.drawnRoute) {
+            this.drawnRoute = route;
+            rebuilt = true;
+        }
+
+        if (style.line?.nodeGap !== this.drawnNodeGap) {
+            this.drawnNodeGap = style.line?.nodeGap;
+            rebuilt = true;
+        }
+
+        if (rebuilt) {
+            this.invalidatePositionCache();
+            // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
+            if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
+                LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
+            }
+        }
+    }
+
+    /**
+     * Bring the arrow caps' captions into line with what one resolved style asks for. See
+     * {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the caps the captions sit beside have just been replaced.
+     * @returns True when a caption was rebuilt.
+     */
+    private syncArrowCaptions(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        let rebuilt = false;
+
+        const wantedHead = captionWanted(style.arrowHead?.text);
 
         if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
             this.arrowHeadText?.dispose();
@@ -990,7 +1462,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailCap);
+        const wantedTail = captionWanted(style.arrowTail?.text);
 
         if (rebuild || !isEqual(wantedTail, this.drawnArrowTailText)) {
             this.arrowTailText?.dispose();
@@ -1007,9 +1479,65 @@ export class Edge {
             rebuilt = true;
         }
 
-        if (rebuilt) {
-            this.invalidatePositionCache();
+        return rebuilt;
+    }
+
+    /**
+     * Bring the line's bends into line with what one resolved style asks for. A route is per edge
+     * and keys no mesh (`edge.bends` is a `content` channel), so a paint that changes only the
+     * bends keeps the line's slots and re-places them.
+     * @param style - The resolved style.
+     * @returns True when the bends changed.
+     */
+    private syncBends(style: EdgeStyleConfig): boolean {
+        const batch = this.lineBatch;
+        if (Edge.routeKey(style) === this.drawnBends || batch === null) {
+            return false;
         }
+
+        this.readRoute(style);
+        // A straight line is one slot: hand back the rest of a run, the band's as well as the line's
+        // (a selected edge's band followed the bends in a run of its own).
+        while (!this.lineIsCurve && this.lineSlots.length > 1) {
+            const slot = this.lineSlots.pop();
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
+        }
+        while (!this.lineIsCurve && this.haloSlots.length > 1) {
+            const slot = this.haloSlots.pop();
+            if (slot !== undefined) {
+                this.haloBatch?.release(slot);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The texts a style stores this edge's route in, joined, to tell when they change.
+     * @param style - The resolved style.
+     * @returns The key.
+     */
+    private static routeKey(style: EdgeStyleConfig): string {
+        const { line } = style;
+        return [line?.bends, line?.sourcePort, line?.targetPort, line?.bendCurve].map((t) => t ?? "").join("|");
+    }
+
+    /**
+     * Read the route a style stores for this edge's line, and whether the line is a curve.
+     * @param style - The resolved style.
+     */
+    private readRoute(style: EdgeStyleConfig): void {
+        const loop = this.srcNode === this.dstNode;
+        const bends = parseBends(style.line?.bends);
+        // a loop's ports alone say nothing about its shape: it keeps its usual loop
+        const srcPort = loop && bends === null ? null : parsePort(style.line?.sourcePort);
+        const dstPort = loop && bends === null ? null : parsePort(style.line?.targetPort);
+        this.drawnBends = Edge.routeKey(style);
+        this.lineRoute =
+            bends === null && srcPort === null && dstPort === null ? null : { bends, srcPort, dstPort, loop };
+        this.lineIsCurve = style.line?.bezier === true || this.lineRoute !== null;
     }
 
     /**
@@ -1044,6 +1572,7 @@ export class Edge {
         this.disposed = true;
 
         this.releaseLine();
+        this.releaseHalo();
 
         if (this.arrowCap && !this.arrowCap.isDisposed()) {
             this.arrowCap.dispose();
@@ -1056,6 +1585,15 @@ export class Edge {
         }
 
         this.arrowTailCap = null;
+
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+            if (cap && !cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+
+        this.arrowMiddleHeadCap = null;
+        this.arrowMiddleTailCap = null;
 
         this.label?.dispose();
         this.label = null;
@@ -1098,7 +1636,7 @@ export class Edge {
      * @returns True when it is drawn.
      */
     isRenderVisible(): boolean {
-        return this.renderVisible;
+        return this.renderVisible && !this.styleHidden;
     }
 
     /**
@@ -1131,14 +1669,7 @@ export class Edge {
     }
 
     /**
-     * Say whether this edge is selected.
-     *
-     * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
-     * ONE batch per edge style (`EdgeMesh.lineBatch` interns it under `edge-style-<id>`), so a
-     * per-edge colour or alpha is not available without giving the selected edge a mesh of its
-     * own; see the report accompanying this change for what that needs. Recording it here rather
-     * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
-     * element -- rather than a style layer -- the owner of the answer.
+     * Say whether this edge is selected, and draw it marked or plain to match (see `paintMarked`).
      * @param selected - What the selection mask says about this edge.
      * @returns True when this changed the state.
      */
@@ -1148,6 +1679,7 @@ export class Edge {
         }
 
         this.selected = selected;
+        this.updateStyle();
 
         return true;
     }
@@ -1165,23 +1697,20 @@ export class Edge {
             return;
         }
 
-        const drawn = this.renderVisible;
+        const drawn = this.isRenderVisible();
 
-        if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.setDrawn(slot, drawn);
-            }
-        } else if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.setDrawn(drawn);
-        } else if (!this.mesh.isDisposed()) {
-            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
-            // isPickable here would lose whatever the edge style asked for on the way back.
-            this.mesh.setEnabled(drawn);
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.setDrawn(slot, drawn);
         }
+
+        this.setBatchedPiecesDrawn(drawn);
+        this.setLineDrawn(drawn);
 
         if (!drawn) {
             this.arrowCap?.setDrawn(false);
             this.arrowTailCap?.setDrawn(false);
+            this.arrowMiddleHeadCap?.setDrawn(false);
+            this.arrowMiddleTailCap?.setDrawn(false);
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -1198,6 +1727,46 @@ export class Edge {
     }
 
     /**
+     * Show or hide the outline, halo and gradient pieces this edge holds in shared batches.
+     * @param drawn - Whether they are drawn.
+     */
+    private setBatchedPiecesDrawn(drawn: boolean): void {
+        if (this.outlineBatch) {
+            for (const slot of this.outlineSlots) {
+                this.outlineBatch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            for (const slot of slots) {
+                batch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.setDrawn(slot, drawn);
+        }
+    }
+
+    /**
+     * Show or hide the line itself, however it is drawn: batched slots, a patterned line or a mesh.
+     * @param drawn - Whether it is drawn.
+     */
+    private setLineDrawn(drawn: boolean): void {
+        if (this.lineBatch) {
+            for (const slot of this.lineSlots) {
+                this.lineBatch.setDrawn(slot, drawn);
+            }
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.setDrawn(drawn);
+        } else if (!this.mesh.isDisposed()) {
+            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
+            // isPickable here would lose whatever the edge style asked for on the way back.
+            this.mesh.setEnabled(drawn);
+        }
+    }
+
+    /**
      * Transforms the edge mesh to position it between source and destination points.
      * Handles different mesh types (solid, patterned, 2D, bezier).
      * @param srcPoint - The source point position
@@ -1205,20 +1774,275 @@ export class Edge {
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
         // A line of width 0 is never placed, so it stays the zero matrix it was acquired as.
-        if (this.drawnStyle?.line?.width === 0) {
+        if (drawsNoLine(this.drawnStyle)) {
             return;
         }
 
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
-            this.placeCurve(this.lineBatch, srcPoint, dstPoint);
+            const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
+            this.placeOutline(curve);
+            this.placeGradient(curve);
         } else if (this.lineBatch) {
+            // A line that was fanned out or looped holds a run: hand back all but its first slot.
+            while (this.lineSlots.length > 1) {
+                const slot = this.lineSlots.pop();
+                if (slot !== undefined) {
+                    this.lineBatch.release(slot);
+                }
+            }
+
             this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
+            this.placeOutline([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
+            this.placeGradient([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
         }
+
+        if (this.haloBatch && this.haloIsCurve) {
+            this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
+        } else if (this.haloBatch) {
+            // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
+            while (this.haloSlots.length > 1) {
+                const slot = this.haloSlots.pop();
+                if (slot !== undefined) {
+                    this.haloBatch.release(slot);
+                }
+            }
+
+            this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * How far a self-loop runs from its node's centre: the usual radius, or far enough out to
+     * clear a node too big for it -- the loop is a circle in the x-y plane, so the node's reach
+     * there is its radius when round, and its box's half-diagonal in that plane otherwise.
+     * @returns The radius.
+     */
+    private selfLoopRadius(): number {
+        const node = this.srcNode;
+        const half = node.drawnHalfExtents;
+        const reach = node.roundRadius ?? Math.hypot(half.x, half.y);
+        return Math.max(EdgeMesh.SELF_LOOP_RADIUS, reach + EdgeMesh.SELF_LOOP_CLEARANCE);
+    }
+
+    /**
+     * The route this edge takes when it is not one straight line between its nodes: a self-loop's
+     * teardrop outside its node, the arc of a curved edge fanned out of a bundle of edges between
+     * the same two nodes, or the own curve of a lone curved edge or one that does not fan
+     * (`line.fanned: false`), from one center to the other, so its
+     * ends meet the nodes and its arrow caps point along the curve there. Null for a straight
+     * edge: only an edge whose style asks for a curve (`line.bezier`) bows.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns The route, flat x, y, z, or null.
+     */
+    private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
+        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
+        if (this.srcNode === this.dstNode) {
+            return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+        }
+
+        const { route } = this;
+        if (route !== "straight") {
+            const height = this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route];
+            return route === "arc" ? raisedArc(src, dst, height) : greatCircleArc(src, dst, height);
+        }
+
+        if (!this.curved) {
+            return null;
+        }
+
+        if (count < 2 || !this.fans) {
+            const arc = this.drawnStyle?.line?.arcRadius;
+            return arc === undefined ? EdgeMesh.createBezierLine(src, dst) : centerArc(src, dst, arc);
+        }
+
+        const slot = fanSlot(
+            members.map((e) => e.fans),
+            rank,
+        );
+        const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
+        const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
+        if (offset === 0) {
+            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
+            // is outside both nodes, so the route is drawn rather than handed to the curve
+            const mid = Vector3.Center(src, dst);
+            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
+        }
+
+        const forward = first.srcNode === this.srcNode;
+        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
+     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
+     * the map could not place -- else straight.
+     * @returns The route.
+     */
+    private get route(): "straight" | "arc" | "great-circle" {
+        const asked = this.drawnStyle?.line?.route;
+        if (asked !== undefined) {
+            return asked;
+        }
+
+        // Read by shape, not by class: the layout module is not imported here.
+        const engine = this.context.getLayoutManager().layoutEngine as
+            { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame;
+        if (frame === undefined || frame === null || frame.dimensions === 2) {
+            return "straight";
+        }
+
+        // An edge to a node in the tray has no place to arc between: it goes straight.
+        if (frame.unplacedIds.has(this.srcId) || frame.unplacedIds.has(this.dstId)) {
+            return "straight";
+        }
+
+        return frame.surface === "globe" ? "great-circle" : "arc";
+    }
+
+    /**
+     * Whether this edge's style asks for a curve, which fans it out of a bundle.
+     * @returns True for a curved edge.
+     */
+    private get curved(): boolean {
+        return this.drawnStyle?.line?.bezier === true;
+    }
+
+    /**
+     * Whether this curved edge is spread apart from the other curved edges joining the same two
+     * nodes, rather than drawn as its own curve whatever they are (`line.fanned: false`).
+     * @returns True for a curved edge that fans.
+     */
+    private get fans(): boolean {
+        return this.curved && this.drawnStyle?.line?.fanned !== false;
+    }
+
+    /**
+     * How far a node's surface and border are from its center in a direction.
+     * @param node - The node.
+     * @param dir - The unit direction.
+     * @returns The distance.
+     */
+    private static reachOf(node: Node, dir: Xyz): number {
+        return (
+            surfaceReach(dir, node.drawnHalfExtents, node.roundRadius, node.shapeType === "ellipse") + node.borderReach
+        );
+    }
+
+    /**
+     * A node's radius for spacing the edges around it: its own when round, its box's half-diagonal
+     * across the view otherwise.
+     * @param node - The node.
+     * @returns The radius.
+     */
+    private static radiusOf(node: Node): number {
+        const half = node.drawnHalfExtents;
+        return node.roundRadius ?? Math.hypot(half.x, half.y);
+    }
+
+    /**
+     * A test of whether a point lies outside a node's drawn shape.
+     * @param node - The node.
+     * @param centre - The node's center.
+     * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
+     * @returns True for a point farther from the center than the node's outline in its direction.
+     */
+    private static outside(node: Node, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
+        return (x, y, z) => {
+            const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+            return (
+                d > 0 &&
+                d > gap + Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+            );
+        };
+    }
+
+    /**
+     * How far from its nodes' outlines this edge's line stops (`line.nodeGap`); none for a self-loop.
+     * @returns The gap, in scene units.
+     */
+    private get nodeGap(): number {
+        return this.srcNode === this.dstNode ? 0 : (this.drawnStyle?.line?.nodeGap ?? 0);
+    }
+
+    /**
+     * Draw this edge along a route from one node center to the other: the part outside both
+     * nodes, each end trimmed for its arrow cap along the route's own direction there.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param route - The route, flat x, y, z, from `src` to `dst`.
+     * @returns False, drawing nothing, when no part of the route is outside both nodes.
+     */
+    private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
+        const gap = this.nodeGap;
+        const outSrc = Edge.outside(this.srcNode, src, gap);
+        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const span = routeOutside(route, outSrc, outDst);
+        if (span === null) {
+            return false;
+        }
+
+        const first = Vector3.FromArray(route, 3 * span.first);
+        const last = Vector3.FromArray(route, 3 * span.last);
+        // where the route itself crosses each outline, on the curve; a line from the center toward the first point
+        // outside would cut the curve's corner and bow the rest deeper (Gephi's arcs between large nodes)
+        const cross = (i: number, to: Vector3, out: typeof outSrc): Vector3 => {
+            const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        const start =
+            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, gap);
+        const end =
+            span.last < route.length / 3 - 1
+                ? cross(span.last + 1, last, outDst)
+                : this.leaveNode(this.dstNode, dst, last, gap);
+
+        const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
+        const { arrowCap } = this;
+        // the route is cut back along itself for the head, which spans the chord from the cut to the outline, as
+        // Gephi and Cytoscape.js draw an arrowhead on a curve; a head longer than the route keeps the last segment
+        const stop = arrowCap ? this.headStop() : 0;
+        const cut = stop > 0 ? cutFromEnd(path, stop) : null;
+        const cutAt = cut === null ? null : new Vector3(cut.at.x, cut.at.y, cut.at.z);
+        if (arrowCap) {
+            this.placeArrowHead(arrowCap, end, end.subtract(cutAt ?? last).normalize(), [...path].reverse());
+        }
+
+        this.placeMidCaps(path);
+
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
+        const body =
+            cut === null || cutAt === null
+                ? [...route.slice(3 * span.first, 3 * span.last + 3), ...this.lineEndBefore(last, end).asArray()]
+                : [...path.slice(1, cut.keep + 1).flatMap((p) => p.asArray()), ...cutAt.asArray()];
+        this.placeLineRun(batch, [lineStart.x, lineStart.y, lineStart.z, ...body]);
+        return true;
+    }
+
+    /**
+     * How far back from where it meets its target the line stops for its arrow head: the head's gap off the node
+     * plus the length of line the head covers. Zero without a head, or with one drawn part-way along.
+     * @returns The distance, in scene units.
+     */
+    private headStop(): number {
+        const head = this.currentStyle.arrowHead;
+        if (!head?.type || head.type === "none" || (head.position ?? 0) > 0) {
+            return 0;
+        }
+
+        const geometry = EdgeMesh.getArrowGeometry(head.type);
+        // a 2D cap is drawn at full size (see placeArrowHead)
+        const scale = this.arrowCap?.is2D === true ? 1 : (geometry.scaleFactor ?? 1);
+        return (
+            Edge.capGap(head) + EdgeMesh.calculateArrowLength() * (head.size ?? 1) * scale * (geometry.lineStop ?? 1)
+        );
     }
 
     /**
@@ -1230,31 +2054,401 @@ export class Edge {
      * every time an endpoint moved; now the run grows or shrinks to the curve's point count and
      * each segment is a matrix write.
      * @param batch - The batch the run is in.
+     * @param slots - The run's slots, grown or shrunk in place.
      * @param srcPoint - Where the curve starts.
      * @param dstPoint - Where it ends.
+     * @returns The curve's points, which the line's outline and gradient are placed along too.
      */
-    private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
-        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
+    private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): number[] {
+        const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
+        this.placeRun(batch, slots, flat);
+        return flat;
+    }
+
+    /**
+     * Draw this edge along the route its style stores: from its source port, or from where the line
+     * leaves the source node toward the first bend outside it, through the bends, to its target port
+     * or to where it meets the target node -- each end trimmed for its arrow cap along its own
+     * segment -- with the corners rounded when the line is also curved. Bends inside a node are
+     * passed over, as a tool that clips a line at the outlines draws it. A selected edge's band
+     * follows the same run.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns False, drawing nothing, when no stored point is outside the nodes (a self-loop whose
+     *     points all lie inside its node), so the edge is drawn as it would be without a route.
+     */
+    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3): boolean {
+        const stored = this.lineRoute;
+        if (stored === null) {
+            return false;
+        }
+
+        const line = this.drawnStyle?.line;
+        const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
+        if (ring !== null) {
+            // ponytail: a ring's arrow caps are not placed; no program draws one on a ring that misses its node
+            this.placeLineRun(batch, Edge.curveThroughBends(line, ring));
+            return true;
+        }
+        const { route, sampled } = Edge.shapeBentRoute(line, through);
+        const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
+        const gap = this.nodeGap;
+        const outSrc = Edge.outside(this.srcNode, src, gap);
+        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const span = routeEnds(route, ports, outSrc, outDst);
+        if (span === null) {
+            return false;
+        }
+
+        const a = Vector3.FromArray(route, 3 * span.first);
+        const b = Vector3.FromArray(route, 3 * span.last);
+        // where the route crosses each outline, on the route (a sampled Bezier curve too), as in placeRoute
+        const cross = (i: number, to: Vector3, out: typeof outSrc): Vector3 => {
+            const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        const leave = (node: Node, centre: Vector3, i: number, to: Vector3, out: typeof outSrc): Vector3 =>
+            i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap);
+        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc);
+        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst);
+        const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
+        const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
+        const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
+
+        const path = [start, ...points(mid), end];
+        const { arrowCap } = this;
+        if (arrowCap) {
+            this.placeArrowHead(arrowCap, end, end.subtract(beforeEnd).normalize(), [...path].reverse());
+        }
+
+        this.placeMidCaps(path);
+
+        const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
+        const lineEnd = this.lineEndBefore(beforeEnd, end);
+        const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
+        this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
+        return true;
+    }
+
+    /**
+     * The route a bent line runs along before it is cut at its nodes. A Bezier curve runs from node center to node
+     * center through its bends as control points, as a program that draws its curves under its nodes shows it; an
+     * arc runs through its one bend on a circle. An arc with other than one bend, or with its bend on the line
+     * between its ends, is drawn as "corners", like any other line.
+     * @param line - The line's style.
+     * @param through - The route, flat x, y, z: the source center, the bends, the target center.
+     * @returns The route, and whether it is already a sampled curve (so its corners are not rounded again).
+     */
+    private static shapeBentRoute(
+        line: EdgeStyleConfig["line"],
+        through: number[],
+    ): { route: number[]; sampled: boolean } {
+        if (line?.bezier !== true) {
+            return { route: through, sampled: false };
+        }
+
+        if (line.bendCurve === "bezier") {
+            return { route: bezierThroughControls(through), sampled: true };
+        }
+
+        const arced = line.bendCurve === "arc" ? arcThroughBend(through) : null;
+        return arced === null ? { route: through, sampled: false } : { route: arced, sampled: true };
+    }
+
+    /**
+     * A self-loop's route that is a closed ring meeting its node nowhere -- its bends start and end at one point and
+     * every one lies outside the node -- as vis-network draws a self-loop whose circle holds the whole node: the ring
+     * alone, with no line from the node out to it. An open route, whose ends a program runs back into the node
+     * (Cytoscape.js's loop spline), keeps its legs.
+     * @param through - The route, flat x, y, z: the node's center, the bends, the center again.
+     * @param outside - Whether a point is outside the node.
+     * @returns The ring's points, flat, or null for any other route.
+     */
+    private static detachedRing(
+        through: readonly number[],
+        outside: (x: number, y: number, z: number) => boolean,
+    ): number[] | null {
+        const ring = through.slice(3, -3);
+        const n = ring.length / 3;
+        if (n < 4) {
+            return null;
+        }
+
+        const gap = Math.hypot(ring[0] - ring[3 * n - 3], ring[1] - ring[3 * n - 2], ring[2] - ring[3 * n - 1]);
+        const span = Math.hypot(ring[0] - ring[3], ring[1] - ring[4], ring[2] - ring[5]);
+        if (gap > 1e-6 * Math.max(span, 1e-9)) {
+            return null;
+        }
+
+        for (let i = 0; i < n; i++) {
+            if (!outside(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2])) {
+                return null;
+            }
+        }
+
+        return ring;
+    }
+
+    /**
+     * A line through its bends as its style draws it: straight segments, or a curve when the line is curved, with
+     * its corners rounded or through the segments' midpoints (`line.bendCurve`; a "bezier" curve is sampled before).
+     * @param line - The line's style.
+     * @param flat - The line's points, flat x, y, z, ends included.
+     * @returns The points it is drawn through.
+     */
+    private static curveThroughBends(line: EdgeStyleConfig["line"], flat: number[]): number[] {
+        if (line?.bezier !== true) {
+            return flat;
+        }
+
+        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat) : roundCorners(flat);
+    }
+
+    /**
+     * Where a segment from a node's center toward a point crosses the node's surface and border.
+     * @param node - The node.
+     * @param centre - Its center.
+     * @param toward - The point the segment runs to.
+     * @param gap - How far past the outline the line stops (`line.nodeGap`).
+     * @returns The crossing, or the center when the point is the center.
+     */
+    private leaveNode(node: Node, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
+        const dir = toward.subtract(centre);
+        const span = dir.length();
+        if (span === 0) {
+            return centre.clone();
+        }
+
+        dir.scaleInPlace(1 / span);
+        const reach = Edge.reachOf(node, dir) + gap;
+
+        return centre.add(dir.scale(Math.min(reach, span)));
+    }
+
+    /**
+     * Draw a run of straight segments, one slot each, through points.
+     * @param batch - The batch the run is in.
+     * @param slots - The run's slots, grown or shrunk in place.
+     * @param flat - The points, flat x, y, z.
+     */
+    private placeRun(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
+        Edge.placeBand(batch, slots, flat);
+    }
+
+    /**
+     * Lay this edge's line along points, and everything drawn along the line with it: its run of
+     * slots, the selection band, the outline, the underlay and overlay bands and the gradient's
+     * pieces.
+     * @param batch - The line's batch.
+     * @param flat - The points, flat x, y, z.
+     */
+    private placeLineRun(batch: EdgeLineBatch, flat: readonly number[]): void {
+        this.placeRun(batch, this.lineSlots, flat);
+        if (this.haloBatch) {
+            this.placeRun(this.haloBatch, this.haloSlots, flat);
+        }
+
+        this.placeOutline(flat);
+        this.placeGradient(flat);
+    }
+
+    /**
+     * The colors this edge's line is drawn in when it is painted in a gradient, one per piece from
+     * its source end to its target end, and none otherwise.
+     * @returns The pieces' colors, `#rrggbb`.
+     * @internal
+     */
+    get drawnGradient(): readonly string[] {
+        return this.gradientPieces.map((p) => p.color);
+    }
+
+    /**
+     * Build the pieces a line painted in a gradient is drawn as (`line.gradient`): one slot per piece in the batch of
+     * the gradient's color at its middle, as wide as the line and, in 2D, a hair in front of it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createGradient(meshKey: string, style: EdgeStyleConfig): void {
+        const colors = gradientPieceColors(style.line?.gradient);
+        if (colors === null || this.lineBatch === null) {
+            return;
+        }
+
+        const scene = this.context.getScene();
+        const solid = { ...style, line: { ...style.line, type: "solid" as const, animationSpeed: 0 } };
+        for (const color of colors) {
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                {
+                    styleId: `${meshKey}-gradient-${color}`,
+                    width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                    color,
+                },
+                solid,
+                scene,
+                this.srcNode === this.dstNode,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D the pieces and the line are drawn at the same depth, so the line may show through
+            if (this.context.is2D()) {
+                batch.mesh.position.z = -OUTLINE_BEHIND;
+            }
+
+            this.gradientPieces.push({ batch, slot: batch.acquire(), color });
+        }
+    }
+
+    /**
+     * Lay the gradient's pieces along the line's points, each an equal share of its length.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeGradient(flat: readonly number[]): void {
+        const n = this.gradientPieces.length;
+        if (n === 0 || flat.length < 6) {
+            return;
+        }
+
+        const pts = points(flat);
+        const lengths = [0];
+        for (let i = 1; i < pts.length; i++) {
+            lengths.push(lengths[i - 1] + Vector3.Distance(pts[i - 1], pts[i]));
+        }
+
+        const total = lengths.at(-1) ?? 0;
+        const at = (share: number): Vector3 => {
+            const want = share * total;
+            for (let i = 1; i < pts.length; i++) {
+                if (want <= lengths[i] || i === pts.length - 1) {
+                    const span = lengths[i] - lengths[i - 1];
+                    return Vector3.Lerp(pts[i - 1], pts[i], span > 0 ? (want - lengths[i - 1]) / span : 0);
+                }
+            }
+
+            return pts[0];
+        };
+        for (const [i, { batch, slot }] of this.gradientPieces.entries()) {
+            batch.place(slot, at(i / n), at((i + 1) / n));
+        }
+    }
+
+    /**
+     * Build the band drawn under this edge's line (`line.outline`: Cytoscape.js's line outline,
+     * vis-network's edge background), as slots in a batch of its own, wider than the line by the
+     * outline's width and in its color. In 2D it is drawn a hair behind the line, so the line is
+     * always on top of it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createOutline(meshKey: string, style: EdgeStyleConfig): void {
+        this.createHaloBands(meshKey, style);
+        const outline = style.line?.outline;
+        const extra = outline?.width ?? 0;
+        const opacity = outline?.opacity ?? 1;
+        if (extra <= 0 || opacity <= 0 || this.lineBatch === null) {
+            return;
+        }
+
+        const scene = this.context.getScene();
+        this.outlineBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            {
+                styleId: `${meshKey}-outline`,
+                width: (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) + extra,
+                color: outline?.color ?? "#000000",
+            },
+            { ...style, line: { ...style.line, type: outline?.type ?? "solid", opacity, animationSpeed: 0 } },
+            scene,
+            this.srcNode === this.dstNode,
+        );
+        if (this.outlineBatch === null) {
+            return;
+        }
+
+        this.outlineSlots = [this.outlineBatch.acquire()];
+        // ponytail: in 3D the band and the line are drawn at the same depth, so either may show where they overlap
+        if (this.context.is2D()) {
+            this.outlineBatch.mesh.position.z = OUTLINE_BEHIND;
+        }
+    }
+
+    /**
+     * Lay this edge's outline along the same points as its line, one slot per piece.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeOutline(flat: readonly number[]): void {
+        for (const { batch, slots } of this.haloBands) {
+            Edge.placeBand(batch, slots, flat);
+        }
+
+        if (this.outlineBatch !== null) {
+            Edge.placeBand(this.outlineBatch, this.outlineSlots, flat);
+        }
+    }
+
+    /**
+     * Lay one band along a line's points, one slot per piece, growing or shrinking its run of slots.
+     * @param batch - The band's batch.
+     * @param slots - Its slots, changed in place.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
         // slot goes, which must not happen in the middle of re-sizing a run.
-        while (this.lineSlots.length < segments) {
-            this.lineSlots.push(batch.acquire());
+        while (slots.length < segments) {
+            slots.push(batch.acquire());
         }
 
-        while (this.lineSlots.length > Math.max(1, segments)) {
-            const slot = this.lineSlots.pop();
-
+        while (slots.length > Math.max(1, segments)) {
+            const slot = slots.pop();
             if (slot !== undefined) {
                 batch.release(slot);
             }
         }
 
-        for (let i = 0; i < this.lineSlots.length; i++) {
-            curveFrom.fromArray(flat, i * 3);
-            curveTo.fromArray(flat, i * 3 + 3);
-            batch.place(this.lineSlots[i], curveFrom, curveTo);
+        batch.placeRun(slots, flat);
+    }
+
+    /**
+     * Build the bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line:
+     * Cytoscape.js's underlay and overlay, each twice its padding wide whatever the line's width, a
+     * hair behind or before the line in 2D.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createHaloBands(meshKey: string, style: EdgeStyleConfig): void {
+        for (const kind of ["underlay", "overlay"] as const) {
+            const halo = style.line?.[kind];
+            const opacity = halo?.opacity ?? 0;
+            const width = 2 * (halo?.padding ?? 0);
+            if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
+                continue;
+            }
+
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                { styleId: `${meshKey}-${kind}`, width, color: halo?.color ?? "#000000" },
+                { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
+                this.context.getScene(),
+                this.srcNode === this.dstNode,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D a band and the line are drawn at the same depth, so either may show where they overlap
+            if (this.context.is2D()) {
+                batch.mesh.position.z = kind === "underlay" ? OUTLINE_BEHIND : -OUTLINE_BEHIND;
+            }
+
+            this.haloBands.push({ kind, batch, slots: [batch.acquire()] });
         }
     }
 
@@ -1268,7 +2462,7 @@ export class Edge {
 
         // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
         // head, so a tail drawn with no head (type "none", or size 0, #2067) was never placed.
-        if (!arrowCap && !this.arrowTailCap) {
+        if (!arrowCap && !this.arrowTailCap && !this.arrowMiddleHeadCap && !this.arrowMiddleTailCap) {
             return {
                 srcPoint: null,
                 dstPoint: null,
@@ -1285,34 +2479,60 @@ export class Edge {
         const direction = dstPoint.subtract(srcPoint).normalize();
 
         if (arrowCap) {
-            // Use common arrow geometry functions for positioning
-            this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
-            const arrowStyle = this.currentStyle;
-            const arrowType = arrowStyle.arrowHead?.type;
-            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-            const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
-
-            // PHASE 4: Override scaleFactor for 2D arrows
-            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-            // so their scaleFactor should be 1.0, not 0.25
-            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-                geometry.scaleFactor = 1;
-            }
-
-            // Calculate arrow position using common function
-            const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
-            this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
-
-            arrowCap.place(arrowPosition, direction);
+            this.placeArrowHead(arrowCap, dstPoint, direction, [dstPoint, srcPoint]);
         }
 
-        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
+        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction, [srcPoint, dstPoint]);
+        this.placeMidCaps([srcPoint, dstPoint]);
 
         return {
             srcPoint: adjustedSrcPoint,
             dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
         };
+    }
+
+    /**
+     * Place the arrow head with its tip where the line meets the target node, or, with a
+     * position, that fraction of the way back along the line.
+     * @param arrowCap - This edge's arrow head.
+     * @param dstPoint - Where the line meets the target node's surface.
+     * @param direction - The unit direction the line arrives in.
+     * @param path - The line's points from the target end, for a head drawn part-way along it.
+     */
+    private placeArrowHead(
+        arrowCap: ArrowCap,
+        dstPoint: Vector3,
+        direction: Vector3,
+        path: readonly Vector3[] = [],
+    ): void {
+        // Use common arrow geometry functions for positioning
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
+        const arrowStyle = this.currentStyle;
+        const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
+        if (along !== null) {
+            dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+        } else {
+            dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
+        }
+
+        const arrowType = arrowStyle.arrowHead?.type;
+        const arrowSize = arrowStyle.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+        // PHASE 4: Override scaleFactor for 2D arrows
+        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+        // so their scaleFactor should be 1.0, not 0.25
+        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Calculate arrow position using common function
+        const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
+
+        arrowCap.place(arrowPosition, direction);
     }
 
     /**
@@ -1343,15 +2563,18 @@ export class Edge {
         const arrowSize = style.arrowHead?.size ?? 1;
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
 
-        // Use actual bounding sphere radii
-        const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-        const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
+        // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
+        // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
+        // (graph-root) space, the space the centres above are in.
+        const dstNodeRadius = boxReach(this.dstNode.mesh, direction);
+        const srcNodeRadius = boxReach(this.srcNode.mesh, direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
         const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
+        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)));
 
         // Use common arrow geometry functions for positioning
         const arrowType = style.arrowHead?.type;
@@ -1385,9 +2608,16 @@ export class Edge {
      * @param srcPoint - Where the line leaves the source node's surface.
      * @param dstPoint - Where the line meets the destination node's surface.
      * @param direction - The unit direction from source to destination.
-     * @returns Where the line starts: past the tail, or the source surface with no tail.
+     * @param path - The line's points from the source end, for a tail drawn part-way along it.
+     * @returns Where the line starts: past the tail, or the source surface with no tail or a tail
+     *   drawn part-way along.
      */
-    private placeArrowTail(srcPoint: Vector3, dstPoint: Vector3, direction: Vector3): Vector3 {
+    private placeArrowTail(
+        srcPoint: Vector3,
+        dstPoint: Vector3,
+        direction: Vector3,
+        path: readonly Vector3[] = [],
+    ): Vector3 {
         const { arrowTailCap } = this;
         if (!arrowTailCap) {
             return srcPoint;
@@ -1413,6 +2643,18 @@ export class Edge {
             tailGeometry.scaleFactor = 1;
         }
 
+        // A tail part-way along sits on the line, which runs on to the source node.
+        const along = pointFromEnd(path, tailStyle.arrowTail?.position ?? 0);
+        if (along !== null) {
+            const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            arrowTailCap.place(EdgeMesh.calculateArrowPosition(tip, toward, tailLength, tailGeometry), toward);
+            return srcPoint;
+        }
+
+        // a tail standing off its node: the cap and the line's start both move out along the line
+        srcPoint = srcPoint.add(tailDirection.scale(Edge.capGap(tailStyle.arrowTail)));
+
         // Calculate tail position using common function
         // For tail, we negate the direction since it points away from source
         const tailPosition = EdgeMesh.calculateArrowPosition(
@@ -1434,6 +2676,68 @@ export class Edge {
             tailLength,
             tailGeometry,
         );
+    }
+
+    /**
+     * Build the caps drawn part-way along the line (`arrowMiddleHead`, `arrowMiddleTail`), disposing any
+     * drawn before. Each is a slot in the batch every cap of its appearance shares, as the end caps are.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The resolved style.
+     */
+    private createMidCaps(meshKey: string, style: EdgeStyleConfig): void {
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+            if (cap && !cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"], suffix: string): ArrowCap | null =>
+            EdgeMesh.createArrowHead(
+                this.context.getMeshCache(),
+                `${meshKey}-${suffix}`,
+                {
+                    type: arrow?.type ?? "none",
+                    width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                    color: arrow?.color ?? style.line?.color ?? "#FFFFFF",
+                    size: arrow?.size,
+                    breadth: arrow?.width,
+                    side: arrow?.side,
+                    opacity: arrow?.opacity,
+                    image: arrow?.image,
+                },
+                this.context.getScene(),
+            );
+        this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
+        this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+    }
+
+    /**
+     * Place the caps drawn part-way along the line: the mid head with its tip `position` (unset,
+     * half) of the way back from the target end pointing toward the target, the mid tail the same
+     * from the source end pointing toward the source. The line runs on under them.
+     * @param path - The line's points, from where it leaves the source node to where it meets the target.
+     */
+    private placeMidCaps(path: readonly Vector3[]): void {
+        const style = this.currentStyle;
+        const ends: [ArrowCap | null, EdgeStyleConfig["arrowMiddleHead"], readonly Vector3[]][] = [
+            [this.arrowMiddleHeadCap, style.arrowMiddleHead, [...path].reverse()],
+            [this.arrowMiddleTailCap, style.arrowMiddleTail, path],
+        ];
+        for (const [cap, arrow, from] of ends) {
+            const along = cap === null ? null : pointFromEnd(from, arrow?.position ?? 0.5);
+            if (cap === null || along === null) {
+                continue;
+            }
+
+            const geometry = EdgeMesh.getArrowGeometry(arrow?.type ?? "normal");
+            if (cap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
+
+            const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1);
+            cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
+        }
     }
 
     /**
@@ -1489,25 +2793,62 @@ export class Edge {
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
             // graph used to do this, once a frame, whether or not the edge had moved.
-            this.ray.origin = srcMesh.position;
-            dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
-
             const frame = this.context.getScene().getFrameId();
 
             freshenWorldMatrix(srcMesh, frame);
             freshenWorldMatrix(dstMesh, frame);
 
+            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+            // meshes' world geometry, so the ray runs between their world centres; the line is
+            // drawn under graph-root, so each hit is carried back as how far along the centre
+            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+            const srcWorld = srcMesh.getAbsolutePosition();
+            const dstWorld = dstMesh.getAbsolutePosition();
+            this.ray.origin.copyFrom(srcWorld);
+            dstWorld.subtractToRef(srcWorld, this.ray.direction);
+            const worldSpan = this.ray.direction.length();
+
             const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+            // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
+            // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
+            // across its own arm; coming in from the destination, the first wall is where the line
+            // finally leaves the outline, as it is for the destination.
+            this.ray.origin.copyFrom(dstWorld);
+            srcWorld.subtractToRef(dstWorld, this.ray.direction);
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-
-            if (dstHitInfo.length && srcHitInfo.length) {
-                dstPoint = dstHitInfo[0].pickedPoint;
-                srcPoint = srcHitInfo[0].pickedPoint;
-
-                if (!srcPoint || !dstPoint) {
-                    throw new TypeError("error picking points");
+            // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
+            const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
+                const hit = hits[0]?.pickedPoint;
+                if (hit) {
+                    return Vector3.Lerp(
+                        srcMesh.position,
+                        dstMesh.position,
+                        Vector3.Distance(srcWorld, hit) / worldSpan,
+                    );
                 }
+
+                return node.shapeType === "none"
+                    ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
+                    : null;
+            };
+
+            if (worldSpan > 0) {
+                srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
+                dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
             }
+        }
+
+        if (srcPoint !== null && dstPoint !== null) {
+            this.pastBorders(srcPoint, dstPoint);
+        }
+
+        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle: the line
+        // leaves it through its outline across the view instead.
+        if (this.srcNode.isDrawnAsGroup) {
+            srcPoint = this.groupEnd(this.srcNode, srcMesh.position, dstMesh.position);
+        }
+        if (this.dstNode.isDrawnAsGroup) {
+            dstPoint = this.groupEnd(this.dstNode, dstMesh.position, srcMesh.position);
         }
 
         if (srcPoint !== null && dstPoint !== null) {
@@ -1522,6 +2863,33 @@ export class Edge {
     }
 
     /**
+     * Move the line's two ends out past the borders of the nodes they meet, so the line meets a
+     * border rather than running across it. Along the line, so at a slant it stops a little inside
+     * the border's outer edge, never outside it.
+     * @param srcPoint - Where the line leaves the source node's surface; moved in place.
+     * @param dstPoint - Where it meets the destination node's surface; moved in place.
+     */
+    private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
+        const srcReach = this.srcNode.borderReach + this.nodeGap;
+        const dstReach = this.dstNode.borderReach + this.nodeGap;
+
+        if (srcReach === 0 && dstReach === 0) {
+            return;
+        }
+
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+
+        if (span <= srcReach + dstReach) {
+            return;
+        }
+
+        direction.scaleInPlace(1 / span);
+        srcPoint.addInPlace(direction.scale(srcReach));
+        dstPoint.subtractInPlace(direction.scale(dstReach));
+    }
+
+    /**
      * Where the line stops short of the destination node's surface to leave room for the arrow
      * head, or the surface itself when there is no arrow head.
      * @param srcPoint - Where the line leaves the source node's surface.
@@ -1532,8 +2900,8 @@ export class Edge {
         const style = this.currentStyle;
         const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
 
-        if (!hasArrowHead) {
-            // No arrow head, edge goes all the way to the node surface
+        // No arrow head, or one drawn part-way along: the line goes all the way to the node surface
+        if (!hasArrowHead || (style.arrowHead?.position ?? 0) > 0) {
             return dstPoint;
         }
 
@@ -1550,7 +2918,25 @@ export class Edge {
         // Use common function to calculate line endpoint
         // Direction points FROM source TO destination (forward direction)
         const direction = dstPoint.subtract(srcPoint).normalize();
-        return EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
+        const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
+        return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+    }
+
+    /**
+     * How far off its node an end cap is drawn (`gap` times the cap's length), in scene units: 0 for no cap, no gap,
+     * or a cap drawn part-way along its line.
+     * @param arrow - The end's arrow style.
+     * @returns The distance from the node's surface to the cap's tip.
+     */
+    private static capGap(arrow: EdgeStyleConfig["arrowHead"]): number {
+        const gap = arrow?.gap ?? 0;
+        if (gap <= 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
+            return 0;
+        }
+
+        // the cap's own length: its size, except a tee's bar, which is drawn shallower than its size
+        const depth = arrow.type === "tee" ? TEE_DEPTH : 1;
+        return gap * depth * EdgeMesh.calculateArrowLength() * (arrow.size ?? 1);
     }
 
     /**

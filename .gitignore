@@ -8,6 +8,8 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+# The graphty app built into a named folder for a preview server
+graphty/dist-*/
 build/
 *.tsbuildinfo
 
@@ -29,6 +31,10 @@ build-storybook.log
 /.tmp/
 /?*/tmp/
 /?*/.tmp/
+# The design studio's scratch folder. design/ui/studio/.gitignore already ignores it for git, but
+# knip applies only the .gitignore files at or above a workspace's directory, so the root
+# workspace's test glob still found the scratch copies of app tests there.
+/design/ui/studio/tmp/
 .playwright-mcp/
 
 # IDE/Editor files
@@ -132,7 +138,7 @@ docs/graphty-element/
 docs/algorithms/
 docs/layout/
 docs/graph-io/
-docs/public/
+docs/public/graph-io/
 docs/visual-review/
 docs/cytoscape-extensions/
 
@@ -173,6 +179,7 @@ __pycache__/
 # graphty-element's bench-browser rows, appended on every run by vitest.config.ts: a log of one
 # machine's runs, not a result. The design records the numbers it cites.
 graphty-element/benchmarks/results/browser-*.jsonl
+graphty-element/test/fidelity/out/
 browser-results.json
 gpu-report.json
 
@@ -187,3 +194,9 @@ design/ui/figma/
 # The release scheduler Worker's local secrets (tools/release-scheduler/README.md)
 tools/release-scheduler/.dev.vars
 tools/release-scheduler/*.pem
+
+# Core dumps from crashed processes (core, or core.<pid>); prettier reads this file too, and refuses
+# a file over 2 GiB. A directory named core is still tracked.
+core
+!core/
+core.[0-9]*

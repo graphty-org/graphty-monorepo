@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "commit": "8d698bc3e31f4223b1faee45682579c8130549c1",
+  "tree": "e329c443f296a79be5fa8219bfa0cd344c550ae5",
+  "baselines": "visual-baselines",
+  "pr": 3321,
+  "approvedAt": "2026-10-24T05:32:35.176Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidFkxb3Q0cDZ5NTlPRmpRd3Qta3RSR25pUmo0QVdmQVVWMGxvTGxMd0VCcyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDswD_oPbROUsXZ3ZQYRCQuC94HRrm72ID25MU0VZwKiwIhAOZbcSvAo-Uzj70qLv7mBlqCgT-OjFaFH8LuqvW8-wzt"
+  }
+}

@@ -1,0 +1,377 @@
+[
+ {
+  "numberVerification": [
+   {
+    "longNumber": 281474976710655
+   }
+  ]
+ },
+ {
+  "metaData": [
+   {
+    "name": "nodes",
+    "version": "1.0",
+    "elementCount": 24
+   },
+   {
+    "name": "edges",
+    "version": "1.0",
+    "elementCount": 29
+   },
+   {
+    "name": "nodeAttributes",
+    "version": "1.0",
+    "elementCount": 0
+   },
+   {
+    "name": "networkAttributes",
+    "version": "1.0",
+    "elementCount": 1
+   },
+   {
+    "name": "cyVisualProperties",
+    "version": "1.0",
+    "elementCount": 3
+   }
+  ]
+ },
+ {
+  "nodes": [
+   {
+    "@id": 0,
+    "n": "Ligand stress receptor cycle"
+   },
+   {
+    "@id": 1,
+    "n": "Ligand ligand"
+   },
+   {
+    "@id": 2,
+    "n": "Repair assembly kinase checkpoint"
+   },
+   {
+    "@id": 3,
+    "n": "Pathway response response"
+   },
+   {
+    "@id": 4,
+    "n": "Response complex receptor cycle"
+   },
+   {
+    "@id": 5,
+    "n": "Complex factor response damage signal"
+   },
+   {
+    "@id": 6,
+    "n": "Pathway damage cycle stress"
+   },
+   {
+    "@id": 7,
+    "n": "Complex pathway"
+   },
+   {
+    "@id": 8,
+    "n": "Stress complex"
+   },
+   {
+    "@id": 9,
+    "n": "Receptor complex"
+   },
+   {
+    "@id": 10,
+    "n": "Ligand damage signal"
+   },
+   {
+    "@id": 11,
+    "n": "Assembly pathway pathway cycle"
+   },
+   {
+    "@id": 12,
+    "n": "Response cycle"
+   },
+   {
+    "@id": 13,
+    "n": "Binding checkpoint kinase cycle"
+   },
+   {
+    "@id": 14,
+    "n": "Complex receptor ligand repair factor"
+   },
+   {
+    "@id": 15,
+    "n": "Complex checkpoint receptor receptor pathway"
+   },
+   {
+    "@id": 16,
+    "n": "Kinase assembly binding"
+   },
+   {
+    "@id": 17,
+    "n": "Stress kinase kinase ligand"
+   },
+   {
+    "@id": 18,
+    "n": "Binding assembly"
+   },
+   {
+    "@id": 19,
+    "n": "Assembly signal"
+   },
+   {
+    "@id": 20,
+    "n": "Factor binding checkpoint complex binding"
+   },
+   {
+    "@id": 21,
+    "n": "Kinase protein"
+   },
+   {
+    "@id": 22,
+    "n": "Cycle complex kinase"
+   },
+   {
+    "@id": 23,
+    "n": "Pathway stress binding"
+   }
+  ]
+ },
+ {
+  "edges": [
+   {
+    "@id": 100,
+    "s": 17,
+    "t": 3,
+    "i": "cites"
+   },
+   {
+    "@id": 101,
+    "s": 13,
+    "t": 17,
+    "i": "cites"
+   },
+   {
+    "@id": 102,
+    "s": 6,
+    "t": 23,
+    "i": "cites"
+   },
+   {
+    "@id": 103,
+    "s": 12,
+    "t": 3,
+    "i": "cites"
+   },
+   {
+    "@id": 104,
+    "s": 21,
+    "t": 5,
+    "i": "cites"
+   },
+   {
+    "@id": 105,
+    "s": 21,
+    "t": 1,
+    "i": "cites"
+   },
+   {
+    "@id": 106,
+    "s": 21,
+    "t": 0,
+    "i": "cites"
+   },
+   {
+    "@id": 107,
+    "s": 20,
+    "t": 4,
+    "i": "cites"
+   },
+   {
+    "@id": 109,
+    "s": 8,
+    "t": 12,
+    "i": "cites"
+   },
+   {
+    "@id": 110,
+    "s": 11,
+    "t": 17,
+    "i": "cites"
+   },
+   {
+    "@id": 111,
+    "s": 11,
+    "t": 14,
+    "i": "cites"
+   },
+   {
+    "@id": 112,
+    "s": 20,
+    "t": 18,
+    "i": "cites"
+   },
+   {
+    "@id": 113,
+    "s": 10,
+    "t": 17,
+    "i": "cites"
+   },
+   {
+    "@id": 114,
+    "s": 7,
+    "t": 9,
+    "i": "cites"
+   },
+   {
+    "@id": 115,
+    "s": 15,
+    "t": 19,
+    "i": "cites"
+   },
+   {
+    "@id": 116,
+    "s": 19,
+    "t": 16,
+    "i": "cites"
+   },
+   {
+    "@id": 117,
+    "s": 8,
+    "t": 12,
+    "i": "cites"
+   },
+   {
+    "@id": 118,
+    "s": 20,
+    "t": 22,
+    "i": "cites"
+   },
+   {
+    "@id": 119,
+    "s": 4,
+    "t": 13,
+    "i": "cites"
+   },
+   {
+    "@id": 120,
+    "s": 23,
+    "t": 4,
+    "i": "cites"
+   },
+   {
+    "@id": 121,
+    "s": 18,
+    "t": 0,
+    "i": "cites"
+   },
+   {
+    "@id": 122,
+    "s": 12,
+    "t": 17,
+    "i": "cites"
+   },
+   {
+    "@id": 123,
+    "s": 19,
+    "t": 11,
+    "i": "cites"
+   },
+   {
+    "@id": 124,
+    "s": 15,
+    "t": 8,
+    "i": "cites"
+   },
+   {
+    "@id": 125,
+    "s": 14,
+    "t": 22,
+    "i": "cites"
+   },
+   {
+    "@id": 126,
+    "s": 3,
+    "t": 11,
+    "i": "cites"
+   },
+   {
+    "@id": 127,
+    "s": 16,
+    "t": 15,
+    "i": "cites"
+   },
+   {
+    "@id": 128,
+    "s": 13,
+    "t": 3,
+    "i": "cites"
+   },
+   {
+    "@id": 129,
+    "s": 18,
+    "t": 19,
+    "i": "cites"
+   }
+  ]
+ },
+ {
+  "nodeAttributes": []
+ },
+ {
+  "networkAttributes": [
+   {
+    "n": "name",
+    "v": "repro"
+   }
+  ]
+ },
+ {
+  "cyVisualProperties": [
+   {
+    "properties_of": "network",
+    "properties": {
+     "NETWORK_BACKGROUND_PAINT": "#FFFFFF"
+    }
+   },
+   {
+    "properties_of": "nodes:default",
+    "properties": {
+     "NODE_SHAPE": "RECTANGLE",
+     "NODE_SIZE": "40.0",
+     "NODE_WIDTH": "145.0",
+     "NODE_HEIGHT": "40.0",
+     "NODE_FILL_COLOR": "#FFFFCC",
+     "NODE_BORDER_WIDTH": "1.0",
+     "NODE_BORDER_PAINT": "#333333",
+     "NODE_LABEL_COLOR": "#000000",
+     "NODE_LABEL_FONT_SIZE": "12"
+    },
+    "dependencies": {
+     "nodeSizeLocked": "false"
+    },
+    "mappings": {
+     "NODE_LABEL": {
+      "type": "PASSTHROUGH",
+      "definition": "COL=name,T=string"
+     }
+    }
+   },
+   {
+    "properties_of": "edges:default",
+    "properties": {
+     "EDGE_WIDTH": "2.0",
+     "EDGE_STROKE_UNSELECTED_PAINT": "#848484",
+     "EDGE_TARGET_ARROW_SHAPE": "NONE",
+     "EDGE_SOURCE_ARROW_SHAPE": "NONE"
+    }
+   }
+  ]
+ },
+ {
+  "status": [
+   {
+    "error": "",
+    "success": true
+   }
+  ]
+ }
+]

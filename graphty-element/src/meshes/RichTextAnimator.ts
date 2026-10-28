@@ -1,6 +1,10 @@
 import { Color3, Mesh, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { FrameRoster } from "./FrameRoster";
+
+/** The animated labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
+export const labelAnimationFrames = new FrameRoster();
 
 export type AnimationType = "none" | "pulse" | "bounce" | "shake" | "glow" | "fill";
 
@@ -16,10 +20,12 @@ export class RichTextAnimator {
     private animationTime = 0;
     private originalPosition: Vector3 | null = null;
     private originalScale: Vector3 | null = null;
-    private sceneCallback: (() => void) | null = null;
+    /** Ends this animation's per-frame work; see {@link labelAnimationFrames}. */
+    private stopFrames: (() => void) | null = null;
     /** Ends this animation's claim on every frame of a graph drawn on demand. */
     private releaseFrames: (() => void) | null = null;
     private lastFillUpdate = 0;
+    private baseScale = 1;
 
     /**
      * Creates a new rich text animator
@@ -45,12 +51,10 @@ export class RichTextAnimator {
         this.originalPosition = mesh.position.clone();
         this.originalScale = mesh.scaling.clone();
 
-        this.sceneCallback = () => {
+        this.stopFrames = labelAnimationFrames.join(this.scene, () => {
             this.animationTime += 0.016 * this.options.animationSpeed;
             this.updateAnimation(mesh, material, progressCallback);
-        };
-
-        this.scene.registerBeforeRender(this.sceneCallback);
+        });
         this.releaseFrames = animatesEveryFrame(this.scene);
     }
 
@@ -81,9 +85,18 @@ export class RichTextAnimator {
     }
 
     private animatePulse(mesh: Mesh): void {
-        const scale = 1 + Math.sin(this.animationTime * 3) * 0.1;
+        const scale = this.baseScale * (1 + Math.sin(this.animationTime * 3) * 0.1);
         mesh.scaling.x = scale;
         mesh.scaling.y = scale;
+    }
+
+    /**
+     * The scale a pulse swells and shrinks around: 1, or what a label sized on screen is scaled
+     * to this frame.
+     * @param scale - The plane's scale at rest.
+     */
+    setBaseScale(scale: number): void {
+        this.baseScale = scale;
     }
 
     private animateBounce(mesh: Mesh): void {
@@ -141,10 +154,8 @@ export class RichTextAnimator {
      * Disposes the animator and cleans up scene callbacks
      */
     dispose(): void {
-        if (this.sceneCallback) {
-            this.scene.unregisterBeforeRender(this.sceneCallback);
-            this.sceneCallback = null;
-        }
+        this.stopFrames?.();
+        this.stopFrames = null;
 
         this.releaseFrames?.();
         this.releaseFrames = null;

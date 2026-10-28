@@ -18,13 +18,26 @@
 
 import { INVALID_INDEX } from "../constants.js";
 import { GraphFormatError } from "../errors.js";
-import { type Column, type ColumnMeta, type F32, type TypedArrayData, type U32 } from "../types/index.js";
+import {
+    type BoolColumn,
+    type Column,
+    type ColumnMeta,
+    type DictColumn,
+    type F32,
+    type JsonColumn,
+    type StringColumn,
+    type TypedArrayData,
+    type U32,
+} from "../types/index.js";
 import { type MutableColumnParts } from "../types/internal.js";
 import { bitmapClear, bitmapGet, bitmapSet, bitmapWordCount, makeBitmap } from "./bitmap.js";
 import { allocU8, columnOfValues, createColumn, partsOf } from "./column.js";
 import { AttributeTable } from "./table.js";
 
 // ============================================================ raw arrays
+
+/** A column of one of the numeric dtypes. */
+type NumericColumn = Extract<Column, { dtype: "f32" | "f64" | "i32" | "u32" | "u8" }>;
 
 /**
  * A zeroed array of the same class as `like` (a padded store for u8).
@@ -241,17 +254,12 @@ function gatheredMeta(meta: ColumnMeta, nullCount: number): ColumnMeta {
 }
 
 /**
- * Gather the rows of a column through a NEW -> OLD index map: `out[i] = column[indexMap[i]]`
- * (design section 5.11, `DerivedGraph.nodeOrigin` / `edgeOrigin`). An INVALID_INDEX entry yields an
- * unset row holding the fill (the column becomes nullable if it was not). Values of a refersTo
- * column are NOT rewritten here; compose with remapReferences() when the referenced space changed.
+ * Throw E_INDEX_RANGE at the first index-map entry outside the column (INVALID_INDEX is allowed).
  * @param column - the source column
- * @param indexMap - new index -> old index (or INVALID_INDEX for a row with no source)
- * @returns a new column of `indexMap.length` rows
+ * @param indexMap - new index -> old index or INVALID_INDEX
  */
-export function gatherColumn(column: Column, indexMap: U32): Column {
-    const { length } = indexMap;
-    for (let i = 0; i < length; i++) {
+function checkIndexMap(column: Column, indexMap: U32): void {
+    for (let i = 0; i < indexMap.length; i++) {
         const from = indexMap[i];
         if (from !== INVALID_INDEX && from >= column.length) {
             throw new GraphFormatError(
@@ -266,118 +274,215 @@ export function gatherColumn(column: Column, indexMap: U32): Column {
             );
         }
     }
-    const { validity, nullCount } = gatherValidity(column, indexMap);
-    const meta = gatheredMeta(column.meta, nullCount);
-    const parts: MutableColumnParts = {
-        ...partsOf(column),
-        meta,
-        length,
-        validity,
-        nullCount,
-    };
+}
+
+/**
+ * Gather the values of a numeric column; rows with no source hold the fill.
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @param meta - the result's metadata
+ * @returns the gathered values
+ */
+function gatherNumericData(column: NumericColumn, indexMap: U32, meta: ColumnMeta): TypedArrayData {
+    const { length } = indexMap;
+    const { components, fill } = meta;
+    const out = allocLike(column.data, length * components);
+    if (typeof fill === "number" && fill !== 0) {
+        out.fill(fill);
+    }
+    for (let i = 0; i < length; i++) {
+        const from = indexMap[i];
+        if (from === INVALID_INDEX) {
+            continue;
+        }
+        for (let k = 0; k < components; k++) {
+            out[i * components + k] = column.data[from * components + k];
+        }
+    }
+    return out;
+}
+
+/**
+ * Gather the packed bits of a bool column; rows with no source hold the fill.
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @param meta - the result's metadata
+ * @returns the gathered bitmap words
+ */
+function gatherBoolData(column: BoolColumn, indexMap: U32, meta: ColumnMeta): U32 {
+    const { length } = indexMap;
+    const out = new Uint32Array(bitmapWordCount(length)).fill(meta.fill === true ? 0xffffffff : 0);
+    for (let i = 0; i < length; i++) {
+        const from = indexMap[i];
+        if (from === INVALID_INDEX) {
+            continue;
+        }
+        if (bitmapGet(column.data, from)) {
+            bitmapSet(out, i);
+        } else {
+            bitmapClear(out, i);
+        }
+    }
+    return out;
+}
+
+/**
+ * Gather the codes of a dict column; rows with no source hold the fill's code (0 when the fill is
+ * not in the dictionary).
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @param meta - the result's metadata
+ * @returns the gathered codes
+ */
+function gatherDictCodes(column: DictColumn, indexMap: U32, meta: ColumnMeta): U32 {
+    const code = typeof meta.fill === "string" ? column.codeOf(meta.fill) : INVALID_INDEX;
+    const fillCode = code === INVALID_INDEX ? 0 : code;
+    const out = new Uint32Array(indexMap.length);
+    for (let i = 0; i < indexMap.length; i++) {
+        const from = indexMap[i];
+        out[i] = from === INVALID_INDEX ? fillCode : column.codes[from];
+    }
+    return out;
+}
+
+/**
+ * Gather the strings of a string column; rows with no source hold the fill ("" when it is not a
+ * string).
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @param meta - the result's metadata
+ * @returns the gathered strings
+ */
+function gatherStrings(column: StringColumn, indexMap: U32, meta: ColumnMeta): string[] {
+    const fillText = typeof meta.fill === "string" ? meta.fill : "";
+    const strings = new Array<string>(indexMap.length);
+    for (let i = 0; i < indexMap.length; i++) {
+        const from = indexMap[i];
+        strings[i] = from === INVALID_INDEX ? fillText : column.valueAt(from);
+    }
+    return strings;
+}
+
+/**
+ * The offsets of a gathered list column; rows with no source are empty.
+ * @param offsets - the source offsets
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @returns the new offsets, `indexMap.length + 1` long
+ */
+function gatherListOffsets(offsets: U32, indexMap: U32): U32 {
+    const newOffsets = new Uint32Array(indexMap.length + 1);
+    let total = 0;
+    for (let i = 0; i < indexMap.length; i++) {
+        const from = indexMap[i];
+        if (from !== INVALID_INDEX) {
+            total += offsets[from + 1] - offsets[from];
+        }
+        newOffsets[i + 1] = total;
+    }
+    return newOffsets;
+}
+
+/**
+ * The NEW -> OLD item map of a gathered list column: the source items of every gathered row, in order.
+ * @param offsets - the source offsets
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @param total - the gathered item count
+ * @returns new item index -> old item index
+ */
+function listItemMap(offsets: U32, indexMap: U32, total: number): U32 {
+    const itemMap = new Uint32Array(total);
+    let at = 0;
+    for (let i = 0; i < indexMap.length; i++) {
+        const from = indexMap[i];
+        if (from === INVALID_INDEX) {
+            continue;
+        }
+        for (let j = offsets[from]; j < offsets[from + 1]; j++) {
+            itemMap[at++] = j;
+        }
+    }
+    return itemMap;
+}
+
+/**
+ * Gather the values of a json column; rows with no source are undefined.
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ * @returns the gathered values
+ */
+function gatherJsonValues(column: JsonColumn, indexMap: U32): unknown[] {
+    const out = new Array<unknown>(indexMap.length);
+    for (let i = 0; i < indexMap.length; i++) {
+        const from = indexMap[i];
+        out[i] = from === INVALID_INDEX ? undefined : column.values[from];
+    }
+    return out;
+}
+
+/**
+ * Fill the dtype-specific parts of a gathered column.
+ * @param parts - the result's parts; meta, length and validity already set
+ * @param column - the source column
+ * @param indexMap - new index -> old index or INVALID_INDEX
+ */
+function gatherColumnData(parts: MutableColumnParts, column: Column, indexMap: U32): void {
+    const { meta } = parts;
     const { dtype } = column;
     switch (dtype) {
         case "f32":
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            const { components, fill } = meta;
-            const out = allocLike(column.data, length * components);
-            if (typeof fill === "number" && fill !== 0) {
-                out.fill(fill);
-            }
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                if (from === INVALID_INDEX) {
-                    continue;
-                }
-                for (let k = 0; k < components; k++) {
-                    out[i * components + k] = column.data[from * components + k];
-                }
-            }
-            parts.data = out;
-            break;
-        }
-        case "bool": {
-            const out = new Uint32Array(bitmapWordCount(length)).fill(meta.fill === true ? 0xffffffff : 0);
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                if (from === INVALID_INDEX) {
-                    continue;
-                }
-                if (bitmapGet(column.data, from)) {
-                    bitmapSet(out, i);
-                } else {
-                    bitmapClear(out, i);
-                }
-            }
-            parts.data = out;
-            break;
-        }
-        case "dict": {
-            const code = typeof meta.fill === "string" ? column.codeOf(meta.fill) : INVALID_INDEX;
-            const fillCode = code === INVALID_INDEX ? 0 : code;
-            const out = new Uint32Array(length);
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                out[i] = from === INVALID_INDEX ? fillCode : column.codes[from];
-            }
-            parts.data = out;
-            break;
-        }
-        case "string": {
-            const fillText = typeof meta.fill === "string" ? meta.fill : "";
-            const strings = new Array<string>(length);
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                strings[i] = from === INVALID_INDEX ? fillText : column.valueAt(from);
-            }
+        case "u8":
+            parts.data = gatherNumericData(column, indexMap, meta);
+            return;
+        case "bool":
+            parts.data = gatherBoolData(column, indexMap, meta);
+            return;
+        case "dict":
+            parts.data = gatherDictCodes(column, indexMap, meta);
+            return;
+        case "string":
             parts.offsets = null;
             parts.utf8 = null;
-            parts.strings = strings;
-            break;
-        }
+            parts.strings = gatherStrings(column, indexMap, meta);
+            return;
         case "list": {
-            const { offsets, child } = column;
-            const newOffsets = new Uint32Array(length + 1);
-            let total = 0;
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                if (from !== INVALID_INDEX) {
-                    total += offsets[from + 1] - offsets[from];
-                }
-                newOffsets[i + 1] = total;
-            }
-            const itemMap = new Uint32Array(total);
-            let at = 0;
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                if (from === INVALID_INDEX) {
-                    continue;
-                }
-                for (let j = offsets[from]; j < offsets[from + 1]; j++) {
-                    itemMap[at++] = j;
-                }
-            }
-            parts.offsets = newOffsets;
-            parts.child = gatherColumn(child, itemMap);
-            break;
+            const offsets = gatherListOffsets(column.offsets, indexMap);
+            parts.offsets = offsets;
+            parts.child = gatherColumn(column.child, listItemMap(column.offsets, indexMap, offsets[indexMap.length]));
+            return;
         }
-        case "json": {
-            const out = new Array<unknown>(length);
-            for (let i = 0; i < length; i++) {
-                const from = indexMap[i];
-                out[i] = from === INVALID_INDEX ? undefined : column.values[from];
-            }
-            parts.values = out;
-            break;
-        }
+        case "json":
+            parts.values = gatherJsonValues(column, indexMap);
+            return;
         default: {
             const name: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
         }
     }
+}
+
+/**
+ * Gather the rows of a column through a NEW -> OLD index map: `out[i] = column[indexMap[i]]`
+ * (design section 5.11, `DerivedGraph.nodeOrigin` / `edgeOrigin`). An INVALID_INDEX entry yields an
+ * unset row holding the fill (the column becomes nullable if it was not). Values of a refersTo
+ * column are NOT rewritten here; compose with remapReferences() when the referenced space changed.
+ * @param column - the source column
+ * @param indexMap - new index -> old index (or INVALID_INDEX for a row with no source)
+ * @returns a new column of `indexMap.length` rows
+ */
+export function gatherColumn(column: Column, indexMap: U32): Column {
+    checkIndexMap(column, indexMap);
+    const { validity, nullCount } = gatherValidity(column, indexMap);
+    const parts: MutableColumnParts = {
+        ...partsOf(column),
+        meta: gatheredMeta(column.meta, nullCount),
+        length: indexMap.length,
+        validity,
+        nullCount,
+    };
+    gatherColumnData(parts, column, indexMap);
     return createColumn(parts);
 }
 

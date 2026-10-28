@@ -161,7 +161,7 @@ describe("cm-field", () => {
     });
 });
 
-describe("dark menu and light popover primitives", () => {
+describe("menu and light popover primitives", () => {
     const menu = (
         <div className="cm-menu-surface" data-testid="menu" style={{ width: 160 }}>
             <div className="cm-menu-row" data-testid="row1">
@@ -173,10 +173,10 @@ describe("dark menu and light popover primitives", () => {
         </div>
     );
 
-    it("the menu is #1e1e1e in the light app, with the page's shadow", async () => {
+    it("the menu is #ffffff in the light app, with the page's shadow", async () => {
         const { container } = await renderThemed(menu);
         expectMeasured(part(container, "[data-testid=menu]"), {
-            backgroundColor: "#1e1e1e",
+            backgroundColor: "#ffffff",
             borderRadius: "13px",
             paddingTop: "8px",
         });
@@ -184,19 +184,84 @@ describe("dark menu and light popover primitives", () => {
         expect(shadow.includes("inset")).toBe(false);
     });
 
-    it("a row is 24 tall with a #0c8ce9 inset pill, and only one row is filled", async () => {
+    // A consumer that repaints the surface with a scheme token must get the scheme its rows
+    // resolve in: a light ground under white rows was 1.09:1 (#3057). The menu follows the page,
+    // so in the light app the ground, the border and the rows' ink all resolve light.
+    it("a token painted on the surface resolves in the rows' scheme in the light app", async () => {
+        const { container } = await renderThemed(
+            <div
+                className="cm-menu-surface"
+                data-testid="menu"
+                style={{ background: "var(--cm-bg-secondary)", border: "1px solid var(--cm-border)" }}
+            >
+                <div className="cm-menu-row" data-testid="row">
+                    <span style={{ color: "var(--cm-text)" }}>One</span>
+                </div>
+                <div className="cm-menu-surface" data-testid="sub" />
+            </div>,
+        );
+        const surface = part(container, "[data-testid=menu]");
+        expectMeasured(surface, { backgroundColor: "#f5f5f5", borderTopColor: "#e6e6e6" });
+        expectMeasured(part(container, "[data-testid=row] span"), { color: "#000000e5" });
+        for (const shadowed of [surface, part(container, "[data-testid=sub]")]) {
+            const shadow = normalize("boxShadow", getComputedStyle(shadowed).boxShadow);
+            expect(shadow.includes("inset")).toBe(false);
+            expect(shadow.split(/,\s(?![^(]*\))/)).toHaveLength(3);
+        }
+    });
+
+    it("the menu keeps the dark shadow in the dark app", async () => {
+        const { container } = await renderThemed(menu, { scheme: "dark" });
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
+        expect(shadow.includes("inset")).toBe(true);
+    });
+
+    it("AA option: the page menu's highlight is the darker brand, with white text and shortcut", async () => {
+        const { container } = await renderThemed(menu, { highContrast: true });
+        const row2 = part(container, "[data-testid=row2]");
+        expectMeasured(row2, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
+        expectMeasured(row2, { color: "#ffffff" });
+        const surface = part(container, "[data-testid=menu]");
+        expect(getComputedStyle(surface).getPropertyValue("--cm-text-onbrand-secondary").trim()).toBe("#ffffff");
+    });
+
+    it("the page menu's shortcut on the highlight is Figma's #ffffffcc by default", async () => {
+        const { container } = await renderThemed(menu);
+        const surface = part(container, "[data-testid=menu]");
+        expect(getComputedStyle(surface).getPropertyValue("--cm-text-onbrand-secondary").trim()).toBe("#ffffffcc");
+    });
+
+    it("a row is 24 tall with Figma's #0d99ff inset pill and white text, and only one row is filled", async () => {
         const { container } = await renderThemed(menu);
         const row1 = part(container, "[data-testid=row1]");
         const row2 = part(container, "[data-testid=row2]");
-        expectMeasured(row1, { height: 24, color: "#ffffff", fontSize: "11px", fontWeight: "450" });
+        expectMeasured(row1, { height: 24, color: "#000000e5", fontSize: "11px", fontWeight: "450" });
+        expectMeasured(row2, { color: "#ffffff" });
         expectMeasured(
             row2,
-            { backgroundColor: "#0c8ce9", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
+            { backgroundColor: "#0d99ff", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
             { pseudo: "::before" },
         );
         await drive(row1, "hover");
-        expectMeasured(row1, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        expectMeasured(row1, { backgroundColor: "#0d99ff", color: "#ffffff" }, { pseudo: "::before" });
+        expectMeasured(row1, { color: "#ffffff" });
         expectMeasured(row2, { backgroundColor: "#00000000" }, { pseudo: "::before" });
+        expectMeasured(row2, { color: "#000000e5" });
+    });
+
+    it("the inverse menu is Figma's: #1e1e1e, white rows and the #0c8ce9 pill in the light app", async () => {
+        const { container } = await renderThemed(
+            <div className="cm-menu-surface cm-menu-inverse" data-testid="menu">
+                <div className="cm-menu-row" aria-selected="true" data-testid="row">
+                    One
+                </div>
+            </div>,
+        );
+        expectMeasured(part(container, "[data-testid=menu]"), { backgroundColor: "#1e1e1e" });
+        expectMeasured(part(container, "[data-testid=row]"), { color: "#ffffff" });
+        expectMeasured(part(container, "[data-testid=row]"), { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
+        expect(shadow.includes("inset")).toBe(false);
     });
 
     it("the popover shell is the page's own surface", async () => {

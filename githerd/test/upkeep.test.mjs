@@ -350,6 +350,18 @@ describe("upkeepStacks", () => {
         };
     }
 
+    /**
+     * The same stack as pull request records only, for steps that never touch git (a retarget, or
+     * nothing to do): no branch is made, so the test spawns no git.
+     * @returns {{prs: any[]}} the open pull requests
+     */
+    const records = () => ({
+        prs: [
+            { number: 1, base: "master", headRef: "a", head: "a".repeat(40) },
+            { number: 2, base: "a", headRef: "b", head: "b".repeat(40) },
+        ],
+    });
+
     it("updates a child from its base's moved head with GitHub's update, parents first", async () => {
         const { prs, before } = stack();
         const fake = fakeGitHub();
@@ -368,7 +380,7 @@ describe("upkeepStacks", () => {
     });
 
     it("retargets a child whose base merged, and writes nothing in dry-run", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const open = [prs[1]];
 
         const dry = fakeGitHub();
@@ -410,7 +422,7 @@ describe("upkeepStacks", () => {
     });
 
     it("keeps going after a step that throws, and keeps the merged branch of a retarget that threw", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const fake = createFakeGh(() => httpOutput({ status: 500, body: "boom" }));
         const poll = { prs: [prs[1]], lastHeads: {}, mergedHeads: ["a"] };
         const out = await upkeepStacks(context(fake, "acting"), poll);
@@ -421,7 +433,7 @@ describe("upkeepStacks", () => {
     });
 
     it("does nothing when no base moved or merged", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const fake = fakeGitHub();
         expect(
             await upkeepStacks(context(fake, "acting"), {
@@ -469,14 +481,14 @@ describe("recoverInherited", () => {
     }
 
     /**
-     * Pushes a branch per pull request and a master fix after them.
+     * Pushes #7's branch and a master fix after it. Only #7 is ever updated, so only its head is a
+     * real commit; git never reads the others', which are placeholders.
      * @returns {{heads: Record<number, string>, tip: string}} the heads and master's new tip
      */
     function setup() {
-        const base = git(repo.root, "rev-parse", "HEAD");
         /** @type {Record<number, string>} */
-        const heads = {};
-        for (const n of [7, 8, 9, 10, 11]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        const heads = { 7: branch("b7", "master", "f7.txt", "7\n") };
+        for (const n of [8, 9, 10, 11]) heads[n] = String(n % 10).repeat(40);
         return { heads, tip: masterCommit("fix.txt", "fixed\n") };
     }
 
@@ -578,14 +590,14 @@ describe("updateDequeued", () => {
     }
 
     /**
-     * Pushes a branch per pull request and a master commit after them.
+     * Pushes #7's and #8's branches and a master commit after them. #9 is never updated, so git
+     * never reads its head, a placeholder.
      * @returns {{heads: Record<number, string>, tip: string}} the heads and master's tip
      */
     function setup() {
-        const base = git(repo.root, "rev-parse", "HEAD");
         /** @type {Record<number, string>} */
-        const heads = {};
-        for (const n of [7, 8, 9]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        const heads = { 9: "9".repeat(40) };
+        for (const n of [7, 8]) heads[n] = branch(`b${n}`, "master", `f${n}.txt`, `${n}\n`);
         return { heads, tip: masterCommit("m.txt", "m\n") };
     }
 

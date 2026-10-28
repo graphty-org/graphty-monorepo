@@ -1,60 +1,43 @@
-import {
-    Autocomplete,
-    Box,
-    DirectionProvider,
-    MultiSelect,
-    NativeSelect,
-    Select,
-    Stack,
-    TagsInput,
-    Text,
-} from "@mantine/core";
+import { Autocomplete, Box, MultiSelect, NativeSelect, Select, Stack, TagsInput, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
-import { LabelsProvider, StyleSelect } from "../../../src";
+import { FieldRow, PANEL_GRID, PanelField, ResetButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
 /**
  * A drop-down for one of a fixed set of choices: Mantine's `Select`, which the theme draws as an
- * outlined 24px trigger with a dark list that opens over it, and `StyleSelect`, this package's
- * wrapper that says whether the reader chose the value or inherited the default.
+ * outlined 24px trigger with a dark list that opens over it.
  *
  * ## When to use it
  *
  * | You have | Use |
  * |---|---|
  * | One of a fixed list, in a form or a toolbar | Mantine `Select` -- no import from this package; the theme styles it ([props on mantine.dev](https://mantine.dev/core/select/)) |
- * | One of a fixed list with a default the reader overrides | `StyleSelect` (below): `undefined` means "inherit the default", and a reset button appears once a choice is made |
- * | One of a fixed list in a dense panel row, with a glyph instead of a caption | `PanelField kind="select"` |
+ * | One of a fixed list in a dense panel row, with a glyph instead of a caption | `PanelField kind="select"` in a `FieldRow` |
+ * | One of a fixed list with a default the reader overrides | `PanelField kind="select"` showing the default, and a `ResetButton` in the row's trailing slot once a choice is made (below) |
  * | A value that may be typed OR picked from presets (a font size, a zoom) | `ComboInput` |
  * | Free text with suggestions | Mantine `Autocomplete` (opens the same dark list below the field) |
- *
- * | | Mantine `Select` | `StyleSelect` |
- * |---|---|---|
- * | What `undefined` means | nothing selected | using the default value |
- * | Reset | `clearable` empties it | a button that reports `undefined` |
- * | Options | `data` | `options` (`{ value, label }[]`) |
  *
  * ## Usage
  *
  * ```tsx
  * import { Select } from "@mantine/core";
- * import { StyleSelect } from "@graphty/compact-mantine";
+ * import { FieldRow, PanelField, ResetButton } from "@graphty/compact-mantine";
  *
  * <Select aria-label="Stroke align" data={["Center", "Inside", "Outside"]} value={align} onChange={setAlign} />
  *
  * const [shape, setShape] = useState<string | undefined>(undefined);
- * <StyleSelect label="Shape" value={shape} defaultValue="circle" options={shapes} onChange={setShape} />
+ * <FieldRow trailing={shape !== undefined && <ResetButton label="Shape" onClick={() => { setShape(undefined); }} />}>
+ *     <PanelField label="Shape" kind="select" data={shapes} value={shape ?? "circle"} onChange={(next) => { setShape(String(next)); }} />
+ * </FieldRow>
  * ```
- *
- * The props table below is `StyleSelect`'s. The Default story draws Mantine's `Select` from the
- * props the two share (`label`, `options` as `data`, `value`, `defaultValue`, `disabled`).
  *
  * ## Keyboard and accessibility
  *
@@ -63,9 +46,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *   Enter commits, Escape closes without change. Focus returns to the trigger.
  * - The trigger follows the APG select-only combobox pattern (`aria-haspopup="listbox"`,
  *   `aria-activedescendant`); options are `role="option"` with `aria-selected`.
- * - `StyleSelect` is named by its visible `label`. Its reset button is named from the
- *   `resetToDefault` label ("Reset Shape to default"), which `LabelsProvider` translates;
- *   `disabledReason` becomes the tooltip and the accessible description.
+ * - A `ResetButton` is named from the `resetToDefault` label ("Reset Shape to default"), which
+ *   `LabelsProvider` translates.
  *
  * ## Measurements
  *
@@ -75,18 +57,18 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Widths | 88 (field), 184 (body), 208 (in a popover) |
  * | List | dark surface in both schemes, radius 13px, padding 8px 0, 24px option rows |
  * | List position | over the trigger, the selected option on it, starting 8px before it |
- * | Reset (StyleSelect) | a 24px ghost icon button in the trailing slot |
+ * | Reset | a 24px ghost icon button in the row's trailing slot |
  */
-const meta: Meta<typeof StyleSelect> = {
+const meta: Meta<typeof Select> = {
     title: "Components/Inputs/Select",
-    component: StyleSelect,
+    component: Select,
     parameters: {
         layout: "padded",
     },
 };
 
 export default meta;
-type Story = StoryObj<typeof StyleSelect>;
+type Story = StoryObj<typeof Select>;
 
 const ALIGN = ["Center", "Inside", "Outside"];
 
@@ -107,22 +89,19 @@ function ownFrame(height: number): { docs: { story: { inline: false; height: str
     return { docs: { story: { inline: false, height: `${String(height)}px` } } };
 }
 
-/** A fixed width for the StyleSelect stories, the width of a panel's body. */
+/** A fixed width for the stories, the width of a panel's body. */
 const PANEL = 280;
 
-/**
- * Mantine's `Select` with the compact theme: the outlined trigger and the dark list. The
- * controls edit the props it shares with `StyleSelect`.
- */
+/** Mantine's `Select` with the compact theme: the outlined trigger and the dark list. */
 export const Default: Story = {
     args: {
         label: "Node shape",
         defaultValue: "circle",
-        options: shapeOptions,
+        data: shapeOptions,
     },
-    render: ({ label, value, defaultValue, options, disabled }) => (
+    render: (args) => (
         <Box w={PANEL}>
-            <Select label={label} data={options} value={value} defaultValue={defaultValue} disabled={disabled} />
+            <Select {...args} />
         </Box>
     ),
 };
@@ -283,11 +262,15 @@ export const Keyboard: Story = {
         await expect(trigger).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         const body = within(canvasElement.ownerDocument.body);
-        const inside = await body.findByRole("option", { name: "Inside" });
-        await waitFor(() => {
-            const t = trigger.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0;
-            return expect(Math.abs(inside.getBoundingClientRect().top - t)).toBeLessThanOrEqual(1);
-        });
+        const inside = await body.findByRole("option", { name: "Inside" }, storyWaitOptions(1000));
+        // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
+        const offset = (): number =>
+            Math.abs(
+                inside.getBoundingClientRect().top -
+                    (trigger.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0),
+            );
+        await untilPasses(() => offset() <= 1);
+        await expect(offset()).toBeLessThanOrEqual(1);
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await expect(trigger).toHaveValue("Outside");
         await expect(trigger).toHaveFocus();
@@ -301,7 +284,7 @@ export const Searchable: Story = {
     ),
 };
 
-/** `clearable`: a clear button empties the value. Compare StyleSelect's reset, which reports the default. */
+/** `clearable`: a clear button empties the value. Compare the reset below, which goes back to the default. */
 export const Clearable: Story = {
     render: () => (
         <Select
@@ -321,127 +304,58 @@ export const Native: Story = {
 };
 
 /**
- * `StyleSelect`: the first control shows its default and offers no reset; the second holds a
- * choice of the reader's own, so its reset button is offered. Pressing reset reports `undefined`.
+ * A choice with a default the reader overrides. While nothing is chosen the field shows the
+ * default and the row's trailing slot is empty; once the reader picks something a `ResetButton`
+ * appears there, and pressing it goes back to the default.
  */
 export const ResetToDefault: Story = {
-    render: () => (
-        <Stack gap="md" w={PANEL}>
-            <StyleSelect label="Node shape" defaultValue="circle" options={shapeOptions} />
-            <StyleSelect label="Edge arrow" defaultValue="circle" value="triangle" options={shapeOptions} />
-        </Stack>
-    ),
-};
-
-/**
- * `StyleSelect`'s states, light and dark side by side: showing its default (drawn like any
- * value), a choice of the reader's own with its reset, and disabled with its reason.
- */
-export const ResetToDefaultStates: Story = {
-    parameters: BOTH_SCHEMES,
-    render: () => {
-        const options = [
-            { value: "circle", label: "Circle" },
-            { value: "square", label: "Square" },
-        ];
-        return (
-            <StateGrid
-                cells={[
-                    { state: "default", node: <StyleSelect label="Shape" defaultValue="circle" options={options} /> },
-                    {
-                        state: "overridden",
-                        node: <StyleSelect label="Shape" defaultValue="circle" value="square" options={options} />,
-                    },
-                    {
-                        state: "disabled",
-                        node: (
-                            <StyleSelect
-                                label="Shape"
-                                defaultValue="circle"
-                                options={options}
-                                disabled
-                                disabledReason="Load data first"
-                            />
-                        ),
-                    },
-                ]}
-            />
-        );
-    },
-    play: ({ canvasElement }) => expectStatesApply(canvasElement),
-};
-
-/**
- * `StyleSelect` driven from the page's own state. `undefined` is the state that means "still the
- * default"; the reset button reports it back, which is how a caller learns that the reader has
- * taken their override away again.
- */
-export const Controlled: Story = {
-    render: function ControlledStory() {
+    render: function ResetToDefaultStory() {
         const [shape, setShape] = useState<string | undefined>(undefined);
 
         return (
-            <Stack gap="xs" w={PANEL}>
-                <StyleSelect
-                    label="Node shape"
-                    value={shape}
-                    defaultValue="circle"
-                    options={shapeOptions}
-                    onChange={setShape}
-                />
+            <Stack gap="xs" w={PANEL_GRID.WIDTH}>
+                <FieldRow
+                    trailing={
+                        shape !== undefined && (
+                            <ResetButton
+                                label="Node shape"
+                                onClick={() => {
+                                    setShape(undefined);
+                                }}
+                            />
+                        )
+                    }
+                >
+                    <PanelField
+                        label="Node shape"
+                        kind="select"
+                        data={shapeOptions}
+                        value={shape ?? "circle"}
+                        onChange={(next) => {
+                            setShape(String(next));
+                        }}
+                    />
+                </FieldRow>
                 <Text size="xs" c="dimmed">
                     {`value: ${shape ?? "undefined (using the default)"}`}
                 </Text>
             </Stack>
         );
     },
-};
-
-/**
- * The reset button's name comes from `LabelsProvider`, so it can be translated without touching
- * the component. The option labels are your own strings and are translated wherever they come
- * from.
- */
-export const Translated: Story = {
-    render: function TranslatedStory() {
-        return (
-            <Box w={PANEL}>
-                <LabelsProvider locale="fr-FR" labels={{ resetToDefault: (label) => `Retablir ${label}` }}>
-                    <StyleSelect
-                        label="Forme du noeud"
-                        value="triangle"
-                        defaultValue="circle"
-                        options={[
-                            { value: "circle", label: "Cercle" },
-                            { value: "square", label: "Carre" },
-                            { value: "triangle", label: "Triangle" },
-                        ]}
-                        onChange={() => undefined}
-                    />
-                </LabelsProvider>
-            </Box>
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.queryByRole("button", { name: "Reset Node shape to default" })).toBeNull();
+        await userEvent.click(canvas.getByRole("combobox", { name: "Node shape" }));
+        await userEvent.click(
+            await within(document.body).findByRole("option", { name: "Square" }, storyWaitOptions(1000)),
         );
-    },
-};
-
-/**
- * Right to left. The reset button follows the control to the other side, because the space
- * between them is written along the inline axis rather than as a left or a right margin.
- */
-export const RightToLeft: Story = {
-    render: function RightToLeftStory() {
-        return (
-            <DirectionProvider initialDirection="rtl" detectDirection={false}>
-                <Box dir="rtl" w={PANEL}>
-                    <StyleSelect
-                        label="Node shape"
-                        value="triangle"
-                        defaultValue="circle"
-                        options={shapeOptions}
-                        onChange={() => undefined}
-                    />
-                </Box>
-            </DirectionProvider>
+        const reset = await canvas.findByRole(
+            "button",
+            { name: "Reset Node shape to default" },
+            storyWaitOptions(1000),
         );
+        await userEvent.click(reset);
+        await expect(canvas.queryByRole("button", { name: "Reset Node shape to default" })).toBeNull();
+        await expect(canvas.getByText("value: undefined (using the default)")).toBeInTheDocument();
     },
 };

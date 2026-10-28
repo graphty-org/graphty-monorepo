@@ -520,17 +520,43 @@ interface Metrics {
 }
 const metrics = (m: Metrics): string => `AUC ${num(m.auc)}, best F1 ${num(m.f1Score)}`;
 
+/** How to read an algorithm's picture, beyond the line under it, for the story's description. */
+export const ALGORITHM_ABOUT: Partial<Record<string, string>> = {
+    personalizedPageRank:
+        "Every random jump returns to the blue node, so the scores measure how close each node is to it.",
+    nodeClosenessCentrality: "Closeness is one over the sum of the node's hop distances to every other node.",
+    hits: "A node is a good authority when good hubs point to it, and a good hub when it points to good authorities.",
+    kCoreDecomposition: "A node's core number k means it is in a group in which every member has k or more neighbors.",
+    stronglyConnectedComponents:
+        "In a strongly connected component, each node reaches every other one along the arrows. A node on no ring is a component of its own.",
+    condensation:
+        "Each strongly connected component becomes one node, colored when it holds 2 or more; the condensed graph never has a cycle.",
+    hasCycle:
+        "The right graph is the left one with one arc added backwards (the curved one), which closes a cycle: the nodes and arcs on a cycle are red.",
+    topologicalSort: "Every arrow runs from a lower number to a higher one.",
+    isGraphIsomorphic:
+        "Each node has the color of the node it maps to in the other drawing, and every edge maps to an edge.",
+    findAllIsomorphisms:
+        "Each isomorphism is one of the graph's symmetries. The colors show the first: each node has the color of the node it maps to.",
+    adamicAdarScore: "A shared neighbor with few links counts more than a hub.",
+    evaluateCommonNeighbors: "An AUC of 0.5 is chance; 1 ranks every hidden link above every non-link.",
+    evaluateAdamicAdar: "An AUC of 0.5 is chance; 1 ranks every hidden link above every non-link.",
+    compareAdamicAdarWithCommonNeighbors: "An AUC of 0.5 is chance; 1 ranks every hidden link above every non-link.",
+};
+
 /** A painter: draws one algorithm's result on the graph and describes it. */
 type Painter = (cy: Core, r: never, options: Record<string, unknown>) => string | Promise<string>;
 
 /** The algorithms whose result needs a picture of its own; the rest are painted by the shape of their result. */
 const PAINTERS: Partial<Record<string, Painter>> = {
+    dijkstra: (cy, r: Paths, o) => paintPaths(cy.elements(), r, o.root as NodeSingular),
+    bellmanFord: (cy, r: Paths, o) => paintPaths(cy.elements(), r, o.root as NodeSingular),
     personalizedPageRank: (cy, r: AnyResult, o) => {
         paintByShape(cy, r);
         const start = o.personalization as Collection;
         mark(start);
         start.data("color", BLUE);
-        return "PageRank from the blue node (every random jump returns to it): darker red = higher score";
+        return "PageRank from the blue node: darker red = higher score";
     },
     nodeClosenessCentrality: (cy, r: number, o) => {
         const root = o.root as NodeSingular;
@@ -541,7 +567,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
         const others = cy.nodes().difference(root);
         const sum = others.reduce((a, n) => a + (bfs.depth(n) ?? 0), 0);
         const exact = sum > 0 && Math.abs(r - 1 / sum) < 1e-12;
-        return `closeness of the blue node: ${num(r)}${exact ? ` = 1 / ${sum}, one over the sum of its hop distances to the other ${others.length} nodes` : ""}; darker red = farther from it`;
+        return `closeness of the blue node: ${num(r)}${exact ? ` = 1 / ${sum}` : ""}; darker red = farther from it`;
     },
     hits: (cy, r: { hub(n: unknown): number | undefined; authority(n: unknown): number | undefined }) => {
         // each score as its rank among the nodes (0 lowest, 1 highest): authority scores pile up on a few nodes, and
@@ -562,7 +588,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
                 n.data("color", `hsl(${hue}, ${Math.round(30 + 60 * t)}%, ${Math.round(85 - 50 * t)}%)`);
             });
         });
-        return "red = authority (pointed to by good hubs), blue = hub (points to good authorities); darker = stronger";
+        return "red = authority, blue = hub; darker = stronger";
     },
     degrees: (cy, r: AnyResult, o) => {
         paintByShape(cy, r);
@@ -582,7 +608,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
             .sort((a, b) => b - a)
             .map((k) => `${k} ${PALETTE_NAMES[color(k)]} (${size.get(k) ?? 0})`)
             .join(", ");
-        return `core number k (the node is in a group where every member has k or more neighbors): ${cores}`;
+        return `core number k: ${cores}`;
     },
     hierarchicalClustering: (cy, r: { cutAt(by: { clusters: number }): NodeCollection[] }, o) => {
         const groups = new Set(cy.nodes().map((n) => n.data("community") as unknown)).size;
@@ -609,7 +635,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
     },
     stronglyConnectedComponents: (cy, r: NodeCollection[]) => {
         const k = colorParts(cy, r, 2);
-        return `${plural(k, "strongly connected component")} of 2 or more nodes in color (each node reaches every other one along the arrows); ${plural(r.length - k, "single node")} in gray`;
+        return `${plural(k, "strongly connected component")} of 2 or more nodes in color; ${plural(r.length - k, "single node")} in gray`;
     },
     condensation: async (cy, r: NodeCollection[] & { condensed: { snapshot: CondensedSnapshot } }) => {
         const s = r.condensed.snapshot;
@@ -634,7 +660,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
             });
         }
         await layoutOnce(cy, { name: "graphty-kamada-kawai", animate: false });
-        return `the condensed graph: one node per strongly connected component, labeled with its size (colored when 2 or more); ${plural(s.edgeCount, "arc")}, and no cycles`;
+        return `one node per strongly connected component, labeled with its size; ${plural(s.edgeCount, "arc")}, no cycles`;
     },
     hasCycle: (_cy, r: boolean) => (r ? "the graph has a cycle" : "the graph has no cycle"),
     topologicalSort: (cy, r: NodeCollection) => {
@@ -643,7 +669,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
             r.forEach((n, i) => {
                 n.data("tag", String(i + 1));
             });
-            return "each node numbered by its place in the order: every arrow runs from a lower number to a higher one";
+            return "each node numbered by its place in the order";
         }
         return `${r.length.toLocaleString()} nodes in order: darker red = later; every arrow runs from paler to darker`;
     },
@@ -660,13 +686,13 @@ const PAINTERS: Partial<Record<string, Painter>> = {
             return "not isomorphic: no mapping keeps every edge";
         }
         colorMapping(cy, r.mapping.bind(r), o);
-        return "isomorphic: each node has the color of the node it maps to in the other drawing, and every edge maps to an edge";
+        return "isomorphic: each node has the color of the node it maps to in the other drawing";
     },
     findAllIsomorphisms: (cy, r: ((n: unknown) => NodeSingular | undefined)[], o) => {
         if (r.length > 0) {
             colorMapping(cy, r[0], o);
         }
-        return `${plural(r.length, "isomorphism")} between the two drawings (the graph's symmetries); the colors show the first: each node has the color of the node it maps to`;
+        return `${plural(r.length, "isomorphism")} between the two drawings; the colors show the first`;
     },
     maxFlow: (cy, r: AnyResult & { flow(e: unknown): number | undefined }, o) => {
         const flow = r.flow.bind(r);
@@ -704,8 +730,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
         return `${text.replace("the two sides in blue and orange", "the s side in blue, the t side in orange")}${widths}`;
     },
     commonNeighborsScore: (cy, r: number, o) => pairScore(cy, r, o, "they share"),
-    adamicAdarScore: (cy, r: number, o) =>
-        `${pairScore(cy, r, o, "they share")}; a shared neighbor with few links counts more than a hub`,
+    adamicAdarScore: (cy, r: number, o) => pairScore(cy, r, o, "they share"),
     commonNeighborsForPairs: (cy, r: number[], o) => pairScores(cy, r, o),
     adamicAdarForPairs: (cy, r: number[], o) => pairScores(cy, r, o),
     commonNeighborsPrediction: (cy, r: Link[]) => predictions(cy, r),
@@ -719,6 +744,53 @@ const PAINTERS: Partial<Record<string, Painter>> = {
         return `the same ${k} hidden links (dashed green) and non-links (dashed gray): Adamic-Adar ${metrics(r.adamicAdar)}; common neighbors ${metrics(r.commonNeighbors)}`;
     },
 };
+
+/** A single-source shortest-path result, as graphtyDijkstra and graphtyBellmanFord return it. */
+export interface Paths {
+    distanceTo(n: unknown): number;
+    pathTo(n: unknown): Collection;
+    hasNegativeWeightCycle?: boolean;
+}
+
+/** Above this many nodes the tree is left out: it takes one pathTo per node. */
+const TREE_MAX_NODES = 5_000;
+
+/**
+ * Shortest paths from one root: the nodes shaded by distance, the shortest-path tree (each reached node's last edge on
+ * its path from the root, its predecessor edge) in blue, and the path to the target (the farthest node) in red.
+ * @param eles - the graph the run was on
+ * @param r - the result
+ * @param root - the root
+ * @param target - the node whose path is drawn in red; default: the farthest one
+ * @returns the description
+ */
+export function paintPaths(eles: Collection, r: Paths, root: NodeSingular, target?: NodeSingular): string {
+    mark(root);
+    if (r.hasNegativeWeightCycle === true) {
+        root.data("color", BLUE);
+        return "a negative cycle is reachable from the blue node (hasNegativeWeightCycle: true): each time round it shortens a path again, so no shortest path through it exists";
+    }
+    const cy = root.cy();
+    colorByValue(cy, (id) => r.distanceTo(cy.getElementById(id)), eles.filter("node"));
+    root.data("color", BLUE);
+    const reached = eles.nodes().filter((n) => n.id() !== root.id() && Number.isFinite(r.distanceTo(n)));
+    if (reached.empty()) {
+        return "the blue node reaches no other node";
+    }
+    const far = target ?? (reached.max((n) => r.distanceTo(n)).ele as NodeSingular);
+    const tree = eles.nodes().length <= TREE_MAX_NODES;
+    if (tree) {
+        cy.batch(() => {
+            reached.forEach((n) => {
+                r.pathTo(n).edges().last().data("color", BLUE);
+            });
+        });
+    }
+    r.pathTo(far).edges().data({ color: RED, thick: 3.5 });
+    mark(far);
+    const treeWords = tree ? "the shortest-path tree from the blue node in blue (each node's edge toward it); " : "";
+    return `${treeWords}the shortest path to the farthest node (ringed) in red, length ${num(r.distanceTo(far))}; nodes darker red = farther`;
+}
 
 /** The condensed graph's arcs, as condensation returns them. */
 interface CondensedSnapshot {
@@ -845,7 +917,7 @@ function candidates(cy: Core, r: Link[], o: Record<string, unknown>): string {
  */
 function evaluation(cy: Core, r: Metrics, o: Record<string, unknown>): string {
     const k = drawEvaluation(cy, o);
-    return `${k} links hidden from the run (dashed green) against ${k} non-links (dashed gray): ${metrics(r)}; an AUC of 0.5 is chance`;
+    return `${k} links hidden from the run (dashed green) against ${k} non-links (dashed gray): ${metrics(r)}`;
 }
 
 /**

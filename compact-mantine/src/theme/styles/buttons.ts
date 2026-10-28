@@ -88,7 +88,7 @@ const GHOST = {
 
 const SECONDARY: ButtonLook = { ...GHOST, outline: v("border-translucent"), disabled: "outline" };
 
-function solid(bg: string, color = v("text-onbrand"), pressedColor = v("text-onbrand-secondary")): ButtonLook {
+function solid(bg: string, color = v("text-onsolid"), pressedColor = v("text-onsolid-secondary")): ButtonLook {
     return {
         bg: v(bg),
         hover: v(`${bg}-hover`),
@@ -103,14 +103,15 @@ function solid(bg: string, color = v("text-onbrand"), pressedColor = v("text-onb
 
 // The inverse button's pressed text was measured in light only (#ffffffcc); in dark the fill turns
 // white, so the dimmed ink follows the scheme instead of staying white.
-const INVERSE_DIM = `light-dark(${v("text-onbrand-secondary")}, ${v("text-oninverse")})`;
+const INVERSE_DIM = `light-dark(${v("text-onsolid-secondary")}, ${v("text-oninverse")})`;
 
 /**
  * The Figma text-button looks, by variant (C7, C8, C9). `danger`, `danger-outline`, `inverse`
  * and `success` are new variants; `outline` draws as the secondary; `light` is the toggle-on look.
  */
 const BUTTON_LOOKS: Readonly<Record<string, ButtonLook>> = {
-    filled: solid("bg-brand"),
+    // The accent fill takes the accent's own label ink (dark on the graphty lime).
+    filled: solid("bg-brand", v("text-onbrand"), v("text-onbrand-secondary")),
     danger: solid("bg-danger"),
     success: solid("bg-success"),
     inverse: { ...solid("bg-inverse", v("text-oninverse"), INVERSE_DIM) },
@@ -129,10 +130,10 @@ const BUTTON_LOOKS: Readonly<Record<string, ButtonLook>> = {
         bg: v("bg-selected"),
         hover: v("bg-selected-hover"),
         pressed: v("bg-selected-pressed"),
-        color: v("text-brand"),
-        pressedColor: v("text-brand"),
+        color: v("text-onselected"),
+        pressedColor: v("text-onselected"),
         outline: T,
-        shortcut: v("text-brand"),
+        shortcut: v("text-onselected"),
         disabled: "text",
     },
 };

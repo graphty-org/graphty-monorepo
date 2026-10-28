@@ -4,7 +4,8 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
-import { createWorkspaceStore } from "../state/store";
+import { freshStore, storeOf } from "../../stories/freshStore";
+import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
 
@@ -57,14 +58,11 @@ const OPEN_PROJECT = { name: "Les Miserables", id: 1 };
  * @param canvasElement - the story's root.
  */
 async function read(canvasElement: HTMLElement): Promise<void> {
-    await waitFor(
-        () => {
-            if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
-                throw new Error("still reading");
-            }
-        },
-        { timeout: 10_000 },
-    );
+    await waitFor(() => {
+        if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
+            throw new Error("still reading");
+        }
+    }, storyWaitOptions(10_000));
 }
 
 /**
@@ -75,10 +73,11 @@ async function read(canvasElement: HTMLElement): Promise<void> {
  * @returns the story.
  */
 function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof within>) => Promise<void>): Story {
-    const store = createWorkspaceStore(request.intent === "add" ? { project: OPEN_PROJECT } : {});
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore(request.intent === "add" ? { project: OPEN_PROJECT } : {}),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             await customElements.whenDefined("graphty-element");
             store.set({ page: "panels" });
             openDataPage(store, request);
@@ -94,15 +93,17 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * Reads an address typed into From a URL... under Tables "+".
  * @param canvas - the story's canvas.
  * @param address - the address.
- * @param submit - whether to press Read.
+ * @param submit - whether to press Enter.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
-    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: "From a URL..." }));
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Address" }), address);
-    if (submit) {
-        await userEvent.click(within(document.body).getByRole("button", { name: "Read" }));
-    }
+    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }, storyWaitOptions(1000)));
+    await userEvent.click(
+        await within(document.body).findByRole("menuitem", { name: "From a URL..." }, storyWaitOptions(1000)),
+    );
+    await userEvent.type(
+        await within(document.body).findByRole("textbox", { name: "Address" }, storyWaitOptions(1000)),
+        submit ? `${address}{Enter}` : address,
+    );
 }
 
 /** New from data... with nothing chosen yet: one gray line with the way in (`#/data-page/empty`). */
@@ -127,8 +128,8 @@ export const Transfers: Story = pageStory({
 export const RoleMenu: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }));
-        await within(document.body).findByRole("option", { name: "Name" });
+        await userEvent.click(await canvas.findByRole("combobox", { name: "Role of owner" }, storyWaitOptions(1000)));
+        await within(document.body).findByRole("option", { name: "Name" }, storyWaitOptions(1000));
     },
 );
 
@@ -136,8 +137,10 @@ export const RoleMenu: Story = pageStory(
 export const UnmatchedRows: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("button", { name: "Show the 1 unmatched row" }));
-        await canvas.findByText("1 unmatched row");
+        await userEvent.click(
+            await canvas.findByRole("button", { name: "Show the 1 unmatched row" }, storyWaitOptions(1000)),
+        );
+        await canvas.findByText(/^1 unmatched row/, {}, storyWaitOptions(1000));
     },
 );
 
@@ -145,8 +148,8 @@ export const UnmatchedRows: Story = pageStory(
 export const FileSettings: Story = pageStory(
     { intent: "new", files: [new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }));
-        await within(document.body).findByRole("combobox", { name: "Format" });
+        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }, storyWaitOptions(1000)));
+        await within(document.body).findByRole("combobox", { name: "Format" }, storyWaitOptions(1000));
     },
 );
 
@@ -169,8 +172,8 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "/no-such-file.csv", true);
-    await canvas.findByRole("alert", {}, { timeout: 10_000 });
+    await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
+    await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
 });
 
 /** Adding to the open project: the title names it (`Add to <project>`). */

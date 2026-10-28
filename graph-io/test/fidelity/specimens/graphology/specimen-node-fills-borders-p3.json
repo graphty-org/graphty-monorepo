@@ -1,0 +1,619 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-fills-borders-p3"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "color-darkorange",
+            "attributes": {
+                "x": 152,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "darkorange"
+            }
+        },
+        {
+            "key": "color-darkorchid",
+            "attributes": {
+                "x": 376,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "darkorchid"
+            }
+        },
+        {
+            "key": "color-darkred",
+            "attributes": {
+                "x": 600,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "darkred"
+            }
+        },
+        {
+            "key": "color-darksalmon",
+            "attributes": {
+                "x": 824,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "darksalmon"
+            }
+        },
+        {
+            "key": "color-darkseagreen",
+            "attributes": {
+                "x": 1048,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "darkseagreen"
+            }
+        },
+        {
+            "key": "color-darkslateblue",
+            "attributes": {
+                "x": 152,
+                "y": 669,
+                "size": 18,
+                "color": "darkslateblue"
+            }
+        },
+        {
+            "key": "color-darkslategray",
+            "attributes": {
+                "x": 376,
+                "y": 669,
+                "size": 18,
+                "color": "darkslategray"
+            }
+        },
+        {
+            "key": "color-darkslategrey",
+            "attributes": {
+                "x": 600,
+                "y": 669,
+                "size": 18,
+                "color": "darkslategrey"
+            }
+        },
+        {
+            "key": "color-darkturquoise",
+            "attributes": {
+                "x": 824,
+                "y": 669,
+                "size": 18,
+                "color": "darkturquoise"
+            }
+        },
+        {
+            "key": "color-darkviolet",
+            "attributes": {
+                "x": 1048,
+                "y": 669,
+                "size": 18,
+                "color": "darkviolet"
+            }
+        },
+        {
+            "key": "color-deeppink",
+            "attributes": {
+                "x": 152,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "deeppink"
+            }
+        },
+        {
+            "key": "color-deepskyblue",
+            "attributes": {
+                "x": 376,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "deepskyblue"
+            }
+        },
+        {
+            "key": "color-dimgray",
+            "attributes": {
+                "x": 600,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "dimgray"
+            }
+        },
+        {
+            "key": "color-dimgrey",
+            "attributes": {
+                "x": 824,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "dimgrey"
+            }
+        },
+        {
+            "key": "color-dodgerblue",
+            "attributes": {
+                "x": 1048,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "dodgerblue"
+            }
+        },
+        {
+            "key": "color-firebrick",
+            "attributes": {
+                "x": 152,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "firebrick"
+            }
+        },
+        {
+            "key": "color-floralwhite",
+            "attributes": {
+                "x": 376,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "floralwhite"
+            }
+        },
+        {
+            "key": "color-forestgreen",
+            "attributes": {
+                "x": 600,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "forestgreen"
+            }
+        },
+        {
+            "key": "color-fuchsia",
+            "attributes": {
+                "x": 824,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "fuchsia"
+            }
+        },
+        {
+            "key": "color-gainsboro",
+            "attributes": {
+                "x": 1048,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "gainsboro"
+            }
+        },
+        {
+            "key": "color-ghostwhite",
+            "attributes": {
+                "x": 152,
+                "y": 259,
+                "size": 18,
+                "color": "ghostwhite"
+            }
+        },
+        {
+            "key": "color-gold",
+            "attributes": {
+                "x": 376,
+                "y": 259,
+                "size": 18,
+                "color": "gold"
+            }
+        },
+        {
+            "key": "color-goldenrod",
+            "attributes": {
+                "x": 600,
+                "y": 259,
+                "size": 18,
+                "color": "goldenrod"
+            }
+        },
+        {
+            "key": "color-gray",
+            "attributes": {
+                "x": 824,
+                "y": 259,
+                "size": 18,
+                "color": "gray"
+            }
+        },
+        {
+            "key": "color-green",
+            "attributes": {
+                "x": 1048,
+                "y": 259,
+                "size": 18,
+                "color": "green"
+            }
+        },
+        {
+            "key": "color-greenyellow",
+            "attributes": {
+                "x": 152,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "greenyellow"
+            }
+        },
+        {
+            "key": "color-grey",
+            "attributes": {
+                "x": 376,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "grey"
+            }
+        },
+        {
+            "key": "color-honeydew",
+            "attributes": {
+                "x": 600,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "honeydew"
+            }
+        },
+        {
+            "key": "color-hotpink",
+            "attributes": {
+                "x": 824,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "hotpink"
+            }
+        },
+        {
+            "key": "color-indianred",
+            "attributes": {
+                "x": 1048,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "indianred"
+            }
+        },
+        {
+            "key": "cap-color-darkorange",
+            "attributes": {
+                "x": 60.599999999999994,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkorange"
+            }
+        },
+        {
+            "key": "cap-color-darkorchid",
+            "attributes": {
+                "x": 284.6,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkorchid"
+            }
+        },
+        {
+            "key": "cap-color-darkred",
+            "attributes": {
+                "x": 548.8,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkred"
+            }
+        },
+        {
+            "key": "cap-color-darksalmon",
+            "attributes": {
+                "x": 762.6,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darksalmon"
+            }
+        },
+        {
+            "key": "cap-color-darkseagreen",
+            "attributes": {
+                "x": 979.8,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkseagreen"
+            }
+        },
+        {
+            "key": "cap-color-darkslateblue",
+            "attributes": {
+                "x": 80.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkslateblue"
+            }
+        },
+        {
+            "key": "cap-color-darkslategray",
+            "attributes": {
+                "x": 274.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkslategray"
+            }
+        },
+        {
+            "key": "cap-color-darkslategrey",
+            "attributes": {
+                "x": 528.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkslategrey"
+            }
+        },
+        {
+            "key": "cap-color-darkturquoise",
+            "attributes": {
+                "x": 752.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkturquoise"
+            }
+        },
+        {
+            "key": "cap-color-darkviolet",
+            "attributes": {
+                "x": 986.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkviolet"
+            }
+        },
+        {
+            "key": "cap-color-deeppink",
+            "attributes": {
+                "x": 97.4,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=deeppink"
+            }
+        },
+        {
+            "key": "cap-color-deepskyblue",
+            "attributes": {
+                "x": 311.2,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=deepskyblue"
+            }
+        },
+        {
+            "key": "cap-color-dimgray",
+            "attributes": {
+                "x": 548.8,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=dimgray"
+            }
+        },
+        {
+            "key": "cap-color-dimgrey",
+            "attributes": {
+                "x": 772.8,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=dimgrey"
+            }
+        },
+        {
+            "key": "cap-color-dodgerblue",
+            "attributes": {
+                "x": 986.6,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=dodgerblue"
+            }
+        },
+        {
+            "key": "cap-color-firebrick",
+            "attributes": {
+                "x": 64,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=firebrick"
+            }
+        },
+        {
+            "key": "cap-color-floralwhite",
+            "attributes": {
+                "x": 281.2,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=floralwhite"
+            }
+        },
+        {
+            "key": "cap-color-forestgreen",
+            "attributes": {
+                "x": 535.2,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=forestgreen"
+            }
+        },
+        {
+            "key": "cap-color-fuchsia",
+            "attributes": {
+                "x": 772.8,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=fuchsia"
+            }
+        },
+        {
+            "key": "cap-color-gainsboro",
+            "attributes": {
+                "x": 990,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=gainsboro"
+            }
+        },
+        {
+            "key": "cap-color-ghostwhite",
+            "attributes": {
+                "x": 60.599999999999994,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=ghostwhite"
+            }
+        },
+        {
+            "key": "cap-color-gold",
+            "attributes": {
+                "x": 275,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=gold"
+            }
+        },
+        {
+            "key": "cap-color-goldenrod",
+            "attributes": {
+                "x": 542,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=goldenrod"
+            }
+        },
+        {
+            "key": "cap-color-gray",
+            "attributes": {
+                "x": 783,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=gray"
+            }
+        },
+        {
+            "key": "cap-color-green",
+            "attributes": {
+                "x": 1003.6,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=green"
+            }
+        },
+        {
+            "key": "cap-color-greenyellow",
+            "attributes": {
+                "x": 87.2,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=greenyellow"
+            }
+        },
+        {
+            "key": "cap-color-grey",
+            "attributes": {
+                "x": 335,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=grey"
+            }
+        },
+        {
+            "key": "cap-color-honeydew",
+            "attributes": {
+                "x": 545.4,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=honeydew"
+            }
+        },
+        {
+            "key": "cap-color-hotpink",
+            "attributes": {
+                "x": 772.8,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=hotpink"
+            }
+        },
+        {
+            "key": "cap-color-indianred",
+            "attributes": {
+                "x": 990,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=indianred"
+            }
+        }
+    ],
+    "edges": []
+}

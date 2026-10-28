@@ -1046,7 +1046,19 @@ export class XgmmlParser implements XmlHandler {
         if (target.graphics !== null && att.name in target.graphics) {
             this.duplicateGraphics(att.name, att.line);
         }
-        target.graphics = { ...target.graphics, [att.name]: attJson(att) };
+        // in place: beginGraphics() gave the target its own record, and a copy per att cost the square of a node's
+        // att count. An att named __proto__ is defined, not assigned, so it stays an own property
+        const graphics = (target.graphics ??= {});
+        if (att.name === "__proto__") {
+            Object.defineProperty(graphics, att.name, {
+                value: attJson(att),
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            });
+        } else {
+            graphics[att.name] = attJson(att);
+        }
     }
 
     /**
@@ -1072,7 +1084,7 @@ export class XgmmlParser implements XmlHandler {
  * @returns true for a list
  * @category Plugin helpers
  */
-export function isListLike(att: AttRec): boolean {
+function isListLike(att: AttRec): boolean {
     const names = new Set(att.children.map((c) => c.name));
     if (names.size !== 1) {
         return false;
@@ -1090,18 +1102,48 @@ export function isListLike(att: AttRec): boolean {
  * @category Plugin helpers
  */
 export function attJson(att: AttRec): unknown {
-    if (att.children.length === 0) {
-        if (att.value !== null) {
-            return att.value;
+    return attTree(att, (a) => {
+        if (a.children.length > 0) {
+            return null;
         }
-        return Object.keys(att.extra).length > 0 ? { ...att.extra } : null;
+        if (a.value !== null) {
+            return { value: a.value };
+        }
+        return { value: Object.keys(a.extra).length > 0 ? { ...a.extra } : null };
+    });
+}
+
+/**
+ * An att tree as plain data, walked with an explicit stack so an att nested any depth deep cannot overflow the
+ * call stack: an att `leafOf` gives a value for is that value; any other is an array of its children when they are
+ * list items (isListLike), else a record of them by name.
+ * @param root - the att
+ * @param leafOf - the value of an att that is a leaf, or null for one whose children make its value
+ * @returns the value
+ * @category Plugin helpers
+ */
+export function attTree(root: AttRec, leafOf: (att: AttRec) => { readonly value: unknown } | null): unknown {
+    const rootLeaf = leafOf(root);
+    if (rootLeaf !== null) {
+        return rootLeaf.value;
     }
-    if (isListLike(att)) {
-        return att.children.map(attJson);
-    }
-    const out: Record<string, unknown> = {};
-    for (const child of att.children) {
-        out[child.name ?? ""] = attJson(child);
+    const container = (att: AttRec): unknown[] | Record<string, unknown> => (isListLike(att) ? [] : {});
+    const out = container(root);
+    const stack: [AttRec, unknown[] | Record<string, unknown>][] = [[root, out]];
+    for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+        const [att, into] = top;
+        for (const child of att.children) {
+            const leaf = leafOf(child);
+            const value = leaf === null ? container(child) : leaf.value;
+            if (Array.isArray(into)) {
+                into.push(value);
+            } else {
+                into[child.name ?? ""] = value;
+            }
+            if (leaf === null) {
+                stack.push([child, value as unknown[] | Record<string, unknown>]);
+            }
+        }
     }
     return out;
 }

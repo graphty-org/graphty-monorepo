@@ -510,8 +510,8 @@ function declaredEdges(s: GraphSnapshot): { readonly src: U32; readonly dst: U32
     for (let u = 0; u < nodeCount; u++) {
         const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
-            const e = arcToEdge === null ? a : arcToEdge[a];
-            if (edgeToArc !== null && edgeToArc[e] !== a) {
+            const e = declaringEdgeOf(a, arcToEdge, edgeToArc);
+            if (e < 0) {
                 continue;
             }
             src[e] = u;
@@ -522,6 +522,18 @@ function declaredEdges(s: GraphSnapshot): { readonly src: U32; readonly dst: U32
         }
     }
     return { src, dst, weights: edgeWeights };
+}
+
+/**
+ * The logical edge of arc `a` when `a` is the arc that declares it (`edgeToArc[e] === a`).
+ * @param a - the arc
+ * @param arcToEdge - arc -> edge, or null for the identity
+ * @param edgeToArc - edge -> declaring arc, or null for the identity
+ * @returns the edge, or -1 when `a` is the edge's mate arc
+ */
+function declaringEdgeOf(a: number, arcToEdge: U32 | null, edgeToArc: U32 | null): number {
+    const e = arcToEdge === null ? a : arcToEdge[a];
+    return edgeToArc !== null && edgeToArc[e] !== a ? -1 : e;
 }
 
 /**

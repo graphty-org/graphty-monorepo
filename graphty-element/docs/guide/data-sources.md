@@ -58,6 +58,22 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
+## A File's Own Styles
+
+Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
+in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
+attributes in DOT. Load with `styles: "file"` to draw them as style layers, so the graph looks as
+it does in the program that wrote the file:
+
+```typescript
+await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
+```
+
+`loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
+`session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
+`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
+look like, the choices that shape them and how to save them back into a file.
+
 ## Text or Bytes
 
 A file is read as bytes, and the format's reader decodes them: a byte-order mark names the
@@ -143,6 +159,49 @@ session.data.source()?.name; // "Les Miserables characters"
 With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
 an empty name rejects with `"empty-name"`.
 
+`source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
+`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+many nodes and edges each added. A replacing load starts the list again; undo, redo and the
+project file keep it with the graph, and `renameSource` renames the last entry:
+
+```typescript
+await session.data.import({ config: { file: friends } }); // friends.csv
+await session.data.import({ config: { file: messages } }, { mode: "merge" }); // messages.csv
+session.data.sources().map(({ name, added }) => [name, added]);
+// [["friends.csv", { nodes: 20, edges: 41 }], ["messages.csv", { nodes: 13, edges: 23 }]]
+```
+
+A load that left out edge rows naming a node no node row held (`unmatched: "leave-out"`) keeps
+that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
+names they gave. The field is there only when at least one row was left out.
+
+### Loads that overlap
+
+Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
+into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
+`loadDataset`, `loadSample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
+attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
+graph as much as for one that replaces it. So a dataset you pick while another is still downloading
+replaces it, and undo goes back to the first one.
+
+A load waits for the loads ahead of it to finish reading. A download that never finishes holds
+back every load asked for after it. Pass a `signal` and abort it to let the next load through:
+
+```typescript
+let download = new AbortController();
+void session.data.loadDataset("karate", { signal: download.signal });
+
+// The reader picked another graph: stop the old download so the new one is not held behind it.
+download.abort();
+download = new AbortController();
+await session.data.loadDataset("dolphins", { signal: download.signal });
+```
+
+A load aborted before its turn comes rejects and changes nothing, even when its download had
+already finished. A replacing `addDataFromSource`, `loadFromFile` or `loadFromUrl`
+does not wait for the element's own earlier loads: those reject with `E_SUPERSEDED`.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
@@ -172,7 +231,9 @@ try {
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
 the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
 read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
-naming the format and, when the parser knows it, the line. A replacing load that stops at
+naming the format and, when the parser knows it, the line. A graphty project or document file (what
+`session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
+`details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 
@@ -184,11 +245,10 @@ carries `context: "parsing"` and, when the reader can name one, the `line` where
 starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
 malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
 
-GraphML and GEXF files are read differently. A file that is recognisably GraphML or GEXF but
-breaks off -- a stray end tag, a tag or attribute quote left open, garbage after the last tag, a
-file cut off mid-tag -- keeps every node and edge read before the break, and the load reports
-where it broke. A file that is not recognisable as either format at all still fails with
-`E_PARSE_FAILED`.
+GraphML and GEXF files are refused the same way. A file that breaks off -- a stray end tag, a tag
+or attribute quote left open, garbage after the last tag, a file cut off mid-tag -- fails with
+`E_PARSE_FAILED`, with the line it broke on in `details.line`, and adds nothing to the graph: a
+graph built from part of a file looks like a whole one, and a reader cannot tell it is wrong.
 
 ### Reading the errors of a load
 
@@ -196,18 +256,17 @@ Every problem a load met is in `errors` on its report, `session.data.lastImport(
 or `draft.report()` before one, in the order met and at most the source's `errorLimit` of them.
 An entry holds facts, not words, so word it yourself:
 
-| Field    | What it holds                                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `code`   | The kind: `"parse-error"` (the file breaks off here), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
-| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                 |
-| `line`   | The line of the file, or the row, when the reader knows it                                                                                             |
-| `field`  | The field or column concerned, when there is one                                                                                                       |
+| Field    | What it holds                                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code`   | The kind: `"parse-error"` (a problem the reader skipped past), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
+| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                          |
+| `line`   | The line of the file, or the row, when the reader knows it                                                                                                      |
+| `field`  | The field or column concerned, when there is one                                                                                                                |
 
 ```typescript
-await element.session.data.import({ type: "graphml", config: { data: text } });
-const [first] = element.session.data.lastImport()?.errors ?? [];
-if (first?.code === "parse-error") {
-    console.warn(`The file breaks off at line ${first.line}; what came before it was loaded.`);
+await element.session.data.import({ type: "csv", config: { data: text } });
+for (const error of element.session.data.lastImport()?.errors ?? []) {
+    console.warn(`Line ${error.line}: ${error.code}`);
 }
 ```
 
@@ -262,9 +321,8 @@ const element = document.querySelector("graphty-element");
 
 // A Cytoscape session, drawn where Cytoscape saved it. Cytoscape's coordinates are pixels, so
 // positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
-element.layout = "fixed";
 element.positionScale = 0.02;
-await element.loadFromUrl("https://example.org/sessions/galFiltered.cys");
+await element.loadFromUrl("https://example.org/sessions/galFiltered.cys", { layout: "recommended" });
 
 // The Gene Ontology: about 48,000 terms and 71,000 is_a and part_of relations. The file has no
 // saved drawing, so pick a layout that computes one.
@@ -279,9 +337,10 @@ records under the name the file gave it (`name`, `shared name`, `interaction`, a
 `name`, `namespace`, `def`, `is_obsolete`, ...).
 
 - **Positions.** A node's saved position arrives as `position` on its record and seeds the layout;
-  choose the `fixed` layout to draw a session or a CX2 network exactly as it was saved. Cytoscape
-  writes screen coordinates, whose y grows downward; they are stored with y growing upward, like
-  every other format's, so the drawing is not upside down. Cytoscape's z is a drawing order, kept
+  load with `layout: "recommended"` to draw a session or a CX2 network exactly as it was saved
+  (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). Cytoscape writes screen coordinates, whose y grows
+  downward; they are stored with y growing upward, like every other format's, so the drawing is
+  not upside down. Cytoscape's z is a drawing order, kept
   as a `z` value on the record; the `zAs: "position"` option makes it the z coordinate instead.
 - **Styles are not imported yet.** A file's visual style rules (mappings, defaults) are reported
   in the load report and not applied; the per-node and per-edge visual values a file holds arrive
@@ -320,6 +379,70 @@ import { detectFormat } from "@graphty/graphty-element/catalog";
 
 detectFormat({ filename: "graph.xml", sample: firstKilobytes }); // "graphml" or "gexf"
 ```
+
+## Drawing a file where it was saved
+
+Many files store where each node was drawn: a GEXF file saved by Gephi, a yEd diagram, a Pajek
+network, Graphviz output, a Cytoscape session. Pass `layout: "recommended"` and the element draws
+each node where the file put it:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "recommended" });
+```
+
+`layout` takes two values:
+
+- `"recommended"`: once the load is in, the element chooses a layout for it. When every node
+  arrived with a position it picks `fixed`, which draws each node at its stored position. When
+  none did, it picks a layout that computes a drawing suited to the graph's size and shape. When
+  only some did, it keeps those where the file put them and runs that computed layout over the
+  others alone (as a [scoped layout](./sets.md)), as long as the layout can hold nodes still.
+- `"keep"` (the default): the layout stays as it is. The stored positions are still where each
+  node starts, so a force layout begins from the file's drawing instead of from random points.
+
+The same option works on every way of loading: `loadFromFile(file, { layout: "recommended" })`,
+`dataSourceConfig = { url, layout: "recommended" }`, and
+`session.data.import({ config: { url } }, { layout: "recommended" })`. Any other value is refused
+with `E_BAD_COMMAND`.
+
+### What the element does with each format
+
+Every format writes coordinates its own way. The element reads them all into one form, each
+node's center with y growing upward, so a drawing is never mirrored or shifted whichever program
+saved it:
+
+| Format                            | Positions read from                           | Unit                                                      | Which way y grows in the file                                              |
+| --------------------------------- | --------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| GEXF                              | `viz:position`                                | the file's own                                            | up                                                                         |
+| GraphML from yEd                  | the node's geometry (a box's top-left corner) | pixels                                                    | down; the corner is moved to the box's center                              |
+| GML                               | `graphics [ x y z ]`                          | pixels                                                    | down, as the GML specification says, unless `Creator` names Gephi or Tulip |
+| Pajek                             | the coordinates after a vertex's label        | the file's own (usually 0 to 1)                           | down; a z of 0.5 on every vertex is a flat drawing                         |
+| DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
+| XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
+| Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| vis-network JSON (`from` / `to`)  | each node's `x` and `y`                       | pixels                                                    | down                                                                       |
+| Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
+| CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
+
+With `layout: "recommended"`, a file with no stored positions gets a computed layout. A file where every node sits on one point
+is treated as having none. Plain `x` and `y` keys in a CSV or JSON file are ordinary values, not
+positions. A JSON node record's `position` may be `{ x, y, z }`, `[x, y]` or `[x, y, z]`; it is
+the node's center.
+
+The element multiplies each stored coordinate by `positionScale` (default 1). It frames the
+camera on the graph after every load, so a drawing in pixels and one in the 0 to 1 range both
+fill the view; change `positionScale` only to change how far apart nodes sit compared with their
+size.
+
+Saving writes each node's current position back the way its format spells it: `exportGraph` to
+GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's z), divided by
+`positionScale`, so a file loaded and saved is drawn the same way when it is loaded again.
+
+`@graphty/graph-io/positions` is the reader the element uses, and it can be called on its own:
+see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
+graph-io guide.
 
 ## Directed or Undirected
 
@@ -408,8 +531,22 @@ declared type:
   holding XML elements rather than text -- is left off the record and reported as a loading error;
 - a node id declared twice is one node, with the later declaration's values winning.
 
+A declared attribute titled `id` never replaces a node's id (nor one titled `source` or `target`
+an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#att1` for a GEXF
+attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
+
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+
+A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
+and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
+`shape` on nodes and `color`, `width`, `targetArrow` and `sourceArrow` on edges. These record keys
+are deprecated and go in the next major version: a load without `styles: "file"` still writes
+them, unchanged. Load with `styles: "file"` to draw the file's colors, sizes and shapes as style
+layers instead (see [Styles from Files](./file-styles)): the records then leave those keys out, and
+an attribute the file declared under one of those names keeps its own value. The position, the
+label and an edge's direction stay on the records either way.
+
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
 loads nothing and reports a loading error.
 
@@ -428,8 +565,20 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
-- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
-  wrote.
+- a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
+  `fillcolor` and so on). A node's `pos` stays the text the file wrote, and it and a cluster's `bb`
+  give the record's `position` (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)).
+
+A Cytoscape.js document (an `elements` object or array, as Cytoscape.js and Cytoscape desktop's
+`.cyjs` export write it), a graphology document and a vis.js document are read in their own shape:
+
+- a Cytoscape.js element's record holds its `data` keys under their own names, its `classes`, its
+  `position` (with y pointing up, as the element draws it) and its `parent` as the parent node's
+  id. A document that also carries a `style` stylesheet loads the same way;
+- a graphology node's record is the record the file wrote, plus `id` (its `key`), so its
+  attributes stay under `attributes`; an edge's record is the record the file wrote. A node no
+  edge names is loaded too;
+- a vis.js record is the record the file wrote.
 
 ### Changes in graphty-element 3.1
 
@@ -761,9 +910,10 @@ edge width and node shape each element is drawn with. Edge weights are the weigh
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML, node attributes in an edge-list CSV -- is listed in `losses`, one per kind of
-omission, about the table or file actually written: exporting the CSV node table lists no edge or
-graph loss. A value an algorithm did not measure is left absent, never written as zero. The
+colours in GraphML (unless the export asks for `styles: true`, see
+[Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
+is listed in `losses`, one per kind of omission, about the table or file actually written:
+exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
 element's own edge ids and internal columns are not written.
 
 Each loss is a coded fact, `{ code, params: { columns, count } }`, and graphty-element writes no
@@ -771,12 +921,13 @@ words for it:
 
 - `code` is an `ExportLossCode`: one of the codes in graph-io's loss tables for the format written
   (`LOSS`, which every format shares, and `CSV_LOSS`, `GRAPHML_LOSS`, `GEXF_LOSS` and the rest,
-  each code documented there), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
+  each code listed on graph-io's [codes page](https://graphty.app/docs/graph-io/guide/codes.html)), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
   loaded column under the reserved `graphty.` root), `W_GRAPHTY_NOTES` (notes, which no format
   holds as notes), `W_GRAPHTY_TRUNCATED` (note text cut to 64 KB), `W_GRAPHTY_CSV_NEUTRALIZED`
   (cells a spreadsheet would run as a formula, prefixed with an apostrophe),
   `W_WEIGHT_NOT_NUMERIC` (edge weights that are not numbers) and `W_RESULT_FIELD_DROPPED` (an
-  algorithm result no column could hold). A code starting `E_` means the writer refuses the graph
+  algorithm result no column could hold), plus the style codes listed under
+  [Exporting styles](#exporting-styles). A code starting `E_` means the writer refuses the graph
   under these options, and `text()` rejects. A writer registered with `registerFormatWriter`
   reports its own codes.
 - `columns` names every column the loss is about: one, several (every graph attribute a format has
@@ -785,6 +936,28 @@ words for it:
 
 `lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
 release.
+
+### Exporting styles
+
+Pass `styles: true` to write the graph's style layers into the file as well:
+
+```typescript
+const result = await element.exportGraph("cx2", { styles: true });
+```
+
+Each element's look goes into the format's own style slots, the layers become rules in the
+format's own style language where it has one (Cytoscape's defaults and mappings in CX2), and
+wherever the format can keep extra data the layers themselves are written too, so loading the file
+back with `styles: "file"` rebuilds them. `session.catalog.formats()` says what each writer keeps
+(`styles.write`: `"rules"`, `"values"` or `"none"`). Anything the format cannot hold is a loss with
+a `W_STYLE_` code (`W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`,
+`W_STYLE_LAYER_FLATTENED`), naming the `target` and `property` it is about. With `styles: true` the
+drawn colour, size, shape and width columns are left out, because the style slots carry them.
+
+Without `styles: true` the export is the file it always was, and a graph with layers of its own
+above the element's base layers reports one more loss, `W_STYLES_NOT_EXPORTED`, whose `count` is
+how many layers were left out. Use it to warn a reader before their styles are lost. See
+[Styles from Files](./file-styles#exporting-with-styles).
 
 | Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
 | ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -795,10 +968,48 @@ release.
 | JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
 | CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
 
+CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
+each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
+instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+`text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
+
+The "Colour and size" column describes an export without `styles: true`. With it, each format
+writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
+
 A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
 `-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a
 formula. Numbers, and texts that are numbers such as `-2.31`, are never touched. Pass
 `{ neutraliseFormulas: false }` for a pipeline that reads the file with a CSV parser.
+
+### Kinds of file a format writes
+
+JSON and CSV each write several kinds of file. Their catalogue entries list them in
+`exportVariants`, one entry per kind, so a picker can offer them by name:
+
+| Format | Variants                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `json` | Node-link JSON (NetworkX), Cytoscape.js JSON, JSON Graph Format, graphology JSON, vis.js JSON, d3 JSON, OBO Graphs JSON |
+| `csv`  | CSV, Gephi CSV, Neo4j CSV                                                                                               |
+
+Each variant carries a `preset`, the writer options that make that kind of file, and `options`,
+the writer options that still apply to it. Pass the preset unchanged, with any option values:
+
+```typescript
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
+
+const cytoscape = formatDescriptor("json")?.exportVariants?.find((v) => v.id === "cytoscape");
+const result = await element.exportGraph("json", { ...cytoscape?.preset, indent: 2 });
+```
+
+Every writer option except CSV's `table` and Neo4j's `part` is marked `advanced`.
+
+### The project file
+
+`exportGraph("graphty")` writes the project file, Graphty JSON (`.graphty.json`): the document
+`session.project.save()` produces, without marking the project saved. It is the only export that
+reads back exactly -- styles, results, layout and notes -- and it is read back by
+`session.project.open`, never by `session.data.import`, which refuses the name with
+`E_UNKNOWN_FORMAT`. It takes no options, has no loss notes, and is built as one string.
 
 Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
 `sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with

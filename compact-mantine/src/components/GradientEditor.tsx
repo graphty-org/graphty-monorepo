@@ -8,10 +8,12 @@ import { useLabels, useNumberFormatter, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ColorStop } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
-import { mixHex, normalizeHexa } from "../utils/color-utils";
+import { mixHex } from "../utils/color-utils";
+import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
+import { revertOnEscape } from "./color/escape";
+import { typedColor } from "./color/typed-color";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
 // popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles
@@ -76,6 +78,8 @@ interface UnitFieldProps {
     min?: number;
     max?: number;
     testId: string;
+    /** Inline style of the input, such as a width that lets the field shrink with its column. */
+    style?: React.CSSProperties;
 }
 
 /**
@@ -92,9 +96,10 @@ interface UnitFieldProps {
  * @param props.min - the lowest value
  * @param props.max - the highest value
  * @param props.testId - test id
+ * @param props.style - inline style of the input
  * @returns the field
  */
-function UnitField({
+export function UnitField({
     value,
     format,
     normalize,
@@ -105,6 +110,7 @@ function UnitField({
     min,
     max,
     testId,
+    style,
 }: Readonly<UnitFieldProps>): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
@@ -144,6 +150,7 @@ function UnitField({
             aria-valuemax={role === undefined ? undefined : max}
             aria-valuetext={role === undefined ? undefined : format(value)}
             data-testid={testId}
+            style={style}
             value={draft}
             onChange={(event) => {
                 setDraft(event.currentTarget.value);
@@ -152,17 +159,19 @@ function UnitField({
                 event.currentTarget.select();
             }}
             onBlur={(event) => {
-                if (!isLeavingWithoutCommit(event)) {
-                    commitDraft(event);
-                }
+                commitDraft(event);
             }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     commitDraft(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(event, () => {
-                        setDraft(format(value));
-                    });
+                    revertOnEscape(
+                        event,
+                        () => {
+                            setDraft(format(value));
+                        },
+                        draft !== format(value),
+                    );
                 } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                     event.preventDefault();
                     const step = (event.shiftKey ? SHIFT_STEP : 1) * (event.key === "ArrowUp" ? 1 : -1);
@@ -198,8 +207,7 @@ function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps
     }, [shown]);
 
     const commit = (event: React.SyntheticEvent): void => {
-        const digits = draft.trim().replace("#", "");
-        const candidate = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits)?.slice(0, 7) : undefined;
+        const candidate = typedColor(draft);
         if (candidate === undefined || candidate === `#${shown}`) {
             setDraft(shown);
             return;
@@ -223,17 +231,19 @@ function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps
                 event.currentTarget.select();
             }}
             onBlur={(event) => {
-                if (!isLeavingWithoutCommit(event)) {
-                    commit(event);
-                }
+                commit(event);
             }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     commit(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(event, () => {
-                        setDraft(shown);
-                    });
+                    revertOnEscape(
+                        event,
+                        () => {
+                            setDraft(shown);
+                        },
+                        draft !== shown,
+                    );
                 }
             }}
         />
@@ -325,7 +335,7 @@ export interface GradientEditorProps {
  * a second caller needs it.
  * @returns the glyph
  */
-function SwapGlyph(): React.JSX.Element {
+export function SwapGlyph(): React.JSX.Element {
     return (
         <svg
             width={16}
@@ -568,6 +578,7 @@ export function GradientEditor({
             event.currentTarget.setPointerCapture(event.pointerId);
         }
         drag.current = { index, pointerId: event.pointerId };
+        shieldDragSelection();
         onChangeStart?.(event);
     };
 
@@ -683,10 +694,9 @@ export function GradientEditor({
     return (
         <div className="cm-gradient" data-testid="gradient-editor">
             {showDirection && (
-                <div
-                    className="cm-gradient-row cm-gradient-direction"
+                <fieldset
+                    className="cm-fieldset cm-gradient-row cm-gradient-direction"
                     data-testid="gradient-editor-direction"
-                    role="group"
                     aria-labelledby={directionHeadingId}
                 >
                     <span
@@ -727,13 +737,13 @@ export function GradientEditor({
                     >
                         <RotateShapeGlyph />
                     </ActionIcon>
-                </div>
+                </fieldset>
             )}
 
-            <div role="group" aria-labelledby={stopsHeadingId}>
+            <fieldset className="cm-fieldset" aria-labelledby={stopsHeadingId}>
                 <div ref={areaRef} className="cm-gradient-area" data-testid="gradient-editor-bar-area">
                     {stopsValue.map((stop, index) => (
-                        <div
+                        <div // NOSONAR(S6819): one of several draggable stop handles over a gradient bar; input type=range has one thumb and cannot draw this
                             key={stop.id}
                             className="cm-gradient-handle cm-focus-outside"
                             data-testid="gradient-editor-handle"
@@ -768,7 +778,6 @@ export function GradientEditor({
                     <div
                         className="cm-gradient-bar"
                         // A pointer shortcut only: the "+" button is the keyboard route to a new stop.
-                        role="presentation"
                         aria-hidden
                         data-testid="gradient-editor-bar"
                         style={{ "--cm-gradient": gradientCss } as React.CSSProperties}
@@ -867,7 +876,7 @@ export function GradientEditor({
                         );
                     })}
                 </div>
-            </div>
+            </fieldset>
         </div>
     );
 }

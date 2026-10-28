@@ -11,6 +11,10 @@
  *   `<kind>:<name>` so it is saved and undone like any other project change.
  * - `data.setSource`: the source the graph was loaded from, the `source` graph value
  *   `data.source()` reads: a new name for it, or the source a project file recorded.
+ * - `data.setFileStyles`: the per-element style values the layers made from files read at
+ *   `graphty.style.<namespace>.<kind>.<key>`, kept beside the data and never in its records.
+ * - `data.columns`: the column settings -- hidden columns, value types, renames -- kept as the
+ *   `columns` graph value, and with a rename the column's declaration moved to its new name.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -25,20 +29,40 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
+import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
+import { isValueType, VALUE_TYPES } from "../columns";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
+import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
+import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
+import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
+import type { Selector } from "../styles/selector";
+import type {
+    HistoryCode,
+    JoinRecord,
+    LoadChoices,
+    LoadedSource,
+    LoadedSourceKind,
+    LoadMappingRead,
+    NodeRecordInput,
+    RowUpdate,
+    ValueType,
+} from "../types";
+import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
+import type { DataImportSourceCommand } from "./source-load";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
 type RecordInput = NodeRecordInput;
@@ -134,18 +158,56 @@ export interface DataImportCommand {
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /** For `"merge"`: a node already in the graph keeps its attributes (the default) or takes the incoming ones. */
+    readonly existing?: "keep" | "update";
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
+     * graph), so a record repeating one is counted as the real merge counts it.
      */
-    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    readonly measure?: {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: number;
+        readonly pairs?: ReadonlySet<string>;
+    };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: see `ImportOptions.history`. */
+    readonly startsHistory?: boolean;
     /**
      * Imports with the same key coalesce while the first waits its turn: the element's two
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
+    readonly tables?: readonly string[];
+    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    /**
+     * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
+     * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     */
+    readonly styles?: "file" | "none";
+    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    readonly styleOptions?: FileStyleOptions;
+    /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
+    readonly origin?: LoadedSourceKind;
+    /** For a joined table: the load it was joined onto. */
+    readonly joinedOnto?: SourceKey;
+    /** For a joined table: the join, kept with the load in `data.sources()`. */
+    readonly join?: JoinRecord;
+    /** The load's key, in place of the next one: an edited join keeps its key. */
+    readonly key?: SourceKey;
+    /** The choices the rows were read with, kept with the load in `data.sources()`. */
+    readonly choices?: LoadChoices;
+    /** The roles each table was read with, the element's own reading included, kept with the load. */
+    readonly mapping?: LoadMappingRead;
+    /**
+     * A token for what the rows were read from, kept with the load; only the session that read
+     * them can resolve it, so `data.reloadSource` can read them again.
+     */
+    readonly input?: string;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -154,6 +216,8 @@ export interface HeldRows {
     readonly nodes: readonly Record<string, unknown>[];
     /** Edge records. */
     readonly edges: readonly Record<string, unknown>[];
+    /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly edgeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -168,6 +232,58 @@ export interface HeldRows {
     readonly target?: string;
     /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
     readonly weight?: string | null;
+    /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
+    readonly repeated?: DuplicatePolicy;
+}
+
+/** The load choices a `data.import` command carries. */
+export type ImportChoices = Pick<
+    DataImportCommand,
+    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
+>;
+
+/**
+ * The one `data.import` command `session.data.import` and `LoadDraft.load` both send, so a file
+ * loads the same whichever of the two loads it.
+ * @param source - Where the rows come from.
+ * @param choices - The load choices; one left out is left out of the command.
+ * @param held - The rows a draft already read, loaded in place of reading the source again.
+ * @returns The command.
+ */
+export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
+    const optional = Object.fromEntries(
+        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
+            .filter((key) => choices[key] !== undefined)
+            .map((key) => [key, choices[key]]),
+    );
+    return {
+        op: "data.import",
+        source,
+        mode: choices.mode ?? "replace",
+        ...optional,
+        ...(held === undefined ? {} : { held }),
+    };
+}
+
+/**
+ * Whether a command adds rows, and so starts the load-time algorithm list once it is recorded: an
+ * add of nodes or edges, or an import naming both a source type and its options.
+ * @param command - Any dispatched command.
+ * @param command.op - What it does.
+ * @returns True when it does.
+ */
+export function addsRows(command: { readonly op: string }): boolean {
+    if (command.op === "data.apply") {
+        const { kind } = (command as DataApplyCommand).mutation;
+        return kind === "add-nodes" || kind === "add-edges";
+    }
+
+    if (command.op === "data.import") {
+        const { source } = command as DataImportCommand;
+        return source.type !== undefined && source.config !== undefined;
+    }
+
+    return false;
 }
 
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */
@@ -196,11 +312,80 @@ interface DataDeclareCommand {
 interface DataSetSourceCommand {
     readonly op: "data.setSource";
     readonly source: ImportSource;
+    /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
+    readonly sources?: readonly LoadedSource[];
+    /** What each load supplied; left as it is when absent. */
+    readonly provenance?: Provenance;
+}
+
+/**
+ * `data.label`: the name one value of a path is shown by (a community's "Group 3" called
+ * "Students"), or `null` to take the name away. A name is not a data edit: rules, bindings and
+ * exports still read the value itself.
+ */
+interface DataLabelCommand {
+    readonly op: "data.label";
+    /** The value path: `data.<column>` or `results.<run>.<field>`. */
+    readonly path: Path;
+    /** The value, compared as the legend spells it, so `3` and `"3"` are one value. */
+    readonly value: string | number | boolean;
+    /** The name, or null to remove it. */
+    readonly label: string | null;
+}
+
+/**
+ * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
+ * entry per load. An empty list removes them all.
+ */
+export interface DataSetFileStylesCommand {
+    readonly op: "data.setFileStyles";
+    readonly loads: readonly FileStyleLoadValues[];
+}
+
+/**
+ * The column settings the `columns` graph value holds, each column by `<kind>:<name>`
+ * ({@link declarationKey}).
+ */
+export interface ColumnSettings {
+    /** The hidden columns. */
+    readonly hidden: readonly string[];
+    /** The type each converted column was given. */
+    readonly types: Readonly<Record<string, ValueType>>;
+    /** Each renamed column's new name, by its old key: what a finished run's weight column follows. */
+    readonly renamed: Readonly<Record<string, string>>;
+}
+
+/** The graph value holding the {@link ColumnSettings}. */
+export const COLUMNS_VALUE = "columns";
+
+/** The settings of a graph no column setting was made on. */
+export const NO_COLUMN_SETTINGS: ColumnSettings = Object.freeze({
+    hidden: Object.freeze([]),
+    types: Object.freeze({}),
+    renamed: Object.freeze({}),
+});
+
+/**
+ * `data.columns`: replace the column settings, and with `move`, move a renamed column's
+ * declaration to its new name.
+ */
+interface DataColumnsCommand {
+    readonly op: "data.columns";
+    readonly settings: ColumnSettings;
+    readonly move?: { readonly kind: "node" | "edge"; readonly from: string; readonly to: string };
 }
 
 /** Every data op. */
 export type DataCommand =
-    DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand | DataSetSourceCommand;
+    | DataApplyCommand
+    | DataImportCommand
+    | DataImportSourceCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand
+    | DataSetFileStylesCommand
+    | DataLabelCommand
+    | DataColumnsCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -239,7 +424,7 @@ export interface DataService {
         draft: Draft,
         signal: AbortSignal,
         after?: UndoableContext["after"],
-    ): Promise<void>;
+    ): Promise<ImportOutcome | null | undefined>;
     /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.
@@ -249,8 +434,40 @@ export interface DataService {
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
 }
 
+/** A session's stable edge identity, read from its current snapshot. */
+export interface EdgeIdentityService {
+    /**
+     * An edge's stable identity: its file id, else its ordinal among its pair's edges in its load.
+     * @param id - The session edge id.
+     * @returns The member, or undefined when the graph holds no such edge.
+     */
+    member(id: EdgeId): EdgeMember | undefined;
+    /**
+     * The session ids of the edges stable members name now.
+     * @param members - The members.
+     * @returns One entry per member: its edge's id, or undefined when it binds no single edge.
+     */
+    idsOf(members: readonly EdgeMember[]): (EdgeId | undefined)[];
+}
+
 /** The graph value naming where the graph was last loaded from. */
 export const SOURCE_VALUE = "source";
+
+/** The graph value listing every load still in the graph, oldest first. */
+export const SOURCES_VALUE = "sources";
+
+/**
+ * The graph value holding what the last loaded file said about the whole graph: its format and
+ * its graph-level attributes (`{ format: "dot", attributes: { layout: "neato" } }`). Written only
+ * for a reader that declares graph values.
+ */
+export const FILE_GRAPH_VALUE = "fileGraph";
+
+/** What {@link FILE_GRAPH_VALUE} holds. */
+export interface FileGraphValue {
+    readonly format: string;
+    readonly attributes: Readonly<Record<string, unknown>>;
+}
 
 /**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
@@ -335,7 +552,7 @@ export function replaceNodesCommand(
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const named = new Map(records.map((record) => [searchRecord(record, idPath), record]));
     const gone = [...held.keys()].filter((id) => !named.has(id));
     const changed: RowUpdate<NodeId>[] = [];
     for (const [id, prior] of held) {
@@ -504,7 +721,7 @@ function categoryOf(mutation: DataMutation): "data-add" | "data-update" | "data-
  * @param service - The session's data service.
  * @returns It.
  */
-function serviceOf(service: DataService | undefined): DataService {
+export function serviceOf(service: DataService | undefined): DataService {
     if (service === undefined) {
         throw new GraphtyError({
             code: "E_UNSUPPORTED",
@@ -535,7 +752,7 @@ function importLabel(command: DataImportCommand): string {
  * @param command - The import.
  * @returns `data.import` with `name` and `type`, each null when unknown.
  */
-function importFact(command: DataImportCommand): CodedFact<"data.import"> {
+export function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     const { type, config, name } = command.source;
     const file = config?.file as { name?: unknown } | undefined;
     const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;
@@ -546,7 +763,28 @@ function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
 }
 
-const dataImport: UndoableDefinition<DataImportCommand> = {
+/**
+ * The import's `layout` choice: the command's own, else the one its source config names (a load
+ * call's options and `dataSourceConfig` carry it there, beside the reader's options).
+ * @param command - the import
+ * @returns `"recommended"` or `"keep"`
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
+ */
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+    const layout = command.layout ?? command.source.config?.layout ?? "keep";
+    if (layout !== "recommended" && layout !== "keep") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            source: "data",
+            details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
+        });
+    }
+
+    return layout;
+}
+
+export const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the
@@ -562,32 +800,152 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        if (command.layout === "recommended") {
-            // Chosen for what was loaded, once it is loaded, and merged into the import's step.
-            const advise = ctx.services.layoutAdvice;
-            ctx.after("layout:recommended", (dispatch) => {
-                const advice = advise?.();
-                if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(
-                        (error: unknown) => {
-                            // An undo that took the import away cancels this too; anything else is a
-                            // layout the import promised and did not apply.
-                            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                                GraphtyLogger.getLogger(["graphty", "data"]).error(
-                                    "The layout recommended for the imported data could not be applied",
-                                    error instanceof Error ? error : new Error(String(error)),
-                                    { layout: advice.id },
-                                );
-                            }
-                        },
-                    );
-                }
-            });
+        // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
+        // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
+        let sceneScale: number | null = null;
+        if (layoutChoiceOf(command) === "recommended") {
+            adviseLayout(ctx, () => sceneScale);
         }
 
-        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        const replacing = command.mode !== "merge" && command.measure === undefined;
+        const picked = replacing ? pickedEdges(ctx) : [];
+        const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        if (outcome !== null && outcome !== undefined) {
+            await repickEdges(picked, ctx);
+        }
+
+        // The file's styles, and the previous file's layers swept, in this same step.
+        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        if (layoutChoiceOf(command) === "recommended") {
+            // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
+            // asked here, before the step seals and the recommendation is read.
+            await ctx.services.layoutPrepare?.();
+        }
     },
 };
+
+/** A user layer naming edges by id, with each edge's stable identity before a replacing load. */
+interface PickedEdges {
+    readonly id: LayerId;
+    readonly selector: Extract<Selector, { match: "ids" }>;
+    readonly members: readonly (EdgeMember | undefined)[];
+}
+
+/**
+ * The user layers whose `ids` selector names edges, read before a replacing load: a session edge
+ * id is a counter that never rewinds, so the same file loaded again issues new ids.
+ * @param ctx - The import's context.
+ * @returns Each such layer with its edges' stable identities.
+ */
+function pickedEdges(ctx: UndoableContext): PickedEdges[] {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return [];
+    }
+
+    const picked: PickedEdges[] = [];
+    for (const { layer } of ctx.state.styles) {
+        const { selector } = layer;
+        if (layer.locked || selector.match !== "ids" || selector.edges === undefined || selector.edges.length === 0) {
+            continue;
+        }
+
+        picked.push({ id: layer.id, selector, members: selector.edges.map((edge) => identity.member(edge)) });
+    }
+
+    return picked;
+}
+
+/**
+ * Point each hand-picked layer at the ids the replacing load gave the same edges, in the load's
+ * step, so loading the same file again keeps the layer's members. An edge the new graph does not
+ * hold keeps its old id, which matches nothing.
+ * @param picked - What {@link pickedEdges} read before the load.
+ * @param ctx - The import's context.
+ */
+async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext): Promise<void> {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return;
+    }
+
+    for (const { id, selector, members } of picked) {
+        const bound = members.filter((member): member is EdgeMember => member !== undefined);
+        const ids = identity.idsOf(bound);
+        let at = 0;
+        const edges = (selector.edges ?? []).map((edge, k) => (members[k] === undefined ? edge : (ids[at++] ?? edge)));
+        if (edges.some((edge, k) => edge !== selector.edges?.[k])) {
+            await ctx.inline({ op: "style.patch", action: "update", id, patch: { selector: { ...selector, edges } } });
+        }
+    }
+}
+
+/**
+ * Choose the layout recommended for what an import loads, once it is loaded, merged into the
+ * import's step.
+ * @param ctx - The import's context.
+ * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
+ *     import is done: a fixed layout draws the file's stored positions in the same unit.
+ */
+function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): void {
+    const advise = ctx.services.layoutAdvice;
+    ctx.after("layout:recommended", (dispatch) => {
+        const advice = advise?.();
+        if (advice === undefined) {
+            return;
+        }
+
+        const { unplaced, placed = [] } = advice;
+        const graphviz = GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === advice.id);
+        const scale = advice.id === "fixed" || graphviz || unplaced !== undefined ? sceneScale() : null;
+        // A file that placed only some nodes: every placed node goes back where the file put it,
+        // in the unit the fixed layout would draw it in (a layout may have moved it since), and
+        // the advised layout runs over the unplaced ones, holding the rest still.
+        const resize = scale ?? 1;
+        // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
+        // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
+        // size against the spaces Graphviz leaves between them.
+        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
+        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
+        const options =
+            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        const layout = dispatch({
+            op: "layout.set",
+            id: advice.id,
+            engine: advice.engine,
+            ...(unplaced === undefined ? {} : { scope: { nodes: unplaced } }),
+            ...(options === undefined ? {} : { options }),
+        });
+        // Once the new layout holds the placed nodes, put them back: the layout running before
+        // it may have moved them.
+        const applied =
+            unplaced === undefined
+                ? layout
+                : layout.then(() =>
+                      dispatch({
+                          op: "positions.set",
+                          entries: placed.map(({ id, x, y, z = 0 }) => ({
+                              id,
+                              x: x * resize,
+                              y: y * resize,
+                              z: z * resize,
+                          })),
+                      }),
+                  );
+        void applied.catch((error: unknown) => {
+            // An undo that took the import away cancels this too; anything else is a
+            // layout the import promised and did not apply.
+            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                GraphtyLogger.getLogger(["graphty", "data"]).error(
+                    "The layout recommended for the imported data could not be applied",
+                    error instanceof Error ? error : new Error(String(error)),
+                    { layout: advice.id },
+                );
+            }
+        });
+    });
+}
 
 const dataExpand: UndoableDefinition<DataExpandCommand> = {
     op: "data.expand",
@@ -670,7 +1028,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`, `graph/v:${PROVENANCE_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -692,9 +1050,183 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             });
         }
 
-        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+        service.values(
+            {
+                [SOURCE_VALUE]: describeSource(source),
+                ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+                ...(command.provenance === undefined ? {} : { [PROVENANCE_VALUE]: command.provenance }),
+            },
+            ctx.draft,
+        );
+    },
+};
+
+const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
+    op: "data.setFileStyles",
+    undo: {
+        kind: "undoable",
+        label: () => "Set the style values of loaded files",
+        fact: (command) => ({
+            code: "data.set-file-styles",
+            params: { loads: Array.isArray(command.loads) ? command.loads.length : 0 },
+        }),
+    },
+    moves: false,
+    keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        // Checked before anything is written: the values may come from a file anyone edited.
+        const store = fileStyleStoreOf(command.loads);
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot keep style values.",
+                source: "data",
+            });
+        }
+
+        service.values({ [FILE_STYLES_VALUE]: store.loads.length === 0 ? undefined : store }, ctx.draft);
+    },
+};
+
+const dataLabel: UndoableDefinition<DataLabelCommand> = {
+    op: "data.label",
+    undo: {
+        kind: "undoable",
+        label: (command) =>
+            command.label === null
+                ? `Remove the name of ${String(command.value)}`
+                : `Name ${String(command.value)} ${command.label}`,
+        fact: (command) => ({
+            code: "data.label",
+            params: { path: command.path, value: command.value, label: command.label },
+        }),
+    },
+    // A name repaints nothing: what an element is drawn as reads the value, never its name.
+    moves: false,
+    keys: (command) => [`valueLabels/${valueLabelKey(command.path, command.value)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { path, value, label } = command;
+        const valid =
+            typeof path === "string" &&
+            (path.startsWith("data.") || path.startsWith("results.")) &&
+            ["string", "number", "boolean"].includes(typeof value) &&
+            (label === null || typeof label === "string");
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message:
+                    'A value is named on a path ("data.<column>" or "results.<run>.<field>"), with text or null to remove the name.',
+                source: "data",
+                details: { path, value, label },
+            });
+        }
+
+        const key = valueLabelKey(path, value);
+        const name = label?.trim() ?? "";
+        if (name === "") {
+            ctx.draft.valueLabels.delete(key);
+        } else {
+            ctx.draft.valueLabels.set(key, name);
+        }
+    },
+};
+
+/**
+ * Whether a value is column settings, as a project file may hold them.
+ * @param value - The value.
+ * @returns True when every part has its shape.
+ */
+function isColumnSettings(value: unknown): value is ColumnSettings {
+    const { hidden, types, renamed } = (typeof value === "object" && value !== null ? value : {}) as Record<
+        string,
+        unknown
+    >;
+    const isMap = (map: unknown, valid: (each: unknown) => boolean): boolean =>
+        typeof map === "object" && map !== null && !Array.isArray(map) && Object.values(map).every(valid);
+    return (
+        Array.isArray(hidden) &&
+        hidden.every((each) => typeof each === "string") &&
+        isMap(types, isValueType) &&
+        isMap(renamed, (each) => typeof each === "string")
+    );
+}
+
+const dataColumns: UndoableDefinition<DataColumnsCommand> = {
+    op: "data.columns",
+    undo: {
+        kind: "undoable",
+        label: () => "Change the column settings",
+        fact: () => ({ code: "data.columns", params: {} }),
+    },
+    // Hiding, a type and a rename's bookkeeping repaint nothing: the rows' own edits do.
+    moves: false,
+    keys: (command) => [
+        `graph/v:${COLUMNS_VALUE}`,
+        ...(command.move === undefined
+            ? []
+            : [
+                  `attributes/${declarationKey({ kind: command.move.kind, name: command.move.from })}`,
+                  `attributes/${declarationKey({ kind: command.move.kind, name: command.move.to })}`,
+              ]),
+    ],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        if (!isColumnSettings(command.settings)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "Column settings list the hidden columns, each converted column's type and each rename.",
+                source: "data",
+                details: { settings: command.settings, types: [...VALUE_TYPES] },
+            });
+        }
+
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot keep column settings.",
+                source: "data",
+            });
+        }
+
+        const { hidden, types, renamed } = command.settings;
+        const empty = hidden.length === 0 && Object.keys(types).length === 0 && Object.keys(renamed).length === 0;
+        service.values(
+            {
+                [COLUMNS_VALUE]: empty
+                    ? undefined
+                    : Object.freeze({
+                          hidden: Object.freeze([...hidden]),
+                          types: Object.freeze({ ...types }),
+                          renamed: Object.freeze({ ...renamed }),
+                      }),
+            },
+            ctx.draft,
+        );
+
+        const { move } = command;
+        if (move !== undefined) {
+            const from = declarationKey({ kind: move.kind, name: move.from });
+            const declared = ctx.state.attributes.get(from);
+            if (declared !== undefined) {
+                ctx.draft.attributes.delete(from);
+                ctx.draft.attributes.set(declarationKey({ kind: move.kind, name: move.to }), declared);
+            }
+        }
     },
 };
 
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare, dataSetSource] as const;
+export const DATA_DEFINITIONS = [
+    dataApply,
+    dataImport,
+    dataExpand,
+    dataDeclare,
+    dataSetSource,
+    dataSetFileStyles,
+    dataLabel,
+    dataColumns,
+] as const;

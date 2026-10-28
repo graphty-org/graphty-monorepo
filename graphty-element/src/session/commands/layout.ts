@@ -21,11 +21,12 @@
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
 
-import { layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
-import type { LayoutId, Scope } from "../../catalog/types";
+import { layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
+import type { LayoutId, NodeId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { LayoutChoice } from "../project/state";
+import type { PositionEntry } from "../types";
 
 /** `layout.set`: choose the layout that draws the graph. */
 export interface LayoutSetCommand {
@@ -104,8 +105,22 @@ export interface LayoutService {
     immersive(mode: "vr" | "ar" | null): Promise<void>;
 }
 
-/** Which layout suits the graph the session holds now: what `data.import` with a recommended layout asks. */
-export type LayoutAdvice = () => { readonly id: LayoutId; readonly engine: string } | undefined;
+/**
+ * Which layout suits the graph the session holds now: what `data.import` with a recommended layout
+ * asks. `options` are the layout options the advice comes with. `unplaced` names the nodes the
+ * data arrived without a coordinate for when it placed the others, and `placed` where each placed
+ * node is now: the import then keeps every placed node where the data put it, in the unit the
+ * fixed layout would draw it in, and runs the advised layout over the unplaced ones only.
+ */
+export type LayoutAdvice = () =>
+    | {
+          readonly id: LayoutId;
+          readonly engine: string;
+          readonly options?: Readonly<Record<string, unknown>>;
+          readonly unplaced?: readonly NodeId[];
+          readonly placed?: readonly PositionEntry[];
+      }
+    | undefined;
 
 /** The layout a graph is drawn with before one is chosen: the element's own default. */
 export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({
@@ -122,6 +137,15 @@ export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({
  * @returns The new choice, frozen.
  */
 function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): LayoutChoice {
+    // A deprecated name is the layout and engine it stands for: "force-2d" is force drawn by arf.
+    // An engine the caller named stays, unless it is the deprecated name itself (`setLayout`
+    // passes the name as both).
+    const alias = layoutAlias(command.id);
+    if (alias !== undefined) {
+        const named = command.engine === undefined || command.engine === command.id ? {} : { engine: command.engine };
+        return choiceOf({ ...command, id: alias.id, engine: alias.engine, ...named }, current);
+    }
+
     // 1.x callers name an engine where an id belongs: "ngraph" is the engine behind "force".
     const known = layoutDescriptor(command.id);
     const id = known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id;
@@ -165,6 +189,32 @@ async function applyChoice(choice: LayoutChoice, ctx: UndoableContext, explicitS
     await ctx.services.layout?.apply(choice, ctx.signal, explicitScope);
 }
 
+/**
+ * Refuse a location map asked to draw a globe in the 2D view, which has only the flat map. A
+ * globe chosen in 3D is kept, not refused, when the view switches to 2D: it draws flat there and
+ * comes back on the way back to 3D.
+ * @param choice - The choice a `layout.set` would write.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE` whose `details.refusal` is the
+ *     `setting.notIn2d` fact for `surface`.
+ */
+function refuseGlobeIn2d(choice: LayoutChoice): void {
+    if (choice.engine !== "location-map" || choice.dimension !== "2d" || choice.options.surface !== "globe") {
+        return;
+    }
+
+    throw new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message: 'The 2D view draws only the flat map: "surface" can be "flat" there, not "globe".',
+        source: "layout",
+        details: {
+            option: "surface",
+            value: "globe",
+            allowed: ["flat"],
+            refusal: { code: "setting.notIn2d", params: { setting: "surface" } },
+        },
+    });
+}
+
 const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     op: "layout.set",
     // Takes the arrangement it began from: the new layout moves every node.
@@ -179,6 +229,7 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
+        refuseGlobeIn2d(choice);
         ctx.draft.layout = choice;
         await applyChoice(choice, ctx, choice.scope !== undefined && command.scope !== undefined);
     },

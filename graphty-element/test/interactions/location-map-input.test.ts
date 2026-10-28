@@ -377,6 +377,7 @@ describe("the map under the graph", () => {
         // Nothing asked for yet is not ready: the status stays loading until a tile has settled.
         await basemapIs(element, "ready");
         await applied(element);
+        assert.strictEqual(element.basemapStatus.state, "ready");
         assert.isAbove(await colorsAround(element, CENTER, 40), 20, "the map is on screen once ready");
     });
 });
@@ -500,6 +501,7 @@ describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
         const element = await mounted("3d", { surface: "globe", extent: "world" });
         await basemapIs(element, "ready");
+        assert.strictEqual(element.basemapStatus.state, "ready");
         const placed = scenePositions(element);
         // One 2 x 1 pixel picture of the whole world, as a reader's own image would be.
         const picture =
@@ -518,6 +520,8 @@ describe("the globe's map", () => {
             await element.session.layout.set("location-map", { options: { surface: "globe", extent: "world", map } });
             await basemapIs(element, "ready", source);
             await applied(element);
+            assert.strictEqual(element.basemapStatus.source, source);
+            assert.strictEqual(element.basemapStatus.state, "ready", source);
             const tiles = globeTiles(element);
             assert.isAbove(tiles.length, 0, `${source} is drawn on the globe`);
             assert.isTrue(
@@ -533,6 +537,7 @@ describe("the globe's map", () => {
         });
         await basemapIs(element, "ready", "openstreetmap");
         await applied(element);
+        assert.strictEqual(element.basemapStatus.state, "ready");
         const far = Math.max(...globeTiles(element).map((t) => t.z));
         for (let i = 0; i < 12; i++) {
             await wheel(element, CENTER, -400);
@@ -680,6 +685,7 @@ describe("the location map's history and map", () => {
         await applied(element);
         await commands.releaseRequests("natural-earth.jpg", false);
         await basemapIs(element, "fallback");
+        assert.strictEqual(element.basemapStatus.state, "fallback");
         const fallback = states.find((s) => s.state === "fallback");
         assert.deepInclude(fallback?.error, { code: "E_BASEMAP_UNREACHABLE" });
         assert.strictEqual(fallback?.credit, "https://www.naturalearthdata.com/", "the credit is a link when told");

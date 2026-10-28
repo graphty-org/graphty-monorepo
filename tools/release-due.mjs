@@ -296,6 +296,23 @@ async function promoteApproved(range, approval, dryRun) {
     }
 }
 
+// one master commit's approval: a merge commit brings in <sha>^1..<sha> and its pull request's head is <sha>^2
+async function promoteMerge(sha, dryRun) {
+    try {
+        let range = ["-1", sha];
+        let approval = sha;
+        try {
+            approval = run("git", ["rev-parse", "--verify", "--quiet", `${sha}^2`]);
+            range = [`${sha}^1..${sha}`];
+        } catch {
+            // not a merge
+        }
+        await promoteApproved(range, approval, dryRun);
+    } catch (error) {
+        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+    }
+}
+
 /**
  * Whether a merge fixes the held candidate forward.
  * @param merge `{ subject, messages }`: the merge's subject, and its commits' messages and pull request description
@@ -444,23 +461,8 @@ async function main() {
     const { bodies, merges } = readMerges(commits);
     // An approval merge promotes its candidate whatever the red issues say; its failure never stops the restart.
     // Every merge since the base, oldest first: one whose own build was cancelled (#4127) is this build's to promote,
-    // and one at or before the base was handled by that green build. Each on its own: a merge commit brings in
-    // <sha>^1..<sha> and its pull request's head is <sha>^2.
-    for (const sha of [...commits].reverse()) {
-        try {
-            let ownRange = ["-1", sha];
-            let approval = sha;
-            try {
-                approval = run("git", ["rev-parse", "--verify", "--quiet", `${sha}^2`]);
-                ownRange = [`${sha}^1..${sha}`];
-            } catch {
-                // not a merge
-            }
-            await promoteApproved(ownRange, approval, dryRun);
-        } catch (error) {
-            console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
-        }
-    }
+    // and one at or before the base was handled by that green build.
+    for (const sha of [...commits].reverse()) await promoteMerge(sha, dryRun);
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below
     try {

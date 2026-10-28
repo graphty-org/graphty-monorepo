@@ -56,6 +56,8 @@ export {
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export type { BasemapSourceDescriptor } from "./src/catalog/basemaps";
+export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -91,8 +93,11 @@ export type { ModelDescriptor } from "./src/catalog/models";
 export { MODEL_DESCRIPTORS } from "./src/catalog/models";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
+export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 
@@ -147,6 +152,7 @@ export type {
     PathKind,
     ResultId,
     ResultItem,
+    RuleSide,
     RuleTree,
     Scope,
     ScopeId,
@@ -158,6 +164,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    SourceKey,
     TextMatchMode,
     TopTies,
 } from "./src/catalog/types";

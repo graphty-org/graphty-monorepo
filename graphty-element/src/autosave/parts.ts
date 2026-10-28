@@ -6,6 +6,7 @@
  * | Part | Holds |
  * | --- | --- |
  * | `data` | the `graphty-data` member |
+ * | `sources` | the `graphty-sources` member, written with `data`; absent when the session holds no load |
  * | `arrangement` | the `graphty-arrangement` member |
  * | `run:<id>` | one run of the `graphty-results` member (their order is the meta's `runs`) |
  * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
@@ -29,6 +30,7 @@ import {
     resultsMember,
     runEntry,
     sessionMember,
+    sourcesFileOf,
     styleMember,
     viewStateMember,
 } from "../session/projectFile";
@@ -195,6 +197,21 @@ function buildRunParts(
 }
 
 /**
+ * The `data` part and, written with it because the data member reads the load records too, the
+ * `sources` part. Every change to the records marks the data part unwritten (`Autosaver`).
+ * @param session - The session.
+ * @returns The parts; `sources` is null when the session holds no load.
+ */
+function dataParts(session: GraphSession): Record<string, string | null> {
+    const file = sourcesFileOf(session);
+    const member = file?.member ?? null;
+    return {
+        data: attempt("data", () => JSON.stringify(dataMember(session, file))),
+        sources: member === null ? null : attempt("sources", () => JSON.stringify(member)),
+    };
+}
+
+/**
  * Build the parts a set of tags names, from the session as it is now.
  * @param session - The session.
  * @param tags - What is unwritten.
@@ -213,9 +230,8 @@ export function buildParts(
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
-    const parts: Record<string, string | null> = tags.has("data")
-        ? { data: attempt("data", () => JSON.stringify(dataMember(session))) }
-        : {};
+    const parts: Record<string, string | null> = tags.has("data") ? dataParts(session) : {};
+
     const runs = new Map<RunId, unknown>();
     let ids: GraphIds | undefined;
     const idsNow = (): GraphIds => (ids ??= graphIdsOf(session));
@@ -293,6 +309,7 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
         rest.notes,
         rest.viewState,
         ...assets,
+        ...(typeof parts.sources === "string" ? [JSON.parse(parts.sources) as Record<string, unknown>] : []),
     ];
     return { ...rest.head, requires: requiresOf(members), members };
 }

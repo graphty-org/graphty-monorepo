@@ -61,6 +61,7 @@ jobs:
         outputs:
             version_commit: ${{ steps.check.outputs.version_commit }}
             rollback: ${{ steps.check.outputs.rollback }}
+            tag: ${{ steps.check.outputs.tag }}
         env:
             GH_TOKEN: ${{ github.token }}
             HAS_DIST_TAG_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN != '' }}
@@ -68,11 +69,11 @@ jobs:
             # The runner context is not available in a job's env, so WORK is set here.
             - run: echo "WORK=$RUNNER_TEMP/promote" >> "$GITHUB_ENV"
             # Master's tip: the scripts and graphty/sites/<site>.json a promotion uses.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   persist-credentials: false
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
@@ -92,6 +93,7 @@ jobs:
             - name: Gather the nightly, the store's record, npm and what the channel serves
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   NIGHTLY: ${{ inputs.nightly }}
               run: |
                   node tools/channel/promote.mjs gather --nightly "$NIGHTLY" --channel "$CHANNEL" \
@@ -106,6 +108,7 @@ jobs:
                       "$WORK/plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
                   echo "version_commit=$(jq -r .versionCommit "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
                   echo "rollback=$(jq -r .rollback "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
+                  echo "tag=$(jq -r '.tag // empty' "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
 
             # Before anything moves, so an expired or under-scoped token fails with nothing changed. A dry run
             # checks the token too once it exists.
@@ -132,7 +135,7 @@ jobs:
                       --config-ref "$GITHUB_SHA" --approver "${approver:-$GITHUB_ACTOR}" --out "$WORK/site"
                   cat "$WORK/site/deployed.json"
 
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: promote-${{ github.run_id }}
                   path: |
@@ -145,7 +148,7 @@ jobs:
             # nightly-site job pushes there.
             - name: Check out graphty-site
               if: ${{ inputs.dry_run != true && inputs.channel == 'production' }}
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   repository: graphty-org/graphty-site
                   ssh-key: ${{ secrets.PRODUCTION_SITE_DEPLOY_KEY }}
@@ -175,14 +178,14 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   persist-credentials: false
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: promote-${{ github.run_id }}
                   path: ${{ runner.temp }}/promote
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   repository: graphty-org/graphty-nightly
                   ssh-key: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
@@ -205,7 +208,7 @@ jobs:
             COMMIT: ${{ needs.promote.outputs.version_commit }}
             ROLLBACK: ${{ needs.promote.outputs.rollback }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
@@ -219,3 +222,42 @@ jobs:
                   else
                       git push --no-verify origin "${COMMIT}:${ref}"
                   fi
+
+    # The routine dependency refresh (Dependabot opens security updates only, .github/dependabot.yml): after
+    # production moved forward, one grouped "chore(deps): refresh dependencies after promotion <tag>" pull
+    # request, or none when nothing is newer (tools/dependency-refresh.mjs). It is opened as graphty-agent with
+    # AGENT_AUTOMERGE_TOKEN (Contents and Pull requests write) from the master-only environment
+    # dependabot-automerge, as dependabot-automerge.yml does, so its pushes start CI.
+    dependency-refresh:
+        name: Refresh dependencies
+        needs: promote
+        if: ${{ inputs.dry_run != true && inputs.config_only != true && inputs.channel == 'production' && needs.promote.result == 'success' && needs.promote.outputs.rollback != 'true' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        environment: dependabot-automerge
+        permissions:
+            contents: read
+        env:
+            GH_TOKEN: ${{ secrets.AGENT_AUTOMERGE_TOKEN }}
+            TAG: ${{ needs.promote.outputs.tag }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  token: ${{ secrets.AGENT_AUTOMERGE_TOKEN }}
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+            # The script imports semver and runs visual-review init, both from the workspace's install.
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+            - name: Refresh and open the pull request
+              env:
+                  HUSKY: "0"
+              run: |
+                  set -euo pipefail
+                  git config user.name graphty-agent
+                  git config user.email 347682054+graphty-agent@users.noreply.github.com
+                  node tools/dependency-refresh.mjs --label "${TAG:-$(date -u +%F)}"

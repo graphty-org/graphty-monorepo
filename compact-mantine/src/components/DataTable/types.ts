@@ -68,6 +68,11 @@ export interface DataTableColumn<TRow extends object> {
     cell?: (row: TRow) => React.ReactNode;
     /** How wide the column is drawn, in pixels. Defaults to the width of one field in a property panel. */
     width?: number;
+    /**
+     * With `columnSizing: "content"`, the narrowest the column is drawn, in pixels: room for what a
+     * header carries beyond its name (icons, a badge). Ignored when `width` is set.
+     */
+    minWidth?: number;
     /** How the column's contents line up. Defaults to `"start"`; use `"end"` for numbers. */
     align?: DataTableAlign;
     /** Whether the column's header sorts the table. Defaults to `true`. */
@@ -99,10 +104,16 @@ export interface DataTableColumn<TRow extends object> {
      */
     rowHeader?: boolean;
     /**
-     * A small glyph drawn before the header's name, such as the column's data type. It is
-     * decoration: the header is still named by `header` alone.
+     * A small glyph drawn before the header's name, such as the column's data type. Without
+     * `iconLabel` it is decoration: the header is named by `header` alone.
      */
     icon?: React.ReactNode;
+    /**
+     * What `icon` says, for a screen reader, such as "number, joined". Given, the glyph is read
+     * as an image with this name before the header's name; omitted, it is hidden from assistive
+     * technology.
+     */
+    iconLabel?: string;
     /**
      * A tooltip on the header, shown on hover and on keyboard focus and linked to the header
      * as its description: the column's profile, such as "77 values, 1 to 36".
@@ -114,6 +125,19 @@ export interface DataTableColumn<TRow extends object> {
      * the keyboard, Alt+ArrowDown, Shift+F10 or the context-menu key on the header opens it.
      */
     menu?: React.ReactNode;
+    /**
+     * Controls at the end of the header, before the menu caret and outside the sort button, so a
+     * click on them never sorts: a warning that opens its details on hover, a status badge. Keep
+     * them small (about 20px); they are always shown. They take no tab stop of their own: the
+     * grid has one, so whatever they offer must also be reachable from `menu`.
+     */
+    headerEnd?: React.ReactNode;
+    /**
+     * A cell's tone: `"warning"` draws its text in the warning color, as a header's warning is
+     * drawn, to mark a value that has a problem. Left out, or undefined for a row, the cell is
+     * drawn as usual.
+     */
+    cellTone?: (row: TRow) => "warning" | undefined;
 }
 
 /**

@@ -206,7 +206,7 @@ needs the extracted libEGL tree of `docs/HEADLESS_GPU_REPORT.md` appendix D on `
 `GRAPHTY_EGL_LIB_DIR` (browser). Without it Dawn lists only llvmpipe and Chromium falls back to SwiftShader --
 which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under `GRAPHTY_BROWSER_GPU=nvidia`,
 never into a silent pass.
-The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
+`pnpm run check:quick` (`tools/check-quick.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
 `tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
 tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
 global setup prints the adapter it ran on (`[gpu] node project adapter: <vendor> / <architecture>`)

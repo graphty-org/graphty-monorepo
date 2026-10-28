@@ -357,6 +357,20 @@ graph.on("style-changed", (e) => {
 });
 ```
 
+One repaint can carry many edits: a grouping run such as Louvain adds a layer per group, and a
+held undo passes several steps, so one pass can publish dozens of `style:changed` events in a row.
+A listener that only re-reads the picture -- `styles.legend()`, `styles.counts()` -- listens to
+the session's `style:batch-changed` instead. It fires once per repaint, right after the last
+`style:changed` of that repaint (for an undo, a redo or a restore, in a microtask after the last
+step), with `{ edits, layers, cause }`: how many `style:changed` events it closes, every layer
+they touched (each once), and the cause of the last one:
+
+```typescript
+session.on("style:batch-changed", ({ edits, layers }) => {
+    drawKey(session.styles.legend()); // once per repaint, however many edits it carried
+});
+```
+
 ## Event Timing
 
 Some events fire asynchronously. Understand the order:

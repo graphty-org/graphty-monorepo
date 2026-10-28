@@ -673,6 +673,39 @@ const css = `
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* ---- FileSource: a URL field, a drop target or a button ---- */
+.cm-file-source {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.cm-file-source[data-variant="row"][data-over] .cm-file-url .cm-input-wrapper,
+.cm-file-source[data-variant="row"][data-over] > .mantine-Button-root {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+.cm-file-drop-target {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    border: 1px dashed var(--cm-border);
+    border-radius: 5px;
+    color: var(--cm-icon-secondary);
+}
+.cm-file-source[data-over] .cm-file-drop-target {
+    border-color: var(--cm-border-selected);
+    background-color: var(--cm-bg-selected);
+}
+.cm-file-source[data-disabled] .cm-file-drop-target {
+    border-color: var(--cm-border-disabled);
+    color: var(--cm-icon-disabled);
+}
+.cm-file-drop-glyph {
+    display: inline-flex;
+}
 `;
 
 export default css;

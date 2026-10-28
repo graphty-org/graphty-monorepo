@@ -1,0 +1,106 @@
+{
+    "name": "babylonjs-map",
+    "version": "0.0.0",
+    "private": false,
+    "description": "Maps and globes for Babylon.js scenes: projections, flat maps and globes with tile level of detail, map sources with attribution, and location parsing",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./location": {
+            "types": "./dist/location/index.d.ts",
+            "import": "./dist/location/index.js",
+            "default": "./dist/location/index.js"
+        },
+        "./projection": {
+            "types": "./dist/projection/index.d.ts",
+            "import": "./dist/projection/index.js",
+            "default": "./dist/projection/index.js"
+        }
+    },
+    "typesVersions": {
+        "*": {
+            "location": [
+                "dist/location/index.d.ts"
+            ],
+            "projection": [
+                "dist/projection/index.d.ts"
+            ]
+        }
+    },
+    "sideEffects": false,
+    "files": [
+        "dist/",
+        "!dist/*.tsbuildinfo",
+        "src/",
+        "assets/",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "engines": {
+        "node": ">=18.19.0"
+    },
+    "scripts": {
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint:fix": "eslint --fix",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "ready:commit": "npm run build && npm run lint && npm run test:run"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "babylonjs-map"
+    },
+    "keywords": [
+        "babylonjs",
+        "babylon.js",
+        "map",
+        "globe",
+        "web-mercator",
+        "projection",
+        "tiles",
+        "latitude",
+        "longitude",
+        "geo"
+    ],
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-map#readme",
+    "dependencies": {
+        "coordinate-parser": "1.0.7",
+        "mgrs": "2.2.0",
+        "ngeohash": "0.6.4",
+        "utm": "1.1.1"
+    },
+    "peerDependencies": {
+        "@babylonjs/core": "^8.36.1"
+    },
+    "devDependencies": {
+        "@babylonjs/core": "^8.36.1",
+        "@types/ngeohash": "^0.6.8",
+        "@vitest/coverage-v8": "catalog:",
+        "@vitest/ui": "catalog:",
+        "eslint": "^9.29.0",
+        "typescript": "^5.9.3",
+        "vite": "^7.0.5",
+        "vitest": "catalog:"
+    }
+}

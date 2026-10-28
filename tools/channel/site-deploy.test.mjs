@@ -98,12 +98,14 @@ describe("site-deploy.yml", () => {
     // The report step's shell, run with a curl that hands out an OIDC token and records the POST.
     const report = workflow.slice(at("    report:"));
     const reportScript = report.slice(report.indexOf("run: |\n") + "run: |\n".length).replace(/^ {18}/gm, "");
-    function runReport(curlExit = 0) {
+    function runReport(curlExit = 0, extra = {}) {
         const bin = mkdtempSync(join(dir, "bin-"));
         const posted = join(bin, "posted");
         writeFileSync(
             join(bin, "curl"),
-            `#!/bin/bash\ncase "$*" in *audience=graphty-results*) echo '{"value":"oidc-token"}';; ` +
+            `#!/bin/bash\necho "$*" >> ${JSON.stringify(`${posted}.all`)}\n` +
+                `case "$*" in *audience=graphty-results*) echo '{"value":"oidc-token"}';; ` +
+                `*audience=graphty-health*) echo '{"value":"health-token"}';; *health.example*) exit ${curlExit};; ` +
                 `*) printf '%s\\n' "$@" > ${JSON.stringify(posted)}; exit ${curlExit};; esac\n`,
             { mode: 0o755 },
         );
@@ -119,6 +121,7 @@ describe("site-deploy.yml", () => {
             DEPLOY: "failure",
             GITHUB_RUN_ID: "4242",
             GITHUB_RUN_ATTEMPT: "2",
+            ...extra,
         };
         const r = spawnSync("bash", ["-e", "-c", reportScript], { encoding: "utf8", env });
         let args = [];
@@ -127,7 +130,13 @@ describe("site-deploy.yml", () => {
         } catch {
             // nothing was posted
         }
-        return { ...r, args };
+        let all = "";
+        try {
+            all = readFileSync(`${posted}.all`, "utf8");
+        } catch {
+            // curl was never called
+        }
+        return { ...r, args, all };
     }
 
     it("reports each job's result to the store's durations, which a site repository may write", () => {
@@ -158,6 +167,17 @@ describe("site-deploy.yml", () => {
         const r = runReport(22);
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /::warning::the results store did not take the deploy report/);
+    });
+
+    it("sends the same report to the pipeline health API with its own token, failing open", () => {
+        assert.doesNotMatch(runReport().all, /graphty-health/, "no health API configured: no call there");
+        for (const exit of [0, 22]) {
+            const r = runReport(exit, { HEALTH_API_URL: "https://health.example/" });
+            assert.equal(r.status, 0, r.stderr);
+            assert.match(r.all, /audience=graphty-health/);
+            assert.match(r.all, /Authorization: Bearer health-token .*https:\/\/health.example\/v1\/durations/);
+            assert.match(r.all, /https:\/\/results.example\/v1\/durations/, "the store still gets its report");
+        }
     });
 });
 

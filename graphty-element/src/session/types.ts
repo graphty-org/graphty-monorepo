@@ -49,6 +49,7 @@ import type {
     ScopeInput,
     SelectionDirection,
     SetId,
+    SourceKey,
     StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
@@ -58,11 +59,14 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { NetworkApi, NetworkRequest } from "./network";
+import type { LayoutRecommendation } from "./layout";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
+import type { RecipeDocument } from "./recipe";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -84,17 +88,27 @@ import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
+    SourceCheck,
     SourceExpanded,
     SourceExpandFailed,
+    SourceExpandResult,
     SourceExpandStart,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
+    SourceMoreOptions,
+    SourcePreview,
+    SourcePreviewOptions,
+    SourceRefreshReport,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
-import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
+import type { TimeUnit } from "./time/parse";
+import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
+import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
@@ -242,6 +256,26 @@ export interface RecordPageOptions {
      * ```
      */
     readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    /**
+     * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
+     * issue (no issue id is `"any"`).
+     * An ignored issue, an issue the data does not have, and an issue on rows the graph never
+     * held (`blank-id`, `refused-row`) leave the page empty. Combines with `scope`, `matching`,
+     * `sort` and `columns`; `total` counts the matches.
+     *
+     * ```ts
+     * const rows = session.data.nodePage({ issue: "case-variant:node:city" });
+     * ```
+     * @since 3.37.0
+     */
+    readonly issue?: IssueId;
+    /**
+     * Carry each record's open issues as {@link RecordPage.issues}, without narrowing the page:
+     * what marks the affected cells of an unfiltered table. Finding the issues reads every record
+     * once per revision, so it is off by default; a page asked with `issue` carries them anyway.
+     * @since 3.37.0
+     */
+    readonly markIssues?: boolean;
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -272,6 +306,15 @@ export interface RecordPage<TRecord> {
      * typed as present then, so a page read with `columns` needs no `?? []`.
      */
     readonly columns?: readonly PageColumn[];
+    /**
+     * The open issues each record is on, aligned with `records`: one list of issue ids per
+     * record, empty for a record with none. Present only on a page asked with
+     * {@link RecordPageOptions.issue} or {@link RecordPageOptions.markIssues}, and then absent
+     * when no record on the page is on an open issue. Kept beside the records, not in them,
+     * because a record's keys are its attributes.
+     * @since 3.37.0
+     */
+    readonly issues?: readonly (readonly IssueId[])[];
 }
 
 /** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
@@ -735,7 +778,7 @@ export interface GraphStatistics {
  * How many elements carry each value of one readable path: what `session.data.valueCounts(path)`
  * returns. Unlike {@link ColumnHistogram} it reads any path `data.readableValues()` lists -- a data
  * column, a run's field, a node value read at an edge's end -- and it never bins or truncates.
- * @since 3.31.0
+ * @since 3.37.0
  */
 export interface ValueCounts {
     /** Every value carried, most elements first; a tie keeps the order the values were first seen in. */
@@ -744,6 +787,37 @@ export interface ValueCounts {
     readonly missing: number;
     /** How many elements of the kind there are: the values' counts plus `missing`. */
     readonly total: number;
+}
+
+/**
+ * What a column's values are read as: what `session.data.setType(column, type)` converts them to.
+ *
+ * - `"text"`: strings, free text.
+ * - `"number"`: finite numbers; text such as `"12.5"` converts, `"N/A"` does not.
+ * - `"boolean"`: `true` and `false`; `yes`, `no`, `y`, `n`, `true`, `false`, `1` and `0` convert.
+ * - `"date"`: instants, held as ISO 8601 strings (`"2024-09-01T00:00:00.000Z"`); text `Date.parse`
+ *   reads, milliseconds since 1970, and a four-digit year convert. The column's type reads `"time"`.
+ * - `"category"`: strings, read as groups (`type: "category"`, measured categorical).
+ *
+ * OPEN UNION: types may be added in a minor release; handle unknown types.
+ * @since 3.30.0
+ */
+export type ValueType = "text" | "number" | "boolean" | "date" | "category";
+
+/**
+ * What converting a column to a type would do, before it is done: what
+ * `session.data.previewType(column, type)` returns. A value that does not convert becomes blank.
+ * @since 3.30.0
+ */
+export interface TypeChangePreview {
+    /** How many values hold a value of the type afterwards, those that already did among them. */
+    readonly converts: number;
+    /** How many values do not convert, and become blank. */
+    readonly fails: number;
+    /**
+     * Up to five values and what each becomes, the ones that fail first (`converted: null`).
+     */
+    readonly examples: readonly { readonly value: unknown; readonly converted: unknown }[];
 }
 
 /**
@@ -1035,8 +1109,77 @@ export interface SessionDataApi {
      * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
      * ```
      * @returns the loads, or an empty list when no import loaded the graph
+     * @since 3.30.0
      */
     sources(): readonly LoadedSource[];
+    /**
+     * What is wrong with the data now: a number column holding "N/A", decimal commas, padded
+     * values, two spellings of one value, edges naming a node no node row gave, repeated edges,
+     * node rows repeating an id, rows refused for a blank id, rows the reader could not read.
+     * Each issue is a neutral fact -- a code, a count, params -- with the fixes
+     * {@link SessionDataApi.fix} takes for it. An issue with a zero count is never listed, and an
+     * ignored one only with `includeIgnored`.
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: transfers } });
+     * for (const issue of session.data.issues()) {
+     *     console.log(issue.code, issue.column?.name, issue.count, issue.fixes);
+     * }
+     * // "decimal-comma" "amount" 3 ["read-decimal-comma"]
+     * ```
+     * @param options - which issues
+     * @param options.includeIgnored - list the ignored issues too, each with `ignored: true` and
+     *     `status: "ignored"` (default false)
+     * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
+     *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
+     * @returns the issues, those a load saw first
+     * @since 3.30.0
+     */
+    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
+    /**
+     * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
+     *
+     * ```ts
+     * const commas = session.data.issues().find((issue) => issue.code === "decimal-comma");
+     * if (commas) await session.data.fix(commas, "read-decimal-comma"); // "12,5" becomes 12.5
+     * ```
+     * @param issue - the issue, or its id
+     * @param fix - one of the issue's `fixes`, or its `current` fix, which changes no data and
+     *     only marks the issue fixed
+     * @returns how many nodes and edges the fix changed, kept or removed
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"unknown-issue"` for an
+     *     issue the data does not have now (`details.known`), `"unknown-fix"` for a fix the issue
+     *     does not take (`details.fixes`).
+     * @since 3.30.0
+     */
+    fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
+    /**
+     * Ignore an issue, or list it again with `false`, as one undoable step saved with the
+     * project. An ignored issue keeps its id, so it stays ignored through fixes, undo and a
+     * reload; {@link SessionDataApi.issues} lists it only with `includeIgnored`.
+     * @param issue - the issue, or its id
+     * @param ignored - true (the default) to ignore, false to list it again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason: "unknown-issue"`) when
+     *     ignoring an issue the data does not have now.
+     * @since 3.30.0
+     */
+    ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
+    /**
+     * Ignore several issues, or list them again with `false`, as ONE undoable step saved with
+     * the project: what an "ignore all" reads. Issues already in the state asked for are skipped.
+     *
+     * ```ts
+     * await session.data.ignoreIssues(session.data.issues());
+     * ```
+     * @param issues - the issues, or their ids
+     * @param ignored - true (the default) to ignore, false to list them again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason: "unknown-issue"`) when
+     *     ignoring an issue the data does not have now; nothing is ignored then.
+     * @since 3.37.0
+     */
+    ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
@@ -1046,12 +1189,102 @@ export interface SessionDataApi {
      * await session.data.renameSource("Les Miserables characters");
      * session.data.source()?.name; // "Les Miserables characters"
      * ```
+     * With a key, it renames that load of {@link SessionDataApi.sources} instead of the newest
+     * (`renameSource("ships.csv", "s1")`); {@link source} follows only when it is the newest.
      * @param name - the new name; not empty
+     * @param key - the load to rename (since 3.30.0); the newest when absent
      * @returns settles once the step is recorded
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-source"`) when no
-     *     source is loaded, and (`"empty-name"`) for an empty name.
+     *     source is loaded, and (`"empty-name"`) for an empty name, and `E_SOURCE_UNKNOWN` for a
+     *     key `sources()` does not list.
      */
-    renameSource(name: string): Promise<void>;
+    renameSource(name: string, key?: SourceKey): Promise<void>;
+    /**
+     * The loads that supplied one node or edge, oldest first: every load whose rows named it, so
+     * a node two files both list answers with both keys. Empty for an element the graph does not
+     * hold, or one no load recorded (added with `addNodes`, or saved before loads had keys).
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: people }, name: "people.csv" });
+     * await session.data.import({ type: "csv", config: { data: more }, name: "more.csv" }, { mode: "merge" });
+     * session.data.sourcesOf("alice"); // ["s1", "s2"] when both files list alice
+     * ```
+     * @param id - The node id, or the edge id with `kind: "edge"`.
+     * @param options - Which kind of element the id names.
+     * @param options.kind - `"node"` (the default) or `"edge"`.
+     * @returns The keys, as {@link LoadedSource.key} has them.
+     * @since 3.30.0
+     */
+    sourcesOf(id: NodeId | EdgeId, options?: { readonly kind?: "node" | "edge" }): readonly SourceKey[];
+    /**
+     * Take one load out of the graph, as one undoable step: the nodes and edges only it supplied
+     * go, with the edges attached to a node that goes, and the load leaves `sources()`. A node or
+     * edge another load also supplied stays, as does anything no load recorded.
+     *
+     * ```ts
+     * const removed = await session.data.removeSource("s2");
+     * removed.removed.nodes; // nodes only s2 supplied
+     * removed.kept.nodes; // s2's nodes another load also supplied
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @returns How many nodes and edges went and stayed.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @since 3.30.0
+     */
+    removeSource(key: SourceKey): Promise<RemoveSourceResult>;
+    /**
+     * Replace one load with a newer copy of it, as one undoable step. Nodes match by id and edges
+     * by their two ends; what the copy no longer has goes (unless another load also supplied it),
+     * what it changed takes the new values, and what it adds arrives. Style layers, runs, filters,
+     * joins, the column settings and the load's key all stay; the load moves to the end of
+     * `sources()`, as the newest. One undo brings the earlier data back.
+     *
+     * ```ts
+     * const key = await session.data.matchesSource({ config: { file } });
+     * if (key !== null) {
+     *     const report = await session.data.replaceSource(key, { config: { file } });
+     *     report.edges; // { added: 12, removed: 3, changed: 40 }
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @param source - The newer copy, as `import` takes it.
+     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored.
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @since 3.30.0
+     */
+    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    /**
+     * Read one load again from what it was read from, with changed choices -- another id, source
+     * or target column, the kinds of its ends, kept or scoped ids -- as one undoable step that
+     * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
+     * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
+     * goes back to the element's own reading. Only a load this session read itself can be read
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     *
+     * ```ts
+     * const [log] = session.data.sources();
+     * if (log.reloadable === true) {
+     *     await session.data.reloadSource(log.key, { mapping: { sourceKind: "user", targetKind: "host" } });
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @param choices - What to change, as `draft.load` takes it; `mode` and `join` are ignored.
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does
+     *     not list, and `E_UNSUPPORTED` (`details.reason: "not-reloadable"`) for a load this session
+     *     did not read itself.
+     * @since 3.30.0
+     */
+    reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    /**
+     * The load whose rows carry the same columns as a file's header (in any order), newest
+     * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
+     * @param source - The file, as `import` takes it.
+     * @returns The load's key, or null when none matches or the file is a graph file with no header.
+     * @since 3.30.0
+     */
+    matchesSource(source: DataSourceInput): Promise<SourceKey | null>;
     /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
@@ -1117,6 +1350,98 @@ export interface SessionDataApi {
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     /**
+     * Give a column a role -- the node label, the edge weight, an edge's source -- or take every
+     * role it plays away with `null`, as one undoable step. A role is written to the data
+     * configuration (`data.knownFields`), so a kind has one column per role: giving it to this
+     * column takes it from the one that had it. The roles that make the rows -- `key` for nodes,
+     * `source`, `target` and `edgeId` for edges -- are read when the rows load, so giving one to
+     * another column while rows of that kind are loaded is refused: load them again with the
+     * choice (`LoadDraft.load({ mapping })`). `null` never takes `key` away, since every node has
+     * an id.
+     *
+     * ```ts
+     * await session.data.setRole({ kind: "node", name: "title" }, "label");
+     * await session.data.setRole({ kind: "edge", name: "confidence" }, "weight");
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param role - the role, or null for none
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
+     *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
+     *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     * @since 3.30.0
+     */
+    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    /**
+     * What converting a column to a type would do: how many values convert and how many become
+     * blank, with examples. Changes nothing.
+     *
+     * ```ts
+     * const preview = session.data.previewType({ kind: "node", name: "amount" }, "number");
+     * preview.fails; // 1, the "N/A"
+     * ```
+     * @param column - the column
+     * @param type - the type
+     * @returns the preview
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a type that is not one.
+     * @since 3.30.0
+     */
+    previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
+    /**
+     * Convert a column's values to a type, as one undoable step: what
+     * {@link SessionDataApi.previewType} says, with the values that do not convert made blank.
+     * The column's descriptor then reports the type (`date` reads `"time"`), saved with the project.
+     * @param column - the column
+     * @param type - the type
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a type that is not one.
+     * @since 3.30.0
+     */
+    setType(column: ColumnRef, type: ValueType): Promise<void>;
+    /**
+     * Give a column a new name, as one undoable step. Every record's value moves to the new key,
+     * and what read the old name follows it: style layer selectors and bindings, the filter, the
+     * filter steps and the time window, the roles, the declaration, the value names and the
+     * hidden flag; a finished run that weighed its edges by it lists under the new name in
+     * `usedBy`. Kept sets are not rewritten.
+     * @param column - the column
+     * @param name - its new name, not one another column of the kind has
+     * @returns settles once the step is recorded; the same name changes nothing
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` (`details.reason` `"empty-name"` or `"name-taken"`) for a name it cannot take.
+     * @since 3.30.0
+     */
+    renameColumn(column: ColumnRef, name: string): Promise<void>;
+    /**
+     * Hide columns, or show them again, as one undoable step saved with the project. A hidden
+     * column keeps its values and reads `hidden: true` in {@link SessionDataApi.attributes}; what a
+     * consumer leaves out for it (a table, a field list) is the consumer's choice.
+     *
+     * ```ts
+     * const others = session.data.attributes().filter((a) => a.kind === "node" && a.name !== "holder");
+     * await session.data.setHidden(others, true); // hide others
+     * ```
+     * The node id (`{ kind: "node", name: "id" }`) and the edge ends (`"source"`, `"target"`) can
+     * be hidden too when no column carries them, as after a graph file; {@link
+     * SessionDataApi.hiddenColumns} lists them.
+     * @param columns - the columns
+     * @param hidden - true to hide, false to show
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries.
+     * @since 3.30.0
+     */
+    setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
+    /**
+     * Every hidden column, the node id and the edge ends included: what `setHidden` hid and has not
+     * shown again, saved with the project.
+     * @returns the columns, in the order they were hidden
+     * @since 3.30.0
+     */
+    hiddenColumns(): readonly ColumnRef[];
+    /**
      * Name one value of a path -- a community the run calls group 3, "Students" -- or take its
      * name away with `null`. One undoable step, saved with the project. A name is not a data edit:
      * rules, bindings and exports still read the value; the legend's swatch for the value carries
@@ -1177,14 +1502,17 @@ export interface SessionDataApi {
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
      * @returns The counts, most elements first.
-     * @since 3.31.0
+     * @since 3.37.0
      */
     valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
      * The graph's shape. Walked once per snapshot and cached.
+     * @param options - What to measure.
+     * @param options.scope - `"visible"` measures only what the filters and the time window leave
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
      * @returns the statistics
      */
-    statistics(): GraphStatistics;
+    statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
     /**
      * A stable identity for the graph's topology: equal fingerprints mean the same node ids in
      * the same order with the same arcs between them. Attributes and coordinates are not in it.
@@ -1278,9 +1606,24 @@ export interface SessionDataApi {
      * undoable step. A node not loaded from a source rejects with `E_SOURCE_UNSUPPORTED`. Experimental.
      * @param ids - The seed nodes.
      * @param options - Depth, direction, limit and the credential.
-     * @returns Settles once the neighborhood is in the graph.
+     * @returns `I_SOURCE_EXPANDED` with `{ seeds, added: [nodes, edges], partial }` when it
+     *     brought something, `I_SOURCE_NOTHING_NEW` with the same params when it brought nothing.
      */
-    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<void>;
+    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<SourceExpandResult>;
+    /**
+     * Where a node came from, when a network source's load brought it: the load and its
+     * `sources()` entry, whether expanding it can fetch more, how many neighbors the source holds
+     * that the graph does not, and whether it has been expanded (so `collapse` applies).
+     * Experimental.
+     *
+     * ```ts
+     * const from = session.data.nodeSource("ana");
+     * if (from?.canExpand) await session.data.expand(["ana"]);
+     * ```
+     * @param id - The node.
+     * @returns The facts, or null for a node no network source brought or the graph lacks.
+     */
+    nodeSource(id: NodeId): NodeSource | null;
     /**
      * Remove what a node's expansions alone brought, as one undoable step. Experimental.
      * @param id - The node.
@@ -1288,11 +1631,56 @@ export interface SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult>;
     /**
-     * Load the next page after a capped load from a source. Experimental.
-     * @param options - The load options.
-     * @returns Settles once the page is in the graph.
+     * Load the next page after a capped load from a source, merged in. Experimental.
+     *
+     * ```ts
+     * const [load] = session.data.loads();
+     * if (load.next !== null) await session.data.more({ load: load.key });
+     * ```
+     * @param options - The load options; `load` names the load to page (a key from `loads()`),
+     *     else the newest load that has more. The load's own caps apply unless `limits` is given.
+     * @returns Settles once the page is in the graph, or at once when the load has no more;
+     *     rejects with `E_SOURCE_UNKNOWN` for a `load` that `loads()` does not list.
      */
-    more(options?: SourceLoadOptions): Promise<void>;
+    more(options?: SourceMoreOptions): Promise<void>;
+    /**
+     * Read a few rows of a network source to confirm a form, changing nothing: no step, no
+     * record, no event. The cap is sent to the source, so a database returns no more. Experimental.
+     *
+     * ```ts
+     * const preview = await session.data.previewSource({ source: "neo4j", config: { database: "movies", mode: "all" } });
+     * preview.nodes.length; // at most 25
+     * ```
+     * @param source - The source id and its params.
+     * @param options - `maxNodes` (25 by default), the credential and the endpoint.
+     * @returns At most `maxNodes` node rows, the edges between them, their columns, `more` when the
+     *     source holds more, the server's facts and the read's issues; rejects with the source's code.
+     */
+    previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+    /**
+     * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns `{ changed }`; null when the source cannot tell (it has no cheap check, or the
+     *     load recorded nothing to compare). Rejects with `E_SOURCE_UNKNOWN` for an unknown key.
+     */
+    checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
+    /**
+     * Read a load from its source again -- as many pages as it read -- and apply only the
+     * difference as one undoable step (history fact `data.replace-source`): what the source no
+     * longer has goes unless another load also supplied it, what it changed takes the new
+     * values, and what it added arrives. A source that has not changed dispatches nothing and
+     * reports zeros. Expansions of the load are not fetched again. Experimental.
+     *
+     * ```ts
+     * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
+     * ```
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns The node and edge counts added, removed and updated; rejects with
+     *     `E_SOURCE_UNKNOWN` for an unknown key, else with the source's code.
+     */
+    refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
      * Load one of the public samples the registered sources list (`samples` on a descriptor of
      * `sourceDescriptors()`, graph-samples' datasets among them), as one undoable step: the
@@ -1332,9 +1720,51 @@ export interface SessionDataApi {
      * @param source - What `import` takes.
      * @param options - How to read it.
      * @param options.signal - Abandons the read.
+     * @param options.onto - `"graph"` reads the source as a table to join onto the graph:
+     *     `draft.suggestJoin()`, `draft.joinReport()` and `draft.load({ join })` then work.
+     * @param options.guess - How the draft guesses each table's roles. `"names"` (the default)
+     *     reads only the header: `source`/`target`, `from`/`to`, `id`. `"values"` also reads the
+     *     values when no header names them: two text columns that name the same things are an
+     *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
+     *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
+     *     load is read again.
      * @returns The draft.
      */
-    prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
+    prepare(
+        source: DataSourceInput,
+        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
+    ): Promise<LoadDraft>;
+    /**
+     * Every table joined onto the graph and still loaded, oldest first: the join each was made
+     * with. Saved with the project.
+     * @returns The joins.
+     * @since 3.30.0
+     */
+    joins(): readonly JoinRecord[];
+    /**
+     * Join a joined table again with other choices, as one undoable step: the values or edges the
+     * join made are taken back, the values it wrote over put back, and the table joined anew
+     * onto the graph as it is now. With the record's own choices, this applies a join again after
+     * the graph changed (a refresh, a replaced source).
+     * @param source - The joined table's load, from {@link SessionDataApi.joins}.
+     * @param choices - The join.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key no join has.
+     * @since 3.30.0
+     */
+    editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
+    /**
+     * What {@link SessionDataApi.editJoin} with these choices would do, counted against the graph
+     * as it would be with the join taken back, changing nothing: `draft.joinReport` for a table
+     * already joined.
+     * @param source - The joined table's load, from {@link SessionDataApi.joins}.
+     * @param choices - The join.
+     * @returns The counts.
+     * @throws `E_SOURCE_UNKNOWN` for a key no join has, and `E_BAD_COMMAND` for a key column the
+     *     table lacks.
+     * @since 3.30.0
+     */
+    editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     /**
      * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
      * with its parameters (each one left out takes its catalogue default). The same name and
@@ -1431,6 +1861,29 @@ export interface LoadDraft {
      * @returns Settles once the rows are in the graph.
      */
     load(choices?: LoadChoices): Promise<void>;
+    /**
+     * How the table most likely joins onto the graph: its shape and key pairs. Needs a draft
+     * prepared with `{ onto: "graph" }`.
+     *
+     * ```ts
+     * const draft = await session.data.prepare({ config: { file } }, { onto: "graph" });
+     * const suggestion = draft.suggestJoin(); // { shape: "node-values", keys: [{ file: "symbol", graph: "id" }], confident: true }
+     * const report = draft.joinReport({ keys: suggestion.keys }); // { matched: 52, notInGraph: 10, ... }
+     * await draft.load({ join: { keys: suggestion.keys, ignoreCase: true } });
+     * ```
+     * @returns The suggestion.
+     * @throws `E_BAD_COMMAND` (`details.reason: "not-onto-graph"`) for a draft prepared without `onto`.
+     * @since 3.30.0
+     */
+    suggestJoin(): JoinSuggestion;
+    /**
+     * What `load({ join: choices })` would do, counted, changing nothing.
+     * @param choices - The join.
+     * @returns The counts.
+     * @throws `E_BAD_COMMAND` for a draft prepared without `onto`, or a key column the table lacks.
+     * @since 3.30.0
+     */
+    joinReport(choices: JoinChoices): JoinReport;
     /** Let go of the held rows. */
     dispose(): void;
     /**
@@ -1495,8 +1948,14 @@ export interface DraftColumn extends Pick<
     readonly suggested?: ColumnRole;
 }
 
-/** What a column can be to a load. */
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
+/**
+ * What a column can be to a load. `kind` is the column whose values name each row's kind: a
+ * node's, which loads as its `kind` attribute and keeps ids of different kinds apart under
+ * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute. The
+ * {@link LocationKind}s (`latitude`, `longitude`, `coordinates`, `country`, `region`, `city`) are
+ * where a node's location is read from, one column per kind (`data.setRole` only).
+ */
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind;
 
 /** One row of a draft table. */
 export interface DraftRow {
@@ -1571,8 +2030,25 @@ export interface TableMapping {
     readonly weightMeaning?: WeightMeaning["meaning"] | null;
     /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
     readonly time?: string | null;
+    /**
+     * How the time column's numbers are read: epoch milliseconds (`"ms"`), epoch seconds (`"s"`),
+     * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
+     * the values decide when the column is designated. Written to
+     * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
+     */
+    readonly timeUnit?: TimeUnit | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
     readonly edgeId?: string | null;
+    /** The column naming each row's kind, which loads as the node's or edge's `kind` attribute. */
+    readonly kind?: string | null;
+    /**
+     * An edge table's source nodes' kind: a kind name every source node takes, or `{ column }`
+     * whose values name each row's. The node loads with it as its `kind` attribute. Unlike every
+     * other key, a bare string here is a kind name, never a column.
+     */
+    readonly sourceKind?: string | Endpoint | null;
+    /** An edge table's target nodes' kind, as {@link TableMapping.sourceKind}. */
+    readonly targetKind?: string | Endpoint | null;
 }
 
 /** An edge endpoint column. */
@@ -1616,6 +2092,26 @@ export interface LoadChoices extends ImportOptions {
      * OPEN UNION: later releases may add policies.
      */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /**
+     * An id value that appears under two kinds (`kind`, `sourceKind`, `targetKind`): `"shared"`
+     * (the default) makes one node of it, with the first kind it appeared under; `"scoped"` makes
+     * one node per kind, each such id becoming `<kind>:<value>`. Ids that appear under one kind
+     * keep their value. `LoadReport.kinds.sharedIds` counts them.
+     */
+    readonly kindIds?: "shared" | "scoped";
+    /**
+     * For `mode: "merge"`: a node the graph already holds keeps its attributes (`"keep"`, the
+     * default) or takes the incoming row's values over them (`"update"`).
+     * @since 3.30.0
+     */
+    readonly existing?: "keep" | "update";
+    /**
+     * Join the rows onto the graph instead of loading them as they are: needs a draft prepared
+     * with `{ onto: "graph" }`. Every other choice is then ignored. One undoable step; the table
+     * stays a source and the join is listed by `data.joins()`.
+     * @since 3.30.0
+     */
+    readonly join?: JoinChoices;
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
     /**
@@ -1690,8 +2186,20 @@ export interface LeftOutEdge {
     readonly missingEnds?: readonly EdgeEnd[];
 }
 
-/** One load still in the graph: where it came from, and what it added. */
+/**
+ * One load still in the graph: where it came from, and what it added. What
+ * `session.data.sources()` lists.
+ * @since 3.30.0
+ */
 export interface LoadedSource extends DataSourceDescriptor {
+    /** Its stable key: what {@link SessionDataApi.sourcesOf} returns and a `source` rule names. Saved with the project. */
+    readonly key: SourceKey;
+    /** Where it came from: a file, a network source, a generated or sample graph, or a joined table. */
+    readonly kind: LoadedSourceKind;
+    /** How many nodes and edges it supplied that the graph still holds, counting ones another load also supplied. */
+    readonly counts: { readonly nodes: number; readonly edges: number };
+    /** For a joined table: the load it was joined onto. */
+    readonly joinedOnto?: SourceKey;
     /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
     readonly tables: readonly string[];
     /**
@@ -1723,6 +2231,266 @@ export interface LoadedSource extends DataSourceDescriptor {
          */
         readonly edges?: readonly LeftOutEdge[];
     };
+    /**
+     * For a joined table (`kind: "join"`): the join, as {@link SessionDataApi.joins} lists it.
+     * @since 3.30.0
+     */
+    readonly join?: JoinRecord;
+    /**
+     * The choices its rows were read with (the mapping, kinds, unmatched ends, repeated ids),
+     * as `draft.load` was given them; absent when it was given none. A role absent here is the
+     * element's own reading.
+     * @since 3.30.0
+     */
+    readonly choices?: LoadChoices;
+    /**
+     * The roles each table of the load was read with, by table id: the element's own reading
+     * with the choices laid over it (`draft.mapping` as loaded). Absent for a graph file, whose
+     * format sets its roles, and for a load that did not go through a draft (`import` with no
+     * choices, a network source).
+     *
+     * ```ts
+     * const edges = Object.values(source.mapping?.tables ?? {}).find((t) => t.rowsAre === "edges");
+     * edges?.source?.column; // "bait"
+     * ```
+     * @since 3.30.0
+     */
+    readonly mapping?: LoadMappingRead;
+    /**
+     * True when this session holds what the load was read from, so
+     * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
+     * from a file, a network source, a generated graph).
+     * @since 3.30.0
+     */
+    readonly reloadable?: true;
+    /**
+     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
+     * `data.refresh` and `data.checkSource` take.
+     * @since 3.30.0
+     */
+    readonly loadKey?: string;
+    /**
+     * For a network source's load: what it can do now. `more` is true while the load stopped at a
+     * cap and its source pages; `expand` and `refresh` are what its source can do.
+     * @since 3.30.0
+     */
+    readonly features?: SourceFeatures;
+    /**
+     * For a network source's load: how many nodes the source holds for it, when the source says
+     * or a complete read counted them, so a consumer can show what is loaded of the total.
+     * @since 3.30.0
+     */
+    readonly total?: number;
+}
+
+/**
+ * What the rows of a table joined onto the graph are, as `draft.suggestJoin()` reads them:
+ *
+ * - `"node-values"`: one row per node, matched by a key; its columns become node attributes.
+ * - `"edge-values"`: one row per edge, matched by a key on the edges; its columns become edge attributes.
+ * - `"edges"`: edges between nodes, a source key and a target key per row; an end the graph
+ *   lacks becomes a new node.
+ * - `"rows"`: rows of the same kind the graph already holds, added as a plain merge.
+ * - `"replace"`: a newer copy of a loaded source (decided by the reader; never suggested here).
+ *
+ * OPEN UNION: shapes may be added in a minor release.
+ * @since 3.30.0
+ */
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+
+/**
+ * One pair of a join's key: a column of the incoming table and the graph value it matches.
+ * @since 3.30.0
+ */
+export interface JoinKey {
+    /** The incoming table's column. */
+    readonly file: string;
+    /** The graph value: `"id"` (the node id, or the edge id) or `"data.<column>"`. */
+    readonly graph: Path;
+}
+
+/**
+ * What `draft.suggestJoin()` reads the incoming table as.
+ * @since 3.30.0
+ */
+export interface JoinSuggestion {
+    /** What the rows are. */
+    readonly shape: JoinShape;
+    /** The key pairs: one for values (more make a compound key), source then target for edges. */
+    readonly keys: readonly JoinKey[];
+    /** Whether most of the key's values match the graph; ask the reader when false. */
+    readonly confident: boolean;
+}
+
+/**
+ * How a table joins onto the graph: what `draft.joinReport` and `draft.load({ join })` take.
+ * @since 3.30.0
+ */
+export interface JoinChoices {
+    /** The key pairs; see {@link JoinSuggestion.keys}. */
+    readonly keys: readonly JoinKey[];
+    /** What the rows are; the suggestion's shape when absent. */
+    readonly shape?: JoinShape;
+    /** Match keys whatever their letter case. Default false. */
+    readonly ignoreCase?: boolean;
+    /** Match keys whatever spaces they hold (leading, trailing, inside). Default false. */
+    readonly ignoreSpaces?: boolean;
+    /** The incoming columns to bring; every column but the keys when absent. */
+    readonly columns?: readonly string[];
+    /**
+     * A column the graph already has: `"keep"` the graph's value where it has one, `"overwrite"`
+     * it, or keep `"both"` (the default), the incoming one as `<column> (<table name>)`.
+     */
+    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    /**
+     * Several rows with one key: `"first"` (the default) takes the first row, `"last"` the last
+     * one; `"both"` keeps every row, as a list of values for values, as one edge each for edges.
+     */
+    readonly repeated?: "first" | "last" | "both";
+    /**
+     * The report's warnings the reader chose to leave as they are, by the {@link JoinReport} count
+     * that raised them. Recorded with the join (`JoinRecord.choices`), so a consumer can stop
+     * flagging them; changes nothing the join does.
+     * @since 3.30.0
+     */
+    readonly ignore?: readonly JoinWarning[];
+    /**
+     * A mapping table: a joined table (`sources()` key) with one column holding the incoming
+     * keys and one holding the graph's, through which incoming keys are translated first.
+     */
+    readonly via?: SourceKey;
+}
+
+/**
+ * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
+ * OPEN UNION: warnings may be added in a minor release.
+ * @since 3.30.0
+ */
+export type JoinWarning = "repeatedKeys" | "notInGraph" | "withoutValue" | "extraIgnoringCase" | "extraIgnoringSpaces";
+
+/**
+ * What a join would do, counted: what `draft.joinReport(choices)` returns. For values, matches
+ * count nodes (or edges); for `"edges"`, they count rows.
+ * @since 3.30.0
+ */
+export interface JoinReport {
+    /** Nodes (edges for `"edge-values"`, rows for `"edges"`) the key matches. */
+    readonly matched: number;
+    /** Rows whose key matches nothing, even ignoring case and spaces. */
+    readonly notInGraph: number;
+    /** Nodes (or edges) no row gives a value; for `"edges"`, nodes no new edge touches. */
+    readonly withoutValue: number;
+    /** Keys (source and target pairs for `"edges"`) that more than one row holds. */
+    readonly repeatedKeys: number;
+    /** How many more would match with `ignoreCase`; 0 when it is on. */
+    readonly extraIgnoringCase: number;
+    /** How many more would match with `ignoreSpaces`; 0 when it is on. */
+    readonly extraIgnoringSpaces: number;
+    /** Nodes the join would make: an edge end the graph lacks. */
+    readonly newNodes: number;
+    /** Edges the join would make. */
+    readonly newEdges: number;
+    /** Nodes whose values the join changes: a value written that differs from the one held. 0 for `"edges"`. */
+    readonly updatedNodes: number;
+    /** The incoming columns the graph already has. */
+    readonly clashes: readonly { readonly column: string; readonly code: "clash" }[];
+    /**
+     * For each incoming row, in table order: the nodes (edges for `"edge-values"`) its key matches,
+     * or for `"edges"` its source and target nodes when both are in the graph; empty when it
+     * matches nothing. Empty for `"rows"` and `"replace"`.
+     * @since 3.30.0
+     */
+    readonly rowMatches: readonly (readonly (NodeId | EdgeId)[])[];
+    /** The nodes (or edges) {@link JoinReport.withoutValue} counts. @since 3.30.0 */
+    readonly withoutValueIds: readonly (NodeId | EdgeId)[];
+}
+
+/**
+ * One table joined onto the graph: what `data.joins()` lists. Saved with the project, so the
+ * join is listed after a reopen and `data.editJoin` can apply it again.
+ * @since 3.30.0
+ */
+export interface JoinRecord {
+    /** The joined table's load. */
+    readonly source: SourceKey;
+    /** The load it was joined onto, or null when the graph had none. */
+    readonly onto: SourceKey | null;
+    /** What the rows were read as. */
+    readonly shape: JoinShape;
+    /** The choices it was made with, its shape filled in. */
+    readonly choices: JoinChoices;
+    /** How many rows the table holds. */
+    readonly rows: number;
+    /** How many the join matched, as {@link JoinReport.matched}. */
+    readonly matched: number;
+    /** The names the join wrote its values under, after any `"both"` clash rename. */
+    readonly columns: readonly string[];
+    /** The joined table as read: its name, columns and rows. */
+    readonly table: {
+        readonly name: string;
+        readonly columns: readonly string[];
+        readonly rows: readonly Readonly<Record<string, unknown>>[];
+    };
+    /**
+     * For values: each element's values before the join wrote over them, by id, null for a value
+     * it did not have, so editing the join can put them back.
+     */
+    readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+}
+
+/** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
+export type LoadedSourceKind = "file" | "server" | "sample" | "join";
+
+/** One entry of `session.data.sources()`: the name the data prototype's design uses for it. */
+export type SourceEntry = LoadedSource;
+
+/**
+ * What `session.data.removeSource(key)` did.
+ * @since 3.30.0
+ */
+export interface RemoveSourceResult {
+    /** The nodes and edges that went: the load supplied them and no other load did. */
+    readonly removed: { readonly nodes: number; readonly edges: number };
+    /** The load's nodes and edges that stayed, because another load also supplied them. */
+    readonly kept: { readonly nodes: number; readonly edges: number };
+}
+
+/**
+ * What a replacement left matching nothing, as a {@link ReplaceReport.unbound} code:
+ *
+ * - `"style-layer"`: a style layer reads a column the copy dropped (`layer`, `kind`, `column`).
+ * - `"filter"`: the filter, a filter step or the time window reads one (`kind`, `column`).
+ * - `"join"`: a join matches on one (`join`: the joined table's load, `kind`, `column`).
+ *
+ * OPEN UNION: codes may be added in a minor release.
+ * @since 3.30.0
+ */
+export type ReplaceUnboundCode = "style-layer" | "filter" | "join";
+
+/**
+ * Added, removed and changed, for one kind of element.
+ * @since 3.30.0
+ */
+export interface ReplaceCounts {
+    /** How many the copy added. */
+    readonly added: number;
+    /** How many went: the load supplied them, the copy does not have them, and no other load supplied them. */
+    readonly removed: number;
+    /** How many stayed with at least one new value. */
+    readonly changed: number;
+}
+
+/**
+ * What `session.data.replaceSource(key, source)` did.
+ * @since 3.30.0
+ */
+export interface ReplaceReport {
+    /** Nodes the copy added, the ones that went, and the ones whose values changed. */
+    readonly nodes: ReplaceCounts;
+    /** Edges the copy added, the ones that went, and the ones whose values changed. */
+    readonly edges: ReplaceCounts;
+    /** Styles, filters and joins that read a column the copy no longer has. */
+    readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
 }
 
 /** How an import treats the graph already there. */
@@ -1787,7 +2555,7 @@ export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
  * `data` is the element's data configuration in its own shape: the on-load `algorithms`, the
  * `directed` policy, and `knownFields` with every known field (`nodeIdPath`, `nodeLabelPath`,
  * `nodeWeightPath`, `nodeTimePath`, `edgeSrcIdPath`, `edgeDstIdPath`, `edgeIdPath`,
- * `repeatedEdges`, `edgeWeightPath`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
+ * `repeatedEdges`, `edgeWeightPath`, `edgeWeightMeaning`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
  * nobody has set reads as its default.
  */
 export interface ProjectConfig {
@@ -1799,13 +2567,29 @@ export interface ProjectConfig {
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
+     * What a pinned node's halo looks like, in the shape of {@link ProjectConfig.selectionStyle}
+     * (only `color`, `scale` and `opacity` are read). Absent by default. Set while
+     * {@link ProjectConfig.startingRows} is on, the starting rows gain a fifth, Pinned (nodes in
+     * the state `"pinned"`, pinned to the top directly below Selected, drawing this halo); cleared,
+     * the row is taken away. The look is the consumer's choice, so nothing is drawn for a pinned
+     * node until it is set.
+     *
+     * ```ts
+     * await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+     * ```
+     * @since 3.37.0
+     */
+    readonly pinnedStyle?: GraphSelectionStyleConfig;
+    /**
      * Whether the style tree starts with its three starting rows: Everything (pinned to the
      * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
      * with a white glow and a near-black edge band, at the selection settings' sizes, which
      * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted.
+     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
+     * directly below Selected: it paints the elements outside the time window grey at low opacity
+     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -1867,6 +2651,8 @@ export interface ProjectConfigPatch {
     readonly runAlgorithmsOnLoad?: boolean;
     readonly background?: GraphBackgroundConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
+    /** See {@link ProjectConfig.pinnedStyle}; `undefined` clears it. */
+    readonly pinnedStyle?: GraphSelectionStyleInput;
     /** See {@link ProjectConfig.startingRows}. */
     readonly startingRows?: boolean;
     /** See {@link ProjectConfig.editableBase}. */
@@ -2003,6 +2789,23 @@ export interface SessionEventMap {
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
+    /** The time window moved through `session.time`: where it is now and what entered and left. */
+    "time:step": TimeStepEvent;
+    /** Playback started, from this window (null when it opens one). */
+    "time:play": { readonly window: TimeWindow | null };
+    /** Playback stopped at this window. */
+    "time:pause": { readonly window: TimeWindow | null };
+    /** Playback reached the end of the data; `time:pause` follows. */
+    "time:end": { readonly window: TimeWindow | null };
+    /** The designated time field changed through `session.time.setField`. */
+    "time:field": { readonly field: TimeField | null };
+    /** The designated time field was indexed, so `time.extent()` and `time.bins()` answer. */
+    "time:ready": { readonly field: TimeField | null };
+    /**
+     * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
+     * error's code and details.
+     */
+    "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
     /**
      * A layer was added, changed, removed or moved, and how much of the picture it repainted.
      *
@@ -2011,6 +2814,15 @@ export interface SessionEventMap {
      * consumer undoes, records and mirrors.
      */
     "style:changed": StyleChange;
+    /**
+     * Once per repaint, after the last `style:changed` it published: how many edits it told and
+     * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,
+     * `styles.counts()`) after a change listens here, so a pass that tells 51 edits -- a grouping
+     * run adds a layer per group -- costs it one read, not 51. An undo, a redo or a restore that
+     * passes several steps closes its batch in a microtask after the last step's event.
+     * @since 3.36.0
+     */
+    "style:batch-changed": StyleBatchChange;
     /**
      * The element tried to paint something of its own and was refused.
      *
@@ -2093,6 +2905,14 @@ export interface SessionEventMap {
      * `deny`). Once per URL.
      */
     "network:pending": NetworkRequest;
+    /**
+     * The session was disposed: `dispose()` was called, or its element left the page. Published
+     * once, the last event it publishes, with `status.ready` already false; its data verbs throw
+     * `E_DISPOSED` once `dispose()` returns. A host that handed the session to readers (a view, a
+     * panel) drops it here. Subscribing on a session already disposed calls the handler in a
+     * microtask, so a host that asks too late still hears it.
+     */
+    "session:disposed": Readonly<Record<string, never>>;
 }
 
 /**
@@ -2163,6 +2983,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
  * | `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges` | `count` |
  * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
+ * | `data.fix-issue` | `issue`: the issue's id; `code`: its code; `fix`: the fix; `count`: the issue's count before |
+ * | `data.ignore-issue` | `issue`: the issue's id; `ignored`: true when ignored, false when listed again |
+ * | `data.ignore-issues` | `issues`: the issues' ids; `ignored`: true when ignored, false when listed again |
+ * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
@@ -2171,7 +2995,16 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.remove-source` | `key`: the load's key; `name`: its name, or null |
+ * | `data.replace-source` | `key`; `name`: the copy's name, or null; `added`, `removed`, `changed`: nodes and edges together |
+ * | `data.join` | `key`: the joined table's load; `name`: its name, or null; `shape`; `matched` |
+ * | `data.edit-join` | `key`; `name`; `shape`; `matched` |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
+ * | `data.set-role` | `kind`: `"node"` or `"edge"`; `column`: the column's name; `role`: the role, or null |
+ * | `data.set-type` | `kind`; `column`; `type`: the value type; `fails`: how many values became blank |
+ * | `data.rename-column` | `kind`; `column`: the old name; `name`: the new name |
+ * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
+ * | `data.columns` | none: the column settings a project file restored |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
@@ -2193,6 +3026,9 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.show-context`, `visibility.hide-context` | none |
  * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
  * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.playback` | none: how `session.time` moves windows changed |
+ * | `time.field` | `column`: the column designated as the time field |
+ * | `time.clear-field` | none |
  * | `set.create` | `name`: the set's name, or null |
  * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
  * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
@@ -2226,6 +3062,10 @@ export type HistoryCode =
     | "data.remove-nodes"
     | "data.remove-edges"
     | "data.edit"
+    | "data.fix-issue"
+    | "data.ignore-issue"
+    | "data.ignore-issues"
+    | "data.issues"
     | "data.clear"
     | "data.set"
     | "data.replace-nodes"
@@ -2237,7 +3077,17 @@ export type HistoryCode =
     | "data.collapse"
     | "data.declare"
     | "data.set-source"
+    | "data.remove-source"
+    | "data.replace-source"
+    | "data.join"
+    | "data.edit-join"
     | "data.label"
+    | "data.set-role"
+    | "data.set-type"
+    | "data.rename-column"
+    | "data.hide-columns"
+    | "data.show-columns"
+    | "data.columns"
     | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
@@ -2269,6 +3119,9 @@ export type HistoryCode =
     | "visibility.step-off"
     | "visibility.step-remove"
     | "visibility.steps"
+    | "visibility.playback"
+    | "time.field"
+    | "time.clear-field"
     | "set.create"
     | "set.rename"
     | "set.redefine"
@@ -2453,6 +3306,8 @@ export interface CommandOutcomeMap {
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
     "data.apply": Promise<void>;
+    /** Settles once the issue state is recorded. */
+    "data.issues": Promise<void>;
     /** Settles once the last chunk is recorded and the pass that draws it has run. */
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
@@ -2469,6 +3324,8 @@ export interface CommandOutcomeMap {
     "data.setSource": Promise<void>;
     /** Settles once the name is recorded. */
     "data.label": Promise<void>;
+    /** Settles once the column settings are recorded. */
+    "data.columns": Promise<void>;
     /** Settles once the style values are recorded. */
     "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -2485,6 +3342,8 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /** Settles once the playback settings are recorded. */
+    "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */
@@ -2664,6 +3523,86 @@ export interface SessionLayout {
      * @returns Settles once the step is recorded and the layout has been rebuilt for it.
      */
     setDimension(dimension: "2d" | "3d"): Promise<void>;
+    /**
+     * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
+     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
+     * an option not in effect disabled, with words for the code.
+     * @param id - The layout's catalogue id.
+     * @param option - The option's name.
+     * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
+     * @returns The answer; every other option is `setting.inEffect`.
+     * @since 3.37.0
+     */
+    optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
+    /**
+     * The node columns the location map layout reads each node's location from when its own
+     * options name none: the ones designated in `data.knownFields` (`nodeLocationPath`, or
+     * `nodeLatitudePath` and `nodeLongitudePath`), else the ones it finds by name or by their
+     * values. A form shows them as the location field, preselected before the reader picks one.
+     *
+     * ```ts
+     * const { from, location, latitude, longitude } = session.layout.locationColumns();
+     * // Designate a pair; the location map reads it from its next run.
+     * await session.config.set({ data: { knownFields: { nodeLatitudePath: "lat", nodeLongitudePath: "lon" } } });
+     * ```
+     * @returns The columns; `from` is `none` when nothing reads as a location.
+     * @since 3.37.0
+     */
+    locationColumns(): LocationColumns;
+}
+
+/** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.37.0 */
+export interface LocationColumns {
+    /** `designated` in `data.knownFields`, `detected` by name or values, or `none` found. */
+    readonly from: "designated" | "detected" | "none";
+    /** The column of whole locations, or null with a pair or none. */
+    readonly location: string | null;
+    /** The latitude column of a pair, or null. */
+    readonly latitude: string | null;
+    /** The longitude column of a pair, or null. */
+    readonly longitude: string | null;
+    /**
+     * How the location is read: `coords` for coordinates (a pair or one column of them), or the
+     * kind of place `location` names (`country`, `region`, `city`; `auto` until the gazetteer that
+     * decides it is loaded); null when nothing is read.
+     * @since 3.31.0
+     */
+    readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
+    /** The column that narrows each place name (a city's country), or null. @since 3.31.0 */
+    readonly within: string | null;
+    /**
+     * The column of each kind of location listed for the nodes: the kinds designated with
+     * `data.setRole` (one column per kind), else the kinds of what is read now (a detected city
+     * column and the country column narrowing it). A form lists one entry per kind.
+     */
+    readonly kinds: Readonly<Partial<Record<LocationKind, string>>>;
+    /** What the location is read from: `pair`, `coordinates` or a place kind; null when nothing is. */
+    readonly using: LocationUsing | null;
+    /**
+     * The listed kinds the element does not read, because another listed source wins (a full
+     * pair over coordinates over place names, the finest place kind narrowed by the next coarser),
+     * each as the coded fact `location.unused` naming the source in use.
+     */
+    readonly unused: readonly LocationUnused[];
+}
+
+/** A kind of location a node column can be given with `data.setRole`. */
+export type LocationKind = "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+/** What a node location is read from: a latitude and longitude pair, coordinates, or place names of a kind. */
+export type LocationUsing = "pair" | "coordinates" | "country" | "region" | "city";
+
+/** A listed kind of location the element does not read: `{ code: "location.unused", params }`. */
+export interface LocationUnused {
+    /** The fact's code. */
+    readonly code: "location.unused";
+    /** The kind not read, and what is read instead. */
+    readonly params: {
+        /** The kind not read. */
+        readonly kind: LocationKind;
+        /** What is read instead. */
+        readonly using: LocationUsing;
+    };
 }
 
 /**
@@ -2779,6 +3718,11 @@ export interface GraphSession {
      * happened to be drawn.
      */
     readonly visibility: VisibilityApi;
+    /**
+     * The timeline: designate a time field, read its extent and histogram, and move the time
+     * window along it -- set it, step it, seek it, or play it.
+     */
+    readonly time: TimeApi;
     /**
      * The style layers: what paints what, in what order, and why one element looks as it does.
      *
@@ -2930,6 +3874,16 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
+     * What was done to the data and how it is drawn, as a document that names columns by name
+     * and role and never names a node or an edge: the sources, the columns (roles, types,
+     * declarations, hidden), the joins, the ignored issues, the filter and the style layers. A
+     * filter leaf or a style layer that names elements is left out and counted in `leftOut`.
+     * Read from the current state, so an undone step is not in it.
+     * @returns The recipe, frozen.
+     * @since 3.30.0
+     */
+    recipe(): RecipeDocument;
+    /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records
      * nothing.
@@ -2953,6 +3907,14 @@ export interface GraphSession {
      * @returns The estimate, which reports `available: false` with a reason rather than throwing.
      */
     estimate(command: SessionCommand): CostEstimate;
+    /**
+     * Which layout suits the graph this session holds: `recommendLayout` over its statistics, the
+     * nodes its data placed (`seededNodeCount`), and whether its nodes carry geographic locations
+     * the location map layout can read.
+     * @returns The recommendation, or undefined when the catalogue serves none.
+     * @since 3.37.0
+     */
+    recommendLayout(): LayoutRecommendation | undefined;
     /**
      * What one command would do, what it would cost, and whether it would be allowed.
      * @param command - What would be done.

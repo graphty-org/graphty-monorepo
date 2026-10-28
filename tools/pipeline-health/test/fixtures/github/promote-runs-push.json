@@ -1,0 +1,235 @@
+{
+    "total_count": 197,
+    "workflow_runs": [
+        {
+            "id": 40254215951,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "fix/3521-graphty-story-timing",
+            "head_sha": "134714bfbfb9a22ec1f771c6ce18f283a76986da",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-26T01:26:21Z",
+            "run_started_at": "2026-10-26T01:26:21Z",
+            "updated_at": "2026-10-26T01:26:21Z",
+            "display_title": "test(workspace): approve the visual baselines of #3567",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZtFxuQ",
+            "triggering_actor": {
+                "login": "apowers313"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247970500,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "dependabot/npm_and_yarn/npm-minor-and-patch-998cc5377f",
+            "head_sha": "65608c6b1937b6d303a70f5ebab19cf3b5f0f828",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:09:28Z",
+            "run_started_at": "2026-10-26T00:09:28Z",
+            "updated_at": "2026-10-26T00:09:28Z",
+            "display_title": "build(deps): hold react-refresh, playwright, oracle pins; webgpu hint\u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZdvsew",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247465595,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "ci/3388-store-reads-live",
+            "head_sha": "6ff597827ea7580d3e37dd0b993f4f1614b631bd",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:03:06Z",
+            "run_started_at": "2026-10-26T00:03:06Z",
+            "updated_at": "2026-10-26T00:03:06Z",
+            "display_title": "fix(ci): match the master excuse and issue reuse to the right evidence",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZcetVg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247445976,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "fix/3547-single-load-entry",
+            "head_sha": "4f508f15f0f6f8e8f8f7f4d34638cf1a148dabce",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:02:50Z",
+            "run_started_at": "2026-10-26T00:02:50Z",
+            "updated_at": "2026-10-26T00:02:50Z",
+            "display_title": "fix(graphty-element): route every graph-changing session door through\u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZcbVZQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247142888,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "feat/3418-on-configuration",
+            "head_sha": "efd0db4ccd9d393a18d7fbf44d2bbbb9e2ce43fb",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:58:54Z",
+            "run_started_at": "2026-10-25T23:58:54Z",
+            "updated_at": "2026-10-25T23:58:54Z",
+            "display_title": "test(graphty-element): start each feature-default test from an empty \u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbnOxw",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247092166,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "ci/3435-scratch-ruleset-cases",
+            "head_sha": "11ebf5acaeff6a7619b54ce0d2e41203aad69403",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:58:10Z",
+            "run_started_at": "2026-10-25T23:58:10Z",
+            "updated_at": "2026-10-25T23:58:10Z",
+            "display_title": "Merge remote-tracking branch 'origin/master' into ci/3435-scratch-rul\u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbe6_w",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247078193,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "master",
+            "head_sha": "d3ba10e1d0d83b200324d12ade37b9d788084194",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:57:59Z",
+            "run_started_at": "2026-10-25T23:57:59Z",
+            "updated_at": "2026-10-25T23:57:59Z",
+            "display_title": "Merge pull request #3574 from graphty-org/fix/3520-datatable-font-widths",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbcmkQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247019958,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "feat/node-models-element",
+            "head_sha": "a5354ae0a912e0373b173a8228433319cbec1ad9",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:57:08Z",
+            "run_started_at": "2026-10-25T23:57:08Z",
+            "updated_at": "2026-10-25T23:57:08Z",
+            "display_title": "fix(graphty-element): keep drawing until an unused model template is \u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbSypA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40247006770,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "ci/1020-nightly-site",
+            "head_sha": "f729734525f4d2d810f761d4c8553c8ae5f205a3",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:56:57Z",
+            "run_started_at": "2026-10-25T23:56:57Z",
+            "updated_at": "2026-10-25T23:56:57Z",
+            "display_title": "fix(release): keep a nightly off production and let an unpromoted can\u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbQohQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40246993431,
+            "name": ".github/workflows/promote.yml",
+            "path": ".github/workflows/promote.yml",
+            "head_branch": "fix/visual-review-route-dispose",
+            "head_sha": "00b2b7f0a87bf3744a218bf40112f60e34bad928",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "failure",
+            "run_attempt": 1,
+            "created_at": "2026-10-25T23:56:45Z",
+            "run_started_at": "2026-10-25T23:56:45Z",
+            "updated_at": "2026-10-25T23:56:45Z",
+            "display_title": "Merge remote-tracking branch 'origin/master' into fix/visual-review-r\u2026",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbOcEA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        }
+    ]
+}

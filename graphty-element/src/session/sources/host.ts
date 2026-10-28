@@ -3,7 +3,7 @@
  * surface, and the session's dispatcher and events. Internal.
  */
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
@@ -39,6 +39,18 @@ export interface SourceHost {
      * @returns the records, in load order
      */
     loads(): readonly SourceLoadRecord[];
+    /**
+     * The `data.sources()` entry that lists a load's rows.
+     * @param load - the load's key
+     * @returns the entry's key, or undefined when the graph lists none for it
+     */
+    sourceKeyOf(load: string): SourceKey | undefined;
+    /**
+     * The credential slot an opened project's load filled, as its file named it.
+     * @param load - the load's key
+     * @returns the slot, or undefined when the file named none
+     */
+    credentialSlotOf(load: string): string | undefined;
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command
@@ -86,6 +98,11 @@ export interface SourceHost {
      */
     placement(id: NodeId): HostPlacement;
     /**
+     * Whether the graph's edges are directed.
+     * @returns true when they are
+     */
+    directed(): boolean;
+    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */
@@ -95,7 +112,10 @@ export interface SourceHost {
 /** What one session's expansions keep beside the graph. */
 export class ExpansionState {
     /** The expansion running for each seed, by `String(id)`, so a second click joins it. */
-    readonly running = new Map<string, Promise<void>>();
+    readonly running = new Map<
+        string,
+        Promise<{ readonly nodes: number; readonly edges: number; readonly partial: boolean }>
+    >();
     /** Each expansion's rows as it wrote them, by key then `String(node id)`: what tells an edit. */
     readonly written = new Map<string, Map<string, string>>();
 }

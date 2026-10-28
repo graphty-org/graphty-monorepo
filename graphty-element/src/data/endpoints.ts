@@ -15,6 +15,27 @@ import jmespath from "jmespath";
 
 import { GraphtyError } from "../errors/GraphtyError";
 
+/** A JMESPath expression that is one plain field name, which is read without parsing. */
+const BARE_IDENTIFIER = /^[A-Za-z_]\w*$/;
+
+/**
+ * `jmespath.search` over one record, without the parse when the expression is a bare field name.
+ * `jmespath.search` tokenizes and parses its expression on every call, and ingest runs it once or
+ * more per node and per edge: at 100,000 edges that parse was most of the time `addEdges` took. A
+ * bare identifier (`id`, `source`, the defaults) is one property read, which is what JMESPath does
+ * with it: the field's value, or null when it is absent.
+ * @param record - the node or edge record
+ * @param expression - a JMESPath expression
+ * @returns what `jmespath.search(record, expression)` returns; a malformed expression throws as it does
+ */
+export function searchRecord(record: Record<string | number, unknown>, expression: string): unknown {
+    if (BARE_IDENTIFIER.test(expression)) {
+        return record[expression] ?? null;
+    }
+
+    return jmespath.search(record, expression) as unknown;
+}
+
 /** How the endpoint expressions for a batch of edge records were arrived at. */
 export type EndpointSpelling = "source/target" | "src/dst" | "from/to" | "declared";
 
@@ -61,7 +82,7 @@ const MAX_REPORTED_COLUMNS = 50;
  */
 export function readEndpoint(record: Record<string | number, unknown>, expression: string): unknown {
     try {
-        return jmespath.search(record, expression) as unknown;
+        return searchRecord(record, expression);
     } catch {
         // A malformed expression is the caller's, not the record's, and it is the same answer for
         // every record in the batch: nothing resolves, and the batch throws with the columns it

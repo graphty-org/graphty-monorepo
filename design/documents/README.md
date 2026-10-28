@@ -239,6 +239,7 @@ those too, in plain sentences, and changes nothing.
 | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | The recipe member: its commands, how it binds to a new graph's columns, how it replays and is recorded |
 | [notes.md](notes.md) | [notes.schema.json](notes.schema.json) | The notes member: people's notes about a graph, how they are saved, and how opening them merges |
 | [assets.md](assets.md) | [assets.schema.json](assets.schema.json) | The assets member: the 3D model files a style names, embedded as given, checked against their digest on read |
+| [sources.md](sources.md) | [sources.schema.json](sources.schema.json) | The sources member: every load in a project's graph (file, URL, network source, sample), per-element provenance, credential slots, reopening and rebuilding |
 | [export-mapping.md](export-mapping.md) | -- | How styles and results are written into other tools' formats |
 | [conformance.md](conformance.md) | -- | The edge-case rulings: input, expected result, the rule each follows; each row becomes a test |
 | [drafts/](drafts/) | -- | Data plan, view preset and the earlier project envelope: not version 1; annotations, superseded by notes.md |
@@ -256,7 +257,8 @@ changes a live graph session from one. graphty-element is all three.
    reader does not use a schema as an accept-or-refuse test for the whole file; it checks each
    member, and in a style each layer.
 3. The schemas are published at `https://graphty.app/schema/documents/<kind>/v<major>.json`
-   (`graphty-document`, `graphty-style`, `graphty-recipe`, `graphty-data`, `graphty-notes`) and exported from
+   (`graphty-document`, `graphty-style`, `graphty-recipe`, `graphty-data`, `graphty-notes`, and
+   `graphty-sources` at `v2`) and exported from
    graphty-element with the same content.
 
 ## Three things called a file format
@@ -425,6 +427,8 @@ in a session that draws nothing.
 - per notes member 10,000 notes; per note 64 targets, 64 cites, 65,536 code points of text and
   262,144 bytes (256 KB) saved as JSON; a note's `extensions` at most 65,536 bytes (64 KB) saved and
   32 levels deep; a session holds at most 10,000 notes (notes.md, "Limits");
+- per sources member 1,000 loads, 10,000 expansions and 16 MiB saved as JSON (sources.md,
+  "Limits");
 - an expression of at most 1,024 characters and 32 levels of nesting; a longer one fails its layer
   or command, not the file;
 - every number a document gives is finite; `1e400` fails its layer or command with `E_OPTION_RANGE`;
@@ -516,6 +520,7 @@ codes:
 | `E_UNKNOWN_COMMAND` | a recipe command whose `op` this reader does not know; details name the nearest known `op` |
 | `E_DEPENDENCY_SKIPPED` | a command skipped because a command it reads, or a filter before it, was skipped |
 | `E_REPEAT_APPLICATION` | a recipe or style opened again where `onRepeat` refuses it |
+| `E_SOURCE_CHANGED` | a file supplied to rebuild a steps-only load has another SHA-256 than the load recorded; details `{ id, expected, found }` (sources.md, "Reopening" rule 3) |
 
 A new published `GraphtyWarningCode` union, for notices that stop nothing:
 
@@ -538,6 +543,9 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | `W_GRAPHTY_NOTES` | an export left out the session's notes; `count` is the number of notes (export-mapping.md, "Notes") |
 | `W_GRAPHTY_TRUNCATED` | an exported `graphty.notes.text` cell was cut to 64 KB (export-mapping.md, "Notes") |
 | `W_GRAPHTY_*` | the loss notes of an export (export-mapping.md) |
+| `W_SOURCE_CHANGED` | a load run again read other data than it recorded; details `{ id, via }` (sources.md, "Reopening" rule 3) |
+| `W_SOURCE_URL_REDACTED` | a save left query parameters that name a credential out of a URL load's address; details `{ id, names }` (sources.md, "URLs" rule 2) |
+| `W_SOURCE_STEPS_IGNORED` | a sources member says `data: "steps"` but the file embeds that graph; the data applied; details `{ graph }` |
 
 `E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits and the recipe budgets, and
 `E_UNKNOWN_FORMAT` to "this JSON text is not a graphty document", with `details.available` listing

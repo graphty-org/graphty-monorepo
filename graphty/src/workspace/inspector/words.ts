@@ -14,10 +14,12 @@ import type {
     SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
+    TimeUnit,
     XrCapability,
     XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
+import { rangeWords as timeRangeWords } from "../time/timeWords";
 import type { InspectedKindId } from "./inspected";
 
 /** What each modularity band graphty-element publishes is called, keyed by its id. */
@@ -302,6 +304,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
+    "edge.route": "Route",
+    "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadGap": "Arrow",
@@ -730,12 +734,24 @@ export function runFailureWords(code: GraphtyErrorCode | undefined): string {
  * The state bar's words, and the paint row's description, for a run that is out of date: what
  * changed, in the element's numbers ("Ran on 20 nodes; 15 shown now").
  * @param note - `run.stale`.
+ * @param unit - how the time field reads numbers, for the window a run was computed in.
  * @returns the words.
  */
-export function staleWords(note: Pick<StaleNote, "reason" | "ranOn" | "nowVisible">): string {
-    return note.reason === "data-changed"
-        ? "Data changed since this run"
-        : `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
+export function staleWords(
+    note: Pick<StaleNote, "reason" | "ranOn" | "nowVisible" | "window">,
+    unit: TimeUnit = "ms",
+): string {
+    if (note.reason === "data-changed") {
+        return "Data changed since this run";
+    }
+    if (note.reason === "window-moved") {
+        // The window the run was computed in, so a reader knows which stretch of time it describes.
+        const ran = note.window?.params as { from?: number; to?: number } | undefined;
+        return ran?.from === undefined || ran.to === undefined
+            ? "Out of date: ran on all time"
+            : `Out of date: ran on ${timeRangeWords(ran.from, ran.to, unit)}`;
+    }
+    return `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
 }
 
 const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });

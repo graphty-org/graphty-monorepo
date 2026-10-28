@@ -1,0 +1,1203 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Three choices, Add columns</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #5b8ff9;
+            }
+            a:hover {
+                color: #75a5f9;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                width: 1440px;
+                height: 900px;
+                position: relative;
+                overflow: hidden;
+                background: #242424;
+                color: #e4e4e4;
+                font-size: 12px;
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 1440px;
+                    height: 40px;
+                    background: #2b2b2b;
+                    border-bottom: 1px solid #3a3a3a;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    box-sizing: border-box;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ><span style="font-weight: 600; font-size: 14px">ovarian_de_string</span
+                ><span style="color: #a3a3a3; display: flex; gap: 12px"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3.5 2.5 6 5 8.5" />
+                        <path d="M2.5 6h7a3.5 3.5 0 0 1 0 7H7" /></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3.5 13.5 6 11 8.5" />
+                        <path d="M13.5 6h-7a3.5 3.5 0 0 0 0 7H9" /></svg></span
+                ><span style="display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 41px;
+                    width: 56px;
+                    height: 859px;
+                    background: #262626;
+                    border-right: 1px solid #3a3a3a;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 6px;
+                    padding-top: 12px;
+                    box-sizing: border-box;
+                "
+            >
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <circle cx="4" cy="4" r="2" />
+                        <circle cx="12" cy="6" r="2" />
+                        <circle cx="6" cy="12" r="2" />
+                        <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" /></svg
+                    ><span>Graph</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                        background: #353d5c;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <ellipse cx="8" cy="4" rx="5" ry="2" />
+                        <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" /></svg
+                    ><span>Data</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                        <path d="M6 7.5h4.5M6 10h4.5" /></svg
+                    ><span>Notes</span>
+                </div>
+                <div style="flex: 1"></div>
+                <div style="padding-bottom: 14px">
+                    <div
+                        style="
+                            width: 44px;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 3px;
+                            padding: 6px 0;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            color: #e4e4e4;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="8" cy="8" r="2.2" />
+                            <path
+                                d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+                            /></svg
+                        ><span>Settings</span>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 57px;
+                    top: 41px;
+                    width: 1383px;
+                    height: 859px;
+                    background: #2b2b2b;
+                    display: flex;
+                    flex-direction: column;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 14px 16px;
+                        border-bottom: 1px solid #3a3a3a;
+                    "
+                >
+                    <span style="font-size: 18px; font-weight: 600">Add to ovarian_de_string</span
+                    ><span
+                        style="
+                            font-size: 11px;
+                            line-height: 15px;
+                            color: #a3a3a3;
+                            display: flex;
+                            align-items: center;
+                            gap: 5px;
+                        "
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                        >Your files stay in this browser.</span
+                    >
+                </div>
+                <div style="flex: 1; display: flex; min-height: 0">
+                    <div style="width: 240px; flex: none; border-right: 1px solid #3a3a3a; padding-top: 6px">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                padding: 10px 12px 6px 10px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                padding-top: 8px;
+                            "
+                        >
+                            In this graph
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                padding-left: 14px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                                    <path d="M9.5 2.5V5H12" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">ovarian_de_string.tsv</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                    318 nodes, 1,104 links
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                padding: 10px 12px 6px 10px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                border-top: 1px solid #3a3a3a;
+                            "
+                        >
+                            Adding
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                background: #353d5c;
+                                border-radius: 4px;
+                                margin: 0 6px;
+                                padding-left: 16px;
+                                padding-left: 8px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                                    <path d="M9.5 2.5V5H12" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">expression.tsv</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">340 rows</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            padding: 14px 16px;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 12px;
+                            overflow: hidden;
+                        "
+                    >
+                        <div style="display: flex; gap: 10px">
+                            <div
+                                style="
+                                    flex: 1;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 6px;
+                                    padding: 10px 12px;
+                                    display: flex;
+                                    gap: 10px;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 12px;
+                                        height: 12px;
+                                        border-radius: 6px;
+                                        border: 2px solid #777;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        flex: none;
+                                    "
+                                ></span>
+                                <div>
+                                    <div style="font-weight: 600">Add</div>
+                                    <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                        Read rows as more nodes and links
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    flex: 1;
+                                    border: 1px solid #228be6;
+                                    background: #25324a;
+                                    border-radius: 6px;
+                                    padding: 10px 12px;
+                                    display: flex;
+                                    gap: 10px;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 12px;
+                                        height: 12px;
+                                        border-radius: 6px;
+                                        border: 2px solid #228be6;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        flex: none;
+                                    "
+                                    ><span
+                                        style="width: 6px; height: 6px; border-radius: 3px; background: #228be6"
+                                    ></span
+                                ></span>
+                                <div>
+                                    <div style="font-weight: 600">Add columns</div>
+                                    <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                        Put each row's values on its node
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    flex: 1;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 6px;
+                                    padding: 10px 12px;
+                                    display: flex;
+                                    gap: 10px;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 12px;
+                                        height: 12px;
+                                        border-radius: 6px;
+                                        border: 2px solid #777;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        flex: none;
+                                    "
+                                ></span>
+                                <div>
+                                    <div style="font-weight: 600">Replace ovarian_de_string.tsv</div>
+                                    <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                        Swap ovarian_de_string.tsv for this file
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                border: 1px solid #3a3a3a;
+                                border-radius: 6px;
+                                padding: 10px 12px;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            "
+                        >
+                            <div style="display: flex; align-items: center; gap: 8px">
+                                Match
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 6px;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #3a3a3a;
+                                        border-radius: 4px;
+                                        background: #1f1f1f;
+                                        font-size: 12px;
+                                        box-sizing: border-box;
+                                        white-space: nowrap;
+                                        width: 120px;
+                                        justify-content: space-between;
+                                    "
+                                >
+                                    gene<svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+                                    </svg>
+                                </div>
+                                to the nodes'
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 6px;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #3a3a3a;
+                                        border-radius: 4px;
+                                        background: #1f1f1f;
+                                        font-size: 12px;
+                                        box-sizing: border-box;
+                                        white-space: nowrap;
+                                        width: 150px;
+                                        justify-content: space-between;
+                                    "
+                                >
+                                    preferredName<svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 24px; font-size: 13px">
+                                <span><b>312</b> of 340 rows match a node</span
+                                ><span><b>28</b> are not in the graph</span><span><b>6</b> nodes get no value</span>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 8px;
+                                    padding: 8px 10px;
+                                    border-radius: 6px;
+                                    background: #3a2f1e;
+                                    font-size: 12px;
+                                    line-height: 17px;
+                                    padding: 6px 8px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#f0a43a"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M8 2.5 14 13H2z" />
+                                    <path d="M8 6.5v3M8 11.2v.3" />
+                                </svg>
+                                <div><b>2 more</b> match if case is ignored (Mki67, muc16).</div>
+                                <span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 6px;
+                                        height: 24px;
+                                        padding: 0 10px;
+                                        border: 1px solid #3a3a3a;
+                                        border-radius: 4px;
+                                        font-size: 12px;
+                                        color: #e4e4e4;
+                                        background: #333333;
+                                        white-space: nowrap;
+                                        margin-left: auto;
+                                    "
+                                    >Use</span
+                                >
+                            </div>
+                            <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                New node columns: log2fc (Number), padj (Number). Nothing in the graph is overwritten.
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                            First 10 of 340 rows; rows that match nothing are tinted
+                        </div>
+                        <table style="border-collapse: collapse; font-size: 12px; width: 100%">
+                            <thead>
+                                <tr>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            background: #2f2f2f;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        Line
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            background: #2f2f2f;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        gene
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            background: #2f2f2f;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        log2fc
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            background: #2f2f2f;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        padj
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        1
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        TP53
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        -2.41
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.00003
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        2
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        BRCA1
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        -1.12
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.004
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        3
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        MYC
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        1.87
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.0008
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        4
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        CCNE1
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        2.30
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.0001
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        5
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        PAX8
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        1.05
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.03
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        6
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            background: #3a2f1e;
+                                        "
+                                    >
+                                        Mki67
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        2.02
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.0005
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        7
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        WT1
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.64
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.21
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        8
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            background: #3a2f1e;
+                                        "
+                                    >
+                                        LINC00511
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        1.33
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.01
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        9
+                                    </td>
+                                    <td style="padding: 6px 10px; border: 1px solid #3a3a3a; white-space: nowrap">
+                                        ESR1
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        -0.88
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.04
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            color: #9e9e9e;
+                                        "
+                                    >
+                                        10
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            background: #3a2f1e;
+                                        "
+                                    >
+                                        muc16
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        1.70
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 6px 10px;
+                                            border: 1px solid #3a3a3a;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        0.002
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 10px 16px;
+                        border-top: 1px solid #3a3a3a;
+                    "
+                >
+                    <div style="flex: 1"></div>
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 10px;
+                            border: 1px solid #3a3a3a;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            color: #e4e4e4;
+                            background: #333333;
+                            white-space: nowrap;
+                        "
+                        >Cancel</span
+                    ><span style="display: inline-flex; border-radius: 4px; box-shadow: 0 0 0 2px #74b9ff"
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 24px;
+                                padding: 0 12px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                color: #ffffff;
+                                background: #228be6;
+                                white-space: nowrap;
+                                border-radius: 4px 0 0 4px;
+                            "
+                            >Add columns</span
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 24px;
+                                padding: 0 12px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                color: #ffffff;
+                                background: #228be6;
+                                white-space: nowrap;
+                                border-radius: 0 4px 4px 0;
+                                border-left: 1px solid #1971c2;
+                                padding: 0 6px;
+                            "
+                            ><svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ></span>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 20;
+                    left: 1060px;
+                    top: 72px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >1</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px"
+                    >Picked from the file's shape</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 20;
+                    left: 1100px;
+                    top: 300px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >2</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px">Counts before you commit</span>
+            </div>
+        </div>
+    </body>
+</html>

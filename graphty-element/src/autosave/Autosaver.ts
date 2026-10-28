@@ -23,8 +23,9 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
+import { supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
-import { markProjectUnsaved } from "../session/projectFile";
+import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession, ProjectSlice } from "../session/types";
@@ -484,6 +485,19 @@ export class Autosaver {
             session.on("model:changed", ({ state }) => {
                 if (state === "accepted" && this.#entry.started) {
                     this.#mark(["rest"], false, false);
+                }
+            }),
+            onSourceRecords(session, () => {
+                // A record can change with no row (a refresh that found nothing new, a next page
+                // already held), and the sources part is written with the data part. A change
+                // before the entry starts is a project being opened, which writes nothing here.
+                if (this.#entry.started) {
+                    this.#mark(["data"], false, false);
+                }
+            }),
+            session.on("time:pause", () => {
+                if (this.#entry.unwritten.size > 0 && !this.#stopped) {
+                    this.#schedule();
                 }
             }),
             onProjectBoundary(session, () => {
@@ -1032,7 +1046,8 @@ export class Autosaver {
      * @param discard - Open it over changes never saved to a file.
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or the code the entry could not be opened with.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
+     *     cancelled it (the entry is left as it was), or the code the entry could not be opened with.
      */
     async restore(id: string, discard = false): Promise<AutosaveRestored["report"]> {
         if (!discard && this.#session.project.dirty) {
@@ -1060,6 +1075,11 @@ export class Autosaver {
         if (restored === "next" && failed === null) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        if (restored === null && failed === null) {
+            // A clear cancelled the open: the entry is intact, and nothing failed.
+            throw supersededError();
         }
 
         if (restored === "next" || restored === null) {
@@ -1205,6 +1225,40 @@ export class Autosaver {
     }
 
     /**
+     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param error - Why the open failed.
+     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
+     */
+    async #restoreFailed(
+        current: AutosaveEntryMeta,
+        untried: AutosaveEntryMeta,
+        error: unknown,
+        copied: boolean,
+    ): Promise<void> {
+        if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
+            this.#available(current, true, "restore-failed", {
+                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
+                params: { name: errorName(error) },
+            });
+            return;
+        }
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
+        // entry is written back as it was before the attempt, to be offered on the next load. A
+        // copy this restore made is removed instead: the entry it copied is still there.
+        if (copied) {
+            await this.#store.remove(current.id).catch(() => undefined);
+            return;
+        }
+        // ponytail: a commit that loses to another tab leaves the attempt counted; it only costs one.
+        await this.#store
+            .commit([{ id: untried.id, expectedGen: current.gen, meta: { ...untried, gen: current.gen }, parts: {} }])
+            .catch(() => undefined);
+    }
+
+    /**
      * Copy an entry another tab holds into a new entry of this tab's, claimed.
      * @param meta - The entry.
      * @param parts - Its parts.
@@ -1278,6 +1332,8 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
+        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
         let sizes: Map<string, number>;
@@ -1301,6 +1357,7 @@ export class Autosaver {
                 ({ meta: current, release } = await this.#copyEntry(current, entry.parts));
             }
 
+            untried = current;
             current = await this.#recordAttempt(current);
         } catch (error) {
             return giveUp({
@@ -1314,11 +1371,9 @@ export class Autosaver {
         try {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
+            // Before the lock goes, so no other tab commits over the entry meanwhile.
+            await this.#restoreFailed(current, untried, error, copy);
             release?.();
-            this.#available(current, true, "restore-failed", {
-                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
-                params: { name: errorName(error) },
-            });
             return null;
         } finally {
             this.#restoring = false;
@@ -1502,6 +1557,11 @@ export class Autosaver {
         const fire = (): void => {
             this.#kick();
         };
+        // Playback moves the window every step: the write waits for the pause, then happens once.
+        if (this.#session.time.playing) {
+            return;
+        }
+
         if (this.#entry.unwritten.has("data")) {
             this.#debounce?.();
             this.#maxWait?.();

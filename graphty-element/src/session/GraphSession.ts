@@ -40,6 +40,7 @@ import type {
     Scope,
     ScopeInput,
     SetId,
+    SourceKey,
     StaticStyle,
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
@@ -66,7 +67,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, recommendLayout } from "./layout";
+import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
@@ -78,6 +79,7 @@ import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
+    locationColumns,
     type Plan,
     planCommand,
     type PlanningContext,
@@ -97,6 +99,7 @@ import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graph
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
+import { type RecipeDocument, recipeOf } from "./recipe";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -138,6 +141,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
+import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -172,6 +176,8 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import { numericBound } from "./time/parse";
+import { createTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -184,6 +190,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     ModelChange,
+    LocationColumns,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
@@ -206,7 +213,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
-import type { FilterRunResult } from "./visibility/filter";
+import type { FilterRunResult, TimeWindow } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -388,6 +395,10 @@ interface SessionParts {
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
     readonly visibility: SessionVisibilityApi;
+    /** The timeline over the time window. */
+    readonly time: TimeApi;
+    /** Stops playback, for `dispose()`. */
+    readonly stopTime: () => void;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
     /** Cancels every style edit still pending, for `dispose()`. */
@@ -487,6 +498,7 @@ class Session implements ElementSession {
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
+    readonly time: TimeApi;
     readonly styles: SessionStylesApi;
     readonly views: SessionViews;
     readonly layout: SessionLayout;
@@ -504,6 +516,8 @@ class Session implements ElementSession {
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
+    /** Stops playback. */
+    private readonly stopTime: () => void;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -572,6 +586,8 @@ class Session implements ElementSession {
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
+        this.time = parts.time;
+        this.stopTime = parts.stopTime;
         this.styles = parts.styles;
         this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
@@ -631,7 +647,11 @@ class Session implements ElementSession {
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
-        this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
+        this.layout = layoutOf(
+            this.dispatcher,
+            (command) => this.dispatcher.dispatch(command),
+            () => locationColumns(this.planning),
+        );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
             this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
@@ -684,9 +704,8 @@ class Session implements ElementSession {
                 this.network.projectChanged();
             },
             sources: {
-                member: () => this.sessionData.sourceMember(),
-                restore: (member) => {
-                    this.sessionData.restoreSourceMember(member);
+                restore: (read) => {
+                    this.sessionData.restoreSourceMember(read);
                 },
             },
         });
@@ -865,7 +884,11 @@ class Session implements ElementSession {
             },
             // Its layout verbs join the transaction too.
             layout: {
-                value: layoutOf(this.dispatcher, (command) => scope.dispatch(command)),
+                value: layoutOf(
+                    this.dispatcher,
+                    (command) => scope.dispatch(command),
+                    () => locationColumns(this.planning),
+                ),
             },
             transaction: {
                 value: <T>(
@@ -1032,6 +1055,14 @@ class Session implements ElementSession {
     }
 
     /**
+     * What was done to the data and how it is drawn, naming columns and never elements.
+     * @returns The recipe.
+     */
+    recipe(): RecipeDocument {
+        return recipeOf(this);
+    }
+
+    /**
      * What a find box lists, without selecting anything.
      * @param text - What was typed.
      * @param options - The window, the kinds and the scope.
@@ -1059,6 +1090,17 @@ class Session implements ElementSession {
      */
     estimate(command: SessionCommand): CostEstimate {
         return estimateCommand(this.planning, command);
+    }
+
+    /**
+     * Which layout suits the graph this session holds, locations included.
+     * @returns The recommendation.
+     */
+    recommendLayout(): LayoutRecommendation | undefined {
+        return recommendLayout(this.data.statistics(), {
+            placedNodes: this.seededNodeCount,
+            locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
+        });
     }
 
     /**
@@ -1105,6 +1147,24 @@ class Session implements ElementSession {
      * @returns A function that stops the subscription.
      */
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+        if (this.disposed) {
+            // Nothing fires again; a host that asks too late to hear about the disposal still does.
+            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            let live = event === "session:disposed";
+
+            if (live) {
+                queueMicrotask(() => {
+                    if (live) {
+                        publish(new Map([["session:disposed", new Set([handler])]]), "session:disposed", {});
+                    }
+                });
+            }
+
+            return () => {
+                live = false;
+            };
+        }
+
         let subscribers = this.watchers.get(event);
 
         if (subscribers === undefined) {
@@ -1133,6 +1193,7 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        this.stopTime();
         // A pass still queued would repaint from a store disposed below.
         this.dispatcher.lane.close();
         // The store may be the renderer's, and gone: nothing is captured on the way out.
@@ -1146,6 +1207,8 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        // The last event: a host drops the session here, before anything re-reads it.
+        publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -1311,9 +1374,14 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * The `layout` slice with its verbs.
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
+ * @param locate - The columns the location map reads unless its options name some.
  * @returns The layout surface.
  */
-function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) => Promise<unknown>): SessionLayout {
+function layoutOf(
+    dispatcher: Dispatcher,
+    dispatch: (command: SessionCommand) => Promise<unknown>,
+    locate: () => LocationColumns,
+): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
     return Object.freeze({
         get id() {
@@ -1345,8 +1413,20 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
         },
+        optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
+            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            return Object.freeze({
+                inEffect: !ignored,
+                code: ignored ? "setting.notIn2d" : "setting.inEffect",
+                params: Object.freeze({ setting: option }),
+            });
+        },
+        locationColumns: locate,
     });
 }
+
+/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
+const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
@@ -1425,6 +1505,9 @@ function configOf(
         get selectionStyle() {
             return read().selectionStyle;
         },
+        get pinnedStyle() {
+            return read().pinnedStyle;
+        },
         get startingRows() {
             return read().startingRows;
         },
@@ -1453,7 +1536,7 @@ function configOf(
             await dispatcher.dispatch({ op: "config.set", values });
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
-            settingEffect(key, dispatcher.state.layout?.dimension ?? "3d"),
+            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
     });
 }
 
@@ -1473,11 +1556,11 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
 /**
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
  * @param key - The setting.
- * @param dimension - The view's dimension.
+ * @param layout - The layout as chosen: its engine and the view's dimension.
  * @returns The answer, coded.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
  */
-function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEffect {
+function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffect {
     if (!GRAPH_SETTINGS.has(key)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -1487,7 +1570,7 @@ function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEff
         });
     }
 
-    const ignored = dimension === "2d" && IGNORED_IN_2D.has(key);
+    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);
     return Object.freeze({
         inEffect: !ignored,
         code: ignored ? "setting.notIn2d" : "setting.inEffect",
@@ -2197,6 +2280,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
     let painted: GraphSnapshot | null = null;
@@ -2268,6 +2352,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
             painted = null;
@@ -2342,6 +2427,19 @@ export function createElementSession(
  * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
+/**
+ * A time window's attribute and numeric bounds, for comparing two windows.
+ * @param window - The window, or null.
+ * @returns The bounds, or null for no window.
+ */
+function windowBoundsOf(
+    window: TimeWindow | null,
+): { readonly attribute: string; readonly from: number; readonly to: number } | null {
+    return window === null
+        ? null
+        : { attribute: window.attribute, from: numericBound(window.from), to: numericBound(window.to) };
+}
+
 function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
@@ -2379,6 +2477,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let selection: SelectionOwner | null = null;
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
+    let repaintGhosts = (): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2431,7 +2530,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         records,
         readData,
         {
-            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            applier: () => {
+                const send = dispatcher.capturedDispatch();
+                return (mutation) => send({ op: "data.apply", mutation });
+            },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
             slice,
@@ -2466,7 +2568,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },
-            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
+            readers: () => ({
+                styles: dispatcher.state.styles,
+                runs: dispatcher.state.runs,
+                visibility: dispatcher.state.visibility,
+            }),
         },
         {
             revision: () => inputs.tick.value,
@@ -2483,6 +2589,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 values ??= valueSourceOf(records, snapshot, fieldKinds, () => elements);
                 return kind === "node" ? values.nodeValue(index, path) : values.edgeValue(index, path);
             },
+            // Read through calls: the timeline and the visibility are built below.
+            timeParsed: (kind, column) => timeline?.parsedCount(kind, column),
+            visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
     let values: FilterValueSource | undefined;
@@ -2668,6 +2777,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return key === undefined ? () => undefined : setsCache.pin(key);
     };
 
+    /**
+     * What some loads supplied, as the graph slice records it now.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids.
+     */
+    const suppliedNow = (keys: readonly SourceKey[]): ReturnType<typeof suppliedBy> =>
+        suppliedBy(dispatcher.state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined, keys);
+
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -2693,10 +2810,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        supplied: suppliedNow,
     });
 
+    /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
+    let timeline: TimeInternals | null = null;
     const visibility = createVisibilityApi({
         snapshot,
+        instants: (path: Path) => timeline?.instants(path) ?? null,
         components,
         dispatcher,
         dependencies,
@@ -2716,9 +2837,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
+            timeline?.visibilityChanged(change);
+            repaintGhosts();
             publish(watchers, "visibility:changed", change);
+        },
+        onSlide: () => {
+            repaintGhosts();
         },
         onMaskVersion: advanceTick,
     });
@@ -2769,12 +2896,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
 
             const data = dataNow();
+            // A run over the visible graph records the time window it was computed in.
+            const bounds = spec === "visible" ? windowBoundsOf(visibility.window) : undefined;
+            const summary = bounds === undefined || bounds === null ? null : visibility.summary;
+            const window =
+                bounds === undefined
+                    ? {}
+                    : {
+                          window:
+                              bounds === null || summary === null
+                                  ? null
+                                  : { ...bounds, nodes: summary.visibleNodes, edges: summary.visibleEdges },
+                      };
 
             return kept === undefined
-                ? { reading, dataDigest: data }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data };
+                ? { reading, dataDigest: data, ...window }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
         },
         dataDigest: () => dataNow(),
+        acceptedDigest: (id: RunId, ranOn: string) => timeline?.acceptedDigest(id, ranOn),
+        windowNow: () => windowBoundsOf(visibility.window),
+        acceptedWindow: (id: RunId) => timeline?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
@@ -2900,6 +3042,35 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }
         },
     });
+
+    const time = createTimeApi({
+        snapshot,
+        token: () => dispatcher.state.graph.token,
+        values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        knownFields: () => {
+            const known = readProject().data.knownFields;
+            return {
+                nodeTimePath: known.nodeTimePath,
+                nodeTimeUnit: known.nodeTimeUnit ?? null,
+                edgeTimePath: known.edgeTimePath,
+                edgeTimeUnit: known.edgeTimeUnit ?? null,
+            };
+        },
+        declarations: () => dispatcher.state.attributes,
+        columns: () =>
+            data
+                .attributes()
+                .filter((each) => each.origin !== "result")
+                .map((each) => ({ kind: each.kind, name: each.name })),
+        dispatcher,
+        visibility,
+        runs: () => runs.list(),
+        digestOf: (spec: Scope) => scope.resolveNow(spec).digest,
+        emit: (event, detail) => {
+            publish(watchers, event, detail);
+        },
+    });
+    timeline = time.internals;
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
@@ -3135,6 +3306,47 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         paintedSelection = now;
         repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
     };
+    // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
+    // elements that became or stopped being ghosts.
+    let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    repaintGhosts = (): void => {
+        if (!readsState()) {
+            paintedGhosts = null;
+            return;
+        }
+
+        const ghosts = visibility.ghosts();
+        if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        const graph = snapshot();
+        const now = ghosts ?? { node: new Uint8Array(graph.nodeCount), edge: new Uint8Array(graph.edgeCount) };
+        const before = paintedGhosts;
+        paintedGhosts = now;
+        if (before === now) {
+            return;
+        }
+
+        if (ghosts === null) {
+            paintedGhosts = null;
+        }
+
+        repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
+    };
+    // A pin or an unpin, forward or on undo and redo, repaints the nodes whose pin moved, for a
+    // `"pinned"` state layer. Registered after the arrangement's own hook, so the lane's pin bytes
+    // that `inState` reads already agree.
+    dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
+        const graph = snapshot();
+        repaintStates({
+            node: [...dirty].flatMap((key) => {
+                const row = graph.ids.indexOf(nodeOfKey(key));
+                return row === INVALID_INDEX ? [] : [row];
+            }),
+            edge: [],
+        });
+    });
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
     const layerScopes = new LayerScopes({
@@ -3183,6 +3395,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             inState: (state, target, index) => {
+                if (state === "ghosted") {
+                    return visibility.ghosted(target, index);
+                }
+
+                if (state === "pinned") {
+                    return target === "node" && store.store.positions.isPinned(index);
+                }
+
                 const owner = requireSelection(selection);
                 if (state === "hovered") {
                     return (
@@ -3212,6 +3432,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
+        // The passes a selection or pointer change starts without awaiting: `settled()` waits for
+        // those already asked for when it is called.
+        idle: painter.idle,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
@@ -3226,6 +3449,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
+        },
+        onBatch: (batch) => {
+            publish(watchers, "style:batch-changed", batch);
         },
         disposed: teardown.signal,
     });
@@ -3434,6 +3660,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
+        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
+        locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
@@ -3452,6 +3680,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
             attributes: () => data.attributes(),
             results: () => results,
+            nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
         features: options.features ?? (() => undefined),
         readProject,
@@ -3466,6 +3695,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         journal,
         selection,
         visibility,
+        time: time.api,
+        stopTime: () => {
+            time.internals.dispose();
+        },
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

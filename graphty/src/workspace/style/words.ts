@@ -113,9 +113,9 @@ function textChannels(kind: Kind): Channel[] {
 export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     node: [
         { id: "shape", title: "Shape", channels: ["node.shape", "node.size"] },
-        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
+        { id: "visibility", title: "Visibility", channels: ["node.visible"] },
         { id: "text", title: "Text", channels: textChannels("node") },
-        { id: "fill", title: "Fill", channels: ["node.color"] },
+        { id: "fill", title: "Fill", channels: ["node.color", "node.opacity"] },
         {
             id: "effects",
             title: "Effects",
@@ -131,12 +131,12 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         { id: "rendering", title: "Rendering", channels: ["node.wireframe"] },
     ],
     edge: [
-        { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
+        { id: "visibility", title: "Visibility", channels: ["edge.visible"] },
         { id: "text", title: "Text", channels: textChannels("edge") },
         {
             id: "line",
             title: "Line",
-            channels: ["edge.color", "edge.width", "edge.style", "edge.patternCount", "edge.curvature"],
+            channels: ["edge.color", "edge.opacity", "edge.width", "edge.style", "edge.patternCount", "edge.curvature"],
         },
         {
             id: "ends",
@@ -158,6 +158,15 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
             channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity"],
         },
     ],
+};
+
+/**
+ * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
+ * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
+ */
+export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.color": "node.opacity",
+    "edge.color": "edge.opacity",
 };
 
 /**
@@ -470,6 +479,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
+    "edge.route": "Route",
+    "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow head side",
     "edge.arrowHeadGap": "Arrow head gap",

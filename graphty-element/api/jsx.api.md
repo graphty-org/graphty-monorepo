@@ -27,6 +27,7 @@ import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
+import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -35,6 +36,7 @@ import { GraphSnapshot } from '@graphty/graph-format';
 import { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LitElement } from 'lit';
+import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core';
@@ -47,6 +49,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
@@ -78,15 +81,19 @@ export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     // (undocumented)
     "aria-label"?: string;
+    "attribution-offset"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
+    "camera-transition-duration"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-path"?: string;
+    "edge-time-unit"?: string;
     "edge-weight-path"?: string;
     "enable-detailed-profiling"?: boolean;
     "history-keys"?: boolean;
@@ -97,6 +104,8 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-path"?: string;
+    "node-time-unit"?: string;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
@@ -112,6 +121,7 @@ export interface GraphtyElementJSXProps {
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     // (undocumented)
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
+    "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     // (undocumented)
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     // (undocumented)
@@ -244,12 +254,14 @@ export interface GraphtyElementJSXProps {
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
+    attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];
     autosaveOptions?: Graphty["autosaveOptions"];
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
+    cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];
     directed?: Graphty["directed"];
@@ -257,6 +269,8 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimePath?: Graphty["edgeTimePath"];
+    edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     features?: Graphty["features"];
@@ -272,6 +286,8 @@ export interface GraphtyElementJSXProps {
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimePath?: Graphty["nodeTimePath"];
+    nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];

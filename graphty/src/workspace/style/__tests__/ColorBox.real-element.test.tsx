@@ -152,4 +152,32 @@ describe("a style line's color box", () => {
         assert.closeTo(middle(name?.getBoundingClientRect() ?? field), middle(field), 2, "the name is beside the box");
         assert.closeTo(middle(vary?.getBoundingClientRect() ?? field), middle(field), 2, "so is the vary button");
     });
+
+    it("writes the Fill opacity typed in its picker to the node opacity, the color staying six digits", async () => {
+        const { session } = await openColorLine();
+        await userEvent.keyboard("blue{Enter}");
+        await waitFor(() => {
+            assert.include(painted(session), "#0000FF");
+        });
+        // The Style tab's field is too narrow for the opacity box beside the hex, so the opacity
+        // is typed in the picker the swatch opens.
+        const line = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
+        if (line === null) {
+            throw new Error("no Color line");
+        }
+        await userEvent.click(within(line).getByTestId("compact-color-input-swatch"));
+        const opacity = await screen.findByTestId("color-picker-opacity");
+        await userEvent.tripleClick(opacity);
+        await userEvent.keyboard("50{Enter}");
+        await waitFor(() => {
+            const paint = session.styles.list().find((one: Layer) => one.name === "Paint" && one.target === "node");
+            assert.strictEqual(paint?.set?.["node.opacity"], 0.5);
+            const color = paint?.set?.["node.color"];
+            assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#0000FF");
+        });
+        assert.isNull(
+            document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
+            "no Opacity line of its own",
+        );
+    });
 });

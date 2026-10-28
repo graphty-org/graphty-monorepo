@@ -1,8 +1,11 @@
 // The results Worker's read side (design/ci/channels-pipeline/results-service.md 5.3 and 6; channels.md 5 and
 // 7; budgets-and-trust.md 1.6). Every answer is computed when it is read: no cron, no stored conclusion.
 import { refuse } from "./service.js";
+import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
+// a full run's slot: release.yml runs every 6 hours, so a promotion run started at most this long before its move
+const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
@@ -23,24 +26,28 @@ const median = (xs) => {
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave).
-async function passesSince(db, q) {
+// Passing master-evidence runs of a quarantined test's file since its last failure there (6.5: 20 leave), counting
+// only runs started before `before` (concludeFlaky asks as of just before the proof that names the test again).
+async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
     const [row] = await all(
         db,
         `SELECT count(*) AS n FROM file_run r JOIN invocation i ON i.id = r.invocation
          WHERE r.file = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.outcome IN ('passed','failed')
-           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ?
+           AND (i.variant = ? OR i.variant LIKE ? || '|%') AND i.started_at >= ? AND i.started_at < ?
            AND NOT EXISTS (SELECT 1 FROM failure f WHERE f.invocation = i.id AND f.file = r.file AND f.name = ?)
            AND i.started_at > coalesce((SELECT max(j.started_at) FROM failure f JOIN invocation j ON j.id = f.invocation
-                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?), 0)`,
+                 WHERE f.file = ? AND f.name = ? AND j.kind IN ${MASTER_EVIDENCE} AND j.started_at >= ?
+                   AND j.started_at < ?), 0)`,
         q.file,
         q.family,
         q.family,
         q.since,
+        before,
         q.name,
         q.file,
         q.name,
         q.since,
+        before,
     );
     return row.n;
 }
@@ -71,6 +78,24 @@ async function activeQuarantine(db, families, now) {
     return out;
 }
 
+/**
+ * The issues of a family's quarantine entries in force, for the master job that posted to check on GitHub: a
+ * closed one ends its entries (POST /v1/issues with state closed), as a closed issue ends a committed entry.
+ * @param db the D1 database
+ * @param family the shard family
+ * @param now milliseconds
+ * @returns issue numbers
+ */
+export async function trackedIssues(db, family, now) {
+    const rows = await all(
+        db,
+        "SELECT DISTINCT issue FROM quarantine WHERE family = ? AND left_at IS NULL AND expires > ? AND issue IS NOT NULL",
+        family,
+        now,
+    );
+    return rows.map((r) => r.issue);
+}
+
 // Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
 // inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
@@ -79,7 +104,7 @@ async function failingOnBase(db, base, pairs, changed) {
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const rows = await all(
         db,
-        `SELECT DISTINCT i.variant, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
@@ -178,6 +203,9 @@ export async function getPlan(q, who, db, now) {
     };
 }
 
+// The held nightly candidate (channels-pipeline.md section 3), or null: one row at most
+const heldCandidate = (db) => db.prepare("SELECT base, head, issue, at FROM candidate WHERE id = 1").first();
+
 const newestSite = (db) =>
     db.prepare("SELECT sha, built_at AS builtAt FROM site ORDER BY built_at DESC LIMIT 1").first();
 const latestVerdict = (db, sha) =>
@@ -196,8 +224,8 @@ const latestVerdict = (db, sha) =>
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, recent, and sites (the last
- *   200 recorded, newest record first)
+ * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, recent, sites (the last
+ *   200 recorded, newest record first) and hold: the held candidate ({ base, head, issue, at }) or null
  */
 export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
@@ -211,7 +239,8 @@ export async function getCandidate(q, who, db, now) {
     );
     // the recorded sites, so the pick can order them by master's history (a late record is not a newer commit)
     const sites = (await all(db, "SELECT sha FROM site ORDER BY built_at DESC LIMIT 200")).map((r) => r.sha);
-    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent, sites };
+    const hold = await heldCandidate(db);
+    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent, sites, hold };
 }
 
 /**
@@ -272,13 +301,37 @@ const BLOCKING = {
 };
 
 /**
+ * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or approval
+ * records: the full run's pick writes such a verdict as "inherited from <short sha>" (tools/full-run.mjs) and
+ * never promotes that commit, so it is nightly, not a candidate waiting for it. The chain is followed (a
+ * promotion's version merge, then a merge after it). pick never inherits across a visual-baselines/ change, so a
+ * merge of the owner's approved baselines is judged on its own and counts as waiting for nightly here too.
+ * @param sha the commit
+ * @param nightlySha nightly's commit
+ * @param states the newest verdict of each recent commit
+ * @returns true when it is nightly's
+ */
+function sameAsNightly(sha, nightlySha, states) {
+    if (!sha || !nightlySha) return false;
+    let at = sha;
+    for (let hop = 0; hop <= states.length; hop++) {
+        if (at === nightlySha || (at.length < 40 && nightlySha.startsWith(at))) return true;
+        const lane = states.find((v) => v.sha === at || (at.length < 40 && v.sha.startsWith(at)))?.lane;
+        const from = /^inherited from ([0-9a-f]{7,})$/.exec(lane ?? "")?.[1];
+        if (!from) return false;
+        at = from;
+    }
+    return false;
+}
+
+/**
  * GET /v1/release-state : what ci.yml's release-due job and every release.yml run's catch-up read
  * (channels 5 and 7), and `age:nightly` for the stall alarm (main section 7).
  * @param q the query string
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns nightly, red, approved, offered, canary, ageNightlyMs and blocking
+ * @returns nightly, red, approved, offered, canary, ageNightlyMs, blocking and hold
  */
 export async function getReleaseState(q, who, db, now) {
     const nightly = await db
@@ -292,24 +345,46 @@ export async function getReleaseState(q, who, db, now) {
          WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at`,
         now - 30 * DAY,
     );
+    // a nightly with no site row (a lost POST /v1/sites) counts from its promotion run's start, never from the
+    // oldest site: not from its move, which ends that run, or the commits merged while it ran would go uncounted.
+    // ponytail: the run's start is taken as one slot before the move; a run longer than its slot misses a few
     const nightlyBuilt = nightly
-        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ?? 0)
+        ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
+          nightly.movedAt - FULL_RUN_SLOT)
         : 0;
     const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
     const canary = await newestSite(db);
-    const unpromoted = !!canary && canary.sha !== nightly?.sha && canary.builtAt > nightlyBuilt;
-    const start = nightly?.movedAt ?? (await db.prepare("SELECT min(built_at) AS at FROM site").first())?.at;
-    const canaryState = states.find((s) => s.sha === canary?.sha)?.state;
+    const canaryVerdict = states.find((s) => s.sha === canary?.sha);
+    const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
+    // nightly is behind from the first site built after it that is not nightly's own (a promotion's version
+    // merge, an approvals-only merge), not from its own move: a quiet master is no stall
+    const after = await all(
+        db,
+        "SELECT sha, built_at AS at FROM site WHERE built_at > ? ORDER BY built_at",
+        nightlyBuilt,
+    );
+    const start = after.find((r) => !sameAsNightly(r.sha, nightly?.sha, states))?.at;
+    const canaryState = canaryVerdict?.state;
+    const hold = await heldCandidate(db);
+    // a held candidate is the only one offered, and only once its tested head is green-images
+    const heldHead = hold && states.find((s) => s.sha === hold.head);
+    const oldestWaiting = states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0];
+    let offered = oldestWaiting ?? null;
+    if (hold) offered = heldHead?.state === "green-images" ? heldHead : null;
+    let blocking = unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null;
+    if (hold) blocking = "held";
     return {
         nightly,
         red: last?.state === "red" ? last : null,
         // a Finish promotes only a candidate newer than nightly; each of these is a resume that is due
         approved: states.filter((s) => s.state === "approved" && s.builtAt > nightlyBuilt),
-        // the frozen candidate: the oldest still waiting for the owner
-        offered: states.filter((s) => s.state === "green-images").sort((a, b) => a.builtAt - b.builtAt)[0] ?? null,
+        // with no hold, the frozen candidate: the oldest still waiting for the owner
+        offered,
         canary,
-        ageNightlyMs: unpromoted ? now - start : 0,
-        blocking: unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null,
+        // null while nightly has never moved: not started, so the stall alarm has nothing to count from
+        ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
+        blocking,
+        hold,
     };
 }
 
@@ -393,4 +468,85 @@ export async function trendFor(db, kind, posted, budgets, now) {
     return [...byKey]
         .filter(([key, rs]) => keys.has(key) && rs.length >= 5)
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
+}
+
+// Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
+// ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
+// or was cut short is no pass of the test. Only pairs that include `id` are asked.
+const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, f.status, a.id AS failedIn, b.id AS passedIn,
+       min(a.started_at, b.started_at) AS at
+     FROM invocation a JOIN failure f ON f.invocation = a.id
+     JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
+     JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
+     JOIN file_run rb ON rb.invocation = b.id AND rb.file = f.file AND coalesce(rb.skipped, 0) = coalesce(ra.skipped, 0)
+       AND coalesce(rb.passed, 0) + coalesce(rb.failed, 0) = coalesce(ra.passed, 0) + coalesce(ra.failed, 0)
+     WHERE (a.id = ? OR b.id = ?) AND a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
+       AND a.outcome IN ('passed','failed') AND b.outcome IN ('passed','failed')
+       AND NOT EXISTS (SELECT 1 FROM failure g WHERE g.invocation = b.id AND g.file = f.file AND g.name = f.name)`;
+
+/**
+ * Quarantines the tests a just-stored master-evidence record proves flaky (6.1, 6.5): each enters once, for 14
+ * days, with no issue yet; a later proof names it again until its issue is posted back. The answer names them so
+ * the job that posted files the issue (6.6) and posts its number back (POST /v1/issues); `had` is the signature's
+ * earlier issue, to comment on instead.
+ * @param db the D1 database
+ * @param id the stored invocation
+ * @param now milliseconds
+ * @returns the tests quarantined and still without an issue: family, file, name, signature, proof (the two
+ *   invocations), had
+ */
+export async function concludeFlaky(db, id, now) {
+    const found = await all(db, DISAGREE, id, id);
+    const out = [];
+    for (const t of found) {
+        const family = t.variant.split("|")[0];
+        if (NEVER_QUARANTINED.test(family) || out.some((o) => o.file === t.file && o.name === t.name)) continue;
+        let active = await db
+            .prepare(
+                "SELECT since, issue FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
+            )
+            .bind(family, t.file, t.name, now)
+            .first();
+        // an entry that had passed 20 times before this proof had left (activeQuarantine computes that on read and
+        // never writes it): record it, so the test enters again and its issue is reopened or commented on
+        if (
+            active &&
+            (await passesSince(db, { ...active, family, file: t.file, name: t.name }, t.at)) >= QUARANTINE_PASSES
+        ) {
+            await db
+                .prepare(
+                    "UPDATE quarantine SET left_at = ?, left_why = ? WHERE family = ? AND file = ? AND name = ? AND since = ?",
+                )
+                .bind(now, `${QUARANTINE_PASSES} passes since its last failure`, family, t.file, t.name, active.since)
+                .run();
+            active = null;
+        }
+        // an active entry whose issue was never posted back (GitHub refused it) is named again, so it gets one
+        if (active?.issue != null) continue;
+        const proof = `${t.failedIn} failed it, ${t.passedIn} passed it`;
+        if (!active)
+            await db
+                .prepare(
+                    "INSERT OR IGNORE INTO quarantine (family, file, name, reason, proof, since, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(
+                    family,
+                    t.file,
+                    t.name,
+                    "failed and passed on the same commit and inputs",
+                    proof,
+                    now,
+                    now + 14 * DAY,
+                )
+                .run();
+        // only an earlier flaky issue: a `Failing on master` one for the signature is not where a quarantine goes.
+        // A timeout's issue is keyed by its test too, so closing one never ends another timeout's quarantine.
+        const signature = issueKey(t.signature, t.status, t.name);
+        const had = await db
+            .prepare("SELECT number FROM tracked_issue WHERE signature = ? AND kind = 'flaky'")
+            .bind(signature)
+            .first();
+        out.push({ family, file: t.file, name: t.name, signature, proof, had: had?.number ?? null });
+    }
+    return out;
 }

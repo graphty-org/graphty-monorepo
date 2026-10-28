@@ -190,7 +190,31 @@ export class CameraManager {
             return false;
         }
 
-        return this.activeCameraController?.followPoint?.(point, frames) ?? false;
+        const controller = this.activeCameraController;
+        if (!this.#instantGlides) {
+            return controller?.followPoint?.(point, frames) ?? false;
+        }
+
+        // No glide: step to the point at once (each step covers a share of the way, and stops
+        // within a thousandth of a unit).
+        let moved = false;
+        for (let step = 0; step < 200 && controller?.followPoint?.(point) === true; step++) {
+            moved = true;
+        }
+
+        return moved;
+    }
+
+    /** Whether the camera reaches a point it follows at once rather than gliding there. */
+    #instantGlides = false;
+
+    /**
+     * Make the camera reach a point it follows (a picked node) at once rather than gliding there,
+     * for a reader who prefers reduced motion.
+     * @param on - True for no glide.
+     */
+    public setInstantGlides(on: boolean): void {
+        this.#instantGlides = on;
     }
 
     /**

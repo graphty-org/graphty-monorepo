@@ -6,7 +6,7 @@
  * unless the test says two loads are alive at once.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { GraphSession } from "../../session";
 import { Autosaver, lockName } from "../../src/autosave/Autosaver";
@@ -19,6 +19,8 @@ import type {
     AutosaveStore,
     AutosaveWrite,
 } from "../../src/autosave/types";
+import { dispatcherOf } from "../../src/session/GraphSession";
+import { loadLineOf } from "../../src/session/loadLine";
 import { faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
 import { sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
@@ -247,6 +249,83 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
+    it("a clear asked for while the restore waits cancels it, reports nothing and takes the attempt back", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        // A load the page started, still reading: the restore's open waits behind it.
+        const reading = line.join();
+        const recovering = page.saver.recover();
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await store.read(id))?.meta.restoreAttempts ?? 0),
+            0,
+            "the cancelled attempt was taken back",
+        );
+    });
+
+    it("restore(id) a clear cancels rejects with E_SUPERSEDED and leaves the entry as it was", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Picked by hand" }));
+        const before = await raw(store, id);
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        const code = await restoring.then(
+            () => "restored",
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        assert.strictEqual(code, "E_SUPERSEDED");
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await raw(store, id))?.meta.restoreAttempts ?? 0),
+            Number(before?.meta.restoreAttempts ?? 0),
+        );
+    });
+
+    it("a clear that cancels the restore of a copied entry removes the copy", async () => {
+        const store = memoryAutosaveStore();
+        const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+        const before = await raw(store, own.id);
+        const locks = new FakeLocks();
+        locks.holdElsewhere(lockName(KEY, own.id));
+        const page = load(store, locks);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const recovering = page.saver.recover({ own: own.id });
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(
+            (await store.list(KEY)).map((each) => each.id),
+            [own.id],
+            "the cancelled copy was not removed",
+        );
+        assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
+    });
+
     it("two restores that never confirm make the third load skip the entry and report restore-failed", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Heavy" }));

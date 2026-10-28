@@ -54,6 +54,22 @@ The three rows are deleted like any other row, with `styles.deleteRow`. `styles.
 adds back whichever of them are missing, in their places, as one undo step, and returns the rows it
 added.
 
+## A Pinned row
+
+Set `pinnedStyle` (the same shape as `selectionStyle`; its `color`, `scale` and `opacity` are read)
+and the starting rows gain a Pinned row, directly below Selected. It paints a halo on every node
+pinned in place, by a drag or by `session.positions.pin`, and follows each pin and unpin with no
+undo step of its own. Clearing the setting takes the row away, and `restoreStartingRows()` brings
+it back while the setting is set. It is unset by default, so a pinned node looks like any other
+until you choose a look:
+
+```ts
+await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+await session.positions.pin(["a"]); // "a" now draws the gray ring
+```
+
+Any layer of your own can select pinned nodes with `{ match: "state", state: "pinned" }`.
+
 ## Keeping the base look in Everything
 
 By default the element draws its base look (the node color, size and shape, the edge color and

@@ -165,6 +165,13 @@ describe("OpenAlex", () => {
         expect(fetch.calls).toEqual([expect.objectContaining({ credential: true })]);
     });
 
+    it("says where its API key goes, so a form can ask for the key alone", () => {
+        expect(openalexSource.descriptor?.apiKey).toEqual({ query: "api_key" });
+        const keyed = restSource({ ...PEOPLE, auth: { kind: "api-key", header: "X-Key" } }, { id: "keyed" });
+        expect(keyed.descriptor?.apiKey).toEqual({ header: "X-Key" });
+        expect(people.descriptor?.apiKey).toBeUndefined();
+    });
+
     it("hydrates stubs: an expansion of depth 0 fetches their records in one batch", async () => {
         const fetch = replayFetch(recorded("openalex-hydrate"));
         const ids = ["W111157985", "W201336350", "W584762224"];

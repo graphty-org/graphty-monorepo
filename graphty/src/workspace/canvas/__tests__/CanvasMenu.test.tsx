@@ -42,7 +42,7 @@ function standIn(hit: Hit): { session: GraphSession; element: GraphtyElement; ap
             return () => set.delete(listener);
         },
         selection,
-        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }) },
+        data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined },
         layout: { dimension: "3d" },
     } as unknown as GraphSession;
     const element = {

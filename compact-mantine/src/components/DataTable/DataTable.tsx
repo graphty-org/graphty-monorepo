@@ -917,7 +917,7 @@ function DataTableInner<TRow extends object>(
                 isPresent(config.menu),
                 isPresent(config.icon),
             );
-            let widest = drawnWidth(config.header, measured.header) + headerPad;
+            let widest = Math.max(drawnWidth(config.header, measured.header) + headerPad, config.minWidth ?? 0);
             for (const text of texts) {
                 widest = Math.max(widest, drawnWidth(text, measured.cell) + cellPad);
             }
@@ -963,7 +963,13 @@ function DataTableInner<TRow extends object>(
         return (
             <>
                 {config?.icon !== undefined && config.icon !== null && (
-                    <span className="cm-dt-header-icon" data-testid="data-table-header-icon" aria-hidden="true">
+                    <span
+                        className="cm-dt-header-icon"
+                        data-testid="data-table-header-icon"
+                        {...(config.iconLabel === undefined
+                            ? { "aria-hidden": true }
+                            : { role: "img", "aria-label": config.iconLabel })}
+                    >
                         {config.icon}
                     </span>
                 )}
@@ -1027,6 +1033,7 @@ function DataTableInner<TRow extends object>(
      * @param index - The column's position
      * @param rovingTabIndex - The tab index the grid's tab stop gives it
      * @param hasMenu - Whether the header has a menu
+     * @param hasEnd - Whether the header has content at its end
      * @param caption - What the header shows
      * @returns The button
      */
@@ -1036,6 +1043,7 @@ function DataTableInner<TRow extends object>(
         index: number,
         rovingTabIndex: number,
         hasMenu: boolean,
+        hasEnd: boolean,
         caption: React.ReactNode,
     ): React.JSX.Element => {
         const sorted = column.getIsSorted();
@@ -1068,6 +1076,7 @@ function DataTableInner<TRow extends object>(
                 className="cm-dt-sort"
                 data-align={config?.align === "end" ? "end" : undefined}
                 data-with-menu={hasMenu ? "" : undefined}
+                data-with-end={hasEnd ? "" : undefined}
             >
                 {caption}
             </UnstyledButton>
@@ -1331,6 +1340,7 @@ function DataTableInner<TRow extends object>(
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
                                 const hasMenu = isPresent(config?.menu);
+                                const hasEnd = isPresent(config?.headerEnd);
                                 const caption = headerCaption(column, config, sorted);
 
                                 const header = (
@@ -1363,6 +1373,7 @@ function DataTableInner<TRow extends object>(
                                                   }
                                                 : undefined
                                         }
+                                        data-with-end={hasEnd && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -1379,9 +1390,26 @@ function DataTableInner<TRow extends object>(
                                         {sortable
                                             ? withTooltip(
                                                   config?.headerTooltip,
-                                                  sortButton(column, config, index, rovingTabIndex, hasMenu, caption),
+                                                  sortButton(
+                                                      column,
+                                                      config,
+                                                      index,
+                                                      rovingTabIndex,
+                                                      hasMenu,
+                                                      hasEnd,
+                                                      caption,
+                                                  ),
                                               )
                                             : caption}
+                                        {hasEnd && (
+                                            <span
+                                                className="cm-dt-header-end"
+                                                data-testid="data-table-header-end"
+                                                data-with-menu={hasMenu ? "" : undefined}
+                                            >
+                                                {config?.headerEnd}
+                                            </span>
+                                        )}
                                         {hasMenu && headerMenu(column, config, index)}
                                     </Table.Th>
                                 );
@@ -1471,6 +1499,7 @@ function DataTableInner<TRow extends object>(
                                                 // the cells reads the cell's state, not its row's.
                                                 aria-selected={isSelectable ? isSelected : undefined}
                                                 data-testid="data-table-cell"
+                                                data-tone={config?.cellTone?.(row.original)}
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}

@@ -2,8 +2,10 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
+import { waitFor } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { storyWaitOptions } from "../../stories/wait";
 import type { WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";
 
@@ -56,6 +58,19 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
             store.set({ dialog: null });
             await loadRing(canvasElement);
             store.set({ dialog: "export", exportOn });
+            if (exportOn === "image") {
+                // The preview is captured after the dialog opens; until it is drawn the dialog
+                // shows "Drawing the preview...", so a picture taken before then is a different one.
+                const doc = canvasElement.ownerDocument;
+                const preview = await waitFor(() => {
+                    const img = doc.querySelector<HTMLImageElement>(".ws-export-preview img");
+                    if (img === null) {
+                        throw new Error("the preview is not drawn yet");
+                    }
+                    return img;
+                }, storyWaitOptions(5000));
+                await preview.decode();
+            }
         },
     };
 }

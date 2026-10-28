@@ -30572,8 +30572,8 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["10->19#g0","8->16#g0"],
-            "edge.curve": [],
+            "edge.route": ["10->19#g0","12->36#g0","19->43#g0","8->16#g0"],
+            "edge.curve": ["19->43#g0"],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -40712,5 +40712,7 @@
             "background": []
         }
     },
-    "reasons": []
+    "reasons": [
+        {"date":"2026-10-28","reason":"comparator: at matched positions these curves bend 0.06 against vis-network's 0.05 (route miss 0.14 to 0.19 of a pass), the same with the support points' old and new resting rules","added":{"json-vis-transparency@matched":{"edge.route":["12->36#g0","19->43#g0"],"edge.curve":["19->43#g0"]}},"sources":{"unclassified":3}}
+    ]
 }

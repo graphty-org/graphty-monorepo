@@ -172,12 +172,14 @@ describe("a Vite production build whose entry module awaits a loading method at 
             runPage(entry, "async"),
             runPage(entry, "then"),
         ]);
-        for (const run of [dataset, gpu, then]) {
-            expect(run.code, run.out).toBe(0);
-            expect(run.out).not.toContain("graphty:");
-        }
+        expect(dataset.code, dataset.out).toBe(0);
+        expect(dataset.out).not.toContain("graphty:");
         expect(dataset.out).toContain("nodes 34");
+        expect(gpu.code, gpu.out).toBe(0);
+        expect(gpu.out).not.toContain("graphty:");
         expect(gpu.out).toContain("pagerank done");
+        expect(then.code, then.out).toBe(0);
+        expect(then.out).not.toContain("graphty:");
         expect(then.out).toContain("nodes 34");
     });
 });

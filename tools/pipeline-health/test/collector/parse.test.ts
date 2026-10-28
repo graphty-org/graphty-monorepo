@@ -12,6 +12,8 @@ import {
     llmCost,
     loadKind,
     masterState,
+    NOT_ON_NPM,
+    npmName,
     oldestUntested,
     OWNER_LOGIN,
     pool,
@@ -19,6 +21,7 @@ import {
     prStocks,
     RELEASE_WORKFLOW_EVENTS,
     releaseAttempt,
+    releaseMode,
     releaseTags,
     runnerFlags,
     runnerUse,
@@ -215,6 +218,31 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     it("still calls the train skipped for a cancelled run nothing replaced", () => {
         const before = releases.filter((r) => Date.parse(r.created_at) <= Date.parse("2026-10-27T13:05:04Z"));
         expect(trainSkipped(seen, before)).toBe(true);
+    });
+
+    it("does not call the train skipped after a promote-nightly or abandon run, which test nothing by design", () => {
+        const newest = releases.reduce((a, b) => (Date.parse(a.created_at) > Date.parse(b.created_at) ? a : b));
+        const at = Date.parse(newest.updated_at) + 60_000;
+        for (const title of ["Release (promote-nightly)", "Release (abandon)", "Release (candidate)"]) {
+            const run = { ...newest, id: 1, display_title: title, created_at: new Date(at).toISOString() };
+            const attempt: ReleaseSeen = {
+                sha: "not-the-candidate",
+                at,
+                tested: false,
+                red: [],
+                ciFailed: false,
+                run: 1,
+            };
+            expect(trainSkipped([attempt, ...seen], [run, ...releases])).toBe(false);
+            // The same untested attempt as a scheduled full run is a skipped train.
+            const full = { ...run, display_title: "Release (full)" };
+            expect(trainSkipped([attempt, ...seen], [full, ...releases])).toBe(true);
+        }
+    });
+
+    it("reads hyphenated release modes", () => {
+        expect(releaseMode("Release (promote-nightly)")).toBe("promote-nightly");
+        expect(releaseMode("Release")).toBe("legacy");
     });
 
     it("does not count replaced release runs as failed", () => {
@@ -462,6 +490,19 @@ describe("npm", () => {
         expect(missing).not.toContain("graph-format@1.4.7");
         expect(missing).toContain("layout@2.5.10");
         expect(missing.some((m) => m.startsWith("graphty@") || m.startsWith("githerd@"))).toBe(false);
+    });
+});
+
+describe("npm names", () => {
+    it("names every published workspace package as its package.json does", () => {
+        const root = new URL("../../../../", import.meta.url);
+        const ws = readFileSync(new URL("pnpm-workspace.yaml", root), "utf8");
+        const dirs = [...ws.matchAll(/^ {4}- "([^"]+)"$/gm)].map((m) => m[1]);
+        expect(dirs).toContain("babylonjs-map");
+        for (const dir of dirs.filter((d) => !NOT_ON_NPM.has(d))) {
+            const pkg = JSON.parse(readFileSync(new URL(`${dir}/package.json`, root), "utf8")) as { name: string };
+            expect(npmName(dir), dir).toBe(pkg.name);
+        }
     });
 });
 

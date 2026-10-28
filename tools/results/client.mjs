@@ -1,8 +1,8 @@
 // client.mjs -- the test results store's client (design/ci/channels-pipeline/results-service.md).
 //
-// Every call fails open: it never throws, it gives up after 5 s (a plan or a record) or 2 s (a failure
-// event), and a missing answer is `null`, which callers read as "run everything, excuse nothing". An
-// invocation record that could not be sent is written to the spool directory, for a later re-post.
+// Every call fails open: it never throws, each attempt gives up after 5 s (a plan or a record) or 2 s (a failure
+// event), a request with no answer is sent twice more (RETRY_MS), and a missing answer is `null`, which callers
+// read as "run everything, excuse nothing". An invocation record that could not be sent is written to the spool directory, for a later re-post.
 //
 // Configuration, from the environment, then the repository's .env for the local token:
 //   RESULTS_URL             the Worker's URL; unset, the client does nothing
@@ -197,22 +197,38 @@ export function flushHealth() {
     return Promise.allSettled([...healthPending]);
 }
 
+// A request that got no HTTP response at all (no answer in time, a network error) is sent again after these
+// waits: a Worker cold start or a network blip must not fail a release job. One that got any response is never
+// sent again. Every write route of the store is idempotent (INSERT OR IGNORE / OR REPLACE on its key, or deduped
+// on it), so a write that arrived but whose answer was lost is safe to send again.
+export const RETRY_MS = [1000, 3000];
+
 /**
- * One request to the store. Never throws.
+ * One request to the store, sent again when no answer came (RETRY_MS). Never throws.
  * @param cfg config()
  * @param method GET, POST or PUT
  * @param path e.g. `/v1/invocations`
  * @param [body] JSON body
- * @param [ms] the timeout for the whole call
+ * @param [ms] the timeout for each attempt
  * @returns `{ ok: true, data }` or `{ ok: false, why }`
  */
 export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) {
     if (!cfg) return { ok: false, why: "results store not configured" };
     if (cfg.health && method === "POST") sendHealth(cfg, path, body);
+    const waits = cfg.retryMs ?? RETRY_MS;
+    for (let i = 0; ; i++) {
+        const r = await attempt(cfg, method, path, body, ms);
+        if (r.answered || i >= waits.length) return r.result;
+        await new Promise((resolve) => setTimeout(resolve, waits[i]));
+    }
+}
+
+async function attempt(cfg, method, path, body, ms) {
     const deadline = AbortSignal.timeout(ms);
+    let res;
     try {
         const auth = await bearer(cfg, deadline);
-        const res = await fetch(cfg.url + path, {
+        res = await fetch(cfg.url + path, {
             method,
             headers: {
                 authorization: `Bearer ${auth}`,
@@ -222,11 +238,12 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: deadline,
         });
-        if (!res.ok) return { ok: false, why: `HTTP ${res.status}` };
+        if (!res.ok) return { answered: true, result: { ok: false, why: `HTTP ${res.status}` } };
         const text = await res.text();
-        return { ok: true, data: text ? JSON.parse(text) : null };
+        return { answered: true, result: { ok: true, data: text ? JSON.parse(text) : null } };
     } catch (e) {
-        return { ok: false, why: e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message };
+        const why = e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message;
+        return { answered: res !== undefined, result: { ok: false, why } };
     }
 }
 

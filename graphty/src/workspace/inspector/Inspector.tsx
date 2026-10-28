@@ -179,6 +179,11 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
                 }
             }),
             session.on("canvas:element-click", close),
+            // A click on a group outline selects the layer that draws it, as a click on its tree row.
+            session.on("canvas:group-outline-click", ({ layer }) => {
+                const id = session.styles.get(layer)?.row ?? layer;
+                store.set({ inspected: { kind: "layer-row", id } });
+            }),
         ];
         return () => {
             for (const stop of stops) {

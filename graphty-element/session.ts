@@ -98,6 +98,7 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -549,6 +550,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // ---------------------------------------------------------------------------------------------
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     AttributeDescriptor,
     AttributeRole,
@@ -600,6 +602,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StructureValue,
     StyleDocument,
@@ -607,6 +610,19 @@ export type {
     TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    ProjectShader,
+    RenderQuality,
+    RenderQualityChange,
+    RenderQualityCode,
+    SessionShaders,
+    ShaderAddOptions,
+    ShaderAddResult,
+    ShaderAvailability,
+    ShaderSettings,
+    ShaderState,
+    ShaderStatus,
+} from "./src/session/shaders";
 
 // ---------------------------------------------------------------------------------------------
 // Style layers: what paints what, in what order, and why one element looks the way it does
@@ -649,6 +665,7 @@ export type {
     LegendSwatch,
     MarkSpec,
     MarkSuggestion,
+    ParamEncodingSpec,
     PreviewDefaultedPart,
     PreviewSpan,
     RepaintReason,

@@ -916,6 +916,14 @@ describe("every registration surface the published entry points carry", () => {
         "extend.registerSnapshotLayout": { suite: "browser/extensions/layout-extension.test.ts" },
         // A network source (graph-io's registry, re-exported): a page registers one and names it in `data-source`.
         "extend.registerSource": { suite: "browser/network-sources.test.ts" },
+        "extend.registerShader": {
+            excluded: "a shader is not one of the six extension points",
+            coveredBy: "shaders/shader-registry.test.ts",
+        },
+        "extend.registerTransition": {
+            excluded: "a layout transition is not one of the six extension points",
+            coveredBy: "browser/transitions/layout-transition.test.ts",
+        },
         "extend.SimpleLayoutConfig": {
             excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
         },

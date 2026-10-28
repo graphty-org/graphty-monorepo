@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
@@ -68,6 +69,17 @@ const NodeStyleParamsSchema = z
                     "so asking for this is answered with the reason rather than applied",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
+        shader: z
+            .string()
+            .optional()
+            .describe("A node shader from the shader catalog to draw the nodes with, by its id, at its own place"),
+        shaderText: z
+            .string()
+            .optional()
+            .describe(
+                "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to " +
+                    "the project and held until the person approves it in the app; the nodes draw as before until then",
+            ),
         model: z
             .string()
             .optional()
@@ -146,6 +158,10 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 
     if (params.outlineColor !== undefined) {
         set["node.outline"] = params.outlineColor;
+    }
+
+    if (params.shader !== undefined) {
+        set["node.shaders"] = [{ shader: params.shader }];
     }
 
     // A URL here is not fetched by the element on the model's say-so: the layer is the AI's, so
@@ -388,13 +404,25 @@ export const findAndStyleNodes: GraphCommand = {
         };
 
         const { set, unsupported } = nodeChannels(styleParams);
+        const writer = writerOf(graph, context);
 
-        return addLayer(
-            writerOf(graph, context),
-            layerSpecOf(layerName, "node", selector, set, connectedBy),
-            unsupported,
-            "node",
-        );
+        if (styleParams.shaderText !== undefined) {
+            // Text from a model is content, never the reader's own: it is held until the reader
+            // approves it, so a prompt cannot make the element run a shader nobody looked at.
+            const added = await writer.shaders.add(styleParams.shaderText, { source: "content", onTaken: "rename" });
+            if (!added.ok) {
+                return {
+                    success: false,
+                    message: `That shader could not be added: ${added.problems.map((problem) => problem.code).join(", ")}`,
+                    data: { problems: added.problems },
+                };
+            }
+
+            const use: ShaderUse = { shader: added.descriptor.id };
+            set["node.shaders"] = [...((set["node.shaders"] as readonly ShaderUse[] | undefined) ?? []), use];
+        }
+
+        return addLayer(writer, layerSpecOf(layerName, "node", selector, set, connectedBy), unsupported, "node");
     },
 };
 

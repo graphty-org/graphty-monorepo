@@ -26,6 +26,13 @@ export interface AnnotationMeshMetadata {
         readonly text?: string;
         /** The drawn geometry's box in world units (not the padded plane's). */
         readonly box: { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number };
+        /** An arrow's heads, each one's box in world units: a reader sees each as a shape of its own. */
+        readonly heads?: readonly {
+            readonly x0: number;
+            readonly y0: number;
+            readonly x1: number;
+            readonly y1: number;
+        }[];
     };
 }
 
@@ -209,6 +216,16 @@ export class AnnotationMeshes {
                     x1: (cx + hw) * scale,
                     y1: (cy + hh) * scale,
                 },
+                ...(a.kind === "arrow"
+                    ? {
+                          heads: headBoxes(a).map((b) => ({
+                              x0: b.x0 * scale,
+                              y0: b.y0 * scale,
+                              x1: b.x1 * scale,
+                              y1: b.y1 * scale,
+                          })),
+                      }
+                    : {}),
             },
         };
         mesh.metadata = metadata;
@@ -304,6 +321,39 @@ function headSize(a: ArrowAnnotation, end: "source" | "target"): { length: numbe
     const length = end === "source" ? a.sourceHeadLength : a.targetHeadLength;
     const width = end === "source" ? a.sourceHeadWidth : a.targetHeadWidth;
     return { length: length ?? own, width: width ?? own };
+}
+
+/**
+ * The box each drawn head of an arrow covers, in file units, y up: its length back along the line from the line's end
+ * (a cross is centered on the end, a bar lies across it) and its width across, turned with the line.
+ * @param a - The arrow.
+ * @returns One box per head drawn, target first.
+ */
+function headBoxes(a: ArrowAnnotation): Box[] {
+    const ends = [
+        { tip: a.to, tail: a.from, shape: a.targetArrow, size: headSize(a, "target") },
+        { tip: a.from, tail: a.to, shape: a.sourceArrow, size: headSize(a, "source") },
+    ];
+    return ends.flatMap(({ tip, tail, shape, size }) => {
+        if (shape === "none") {
+            return [];
+        }
+        const half = size.width / 2;
+        let along: [number, number] = [-size.length, 0];
+        if (shape === "tee") {
+            along = [0, 0];
+        } else if (shape === "other:x") {
+            along = [-size.length / 2, size.length / 2];
+        }
+        const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+        const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+        const corners = along.flatMap((u) =>
+            [-half, half].map((v) => [tip.x + u * cos - v * sin, tip.y + u * sin + v * cos]),
+        );
+        const xs = corners.map((c) => c[0]);
+        const ys = corners.map((c) => c[1]);
+        return [{ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }];
+    });
 }
 
 /**

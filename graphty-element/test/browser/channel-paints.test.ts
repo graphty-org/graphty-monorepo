@@ -203,6 +203,9 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "shaderUses":
+            // An empty list draws the plain look on every build.
+            return [];
         default:
             return undefined;
     }

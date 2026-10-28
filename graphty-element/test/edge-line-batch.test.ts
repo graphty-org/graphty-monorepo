@@ -300,4 +300,85 @@ describe("EdgeLineBatch", () => {
             );
         });
     });
+
+    describe("widened lines (a shader or a taper)", () => {
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        function widened(): EdgeLineBatch {
+            const mesh = CustomLineRenderer.createJoinedLineMesh(
+                { width: 0.2, color: "#336699", worldWidth: true, widened: true },
+                scene,
+            );
+            return new EdgeLineBatch(mesh, scene);
+        }
+
+        test("a widened slot carries the whole edge's length beside the plain fourteen floats", () => {
+            const drawn = widened();
+            const slots = [drawn.acquire(), drawn.acquire()];
+            drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0]);
+            const data = (drawn as unknown as { slots: Float32Array }).slots;
+
+            assert.isTrue(drawn.widened);
+            assert.strictEqual(data[14], 7, "the first piece knows the edge is 7 long");
+            assert.strictEqual(data[16 + 14], 7, "and so does the second");
+            assert.isNotNull(drawn.mesh.getVertexBuffer("runTotal"));
+            assert.isNotNull(drawn.mesh.getVertexBuffer("edgeMeta"), "the static values are instanced attributes");
+        });
+
+        test("static values upload with the next frame and not again when the edge only moves", () => {
+            const drawn = widened();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+            const values = Float32Array.from({ length: 20 }, (_, i) => i);
+            drawn.writeStatic(slot, values);
+            const uploaded: number[] = [];
+            vi.spyOn(Buffer.prototype, "update").mockImplementation(function (this: Buffer, data) {
+                uploaded.push((data as Float32Array).length);
+            });
+
+            scene.render();
+            assert.lengthOf(uploaded, 2, "the frame uploads the positions and the static values");
+            assert.deepEqual([...(drawn.staticOf(slot) ?? [])], [...values]);
+
+            uploaded.length = 0;
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(5, 0, 0));
+            scene.render();
+            assert.lengthOf(uploaded, 1, "a moved edge uploads its positions only");
+        });
+
+        /**
+         * 10,000 PLAIN EDGES UPLOAD THE SAME BYTES PER FRAME AS BEFORE (design/rendering/
+         * shader-styles.md, package E5). A plain line batch must not grow a float or a buffer for
+         * the shaders other batches draw: its slot stays fourteen floats and a frame uploads one
+         * buffer of them.
+         */
+        test("10,000 plain edges upload fourteen floats a slot in one buffer, as before", () => {
+            const drawn = joined();
+            const uploaded: number[] = [];
+            vi.spyOn(Buffer.prototype, "update").mockImplementation(function (this: Buffer, data) {
+                uploaded.push((data as Float32Array).byteLength);
+            });
+            for (let i = 0; i < 10_000; i++) {
+                drawn.place(drawn.acquire(), new Vector3(i, 0, 0), new Vector3(i, 1, 0));
+            }
+
+            drawn.writeStatic(0, new Float32Array(20));
+            scene.render();
+            assert.isFalse(drawn.widened);
+            assert.isNull(drawn.staticOf(0), "a plain batch keeps no static values");
+            assert.notExists(drawn.mesh.getVertexBuffer("runTotal"));
+            assert.lengthOf(uploaded, 1, "one buffer a frame");
+            // The slots double from 32, so 10,000 edges sit in 16,384 slots of 14 floats.
+            assert.strictEqual(uploaded[0], 16_384 * 14 * 4);
+        });
+
+        function joined(): EdgeLineBatch {
+            return new EdgeLineBatch(
+                CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", worldWidth: true }, scene),
+                scene,
+            );
+        }
+    });
 });

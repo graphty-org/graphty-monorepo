@@ -85,6 +85,8 @@ export type {
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How nodes travel to a new layout, as `session.config.set({ layoutTransition })` takes it
+    LayoutTransitionConfig,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
     LocationSourceFact,
@@ -135,6 +137,7 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
+export type { RenderQuality, RenderQualityChange, RenderQualityCode, ShaderSettings } from "./src/session/shaders";
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 // Which experiments an element switched on (element.enabledFeatures)
 export type { FeatureId } from "./src/features/registry";
@@ -163,7 +166,7 @@ export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./sr
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
-export type { ElementAtResult } from "./src/catalog/types";
+export type { DrawnShaders, ElementAtResult, GroupOutlineAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -274,6 +277,7 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 
 // =============================================================================
 // Events

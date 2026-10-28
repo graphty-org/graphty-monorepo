@@ -20,11 +20,14 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
+import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -414,6 +417,47 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Lend the scene's node shader drawing the bulk repaint, so nodes waking on a shader that
+     * became drawable are rebuilt together rather than one dispose at a time.
+     */
+    private lendShaderRepaint(): void {
+        NodeShaderDrawing.lendRepaint(this.graphContext.getScene(), (nodes) => {
+            this.repaintNodes(nodes as readonly Node[]);
+        });
+        // An edge drawn again because a shader became drawable takes new slots, which only an
+        // edge walk places.
+        EdgeShaderDrawing.lendWalk(this.graphContext.getScene(), () => {
+            this.forceEdgeWalk();
+        });
+    }
+
+    /**
+     * Draw nodes again from the paints the session holds for them, as a style pass does: every
+     * mesh about to be rebuilt disposed together first, the edges of the resized nodes found in
+     * one walk. For a change the style stack did not make -- a shader a node names became drawable.
+     * @param nodes - The nodes.
+     * @internal
+     */
+    repaintNodes(nodes: readonly Node[]): void {
+        const painter = this.graphContext.getStylePainter?.();
+        if (painter?.owns !== true) {
+            return;
+        }
+
+        const painted: [Node, NodePaint][] = [];
+        for (const node of nodes) {
+            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            if (paint !== null) {
+                painted.push([node, paint]);
+            }
+        }
+
+        this.paintNodes(painted);
+        this.graphContext.getMeshCache().prune();
+        this.sceneChanged = true;
+    }
+
+    /**
      * Follows the graph onto the scene and camera of the renderer chosen at init, which replace
      * the ones this manager was built with. The old scene is disposed, and its watcher with it.
      * @param camera - The new scene's camera manager.
@@ -435,6 +479,7 @@ export class UpdateManager implements Manager {
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
+        this.lendShaderRepaint();
     }
 
     /**
@@ -1162,7 +1207,8 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
-     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     * annotation, painted onto its texture when the image arrives (issue #3383), or a background tinted by group
+     * outlines laid out after it drew (issue #4243). Null when nothing loads that way.
      */
     picturesLoading: (() => boolean) | null = null;
 
@@ -1309,7 +1355,7 @@ export class UpdateManager implements Manager {
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        if (this.layoutIsMoving()) {
+        if (this.layoutIsMoving() || transitionsOf(this.layoutManager)?.active === true) {
             return false;
         }
 
@@ -1489,8 +1535,12 @@ export class UpdateManager implements Manager {
             this.drawnFrameIsFinished = false;
         }
 
+        // One clock reading for the whole pass, so every node of a layout transition is placed at
+        // the same moment; the move ends after the pass that placed its last frame.
+        const transitions = transitionsOf(this.layoutManager);
+        transitions?.beginPass();
         this.runUpdatePass(frameMs);
-        this.refreshScreenBorders();
+        transitions?.endPass();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         if (this.sizeNodesForDepth()) {
@@ -1500,6 +1550,7 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.updateEdges();
         }
+        this.refreshScreenBorders();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1636,12 +1687,19 @@ export class UpdateManager implements Manager {
             // 1. Update edges (for manual node dragging)
             // 2. Handle zoom if requested
 
+            // A layout transition keeps moving the nodes after the layout itself has finished.
+            if (transitionsOf(this.layoutManager)?.active === true) {
+                this.updateNodes();
+            }
+
             // Always update edges to handle manual node dragging
             // Edges have built-in dirty tracking, so they won't do unnecessary work
             this.updateEdges();
+            this.frameTransition();
 
-            // Handle zoom to fit if requested
-            if (this.willZoomToFit()) {
+            // Handle zoom to fit if requested; a running transition frames where it lands, once
+            // it has landed, rather than the moving picture.
+            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.active !== true) {
                 this.updateNodes();
                 this.updateEdges();
 
@@ -1668,9 +1726,10 @@ export class UpdateManager implements Manager {
         // Update nodes and edges
         this.updateNodes();
         this.updateEdges();
+        this.frameTransition();
 
         // Handle zoom to fit if needed
-        if (framing) {
+        if (framing && transitionsOf(this.layoutManager)?.active !== true) {
             this.applyZoomToFit(this.measure());
         }
 
@@ -1873,6 +1932,30 @@ export class UpdateManager implements Manager {
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
+
+    /** Set while a layout transition runs with a framing owed: the camera follows the move. */
+    private framingTransition = false;
+
+    /**
+     * While a layout transition moves the nodes and the camera owes a framing, frame the move
+     * every frame: the old layout's box eased into the new one's, grown to take in every node on
+     * its way. The request itself is left for the frame after the move, which then frames the
+     * same box it ended on, so the camera never jumps when the move ends.
+     */
+    private frameTransition(): void {
+        const transitions = transitionsOf(this.layoutManager);
+        if (transitions?.active !== true) {
+            this.framingTransition = false;
+            return;
+        }
+
+        this.framingTransition ||= this.willZoomToFit();
+        const box = this.framingTransition ? this.measure() : undefined;
+        if (box !== undefined) {
+            const { min, max } = transitions.framing(box);
+            this.camera.zoomToBoundingBox(new Vector3(min.x, min.y, min.z), new Vector3(max.x, max.y, max.z));
+        }
     }
 
     /**

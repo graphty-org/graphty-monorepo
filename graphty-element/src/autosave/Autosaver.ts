@@ -304,6 +304,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "views":
             case "notes":
             case "attributes":
+            case "shaders":
                 tags.push("rest");
                 break;
             default:
@@ -728,6 +729,9 @@ export class Autosaver {
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
         const own = metas.find((meta) => meta.id === options.own);
+        // The first candidate another tab claimed after the listing: two pages opened on one key
+        // at once both list it unheld, and only one claim succeeds (#4148).
+        let taken: AutosaveEntryMeta | null = null;
         for (const meta of restoreCandidates(open, own)) {
             const problem = unrestorable(meta);
             if (problem !== null) {
@@ -740,13 +744,39 @@ export class Autosaver {
                 return null;
             }
 
-            const restored = await this.#restoreFrom(meta, meta === own && live(meta), metas, live);
-            if (restored !== "next") {
+            const restored = await this.#restoreCandidate(meta, meta === own, metas, live);
+            if (restored === "taken") {
+                taken ??= meta;
+            } else if (restored !== "next") {
                 return restored;
             }
         }
 
+        // A page that lost every claim is told, as when the listing already showed the entry held.
+        if (taken !== null) {
+            this.#available(taken, true, "held-by-other-tab", null);
+        }
+
         return null;
+    }
+
+    /**
+     * Restore one candidate at the start. This tab's own entry that another tab claimed after the
+     * listing is copied, as it is when the listing shows it held.
+     * @param meta - The candidate, as listed.
+     * @param isOwn - It is this tab's own entry.
+     * @param metas - Every entry of the key, as listed.
+     * @param live - Whether a tab held an entry at the listing.
+     * @returns What `#restoreFrom` returns.
+     */
+    async #restoreCandidate(
+        meta: AutosaveEntryMeta,
+        isOwn: boolean,
+        metas: readonly AutosaveEntryMeta[],
+        live: (meta: AutosaveEntryMeta) => boolean,
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
+        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live);
+        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live) : restored;
     }
 
     /**
@@ -1091,7 +1121,7 @@ export class Autosaver {
             ({ problem } = available);
         });
         this.#boundary();
-        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next";
+        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next" | "taken";
         try {
             restored = await this.#restoreFrom(meta, false, metas, live);
         } finally {
@@ -1099,7 +1129,7 @@ export class Autosaver {
         }
 
         const failed = problem as AutosaveAvailable["problem"];
-        if (restored === "next" && failed === null) {
+        if (restored === "taken" || (restored === "next" && failed === null)) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
         }
@@ -1332,20 +1362,21 @@ export class Autosaver {
      * @param copy - Copy it into a new entry instead of claiming it.
      * @param metas - Every entry of the key, as listed.
      * @param live - Whether a tab holds an entry.
-     * @returns What was restored; null when opening failed; `"next"` to try the next candidate.
+     * @returns What was restored; null when opening failed; `"next"` to try the next candidate;
+     *   `"taken"` when another tab holds its lock.
      */
     async #restoreFrom(
         meta: AutosaveEntryMeta,
         copy: boolean,
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
-    ): Promise<AutosaveRestored | null | "next"> {
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
         let release: (() => void) | null = null;
         if (!copy) {
-            // Atomic: of two tabs loading at once, one gets it and the other tries the next.
+            // Atomic: of two tabs loading at once, one gets it and the other is told.
             release = await this.#locks.claim(lockName(this.#key, meta.id));
             if (release === null) {
-                return "next";
+                return "taken";
             }
         }
 

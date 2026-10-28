@@ -4,6 +4,7 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
+import { fixedParamsOf, type ShaderParams, type ShaderUse, timingOf } from "./catalog/shaders";
 import {
     type AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -20,7 +21,9 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
+import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
@@ -36,6 +39,8 @@ import {
     fanSlot,
     fileRoute,
     greatCircleArc,
+    interiorOutside,
+    liftRoute,
     loopTeardrop,
     parseBends,
     parsePort,
@@ -47,13 +52,16 @@ import {
     surfaceReach,
     type Xyz,
 } from "./meshes/edgeRoute";
+import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
+import { placeOfUse } from "./session/styles/channels";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -174,6 +182,118 @@ interface EdgeOpts {
     metadata?: object;
 }
 
+/** Most uses along one edge drawn at once; past it the highest are kept. */
+const ALONG_CAP = 4;
+
+/**
+ * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
+ * `edge.shaders`.
+ * @param style - The resolved style.
+ * @returns The uses, or undefined when no layer wrote any.
+ */
+function shaderUsesOf(style: EdgeStyleConfig | null): readonly ShaderUse[] | undefined {
+    return style === null ? undefined : (style as EdgeStyleConfig & { shaders?: readonly ShaderUse[] }).shaders;
+}
+
+/**
+ * The edge's `paint` use: the last one, which the resolution leaves alone.
+ * @param style - The resolved style.
+ * @returns The use, or undefined for none.
+ */
+function paintUseOf(style: EdgeStyleConfig | null): ShaderUse | undefined {
+    const paints = (shaderUsesOf(style) ?? []).filter((use) => use.off !== true && placeOfUse(use) === "paint");
+    return paints.at(-1);
+}
+
+/**
+ * The edge surface a style names, or null for none.
+ * @param style - The resolved style.
+ * @returns The id.
+ */
+function surfaceOf(style: EdgeStyleConfig | null): string | null {
+    return paintUseOf(style)?.shader ?? null;
+}
+
+/**
+ * The uses along an edge, keyed by shader and how many uses of it come before, at most
+ * {@link ALONG_CAP}, the highest kept.
+ * @param style - The resolved style.
+ * @returns The shader id and fixed parameters of each, by key.
+ */
+function alongUsesOf(
+    style: EdgeStyleConfig,
+): readonly (readonly [string, { readonly id: string; readonly params: ShaderParams | undefined }])[] {
+    const along = (shaderUsesOf(style) ?? []).filter((use) => use.off !== true && placeOfUse(use) === "along");
+    const seen = new Map<string, number>();
+    return along.slice(Math.max(0, along.length - ALONG_CAP)).map((use) => {
+        const nth = seen.get(use.shader) ?? 0;
+        seen.set(use.shader, nth + 1);
+        return [`${use.shader}|${String(nth)}`, { id: use.shader, params: fixedParamsOf(use.params) }] as const;
+    });
+}
+
+/**
+ * The taper a style asks for: the width at the target over the width at the source.
+ * @param style - The resolved style.
+ * @returns The taper, 1 for none.
+ */
+function taperOf(style: EdgeStyleConfig | null): number {
+    const taper = style?.line?.taper;
+    return typeof taper === "number" && Number.isFinite(taper) ? Math.min(Math.max(taper, 0), 4) : 1;
+}
+
+/**
+ * What a style asks the line to be drawn with beyond its plain look, as the key the line was
+ * built for: a surface, a taper, or nothing.
+ * @param style - The resolved style.
+ * @returns `"surface:<id>"`, `"taper"` or `"plain"`.
+ */
+function flavorOf(style: EdgeStyleConfig | null): string {
+    const surface = surfaceOf(style);
+    if (surface !== null) {
+        return `surface:${surface}`;
+    }
+
+    return taperOf(style) === 1 ? "plain" : "taper";
+}
+
+/**
+ * A stable 0..1 random per edge id.
+ * @param id - The edge id.
+ * @returns The seed.
+ */
+function edgeSeedOf(id: string): number {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < id.length; i++) {
+        hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193); // NOSONAR(S7758): FNV-1a over UTF-16 code units; codePointAt would change the seed of an id outside the BMP
+    }
+
+    return (hash >>> 0) / 0xffffffff;
+}
+
+/** One effect an edge draws: its batch, the slots of its run, and their static values. */
+interface EffectRun {
+    readonly batch: EdgeEffectBatch;
+    readonly slots: number[];
+    values: Float32Array;
+    /** The loop's speed on this edge, 0 still. */
+    speed: number;
+    /** The entered stamp, scene time, or EDGE_NEVER at rest. */
+    readonly entered: number;
+}
+
+/**
+ * A batch's loop speed setter, when it draws a shader.
+ * @param batch - The batch.
+ * @returns The batch as a shader batch, or null for a plain line.
+ */
+function shaded(batch: EdgeLineBatch | null): ShadedEdgeBatch | null {
+    return batch !== null && "setSpeed" in batch ? (batch as ShadedEdgeBatch) : null;
+}
+
+/** Per scene, the frame the lift rule was last read in and its answer; see `Edge.liftDrawn`. */
+const liftRule = new WeakMap<object, { frame: number; draws: boolean }>();
+
 /** Writes an edge's row; see {@link placeEdgeRow}. */
 let writeEdgeRow: (edge: Edge, row: number) => void;
 
@@ -269,6 +389,7 @@ export class Edge {
         };
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
+            edge.shaderDataChanged();
         };
     }
     dstNode: Node;
@@ -412,6 +533,43 @@ export class Edge {
 
     /** The node gaps (`line.nodeGap`, `sourceNodeGap`, `targetNodeGap`) the ends were last placed with. */
     private drawnNodeGap?: string;
+
+    /**
+     * What the line was last asked to be drawn with beyond its plain look (`flavorOf`): a paint
+     * that asks for something else rebuilds the line. A surface that cannot draw yet is drawn
+     * plainly and asked for again when it can ({@link Edge.refreshShaderPaint}).
+     */
+    private lineWanted = "plain";
+
+    /** What the line was built with: the flavor asked for, or `"plain"` while a surface cannot draw. */
+    private lineBuilt = "plain";
+
+    /**
+     * The static values the line's slots carry in a widened batch (a surface or a taper), written
+     * on a repaint and into each slot a run takes; null for a plain batch.
+     */
+    private lineStatic: Float32Array | null = null;
+
+    /** The entered stamp of the line's surface, scene time, or EDGE_NEVER at rest. */
+    private surfaceEntered = EDGE_NEVER;
+
+    /** The surface {@link Edge.surfaceEntered} was decided for. */
+    private surfaceEnteredFor: string | null = null;
+
+    /** The loop speed of the line's surface on this edge, 0 still. */
+    private lineSpeed = 0;
+
+    /** Each edge effect this edge draws, by id, in the order they draw. */
+    private readonly effectRuns = new Map<string, EffectRun>();
+
+    /** Whether the line is drawn lifted out of a flat layout's plane now (`edge.lift`): a run of slots. */
+    private lifted = false;
+
+    /** When something last happened to this edge that a shader's entrance plays for, by `performance.now()`. */
+    private causedAt = Number.NEGATIVE_INFINITY;
+
+    /** When this edge's data last changed, scene time, or EDGE_NEVER. */
+    private changedStamp = EDGE_NEVER;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -591,7 +749,7 @@ export class Edge {
         const batch = this.lineBatch;
         const last = this.lineSlots.at(-1);
 
-        if (batch === null || !(this.lineIsCurve || this.bundled) || last === undefined) {
+        if (batch === null || !(this.lineIsCurve || this.bundled || this.lifted) || last === undefined) {
             return null;
         }
 
@@ -599,6 +757,25 @@ export class Edge {
         points.push(batch.endsOf(last)[1]);
 
         return points;
+    }
+
+    /**
+     * The edge effects this edge draws, each with the points its run of pieces is placed through,
+     * in the order they draw: the same points as the line's, so an effect follows a straight,
+     * curved, bent or lifted route. Read like {@link Edge.drawnCurve}, from the slots.
+     * @returns One entry per effect drawn.
+     */
+    get drawnEffects(): { id: string; points: Vector3[] }[] {
+        return [...this.effectRuns.values()].flatMap((run) => {
+            const last = run.slots.at(-1);
+            if (run.batch.disposed || last === undefined) {
+                return [];
+            }
+
+            const points = run.slots.map((slot) => run.batch.endsOf(slot)[0]);
+            points.push(run.batch.endsOf(last)[1]);
+            return [{ id: run.batch.shader.id, points }];
+        });
     }
 
     /**
@@ -724,6 +901,11 @@ export class Edge {
         // create mesh
         const { style } = paint;
         this.drawnStyle = style;
+
+        // An edge arriving in a graph already drawing edge shaders plays the entrances it starts with.
+        if (EdgeShaderDrawing.peek(this.context.getScene()) !== undefined) {
+            this.causedAt = performance.now();
+        }
 
         // create arrow mesh if needed
         this.arrowCap = EdgeMesh.createArrowHead(
@@ -855,7 +1037,15 @@ export class Edge {
 
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
-        const bent = this.placeLine(src, dst, lnk.bends);
+        const lift = this.liftDrawn();
+        this.lifted = lift !== 0 && this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
+        let bent = this.lifted;
+        if (this.lifted && this.lineBatch) {
+            this.bundled = false;
+            this.placeLifted(this.lineBatch, src, dst, lift);
+        } else {
+            bent = this.placeLine(src, dst, lnk.bends);
+        }
 
         // Update label position if exists
         if (this.label) {
@@ -1062,6 +1252,7 @@ export class Edge {
     private paintMarked(paint: EdgePaint): void {
         this.paintFrom(paint.meshKey, paint.style);
         this.paintHalo(paint.style);
+        this.syncShading(paint.style);
 
         const hidden = paint.style.visible === false;
         if (hidden !== this.styleHidden) {
@@ -1178,11 +1369,17 @@ export class Edge {
         // The bends are a `content` channel and key no mesh, but a dashed or dotted line that gains
         // or loses its bends moves between pattern elements and a joined line in a batch
         // (`EdgeMesh.drawsAsPattern`), which is a different mesh.
+        // A surface draws as a solid joined line whatever the pattern, once it can draw.
+        const asSurface = surfaceOf(style) !== null && this.lineBuilt === flavorOf(style);
         const wantsPattern =
             (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
-            EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode);
+            EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
+            !asSurface;
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
-        const sameGeometry = sameRoute && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
+        // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
+        // from a batch of its own, so asking for another one rebuilds the line.
+        const sameFlavor = flavorOf(style) === this.lineWanted;
+        const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
 
         if (sameGeometry && !meshDisposed) {
             this.meshKey = meshKey;
@@ -1268,6 +1465,371 @@ export class Edge {
     }
 
     /**
+     * Bring the line's static values and the edge's effects into line with one resolved style:
+     * the surface's parameters, the taper, the colors and the state each slot carries, and one run
+     * of slots per edge effect. Written on a paint, never because the edge moved.
+     * @param style - The resolved style.
+     */
+    private syncShading(style: EdgeStyleConfig): void {
+        if (this.disposed) {
+            return;
+        }
+
+        const scene = this.context.getScene();
+        const surface = surfaceOf(style);
+        const names = surface !== null || alongUsesOf(style).length > 0;
+        const drawing = names
+            ? EdgeShaderDrawing.of(scene, this.context.getSession?.())
+            : (EdgeShaderDrawing.peek(scene) ?? null);
+
+        const batch = this.lineBatch;
+        if (batch?.widened === true) {
+            this.syncLineShading(style, batch, drawing, surface);
+        } else {
+            this.lineStatic = null;
+            this.surfaceEnteredFor = null;
+        }
+
+        if (drawing !== null) {
+            this.syncEffects(style, drawing);
+        }
+    }
+
+    /**
+     * The line half of {@link Edge.syncShading}, for a widened line batch: play the surface's
+     * entrance when the surface changed, then write the line's static values and speed into every
+     * slot.
+     * @param style - The resolved style.
+     * @param batch - The line batch, widened.
+     * @param drawing - The scene's edge shader drawing, or null when there is none.
+     * @param surface - The surface's id, or null for none.
+     */
+    private syncLineShading(
+        style: EdgeStyleConfig,
+        batch: EdgeLineBatch,
+        drawing: EdgeShaderDrawing | null,
+        surface: string | null,
+    ): void {
+        const shader =
+            surface !== null && this.lineBuilt === `surface:${surface}`
+                ? (drawing?.shader(surface, this) ?? null)
+                : null;
+        if (shader !== null && this.surfaceEnteredFor !== surface && drawing !== null) {
+            const { stamp, untilMs } = drawing.entrance(shader, this.causedAt);
+            this.surfaceEntered = stamp;
+            this.surfaceEnteredFor = surface;
+            for (const slot of this.lineSlots) {
+                shaded(batch)?.playUntil(slot, untilMs);
+            }
+        }
+
+        const look = this.staticLook(style, shader === null ? EDGE_NEVER : this.surfaceEntered);
+        const values = surface === null ? undefined : fixedParamsOf(paintUseOf(style)?.params);
+        this.lineStatic =
+            shader !== null && drawing !== null ? drawing.staticValues(look, shader, values) : edgeStaticValues(look);
+        this.lineSpeed = shader !== null && drawing !== null ? drawing.speedOf(shader, values) : 0;
+        for (const slot of this.lineSlots) {
+            this.prepareLineSlot(slot);
+        }
+    }
+
+    /**
+     * Write the line's static values and speed into one of its slots: every slot on a paint, and
+     * each slot a run takes as it grows.
+     * @param slot - The slot.
+     */
+    private prepareLineSlot(slot: number): void {
+        if (this.lineStatic !== null) {
+            this.lineBatch?.writeStatic(slot, this.lineStatic);
+        }
+
+        shaded(this.lineBatch)?.setSpeed(slot, this.lineSpeed);
+    }
+
+    /**
+     * What every one of this edge's shader slots carries beside its shader's own values.
+     * @param style - The resolved style.
+     * @param entered - The entered stamp of the shader the values are for.
+     * @returns The look.
+     */
+    private staticLook(style: EdgeStyleConfig, entered: number): EdgeStaticLook {
+        const painted = style.line?.color;
+        const { rgb, alpha } = readColor(typeof painted === "string" ? painted : undefined, "#a9a9a9");
+        const color: [number, number, number, number] = [rgb.r, rgb.g, rgb.b, (style.line?.opacity ?? 1) * alpha];
+        let bits = this.selected ? EDGE_STATE_BITS.selected : 0;
+        bits |= this.srcNode.isSelected() ? EDGE_STATE_BITS.sourceSelected : 0;
+        bits |= this.dstNode.isSelected() ? EDGE_STATE_BITS.targetSelected : 0;
+        return {
+            colorA: color,
+            colorB: color,
+            seed: edgeSeedOf(this.id),
+            bits,
+            taper: taperOf(style),
+            times: [entered, EDGE_NEVER, this.changedStamp],
+        };
+    }
+
+    /**
+     * One run of slots per use along the edge (at most four, `alongUsesOf`), each placed with the
+     * line's own points; a use no longer drawn plays its exit, if it has one.
+     * @param style - The resolved style.
+     * @param drawing - The scene's edge shader drawing.
+     */
+    private syncEffects(style: EdgeStyleConfig, drawing: EdgeShaderDrawing): void {
+        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        const wanted = this.isRenderVisible() && width > 0 ? alongUsesOf(style) : [];
+        if (wanted.length === 0 && this.effectRuns.size === 0) {
+            return;
+        }
+
+        const is2D = EdgeMesh.drawsFlat(this.context.getScene());
+        const line = Edge.effectLineOf(style, width, is2D);
+        const kept = new Set<string>();
+        for (const [key, { id, params: values }] of wanted) {
+            const name = `edge-effect|${id}|${String(width)}|${is2D ? "2d" : "3d"}`;
+            const batch = drawing.effectBatch(this, id, this.context.getMeshCache(), name, line);
+            if (batch === null) {
+                continue;
+            }
+
+            kept.add(key);
+            const run = this.effectRunFor(key, batch, drawing);
+            run.values = drawing.staticValues(this.staticLook(style, run.entered), batch.shader, values);
+            run.speed = drawing.speedOf(batch.shader, values);
+            for (const slot of run.slots) {
+                batch.writeStatic(slot, run.values);
+                batch.setSpeed(slot, run.speed);
+            }
+        }
+
+        for (const [id, run] of [...this.effectRuns]) {
+            if (!kept.has(id)) {
+                this.releaseEffect(id, run, true);
+            }
+        }
+    }
+
+    /**
+     * The line an edge effect's batch is drawn along: the edge's width in the units of the view,
+     * its painted color (dark gray when none is painted) and its opacity.
+     * @param style - The resolved style.
+     * @param width - The line's width as painted.
+     * @param is2D - Whether the scene draws flat.
+     * @returns The line facts the batch is keyed and drawn by.
+     */
+    private static effectLineOf(
+        style: EdgeStyleConfig,
+        width: number,
+        is2D: boolean,
+    ): { width: number; worldWidth: boolean; color: string; opacity: number } {
+        const painted = style.line?.color;
+        return {
+            width: is2D ? width / 40 : width * 20,
+            worldWidth: is2D,
+            color: typeof painted === "string" ? painted : "#a9a9a9",
+            opacity: style.line?.opacity ?? 1,
+        };
+    }
+
+    /**
+     * The run that draws one effect with one batch: the edge's current run when it still draws with
+     * that batch, else a new run of one slot that plays the effect's entrance (an old run on another
+     * or a disposed batch is released at once, without its exit).
+     * @param id - The effect's id.
+     * @param batch - The batch the effect draws with now.
+     * @param drawing - The scene's edge shader drawing.
+     * @returns The run.
+     */
+    private effectRunFor(id: string, batch: EffectRun["batch"], drawing: EdgeShaderDrawing): EffectRun {
+        const run = this.effectRuns.get(id);
+        if (run?.batch === batch && !batch.disposed) {
+            return run;
+        }
+
+        if (run !== undefined) {
+            this.releaseEffect(id, run, false);
+        }
+
+        const { stamp, untilMs } = drawing.entrance(batch.shader, this.causedAt);
+        const slot = batch.acquire();
+        if (untilMs > 0) {
+            batch.playUntil(slot, untilMs);
+        }
+
+        const created: EffectRun = { batch, slots: [slot], values: new Float32Array(0), speed: 0, entered: stamp };
+        this.effectRuns.set(id, created);
+        // The run has no place until the next update puts it on the line.
+        this.invalidatePositionCache();
+        return created;
+    }
+
+    /**
+     * Stop drawing one effect: at once, or, when it declares an exit and `exit` is asked for,
+     * after the exit plays (at most a second), with its slots no longer placed.
+     * @param id - The effect's id.
+     * @param run - Its run.
+     * @param exit - Whether to play its exit.
+     */
+    private releaseEffect(id: string, run: EffectRun, exit: boolean): void {
+        this.effectRuns.delete(id);
+        if (run.batch.disposed) {
+            return;
+        }
+
+        const seconds = exit ? Math.min(timingOf(run.batch.shader.registration.descriptor).exit ?? 0, 1) : 0;
+        const drawing = EdgeShaderDrawing.peek(this.context.getScene());
+        if (seconds <= 0 || drawing === undefined) {
+            for (const slot of run.slots) {
+                run.batch.release(slot);
+            }
+
+            return;
+        }
+
+        // The exited stamp, so the effect's sinceExited counts from now.
+        run.values[17] = drawing.now();
+        const ends = performance.now() + seconds * 1000;
+        for (const slot of run.slots) {
+            run.batch.writeStatic(slot, run.values);
+            run.batch.retireAt(slot, ends);
+        }
+    }
+
+    /**
+     * Place every effect's run with the line's points: a run of pieces, or one straight piece.
+     * @param flat - The points, flat x, y, z; two points for a straight line.
+     */
+    private placeEffects(flat: readonly number[]): void {
+        if (this.effectRuns.size === 0) {
+            return;
+        }
+
+        for (const run of this.effectRuns.values()) {
+            if (run.batch.disposed) {
+                continue;
+            }
+
+            this.placeRun(run.batch, run.slots, flat, (slot) => {
+                run.batch.writeStatic(slot, run.values);
+                run.batch.setSpeed(slot, run.speed);
+            });
+        }
+    }
+
+    /**
+     * How far this edge's route rises out of the layout plane now: its `edge.lift`, drawn only for
+     * a flat layout in the 3D view (anywhere else the layer reports `edge.lift-needs-flat-layout`).
+     * @returns The lift in world units, 0 for none.
+     */
+    private liftDrawn(): number {
+        const lift = this.drawnStyle?.line?.lift;
+        if (typeof lift !== "number" || lift === 0 || !Number.isFinite(lift) || this.srcNode === this.dstNode) {
+            return 0;
+        }
+
+        const scene = this.context.getScene();
+        const frame = scene.getFrameId();
+        let rule = liftRule.get(scene);
+        if (rule?.frame !== frame) {
+            const layout = this.context.getSession?.()?.layout;
+            rule = { frame, draws: layout?.dimension === "3d" && layout.arrangedDimension === "2d" };
+            liftRule.set(scene, rule);
+        }
+
+        return rule.draws ? lift : 0;
+    }
+
+    /**
+     * Draw this edge lifted out of its layout plane: its route (through its bends, or curved, or
+     * straight) between the node centers, raised along the plane's normal as an arc, then trimmed
+     * at the node surfaces and for its arrow caps like a bent edge, so the caps, the label, the
+     * band, the effects and picking all follow the lifted route.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param lift - How far the middle rises.
+     */
+    private placeLifted(batch: EdgeLineBatch, src: Vector3, dst: Vector3, lift: number): void {
+        const bezier = this.drawnStyle?.line?.bezier === true;
+        const stored = this.lineRoute;
+        let base: number[];
+        if (stored === null) {
+            base = bezier ? EdgeMesh.createBezierLine(src, dst) : [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+        } else {
+            base = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        }
+
+        const reach = (node: Node): number => {
+            const half = node.drawnHalfExtents;
+            return (node.roundRadius ?? Math.max(half.x, half.y, half.z)) + node.borderReach;
+        };
+        const mid = interiorOutside(liftRoute(base, lift), reach(this.srcNode), reach(this.dstNode));
+        if (mid.length === 0) {
+            const { srcPoint, dstPoint } = this.transformArrowCap();
+            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
+            return;
+        }
+
+        this.placeThrough(batch, src, dst, mid, bezier && stored !== null);
+    }
+
+    /**
+     * Draw this edge's line from the paint it holds again: a shader it names can draw now, or can
+     * no longer draw. Asks for the line to be rebuilt even when the paint did not change.
+     * @internal
+     */
+    refreshShaderPaint(): void {
+        const paint = this.sessionPaint;
+        if (this.disposed || paint === null) {
+            return;
+        }
+
+        // The line is rebuilt only when what it can be drawn with changed: a surface that can draw
+        // now, or one it is drawn with that can no longer draw. An effect is added by the paint.
+        const surface = surfaceOf(this.drawnStyle);
+        const drawable =
+            surface !== null &&
+            (EdgeShaderDrawing.peek(this.context.getScene())?.shader(surface, this) ?? null) !== null;
+        if (flavorOf(this.drawnStyle) !== this.lineBuilt || (this.lineBuilt.startsWith("surface:") && !drawable)) {
+            this.lineWanted = "";
+        }
+
+        this.paintMarked(paint);
+    }
+
+    /**
+     * This edge's data changed: stamp the time its shaders read as `sinceChanged`, and play the
+     * entrance of a shader it starts carrying now.
+     * @internal
+     */
+    shaderDataChanged(): void {
+        const drawing = EdgeShaderDrawing.peek(this.context.getScene());
+        if (drawing === undefined || this.disposed) {
+            return;
+        }
+
+        this.causedAt = performance.now();
+        this.changedStamp = drawing.now();
+        const style = this.drawnStyle;
+        if (style !== null && (this.lineStatic !== null || this.effectRuns.size > 0)) {
+            this.syncShading(style);
+            const seconds = (batch: EdgeLineBatch | null): number => {
+                return timingOf(shaded(batch)?.shader.registration.descriptor).change ?? 0;
+            };
+            const play = (batch: EdgeLineBatch | null, slots: readonly number[]): void => {
+                const change = seconds(batch);
+                for (const slot of change > 0 ? slots : []) {
+                    shaded(batch)?.playUntil(slot, performance.now() + change * 1000);
+                }
+            };
+            play(this.lineBatch, this.lineSlots);
+            for (const run of this.effectRuns.values()) {
+                play(run.batch, run.slots);
+            }
+        }
+    }
+
+    /**
      * Build this edge's line, as a slot in a shared batch when the style allows one and as a mesh
      * of this edge's own otherwise.
      *
@@ -1292,11 +1854,15 @@ export class Edge {
         const drawnStyle =
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
-        this.lineBatch = EdgeMesh.lineBatch(
+        this.lineWanted = flavorOf(style);
+        this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
+        this.lineBuilt = this.lineBatch === null ? "plain" : this.lineWanted;
+        this.lineBatch ??= EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             options,
             drawnStyle,
             this.context.getScene(),
+            false,
             this.srcNode === this.dstNode,
         );
 
@@ -1304,6 +1870,7 @@ export class Edge {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
             this.lineSlots = [this.lineBatch.acquire()];
+            this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
             this.createGradient(meshKey, drawnStyle);
 
@@ -1315,6 +1882,59 @@ export class Edge {
         }
 
         return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
+    }
+
+    /**
+     * The batch a line with a surface or a taper is drawn from, or null for the plain line's.
+     *
+     * A SURFACE replaces the line's pattern (`edge.style`), so its line is a solid joined line
+     * drawn with the surface's program; until the surface can draw (resolving, compiling, held,
+     * failed) the line is drawn as the layers beneath paint it, and the drawing asks for this edge
+     * again once it can. A TAPER is the plain line's own program, widened to read the taper; a
+     * line drawn as separate pattern elements does not taper.
+     * @param meshKey - Which appearance the edge is drawn with.
+     * @param style - The resolved style.
+     * @param options - The line's width and color.
+     * @param options.width - The width.
+     * @param options.color - The color.
+     * @param options.styleId - The appearance's key, which names the batch.
+     * @returns The batch, or null.
+     */
+    private shadedLineBatch(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        options: { styleId: string; width: number; color: string },
+    ): EdgeLineBatch | null {
+        const scene = this.context.getScene();
+        const cache = this.context.getMeshCache();
+        const surface = surfaceOf(style);
+        if (surface !== null) {
+            const drawing = EdgeShaderDrawing.of(scene, this.context.getSession?.());
+            const is2D = EdgeMesh.drawsFlat(scene);
+            const opacity = style.line?.opacity ?? 1;
+            const batch = drawing?.surfaceBatch(
+                this,
+                surface,
+                cache,
+                `edge-surface|${surface}|${meshKey}|${is2D ? "2d" : "3d"}`,
+                {
+                    width: is2D ? options.width / 40 : options.width * 20,
+                    worldWidth: is2D,
+                    color: options.color,
+                    opacity,
+                },
+            );
+            if (batch) {
+                return batch;
+            }
+        }
+
+        const loop = this.srcNode === this.dstNode;
+        if (taperOf(style) === 1 || EdgeMesh.drawsAsPattern(style, loop)) {
+            return null;
+        }
+
+        return EdgeMesh.lineBatch(cache, options, style, scene, true, loop);
     }
 
     /**
@@ -1593,6 +2213,11 @@ export class Edge {
 
         this.releaseLine();
         this.releaseHalo();
+        // A removed edge is kept drawn only while an effect on it plays its exit; with none, every
+        // slot it held is handed back now and nothing of it is drawn in the next frame.
+        for (const [id, run] of [...this.effectRuns]) {
+            this.releaseEffect(id, run, true);
+        }
 
         if (this.arrowCap && !this.arrowCap.isDisposed()) {
             this.arrowCap.dispose();
@@ -1723,6 +2348,12 @@ export class Edge {
             this.haloBatch?.setDrawn(slot, drawn);
         }
 
+        for (const run of this.effectRuns.values()) {
+            for (const slot of run.slots) {
+                run.batch.setDrawn(slot, drawn);
+            }
+        }
+
         this.setBatchedPiecesDrawn(drawn);
         this.setLineDrawn(drawn);
 
@@ -1802,20 +2433,21 @@ export class Edge {
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
             const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
+            this.placeEffects(curve);
             this.placeOutline(curve);
             this.placeGradient(curve);
         } else if (this.lineBatch) {
-            // A line that was fanned out or looped holds a run: hand back all but its first slot.
-            while (this.lineSlots.length > 1) {
-                const slot = this.lineSlots.pop();
-                if (slot !== undefined) {
-                    this.lineBatch.release(slot);
-                }
+            // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
+            const straight = [srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z];
+            if (this.lineSlots.length > 1) {
+                this.placeRun(this.lineBatch, this.lineSlots, straight);
+            } else {
+                this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
             }
 
-            this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
-            this.placeOutline([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
-            this.placeGradient([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
+            this.placeEffects(straight);
+            this.placeOutline(straight);
+            this.placeGradient(straight);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
@@ -1823,6 +2455,15 @@ export class Edge {
 
         if (this.haloBatch && this.haloIsCurve) {
             this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
+        } else if (this.haloBatch && this.haloSlots.length > 1) {
+            this.placeRun(this.haloBatch, this.haloSlots, [
+                srcPoint.x,
+                srcPoint.y,
+                srcPoint.z,
+                dstPoint.x,
+                dstPoint.y,
+                dstPoint.z,
+            ]);
         } else if (this.haloBatch) {
             // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
             while (this.haloSlots.length > 1) {
@@ -2125,12 +2766,21 @@ export class Edge {
      * @param slots - The run's slots, grown or shrunk in place.
      * @param srcPoint - Where the curve starts.
      * @param dstPoint - Where it ends.
-     * @returns The curve's points, which the line's outline and gradient are placed along too.
+     * @returns The curve's points, which the line's outline, gradient and effects are placed along too.
      */
     private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): number[] {
         const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
         const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
-        this.placeRun(batch, slots, flat);
+        this.placeRun(
+            batch,
+            slots,
+            flat,
+            batch === this.lineBatch
+                ? (slot) => {
+                      this.prepareLineSlot(slot);
+                  }
+                : undefined,
+        );
         return flat;
     }
 
@@ -2139,8 +2789,8 @@ export class Edge {
      * leaves the source node toward the first bend outside it, through the bends, to its target port
      * or to where it meets the target node -- each end trimmed for its arrow cap along its own
      * segment -- with the corners rounded when the line is also curved. Bends inside a node are
-     * passed over, as a tool that clips a line at the outlines draws it. A selected edge's band
-     * follows the same run.
+     * passed over, as a tool that clips a line at the outlines draws it. A selected edge's band and
+     * its effects follow the same run.
      * @param batch - The batch the run is in.
      * @param src - The source node's center.
      * @param dst - The target node's center.
@@ -2211,6 +2861,43 @@ export class Edge {
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
         return true;
+    }
+
+    /**
+     * Draw this edge through points between its nodes: straight segments from where the line
+     * leaves the source node toward the first point, through every point, to where it meets the
+     * target node from the last -- each end trimmed for its arrow cap along its own segment -- with
+     * the corners rounded when asked. A selected edge's band and its effects follow the same run.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param mid - The points, flat x, y, z: at least one.
+     * @param round - Whether to round the corners.
+     */
+    private placeThrough(
+        batch: EdgeLineBatch,
+        src: Vector3,
+        dst: Vector3,
+        mid: readonly number[],
+        round: boolean,
+    ): void {
+        const first = Vector3.FromArray(mid, 0);
+        const last = Vector3.FromArray(mid, mid.length - 3);
+        const start = this.leaveNode(this.srcNode, src, first);
+        const end = this.leaveNode(this.dstNode, dst, last);
+        const path = [start, ...points(mid), end];
+
+        const { arrowCap } = this;
+        if (arrowCap) {
+            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
+        }
+
+        this.placeMidCaps(path);
+
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
+        const lineEnd = this.lineEndBefore(last, end);
+        const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
+        this.placeLineRun(batch, round ? roundCorners(flat) : flat);
     }
 
     /**
@@ -2331,26 +3018,36 @@ export class Edge {
      * @param batch - The batch the run is in.
      * @param slots - The run's slots, grown or shrunk in place.
      * @param flat - The points, flat x, y, z.
+     * @param fresh - Called with each slot the run takes, so a shader batch's slot gets its static
+     *     values and its speed; a plain batch needs nothing.
      */
-    private placeRun(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
-        Edge.placeBand(batch, slots, flat);
+    private placeRun(
+        batch: EdgeLineBatch,
+        slots: number[],
+        flat: readonly number[],
+        fresh?: (slot: number) => void,
+    ): void {
+        Edge.placeBand(batch, slots, flat, fresh);
     }
 
     /**
      * Lay this edge's line along points, and everything drawn along the line with it: its run of
-     * slots, the selection band, the outline, the underlay and overlay bands and the gradient's
-     * pieces.
+     * slots, the selection band, the outline and the underlay and overlay bands, the gradient's
+     * pieces and the effects.
      * @param batch - The line's batch.
      * @param flat - The points, flat x, y, z.
      */
     private placeLineRun(batch: EdgeLineBatch, flat: readonly number[]): void {
-        this.placeRun(batch, this.lineSlots, flat);
+        this.placeRun(batch, this.lineSlots, flat, (slot) => {
+            this.prepareLineSlot(slot);
+        });
         if (this.haloBatch) {
             this.placeRun(this.haloBatch, this.haloSlots, flat);
         }
 
         this.placeOutline(flat);
         this.placeGradient(flat);
+        this.placeEffects(flat);
     }
 
     /**
@@ -2387,6 +3084,7 @@ export class Edge {
                 },
                 solid,
                 scene,
+                false,
                 this.srcNode === this.dstNode,
             );
             if (batch === null) {
@@ -2462,6 +3160,7 @@ export class Edge {
             },
             { ...style, line: { ...style.line, type: outline?.type ?? "solid", opacity, animationSpeed: 0 } },
             scene,
+            false,
             this.srcNode === this.dstNode,
         );
         if (this.outlineBatch === null) {
@@ -2494,14 +3193,23 @@ export class Edge {
      * @param batch - The band's batch.
      * @param slots - Its slots, changed in place.
      * @param flat - The line's points, flat x, y, z.
+     * @param fresh - Called with each slot the run takes, so a shader batch's slot gets its static
+     *     values and its speed; a plain batch needs nothing.
      */
-    private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
+    private static placeBand(
+        batch: EdgeLineBatch,
+        slots: number[],
+        flat: readonly number[],
+        fresh?: (slot: number) => void,
+    ): void {
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
         // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
-            slots.push(batch.acquire());
+            const slot = batch.acquire();
+            slots.push(slot);
+            fresh?.(slot);
         }
 
         while (slots.length > Math.max(1, segments)) {
@@ -2535,6 +3243,7 @@ export class Edge {
                 { styleId: `${meshKey}-${kind}`, width, color: halo?.color ?? "#000000" },
                 { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
                 this.context.getScene(),
+                false,
                 this.srcNode === this.dstNode,
             );
             if (batch === null) {

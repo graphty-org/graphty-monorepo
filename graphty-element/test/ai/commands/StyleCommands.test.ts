@@ -205,6 +205,43 @@ describe("StyleCommands", () => {
         });
     });
 
+    describe("shader text from a model", () => {
+        const TEXT = `/* graphty-shader 1
+{ "id": "user/glow", "name": "Glow" }
+*/
+vec4 shade(NodeInput n) { return n.color * 1.2; }
+`;
+
+        it("adds it as content, held until the reader approves it, and names it on the layer", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                { selector: "", style: { shaderText: TEXT }, layerName: "glowing" },
+                context,
+            );
+
+            assert.strictEqual(result.success, true, result.message);
+            const { shaders } = graph.getSession();
+            assert.strictEqual(shaders.status("user/glow").state, "held");
+            assert.deepEqual(layerNamed("glowing")?.set?.["node.shaders"], [{ shader: "user/glow" }]);
+        });
+
+        it("refuses text that fails the checks, writing nothing", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { shaderText: TEXT.replace("return", "while (true) {} return") },
+                    layerName: "x",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, false);
+            assert.lengthOf(graph.getSession().shaders.list(), 0);
+            assert.isUndefined(layerNamed("x"));
+        });
+    });
+
     describe("findAndStyleEdges", () => {
         it("styles all edges with empty selector", async () => {
             const result = await findAndStyleEdges.execute(

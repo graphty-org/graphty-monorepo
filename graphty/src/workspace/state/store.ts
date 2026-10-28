@@ -186,6 +186,8 @@ export interface WorkspaceState {
     readonly opening: {
         readonly name: string;
         readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
+        /** Where focus goes once it is loaded, when not to the opened graph's heading. */
+        readonly focus?: () => void;
     } | null;
     /**
      * Whether graphty-element keeps the reader's work in the browser (its autosave). The
@@ -345,4 +347,52 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
         return null;
     }
     return kind.alwaysOpenOn ?? remembered[kind.kind] ?? kind.defaultTab ?? kind.tabs[0];
+}
+
+/** The session storage item the reader's place is kept under, for a reload of this tab. */
+const PLACE_ITEM = "app.graphty.workspace.place";
+
+/** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+
+/**
+ * Keeps the reader's place in this tab's session storage while a project is open, so a reload
+ * (or a tab the browser discarded and loaded again) can put it back; forgets it once no project
+ * is open. Presentation state only: the graph is graphty-element's to keep.
+ * @param store - the workspace store.
+ * @returns a function that stops keeping it.
+ */
+export function keepPlace(store: WorkspaceStore): () => void {
+    let last = "";
+    const write = (): void => {
+        const { project, page, place, inspected, tabs, styleSide } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        if (text === last) {
+            return;
+        }
+        last = text;
+        try {
+            if (text === "") {
+                sessionStorage.removeItem(PLACE_ITEM);
+            } else {
+                sessionStorage.setItem(PLACE_ITEM, text);
+            }
+        } catch {
+            // No session storage here: a reload starts on the Graph place.
+        }
+    };
+    return store.subscribe(write);
+}
+
+/**
+ * The place this tab kept before it was reloaded.
+ * @returns the place, or an empty change when none was kept.
+ */
+export function keptPlace(): Partial<KeptPlace> {
+    try {
+        const text = sessionStorage.getItem(PLACE_ITEM);
+        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+    } catch {
+        return {};
+    }
 }

@@ -8233,3 +8233,35 @@ describe("the release policy files release.yml reads", () => {
         }
     });
 });
+
+describe("the Checks job's CI workflow tests run their files side by side", () => {
+    it("runs every listed file at once, prints each file's output whole and in list order, and names the failures", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(
+                new URL("run-ci-workflow-tests.mjs", import.meta.url),
+                join(dir, "tools/run-ci-workflow-tests.mjs"),
+            );
+            // "slow" finishes last but is listed first; "bad" fails; "a.mjs" is listed twice (a union merge)
+            const slow = 'console.log("slow-1"); setTimeout(() => console.log("slow-2"), 300);';
+            writeFileSync(join(dir, "tools/slow.mjs"), slow);
+            writeFileSync(join(dir, "tools/a.mjs"), 'console.log("a-1"); console.log("a-2");');
+            writeFileSync(join(dir, "tools/bad.mjs"), 'console.log("bad-1"); process.exit(3);');
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                "tools/slow.mjs\ntools/a.mjs\n# note\ntools/bad.mjs\ntools/a.mjs\n",
+            );
+            const r = spawnSync(process.execPath, [join(dir, "tools/run-ci-workflow-tests.mjs")], {
+                encoding: "utf8",
+                env: { ...process.env, CI_WORKFLOW_TESTS_JOBS: "3" },
+            });
+            assert.equal(r.status, 1);
+            assert.match(r.stdout, /^slow-1\nslow-2\na-1\na-2\nbad-1\n/);
+            assert.match(r.stdout, /2 of 3 test files passed/);
+            assert.match(r.stdout, /failed:\n {2}tools\/bad\.mjs \(exit 3\)/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});

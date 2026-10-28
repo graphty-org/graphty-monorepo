@@ -1079,6 +1079,7 @@ jobs:
                   path: .
 
             # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
             - name: CI workflow tests
               if: needs.packages.outputs.light != 'true'
               run: pnpm run test:ci-workflows

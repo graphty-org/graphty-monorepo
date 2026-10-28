@@ -409,6 +409,7 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
             encoding: "utf8",
             env: {
                 ...process.env,
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                 PATH: `${dir}:${process.env.PATH}`,
                 GITHUB_OUTPUT: "",
                 LANE: "t4",
@@ -748,6 +749,7 @@ describe("the verdict reads the hold from the store when it decides", () => {
                 stdio: "ignore",
                 env: {
                     ...process.env,
+                    GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                     PATH: `${dir}:${process.env.PATH}`,
                     RESULTS_URL: `http://127.0.0.1:${server.address().port}`,
                     GRAPHTY_RESULTS_TOKEN: "t",
@@ -823,6 +825,7 @@ describe("file-deferred", () => {
             encoding: "utf8",
             env: {
                 ...process.env,
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                 PATH: `${dir}:${process.env.PATH}`,
                 RESULTS_URL: "",
                 HEALTH_API_URL: "",

@@ -2652,10 +2652,13 @@ jobs:
         }).listen(0, "127.0.0.1");
         await new Promise((resolve) => server.once("listening", resolve));
         const dir = mkdtempSync(join(tmpdir(), "nx-probe-"));
+        const groups = [];
         const probe = (url, token) =>
             new Promise((resolve) => {
                 writeFileSync(join(dir, "env"), "");
                 const child = spawn("bash", ["-e", "-c", run], {
+                    cwd: new URL("../", import.meta.url),
+                    detached: true,
                     env: {
                         ...process.env,
                         NX_CACHE_URL: url,
@@ -2663,19 +2666,25 @@ jobs:
                         WRITES: "false",
                         GITHUB_ENV: join(dir, "env"),
                         GITHUB_STEP_SUMMARY: join(dir, "summary"),
+                        RUNNER_TEMP: dir,
                     },
                     stdio: "ignore",
                 });
+                groups.push(child.pid);
                 child.on("close", (code) => resolve({ code, env: readFileSync(join(dir, "env"), "utf8") }));
             });
         try {
             const url = `http://127.0.0.1:${server.address().port}`;
             const on = await probe(url, "good");
             assert.equal(on.code, 0);
-            assert.match(
-                on.env,
-                /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=.+\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/,
-            );
+            // nx is pointed at the timeout proxy (tools/nx-cache-proxy.mjs, #4193), which reaches the Worker.
+            const proxy = /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=(http:\/\/127\.0\.0\.1:\d+)\n/.exec(on.env)?.[1];
+            assert.ok(proxy, on.env);
+            assert.match(on.env, /\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/);
+            const miss = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer good" } });
+            assert.equal(miss.status, 404);
+            const refused = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer wrong" } });
+            assert.equal(refused.status, 401);
             for (const [u, token] of [
                 [url, "wrong"],
                 [url, ""],
@@ -2687,6 +2696,13 @@ jobs:
                 assert.equal(off.env, "", `${u} ${token}: the cache stays off`);
             }
         } finally {
+            for (const pid of groups) {
+                try {
+                    process.kill(-pid);
+                } catch {
+                    // the group already ended
+                }
+            }
             server.close();
             rmSync(dir, { recursive: true, force: true });
         }

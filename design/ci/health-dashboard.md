@@ -428,7 +428,10 @@ logic is unchanged, so a non-gating job still never fails a lane.
   least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
   (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
   run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
-  stopped -- removed or renamed, as Story tests parity was on 2026-10-27 -- and is not judged. Pull
+  stopped -- removed or renamed -- and is not judged. A ci.yml job (run on its own, or called as
+  `CI / ...` by release.yml) that ci.yml on master no longer defines is not judged from the hour the
+  collector reads that ci.yml (Story tests parity, removed on 2026-10-27, stayed red and unfiled for two
+  days before this). Pull
   request runs are left out, CodeQL's scans of a pull request included (its `All Checks Pass` and
   `Queue Checks Pass` jobs fail on every pull request scan): their failures may be their own
   change's, which "Red on the same check" and the failure causes judge. Jobs stored before that

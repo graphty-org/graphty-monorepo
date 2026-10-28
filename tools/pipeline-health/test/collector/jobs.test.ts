@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { GitHub } from "../../src/collector/github.js";
 import {
     chronicJobs,
+    definedJobs,
     isJob,
     jobHistories,
     jobMembers,
@@ -14,7 +15,7 @@ import {
 import { releaseAttempt, type GhJob, type GhRun } from "../../src/collector/parse.js";
 import { DAY, HOUR, type JobItem } from "../../src/model/items.js";
 import { jobFamily } from "../../src/model/metrics.js";
-import { putRaw } from "../../src/model/raw.js";
+import { putRaw, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 
@@ -142,6 +143,25 @@ describe("chronically failing jobs", () => {
         const store = await stored([...pr, ...cancelled, ...sometimes]);
         const { list } = await jobMembers(store, searchGitHub([]).gh, REPO, NOW);
         expect(list).toEqual([]);
+    });
+
+    it("stops judging a ci.yml job once ci.yml no longer defines it, and nothing else", async () => {
+        // CI / Story tests parity (graphty) failed in most full runs until eca39b3b91 removed the job from ci.yml
+        // on 2026-10-27; it stayed on the page as chronic and unfiled until it had gone two days without a run.
+        const ci = readFileSync(new URL("../../../../.github/workflows/ci.yml", import.meta.url), "utf8");
+        const parity = PERF.map(([run, end, c]) => jobItem(run, "CI / Story tests parity (graphty)", end, c));
+        const dependabot = PERF.map(([run, end, c]) =>
+            jobItem(run, "Dependabot", end, c, { workflow: "dependabot-updates", load: "other" }),
+        );
+        const store = await stored([...perfJobs(), ...parity, ...dependabot]);
+        const names = async () => (await jobMembers(store, searchGitHub([]).gh, REPO, NOW)).list.map((j) => j.job);
+        // Before the collector has read ci.yml, every job is judged.
+        expect(await names()).toContain("CI / Story tests parity (graphty)");
+        const withParity = `${ci}\n    story-tests-parity:\n        name: Story tests parity (\${{ matrix.project }})\n`;
+        await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(withParity)), NOW);
+        expect(await names()).toContain("CI / Story tests parity (graphty)");
+        await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(ci)), NOW);
+        expect((await names()).toSorted()).toEqual(["CI / Performance Benchmarks", "Dependabot"]);
     });
 
     it("folds bins and shards into their family", () => {
@@ -280,6 +300,14 @@ describe("non-gating jobs", () => {
         ].join("\n");
         expect(nonGatingJobs(yaml)).toEqual(["perf"]);
         expect(nonGatingJobs(yaml, ["lint"])).toEqual(["Lint", "perf"]);
+    });
+
+    it("lists every job ci.yml defines, by name or id", () => {
+        const jobs = definedJobs(ci);
+        expect(jobs).toContain("Performance Benchmarks");
+        expect(jobs).toContain("Build");
+        expect(jobs).toContain("All Checks Pass");
+        expect(jobs.some((p) => isJob(p, "CI / Story tests parity (graphty)"))).toBe(false);
     });
 
     it("matches a matrix job's name and a called workflow's prefix", () => {

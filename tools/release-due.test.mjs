@@ -7,11 +7,13 @@ import { describe, it } from "node:test";
 import { parse as parseYaml } from "yaml";
 
 import {
+    approvalsIn,
     attemptOf,
     due,
     fixForwardMerges,
     PAID_RETEST_MAX_MS,
     restartDispatch,
+    resumesDue,
     tooOldToRetest,
 } from "./release-due.mjs";
 
@@ -60,5 +62,47 @@ describe("release-due pre-mortem guards", () => {
             .filter((s) => /actions\/upload-artifact/.test(s.uses ?? "") && /matrix\.shard/.test(s.with?.name ?? ""));
         assert.ok(uploads.length >= 5, `found ${uploads.length} per-shard uploads`);
         for (const s of uploads) assert.equal(s.with.overwrite, true, `${s.name} (${s.with.name})`);
+    });
+});
+
+describe("release-due approvals since the last green build", () => {
+    const H = "3ddf13da890926e8fbaaf455b4fa7a14b88541e5";
+    const A = "ec7c3384f9630bc97a23c10b7fda82c98c44d501";
+    const P = "83708329d1d8fa1dac5c36ab6c740ef69aa22aea";
+    const approvalMerge = {
+        approval: P,
+        commits: [
+            { sha: "7510f43c7e", parents: ["ae5c4ce298", P], subject: "Merge pull request #4117 from x/approve" },
+            { sha: P, parents: [A], subject: "test(workspace): approve the visual baselines of the seed" },
+            { sha: A, parents: [H], subject: "test(workspace): approve visual baselines at 3ddf13da8909" },
+        ],
+    };
+    // the build that runs is a later, unrelated merge's: the approval merge's own build was cancelled
+    const unrelated = {
+        approval: "f00d",
+        commits: [
+            { sha: "d6f4798c9b", parents: ["7a70bf3f2c", "f00d"], subject: "Merge pull request #4125 from x/y" },
+            { sha: "f00d", parents: ["beef"], subject: "feat(graphty): something" },
+        ],
+    };
+    const store = { hold: { head: H, issue: 4104 }, recent: [{ sha: H, state: "green-images", runId: 1 }] };
+
+    it("promotes an approval merge whose own build was cancelled, from a later merge's build", () => {
+        const due = resumesDue([unrelated, approvalMerge], store);
+        assert.equal(due.length, 1);
+        assert.equal(due[0].candidate, H);
+        assert.equal(due[0].accept, P);
+        assert.equal(due[0].run, true);
+    });
+
+    it("promotes a candidate once, with its newest approval", () => {
+        const older = { ...approvalMerge, approval: "0ld" };
+        assert.deepEqual(approvalsIn([approvalMerge, unrelated, older]), [{ candidate: H, accept: P }]);
+    });
+
+    it("keeps resumeDecision's refusal of an approval for a head that is not the held one", () => {
+        const due = resumesDue([unrelated, approvalMerge], { ...store, hold: { head: "other", issue: 4104 } });
+        assert.equal(due[0].run, false);
+        assert.equal(due[0].comment, 4104);
     });
 });

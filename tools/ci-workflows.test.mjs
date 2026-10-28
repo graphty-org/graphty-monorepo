@@ -1513,13 +1513,14 @@ describe("ci.yml", () => {
         const approval = "9".repeat(40);
         const merge = { sha: "c".repeat(40), parents: ["d".repeat(40), approval], subject: "Merge pull request #1" };
         const store = (head) => ({ hold: { head, issue: 77 }, recent: [{ sha: h, state: "green-images", runId: 5 }] });
-        assert.deepEqual(releaseResumesDue([merge], store(h), approval), [], "no accept commit, no promotion");
-        const [due] = releaseResumesDue([merge, accept], store(h), approval);
+        const brings = (...commits) => [{ approval, commits }];
+        assert.deepEqual(releaseResumesDue(brings(merge), store(h)), [], "no accept commit, no promotion");
+        const [due] = releaseResumesDue(brings(merge, accept), store(h));
         assert.deepEqual([due.run, due.candidate, due.accept], [true, h, approval]);
-        const [stale] = releaseResumesDue([accept], store("e".repeat(40)), approval);
+        const [stale] = releaseResumesDue(brings(accept), store("e".repeat(40)));
         assert.deepEqual([stale.run, stale.comment], [false, 77]);
         // a store that does not answer dispatches: promote-nightly checks again
-        assert.equal(releaseResumesDue([accept], null, approval)[0].run, true);
+        assert.equal(releaseResumesDue(brings(accept), null)[0].run, true);
     });
 
     it("dispatches the fix forward on a merge named for, or referencing, the hold issue, and only while held", () => {

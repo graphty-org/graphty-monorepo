@@ -1722,6 +1722,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             decorationPieces: READ,
             shapeTextLabels: RENDER,
             isDrawnAsGroup: READ,
+            groupDrawnForAnotherCamera: READ,
         },
     },
     {

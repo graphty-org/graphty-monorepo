@@ -654,6 +654,9 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
             kind: a.kind,
             bbox: { x: a.box.x0, y: a.box.y0, w: a.box.x1 - a.box.x0, h: a.box.y1 - a.box.y0 },
             ...(a.text === undefined ? {} : { text: a.text }),
+            ...(a.heads === undefined
+                ? {}
+                : { heads: a.heads.map((h) => ({ x: h.x0, y: h.y0, w: h.x1 - h.x0, h: h.y1 - h.y0 })) }),
         })),
         background,
         gaps: [...GRAPHTY_GAPS],

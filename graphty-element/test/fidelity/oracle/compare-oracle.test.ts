@@ -1965,12 +1965,15 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.isTrue(r.transform?.unrelatedLayout);
         assert.strictEqual(r.properties["edge.arrowToSpacing"].passRate, 0);
         // a file with no positions, which each side lays out by its own algorithm: where a node sits and how far
-        // apart the nodes are is each program's layout, not the file's, and is not judged; its sizes still are
+        // apart the nodes are is each program's layout, not the file's, and is not judged; its sizes still are, and a
+        // node's size beside the spacing in a wider band, as the size-fitted scale absorbs any size the whole drawing
+        // is drawn at (cx-radiation-bibliography: Cytoscape desktop's labeled boxes drawn as dots)
         const own = compareOracle("t", o, g, null, { ownLayouts: true });
         assert.isTrue(own.transform?.unrelatedLayout);
-        for (const p of ["node.position", "node.sizeToSpacing", "node.sizeToExtent", "edge.arrowToSpacing"] as const) {
+        for (const p of ["node.position", "node.sizeToExtent", "edge.arrowToSpacing"] as const) {
             assert.isNull(own.properties[p].passRate, p);
         }
+        assert.isNotNull(own.properties["node.sizeToSpacing"].passRate);
         assert.strictEqual(own.properties["node.width"].passRate, 1);
         assert.isNotNull(own.properties["edge.arrowLength"].passRate);
         // between related layouts a file with no positions is judged as any other: its program's layout is graphty's
@@ -2025,8 +2028,12 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.strictEqual(r.properties["edge.curve"].passRate, 0, "a bent line against a straight one");
         g.edges = [edge("e1", bowed(0))];
         assert.strictEqual(compareOracle("t", o, g).properties["edge.curve"].passRate, 1);
-        // a file with no positions, each side's own layout: how a line bends is the layout's, not judged
-        assert.isNull(compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"].passRate);
+        // a file with no positions, each side's own layout: how far a line bends is the layout's, not judged line by
+        // line; whether the lines are drawn bent is the program's style, judged over the drawing's share of bent lines
+        const own = compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"];
+        assert.deepEqual([own.n, own.passRate], [1, 1]);
+        g.edges = [edge("e1", bowed(1 / 6))];
+        assert.strictEqual(compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"].passRate, 0);
     });
 
     it("reports a turned frame and a zoomed one instead of fitting them away", () => {

@@ -708,7 +708,8 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "node.sizeToSpacing": ["0","1","10","11","12","13","14","15","16","17","18","19","2","20","21","22","23","3","4","5","6","7","8","9"]
         },
         "cx-repro-unplaced-boxes@matched": {
             "node.present": [],
@@ -30431,7 +30432,7 @@
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
             "edge.label": [],
-            "stray.present": ["image#4","path#0","path#1","path#2","path#3","path#5","path#6","path#7"],
+            "stray.present": ["image#4","image#5","path#0","path#1","path#2","path#3","path#4","path#5","path#6","path#7","path#8"],
             "stray.extra": [],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -30492,7 +30493,7 @@
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
             "edge.label": [],
-            "stray.present": ["image#4","path#0","path#1","path#2","path#3","path#5","path#6","path#7"],
+            "stray.present": ["image#4","image#5","path#0","path#1","path#2","path#3","path#4","path#5","path#6","path#7","path#8"],
             "stray.extra": [],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -30530,7 +30531,7 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.curve": ["1->30#g0","10->19#g0","11->50#g0","13->24#g0","14->18#g0","17->21#g0","18->47#g0","18->49#g0","19->15#g0","19->43#g0","2->35#g0","2->42#g0","24->13#g0","25->27#g0","26->42#g0","3->20#g0","31->25#g0","31->47#g0","32->42#g0","34->23#g0","34->24#g0","36->46#g0","37->26#g0","39->14#g0","4->15#g0","4->17#g0","40->22#g0","40->47#g0","41->8#g0","42->44#g0","5->36#g0","6->28#g0","6->45#g0","7->32#g0","8->16#g0","8->46#g0"],
+            "edge.curve": ["1->30#g0","10->19#g0","11->50#g0","13->24#g0","14->18#g0","17->21#g0","18->47#g0","18->49#g0","19->15#g0","19->43#g0","2->35#g0","2->42#g0","24->13#g0","25->27#g0","26->42#g0","3->20#g0","31->25#g0","31->47#g0","32->42#g0","34->23#g0","34->24#g0","36->46#g0","37->26#g0","39->14#g0","4->15#g0","4->17#g0","40->22#g0","40->47#g0","41->8#g0","42->44#g0","5->36#g0","6->28#g0","6->45#g0","7->32#g0","8->16#g0","8->46#g0","edges"],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -40713,6 +40714,7 @@
         }
     },
     "reasons": [
-        {"date":"2026-10-28","reason":"comparator: at matched positions these curves bend 0.06 against vis-network's 0.05 (route miss 0.14 to 0.19 of a pass), the same with the support points' old and new resting rules","added":{"json-vis-transparency@matched":{"edge.route":["12->36#g0","19->43#g0"],"edge.curve":["19->43#g0"]}},"sources":{"unclassified":3}}
+        {"date":"2026-10-28","reason":"comparator: at matched positions these curves bend 0.06 against vis-network's 0.05 (route miss 0.14 to 0.19 of a pass), the same with the support points' old and new resting rules","added":{"json-vis-transparency@matched":{"edge.route":["12->36#g0","19->43#g0"],"edge.curve":["19->43#g0"]}},"sources":{"unclassified":3}},
+        {"date":"2026-10-28","reason":"comparator round 5 (#4222) judges these now, graphty's drawing unchanged: on own layouts node.sizeToSpacing (cx-repro-unplaced-boxes, Cytoscape desktop's boxes drawn a ninth of their size) and the drawing's share of bent lines, edge.curve on element edges (json-vis-transparency); json-vis-synth's vis arrowheads now read as heads, renumbering the strays after them","added":{"cx-repro-unplaced-boxes":{"node.sizeToSpacing":["0","1","10","11","12","13","14","15","16","17","18","19","2","20","21","22","23","3","4","5","6","7","8","9"]},"json-vis-synth":{"stray.present":["image#5","path#4","path#8"]},"json-vis-synth@matched":{"stray.present":["image#5","path#4","path#8"]},"json-vis-transparency":{"edge.curve":["edges"]}},"sources":{"unclassified":31}}
     ]
 }

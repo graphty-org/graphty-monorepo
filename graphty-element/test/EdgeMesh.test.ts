@@ -238,6 +238,14 @@ describe("EdgeMesh", () => {
             assert.closeTo(Math.max(...zs) - Math.min(...zs), 0.5, 1e-6);
         });
 
+        test("runs a vee's line up to its notch, as Graphviz, Cytoscape.js and vis-network draw it", () => {
+            // Graphviz strokes the vee's shaft from its notch m (0.5) to its back (arrows.c arrow_type_crow0),
+            // Cytoscape.js and vis-network draw the line under the vee to its notch
+            const geometry = EdgeMesh.getArrowGeometry("vee");
+            const end = EdgeMesh.calculateLineEndpoint(new Vector3(0, 0, 0), new Vector3(1, 0, 0), 2, geometry);
+            assert.closeTo(end.x, -1, 1e-9);
+        });
+
         test("creates different arrow for different styleId", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 

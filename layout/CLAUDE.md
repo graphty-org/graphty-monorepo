@@ -49,6 +49,14 @@ In a git worktree under `.worktrees/`, build `webgpu-graph-algorithms` and `grap
 before the root `pnpm run docs:build`. Without their `dist/`, module lookup climbs out of the worktree into the main
 checkout's `node_modules`, and TypeDoc fails on two copies of the graph-format types. CI builds everything first.
 
+## Layout Function Interface
+
+```typescript
+// Layouts in @graphty/layout take a snapshot and return a flat position array:
+type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => LayoutResult;
+// LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
+```
+
 ## Graph generators
 
 Layout has no graph generators since 2.0.0: `@graphty/graph-samples/generators` has them, returning a `SampleGraph`
@@ -230,6 +238,10 @@ Use `assert`, not `expect`, as everywhere else in the package.
 - Tests of the layouts are in `test/layouts/`, by family (geometric, structural, force and Kamada-Kawai)
 - Build test graphs with `fromEdgeArrays` or the `@graphty/graph-samples/generators`
 - All layouts should work with both 2D (`dim: 2`) and 3D (`dim: 3`)
+
+### Test projects
+
+- Single test project (Node.js)
 
 ## Key Design Principles
 

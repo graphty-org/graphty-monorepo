@@ -710,13 +710,13 @@ void main() {
     }
 
     /**
-     * Create a crow arrow mesh (V-shaped) - EXACT COPY OF VEE
+     * Create a crow arrow mesh (crow's foot)
      *
      * Geometry is in XZ plane pointing towards +X axis
      * Uses normalized dimensions - actual sizing handled by shader
-     * V-shape: a triangle whose baseline's middle is pushed half its length toward the tip, the
-     * vee Graphviz (lib/common/arrows.c arrow_type_crow0, its inner corner at 0.5 of the arrow),
-     * Cytoscape.js (vee: (0, -0.15) of a 0.3 arrow) and vis-network (Vee: (-0.5, 0)) draw
+     * Crow's foot: a reversed vee (shared point at the back on the line, corners at the front near
+     * the node) whose inner corner sits 0.6 of the length from the base toward the back, plus a
+     * narrow center prong pointing at the node
      * @param scene - Babylon.js scene
      * @returns Created crow arrow mesh
      */
